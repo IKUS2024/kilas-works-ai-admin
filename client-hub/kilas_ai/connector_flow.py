@@ -213,8 +213,8 @@ def _read(user_id, tool, args, business_id, timezone_name="Asia/Jakarta"):
     raise connectors.ConnectorError("unknown_tool")
 
 
-def _proposal(user_id, tool, args, business_id, user_text=""):
-    if tool == "gmail.send":
+def _proposal(user_id, tool, args, business_id, user_text="", *, draft_only=False):
+    if tool in ("gmail.send", "gmail.draft"):
         to = str(args.get("to") or "").strip()
         subject = str(args.get("subject") or "").strip()
         body = str(args.get("body") or "").strip()
@@ -251,6 +251,8 @@ def _proposal(user_id, tool, args, business_id, user_text=""):
                 payload["references"] = matches[-1]["message_id"]
         draft = google_tools.gmail_create_draft(user_id, to, subject, body,
                     payload.get("thread_id"), payload.get("reply_to"), payload.get("references"))
+        if draft_only:
+            return draft["draft_id"]
         payload["draft_id"] = draft["draft_id"]
         return connectors.propose_action(user_id, tool, to, payload)
     if tool in ("calendar.create", "calendar.update", "calendar.delete"):
@@ -330,7 +332,8 @@ def handle(user_id, text, history, timezone_name):
         return {"message": "Aku siapkan tindakan ini. Periksa tujuan dan isinya sebelum menekan Konfirmasi.",
                 "approval_id": approval_id}
     if tool == "gmail.draft" and intent in ("PREPARE", "ACTION"):
-        # The Gmail draft is prepared now; a separate exact-payload approval sends it later.
-        approval_id = _proposal(user_id, "gmail.send", args, None, text)
-        return {"message": "Draf siap ditinjau. Email belum dikirim.", "approval_id": approval_id}
+        # Saving a Gmail draft is complete here. Sending requires a separate,
+        # explicit request and exact-payload approval; do not offer it for draft-only intent.
+        _proposal(user_id, "gmail.draft", args, None, text, draft_only=True)
+        return {"message": "Draf berhasil disimpan di Gmail. Email belum dikirim."}
     return {"message": "Aku belum bisa menjalankan permintaan itu dengan izin yang tersedia."}
