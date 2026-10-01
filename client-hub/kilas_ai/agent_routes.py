@@ -130,7 +130,10 @@ def agent_chat():
             _reply(f"Kilas butuh akses {connection}. Koneksi belum terhubung atau belum memberi izin yang diperlukan. "
                    "Permintaanmu disimpan untuk dilanjutkan setelah koneksi tersedia.")
             return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
-        if connection and connector_flow.SCHEDULE_WORDS.search(text):
+        connector_schedule = (re.search(r"\b(?:setiap|tiap|every)\b", text, re.I) or
+            (connector_flow.SCHEDULE_WORDS.match(text) and
+             re.search(r"\b(?:cek|periksa|check|cari|search|pantau|monitor|rangkum|summarize)\b", text, re.I)))
+        if connection and connector_schedule:
             try:
                 spec = schedule.parse(text, store.setting(owner))
                 spec["condition"]["connector_read"] = True

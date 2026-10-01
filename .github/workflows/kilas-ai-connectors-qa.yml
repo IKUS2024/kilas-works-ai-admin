@@ -67,3 +67,51 @@ jobs:
       - run: pip install -r client-hub/requirements.txt playwright
       - run: python -m playwright install --with-deps chromium
       - run: cd client-hub && python tests/test_kilas_ai_agent_browser.py
+  baseline-regressions:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: baseline
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r baseline/client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Compare Assist regressions on unmodified main
+        run: |
+          set +e
+          python baseline/client-hub/tests/test_assist_billing.py >/tmp/baseline-billing.log 2>&1
+          billing=$?
+          python baseline/client-hub/tests/test_assist_continuous_training.py >/tmp/baseline-training.log 2>&1
+          training=$?
+          set -e
+          cat /tmp/baseline-billing.log
+          cat /tmp/baseline-training.log
+          test "$billing" -ne 0
+          test "$training" -ne 0
+          grep -q '302 != 200' /tmp/baseline-billing.log
+          grep -q 'None !=' /tmp/baseline-training.log
+      - name: Compare phase10 browser regression on unmodified main
+        env:
+          PYTHONPATH: baseline/client-hub:baseline/client-hub/tests
+          KILAS_PHASE10_BROWSER_QA: '1'
+          KILAS_ASSIST_CUSTOMER_VISIBLE: 'true'
+        run: |
+          python baseline/client-hub/tests/phase10_release_dev.py >/tmp/baseline-phase10-server.log 2>&1 &
+          ready=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8771/dev/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = "1"
+          set +e
+          python baseline/client-hub/tests/phase10_release_browser_qa.py >/tmp/baseline-phase10.log 2>&1
+          result=$?
+          set -e
+          cat /tmp/baseline-phase10.log
+          test "$result" -ne 0
+          grep -q 'Mulai Sekarang' /tmp/baseline-phase10.log

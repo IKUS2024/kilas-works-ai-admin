@@ -1,6 +1,7 @@
 """Natural Agent requests routed through verified, account-scoped connector tools."""
 import json
 import re
+from email.utils import parseaddr
 
 from . import connector_planner, connectors, google_tools, internal_tools
 
@@ -38,6 +39,10 @@ def scheduled_read(user_id, instruction, timezone_name):
 def _read(user_id, tool, args, business_id):
     if tool == "gmail.search":
         rows = google_tools.gmail_search(user_id, args.get("query"))
+        if len(rows) == 1 and rows[0].get("thread_id"):
+            thread = google_tools.gmail_thread(user_id, rows[0]["thread_id"])
+            return (f"Thread: {rows[0]['thread_id']}\n" +
+                    "\n".join(f"• {row['from']} — {row['date']}\n  {row['snippet']}" for row in thread[-6:]))
         return "\n".join(f"• {row['subject'] or '(tanpa subjek)'} — {row['from']} — {row['date']}\n  {row['snippet']}\n  Thread: {row['thread_id']}" for row in rows) or "Tidak ada email yang cocok."
     if tool == "gmail.thread":
         rows = google_tools.gmail_thread(user_id, args.get("thread_id"))
@@ -54,6 +59,9 @@ def _read(user_id, tool, args, business_id):
         return "Waktu sibuk:\n" + "\n".join(f"• {row.get('start')}–{row.get('end')}" for row in rows) if rows else "Tidak ada waktu sibuk pada rentang itu."
     if tool == "drive.search":
         rows = google_tools.drive_search(user_id, args.get("query"))
+        if len(rows) == 1 and args.get("read") is True:
+            result = google_tools.drive_read(user_id, rows[0]["id"])
+            return f"{result['file'].get('name')}:\n{result['content'][:1700]}"
         return "\n".join(f"• {row.get('name')} ({row.get('mimeType')}) — ID {row.get('id')}" for row in rows) or "Tidak ada file yang cocok."
     if tool == "drive.read":
         result = google_tools.drive_read(user_id, args.get("file_id"))
@@ -63,6 +71,12 @@ def _read(user_id, tool, args, business_id):
         return "\n".join(f"• {row['name']} — {', '.join(row['emails'] + row['phones'])}" for row in rows) or "Tidak ada kontak yang cocok."
     if tool == "whatsapp.search":
         rows = internal_tools.whatsapp_search(user_id, business_id, args.get("query"))
+        if len(rows) == 1:
+            conversation = internal_tools.whatsapp_thread(user_id, business_id, rows[0]["conversation_id"])
+            return (f"{rows[0].get('display_name') or rows[0]['customer_phone']} — "
+                    f"Percakapan {rows[0]['conversation_id']}\n" +
+                    "\n".join(f"• {row['role']}: {row['content'][:350]}"
+                              for row in conversation["messages"][-8:]))
         return "\n".join(f"• {row.get('display_name') or row['customer_phone']} — {row['customer_phone']} — Percakapan {row['conversation_id']}" for row in rows) or "Tidak ada percakapan yang cocok."
     if tool == "whatsapp.thread":
         result = internal_tools.whatsapp_thread(user_id, business_id, args.get("conversation_id"))
@@ -90,9 +104,15 @@ def _proposal(user_id, tool, args, business_id):
         body = str(args.get("body") or "").strip()
         google_tools._raw_email(to, subject, body)
         payload = {"to": to, "subject": subject, "body": body}
-        for key in ("thread_id", "reply_to"):
-            if args.get(key):
-                payload[key] = str(args[key])[:180]
+        if args.get("thread_id"):
+            thread_id = google_tools._id(args["thread_id"])
+            thread = google_tools.gmail_thread(user_id, thread_id)
+            matches = [row for row in thread if parseaddr(row.get("from") or "")[1].casefold() == to.casefold()]
+            if not matches:
+                raise connectors.ConnectorError("recipient_not_in_thread")
+            payload["thread_id"] = thread_id
+            if matches[-1].get("message_id"):
+                payload["reply_to"] = matches[-1]["message_id"]
         return connectors.propose_action(user_id, tool, to, payload)
     if tool in ("calendar.create", "calendar.update", "calendar.delete"):
         target = str(args.get("event_id") or "primary") if tool != "calendar.create" else "primary"

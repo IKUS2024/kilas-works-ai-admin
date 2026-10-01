@@ -52,7 +52,8 @@ def propose(user_id, text, history, available, businesses, timezone_name, *, sch
         "timestamps with timezone and summary. For WhatsApp: query, conversation_id, text. "
         "For Finance reads: branch_id, query, start_date, end_date, as_of, limit; for writes: "
         "branch_id, direction, amount_minor, account_id, category_id, occurred_on. "
-        "For Drive/Contacts: query or file_id. Empty unknown values instead of inventing. "
+        "For Drive/Contacts: query or file_id. For Drive search, use read=true only when the user "
+        "asked to read or summarize a matching file. Empty unknown values instead of inventing. "
         "User account timezone is " + timezone_name + "; current local timestamp is " + local_now + ". "
         "Do not ask timezone if already known."
     )

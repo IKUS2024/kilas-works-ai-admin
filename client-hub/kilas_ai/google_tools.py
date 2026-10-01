@@ -90,7 +90,8 @@ def gmail_thread(user_id, thread_id):
                    for h in (message.get("payload") or {}).get("headers") or []}
         output.append({"id": message.get("id"), "from": headers.get("from", ""),
                        "to": headers.get("to", ""), "subject": headers.get("subject", ""),
-                       "date": headers.get("date", ""), "snippet": str(message.get("snippet") or "")[:600]})
+                       "date": headers.get("date", ""), "message_id": headers.get("message-id", ""),
+                       "snippet": str(message.get("snippet") or "")[:600]})
     return output
 
 

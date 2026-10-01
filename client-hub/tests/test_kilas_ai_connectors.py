@@ -17,7 +17,7 @@ from cryptography.fernet import Fernet  # noqa: E402
 import app  # noqa: E402
 import db  # noqa: E402
 import repo  # noqa: E402
-from kilas_ai import connector_actions, connectors, google_connection, automation_schedule  # noqa: E402
+from kilas_ai import connector_actions, connector_flow, connectors, google_connection, automation_schedule  # noqa: E402
 
 
 class Response:
@@ -152,6 +152,25 @@ class ConnectorTests(unittest.TestCase):
             self.assertNotIn("new-synthetic", stored["credential_enc"])
             self.assertEqual(google_connection._decrypt(stored["credential_enc"])["refresh_token"],
                              "refresh-synthetic")
+
+    def test_reply_target_must_match_verified_gmail_thread(self):
+        stamp = connectors.stamp()
+        db.execute("INSERT INTO kilas_ai_connections "
+            "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+            "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
+            (self.owner, '["https://www.googleapis.com/auth/gmail.readonly",'
+             '"https://www.googleapis.com/auth/gmail.send"]', stamp, stamp))
+        thread = [{"from": "Wilson <wilson@example.test>", "message_id": "<verified@example.test>"}]
+        with patch.object(connector_flow.google_tools, "gmail_thread", return_value=thread):
+            with self.assertRaisesRegex(connectors.ConnectorError, "recipient_not_in_thread"):
+                connector_flow._proposal(self.owner, "gmail.send", {
+                    "to": "stranger@example.test", "subject": "Re: Jadwal", "body": "Besok jam 2 bisa.",
+                    "thread_id": "thread-1"}, None)
+            approval_id = connector_flow._proposal(self.owner, "gmail.send", {
+                "to": "wilson@example.test", "subject": "Re: Jadwal", "body": "Besok jam 2 bisa.",
+                "thread_id": "thread-1", "reply_to": "<forged@example.test>"}, None)
+        payload = __import__("json").loads(connectors.approval(self.owner, approval_id)["payload_json"])
+        self.assertEqual(payload["reply_to"], "<verified@example.test>")
 
     def test_approval_payload_tamper_and_cross_business_are_rejected(self):
         business_a = repo.create_business(self.owner, "Connector A")
