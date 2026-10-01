@@ -1,8 +1,8 @@
 # Kilas AI connector release status
 
-Last checked: 2026-10-01. PR #94 (`feature/kilas-ai-connectors-agent-20261001`) is a draft. The connector schema and code have **not** been deployed to production. Client Hub and Automation runner still run the existing main release.
+Last checked: 2026-10-01. PR #94 merged to `main` as `1c26e93cbe786c9f52d9618691f58604b45cda9c`. Client Hub and the existing Automation runner are live on that commit. Google is unavailable in the authenticated production QA account; there are zero production Google connection rows.
 
-## Implemented in the branch
+## Implemented
 
 - Account-owned Google OAuth with hashed, single-use state, encrypted refresh credentials, scope checks, reconnect and local disconnect/revoke. Gmail requests read-only plus compose scopes; the compose scope covers Gmail draft creation and sending, while the separate server approval still gates sends.
 - Gmail read/search/thread, a real Gmail draft, and a separately owner-approved send of that exact draft; Calendar read/free-busy/create/update/delete; Drive and Contacts read-only tools. A changed Gmail draft cannot be sent under the old approval. Google API calls use fixed hosts and bounded responses.
@@ -15,10 +15,12 @@ Last checked: 2026-10-01. PR #94 (`feature/kilas-ai-connectors-agent-20261001`) 
 
 ## Release gates
 
-- Focused connector, existing Agent, existing Automation, PostgreSQL migration and 1440/820/390/320px browser checks passed on branch run `336df81` (connector QA run 36809070025). The scheduled-draft retry assertion was corrected and the provider-draft flow passed.
+- Final connector QA run 36809971657 passed: focused connector, existing Agent and Automation tests, PostgreSQL migration, untouched-main baseline comparisons, and 1440/820/390/320px browser checks. Automation QA run 36809971652, Phase 6, Phase 8, Client Session Timeout, and the Phase 7 Finance runtime job also passed.
 - Scoped Impeccable detector ran on the Agent template and CSS. It reported a flat-type warning only because it cannot resolve the Jinja stylesheet URL; the linked stylesheet defines explicit heading sizes. No whole-repository design fix was run.
-- PR broad suites: Kilas AI Automation, Phase 6, Phase 8 and Client Session Timeout passed. Phase 10, Master Completion and Phase 9 reported failures in previously existing Assist/product-entry/Finance-entry paths. Connector QA run 36809070025 reproduced all three failure families against untouched `main`; these are confirmed baseline failures, not connector regressions. Phase 7 is still running. No legacy tests have been edited.
-- No production database migration, deploy or provider authorization has occurred. Never describe an unconfigured Google connection as usable.
+- Phase 9, Phase 10 and Master Completion broad failures were reproduced against untouched pre-PR `main` by the connector QA baseline job. Phase 7 Finance baseline failed 18 tests; the pre-connector PR #93 run 36802449661 failed the exact same 18 named tests, with zero additions. No legacy tests were edited.
+- Production PostgreSQL reports release `0077_kilas_ai_connectors` applied at 2026-10-01 03:28:28 UTC with checksum `b79f563c65b1a029cec534ac71565c3f41fc5bee9b092ef1cb192c8617f8e0ff`. Client Hub final deploy `dep-daut7a3ncjis73888pq0` and Automation runner deploy `dep-daut7cjncjis7388958g` are live on the merge commit. The one-time `KILAS_AI_CONNECTOR_SCHEMA_APPLY` flag was returned to `false`; the runner's next scheduled run succeeded at 03:31:12 UTC.
+- Authenticated production QA checked Kilas AI Chat, Agent, Connections, subscription/usage, Finance entry, direct Assist entry, and the Admin access gate. Agent task preview, activation, pause, resume and deletion worked in an isolated QA account. Public login/register responded; production request logs showed no 5xx and app/runner logs no errors in the checked post-deploy window. Mobile viewport checks were CI browser checks, not authenticated production mobile checks.
+- No real Google, Meta or Finance connector action was exercised in production: the QA accounts had no connected provider/business. No Google connections or action approvals exist in the production connector tables. Two synthetic QA accounts remain; their sole created Agent task is soft-deleted. Never describe an unconfigured connector as usable.
 
 ## Production setup required for Google
 
@@ -29,8 +31,8 @@ The owner must create/configure a Google Cloud OAuth web client and consent scre
 - `KILAS_GOOGLE_REDIRECT_URI` (the callback URL above)
 - `KILAS_CONNECTOR_ENCRYPTION_KEY` (a persistent Fernet key, kept server-side and backed up securely)
 
-Without that setup, the UI reports Google as unavailable and no Google API call or send can occur. The service must not be given placeholder production credentials. Existing WhatsApp and Finance availability is determined from their real tenant/business gates.
+The authenticated production QA account currently sees Google as unavailable. Do not give the service placeholder production credentials. Once the owner supplies and verifies the configuration, connect a real Google account and perform a separately approved live read/draft/send smoke test before calling that provider usable. Existing WhatsApp and Finance availability is determined from their real tenant/business gates.
 
-## Planned release procedure after gates pass
+## Release scope
 
-Review diff against current main; mark PR ready and merge. Set `KILAS_AI_CONNECTOR_SCHEMA_APPLY=true` on Client Hub for exactly one merged-commit deployment to apply checksum-guarded additive migration 0077, then turn it off. Deploy the changed Automation runner only after the schema exists. Verify both services on the merged commit, logs and no new 5xx, then smoke-test Agent/Connections, Chat, subscription, Admin, Finance and hidden Assist routes. Use no production data reset or WhatsApp/Finance reconfiguration.
+Only Client Hub and the existing Automation runner were deployed. AI Admin was not redeployed. No production data reset, Finance/Assist rewrite, WhatsApp reconfiguration or payment change was made. The release is operational with Google safely unavailable pending owner-controlled configuration and live provider verification.
