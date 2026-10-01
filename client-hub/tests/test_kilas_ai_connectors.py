@@ -72,15 +72,17 @@ class ConnectorTests(unittest.TestCase):
             state = {}
             url = google_connection.begin(self.owner, "gmail", state)
             raw = parse_qs(urlparse(url).query)["state"][0]
-            self.assertNotIn("https://www.googleapis.com/auth/gmail.send",
-                             parse_qs(urlparse(url).query)["scope"][0])
+            requested_scope = parse_qs(urlparse(url).query)["scope"][0]
+            self.assertNotIn("https://www.googleapis.com/auth/gmail.send", requested_scope)
+            self.assertIn("https://www.googleapis.com/auth/userinfo.email", requested_scope)
             self.assertNotIn(raw, str(db.query_all("SELECT * FROM kilas_ai_oauth_states")))
             with self.assertRaisesRegex(connectors.ConnectorError, "invalid_oauth_state"):
                 google_connection.complete(self.other, state, raw, "code")
             with patch.object(google_connection.requests, "post", return_value=Response(200, {
                     "access_token": "synthetic-access", "refresh_token": "synthetic-refresh",
                     "expires_in": 3600,
-                    "scope": "openid email https://www.googleapis.com/auth/gmail.readonly "
+                    "scope": "openid https://www.googleapis.com/auth/userinfo.email "
+                             "https://www.googleapis.com/auth/gmail.readonly "
                              "https://www.googleapis.com/auth/gmail.compose "
                              "https://www.googleapis.com/auth/gmail.send"})), \
                  patch.object(google_connection.requests, "get", return_value=Response(200, {
