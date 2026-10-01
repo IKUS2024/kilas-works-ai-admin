@@ -189,7 +189,9 @@ def run_once(limit=10):
     store.recover_stale()
     ids = store.claim_due(limit=min(20, max(1, int(limit))))
     complete = sum(bool(execute(run_id)) for run_id in ids)
-    return {"claimed": len(ids), "completed": complete, "disabled": False}
+    from . import autonomous_runner
+    autonomous = autonomous_runner.run_once()
+    return {"claimed": len(ids), "completed": complete, "disabled": False, "autonomous": autonomous}
 
 
 if __name__ == "__main__":
