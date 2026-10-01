@@ -34,6 +34,34 @@ class UsageTests(unittest.TestCase):
             session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="usage-csrf")
         return client
 
+    def test_temporary_qa_exemption_is_exact_expiring_and_metered(self):
+        now = datetime(2026, 10, 1, 9, tzinfo=timezone.utc)
+        owner = repo.create_user("temporary-qa@example.test", "hash")
+        grant = {owner: ("temporary-qa@example.test", now + timedelta(days=7))}
+        with patch.object(usage, "QA_QUOTA_EXEMPTIONS", grant), patch.object(usage, "_now", return_value=now), \
+             patch.object(usage, "_limit", return_value=0), \
+             patch.object(usage, "_cost_guard", side_effect=usage.UsageLimit("cost cap")) as guard:
+            plan, operations = usage.reserve(owner, None, "qa-exempt-request", "SMART", "CHAT")
+            self.assertEqual(plan, "FREE")
+            guard.assert_not_called()
+            usage.finish(owner, "qa-exempt-request", operations, success=True, provider="openai",
+                         model="gpt-6.1-sol", usage={"input_tokens": 100, "output_tokens": 20})
+            row = db.query_one("SELECT status,estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? "
+                               "AND operation_key=?", (owner, "qa-exempt-request"))
+            self.assertEqual(row["status"], "COMPLETE")
+            self.assertGreater(float(row["estimated_cost_usd"]), 0)
+            with self.assertRaises(usage.UsageLimit):
+                usage.reserve(self.other, None, "qa-other-denied", "SMART", "CHAT")
+            with patch.object(usage, "QA_QUOTA_EXEMPTIONS", {owner: ("different@example.test", grant[owner][1])}):
+                with self.assertRaises(usage.UsageLimit):
+                    usage.reserve(owner, None, "qa-identity-denied", "SMART", "CHAT")
+            with patch.object(usage, "_now", return_value=grant[owner][1]):
+                with self.assertRaises(usage.UsageLimit):
+                    usage.reserve(owner, None, "qa-expired-denied", "SMART", "CHAT")
+            with patch.dict(os.environ, {"KILAS_AI_BURST_PER_MINUTE": "1"}):
+                with self.assertRaises(usage.UsageLimit):
+                    usage.reserve(owner, None, "qa-burst-denied", "SMART", "CHAT")
+
     def test_free_chat_daily_and_period(self):
         owner = self.free
         thread_id = store.create_thread(owner)
