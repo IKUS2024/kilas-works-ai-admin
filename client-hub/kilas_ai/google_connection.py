@@ -110,7 +110,8 @@ def complete(user_id, session, raw_state, code):
         identity = response.json()
     except (requests.RequestException, ValueError):
         raise GoogleError("provider_unavailable") from None
-    if response.status_code != 200 or not identity.get("sub") or not identity.get("email") or not identity.get("email_verified"):
+    if (response.status_code != 200 or not isinstance(identity, dict) or
+            not identity.get("sub") or not identity.get("email") or not identity.get("email_verified")):
         raise GoogleError("identity_unverified")
     granted = set(str(token.get("scope") or "").split())
     requested = set(json.loads(state["scopes_json"]))

@@ -148,15 +148,19 @@ def agent_chat():
             _reply(result["message"])
             session["agent_connector_context"] = connection or connector_context
             session["agent_connector_context_at"] = int(time.time())
-        except (connectors.ConnectorError, connector_planner.InterpretationError) as error:
+        except ValueError as error:
             code = str(error)
             if code in ("not_connected", "permission_missing", "provider_not_configured"):
                 session["connector_pending_intent"] = text
             _reply({"choose_business": "Bisnis mana yang dimaksud? Sebutkan nama bisnisnya.",
                     "not_connected": "Koneksi belum tersedia. Buka Koneksi untuk menghubungkan akun.",
                     "permission_missing": "Izin untuk tindakan ini belum diberikan. Hubungkan ulang layanan dengan izin yang sesuai.",
+                    "reauth_required": "Izin koneksi sudah berakhir. Hubungkan kembali layanan melalui Koneksi.",
                     "planner_unavailable": "Agent belum bisa memahami permintaan ini sekarang. Coba lagi sebentar.",
                     "provider_unavailable": "Layanan belum merespons. Tidak ada tindakan yang diklaim berhasil.",
+                    "rate_limited": "Layanan sedang membatasi permintaan. Coba lagi nanti.",
+                    "invalid_target": "Tujuan itu tidak ditemukan pada koneksi ini. Periksa nama atau ID-nya.",
+                    "recipient_not_in_thread": "Penerima tidak cocok dengan thread email yang dipilih. Periksa percakapannya dulu.",
                     "business_not_connected": "Bisnis itu tidak terhubung pada akun ini."}.get(code,
                     "Permintaan belum bisa diproses dengan aman. Periksa tujuan dan izin lalu coba lagi."))
         return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)

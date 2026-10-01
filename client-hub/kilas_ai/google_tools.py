@@ -7,6 +7,7 @@ from email.message import EmailMessage
 from urllib.parse import quote
 
 import requests
+import db
 
 from . import connectors, google_connection
 
@@ -44,6 +45,9 @@ def _request(user_id, tool, family, method, path, *, params=None, body=None, tex
     except requests.RequestException:
         raise ProviderError("provider_unavailable") from None
     if response.status_code == 401:
+        db.execute("UPDATE kilas_ai_connections SET status='REAUTH_REQUIRED',last_error='reauth_required',"
+                   "updated_at=? WHERE id=? AND user_id=? AND provider='GOOGLE'",
+                   (connectors.stamp(), gate["connection_id"], user_id))
         raise ProviderError("reauth_required")
     if response.status_code == 403:
         raise ProviderError("permission_missing")
@@ -58,9 +62,12 @@ def _request(user_id, tool, family, method, path, *, params=None, body=None, tex
     if text:
         return response.content
     try:
-        return response.json() if response.content else {}
+        payload = response.json() if response.content else {}
     except ValueError:
         raise ProviderError("provider_invalid_response") from None
+    if not isinstance(payload, dict):
+        raise ProviderError("provider_invalid_response")
+    return payload
 
 
 def gmail_search(user_id, query):

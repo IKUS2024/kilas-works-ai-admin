@@ -16,7 +16,7 @@
   </aside>
 
   <section class="agent-main" aria-label="{{ {'chat':'Percakapan Agent','tasks':'Tugas Agent','activity':'Aktivitas Agent','connections':'Koneksi Agent'}[view] }}">
-    {% if error %}<p class="auto-error" role="alert">{{ {'message':'Tulis pesan hingga 1.200 karakter.','expired':'Konfirmasi sudah kedaluwarsa. Minta lagi lewat chat.','action':'Tugas belum bisa diubah. Periksa statusnya lalu coba lagi.'}.get(error,'Permintaan belum bisa diproses.') }}</p>{% endif %}
+    {% if error %}<p class="auto-error" role="alert">{{ {'message':'Tulis pesan hingga 1.200 karakter.','expired':'Konfirmasi sudah kedaluwarsa. Minta lagi lewat chat.','action':'Tugas belum bisa diubah. Periksa statusnya lalu coba lagi.','approval_expired':'Persetujuan sudah kedaluwarsa. Siapkan tindakan lagi.','approval_already_used':'Tindakan ini sudah pernah dikonfirmasi atau dibatalkan.','reauth_required':'Izin Google berakhir. Hubungkan ulang lewat Koneksi.','permission_missing':'Izin untuk tindakan ini belum tersedia. Kelola izin di Koneksi.','provider_unavailable':'Layanan belum merespons. Hasil tindakan belum dapat dipastikan.','provider_outcome_uncertain':'Hasil dari layanan belum pasti. Periksa layanan terkait sebelum mencoba lagi.','rate_limited':'Layanan sedang membatasi permintaan. Coba lagi nanti.','invalid_target':'Tujuan tindakan tidak ditemukan.'}.get(error,'Permintaan belum bisa diproses.') }}</p>{% endif %}
     {% if view == 'chat' %}
       <header class="agent-section-head"><div><h2>Agent Chat</h2><p>Jelaskan tugas yang ingin kamu delegasikan—sekali atau berulang.</p></div><span class="agent-live"><span aria-hidden="true"></span>Siap membantu</span></header>
       <div class="agent-conversation" id="agent-conversation" aria-live="polite">

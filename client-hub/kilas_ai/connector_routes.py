@@ -69,5 +69,16 @@ def edit(approval_id):
     connectors.cancel_action(owner, approval_id)
     import json
     payload = json.loads(row["payload_json"])
-    message = payload.get("body") or payload.get("text") or payload.get("summary") or ""
+    tool = row["tool"]
+    if tool == "gmail.send":
+        message = (f"Siapkan email ke {payload.get('to', '')} dengan subjek "
+                   f"{payload.get('subject', '')}. Isi: {payload.get('body', '')}")
+    elif tool == "whatsapp.send":
+        message = f"Siapkan balasan WhatsApp untuk percakapan {row['target']}: {payload.get('text', '')}"
+    elif tool.startswith("calendar."):
+        message = (f"Siapkan perubahan Calendar {tool.split('.')[-1]} untuk acara "
+                   f"{row['target']}: {json.dumps(payload, ensure_ascii=False)}")
+    else:
+        message = ("Siapkan ulang transaksi Kilas Finance dengan rincian: " +
+                   json.dumps(payload, ensure_ascii=False))
     return redirect(url_for("kilas_ai.agent_home", view="chat", message=message[:1200]), code=303)

@@ -10,6 +10,8 @@ SCHEDULE_WORDS = re.compile(r"\b(?:setiap|tiap|every|besok|tomorrow|lusa|next|mi
 
 def _business(user_id, provider, proposed):
     matches = [item for item in connectors.business_connections(user_id) if item["provider"] == provider]
+    if not matches:
+        raise connectors.ConnectorError("not_connected")
     if proposed:
         chosen = next((item for item in matches if item["business_id"] == proposed), None)
         if not chosen:

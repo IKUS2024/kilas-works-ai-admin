@@ -172,6 +172,25 @@ class ConnectorTests(unittest.TestCase):
         payload = __import__("json").loads(connectors.approval(self.owner, approval_id)["payload_json"])
         self.assertEqual(payload["reply_to"], "<verified@example.test>")
 
+    def test_edit_cancels_old_approval_and_preserves_target_context(self):
+        stamp = connectors.stamp()
+        db.execute("INSERT INTO kilas_ai_connections "
+            "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+            "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
+            (self.owner, '["https://www.googleapis.com/auth/gmail.send"]', stamp, stamp))
+        approval_id = connectors.propose_action(self.owner, "gmail.send", "wilson@example.test",
+            {"to": "wilson@example.test", "subject": "Jadwal", "body": "Besok jam 2 bisa."})
+        client = self.client_for(self.owner)
+        response = client.post(f"/kilas-ai/agent/approval/{approval_id}/edit",
+                               data={"csrf_token": "connector-csrf"})
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(connectors.approval(self.owner, approval_id)["status"], "CANCELLED")
+        page = client.get(response.location)
+        self.assertIn("wilson@example.test", page.text)
+        self.assertIn("Besok jam 2 bisa.", page.text)
+        with self.assertRaisesRegex(connectors.ConnectorError, "approval_already_used"):
+            connectors.claim_action(self.owner, approval_id)
+
     def test_approval_payload_tamper_and_cross_business_are_rejected(self):
         business_a = repo.create_business(self.owner, "Connector A")
         business_b = repo.create_business(self.owner, "Connector B")
