@@ -24,9 +24,8 @@ class PublicLegalPagesTests(unittest.TestCase):
         self.assertIn("Google API Services User Data Policy", response.text)
         self.assertIn("Limited Use requirements", response.text)
         self.assertIn("Gmail", response.text)
-        self.assertIn("Google Calendar", response.text)
-        self.assertIn("Google Drive", response.text)
-        self.assertIn("Google Contacts", response.text)
+        self.assertIn("setelah pengguna menyetujui", response.text)
+        self.assertIn("tidak meminta izin untuk membaca Gmail", response.text)
         self.assertEqual(response.headers.get("X-Robots-Tag"), "index, follow")
 
     def test_terms_is_public_and_links_privacy(self):
