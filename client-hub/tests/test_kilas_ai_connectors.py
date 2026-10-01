@@ -135,8 +135,8 @@ class ConnectorTests(unittest.TestCase):
             "besok jam 5 pagi cari berita AI": (2026, 10, 2, 5, 0),
             "tomorrow at 5pm search news": (2026, 10, 2, 17, 0),
             "lusa 17:00 cari berita": (2026, 10, 3, 17, 0),
-            "setiap Senin pagi cari berita": (None, None, 8, 0),
-            "tiap senin sampai jumat jam 8 cari berita": (None, None, 8, 0),
+            "setiap Senin pagi cari berita": (None, None, None, 8, 0),
+            "tiap senin sampai jumat jam 8 cari berita": (None, None, None, 8, 0),
             "tanggal 1 Oktober 2027 jam setengah 8 pagi cari berita": (2027, 10, 1, 7, 30),
         }
         for text, expected in cases.items():

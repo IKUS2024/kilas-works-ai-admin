@@ -68,7 +68,9 @@ def _read(user_id, tool, args, business_id):
         return "\n".join(f"• {row['display_identity']} — bisnis {row['business_id']}" for row in rows) or "Tidak ada bisnis Finance pada akun ini."
     if tool.startswith("finance."):
         rows = internal_tools.finance_read(user_id, business_id, tool,
-                    branch_id=args.get("branch_id"), limit=args.get("limit", 20))
+                    branch_id=args.get("branch_id"), limit=args.get("limit", 20),
+                    start_date=args.get("start_date"), end_date=args.get("end_date"),
+                    as_of=args.get("as_of"))
         return "\n".join("• " + ", ".join(f"{k}: {v}" for k, v in row.items() if v is not None)
                          for row in rows[:20]) or "Tidak ada data pada lingkup itu."
     raise connectors.ConnectorError("unknown_tool")

@@ -36,10 +36,14 @@ TOOLS = {
     "whatsapp.thread": ("WHATSAPP", "READ", None),
     "whatsapp.send": ("WHATSAPP", "ACTION", None),
     "finance.businesses": ("FINANCE", "READ", None),
+    "finance.branches": ("FINANCE", "READ", None),
     "finance.accounts": ("FINANCE", "READ", None),
     "finance.categories": ("FINANCE", "READ", None),
     "finance.transactions": ("FINANCE", "READ", None),
+    "finance.customers": ("FINANCE", "READ", None),
     "finance.invoices": ("FINANCE", "READ", None),
+    "finance.receivables": ("FINANCE", "READ", None),
+    "finance.cashflow": ("FINANCE", "READ", None),
     "finance.create_transaction": ("FINANCE", "ACTION", None),
 }
 GOOGLE_SCOPES = {

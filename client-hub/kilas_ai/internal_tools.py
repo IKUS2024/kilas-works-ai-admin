@@ -59,26 +59,51 @@ def finance_businesses(user_id):
     return [item for item in connectors.business_connections(user_id) if item["provider"] == "FINANCE"]
 
 
-def finance_read(user_id, business_id, tool, *, branch_id=None, limit=20):
+def finance_read(user_id, business_id, tool, *, branch_id=None, limit=20,
+                 start_date=None, end_date=None, as_of=None):
     connectors.authorize(user_id, tool, business_id=business_id)
-    if tool not in ("finance.accounts", "finance.categories", "finance.transactions", "finance.invoices"):
+    if tool not in ("finance.branches", "finance.accounts", "finance.categories",
+                    "finance.transactions", "finance.customers", "finance.invoices",
+                    "finance.receivables", "finance.cashflow"):
         raise connectors.ConnectorError("invalid_tool")
     if branch_id is not None:
         branch_id = int(branch_id)
     with finance_branches.scope(business_id, branch_id, user_id):
+        if tool == "finance.branches":
+            rows = finance_branches.list_branches(business_id, actor_user_id=user_id)
+            return [{key: dict(row).get(key) for key in ("id", "name", "workspace_type", "is_active")}
+                    for row in rows[:50]]
         if tool == "finance.accounts":
             rows = finance_service.get_account_balance_report(business_id, date.today().isoformat(), actor_user_id=user_id)
             return [{key: row.get(key) for key in ("id", "name", "currency", "account_type", "balance_minor", "branch_id")}
                     for row in rows[:50]]
         if tool == "finance.categories":
             rows = finance_service.list_categories(business_id, actor_user_id=user_id)
-            return [{key: row.get(key) for key in ("id", "name", "direction")}
+            return [{key: dict(row).get(key) for key in ("id", "name", "direction")}
                     for row in rows[:100]]
         if tool == "finance.transactions":
-            rows = finance_service.list_transactions(business_id, actor_user_id=user_id, limit=min(50, max(1, int(limit))))
-            return [{key: row.get(key) for key in ("id", "occurred_on", "direction", "amount_minor", "currency",
+            rows = finance_service.list_transactions(business_id, actor_user_id=user_id,
+                start_date=start_date, end_date=end_date, limit=min(50, max(1, int(limit))))
+            return [{key: dict(row).get(key) for key in ("id", "occurred_on", "direction", "amount_minor", "currency",
                                                    "description", "account_id", "category_id", "branch_id", "status")}
                     for row in rows]
+        if tool == "finance.customers":
+            rows = finance_service.list_customers(business_id, actor_user_id=user_id)
+            return [{key: dict(row).get(key) for key in ("id", "name", "phone", "email")}
+                    for row in rows[:50]]
+        if tool == "finance.receivables":
+            rows = finance_service.get_report_invoices(business_id, as_of or date.today().isoformat(),
+                actor_user_id=user_id, open_only=True)
+            return [{key: row.get(key) for key in ("id", "invoice_number", "customer_name", "currency",
+                "outstanding_minor", "due_date", "overdue", "branch_id")} for row in rows[:50]]
+        if tool == "finance.cashflow":
+            today = date.today()
+            result = finance_service.get_cashflow_reports(business_id,
+                start_date or today.replace(day=1).isoformat(), end_date or today.isoformat(),
+                actor_user_id=user_id)
+            return [{key: row.get(key) for key in ("currency", "total_income_minor",
+                    "total_expense_minor", "net_cashflow_minor", "transaction_count")}
+                    for row in result]
         rows = db.query_all("SELECT id,invoice_number,status,customer_id,currency,due_date,branch_id "
                             "FROM finance_invoices WHERE business_id=?" + finance_branches.predicate() +
                             " ORDER BY id DESC LIMIT ?", (business_id, min(50, max(1, int(limit)))))
