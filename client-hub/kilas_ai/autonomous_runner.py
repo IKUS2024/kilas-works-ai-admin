@@ -26,7 +26,7 @@ def finish(job, token, step, result):
         state = 'WAITING' if result.status == 'WAITING_CAPABILITY' else result.status
         failures = job['failures'] + 1 if state == 'FAILED' else 0
         # A normal watch wait is not a failed attempt, and can persist indefinitely within expiry/daily caps.
-        usage._query(conn, 'UPDATE kilas_agent_steps SET status=?,output_json=?,error=?,completed_at=?,attempts=CASE WHEN ? THEN 0 ELSE attempts END WHERE id=?',
+        usage._query(conn, 'UPDATE kilas_agent_steps SET status=?,output_json=?,error=?,completed_at=?,attempts=CASE WHEN ?=1 THEN 0 ELSE attempts END WHERE id=?',
                      (state, output, result.output.get('reason'), store.stamp() if state == 'SUCCEEDED' else None, int(state == 'WAITING'), step['id']))
         for artifact in result.artifacts[:3]:
             content = artifact['content']

@@ -122,7 +122,7 @@ def diff(workspace):
 
 def test_command(workspace):
     bwrap = shutil.which('bwrap')
-    python = shutil.which('python3')
+    python = '/usr/bin/python3' if Path('/usr/bin/python3').is_file() else None
     if not bwrap or not python or os.name != 'posix':
         return None
     # No host home, app root, DB, env, network or production credentials mounted.

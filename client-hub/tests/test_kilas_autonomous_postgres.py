@@ -13,6 +13,7 @@ if os.environ.get('KILAS_AI_POSTGRES_QA') != '1' or urlsplit(os.environ.get('DAT
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import db
 from kilas_ai import autonomous_schema as schema, autonomous_store as store, usage
+from kilas_ai import autonomous_planner as planner, autonomous_runner as runner
 
 
 def main():
@@ -49,6 +50,14 @@ def main():
                 assert store.locked(conn, job, new[1])
             store.release(*old)
             assert store.get(user, job)['lease_token'] == new[1]
+            raw = {'objective': 'Verified file', 'mode': 'ONE_SHOT', 'stop_condition': 'File available', 'next_action': 'Create file',
+                   'steps': [{'worker': 'FILE', 'action': 'create', 'instruction': 'Prepare file', 'input_json': '{"name":"verified.txt","format":"txt","content":"Actual result"}', 'completion_criteria': 'Artifact persisted', 'requires_approval': False}]}
+            assert store.install_plan(store.get(user, job), new[1], planner.validate(raw, 'ONE_SHOT'))
+            store.release(*new)
+            runner.execute(*store.claim_due(1)[0])
+            assert store.get(user, job)['status'] == 'COMPLETED'
+            assert db.query_one('SELECT COUNT(*) AS n FROM kilas_agent_artifacts WHERE job_id=?', (job,))['n'] == 1
+            job = store.create(user, 'Stopped work')
             store.control(user, job, 'stop')
             assert store.claim_due(1) == []
     finally:
