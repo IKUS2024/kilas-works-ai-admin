@@ -83,14 +83,15 @@ def agent_home():
         action = None
     google = google_connection.configuration()
     google_row = connectors.google_connection(owner)
-    google_services = {name: bool(google["ready"] and google_row and google_row["status"] == "CONNECTED" and
-                             set(scopes).issubset(set(json.loads(google_row["scopes_json"]))))
-                       for name, scopes in connectors.GOOGLE_SCOPES.items()}
+    google_services = {"gmail": "gmail.send" in connectors.available_tools(owner)}
     internal_connections = connectors.business_connections(owner)
     approval_rows = [connectors._row(row) for row in db.query_all(
         "SELECT id,tool,target,payload_json,business_id,expires_at FROM kilas_ai_action_approvals "
         "WHERE user_id=? AND status='PENDING' AND expires_at>? ORDER BY id DESC LIMIT 20",
         (owner, connectors.stamp()))]
+    approval_rows = [row for row in approval_rows if row["tool"] not in connectors.TOOLS or
+                     connectors.TOOLS[row["tool"]][0] != "GOOGLE" or
+                     (row["tool"] == "gmail.send" and '"draft_id"' not in row["payload_json"])]
     for approval_row in approval_rows:
         approval_row["payload"] = json.loads(approval_row["payload_json"])
     return render_template("kilas_ai/agent.html", view=view, messages=agent_store.messages(owner),
@@ -125,6 +126,9 @@ def agent_chat():
         session.pop("agent_connector_context_at", None)
         connector_context = None
     if connection or connector_context:
+        if connection in ("Google Calendar", "Google Drive", "Google Contacts"):
+            _reply("Fitur Google tersebut belum tersedia. Saat ini koneksi Google hanya mendukung pengiriman Gmail setelah persetujuanmu.")
+            return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
         enabled_tools = connectors.available_tools(owner)
         family = ({"Gmail": "gmail.", "Google Calendar": "calendar.", "Google Drive": "drive.",
                    "Google Contacts": "contacts.", "WhatsApp": "whatsapp.",
@@ -137,6 +141,9 @@ def agent_chat():
         connector_schedule = (re.search(r"\b(?:setiap|tiap|every|cada)\b|每周|每天|每月", text, re.I) or
             (connector_flow.SCHEDULE_WORDS.match(text) and
              re.search(r"\b(?:cek|periksa|check|cari|search|pantau|monitor|rangkum|summarize)\b", text, re.I)))
+        if connection == "Gmail" and connector_schedule:
+            _reply("Tugas terjadwal yang membaca Gmail belum tersedia. Saat ini Google hanya mendukung pengiriman email setelah persetujuanmu.")
+            return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
         if connection and connector_schedule:
             try:
                 spec = schedule.parse(text, store.setting(owner))
@@ -185,7 +192,8 @@ def agent_chat():
                     "rate_limited": "Layanan sedang membatasi permintaan. Coba lagi nanti.",
                     "invalid_target": "Tujuan itu tidak ditemukan pada koneksi ini. Periksa nama atau ID-nya.",
                     "recipient_not_in_thread": "Penerima tidak cocok dengan thread email yang dipilih. Periksa percakapannya dulu.",
-                    "recipient_unverified": "Alamat email penerima belum terverifikasi. Sebutkan alamatnya atau hubungkan Google Contacts.",
+                    "recipient_unverified": "Sebutkan alamat email penerima secara langsung agar Kilas bisa menyiapkan email untuk persetujuanmu.",
+                    "google_tool_disabled": "Fitur Google tersebut belum tersedia. Saat ini hanya pengiriman Gmail setelah persetujuan yang didukung.",
                     "ambiguous_contact": "Ada beberapa kontak yang cocok. Sebutkan alamat email penerima yang tepat.",
                     "business_not_connected": "Bisnis itu tidak terhubung pada akun ini."}.get(code,
                     "Permintaan belum bisa diproses dengan aman. Periksa tujuan dan izin lalu coba lagi."))

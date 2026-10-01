@@ -24,7 +24,7 @@ TOOLS = {
     "gmail.search": ("GOOGLE", "READ", "https://www.googleapis.com/auth/gmail.readonly"),
     "gmail.thread": ("GOOGLE", "READ", "https://www.googleapis.com/auth/gmail.readonly"),
     "gmail.draft": ("GOOGLE", "PREPARE", "https://www.googleapis.com/auth/gmail.compose"),
-    "gmail.send": ("GOOGLE", "ACTION", "https://www.googleapis.com/auth/gmail.compose"),
+    "gmail.send": ("GOOGLE", "ACTION", "https://www.googleapis.com/auth/gmail.send"),
     "calendar.list": ("GOOGLE", "READ", "https://www.googleapis.com/auth/calendar.events"),
     "calendar.get": ("GOOGLE", "READ", "https://www.googleapis.com/auth/calendar.events"),
     "calendar.freebusy": ("GOOGLE", "READ", "https://www.googleapis.com/auth/calendar.freebusy"),
@@ -49,13 +49,13 @@ TOOLS = {
     "finance.create_transaction": ("FINANCE", "ACTION", None),
 }
 GOOGLE_SCOPES = {
-    "gmail": ("https://www.googleapis.com/auth/gmail.readonly",
-              "https://www.googleapis.com/auth/gmail.compose"),
+    "gmail": ("https://www.googleapis.com/auth/gmail.send",),
     "calendar": ("https://www.googleapis.com/auth/calendar.freebusy",
                  "https://www.googleapis.com/auth/calendar.events"),
     "drive": ("https://www.googleapis.com/auth/drive.readonly",),
     "contacts": ("https://www.googleapis.com/auth/contacts.readonly",),
 }
+ACTIVE_GOOGLE_TOOLS = frozenset(("gmail.send",))
 
 
 def now():
@@ -108,7 +108,7 @@ def available_tools(user_id, business_id=None):
     if google and google["status"] == "CONNECTED" and google["credential_enc"]:
         scopes = set(json.loads(google["scopes_json"]))
         available += [name for name, (provider, _, scope) in TOOLS.items()
-                      if provider == "GOOGLE" and scope in scopes]
+                      if provider == "GOOGLE" and name in ACTIVE_GOOGLE_TOOLS and scope in scopes]
     for item in business_connections(user_id):
         if business_id is not None and item["business_id"] != business_id:
             continue
@@ -121,6 +121,8 @@ def authorize(user_id, tool, *, business_id=None):
         raise ConnectorError("unknown_tool")
     provider, permission, scope = TOOLS[tool]
     if provider == "GOOGLE":
+        if tool not in ACTIVE_GOOGLE_TOOLS:
+            raise ConnectorError("google_tool_disabled")
         if business_id is not None:
             raise ConnectorError("invalid_business_scope")
         row = google_connection(user_id)

@@ -29,6 +29,8 @@ def _business(user_id, provider, proposed):
 
 def scheduled_read(user_id, instruction, timezone_name, *, run_id=None):
     """Cron may read or prepare a Gmail draft; it can never send."""
+    if DRAFT_WORDS.search(instruction) and re.search(r"\b(?:gmail|email|surel)\b", instruction, re.I):
+        raise connectors.ConnectorError("google_tool_disabled")
     if DRAFT_WORDS.search(instruction) and run_id is not None:
         key = hashlib.sha256(f"automation-draft:{run_id}".encode()).hexdigest()[:48]
         if connectors.approval_for_key(user_id, key):
@@ -215,6 +217,15 @@ def _read(user_id, tool, args, business_id, timezone_name="Asia/Jakarta"):
 
 def _proposal(user_id, tool, args, business_id, user_text="", *, draft_only=False):
     if tool in ("gmail.send", "gmail.draft"):
+        if tool == "gmail.send":
+            to = str(args.get("to") or "").strip()
+            if args.get("thread_id") or not to or to.casefold() not in user_text.casefold():
+                raise connectors.ConnectorError("recipient_unverified")
+            subject = str(args.get("subject") or "").strip()
+            body = str(args.get("body") or "").strip()
+            google_tools._raw_email(to, subject, body)
+            return connectors.propose_action(user_id, tool, to,
+                                             {"to": to, "subject": subject, "body": body})
         to = str(args.get("to") or "").strip()
         subject = str(args.get("subject") or "").strip()
         body = str(args.get("body") or "").strip()
@@ -315,6 +326,9 @@ def handle(user_id, text, history, timezone_name):
     plan = connector_planner.propose(user_id, text, history, available, businesses, timezone_name)
     tool = plan["tool"]
     intent = plan["intent"]
+    if tool not in ("none", *available):
+        raise connectors.ConnectorError("google_tool_disabled" if tool in connectors.TOOLS and
+                                        connectors.TOOLS[tool][0] == "GOOGLE" else "not_connected")
     if tool == "none" or intent in ("NONE", "CLARIFY"):
         return {"message": str(plan.get("reply") or "Sebutkan layanan dan tujuan yang ingin dipakai.")[:1000]}
     provider, permission, _ = connectors.TOOLS[tool]

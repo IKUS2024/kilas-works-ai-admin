@@ -63,7 +63,7 @@ def _decrypt(value):
 
 
 def begin(user_id, service, session):
-    if service not in connectors.GOOGLE_SCOPES:
+    if service != "gmail":
         raise GoogleError("unknown_google_service")
     if not configuration()["ready"]:
         raise GoogleError("provider_not_configured")
@@ -78,7 +78,7 @@ def begin(user_id, service, session):
     params = {"client_id": os.environ["KILAS_GOOGLE_CLIENT_ID"],
               "redirect_uri": os.environ["KILAS_GOOGLE_REDIRECT_URI"],
               "response_type": "code", "scope": " ".join(scopes), "state": raw,
-              "access_type": "offline", "include_granted_scopes": "true", "prompt": "consent"}
+              "access_type": "offline", "prompt": "consent"}
     return AUTHORIZE_URL + "?" + urlencode(params)
 
 
