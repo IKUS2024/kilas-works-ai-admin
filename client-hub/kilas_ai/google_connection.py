@@ -16,7 +16,13 @@ AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 IDENTITY_URL = "https://openidconnect.googleapis.com/v1/userinfo"
-IDENTITY_SCOPES = ("openid", "email")
+EMAIL_SCOPE = "https://www.googleapis.com/auth/userinfo.email"
+IDENTITY_SCOPES = ("openid", EMAIL_SCOPE)
+
+
+def _normalize_scopes(values):
+    """Normalize Google aliases so token-response scope checks match requested access."""
+    return {EMAIL_SCOPE if scope == "email" else scope for scope in values}
 
 
 class GoogleError(connectors.ConnectorError):
@@ -113,8 +119,8 @@ def complete(user_id, session, raw_state, code):
     if (response.status_code != 200 or not isinstance(identity, dict) or
             not identity.get("sub") or not identity.get("email") or not identity.get("email_verified")):
         raise GoogleError("identity_unverified")
-    granted = set(str(token.get("scope") or "").split())
-    requested = set(json.loads(state["scopes_json"]))
+    granted = _normalize_scopes(str(token.get("scope") or "").split())
+    requested = _normalize_scopes(json.loads(state["scopes_json"]))
     if not granted or not requested.issubset(granted):
         raise GoogleError("permission_missing")
     old = connectors.google_connection(user_id)
