@@ -148,9 +148,13 @@ def _clock(text):
         raise ScheduleError("Sebutkan jam yang jelas, misalnya 'jam 8 pagi'.")
     hour, minute = int(match.group(1) or match.group(4) or match.group(6)), int(match.group(2) or match.group(5) or match.group(7) or 0)
     part = (match.group(3) or "").lower()
-    if part in ("pm", "siang", "sore", "malam") and hour < 12:
+    if not part:
+        nearby = text[max(0, match.start() - 18):min(len(text), match.end() + 18)]
+        context_period = re.search(r"\b(?:pagi|morning|siang|afternoon|sore|evening|malam|night|tonight)\b", nearby, re.I)
+        part = context_period.group(0).lower() if context_period else ""
+    if part in ("pm", "siang", "afternoon", "sore", "evening", "malam", "night", "tonight") and hour < 12:
         hour += 12
-    if part in ("am", "pagi") and hour == 12:
+    if part in ("am", "pagi", "morning") and hour == 12:
         hour = 0
     if hour > 23 or minute > 59:
         raise ScheduleError("Jam tidak valid.")
@@ -200,6 +204,16 @@ def parse(instruction, default_timezone="Asia/Jakarta", now=None):
         day = local_now.date() + timedelta(days=gap)
         if gap == 0 and datetime(day.year, day.month, day.day, hour, minute, tzinfo=ZoneInfo(zone)) <= local_now:
             day += timedelta(days=7)
+        schedule = {"kind": "once", "year": day.year, "month": day.month, "day": day.day,
+                    "hour": hour, "minute": minute}
+    elif re.search(r"\b(?:minggu depan|next week)\b", value):
+        hour, minute = _clock(value)
+        day = local_now.date() + timedelta(days=7 - local_now.weekday())
+        schedule = {"kind": "once", "year": day.year, "month": day.month, "day": day.day,
+                    "hour": hour, "minute": minute}
+    elif re.search(r"\b(?:malam ini|tonight)\b", value):
+        hour, minute = _clock(value)
+        day = local_now.date()
         schedule = {"kind": "once", "year": day.year, "month": day.month, "day": day.day,
                     "hour": hour, "minute": minute}
     elif re.search(r"\b(?:hari ini|today)\b", value):

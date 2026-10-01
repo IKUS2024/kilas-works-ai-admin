@@ -128,6 +128,47 @@ class ConnectorTests(unittest.TestCase):
             send.assert_called_once()
         self.assertEqual(connectors.approval(self.owner, approval_id)["status"], "SUCCEEDED")
 
+    def test_google_refresh_rotates_encrypted_access_token(self):
+        key = Fernet.generate_key().decode()
+        scope = "https://www.googleapis.com/auth/gmail.readonly"
+        with patch.dict(os.environ, {
+            "KILAS_GOOGLE_CLIENT_ID": "synthetic-client-id",
+            "KILAS_GOOGLE_CLIENT_SECRET": "synthetic-secret",
+            "KILAS_GOOGLE_REDIRECT_URI": "https://app.example.test/kilas-ai/agent/connections/google/callback",
+            "KILAS_CONNECTOR_ENCRYPTION_KEY": key,
+        }):
+            stamp = connectors.stamp()
+            db.execute("INSERT INTO kilas_ai_connections "
+                "(user_id,provider,status,scopes_json,permission_json,credential_enc,token_expires_at,created_at,updated_at) "
+                "VALUES (?,'GOOGLE','CONNECTED',?,'{}',?,?,?,?)",
+                (self.owner, '["' + scope + '"]', google_connection._encrypt({
+                    "access_token": "old-synthetic", "refresh_token": "refresh-synthetic"}),
+                 "2020-01-01T00:00:00+00:00", stamp, stamp))
+            with patch.object(google_connection.requests, "post", return_value=Response(200, {
+                "access_token": "new-synthetic", "expires_in": 3600})) as refresh:
+                self.assertEqual(google_connection.access_token(self.owner, scope), "new-synthetic")
+            self.assertEqual(refresh.call_count, 1)
+            stored = connectors.google_connection(self.owner)
+            self.assertNotIn("new-synthetic", stored["credential_enc"])
+            self.assertEqual(google_connection._decrypt(stored["credential_enc"])["refresh_token"],
+                             "refresh-synthetic")
+
+    def test_approval_payload_tamper_and_cross_business_are_rejected(self):
+        business_a = repo.create_business(self.owner, "Connector A")
+        business_b = repo.create_business(self.owner, "Connector B")
+        visible = [{"provider": "WHATSAPP", "business_id": business_a,
+                    "status": "CONNECTED", "display_identity": "Connector A"}]
+        with patch.object(connectors, "business_connections", return_value=visible):
+            with self.assertRaisesRegex(connectors.ConnectorError, "not_connected"):
+                connectors.authorize(self.owner, "whatsapp.send", business_id=business_b)
+            approval_id = connectors.propose_action(self.owner, "whatsapp.send", "conversation-a",
+                {"text": "Besok jam 2 bisa."}, business_id=business_a)
+            db.execute("UPDATE kilas_ai_action_approvals SET payload_json=? WHERE id=?",
+                       ('{"text":"Different message"}', approval_id))
+            with self.assertRaisesRegex(connectors.ConnectorError, "approval_payload_changed"):
+                connectors.claim_action(self.owner, approval_id)
+            self.assertEqual(connectors.approval(self.owner, approval_id)["status"], "PENDING")
+
     def test_natural_schedule_without_utc_day_shift(self):
         from datetime import datetime, timezone
         near_midnight = datetime(2026, 9, 30, 17, 30, tzinfo=timezone.utc)
@@ -135,6 +176,8 @@ class ConnectorTests(unittest.TestCase):
             "besok jam 5 pagi cari berita AI": (2026, 10, 2, 5, 0),
             "tomorrow at 5pm search news": (2026, 10, 2, 17, 0),
             "lusa 17:00 cari berita": (2026, 10, 3, 17, 0),
+            "malam ini jam 8 cari berita": (2026, 10, 1, 20, 0),
+            "next week at 8am search news": (2026, 10, 5, 8, 0),
             "setiap Senin pagi cari berita": (None, None, None, 8, 0),
             "tiap senin sampai jumat jam 8 cari berita": (None, None, None, 8, 0),
             "tanggal 1 Oktober 2027 jam setengah 8 pagi cari berita": (2027, 10, 1, 7, 30),
@@ -150,6 +193,11 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(automation_schedule.parse(
             "tiap senin sampai jumat jam 8 cari berita", "Asia/Jakarta", now=near_midnight)["schedule"]["kind"],
             "weekdays")
+        self.assertEqual(automation_schedule.parse(
+            "every 3 hours search news", "Asia/Jakarta", now=near_midnight)["schedule"]["hours"], 3)
+        self.assertEqual(automation_schedule.parse(
+            "tomorrow at 5pm timezone Singapore search news", "Asia/Jakarta", now=near_midnight)["timezone"],
+            "Asia/Singapore")
         with self.assertRaises(automation_schedule.ScheduleError):
             automation_schedule.parse("kemarin jam 8 cari berita", "Asia/Jakarta", now=near_midnight)
 
