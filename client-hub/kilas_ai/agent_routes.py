@@ -79,7 +79,7 @@ def agent_home():
         action = None
     google = google_connection.configuration()
     google_row = connectors.google_connection(owner)
-    google_services = {name: bool(google_row and google_row["status"] == "CONNECTED" and
+    google_services = {name: bool(google["ready"] and google_row and google_row["status"] == "CONNECTED" and
                              set(scopes).issubset(set(json.loads(google_row["scopes_json"]))))
                        for name, scopes in connectors.GOOGLE_SCOPES.items()}
     internal_connections = connectors.business_connections(owner)
@@ -129,7 +129,7 @@ def agent_chat():
             session["connector_pending_intent"] = text
             _reply(f"Kilas butuh akses {connection}. Koneksi belum terhubung atau belum memberi izin yang diperlukan. "
                    "Permintaanmu disimpan untuk dilanjutkan setelah koneksi tersedia.")
-            return redirect(url_for("kilas_ai.agent_home", view="connections"), code=303)
+            return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
         if connection and connector_flow.SCHEDULE_WORDS.search(text):
             try:
                 spec = schedule.parse(text, store.setting(owner))

@@ -3,17 +3,23 @@ import os
 import sys
 import tempfile
 import threading
+from cryptography.fernet import Fernet
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ["CLIENT_HUB_DB_PATH"] = tempfile.mktemp(prefix="kilas-agent-browser-", suffix=".sqlite")
 os.environ["SECRET_KEY"] = "kilas-agent-browser-test"
 os.environ["KILAS_AI_ENABLED"] = "true"
 os.environ["KILAS_AI_AUTOMATION_ENABLED"] = "true"
+os.environ["KILAS_GOOGLE_CLIENT_ID"] = "browser-fixture-client"
+os.environ["KILAS_GOOGLE_CLIENT_SECRET"] = "browser-fixture-secret"
+os.environ["KILAS_GOOGLE_REDIRECT_URI"] = "https://app.example.test/kilas-ai/agent/connections/google/callback"
+os.environ["KILAS_CONNECTOR_ENCRYPTION_KEY"] = Fernet.generate_key().decode()
 os.environ.pop("DATABASE_URL", None)
 
 import app  # noqa: E402
+import db  # noqa: E402
 import repo  # noqa: E402
-from kilas_ai import agent_planner, automation_schedule as schedule, automation_store as store  # noqa: E402
+from kilas_ai import agent_planner, automation_schedule as schedule, automation_store as store, connectors  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 from werkzeug.serving import make_server  # noqa: E402
 
@@ -54,6 +60,25 @@ def main():
                 page.get_by_role("button", name="Kirim").click()
                 assert page.get_by_text("Kilas butuh akses Gmail", exact=False).is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "reply overflow")
+                stamp = connectors.stamp()
+                long_email = ("very-long-business-account-name-" * 4) + "@example.test"
+                db.execute("INSERT INTO kilas_ai_connections "
+                    "(user_id,provider,display_identity,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+                    "VALUES (?,'GOOGLE',?,'CONNECTED',?,'{}','browser-fixture',?,?)",
+                    (owner, long_email,
+                     '["https://www.googleapis.com/auth/gmail.readonly",'
+                     '"https://www.googleapis.com/auth/gmail.compose",'
+                     '"https://www.googleapis.com/auth/gmail.send"]', stamp, stamp))
+                connectors.propose_action(owner, "gmail.send", "wilson@example.test",
+                    {"to": "wilson@example.test", "subject": "Pertemuan",
+                     "body": "Besok jam 2 bisa."})
+                page.goto(origin + "/kilas-ai/agent?view=connections", wait_until="networkidle")
+                assert page.get_by_text(long_email).is_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long identity overflow")
+                page.goto(origin + "/kilas-ai/agent?view=chat", wait_until="networkidle")
+                assert page.get_by_role("heading", name="Periksa sebelum dikirim").is_visible()
+                assert page.get_by_role("button", name="Konfirmasi tindakan").is_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "approval overflow")
                 context.close()
             browser.close()
     finally:
