@@ -73,7 +73,9 @@ def agent_home():
                    "schedule": schedule.describe(spec["schedule"], spec["timezone"]),
                    "next_run": datetime.fromisoformat(spec["next_run_at"]).astimezone(
                        schedule.ZoneInfo(spec["timezone"])).strftime("%d/%m/%Y %H.%M"),
-                   "kind": spec["automation_type"]}
+                   "kind": spec["automation_type"],
+                   "connector_draft": bool(spec.get("condition", {}).get("connector_read") and
+                                           connector_flow.DRAFT_WORDS.search(spec["instruction"]))}
     action = session.get("agent_pending_action")
     if action and int(time.time()) - action.get("created", 0) > 900:
         session.pop("agent_pending_action", None)

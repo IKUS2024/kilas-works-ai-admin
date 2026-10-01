@@ -190,6 +190,23 @@ def calendar_get(user_id, event_id):
                     "/calendars/primary/events/" + _id(event_id))
 
 
+def calendar_named_event(user_id, title):
+    """Resolve one upcoming exact title; never select an ambiguous write target."""
+    first = datetime.now(timezone.utc)
+    result = _request(user_id, "calendar.list", "calendar", "GET", "/calendars/primary/events",
+        params={"q": title, "timeMin": first.isoformat(),
+                "timeMax": (first + timedelta(days=31)).isoformat(),
+                "singleEvents": "true", "orderBy": "startTime", "maxResults": 30})
+    matches = [row for row in result.get("items", [])
+               if str(row.get("summary") or "").strip().casefold() == title.casefold()
+               and row.get("status") != "cancelled"]
+    if len(matches) > 1 or result.get("nextPageToken"):
+        raise ProviderError("ambiguous_event")
+    if not matches or not matches[0].get("id"):
+        raise ProviderError("invalid_target")
+    return matches[0]
+
+
 def calendar_freebusy(user_id, start, end):
     result = _request(user_id, "calendar.freebusy", "calendar", "POST", "/freeBusy",
                       body={"timeMin": start, "timeMax": end, "items": [{"id": "primary"}]})
@@ -201,6 +218,10 @@ def _event_payload(payload):
         raise ProviderError("invalid_event")
     title = str(payload.get("summary") or "").strip()
     start, end = payload.get("start"), payload.get("end")
+    # The planner historically emitted ISO strings; normalize representation
+    # only, then apply the same offset/duration validation as native API objects.
+    start = {"dateTime": start} if isinstance(start, str) else start
+    end = {"dateTime": end} if isinstance(end, str) else end
     if not 1 <= len(title) <= 200 or not isinstance(start, dict) or not isinstance(end, dict):
         raise ProviderError("invalid_event")
     try:

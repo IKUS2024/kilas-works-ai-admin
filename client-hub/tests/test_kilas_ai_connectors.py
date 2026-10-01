@@ -454,6 +454,140 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(agent_planner.required_connection("revisar mi correo"), "Gmail")
         self.assertEqual(agent_planner.required_connection("cek jadwal Jumat"), "Google Calendar")
 
+    def test_production_english_schedule_keeps_google_runner_and_explicit_zone(self):
+        from datetime import datetime, timezone
+        instruction = ('Every morning at 8 AM Asia/Jakarta, check only my emails with subject '
+                       '"Google Verification Test" and prepare a draft reply if something needs attention. '
+                       'Never send email automatically.')
+        self.assertEqual(agent_planner.required_connection(instruction), "Gmail")
+        self.assertEqual(agent_planner.required_connection(
+            "Create an event called Google Verification Demo tomorrow at 3 PM"), "Google Calendar")
+        client = self.client_for(self.owner)
+        with patch.object(connectors, "available_tools", return_value=["gmail.search", "gmail.draft"]):
+            response = client.post("/kilas-ai/agent/chat", data={
+                "csrf_token": "connector-csrf", "message": instruction})
+        self.assertEqual(response.status_code, 303)
+        with client.session_transaction() as state:
+            stored = state["automation_preview"]["spec"]
+            self.assertIs(stored["condition"]["connector_read"], True)
+            self.assertEqual(stored["timezone"], "Asia/Jakarta")
+        spec = automation_schedule.parse(instruction, "Asia/Bangkok",
+            now=datetime(2026, 10, 1, 7, tzinfo=timezone.utc))
+        self.assertEqual(spec["timezone"], "Asia/Jakarta")
+        self.assertEqual(spec["schedule"], {"kind": "daily", "hour": 8, "minute": 0})
+        with self.assertRaises(automation_schedule.ScheduleError):
+            automation_schedule.parse(instruction + " Then send email to everyone.")
+
+    def test_calendar_planner_iso_strings_still_require_safe_offsets(self):
+        tools = connector_actions.google_tools
+        args = {"summary": "Google Verification Demo", "start": "2026-10-02T15:00:00+07:00",
+                "end": "2026-10-02T15:30:00+07:00"}
+        payload = tools._event_payload(args)
+        self.assertEqual(payload["start"], {"dateTime": args["start"]})
+        for bad in ({**args, "start": "2026-10-02T15:00:00"},
+                    {**args, "end": "2026-10-02T14:30:00+07:00"},
+                    {**args, "summary": ""}):
+            with self.assertRaisesRegex(connectors.ConnectorError, "invalid_event"):
+                tools._event_payload(bad)
+
+    def test_calendar_create_is_approval_gated_and_single_use(self):
+        stamp = connectors.stamp()
+        db.execute("INSERT INTO kilas_ai_connections "
+            "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+            "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
+            (self.owner, '["https://www.googleapis.com/auth/calendar.events"]', stamp, stamp))
+        with patch.object(connector_actions.google_tools, "calendar_create", return_value={
+                "id": "verified-created-event"}) as create:
+            approval_id = connector_flow._proposal(self.owner, "calendar.create", {
+                "summary": "Google Verification Demo", "start": "2026-10-02T15:00:00+07:00",
+                "end": "2026-10-02T15:30:00+07:00"}, None)
+            create.assert_not_called()
+            connector_actions.execute(self.owner, approval_id)
+            with self.assertRaisesRegex(connectors.ConnectorError, "approval_already_used"):
+                connector_actions.execute(self.owner, approval_id)
+            create.assert_called_once()
+
+    def test_scheduled_self_mail_requires_explicit_owned_address_and_never_sends(self):
+        stamp = connectors.stamp()
+        db.execute("INSERT INTO kilas_ai_connections "
+            "(user_id,provider,status,display_identity,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+            "VALUES (?,'GOOGLE','CONNECTED','owner@example.test',?,'{}','encrypted-fixture',?,?)",
+            (self.owner, '["https://www.googleapis.com/auth/gmail.compose"]', stamp, stamp))
+        plans = {"tool": "gmail.draft", "intent": "PREPARE", "arguments": {
+            "to": "owner@example.test", "subject": "Re: Google Verification Test", "body": "Safe test."}}
+        tools = connector_flow.google_tools
+        with patch.object(tools, "gmail_search", return_value=[{
+                "thread_id": "self-thread", "subject": "Google Verification Test"}]), \
+             patch.object(tools, "gmail_thread", return_value=[{
+                "from": "Owner <owner@example.test>", "message_id": "<safe@example.test>"}]), \
+             patch.object(connector_flow.connector_planner, "propose", return_value=plans), \
+             patch.object(tools, "gmail_create_draft", return_value={"draft_id": "safe-draft"}) as draft, \
+             patch.object(tools, "gmail_send") as send, \
+             patch.object(tools, "gmail_send_draft") as send_draft:
+            first = connector_flow._scheduled_gmail_draft(self.owner, "prepare a draft reply", {}, "Asia/Jakarta", 88)
+            self.assertIn("Tidak ada draf", first)
+            draft.assert_not_called()
+            second = connector_flow._scheduled_gmail_draft(self.owner,
+                "prepare a draft reply to owner@example.test", {}, "Asia/Jakarta", 89)
+            self.assertIn("belum dikirim", second)
+            draft.assert_called_once()
+            send.assert_not_called()
+            send_draft.assert_not_called()
+        self.assertEqual(connectors.approval_for_key(self.owner,
+            __import__('hashlib').sha256(b'automation-draft:89').hexdigest()[:48])["status"], "PENDING")
+
+    def test_calendar_move_resolves_exact_title_and_freezes_same_event(self):
+        event = {"id": "verified-event", "summary": "Google Verification Demo",
+                 "start": {"dateTime": "2026-10-02T15:00:00+07:00"},
+                 "end": {"dateTime": "2026-10-02T15:30:00+07:00"}}
+        tools = connector_flow.google_tools
+        with patch.object(tools, "calendar_named_event", return_value=event) as resolve, \
+             patch.object(tools, "calendar_get", return_value=event), \
+             patch.object(connectors, "propose_action", return_value=123) as proposal, \
+             patch.object(tools, "calendar_update") as write:
+            connector_flow._proposal(self.owner, "calendar.update", {
+                "event_query": "Google Verification Demo",
+                "start": "2026-10-02T15:30:00+07:00"}, None,
+                "Move Google Verification Demo to 3:30 PM.")
+        resolve.assert_called_once_with(self.owner, "Google Verification Demo")
+        write.assert_not_called()
+        self.assertEqual(proposal.call_args.args[2], "verified-event")
+        payload = proposal.call_args.args[3]
+        self.assertEqual(payload["summary"], "Google Verification Demo")
+        self.assertEqual(payload["end"]["dateTime"], "2026-10-02T16:00:00+07:00")
+        with patch.object(tools, "_request", return_value={"items": [event, event]}):
+            with self.assertRaisesRegex(connectors.ConnectorError, "ambiguous_event"):
+                tools.calendar_named_event(self.owner, "Google Verification Demo")
+        with patch.object(tools, "_request", return_value={"items": [event], "nextPageToken": "more"}):
+            with self.assertRaisesRegex(connectors.ConnectorError, "ambiguous_event"):
+                tools.calendar_named_event(self.owner, "Google Verification Demo")
+
+    def test_freebusy_renders_provider_times_in_account_timezone(self):
+        with patch.object(connector_flow.google_tools, "calendar_freebusy", return_value=[{
+            "start": "2026-10-02T07:00:00Z", "end": "2026-10-02T08:00:00Z"}]):
+            message = connector_flow._read(self.owner, "calendar.freebusy", {
+                "start": "2026-10-02T13:00:00+07:00", "end": "2026-10-02T17:00:00+07:00"},
+                None, "Asia/Jakarta")
+        self.assertIn("02/10/2026 14:00", message)
+        self.assertIn("02/10/2026 15:00", message)
+        self.assertIn("Asia/Jakarta", message)
+        self.assertNotIn("07:00:00Z", message)
+
+    def test_google_read_answer_has_no_write_stage_and_settles_usage(self):
+        from kilas_ai import automation_runner, usage
+        with patch.object(usage, "reserve", return_value=({}, [("CHAT", 1)])), \
+             patch.object(automation_runner, "_plain_ai", return_value=(
+                 "This email is a safe synthetic integration test.", "openai", "synthetic-model", {})) as answer, \
+             patch.object(usage, "finish") as finish, \
+             patch.object(connector_actions, "execute") as write:
+            result = connector_flow._read_answer(self.owner, "Summarize the test email.",
+                "This is a safe synthetic integration test.", "Asia/Jakarta")
+        self.assertIn("safe synthetic", result)
+        self.assertIn("verified_results", answer.call_args.args[0])
+        self.assertIn("No actions are available", answer.call_args.args[0])
+        finish.assert_called_once()
+        write.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
