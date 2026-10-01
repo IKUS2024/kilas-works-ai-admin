@@ -176,3 +176,67 @@ def propose_action(user_id, tool, target, payload, *, business_id=None, ttl_minu
     db.execute("INSERT INTO kilas_ai_action_audit(approval_id,user_id,event,created_at) VALUES (?,?,?,?)",
                (approval_id, user_id, "PROPOSED", stamp(t)))
     return approval_id
+
+
+def approval(user_id, approval_id):
+    return _row(db.query_one("SELECT * FROM kilas_ai_action_approvals WHERE id=? AND user_id=?",
+                             (approval_id, user_id)))
+
+
+def approval_for_key(user_id, key):
+    return _row(db.query_one("SELECT * FROM kilas_ai_action_approvals "
+                             "WHERE user_id=? AND idempotency_key=?", (user_id, key)))
+
+
+def claim_action(user_id, approval_id):
+    """Single-use, durable claim before a remote side effect. Unknown outcomes are terminal."""
+    conn = usage._connect()
+    try:
+        lock = " FOR UPDATE" if db.BACKEND == "postgres" else ""
+        row = usage._query(conn, "SELECT user_id,business_id,connection_id,tool,target,payload_json,payload_hash,status,expires_at "
+                           "FROM kilas_ai_action_approvals WHERE id=? AND user_id=?" + lock,
+                           (approval_id, user_id), one=True)
+        if not row:
+            raise ConnectorError("approval_not_found")
+        owner, bid, connection_id, tool, target, payload_json, digest, status, expires_at = row
+        if status != "PENDING":
+            raise ConnectorError("approval_already_used")
+        if usage._as_utc(expires_at) <= now():
+            usage._query(conn, "UPDATE kilas_ai_action_approvals SET status='EXPIRED',updated_at=? WHERE id=?",
+                         (stamp(), approval_id))
+            conn.commit()
+            raise ConnectorError("approval_expired")
+        if hashlib.sha256(payload_json.encode("utf-8")).hexdigest() != digest:
+            raise ConnectorError("approval_payload_changed")
+        gate = authorize(user_id, tool, business_id=bid)
+        if gate["permission"] != "ACTION" or gate["connection_id"] != connection_id:
+            raise ConnectorError("permission_changed")
+        usage._query(conn, "UPDATE kilas_ai_action_approvals SET status='CLAIMED',updated_at=? WHERE id=?",
+                     (stamp(), approval_id))
+        usage._query(conn, "INSERT INTO kilas_ai_action_audit(approval_id,user_id,event,created_at) VALUES (?,?,?,?)",
+                     (approval_id, user_id, "CLAIMED", stamp()))
+        conn.commit()
+        return {"id": approval_id, "user_id": owner, "business_id": bid,
+                "connection_id": connection_id, "tool": tool, "target": target,
+                "payload": json.loads(payload_json)}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def finish_action(user_id, approval_id, status, *, provider_result_id=None, error_code=""):
+    if status not in ("SUCCEEDED", "FAILED", "UNKNOWN"):
+        raise ConnectorError("invalid_action_status")
+    db.execute("UPDATE kilas_ai_action_approvals SET status=?,provider_result_id=?,error_code=?,updated_at=? "
+               "WHERE id=? AND user_id=? AND status='CLAIMED'",
+               (status, str(provider_result_id or "")[:256] or None, str(error_code or "")[:80],
+                stamp(), approval_id, user_id))
+    db.execute("INSERT INTO kilas_ai_action_audit(approval_id,user_id,event,detail_code,created_at) "
+               "VALUES (?,?,?,?,?)", (approval_id, user_id, status, str(error_code or "")[:80], stamp()))
+
+
+def cancel_action(user_id, approval_id):
+    db.execute("UPDATE kilas_ai_action_approvals SET status='CANCELLED',updated_at=? "
+               "WHERE id=? AND user_id=? AND status='PENDING'", (stamp(), approval_id, user_id))
