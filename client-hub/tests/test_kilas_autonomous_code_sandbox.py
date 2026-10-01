@@ -25,7 +25,7 @@ class CodeSandboxTests(unittest.TestCase):
             Path(source, 'tests/test_actual.py').write_text('import unittest\nclass Actual(unittest.TestCase):\n    def test_actual(self):\n        ' + assertion + '\n')
             job = {'id': 987654321}
             code_worker.cleanup(job)
-            with patch.dict(os.environ, {'KILAS_AI_CODE_REPOSITORIES': json.dumps({'fixture': source}), 'PRODUCTION_SECRET': 'must-never-enter-sandbox'}):
+            with patch.dict(os.environ, {'KILAS_AI_CODE_REPOSITORIES': json.dumps({'fixture': source}), 'PRODUCTION_SECRET': 'must-never-enter-sandbox'}), patch.object(code_worker, 'load_snapshot', return_value=None):
                 try:
                     return code_worker.run(job, {'action': 'test'}, {'repo': 'fixture'})
                 finally:

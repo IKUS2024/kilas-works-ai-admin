@@ -10,6 +10,7 @@ import tempfile
 from . import Result
 
 MAX_BYTES = 5_000_000
+SNAPSHOT_BYTES = 20000
 SAFE_SUFFIXES = {'.py', '.md', '.txt', '.json', '.csv', '.html', '.css', '.js'}
 
 
@@ -41,14 +42,17 @@ def repositories():
     return value
 
 
+def load_snapshot(job):
+    import db
+    return db.query_one("SELECT a.content FROM kilas_agent_artifacts a JOIN kilas_agent_steps s ON s.id=a.step_id WHERE a.job_id=? AND a.name='_workspace.json' AND s.status='SUCCEEDED' ORDER BY a.id DESC LIMIT 1", (job['id'],))
+
+
 def prepare(job, alias):
     configured = repositories().get(alias)
     if not configured:
         return None
     source = Path(configured).resolve()
     # Administrators configure local, credential-free source snapshots, never a model URL.
-    if not source.is_dir() or source.is_symlink():
-        raise ValueError('invalid_repository')
     workspace = root(job)
     marker = workspace / 'repository.json'
     if marker.exists():
@@ -56,6 +60,21 @@ def prepare(job, alias):
             raise ValueError('repository_changed')
         return workspace
     workspace.mkdir(parents=True, exist_ok=True)
+    # Cron instances do not promise persistent /tmp. Rehydrate the exact saved snapshot.
+    saved = load_snapshot(job)
+    if saved:
+        state = json.loads(saved['content'])
+        if state['alias'] != alias:
+            raise ValueError('repository_changed')
+        for folder in ('original', 'work'):
+            for name, content in state[folder].items():
+                target = workspace / folder / relative(name)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding='utf-8')
+        marker.write_text(json.dumps({'alias': alias}))
+        return workspace
+    if not source.is_dir() or source.is_symlink():
+        raise ValueError('invalid_repository')
     total, files = 0, 0
     try:
         for directory, dirs, names in os.walk(source, followlinks=False):
@@ -81,10 +100,21 @@ def prepare(job, alias):
                     dest.write_text(content, encoding='utf-8')
         marker.write_text(json.dumps({'alias': alias}))
         (workspace / 'work').mkdir(exist_ok=True)
+        snapshot(workspace)  # Enforce the durable V1 workspace cap before using files.
         return workspace
     except Exception:
         cleanup(job)
         raise
+
+
+def snapshot(workspace):
+    value = {'alias': json.loads((workspace / 'repository.json').read_text())['alias']}
+    for folder in ('original', 'work'):
+        value[folder] = {p.relative_to(workspace / folder).as_posix(): p.read_text(encoding='utf-8') for p in (workspace / folder).rglob('*') if p.is_file() and '__pycache__' not in p.parts}
+    content = json.dumps(value, ensure_ascii=False)
+    if len(content.encode()) > SNAPSHOT_BYTES:
+        raise ValueError('durable_workspace_limit')
+    return {'name': '_workspace.json', 'media_type': 'application/json', 'content': content}
 
 
 def apply_patch(workspace, patch):
@@ -156,7 +186,7 @@ def run(job, step, data):
         for name in data['paths']:
             path = workspace / 'work' / relative(name)
             output[name] = path.read_text()[:8000] if path.is_file() else 'File tidak ditemukan.'
-        return Result('SUCCEEDED', 'File workspace diperiksa.', {'files': output}, verified=True)
+        return Result('SUCCEEDED', 'File workspace diperiksa.', {'files': output}, [snapshot(workspace)], verified=True)
     if action == 'patch':
         if data['patch'] == '__GENERATE__':
             from .content_worker import text
@@ -201,4 +231,4 @@ def run(job, step, data):
                       {'exit_code': process.returncode, 'test_output': output}, [{'name': 'tests.txt', 'media_type': 'text/plain', 'content': output}], verified=True)
     patch = diff(workspace)
     return Result('SUCCEEDED', 'Perubahan lokal tersimpan.' if action == 'patch' else 'Diff workspace disiapkan.',
-                  {'diff': patch}, [{'name': 'changes.diff', 'media_type': 'text/plain', 'content': patch}], verified=True)
+                  {'diff': patch}, [{'name': 'changes.diff', 'media_type': 'text/plain', 'content': patch}, snapshot(workspace)], verified=True)

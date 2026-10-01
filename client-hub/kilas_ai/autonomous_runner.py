@@ -105,6 +105,9 @@ def execute(job_id, token):
         finish(job, token, step, result)
     except Exception as error:
         if step is not None:
+            if step['worker'] == 'CODE':
+                from .agent_workers.code_worker import cleanup
+                cleanup(job)
             finish(job, token, step, agent_workers.Result('FAILED', 'Langkah belum berhasil; percobaan dibatasi.', {'reason': 'worker_failed'}))
             return
         # Store fixed public codes only, never provider bodies, credentials or raw exception text.

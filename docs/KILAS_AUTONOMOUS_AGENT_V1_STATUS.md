@@ -21,3 +21,9 @@ Further local regression evidence: tools12, Chat8, foundation5, usage5, attachme
 ## Release limitations
 
 Do not claim unrestricted 24/7 execution. Work continues across runner ticks within saved budgets; continuous/recurring execution stops at the total step cap. Condition checks are quiet until matched; missing adapters remain visible waits. No broker/trading, social publishing, automatic Gmail, deployment, GitHub write credentials, new paid resource or production activation. Production review must separately assess the migration, feature flag, configured credential-free coding snapshots and sandbox availability. Local Windows cannot execute Linux sandbox tests; CI must establish those actual results.
+
+## PR #107 checkpoint
+
+Single draft PR: https://github.com/IKUS2024/kilas-works-ai-admin/pull/107. Initial CI run36916749469 passed focused42-at-next-head/41-at-initial-head, task+existing Agent browser, PostgreSQL additive/claims; existing Automation boundary job110552485138 passed Chat/Search/image/PDF/usage/Finance/Assist. Sandbox job failed because CI-selected Python was outside the mounted system directories. Existing Automation PostgreSQL job failed on a UTF-8 BOM in new0078 SQL. Both corrected; PostgreSQL coverage now also completes a real FILE step and checks its artifact. Final-head checks pending.
+
+Review also caught ephemeral Cron filesystem loss: CODE now saves bounded original/work snapshots as internal artifacts and rehydrates them after /tmp is lost. These contain sanitized allowlisted source only, have a20KB durable snapshot cap, and are hidden from owner artifact lists. New focused test removes the workspace between patch and diff ticks and verifies the actual patch survives. Autonomous42 local PASS. This V1 supports small credential-free snapshots; larger repositories truthfully hit the workspace cap. No production mutation.

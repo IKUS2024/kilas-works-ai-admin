@@ -259,6 +259,21 @@ class AutonomousTests(unittest.TestCase):
             self.assertIn('sandbox_not_configured', store.steps(self.job_id)[0]['output_json'])
         code_worker.cleanup(self.job())
 
+    def test_code_workspace_survives_cron_filesystem_loss(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, 'hello.py').write_text('answer = 1\n')
+            raw = proposal('CODE', 'patch', {'repo': 'fixture', 'patch': json.dumps({'hello.py': 'answer = 2\n'})})
+            raw['steps'].append({**raw['steps'][0], 'action': 'diff', 'input_json': '{"repo":"fixture"}'})
+            claim = store.claim_due(1)[0]
+            store.install_plan(self.job(), claim[1], planner.validate(raw, 'ONE_SHOT'))
+            store.release(*claim)
+            with patch.dict(os.environ, {'KILAS_AI_CODE_REPOSITORIES': json.dumps({'fixture': directory})}):
+                self.tick()
+                code_worker.cleanup(self.job())
+                self.tick()
+            self.assertEqual(self.job()['status'], 'COMPLETED')
+            self.assertIn('+answer = 2', store.steps(self.job_id)[1]['output_json'])
+
     def test_unsupported_format_waits(self):
         self.plan('FILE', 'create', {'name': 'movie.mp4', 'format': 'mp4', 'content': 'unsupported'})
         self.tick()

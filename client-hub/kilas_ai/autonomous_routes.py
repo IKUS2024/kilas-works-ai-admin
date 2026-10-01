@@ -84,7 +84,7 @@ def detail(job_id):
     session['autonomous_job_id'] = job_id
     events = db.query_all('SELECT * FROM kilas_agent_events WHERE job_id=? ORDER BY id DESC LIMIT 100', (job_id,))
     events = [{**dict(e), 'time_label': time_label(e['created_at'], session['user_id'])} for e in events]
-    artifacts = db.query_all('SELECT id,name FROM kilas_agent_artifacts WHERE job_id=? ORDER BY id DESC LIMIT 50', (job_id,))
+    artifacts = db.query_all("SELECT id,name FROM kilas_agent_artifacts WHERE job_id=? AND name!='_workspace.json' ORDER BY id DESC LIMIT 50", (job_id,))
     approvals = [dict(r) for r in db.query_all("SELECT * FROM kilas_agent_approvals WHERE job_id=? AND status='PENDING' AND expires_at>?", (job_id, store.stamp()))]
     for item in approvals:
         item['payload'] = json.loads(item['payload_json'])
