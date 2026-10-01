@@ -31,3 +31,32 @@ Review also caught ephemeral Cron filesystem loss: CODE now saves bounded origin
 At runtime head71e4f3f, focused job110555460081, PostgreSQL job110555460160, and real sandbox job110555460222 PASS in run36917642854. Sandbox proof:4 actual tests,0 failures/errors/skips; includes real success/failure exit capture, absent production environment and absent host application mounts. Process-count limit128 permits sandbox startup on shared CI while remaining bounded. Autonomous44 passed at that head. Final review added paused-feedback/resume replan coverage (autonomous45 local PASS), preserving existing Automation pause/resume routing and treating “Stop setelah test pass” as a saved constraint instead of stopping immediately. Final runtime-head CI pending this follow-up.
 
 Final market boundary: providerless market-condition jobs receive a deterministic capability-wait plan without a model call; market WATCH cannot fall back to search-generated quotes. Focused47 local PASS after these two additional checks. Final candidate is frozen pending CI. The exact migration has no BOM or trailing whitespace; final diff does not change historical SQL, Finance/Assist implementation, Google scopes/actions, WhatsApp, billing or production configuration.
+
+## Final runtime verification — fcb09df
+
+Runtime commit: `fcb09dfcc601c8cb2169f12d1db1da180e54ce42`. Remote main rechecked: unchanged `f3b48b6`. Clean scoped diff and `git diff origin/main --check` PASS. Production remains unchanged; migration0078 NOT applied, flag NOT enabled, PR NOT merged, no deployment/resource/data/configuration mutation.
+
+All4 autonomous jobs PASS in run36918624322: focused110558769815, real sandbox110558769367, PostgreSQL110558769822, browser110558769681. All4 existing Automation jobs PASS in run36918624222: focused110558768993, browser110558769286, boundaries110558769330, PostgreSQL110558769349. Existing Connector focused110558770064, browser110558769715 and PostgreSQL110558769346 PASS; baseline comparison remains separate.
+
+Exact commands/counts (run each from repository root with Python3.12):
+
+| Command (prefix `python client-hub/tests/`) | Passed | Failed/errors |
+| --- | ---: | ---: |
+| test_kilas_autonomous_agent.py |47|0|
+| test_kilas_autonomous_code_sandbox.py (Linux bubblewrap required) |4|0|
+| test_kilas_ai_agent.py |9|0|
+| test_kilas_ai_automation.py |17|0|
+| test_kilas_ai_connectors.py |32|0|
+| test_kilas_ai_tools.py |12|0|
+| test_kilas_ai_chat.py |8|0|
+| test_kilas_finance_baseline.py |4|0|
+| test_assist_connections.py |9|0|
+| test_kilas_ai_attachments.py |6|0|
+| test_kilas_ai_pdf.py |4|0|
+| test_kilas_ai_usage.py |5|0|
+
+Total157 distinct focused unit/regression tests PASS,0 failures/errors/skips in these CI files. Additional procedural checks: `test_kilas_autonomous_postgres.py` PASS (additive/idempotent migration, concurrent claims, expired-lease fencing, actual FILE completion/artifact, terminal stop); `test_kilas_autonomous_browser.py` PASS at1440/820/390/320 with controls/feedback/unread and no overflow. Existing Automation/Agent/AI Chromium journeys and additive schema checks PASS. Local foundation5 also PASS separately. Scoped Impeccable suggestions were verified against rendered type hierarchy; no full audit or global design change.
+
+Broader automatically triggered workflows are not claimed green: master Assist retains the pre-existing billing redirect (302 vs200) and training language (None vs forced_language=en) failures; CRM cleanup passed on this candidate. Broad Finance/Phase9/10 suites may still be running or retain documented pre-existing assertions. These are outside the focused task and no Finance/Assist code was edited to satisfy them. Relevant scoped boundaries above are green.
+
+Implementation is ready for production review with the documented V1 limits, **not approved for activation/deployment by this task**. Market provider, external publishing/GitHub writes/deployment, richer media and push/email notifications remain unavailable adapters. Coding supports only explicit credential-free small source snapshots (20KB durable snapshot), and test execution additionally requires an OS sandbox. Re-enable a capability through a reviewed adapter and replan affected waiting tasks; never infer success from an approval alone. Persistent runner continuation, lease recovery, browser independence and owner controls are tested, but execution is bounded rather than unrestricted24/7.
