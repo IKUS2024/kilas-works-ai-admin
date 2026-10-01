@@ -87,9 +87,10 @@ def usage_summary(user_id):
                               "JOIN kilas_automations a ON a.id=r.automation_id "
                               "WHERE r.user_id=? AND a.user_id=r.user_id AND a.deleted_at IS NULL AND r.unread=?",
                               (user_id, True if db.BACKEND == "postgres" else 1), one=True)[0]
+        qa_exempt = usage._qa_quota_exempt(conn, user_id, at)
         conn.commit()
-        return {"plan": plan, "active": active, "active_limit": ACTIVE_LIMITS[plan],
-                "runs": runs, "run_limit": RUN_LIMITS[plan], "unread": unread,
+        return {"plan": plan, "active": active, "active_limit": "tanpa batas (QA)" if qa_exempt else ACTIVE_LIMITS[plan],
+                "runs": runs, "run_limit": "tanpa batas (QA)" if qa_exempt else RUN_LIMITS[plan], "unread": unread,
                 "reset_at": end}
     finally:
         conn.close()
@@ -122,7 +123,7 @@ def create(user_id, spec):
         plan = usage._plan(conn, user_id, _now())[0]
         count = usage._query(conn, "SELECT COUNT(*) FROM kilas_automations WHERE user_id=? "
                              "AND status='ACTIVE' AND next_run_at IS NOT NULL AND deleted_at IS NULL", (user_id,), one=True)[0]
-        if count >= ACTIVE_LIMITS[plan]:
+        if count >= ACTIVE_LIMITS[plan] and not usage._qa_quota_exempt(conn, user_id, _now()):
             raise AutomationError("Batas Automation aktif paketmu tercapai. Jeda yang lain atau tingkatkan paket.")
         row = usage._query(conn, "INSERT INTO kilas_automations(user_id,title,instruction,automation_type,"
                            "timezone,schedule_json,condition_json,next_run_at) VALUES (?,?,?,?,?,?,?,?) RETURNING id",
@@ -185,7 +186,7 @@ def set_status(user_id, automation_id, action):
             plan = usage._plan(conn, user_id, _now())[0]
             active = usage._query(conn, "SELECT COUNT(*) FROM kilas_automations WHERE user_id=? "
                                   "AND status='ACTIVE' AND next_run_at IS NOT NULL AND deleted_at IS NULL", (user_id,), one=True)[0]
-            if row[0] != "ACTIVE" and active >= ACTIVE_LIMITS[plan]:
+            if row[0] != "ACTIVE" and active >= ACTIVE_LIMITS[plan] and not usage._qa_quota_exempt(conn, user_id, _now()):
                 raise AutomationError("Batas Automation aktif paketmu tercapai.")
             next_run = schedules.next_occurrence(json.loads(row[1]), row[2], _now())
             if not next_run:
@@ -277,7 +278,7 @@ def claim_due(limit=10, now=None):
             rank = usage._query(conn, "SELECT COUNT(*) FROM kilas_automations WHERE user_id=? "
                                 "AND status='ACTIVE' AND next_run_at IS NOT NULL AND deleted_at IS NULL AND id<=?",
                                 (user_id, automation_id), one=True)[0]
-            if rank > ACTIVE_LIMITS[current_plan]:
+            if rank > ACTIVE_LIMITS[current_plan] and not usage._qa_quota_exempt(conn, user_id, now):
                 usage._query(conn, "UPDATE kilas_automations SET status='PAUSED_QUOTA',next_run_at=NULL,"
                              "last_error_code='active_limit' WHERE id=? AND user_id=?",
                              (automation_id, user_id))
@@ -308,7 +309,7 @@ def claim_due(limit=10, now=None):
                                      "AND r.status NOT IN ('SKIPPED_QUOTA','SKIPPED_DUPLICATE') "
                                      "AND r.started_at>=? AND r.started_at<?",
                                      (user_id, _iso(start), _iso(end)), one=True)[0]
-                if count >= RUN_LIMITS[plan]:
+                if count >= RUN_LIMITS[plan] and not usage._qa_quota_exempt(conn, user_id, now):
                     usage._query(conn, "INSERT INTO kilas_automation_runs(automation_id,user_id,scheduled_for,status,"
                                  "completed_at,error_code) VALUES (?,?,?,'SKIPPED_QUOTA',?,'run_limit') "
                                  "ON CONFLICT(automation_id,scheduled_for) DO NOTHING",

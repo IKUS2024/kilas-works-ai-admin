@@ -138,6 +138,29 @@ class AutomationFlowTests(unittest.TestCase):
             user_session.update(user_id=user_id, role="CLIENT_OWNER", _csrf_token="automation-csrf")
         return client
 
+    def test_owner_qa_window_covers_task_and_run_quotas_only(self):
+        from kilas_ai import usage
+        owner = repo.create_user("automation-qa-window@example.test", "hash")
+        now = datetime(2026, 10, 1, 8, tzinfo=timezone.utc)
+        expiry = now + timedelta(days=7)
+        spec = schedule.parse_structured("Check only synthetic Gmail test messages", "Asia/Jakarta", "once",
+            date="2026-10-01", time="16:00", now=now)
+        with patch.object(usage, "QA_QUOTA_EXEMPTIONS", {owner: ("automation-qa-window@example.test", expiry)}), \
+             patch.object(store, "_now", return_value=now), patch.dict(store.RUN_LIMITS, {"FREE": 0}):
+            first, second = store.create(owner, spec), store.create(owner, spec)
+            store.set_status(owner, second, "pause")
+            store.set_status(owner, second, "resume")
+            self.assertEqual(store.usage_summary(owner)["active_limit"], "tanpa batas (QA)")
+            self.assertEqual(store.usage_summary(self.other)["active_limit"], 1)
+            due = spec["next_run_at"] + timedelta(seconds=1)
+            claimed = store.claim_due(now=due)
+            self.assertEqual(len(claimed), 2)
+            self.assertEqual({db.query_one("SELECT automation_id FROM kilas_automation_runs WHERE id=? AND user_id=?",
+                                           (i, owner))["automation_id"] for i in claimed}, {first, second})
+            self.assertEqual(store.claim_due(now=due), [])
+            with patch.object(store, "_now", return_value=expiry):
+                self.assertEqual(store.usage_summary(owner)["active_limit"], 1)
+
     def test_structured_preview_create_and_edit_preserve_existing_format(self):
         user_id = repo.create_user("automation-structured@example.test", "hash")
         client = self.client_for(user_id)
