@@ -17,6 +17,7 @@ CONNECTIONS = (
     (re.compile(r"\b(?:gmail|e-?mail|inbox email)\b", re.I), "Gmail"),
     (re.compile(r"\b(?:google calendar|kalender google|calendar|kalender)\b", re.I), "Google Calendar"),
     (re.compile(r"\b(?:google drive|drive)\b", re.I), "Google Drive"),
+    (re.compile(r"\b(?:google contacts|contacts|kontak google)\b", re.I), "Google Contacts"),
     (re.compile(r"\b(?:whatsapp|wa)\b", re.I), "WhatsApp"),
     (re.compile(r"\b(?:kilas finance|finance|laporan keuangan|rekening|invoice|transaksi|saldo)\b", re.I), "Kilas Finance"),
 )

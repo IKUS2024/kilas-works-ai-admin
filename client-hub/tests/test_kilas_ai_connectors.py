@@ -1,0 +1,158 @@
+"""Focused connector ownership, OAuth state, approval, and schedule boundaries."""
+import os
+import sys
+import tempfile
+import unittest
+from urllib.parse import parse_qs, urlparse
+from unittest.mock import patch
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.environ["CLIENT_HUB_DB_PATH"] = tempfile.mktemp(prefix="kilas-connectors-", suffix=".sqlite")
+os.environ["SECRET_KEY"] = "synthetic-connector-test-only"
+os.environ["KILAS_AI_ENABLED"] = "true"
+os.environ["KILAS_AI_AUTOMATION_ENABLED"] = "true"
+os.environ.pop("DATABASE_URL", None)
+
+from cryptography.fernet import Fernet  # noqa: E402
+import app  # noqa: E402
+import db  # noqa: E402
+import repo  # noqa: E402
+from kilas_ai import connector_actions, connectors, google_connection, automation_schedule  # noqa: E402
+
+
+class Response:
+    def __init__(self, status, payload):
+        self.status_code = status
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+class ConnectorTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = app.app
+        cls.app.config.update(TESTING=True, CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)
+
+    def setUp(self):
+        label = self._testMethodName
+        self.owner = repo.create_user(f"connector-{label}@example.test", "hash")
+        self.other = repo.create_user(f"connector-other-{label}@example.test", "hash")
+
+    def client_for(self, user_id):
+        client = self.app.test_client()
+        with client.session_transaction() as state:
+            state.update(user_id=user_id, role="CLIENT_OWNER", _csrf_token="connector-csrf")
+        return client
+
+    def test_missing_google_configuration_is_truthful(self):
+        with patch.dict(os.environ, {}, clear=False):
+            for key in ("KILAS_GOOGLE_CLIENT_ID", "KILAS_GOOGLE_CLIENT_SECRET",
+                        "KILAS_GOOGLE_REDIRECT_URI", "KILAS_CONNECTOR_ENCRYPTION_KEY"):
+                os.environ.pop(key, None)
+            client = self.client_for(self.owner)
+            page = client.get("/kilas-ai/agent?view=connections")
+            self.assertEqual(page.status_code, 200)
+            self.assertIn("Koneksi Google belum tersedia", page.text)
+            response = client.post("/kilas-ai/agent/connections/google/gmail",
+                                   data={"csrf_token": "connector-csrf"})
+            self.assertEqual(response.status_code, 303)
+            self.assertNotIn("accounts.google.com", response.location)
+            self.assertEqual(connectors.available_tools(self.owner), [])
+
+    def test_oauth_state_identity_encryption_and_owner_isolation(self):
+        key = Fernet.generate_key().decode()
+        env = {"KILAS_GOOGLE_CLIENT_ID": "synthetic-client-id",
+               "KILAS_GOOGLE_CLIENT_SECRET": "synthetic-secret",
+               "KILAS_GOOGLE_REDIRECT_URI": "https://app.example.test/kilas-ai/agent/connections/google/callback",
+               "KILAS_CONNECTOR_ENCRYPTION_KEY": key}
+        with patch.dict(os.environ, env):
+            state = {}
+            url = google_connection.begin(self.owner, "gmail", state)
+            raw = parse_qs(urlparse(url).query)["state"][0]
+            self.assertNotIn(raw, str(db.query_all("SELECT * FROM kilas_ai_oauth_states")))
+            with self.assertRaisesRegex(connectors.ConnectorError, "invalid_oauth_state"):
+                google_connection.complete(self.other, state, raw, "code")
+            with patch.object(google_connection.requests, "post", return_value=Response(200, {
+                    "access_token": "synthetic-access", "refresh_token": "synthetic-refresh",
+                    "expires_in": 3600,
+                    "scope": "openid email https://www.googleapis.com/auth/gmail.readonly "
+                             "https://www.googleapis.com/auth/gmail.compose "
+                             "https://www.googleapis.com/auth/gmail.send"})), \
+                 patch.object(google_connection.requests, "get", return_value=Response(200, {
+                     "sub": "synthetic-google-account", "email": "owner@example.test", "email_verified": True})):
+                row = google_connection.complete(self.owner, state, raw, "code")
+            self.assertEqual(row["status"], "CONNECTED")
+            self.assertEqual(row["display_identity"], "owner@example.test")
+            self.assertNotIn("synthetic-refresh", str(row))
+            self.assertIn("gmail.send", connectors.available_tools(self.owner))
+            self.assertNotIn("gmail.send", connectors.available_tools(self.other))
+            with self.assertRaisesRegex(connectors.ConnectorError, "invalid_oauth_state"):
+                google_connection.complete(self.owner, state, raw, "code")
+            with patch.object(google_connection.requests, "post", return_value=Response(200, {})):
+                google_connection.disconnect(self.owner)
+            self.assertNotIn("gmail.send", connectors.available_tools(self.owner))
+
+    def test_action_exact_payload_single_use_and_owner_boundary(self):
+        business = repo.create_business(self.owner, "Connector Finance")
+        with patch.object(connectors, "business_connections", side_effect=lambda user: [
+                {"provider": "FINANCE", "business_id": business, "status": "CONNECTED"}]
+                if user == self.owner else []):
+            payload = {"branch_id": 3, "direction": "INCOME", "amount_minor": 2500000,
+                       "account_id": 4, "category_id": 5, "occurred_on": "2099-01-01"}
+            approval_id = connectors.propose_action(self.owner, "finance.create_transaction",
+                "3", payload, business_id=business)
+            with self.assertRaisesRegex(connectors.ConnectorError, "approval_not_found"):
+                connectors.claim_action(self.other, approval_id)
+            row = connectors.approval(self.owner, approval_id)
+            self.assertIn("payload_hash", row)
+            self.assertEqual(connectors.claim_action(self.owner, approval_id)["payload"], payload)
+            with self.assertRaisesRegex(connectors.ConnectorError, "approval_already_used"):
+                connectors.claim_action(self.owner, approval_id)
+            connectors.finish_action(self.owner, approval_id, "UNKNOWN", error_code="provider_outcome_uncertain")
+            self.assertEqual(connectors.approval(self.owner, approval_id)["status"], "UNKNOWN")
+
+    def test_confirmed_gmail_send_cannot_be_replayed(self):
+        t = connectors.stamp()
+        db.execute("INSERT INTO kilas_ai_connections "
+            "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+            "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
+            (self.owner, '["https://www.googleapis.com/auth/gmail.send"]', t, t))
+        approval_id = connectors.propose_action(self.owner, "gmail.send", "wilson@example.test",
+            {"to": "wilson@example.test", "subject": "Jadwal", "body": "Besok jam 2 bisa."})
+        with patch.object(connector_actions.google_tools, "gmail_send", return_value={"id": "provider-message-1"}) as send:
+            self.assertEqual(connector_actions.execute(self.owner, approval_id)["id"], "provider-message-1")
+            with self.assertRaisesRegex(connectors.ConnectorError, "approval_already_used"):
+                connector_actions.execute(self.owner, approval_id)
+            send.assert_called_once()
+        self.assertEqual(connectors.approval(self.owner, approval_id)["status"], "SUCCEEDED")
+
+    def test_natural_schedule_without_utc_day_shift(self):
+        from datetime import datetime, timezone
+        near_midnight = datetime(2026, 9, 30, 17, 30, tzinfo=timezone.utc)
+        cases = {
+            "besok jam 5 pagi cari berita AI": (2026, 10, 2, 5, 0),
+            "tomorrow at 5pm search news": (2026, 10, 2, 17, 0),
+            "lusa 17:00 cari berita": (2026, 10, 3, 17, 0),
+            "setiap Senin pagi cari berita": (None, None, 8, 0),
+            "tiap senin sampai jumat jam 8 cari berita": (None, None, 8, 0),
+            "tanggal 1 Oktober 2027 jam setengah 8 pagi cari berita": (2027, 10, 1, 7, 30),
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                spec = automation_schedule.parse(text, "Asia/Jakarta", now=near_midnight)
+                run = spec["next_run_at"].astimezone(automation_schedule.ZoneInfo("Asia/Jakarta"))
+                for actual, want in zip((run.year, run.month, run.hour, run.minute),
+                                        (expected[0], expected[1], expected[2], expected[3])):
+                    if want is not None:
+                        self.assertEqual(actual, want)
+        self.assertEqual(automation_schedule.parse(
+            "tiap senin sampai jumat jam 8 cari berita", "Asia/Jakarta", now=near_midnight)["schedule"]["kind"],
+            "weekdays")
+        with self.assertRaises(automation_schedule.ScheduleError):
+            automation_schedule.parse("kemarin jam 8 cari berita", "Asia/Jakarta", now=near_midnight)
+
+
+if __name__ == "__main__":
+    unittest.main()

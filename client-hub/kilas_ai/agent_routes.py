@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from flask import abort, redirect, render_template, request, session, url_for
 
 from . import agent_planner, agent_store, automation_schedule as schedule, automation_store as store, usage
+from . import connectors, google_connection, connector_flow, connector_planner
 from .routes import ai_bp, automation_enabled
 
 
@@ -76,9 +77,24 @@ def agent_home():
     if action and int(time.time()) - action.get("created", 0) > 900:
         session.pop("agent_pending_action", None)
         action = None
+    google = google_connection.configuration()
+    google_row = connectors.google_connection(owner)
+    google_services = {name: bool(google_row and google_row["status"] == "CONNECTED" and
+                             set(scopes).issubset(set(json.loads(google_row["scopes_json"]))))
+                       for name, scopes in connectors.GOOGLE_SCOPES.items()}
+    internal_connections = connectors.business_connections(owner)
+    approval_row = connectors._row(__import__('db').query_one(
+        "SELECT id,tool,target,payload_json,business_id,expires_at FROM kilas_ai_action_approvals "
+        "WHERE user_id=? AND status='PENDING' AND expires_at>? ORDER BY id DESC LIMIT 1",
+        (owner, connectors.stamp())))
+    if approval_row:
+        approval_row["payload"] = json.loads(approval_row["payload_json"])
     return render_template("kilas_ai/agent.html", view=view, messages=agent_store.messages(owner),
                            tasks=tasks, activity=agent_store.activity(owner), preview=preview,
                            action=action, capacity=store.usage_summary(owner),
+                           google=google, google_connection=google_row,
+                           google_services=google_services,
+                           internal_connections=internal_connections, connector_approval=approval_row,
                            unread=store.unread_count(owner), error=request.args.get("error"),
                            prefill=request.args.get("message", "")[:1200])
 
@@ -97,16 +113,56 @@ def agent_chat():
     session.pop("agent_pending_action", None)
     connection = (None if re.search(r"\b(?:pause|jeda|resume|lanjutkan|aktifkan)\b", text, re.I)
                   else agent_planner.required_connection(text))
-    if connection:
-        _reply(f"Kilas butuh akses {connection} untuk menjalankan tugas ini. Koneksi {connection} belum tersedia, "
-               "jadi tugas belum dibuat atau dijalankan. Lihat statusnya di Koneksi.")
+    connector_context = session.get("agent_connector_context")
+    if connector_context and (int(time.time()) - int(session.get("agent_connector_context_at", 0)) > 600
+                              or len(text) > 120
+                              or re.search(r"\b(?:pause|jeda|resume|lanjutkan|aktifkan|cari berita|search news)\b", text, re.I)):
+        session.pop("agent_connector_context", None)
+        session.pop("agent_connector_context_at", None)
+        connector_context = None
+    if connection or connector_context:
+        enabled_tools = connectors.available_tools(owner)
+        family = ({"Gmail": "gmail.", "Google Calendar": "calendar.", "Google Drive": "drive.",
+                   "Google Contacts": "contacts.", "WhatsApp": "whatsapp.",
+                   "Kilas Finance": "finance."}.get(connection) if connection else None)
+        if family and not any(tool.startswith(family) for tool in enabled_tools):
+            session["connector_pending_intent"] = text
+            _reply(f"Kilas butuh akses {connection}. Koneksi belum terhubung atau belum memberi izin yang diperlukan. "
+                   "Permintaanmu disimpan untuk dilanjutkan setelah koneksi tersedia.")
+            return redirect(url_for("kilas_ai.agent_home", view="connections"), code=303)
+        if connection and connector_flow.SCHEDULE_WORDS.search(text):
+            try:
+                spec = schedule.parse(text, store.setting(owner))
+                spec["condition"]["connector_read"] = True
+                _preview(None, spec)
+                _reply("Siap. Tugas ini hanya membaca akses yang tersedia dan menyimpan hasil di Aktivitas. "
+                       "Periksa jadwal sebelum mengaktifkan.")
+            except schedule.ScheduleError:
+                _reply("Jam atau tanggalnya belum cukup jelas. Sebutkan waktu yang kamu inginkan.")
+            return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
+        try:
+            result = connector_flow.handle(owner, text, history, store.setting(owner))
+            _reply(result["message"])
+            session["agent_connector_context"] = connection or connector_context
+            session["agent_connector_context_at"] = int(time.time())
+        except (connectors.ConnectorError, connector_planner.InterpretationError) as error:
+            code = str(error)
+            if code in ("not_connected", "permission_missing", "provider_not_configured"):
+                session["connector_pending_intent"] = text
+            _reply({"choose_business": "Bisnis mana yang dimaksud? Sebutkan nama bisnisnya.",
+                    "not_connected": "Koneksi belum tersedia. Buka Koneksi untuk menghubungkan akun.",
+                    "permission_missing": "Izin untuk tindakan ini belum diberikan. Hubungkan ulang layanan dengan izin yang sesuai.",
+                    "planner_unavailable": "Agent belum bisa memahami permintaan ini sekarang. Coba lagi sebentar.",
+                    "provider_unavailable": "Layanan belum merespons. Tidak ada tindakan yang diklaim berhasil.",
+                    "business_not_connected": "Bisnis itu tidak terhubung pada akun ini."}.get(code,
+                    "Permintaan belum bisa diproses dengan aman. Periksa tujuan dan izin lalu coba lagi."))
         return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
 
     # Clear create commands should not depend on the model deciding whether to ask another
     # unnecessary question. The deterministic schedule parser is authoritative; the model
     # remains responsible for ambiguous conversational follow-ups and task edits.
     edit_words = re.search(r"\b(?:ubah|ganti|edit|pause|jeda|resume|lanjutkan|aktifkan kembali|hapus|delete)\b", text, re.I)
-    if not edit_words and (schedule.TIME.search(text) or re.search(r"\b(?:setiap|tiap|every)\s+\d+\s+(?:jam|hours?)\b", text, re.I)):
+    if not edit_words and (schedule.TIME.search(text) or schedule.HALF.search(text) or re.search(r"\b(?:setiap|tiap|every)\s+\d+\s+(?:jam|hours?)\b", text, re.I)):
         try:
             spec = schedule.parse(text, store.setting(owner))
             _preview(None, spec)
@@ -129,7 +185,7 @@ def agent_chat():
             _reply("Aku belum yakin tugas mana yang ingin diubah. Pilih tugas di daftar, lalu buka Edit.")
         elif agent_planner.required_connection(plan["schedule_text"]):
             _reply("Tugas ini membutuhkan koneksi yang belum tersedia. Aku belum membuat atau mengaktifkannya.")
-        elif kind == "CREATE" and not schedule.TIME.search(plan["schedule_text"]) and not re.search(
+        elif kind == "CREATE" and not (schedule.TIME.search(plan["schedule_text"]) or schedule.HALF.search(plan["schedule_text"])) and not re.search(
                 r"\b(?:setiap|tiap|every)\s+\d+\s+(?:jam|hours?)\b", plan["schedule_text"], re.I):
             _reply("Jam berapa tugas ini perlu dijalankan? Tulis waktu yang jelas, atau pilih tanggal dan jam di formulir tugas.")
         else:
