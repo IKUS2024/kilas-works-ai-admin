@@ -33,7 +33,7 @@ class CodeSandboxTests(unittest.TestCase):
 
     def test_actual_success(self):
         result = self.exercise('self.assertEqual(2 + 2, 4)')
-        self.assertEqual(result.status, 'SUCCEEDED')
+        self.assertEqual(result.status, 'SUCCEEDED', result.output)
         self.assertEqual(result.output['exit_code'], 0)
         self.assertIn('Ran 1 test', result.output['test_output'])
 
@@ -41,15 +41,15 @@ class CodeSandboxTests(unittest.TestCase):
         result = self.exercise('self.assertEqual(2 + 2, 5)')
         self.assertEqual(result.status, 'FAILED')
         self.assertNotEqual(result.output['exit_code'], 0)
-        self.assertIn('FAIL', result.output['test_output'])
+        self.assertIn('FAIL', result.output['test_output'], result.output)
 
     def test_no_production_environment(self):
         result = self.exercise("self.assertNotIn('PRODUCTION_SECRET', __import__('os').environ)")
-        self.assertEqual(result.status, 'SUCCEEDED')
+        self.assertEqual(result.status, 'SUCCEEDED', result.output)
 
     def test_no_host_application_mount(self):
         result = self.exercise("self.assertFalse(__import__('os').path.exists('/home/runner/work'))")
-        self.assertEqual(result.status, 'SUCCEEDED')
+        self.assertEqual(result.status, 'SUCCEEDED', result.output)
 
 
 if __name__ == '__main__':

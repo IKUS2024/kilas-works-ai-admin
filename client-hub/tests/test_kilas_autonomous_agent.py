@@ -302,6 +302,18 @@ class AutonomousTests(unittest.TestCase):
         client.post('/kilas-ai/agent/chat', data={'csrf_token': 'autonomous-csrf', 'message': 'stop pekerjaan ' + str(self.job_id)})
         self.assertEqual(self.job()['status'], 'STOPPED')
 
+    def test_stop_after_test_instruction_is_constraint_not_immediate_stop(self):
+        client = self.client()
+        client.post('/kilas-ai/agent/chat', data={'csrf_token': 'autonomous-csrf', 'message': 'Stop setelah test pass.'})
+        self.assertEqual(self.job()['status'], 'PLANNING')
+        self.assertIn('Stop setelah test pass', self.job()['constraints_json'])
+
+    def test_no_autonomous_task_preserves_old_control_routing(self):
+        from kilas_ai import autonomous_routes
+        db.execute('DELETE FROM kilas_agent_jobs')
+        with app.app.test_request_context('/kilas-ai/agent/chat', method='POST'):
+            self.assertFalse(autonomous_routes.chat(self.owner, 'pause'))
+
     def test_disabled_default_preserves_existing_agent(self):
         with patch.dict(os.environ, {'KILAS_AI_AUTONOMOUS_ENABLED': ''}):
             self.assertTrue(runner.run_once()['disabled'])

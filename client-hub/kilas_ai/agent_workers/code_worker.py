@@ -172,7 +172,7 @@ def resource_limits():
     resource.setrlimit(resource.RLIMIT_CPU, (25, 25))
     resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
     resource.setrlimit(resource.RLIMIT_FSIZE, (24000, 24000))
-    resource.setrlimit(resource.RLIMIT_NPROC, (24, 24))
+    resource.setrlimit(resource.RLIMIT_NPROC, (128, 128))
     resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
 
 
@@ -226,7 +226,8 @@ def run(job, step, data):
             log.seek(0)
             output = log.read(24000).decode('utf-8', errors='replace')
         if not re.search(r'Ran [1-9]\d* tests?', output):
-            raise ValueError('tests_not_executed')
+            return Result('FAILED', 'Pengujian belum dijalankan oleh sandbox.',
+                          {'exit_code': process.returncode, 'test_output': output, 'reason': 'tests_not_executed'}, verified=False)
         return Result('SUCCEEDED' if process.returncode == 0 else 'FAILED', 'Pengujian berhasil.' if process.returncode == 0 else 'Pengujian gagal.',
                       {'exit_code': process.returncode, 'test_output': output}, [{'name': 'tests.txt', 'media_type': 'text/plain', 'content': output}], verified=True)
     patch = diff(workspace)

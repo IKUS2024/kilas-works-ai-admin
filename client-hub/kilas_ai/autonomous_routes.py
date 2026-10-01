@@ -51,12 +51,14 @@ def chat(user_id, text):
     if controls or explicit or feedback_words:
         jobs = [j for j in store.list_jobs(user_id) if j['status'] not in store.TERMINAL]
         focused = session.get('autonomous_job_id')
+        if not jobs and not explicit and not focused:
+            return False  # Existing Automation pause/resume and ordinary chat retain their route.
         job = store.get(user_id, int(explicit[1])) if explicit else store.get(user_id, focused) if focused else jobs[0] if len(jobs) == 1 else None
         if not job:
             agent_store.append(user_id, 'assistant', 'Pilih pekerjaan di Tugas aktif agar instruksi diterapkan ke pekerjaan yang tepat.')
             return True
         verb = text.lower().split()[0]
-        action = 'pause' if verb in ('pause', 'jeda') else 'resume' if verb in ('resume', 'lanjutkan') else 'stop' if verb in ('stop', 'berhenti', 'batalkan') else None
+        action = None if feedback_words else 'pause' if verb in ('pause', 'jeda') else 'resume' if verb in ('resume', 'lanjutkan') else 'stop' if verb in ('stop', 'berhenti', 'batalkan') else None
         try:
             if action:
                 store.control(user_id, job['id'], action)
