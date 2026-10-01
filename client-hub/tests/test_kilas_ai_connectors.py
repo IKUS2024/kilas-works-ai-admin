@@ -453,6 +453,8 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(agent_planner.required_connection("每周一早上帮我总结重要邮件"), "Gmail")
         self.assertEqual(agent_planner.required_connection("revisar mi correo"), "Gmail")
         self.assertEqual(agent_planner.required_connection("cek jadwal Jumat"), "Google Calendar")
+        self.assertEqual(agent_planner.required_connection(
+            "Check my availability tomorrow between 1 PM and 5 PM."), "Google Calendar")
 
     def test_production_english_schedule_keeps_google_runner_and_explicit_zone(self):
         from datetime import datetime, timezone

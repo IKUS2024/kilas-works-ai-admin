@@ -1,5 +1,6 @@
 """Conversational Agent front end over the existing account-owned task engine."""
 import json
+import logging
 import re
 import time
 from datetime import datetime, timezone
@@ -165,6 +166,11 @@ def agent_chat():
             session["agent_connector_context_at"] = int(time.time())
         except ValueError as error:
             code = str(error)
+            # Log only fixed diagnostic codes, never message content or credentials.
+            if code in {"invalid_event", "invalid_payload", "invalid_business_scope", "invalid_target",
+                        "invalid_approval_expiry", "approval_not_required", "ambiguous_event",
+                        "planner_unavailable", "permission_missing", "recipient_unverified"}:
+                logging.getLogger(__name__).warning("Agent connector rejected: %s", code)
             if code in ("not_connected", "permission_missing", "provider_not_configured"):
                 session["connector_pending_intent"] = text
             _reply({"choose_business": "Bisnis mana yang dimaksud? Sebutkan nama bisnisnya.",
