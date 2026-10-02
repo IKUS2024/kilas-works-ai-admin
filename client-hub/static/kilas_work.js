@@ -27,9 +27,9 @@
     try {
       preferences ||= await load();
       if (!preferences.push_available || !preferences.public_key || !window.isSecureContext || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-        status.textContent='Notifikasi perangkat belum tersedia. Pengingat tetap tersimpan di Work.';return;
+        status.textContent='Notifikasi perangkat belum tersedia. Pengingat tetap tersimpan di Kilas AI.';return;
       }
-      if (await Notification.requestPermission() !== 'granted') { status.textContent='Izin belum diberikan. Pengingat tetap muncul di Work.';return; }
+      if (await Notification.requestPermission() !== 'granted') { status.textContent='Izin belum diberikan. Pengingat tetap muncul di Kilas AI.';return; }
       const registration=await navigator.serviceWorker.register('/kilas-ai/work/service-worker.js',{scope:'/kilas-ai/'});
       await navigator.serviceWorker.ready;
       const encoded=preferences.public_key.replace(/-/g,'+').replace(/_/g,'/');
@@ -37,7 +37,7 @@
       const subscription=await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
       const response=await fetch('/kilas-ai/work/push',{method:'POST',headers,body:JSON.stringify(subscription.toJSON())});
       status.textContent=response.ok?'Notifikasi perangkat aktif.':'Notifikasi belum tersimpan. Coba lagi.';
-    } catch (_) { status.textContent='Notifikasi belum aktif. Pengingat tetap tersimpan di Work.'; }
+    } catch (_) { status.textContent='Notifikasi belum aktif. Pengingat tetap tersimpan di Kilas AI.'; }
   });
   document.querySelector('[data-notifications-read]')?.addEventListener('click',async () => {
     const response=await fetch('/kilas-ai/work/notifications/read',{method:'POST',headers});

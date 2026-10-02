@@ -1,5 +1,11 @@
 /* Chat owns only conversation UI. Tasks continue independently on the existing runner. */
 (() => {
+  function refreshCounts(doc) {
+    for (const selector of ['[data-active-count]','[data-notification-count]']) {
+      const incoming=doc.querySelector(selector), current=document.querySelector(selector);
+      if(incoming && current) current.textContent=incoming.textContent;
+    }
+  }
   document.addEventListener('submit', event => {
     if (event.target.matches('[data-confirm-delete]') && !window.confirm('Hapus tugas ini? Riwayat hasilnya tetap tersimpan.')) event.preventDefault();
   });
@@ -15,6 +21,7 @@
           const response=await fetch(location.href,{cache:'no-store'});
           if(!response.ok) return;
           const doc=new DOMParser().parseFromString(await response.text(),'text/html');
+          refreshCounts(doc);
           const current=doc.querySelector('[data-work-detail-updates]');
           if(current) {document.querySelector('[data-work-detail-updates]').replaceWith(current);window.KilasMarkdown.hydrate(current);}
         } catch (_) { /* Retain persisted progress and untouched feedback input. */ }
@@ -33,6 +40,7 @@
           const response = await fetch('/kilas-ai/agent?view=tasks', {cache:'no-store'});
           if (!response.ok) return;
           const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+          refreshCounts(doc);
           const current = doc.querySelector('[data-task-cards]');
           if (current) document.querySelector('[data-task-cards]')?.replaceWith(current);
         } catch (_) { /* Retain the last verified state. */ }
@@ -49,6 +57,9 @@
   const thinking = document.querySelector('#agent-thinking');
   const error = document.querySelector('#agent-chat-error');
   let busy = false;
+  let controller;
+  const stop=form.querySelector('[data-unified-stop]');
+  stop?.addEventListener('click',()=>controller?.abort());
   const canAutoFocus = () => Boolean(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
   function message(role, text) {
     const article = document.createElement('article');
@@ -65,6 +76,7 @@
     const response = await fetch(`/kilas-ai/agent?conversation=${encodeURIComponent(id)}`, {cache:'no-store'});
     if (!response.ok || !response.url.includes('/kilas-ai/agent')) throw new Error('refresh');
     const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+    refreshCounts(doc);
     const current = doc.querySelector('#agent-conversation');
     if (!current) throw new Error('refresh');
     chat.replaceChildren(...current.childNodes);
@@ -90,6 +102,7 @@
     const data = new FormData(form);
     if (!canAutoFocus()) input.blur();
     busy = true; send.disabled = true; input.readOnly = true;
+    controller=new AbortController();if(stop) stop.hidden=false;
     error.hidden = true; chat.querySelector('.agent-welcome')?.remove();
     message('user', input.value.trim());
     thinking.hidden = false;
@@ -97,7 +110,7 @@
     chat.setAttribute('aria-busy', 'true');
     let accepted = false;
     try {
-      const response = await fetch(form.action, {method:'POST',body:data,headers:{'X-Agent-Chat':'1'}});
+      const response = await fetch(form.action, {method:'POST',body:data,headers:{'X-Agent-Chat':'1'},signal:controller.signal});
       if (!response.ok) {
         const failure=new Error('request');
         try { const payload=await response.json(); if(typeof payload.error==='string') failure.publicMessage=payload.error; } catch (_) { /* Preserve a safe fallback. */ }
@@ -119,6 +132,7 @@
               answer ||= message('assistant', ''); answer.textContent += update.text;
               chat.scrollTop = chat.scrollHeight;
             } else if (update.type === 'activity') thinking.lastElementChild.textContent = update.label;
+            else if (update.type === 'reset') { if(answer) answer.textContent=''; }
             else if (update.type === 'error') throw new Error('provider');
             else if (update.type === 'done') { complete = true; if (answer) { answer.classList.add('ai-markdown'); window.KilasMarkdown.render(answer,answer.textContent); } }
           }
@@ -137,6 +151,7 @@
       // Same key is retained after an uncertain outcome: retry cannot create duplicate work.
       if (accepted) { try { await refresh(); } catch (_) { /* Keep visible local messages. */ } }
     } finally {
+      if(stop) stop.hidden=true;controller=null;
       busy = false; send.disabled = false; input.readOnly = false;
       thinking.hidden = true; chat.removeAttribute('aria-busy');
       if (canAutoFocus()) input.focus({preventScroll:true});
@@ -156,6 +171,7 @@
       const response = await fetch(`/kilas-ai/agent?${query}`, {cache:'no-store'});
       if (!response.ok) return;
       const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+      refreshCounts(doc);
       // Preserve each result's position in the durable message timeline.
       const incoming=doc.querySelector('#agent-conversation');
       if(incoming && incoming.querySelectorAll('.agent-message').length!==chat.querySelectorAll('.agent-message').length) {

@@ -6,15 +6,17 @@
 <button class="ai-backdrop" data-ai-backdrop type="button" aria-label="Tutup riwayat"></button>
   <aside class="ai-sidebar agent-rail" id="agent-sidebar" data-ai-sidebar aria-label="Navigasi Kilas AI">
     {% include 'kilas_ai/_sidebar_top.html' %}
-    <form method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" class="agent-new-chat"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">+ Work baru</button></form>
+    <form method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" class="agent-new-chat"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">+ Chat baru</button></form>
     <nav class="ai-history agent-chats" aria-label="Chat terbaru"><h2 class="ai-history-heading">Terbaru</h2>{% for chat in recent_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}" {% if view=='chat' and chat.id==conversation.id %}aria-current="page"{% endif %}>{{ chat.title }}</a>{% endfor %}<a href="{{ url_for('kilas_ai.agent_home',view='history') }}">Riwayat</a></nav>
-    <nav class="agent-sections" aria-label="Bagian Work">
+    <nav class="agent-sections" aria-label="Bagian Kilas AI">
+      <a href="{{ url_for('kilas_ai.agent_home',view='tasks') }}">Pekerjaan aktif <span data-active-count>{{ active_count }}</span></a>
+      <a href="{{ url_for('kilas_ai.agent_home',view='notifications') }}">Notifikasi <span data-notification-count>{{ autonomous_unread }}</span></a>
       <a href="{{ url_for('kilas_ai.agent_home',view='settings') }}" {% if view=='settings' %}aria-current="page"{% endif %}>Pengaturan</a>
     </nav>
     <div class="ai-sidebar-bottom"><p>Pekerjaan dan hasil tetap tersimpan saat kamu keluar.</p></div>
   </aside>
 
-  <main class="ai-main agent-main" aria-label="{{ {'chat':'Percakapan Work','tasks':'Pekerjaan Work','activity':'Aktivitas Work','connections':'Koneksi Work','history':'Riwayat Work','settings':'Pengaturan Work','notifications':'Notifikasi Work'}[view] }}">
+  <main class="ai-main agent-main" aria-label="{{ {'chat':'Percakapan Kilas AI','tasks':'Pekerjaan Kilas AI','activity':'Aktivitas Kilas AI','connections':'Koneksi Kilas AI','history':'Riwayat','settings':'Pengaturan Kilas AI','notifications':'Notifikasi Kilas AI'}[view] }}">
     {% set ai_mode = 'agent' %}
     {% include 'kilas_ai/_app_header.html' %}
     <section class="agent-content">
@@ -27,7 +29,7 @@
           {% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}
           {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}"><div class="agent-speaker">{{ 'Kamu' if message.role == 'user' else 'Kilas' }}</div><div class="agent-message-text {{ 'ai-markdown' if message.role=='assistant' else '' }}" {% if message.role=='assistant' %}data-kilas-markdown{% endif %}>{{ message.content }}</div></article>{% for job in inline_jobs.get(message.id,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endfor %}
         {% else %}
-          <div class="agent-welcome"><h3>Apa yang ingin kamu kerjakan?</h3><p>Beri pekerjaan untuk Kilas dan terima hasil yang siap digunakan.</p></div>
+          <div class="agent-welcome"><h3>Apa yang ingin kamu lakukan?</h3><p>Tanya sesuatu, cari informasi, buat gambar atau dokumen, atau berikan pekerjaan untuk Kilas.</p></div>
         {% endif %}
         {% if not messages %}{% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endif %}
       </div>
@@ -38,33 +40,34 @@
         <div class="work-attachment-bar"><button type="button" class="work-add-file" data-work-attach aria-label="Tambah lampiran"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></button><input id="work-source-files" name="source_files" type="file" accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp" multiple class="ai-visually-hidden"><span>Dokumen atau gambar</span></div>
         <div id="work-pending-files" class="work-pending-files" aria-live="polite"></div>
         {% if location_request %}<div class="work-context-permission"><p>Lokasi hanya digunakan untuk pekerjaan ini.</p><button type="button" data-work-location data-request="{{ location_request.text }}">Izinkan lokasi</button><span>Atau ketik nama daerah.</span></div>{% endif %}
-        <div class="ai-composer"><textarea id="agent-message" name="message" rows="2" maxlength="1200" required placeholder="Berikan pekerjaan untuk Kilas…">{{ prefill }}</textarea><div class="ai-composer-actions"><button class="ai-send" type="submit">Kirim</button></div></div>
+        <div class="ai-composer"><textarea id="agent-message" name="message" rows="2" maxlength="1200" required placeholder="Tulis pesan untuk Kilas AI…">{{ prefill }}</textarea><div class="ai-composer-actions"><button class="ai-send" type="submit">Kirim</button><button class="ai-stop" data-unified-stop type="button" hidden>Stop</button></div></div>
         <p>Enter untuk kirim &middot; Shift+Enter untuk baris baru.</p>
 
       </form>
     {% elif view == 'tasks' %}
       <header class="agent-section-head"><h2>Pekerjaan aktif</h2></header>
       {% include 'kilas_ai/_autonomous_tasks.html' %}
-      {% if not autonomous_jobs %}<div class="agent-empty"><h3>Belum ada pekerjaan aktif</h3><p>Berikan pekerjaan dari percakapan Work.</p><a href="{{ url_for('kilas_ai.agent_home') }}">Buka Work</a></div>{% endif %}
+      {% if not autonomous_jobs %}<div class="agent-empty"><h3>Belum ada pekerjaan aktif</h3><p>Berikan pekerjaan dari percakapan Kilas AI.</p><a href="{{ url_for('kilas_ai.agent_home') }}">Buka Kilas AI</a></div>{% endif %}
     {% elif view == 'notifications' %}
       <header class="agent-section-head"><h2>Notifikasi</h2></header>
       <ol class="agent-activity">{% for item in notifications %}<li><div><p>{{ item.label }}</p><small>{{ item.time_label }}</small><a href="{{ url_for('kilas_ai.agent_home',conversation=item.origin_conversation_id) }}">Buka percakapan</a></div></li>{% else %}<li>Semua notifikasi sudah dibaca.</li>{% endfor %}</ol>
       {% if notifications %}<button type="button" data-notifications-read>Tandai sudah dibaca</button>{% endif %}
     {% elif view == 'history' %}
-      <header class="agent-section-head"><h2>Riwayat Work</h2></header>
+      <header class="agent-section-head"><h2>Riwayat</h2></header>
       {% include 'kilas_ai/_autonomous_tasks.html' %}
       <nav class="agent-chats" aria-label="Riwayat percakapan">{% for chat in history_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}">{{ chat.title }}</a>{% endfor %}</nav>
+      {% if legacy_chats %}<nav class="agent-chats" aria-label="Percakapan sebelumnya"><h3>Percakapan sebelumnya</h3>{% for chat in legacy_chats %}<a href="{{ url_for('kilas_ai.thread_page',thread_id=chat.id) }}">{{ chat.title }}</a>{% endfor %}</nav>{% endif %}
       <nav class="auto-actions" aria-label="Halaman riwayat">{% if history_page > 1 %}<a class="autonomous-back" href="{{ url_for('kilas_ai.agent_home',view='history',page=history_page-1) }}">Sebelumnya</a>{% endif %}{% if more_chats %}<a class="autonomous-back" href="{{ url_for('kilas_ai.agent_home',view='history',page=history_page+1) }}">Berikutnya</a>{% endif %}</nav>
     {% elif view=='settings' %}
-      <header class="agent-section-head"><h2>Pengaturan Work</h2></header>
+      <header class="agent-section-head"><h2>Pengaturan Kilas AI</h2></header>
       <form class="work-preferences" data-work-preferences><label for="work-timezone">Zona waktu</label><input id="work-timezone" name="timezone" value="{{ timezone }}" required maxlength="80" placeholder="Asia/Jakarta"><p>Jadwal menggunakan zona waktu ini. Contoh: Asia/Jakarta, Asia/Makassar, Asia/Jayapura.</p><button type="submit">Simpan zona waktu</button><p role="status" data-preference-status></p></form>
-      <section class="autonomous-section"><h3>Notifikasi perangkat</h3><p>{{ 'Aktifkan untuk menerima pengingat meski tab Kilas ditutup. Izin berlaku untuk perangkat ini.' if push_available else 'Notifikasi perangkat belum tersedia. Pengingat tetap muncul di percakapan Work.' }}</p>{% if push_available %}<button type="button" data-enable-push>Aktifkan notifikasi</button>{% endif %}<p role="status" data-push-status></p></section>
+      <section class="autonomous-section"><h3>Notifikasi perangkat</h3><p>{{ 'Aktifkan untuk menerima pengingat meski tab Kilas ditutup. Izin berlaku untuk perangkat ini.' if push_available else 'Notifikasi perangkat belum tersedia. Pengingat tetap muncul di percakapan Kilas AI.' }}</p>{% if push_available %}<button type="button" data-enable-push>Aktifkan notifikasi</button>{% endif %}<p role="status" data-push-status></p></section>
       <a href="{{ url_for('kilas_ai.usage_page') }}">Penggunaan akun</a>
     {% endif %}
     </section>
   </main>
 </div>
-<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='inline-results-v3') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='unified-v1') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_ai_shell.js',v='1') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_work.js',v='1') }}" defer></script>
 </body>

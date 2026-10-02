@@ -488,7 +488,7 @@ class ConnectorTests(unittest.TestCase):
                 "csrf_token": "connector-csrf", "message": "Find Google Verification Test in Gmail"})
         self.assertEqual(response.status_code, 303)
         page = client.get(response.location)
-        self.assertIn("Work tidak mengakses koneksi akun", page.text)
+        self.assertIn("Kilas AI tidak mengakses koneksi akun", page.text)
         flow.assert_not_called()
 
     def test_production_english_schedule_keeps_google_runner_and_explicit_zone(self):
@@ -502,7 +502,7 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(response.status_code, 303)
         with client.session_transaction() as state:
             self.assertNotIn("automation_preview", state)
-        self.assertIn("Work tidak mengakses koneksi akun", client.get(response.location).text)
+        self.assertIn("Kilas AI tidak mengakses koneksi akun", client.get(response.location).text)
 
     def test_calendar_planner_iso_strings_still_require_safe_offsets(self):
         tools = connector_actions.google_tools

@@ -81,7 +81,7 @@ def main():
                 assert page.get_by_text("Penggunaan periode ini").count() == 0
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "usage overflow")
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
-                assert page.locator(".ai-mode-tabs").get_by_role("link", name="Work").is_visible()
+                assert page.locator(".ai-mode-tabs").count()==0
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat nav overflow")
                 context.close()
             browser.close()

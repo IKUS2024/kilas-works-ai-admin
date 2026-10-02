@@ -1,10 +1,10 @@
 """Normal Agent Q&A uses the existing metered streaming provider, never task planning."""
 import json
 from flask import Response, stream_with_context, request
-from . import agent_store, providers, usage, agent_response_style, model_policy, fair_use, conversation_context
+from . import agent_store, providers, usage, model_policy, fair_use, conversation_context, chat_quality
 
 
-def ordinary(user_id, conversation_id, operation_key):
+def context(user_id, conversation_id):
     level = usage.chat_level(user_id)
     recent,budget,_ = fair_use.budgets(level)
     rows = agent_store.messages(user_id,100,conversation_id)
@@ -17,9 +17,14 @@ def ordinary(user_id, conversation_id, operation_key):
     if prepared and context:
         from .attachments import prompt_content
         context[-1]['content']=prompt_content(context[-1]['content'],prepared)
-    context = model_policy.ChatContext(context,level)
+    return model_policy.ChatContext(conversation_context.bounded(context,budget),level)
+
+
+def ordinary(user_id, conversation_id, operation_key):
+    messages = context(user_id,conversation_id)
+    meter_key = 'agent-chat-' + operation_key
     try:
-        _, operations = usage.reserve(user_id, None, 'agent-chat-' + operation_key, 'FAST', 'CHAT')
+        _, operations = usage.reserve(user_id, None, meter_key, 'FAST', 'CHAT')
     except usage.UsageLimit as error:
         agent_store.append(user_id, 'assistant', str(error)[:1200], conversation_id)
         return None
@@ -30,10 +35,10 @@ def ordinary(user_id, conversation_id, operation_key):
         pieces, used = [], {}
         provider = model = None
         success = False
-        yield {'type': 'activity', 'label': model_policy.chat_profile(context)['activity']}
+        quality = chat_quality.ChatQualityStream(user_id,None,meter_key,'FAST',operations,messages)
+        yield {'type': 'activity', 'label': model_policy.chat_profile(messages)['activity']}
         try:
-            work_style = agent_response_style.CHAT + '\nWork supports public research, files, source analysis, reminders and configured coding. It cannot access connected Google accounts, send messages or interact with arbitrary websites. Do not claim unavailable capabilities or completed work without a real result. Capability questions are conversational, not task execution.'
-            for event in providers.stream('FAST', context, work_style):
+            for event in quality:
                 if event['type'] == 'provider':
                     provider, model = event['provider'], event['model']
                 elif event['type'] == 'usage':
@@ -43,11 +48,18 @@ def ordinary(user_id, conversation_id, operation_key):
                     if sum(map(len, pieces)) > 12000:
                         raise providers.ProviderError('response_too_long')
                     yield event
+                elif event['type'] == 'reset':
+                    pieces.clear()
+                    yield event
+                elif event['type'] == 'activity':
+                    yield event
             if not pieces:
                 raise providers.ProviderError('empty_response')
             success = True
             yield {'type': 'done'}
         except providers.ProviderError:
+            pieces.clear()
+            yield {'type':'reset'}
             yield {'type': 'error', 'message': 'Kilas belum bisa menjawab sekarang. Coba lagi sebentar.'}
         finally:
             # Preserve useful partial output, without claiming a finished external action.
@@ -55,8 +67,9 @@ def ordinary(user_id, conversation_id, operation_key):
                 agent_store.append(user_id, 'assistant', ''.join(pieces)[:12000], conversation_id)
             elif not success:
                 agent_store.append(user_id, 'assistant', 'Kilas belum bisa menjawab sekarang. Coba lagi sebentar.', conversation_id)
-            usage.finish(user_id, 'agent-chat-' + operation_key, operations, success=success,
-                         provider=provider, model=model, usage=used)
+            if not quality.initial_finalized:
+                usage.finish(user_id, meter_key, operations, success=success,
+                             provider=provider, model=model, usage=used)
 
     if request.headers.get('X-Agent-Chat') == '1':
         def events():

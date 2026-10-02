@@ -102,7 +102,7 @@ class ChatTests(unittest.TestCase):
         rows,more=chats.conversation_page(self.owner,2)
         self.assertEqual(len(rows),6)
         self.assertFalse(more)
-        self.assertIn('Riwayat Work',self.client.get('/kilas-ai/agent?view=history&page=2').get_data(as_text=True))
+        self.assertIn('Riwayat',self.client.get('/kilas-ai/agent?view=history&page=2').get_data(as_text=True))
 
     def test_late_legacy_writer_backfill_preserves_linked_messages(self):
         new=chats.new_conversation(self.owner)

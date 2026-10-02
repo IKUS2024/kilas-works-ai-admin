@@ -86,9 +86,9 @@ class WorkV2Tests(unittest.TestCase):
             for _ in range(6):f.fixture.store.event(conn,completed,'FAILED','Internal diagnostic')
             f.fixture.store.event(conn,active,'CONDITION_MET','Kondisi terpantau terpenuhi.')
         html=self.client().get('/kilas-ai/agent').text
-        self.assertNotIn('data-active-count',html)
-        self.assertNotIn('Pekerjaan aktif',html)
-        self.assertNotIn('view=notifications',html)
+        self.assertIn('data-active-count>1<',html)
+        self.assertIn('Pekerjaan aktif',html)
+        self.assertIn('view=notifications',html)
         self.assertIn(f'data-job-id="{active}"',html)
         self.assertNotIn('Connections',html)
         self.assertNotIn('Advanced settings',html)

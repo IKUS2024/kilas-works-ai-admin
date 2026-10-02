@@ -151,7 +151,7 @@ def fresh_information(text):
     # Keep creative follow-ups such as 'buat versi lain' on their existing path.
     if (not re.search(r'\b(?:buat|bikin|bikinin|buatin|ubah|create|make)\s+(?:versi|version)\b', text)
             and re.search(r'\b(?:terbaru|terkini|sekarang|saat ini|latest|current|today)\b', text)
-            and re.search(r'\b(?:(?:versi|version)\s+(?:stabil|stable|terbaru|latest)|(?:rilis|release)\s+(?:terbaru|latest)|(?:latest|current)\s+(?:stable\s+)?version)\b', text)):
+            and re.search(r'\b(?:(?:versi|version)\s+(?:[a-z0-9.+-]+\s+){0,3}(?:stabil|stable|terbaru|latest)|(?:rilis|release)\s+(?:terbaru|latest)|(?:latest|current)\s+(?:stable\s+)?version)\b', text)):
         return True
     if re.match(r'^(?:apa itu|what is|jelaskan cara|how to)\b',text):
         return False

@@ -20,7 +20,7 @@
       {% if threads %}{% for item in threads %}<a href="{{ url_for('kilas_ai.thread_page',thread_id=item.id) }}" class="ai-history-item {{ 'is-current' if selected and item.id == selected.id else '' }}" {% if selected and item.id == selected.id %}aria-current="page"{% endif %}>{{ item.title }}</a>{% endfor %}
       {% else %}<p class="ai-sidebar-empty">Percakapanmu akan tersimpan di sini.</p>{% endif %}
     </nav>
-    <div class="ai-sidebar-bottom">{% if automation_enabled %}<a href="{{ url_for('kilas_ai.agent_home') }}">Work</a>{% endif %}<span class="ai-sidebar-plan">Kilas AI {{ 'aktif' if current_plan != 'FREE' else '' }}</span><a href="{{ url_for('kilas_ai.usage_page') }}">Langganan & tagihan</a><a href="{{ url_for('products.product_start') }}">Ganti Layanan</a></div>
+    <div class="ai-sidebar-bottom">{% if automation_enabled %}<a href="{{ url_for('kilas_ai.agent_home') }}">Kilas AI</a>{% endif %}<span class="ai-sidebar-plan">Kilas AI {{ 'aktif' if current_plan != 'FREE' else '' }}</span><a href="{{ url_for('kilas_ai.usage_page') }}">Langganan & tagihan</a><a href="{{ url_for('products.product_start') }}">Ganti Layanan</a></div>
   </aside>
   <button type="button" class="ai-backdrop" id="ai-backdrop" data-ai-backdrop aria-label="Tutup riwayat"></button>
   <main class="ai-main {{ 'is-empty' if not messages else '' }}">
@@ -35,7 +35,7 @@
     {% endset %}
     {% include 'kilas_ai/_app_header.html' %}
     <div class="ai-conversation-title" {% if not messages %}hidden{% endif %}>{{ selected.title if selected else '' }}</div>
-    <section class="ai-empty" {% if messages %}hidden{% endif %}><h1>Apa yang ingin kamu kerjakan?</h1><p>Tanya sesuatu, cari informasi, atau bahas lampiranmu.</p></section>
+    <section class="ai-empty" {% if messages %}hidden{% endif %}><h1>Apa yang ingin kamu lakukan?</h1><p>Tanya sesuatu, cari informasi, atau bahas lampiranmu.</p></section>
     <div class="ai-messages" id="ai-messages" aria-live="polite" {% if not messages %}hidden{% endif %}>
       {% for message in messages %}<article class="ai-message ai-{{ message.role }}"><div class="ai-message-name">{{ 'Kamu' if message.role == 'user' else 'Kilas AI' }}</div><div class="ai-message-text {{ 'ai-markdown' if message.role == 'assistant' else '' }}">{{ message.content }}</div>
         {% for item in attachments if item.message_id == message.id %}

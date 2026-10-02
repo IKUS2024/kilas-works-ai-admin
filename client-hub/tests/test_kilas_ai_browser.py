@@ -72,7 +72,7 @@ def main():
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Apa yang ingin kamu kerjakan?").is_visible()
+                assert page.get_by_role("heading", name="Apa yang ingin kamu lakukan?").is_visible()
                 assert page.get_by_text("Tanya sesuatu, cari informasi, atau bahas lampiranmu.").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "empty")
                 if width <= 760:
@@ -80,7 +80,7 @@ def main():
                 page.get_by_role("link", name="+ Chat baru").click()
                 assert page.url.endswith("/kilas-ai")
                 assert store.list_threads(owner) == []
-                assert page.get_by_role("heading", name="Apa yang ingin kamu kerjakan?").is_visible()
+                assert page.get_by_role("heading", name="Apa yang ingin kamu lakukan?").is_visible()
                 assert page.locator(".ai-shell").get_attribute("data-max-files") == "2"
                 # Closed mobile history is now inert and visually hidden.
                 assert page.locator(".ai-sidebar-plan").text_content().strip() == "Kilas AI"
@@ -166,12 +166,12 @@ def main():
                     page.get_by_role("button", name="Buka riwayat").click()
                 page.get_by_role("link", name="+ Chat baru").click()
                 assert page.url.endswith("/kilas-ai")
-                assert page.get_by_role("heading", name="Apa yang ingin kamu kerjakan?").is_visible()
+                assert page.get_by_role("heading", name="Apa yang ingin kamu lakukan?").is_visible()
                 assert page.locator("#ai-tool,#ai-mode").count() == 0
                 assert len(store.list_threads(owner)) == count
                 legacy = store.create_thread(owner, "SMART")
                 page.goto(origin + f"/kilas-ai/threads/{legacy}", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Apa yang ingin kamu kerjakan?").is_visible()
+                assert page.get_by_role("heading", name="Apa yang ingin kamu lakukan?").is_visible()
                 assert page.locator(".ai-messages").is_hidden()
                 assert page.locator("#ai-composer").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "legacy empty")

@@ -53,7 +53,7 @@ def main():
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long task overflow")
                 if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
                 page.get_by_role('link',name='Pengaturan',exact=True).click()
-                assert page.get_by_role('heading',name='Pengaturan Work').is_visible()
+                assert page.get_by_role('heading',name='Pengaturan Kilas AI').is_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 if width<=760:page.get_by_role('button',name='Buka riwayat').click()
                 page.goto(origin + '/kilas-ai/agent?view=notifications')
@@ -61,7 +61,7 @@ def main():
                 page.goto(origin + "/kilas-ai/agent?view=chat")
                 page.locator("#agent-message").fill("setiap pagi cek email penting gue")
                 page.get_by_role("button", name="Kirim").click()
-                expect(page.get_by_text("Work tidak mengakses koneksi akun", exact=False)).to_be_visible()
+                expect(page.get_by_text("Kilas AI tidak mengakses koneksi akun", exact=False)).to_be_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "reply overflow")
                 stamp = connectors.stamp()
                 long_email = ("very-long-business-account-name-" * 4) + "@example.test"

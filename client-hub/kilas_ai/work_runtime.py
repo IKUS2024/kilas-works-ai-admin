@@ -57,9 +57,9 @@ def handle(owner,text,key,conversation):
     if work_schedule.CAPABILITY.search(text) or QUESTION.search(text):
         return agent_chat.ordinary(owner,conversation,key) or redirect(url_for('kilas_ai.agent_home'),code=303)
     if re.search(r'(?i)\b(?:login|log in|klik tombol|click button|browser langsung)\b',text):
-        return reply(owner,'Interaksi browser langsung belum tersedia di Work.',conversation)
+        return reply(owner,'Interaksi browser langsung belum tersedia di Kilas AI.',conversation)
     if not work_schedule.REMINDER.search(text) and re.search(r'(?i)\b(?:kirim|send)\b.{0,80}\b(?:email|gmail|whatsapp)\b',text):
-        return reply(owner,'Pengiriman pesan dari Work belum tersedia. Saya bisa menyiapkan isi pesan jika kamu meminta drafnya.',conversation)
+        return reply(owner,'Pengiriman pesan dari Kilas AI belum tersedia. Saya bisa menyiapkan isi pesan jika kamu meminta drafnya.',conversation)
     nearby=bool(re.search(r'(?i)\b(?:dekat sini|lokasi saya|near me|nearby|tempat terdekat)\b',text))
     location=getattr(request,'work_location',None)
     if nearby and not location:
@@ -101,7 +101,7 @@ def handle(owner,text,key,conversation):
     if not reminder and market_request(text):
         if autonomous_routes.chat(owner,text):return redirect(url_for('kilas_ai.agent_home',conversation=conversation),code=303)
     from .agent_planner import required_connection
-    if not reminder and required_connection(text):return reply(owner,'Work tidak mengakses koneksi akun. Saya bisa menyiapkan dokumen atau isi draf dari informasi yang kamu berikan.',conversation)
+    if not reminder and required_connection(text):return reply(owner,'Kilas AI tidak mengakses koneksi akun. Saya bisa menyiapkan dokumen atau isi draf dari informasi yang kamu berikan.',conversation)
     scheduled=reminder or bool(re.search(r'(?i)\b(?:setiap|tiap|every|besok|tomorrow|tanggal|next monday)\b',text))
     editing=bool(re.match(r'(?i)^(?:ubah|ganti|ulang|jangan tiap hari)',text)) and bool(active)
     if scheduled or editing:
@@ -141,7 +141,7 @@ def handle(owner,text,key,conversation):
                 with store.transaction() as conn:store.event(conn,job,'SCHEDULED','Pengingat tersimpan.' if reminder else 'Pekerjaan terjadwal tersimpan.')
             from .agent_presentation import time_label
             from .work_push import configured
-            return reply(owner,'Siap. '+('Aku ingatkan ' if reminder or editing else 'Pekerjaan dijadwalkan ')+time_label(spec['next_run_at'],spec['timezone'])+' untuk '+subject+'.'+(' Notifikasi perangkat belum aktif. Pengingat tetap tersimpan di Work.' if reminder and not configured() else ''),conversation)
+            return reply(owner,'Siap. '+('Aku ingatkan ' if reminder or editing else 'Pekerjaan dijadwalkan ')+time_label(spec['next_run_at'],spec['timezone'])+' untuk '+subject+'.'+(' Notifikasi perangkat belum aktif. Pengingat tetap tersimpan di Kilas AI.' if reminder and not configured() else ''),conversation)
         except (ValueError,TypeError):return reply(owner,'Tanggal atau jam belum jelas. Sebutkan waktu yang akan datang, misalnya besok jam 8.',conversation)
     pending_document=session.pop('work_document_pending',None)
     if pending_document and pending_document['conversation']==conversation and store.now().timestamp()-pending_document['created']<1800:
