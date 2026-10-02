@@ -21,7 +21,23 @@ def recent_conversations(user_id):
     return db.query_all('SELECT id,title FROM kilas_ai_conversations WHERE user_id=? AND archived_at IS NULL ORDER BY updated_at DESC,id DESC LIMIT 20', (user_id,))
 
 
+def conversation_page(user_id, page):
+    page = max(1, min(int(page), 10000))
+    rows = db.query_all('SELECT id,title FROM kilas_ai_conversations WHERE user_id=? AND archived_at IS NULL ORDER BY updated_at DESC,id DESC LIMIT 21 OFFSET ?', (user_id, (page-1)*20))
+    return rows[:20], len(rows)>20
+
+
 def current_conversation(user_id):
+    # A rolling deploy can leave messages written by the old Hub after 0079 applied.
+    # Repair only that owner's NULL associations; never move an already-linked message.
+    if db.query_one('SELECT id FROM kilas_ai_agent_messages WHERE user_id=? AND conversation_id IS NULL LIMIT 1', (user_id,)):
+        from .autonomous_store import transaction
+        with transaction() as conn:
+            if db.BACKEND == 'postgres':
+                usage._query(conn, 'SELECT id FROM users WHERE id=? FOR UPDATE', (user_id,), one=True)
+            old = usage._query(conn, 'SELECT id FROM kilas_ai_conversations WHERE user_id=? ORDER BY id LIMIT 1', (user_id,), one=True)
+            old_id = old[0] if old else usage._query(conn, "INSERT INTO kilas_ai_conversations(user_id,title) VALUES (?,'Percakapan sebelumnya') RETURNING id", (user_id,), one=True)[0]
+            usage._query(conn, 'UPDATE kilas_ai_agent_messages SET conversation_id=? WHERE user_id=? AND conversation_id IS NULL', (old_id, user_id))
     selected = session.get('agent_conversation_id') if has_request_context() else None
     if selected and conversation(user_id, selected):
         return selected

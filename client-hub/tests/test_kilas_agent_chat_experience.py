@@ -86,6 +86,24 @@ class ChatTests(unittest.TestCase):
         for _ in range(25): chats.new_conversation(self.owner)
         self.assertEqual(len(chats.recent_conversations(self.owner)),20)
 
+    def test_history_remains_accessible_beyond_recent_twenty(self):
+        for _ in range(25): chats.new_conversation(self.owner)
+        rows,more=chats.conversation_page(self.owner,1)
+        self.assertEqual(len(rows),20)
+        self.assertTrue(more)
+        rows,more=chats.conversation_page(self.owner,2)
+        self.assertEqual(len(rows),6)
+        self.assertFalse(more)
+        self.assertIn('Riwayat chat',self.client.get('/kilas-ai/agent?view=history&page=2').get_data(as_text=True))
+
+    def test_late_legacy_writer_backfill_preserves_linked_messages(self):
+        new=chats.new_conversation(self.owner)
+        chats.append(self.owner,'user','Linked message',new)
+        db.execute("INSERT INTO kilas_ai_agent_messages(user_id,role,content) VALUES(?,'user','Late legacy message')",(self.owner,))
+        self.client.get('/kilas-ai/agent')
+        self.assertEqual(chats.messages(self.owner,conversation_id=self.conv)[-1]['content'],'Late legacy message')
+        self.assertEqual(chats.messages(self.owner,conversation_id=new)[-1]['content'],'Linked message')
+
     def test_messages_pagination(self):
         for n in range(65): chats.append(self.owner,'user',str(n),self.conv)
         recent=chats.messages(self.owner,conversation_id=self.conv)

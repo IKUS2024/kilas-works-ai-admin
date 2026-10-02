@@ -3,8 +3,8 @@ import re
 from . import automation_schedule as schedule
 
 CONTROL = re.compile(r'(?i)^(pause|jeda(?: dulu)?|resume|lanjut(?:kan)?|stop|berhenti|batalkan)(?:\s+(?:task|tugas|pekerjaan)(?:\s+ini|\s*#?\d+)?)?[.!]?$')
-FEEDBACK = re.compile(r'(?i)^(?:jangan |ubah caranya|coba pendekatan lain|gunakan pendekatan lain|tambahkan .*langkah|stop setelah|ubah target)')
-WORK = re.compile(r'(?i)\b(?:kerjain|kerjakan|kerja(?:kan)? terus|terus kerjain|riset|research|pantau|monitor|watch|perbaiki|fix|buatkan|siapkan|upload|publish|work on)\b')
+FEEDBACK = re.compile(r"(?i)^(?:jangan |do not |don't |ubah caranya|coba pendekatan lain|try another approach|gunakan pendekatan lain|tambahkan .*langkah|stop (?:setelah|after)|ubah target)")
+WORK = re.compile(r'(?i)\b(?:kerjain|kerjakan|kerja(?:kan)? terus|terus kerjain|riset|research|pantau|monitor|watch|perbaiki|fix|buatkan|siapkan|upload|publish|work on|keep working|do this)\b')
 QUESTION = re.compile(r'(?i)^(?:apa(?: itu)?|what|why|how|mengapa|kenapa|jelaskan|explain|bagaimana|berapa)\b')
 
 

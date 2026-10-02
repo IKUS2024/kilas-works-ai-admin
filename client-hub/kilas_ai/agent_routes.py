@@ -72,7 +72,7 @@ def _preview(item_id, spec):
 @ai_bp.get("/agent", endpoint="agent_home")
 def agent_home():
     view = request.args.get("view", "chat")
-    if view not in ("chat", "tasks", "activity", "connections"):
+    if view not in ("chat", "tasks", "activity", "connections", "history"):
         view = "chat"
     owner = _owner()
     selected = request.args.get('conversation', type=int)
@@ -133,9 +133,12 @@ def agent_home():
     messages = agent_store.messages(owner, conversation_id=conversation_id, before=request.args.get('before', type=int)) if view == 'chat' else []
     older = db.query_one('SELECT id FROM kilas_ai_agent_messages WHERE user_id=? AND conversation_id=? AND id<? LIMIT 1', (owner, conversation_id, messages[0]['id'])) if messages else None
     activity = [{**dict(r), 'time_label': time_label(r['completed_at'] or r['scheduled_for'])} for r in agent_store.activity(owner)] if view == 'activity' else []
+    history_page = max(1, min(request.args.get('page', 1, type=int), 10000))
+    history_chats, more_chats = agent_store.conversation_page(owner, history_page) if view == 'history' else ([], False)
     return render_template("kilas_ai/agent.html", view=view, messages=messages,
                            conversation=conversation, recent_chats=agent_store.recent_conversations(owner),
                            older=bool(older), operation_key=secrets.token_urlsafe(24),
+                           history_chats=history_chats, history_page=history_page, more_chats=more_chats,
                            tasks=tasks, activity=activity, preview=preview,
                            action=action, capacity=store.usage_summary(owner),
                            autonomous_jobs=autonomous_jobs, autonomous_unread=autonomous_unread,
