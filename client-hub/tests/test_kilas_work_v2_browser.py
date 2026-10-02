@@ -45,9 +45,9 @@ def main():
                 page=context.new_page();errors=[]
                 page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto(origin+f'/kilas-ai/agent?conversation={conversation}',wait_until='networkidle')
-                expect(page.locator('[data-active-count]')).to_have_text('3')
-                assert page.locator('.agent-sections a[href*=tasks]').count()==1
-                assert page.locator('.agent-sections a[href*=notifications]').count()==1
+                expect(page.locator('[data-active-count],[data-notification-count]')).to_have_count(0)
+                assert page.locator('.agent-sections a[href*=tasks]').count()==0
+                assert page.locator('.agent-sections a[href*=notifications]').count()==0
                 expect(page.locator('.work-file')).to_have_count(4)
                 self_text=page.locator('body').inner_text()
                 for unwanted in ('Connections','Advanced settings','Instruksi pelaksanaan','Internal content not for display'):assert unwanted not in self_text,(width,unwanted)
@@ -68,9 +68,9 @@ def main():
                 page.locator('#agent-message').fill(f.REQUEST)
                 page.get_by_role('button',name='Kirim',exact=True).click()
                 expect(page.locator('.work-file')).to_have_count(5,timeout=15000)
-                expect(page.locator('[data-active-count]')).to_have_text('3')
-                assert page.locator('.agent-sections a[href*=tasks]').count()==1
-                assert page.locator('.agent-sections a[href*=notifications]').count()==1
+                expect(page.locator('[data-active-count],[data-notification-count]')).to_have_count(0)
+                assert page.locator('.agent-sections a[href*=tasks]').count()==0
+                assert page.locator('.agent-sections a[href*=notifications]').count()==0
                 assert page.evaluate("document.activeElement.id==='agent-message'") is (width>=760),(width,'completion focus')
                 if width<760:
                     page.locator('#agent-message').click()

@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="id">
-<head>{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='work-v2') }}"></head>
+<head>{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='chat-cleanup-1') }}"></head>
 <body class="agent-body">
 <div class="ai-shell agent-shell" data-ai-shell data-view="{{ view }}">
 <button class="ai-backdrop" data-ai-backdrop type="button" aria-label="Tutup riwayat"></button>
@@ -9,11 +9,8 @@
     <form method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" class="agent-new-chat"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">+ Chat baru</button></form>
     <nav class="ai-history agent-chats" aria-label="Chat terbaru"><h2 class="ai-history-heading">Terbaru</h2>{% for chat in recent_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}" {% if view=='chat' and chat.id==conversation.id %}aria-current="page"{% endif %}>{{ chat.title }}</a>{% endfor %}<a href="{{ url_for('kilas_ai.agent_home',view='history') }}">Riwayat</a></nav>
     <nav class="agent-sections" aria-label="Bagian Kilas AI">
-      <a href="{{ url_for('kilas_ai.agent_home',view='tasks') }}">Pekerjaan aktif <span data-active-count>{{ active_count }}</span></a>
-      <a href="{{ url_for('kilas_ai.agent_home',view='notifications') }}">Notifikasi <span data-notification-count>{{ autonomous_unread }}</span></a>
       <a href="{{ url_for('kilas_ai.agent_home',view='settings') }}" {% if view=='settings' %}aria-current="page"{% endif %}>Pengaturan</a>
     </nav>
-    <div class="ai-sidebar-bottom"><p>Pekerjaan dan hasil tetap tersimpan saat kamu keluar.</p></div>
   </aside>
 
   <main class="ai-main agent-main" aria-label="{{ {'chat':'Percakapan Kilas AI','tasks':'Pekerjaan Kilas AI','activity':'Aktivitas Kilas AI','connections':'Koneksi Kilas AI','history':'Riwayat','settings':'Pengaturan Kilas AI','notifications':'Notifikasi Kilas AI'}[view] }}">
@@ -27,7 +24,7 @@
         {% if older %}<a class="agent-older" href="{{ url_for('kilas_ai.agent_home',conversation=conversation.id,before=messages[0].id) }}">Lihat pesan sebelumnya</a>{% endif %}
         {% if messages %}
           {% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}
-          {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}"><div class="agent-speaker">{{ 'Kamu' if message.role == 'user' else 'Kilas' }}</div><div class="agent-message-text {{ 'ai-markdown' if message.role=='assistant' else '' }}" {% if message.role=='assistant' %}data-kilas-markdown{% endif %}>{{ message.content }}</div></article>{% for job in inline_jobs.get(message.id,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endfor %}
+          {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}" data-message-id="{{ message.id }}"><div class="agent-speaker">{{ 'Kamu' if message.role == 'user' else 'Kilas' }}</div><div class="agent-message-text {{ 'ai-markdown' if message.role=='assistant' else '' }}" {% if message.role=='assistant' %}data-kilas-markdown{% endif %}>{{ message.content }}</div>{% if message_attachments.get(message.id) %}<div class="work-sent-files" aria-label="Lampiran terkirim">{% for attachment in message_attachments[message.id] %}{% include 'kilas_ai/_message_attachment.html' %}{% endfor %}</div>{% endif %}</article>{% for job in inline_jobs.get(message.id,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endfor %}
         {% else %}
           <div class="agent-welcome"><h3>Apa yang ingin kamu lakukan?</h3><p>Tanya sesuatu, cari informasi, buat gambar atau dokumen, atau berikan pekerjaan untuk Kilas.</p></div>
         {% endif %}
@@ -67,8 +64,8 @@
     </section>
   </main>
 </div>
-<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='unified-v1') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_work.js',v='chat-cleanup-1') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='chat-cleanup-1') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_ai_shell.js',v='1') }}" defer></script>
-<script src="{{ url_for('static',filename='kilas_work.js',v='1') }}" defer></script>
 </body>
 </html>

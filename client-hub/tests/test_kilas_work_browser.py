@@ -78,7 +78,7 @@ def main():
                 active=fixture.fixture.store.create(owner,'Pantau perubahan harga sampai saya stop',conversation_id=conversation)
                 page.reload(wait_until='networkidle')
                 expect(page.locator(f'[data-job-id="{active}"]')).to_have_count(1)
-                expect(page.locator('[data-active-count]')).to_have_text('1')
+                expect(page.locator('[data-active-count],[data-notification-count]')).to_have_count(0)
                 expect(page.locator(f'[data-job-id="{job}"]')).to_have_count(1)
                 if width<760:page.get_by_role('button',name='Buka riwayat').click()
                 page.get_by_role('button',name='+ Chat baru',exact=True).click()

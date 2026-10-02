@@ -80,6 +80,7 @@
     const current = doc.querySelector('#agent-conversation');
     if (!current) throw new Error('refresh');
     chat.replaceChildren(...current.childNodes);
+    window.KilasAttachmentPreview?.clear();
     window.KilasMarkdown.hydrate(chat);
     const chats = doc.querySelector('.agent-chats');
     if (chats) document.querySelector('.agent-chats')?.replaceChildren(...chats.childNodes);
@@ -104,7 +105,9 @@
     busy = true; send.disabled = true; input.readOnly = true;
     controller=new AbortController();if(stop) stop.hidden=false;
     error.hidden = true; chat.querySelector('.agent-welcome')?.remove();
-    message('user', input.value.trim());
+    const userMessage=message('user', input.value.trim());
+    const selected=data.getAll('source_files').filter(file=>file instanceof File && file.name);
+    if(selected.length && window.KilasAttachmentPreview) userMessage.parentElement.append(window.KilasAttachmentPreview(selected));
     thinking.hidden = false;
     thinking.lastElementChild.textContent = /\b(riset|research)\b/i.test(input.value) ? 'Menyiapkan riset…' : /\b(kerjain|kerjakan|pantau|perbaiki|setiap|besok)\b/i.test(input.value) ? 'Menyiapkan pekerjaan…' : 'Menyiapkan jawaban…';
     chat.setAttribute('aria-busy', 'true');

@@ -114,7 +114,7 @@
 .agent-composer summary{color:var(--muted)}
 .agent-composer .autonomous-options[open]{max-height:240px;overflow-y:auto}
 .agent-chats{margin-bottom:16px}
-.agent-chats a{display:block;min-height:44px;padding:10px 12px;border-radius:8px;color:#d0d3d8;overflow-wrap:anywhere}
+.agent-chats a{display:block;min-height:44px;padding:10px 12px;border-radius:8px;color:#d0d3d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%;box-sizing:border-box}
 .agent-chats a:hover,.agent-chats a[aria-current="page"]{background:#303237;color:#fff;text-decoration:none}
 .agent-sections{display:grid;gap:3px;padding:12px 0;border-top:1px solid var(--line)}
 .agent-sections a{display:flex;align-items:center;justify-content:space-between;min-height:44px;padding:10px 12px;border-radius:8px;gap:8px;color:#d0d3d8}
@@ -132,9 +132,16 @@
 .agent-body .work-attachment-bar{display:flex;align-items:center;gap:12px;color:var(--ai-muted,#a7adb7);font-size:14px}
 .agent-body .work-add-file,.agent-body .work-pending-file button{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;cursor:pointer;border-radius:12px;border:1px solid var(--ai-border,#353a43);background:transparent;color:inherit;font-size:24px}
 .agent-body .work-pending-files{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
-.agent-body .work-pending-file{display:flex;align-items:center;gap:8px;max-width:100%;min-width:0}
-.agent-body .work-pending-file span{overflow-wrap:anywhere;min-width:0;font-size:14px}
-.agent-body .work-pending-file button{flex-shrink:0}
+.agent-body .work-attachment-card{display:flex;align-items:center;gap:10px;width:280px;max-width:100%;min-width:0;box-sizing:border-box;padding:8px;border:1px solid var(--agent-line);border-radius:12px;background:var(--agent-panel);color:var(--agent-text);text-decoration:none}
+.agent-body .work-attachment-thumbnail{display:block;width:64px;height:64px;object-fit:cover;border-radius:6px;flex:none}
+.agent-body .work-attachment-icon{width:32px;height:32px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;color:var(--muted)}
+.agent-body .work-attachment-info{display:grid;gap:4px;flex:1;min-width:0}
+.agent-body .work-attachment-name{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agent-body .work-attachment-info small{font-size:13px;color:var(--muted)}
+.agent-body .work-pending-file button{flex:none;align-self:flex-start;border:0}
+.agent-body .work-sent-files{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;min-width:0}
+.agent-body a.work-sent-file:hover{border-color:var(--accent)}
+.agent-body .work-attachment-card:focus-visible,.agent-body .work-pending-file button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .agent-body .work-context-permission{padding:12px 0}
 .agent-body .work-preferences{max-width:540px}
 .agent-body .work-preferences input{width:100%;min-width:0;min-height:44px;padding:12px;background:#171b22;color:inherit;border:1px solid #353a43;border-radius:12px;box-sizing:border-box}

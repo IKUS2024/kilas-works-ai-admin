@@ -91,6 +91,15 @@ def main():
             with store.transaction() as conn:
                 conn.cursor().execute((Path(__file__).parents[1]/'migrations/0079_kilas_agent_conversations_postgres.sql').read_text())
             conversation=agent_store.new_conversation(user)
+            # New chat uploads use existing BYTEA storage, with atomic turn links.
+            from kilas_ai import agent_attachments,store as chat_store
+            uploaded=agent_store.append(user,'user','Lampiran QA',conversation,
+                attachments=[{'filename':'facts.txt','mime_type':'text/plain','byte_size':8,'content':b'QA facts','extracted_text':'QA facts'}])
+            linked=agent_attachments.listing(user,conversation,[uploaded])[uploaded]
+            assert len(linked)==1 and linked[0]['filename']=='facts.txt'
+            assert bytes(chat_store.attachment(user,linked[0]['thread_id'],linked[0]['id'])['content'])==b'QA facts'
+            assert agent_attachments.listing(other,conversation,[uploaded])=={}
+            assert not chat_store.list_threads(user)
             due=store.now()-timedelta(minutes=2)
             reminder=store.create(user,'Ingatkan cek QA',mode='SCHEDULED',wake_at=due,conversation_id=conversation,checkpoint={'reminder':{'subject':'cek QA'}})
             with patch.object(work_push,'configured',return_value=False):

@@ -61,19 +61,48 @@
   document.querySelector('[data-work-attach]')?.addEventListener('click',()=>picker.click());
   const pending=document.querySelector('#work-pending-files');
   let files=[];
+  const previews=new Map();
+  const sentPreviews=new Set();
+  function card(file, sentUrl) {
+    const row=document.createElement('div');row.className='work-attachment-card';
+    if (['image/png','image/jpeg','image/webp'].includes(file.type)) {
+      if(!sentUrl && !previews.has(file)) previews.set(file,URL.createObjectURL(file));
+      const image=document.createElement('img');image.className='work-attachment-thumbnail';
+      image.src=sentUrl || previews.get(file);image.alt=file.name;image.width=64;image.height=64;row.append(image);
+    } else {
+      const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('aria-hidden','true');icon.classList.add('work-attachment-icon');
+      const path=document.createElementNS(icon.namespaceURI,'path');path.setAttribute('d','M14 3H6v18h12V7zM14 3v5h4M9 12h6M9 16h6');icon.append(path);row.append(icon);
+    }
+    const info=document.createElement('span');info.className='work-attachment-info';
+    const name=document.createElement('span');name.className='work-attachment-name';name.textContent=file.name;name.title=file.name;
+    const size=document.createElement('small');size.textContent=`${file.name.split('.').pop().toUpperCase()} · ${Math.max(1,Math.round(file.size/1024))} KB`;
+    info.append(name,size);row.append(info);return row;
+  }
+  // The optimistic card lasts only until the server renders the stored upload.
+  window.KilasAttachmentPreview = selected => {
+    const group=document.createElement('div');group.className='work-sent-files';group.setAttribute('aria-label','Lampiran terkirim');
+    selected.forEach(file=>{
+      const url=file.type.startsWith('image/')?URL.createObjectURL(file):null;
+      if(url) sentPreviews.add(url);
+      const row=card(file,url);row.classList.add('work-sent-file');group.append(row);
+    });
+    return group;
+  };
+  window.KilasAttachmentPreview.clear=()=>{sentPreviews.forEach(url=>URL.revokeObjectURL(url));sentPreviews.clear();};
   function render() {
+    if(!pending || !picker) return;
     pending.replaceChildren();
     const transfer=new DataTransfer();
     files.forEach((file,index) => {
       transfer.items.add(file);
-      const row=document.createElement('div');row.className='work-pending-file';
-      const name=document.createElement('span');name.textContent=file.name;
+      const row=card(file);row.classList.add('work-pending-file');
       const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label',`Hapus lampiran ${file.name}`);
-      remove.addEventListener('click',() => { files.splice(index,1);render(); });
-      row.append(name,remove);pending.append(row);
+      remove.addEventListener('click',() => { if(previews.has(file)) {URL.revokeObjectURL(previews.get(file));previews.delete(file);} files.splice(index,1);render(); });
+      row.append(remove);pending.append(row);
     });
     picker.files=transfer.files;
   }
   picker?.addEventListener('change',() => {files.push(...picker.files);render();});
-  composer?.addEventListener('work:accepted',() => {files=[];render();composer.elements.work_location.value='';});
+  composer?.addEventListener('work:accepted',() => {previews.forEach(url=>URL.revokeObjectURL(url));previews.clear();files=[];render();composer.elements.work_location.value='';});
 })();
