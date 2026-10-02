@@ -3,6 +3,7 @@
   document.addEventListener('submit', event => {
     if (event.target.matches('[data-confirm-delete]') && !window.confirm('Hapus tugas ini? Riwayat hasilnya tetap tersimpan.')) event.preventDefault();
   });
+  window.KilasMarkdown.hydrate();
   const form = document.querySelector('#agent-chat-form');
   if (!form) {
     // The account-wide view uses the same bounded, read-only task cards.
@@ -35,7 +36,7 @@
     article.className = `agent-message agent-message-${role}`;
     const speaker = document.createElement('div'); speaker.className = 'agent-speaker';
     speaker.textContent = role === 'user' ? 'Kamu' : 'Kilas';
-    const content = document.createElement('p'); content.textContent = text;
+    const content = document.createElement('div'); content.className = 'agent-message-text'; content.textContent = text;
     article.append(speaker, content); chat.append(article);
     chat.scrollTop = chat.scrollHeight;
     return content;
@@ -48,6 +49,7 @@
     const current = doc.querySelector('#agent-conversation');
     if (!current) throw new Error('refresh');
     chat.replaceChildren(...current.childNodes);
+    window.KilasMarkdown.hydrate(chat);
     const chats = doc.querySelector('.agent-chats');
     if (chats) document.querySelector('.agent-chats')?.replaceChildren(...chats.childNodes);
     const heading = doc.querySelector('.agent-section-head h2');
@@ -90,7 +92,7 @@
               chat.scrollTop = chat.scrollHeight;
             } else if (update.type === 'activity') thinking.lastElementChild.textContent = update.label;
             else if (update.type === 'error') throw new Error('provider');
-            else if (update.type === 'done') complete = true;
+            else if (update.type === 'done') { complete = true; if (answer) { answer.classList.add('ai-markdown'); window.KilasMarkdown.render(answer,answer.textContent); } }
           }
           if (done) break;
         }

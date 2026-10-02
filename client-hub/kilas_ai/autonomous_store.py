@@ -64,7 +64,7 @@ def list_jobs(user_id, conversation_id=None, active_only=False):
         where += " AND (status NOT IN ('COMPLETED','FAILED','STOPPED') OR id IN (SELECT id FROM kilas_agent_jobs WHERE user_id=? AND status IN ('COMPLETED','FAILED','STOPPED') ORDER BY id DESC LIMIT 8))"
         params.append(user_id)
     order = "CASE WHEN status IN ('COMPLETED','FAILED','STOPPED') THEN 1 ELSE 0 END,id DESC"
-    return [dict(row) for row in db.query_all('SELECT j.*,(SELECT COUNT(*) FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status=\'SUCCEEDED\') AS done,(SELECT COUNT(*) FROM kilas_agent_steps s WHERE s.job_id=j.id) AS total,(SELECT instruction FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status NOT IN (\'SUCCEEDED\',\'SKIPPED\',\'STOPPED\') ORDER BY sequence LIMIT 1) AS current_step FROM kilas_agent_jobs j WHERE ' + where + ' ORDER BY ' + order + ' LIMIT 30', tuple(params))]
+    return [dict(row) for row in db.query_all('SELECT j.*,(SELECT COUNT(*) FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status=\'SUCCEEDED\') AS done,(SELECT COUNT(*) FROM kilas_agent_steps s WHERE s.job_id=j.id) AS total,(SELECT instruction FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status NOT IN (\'SUCCEEDED\',\'SKIPPED\',\'STOPPED\') ORDER BY sequence LIMIT 1) AS current_step,(SELECT worker FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status NOT IN (\'SUCCEEDED\',\'SKIPPED\',\'STOPPED\') ORDER BY sequence LIMIT 1) AS current_worker,(SELECT action FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status NOT IN (\'SUCCEEDED\',\'SKIPPED\',\'STOPPED\') ORDER BY sequence LIMIT 1) AS current_action FROM kilas_agent_jobs j WHERE ' + where + ' ORDER BY ' + order + ' LIMIT 30', tuple(params))]
 
 
 def steps(job_id):
@@ -72,6 +72,7 @@ def steps(job_id):
 
 
 def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=None, interval=3600, expires_at=None, conversation_id=None, schedule=None):
+    from .agent_results import task_title
     from .autonomous_planner import MODES
     if mode not in MODES or not isinstance(instruction, str) or not 1 <= len(instruction.strip()) <= 1200:
         raise ValueError('invalid_job')
@@ -86,7 +87,7 @@ def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=N
         if count >= 20:
             raise ValueError('active_job_limit')
         job_id = usage._query(conn, 'INSERT INTO kilas_agent_jobs(user_id,title,instruction,mode,status,constraints_json,next_wake_at,interval_seconds,expires_at) VALUES (?,?,?,?,?,?,?,?,?) RETURNING id',
-                              (user_id, instruction[:90], instruction.strip(), mode, 'PLANNING', encode(constraints or []), stamp(wake_at), int(interval), stamp(expires_at) if expires_at else None), one=True)[0]
+                              (user_id, task_title(instruction), instruction.strip(), mode, 'PLANNING', encode(constraints or []), stamp(wake_at), int(interval), stamp(expires_at) if expires_at else None), one=True)[0]
         event(conn, job_id, 'CREATED', 'Pekerjaan tersimpan. Kilas akan menyiapkan langkahnya.')
         if conversation_id is not None or schedule:
             usage._query(conn, 'UPDATE kilas_agent_jobs SET origin_conversation_id=?,schedule_json=? WHERE id=?',
@@ -149,6 +150,7 @@ def locked(conn, job_id, token, revision=None):
 
 
 def install_plan(job, token, plan):
+    from .agent_results import task_title
     with transaction() as conn:
         if not locked(conn, job['id'], token, job['revision']):
             return False
@@ -160,7 +162,7 @@ def install_plan(job, token, plan):
         for index, step in enumerate(plan['steps'], base + 1):
             usage._query(conn, 'INSERT INTO kilas_agent_steps(job_id,sequence,worker,action,instruction,input_json,idempotency_key,requires_approval) VALUES (?,?,?,?,?,?,?,?)',
                          (job['id'], index, step['worker'], step['action'], step['instruction'], encode(step['input']), secrets.token_hex(24), int(step['requires_approval'])))
-        usage._query(conn, "UPDATE kilas_agent_jobs SET plan_json=?,status='RUNNING',title=?,updated_at=? WHERE id=?", (encode(plan), plan['objective'][:90], stamp(), job['id']))
+        usage._query(conn, "UPDATE kilas_agent_jobs SET plan_json=?,status='RUNNING',title=?,updated_at=? WHERE id=?", (encode(plan), task_title(job['instruction']), stamp(), job['id']))
         event(conn, job['id'], 'PLANNED', 'Rencana tersimpan: ' + str(len(plan['steps'])) + ' langkah.')
     return True
 

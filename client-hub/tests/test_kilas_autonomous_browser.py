@@ -43,6 +43,7 @@ def main():
                 assert page.get_by_role('link', name='Detail', exact=True).is_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, 'tasks overflow')
                 page.get_by_role('link', name='Detail', exact=True).click()
+                page.get_by_text('Detail pekerjaan',exact=True).click()
                 assert page.get_by_role('heading', name='Langkah pekerjaan').is_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, 'detail overflow')
                 page.get_by_role('button', name='Jeda', exact=True).click()
@@ -52,6 +53,7 @@ def main():
                 page.get_by_label('Tambahkan instruksi').fill('Jangan deploy. Stop setelah test pass.')
                 page.get_by_role('button', name='Simpan instruksi').click()
                 assert 'Jangan deploy' in store.get(owner,job)['constraints_json']
+                page.get_by_text('Detail pekerjaan',exact=True).click()
                 page.get_by_role('button', name='Tandai sudah dibaca').click()
                 assert db.query_one('SELECT COUNT(*) AS n FROM kilas_agent_events WHERE job_id=? AND unread=1', (job,))['n'] == 0
                 page.get_by_role('button', name='Hentikan', exact=True).click()

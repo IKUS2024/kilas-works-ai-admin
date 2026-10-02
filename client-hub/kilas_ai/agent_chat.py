@@ -1,7 +1,7 @@
 """Normal Agent Q&A uses the existing metered streaming provider, never task planning."""
 import json
 from flask import Response, stream_with_context, request
-from . import agent_store, providers, usage
+from . import agent_store, providers, usage, agent_response_style
 
 
 def ordinary(user_id, conversation_id, operation_key):
@@ -20,7 +20,7 @@ def ordinary(user_id, conversation_id, operation_key):
         success = False
         yield {'type': 'activity', 'label': 'Thinking…'}
         try:
-            for event in providers.stream('FAST', context):
+            for event in providers.stream('FAST', context, agent_response_style.CHAT):
                 if event['type'] == 'provider':
                     provider, model = event['provider'], event['model']
                 elif event['type'] == 'usage':

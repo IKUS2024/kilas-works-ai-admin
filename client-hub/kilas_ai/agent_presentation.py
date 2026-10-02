@@ -27,6 +27,7 @@ def duration(seconds):
 
 
 def job_card(job):
+    from .agent_results import task_title, step_label
     job = dict(job)
     schedule = json.loads(job.get('schedule_json') or '{}')
     zone = schedule.get('timezone', 'Asia/Jakarta')
@@ -35,4 +36,8 @@ def job_card(job):
     job['capability_label'] = {'provider_not_configured': 'Data market real-time belum tersedia.',
                                'sandbox_not_configured': 'Pengujian kode belum tersedia.',
                                'adapter_not_configured': 'Kemampuan eksternal belum tersedia.'}.get(job.get('last_error'), '')
+    job['title'] = task_title(job['instruction'])
+    job['current_step'] = step_label({'worker':job.get('current_worker'),'action':job.get('current_action'),'instruction':job.get('current_step') or ''}) if job.get('current_step') else ''
+    job['result_hint'] = 'Hasil pekerjaan siap dibuka.' if job['status']=='COMPLETED' else 'Pekerjaan dihentikan.' if job['status']=='STOPPED' else ''
+    job['failure_label'] = job['capability_label'] or ('Batas eksekusi harian tercapai.' if job.get('last_error')=='daily_execution_limit' else 'Pekerjaan belum selesai. Buka detail untuk meninjau hasil dan instruksi.')
     return job

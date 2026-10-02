@@ -63,12 +63,12 @@ def _events(response):
             raise ProviderError("bad_provider_stream") from None
 
 
-def _openai(model, key, messages, mode):
+def _openai(model, key, messages, mode, system=SYSTEM):
     try:
         with requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
-            json={"model": model, "messages": [{"role": "system", "content": SYSTEM}] + messages,
+            json={"model": model, "messages": [{"role": "system", "content": system}] + messages,
                   "max_completion_tokens": OUTPUT_LIMITS[mode], "reasoning_effort": EFFORT[mode], "stream": True,
                   "stream_options": {"include_usage": True}, "store": False},
             stream=True, timeout=(10, 90),
@@ -91,7 +91,7 @@ def _openai(model, key, messages, mode):
         raise ProviderError("openai_unavailable") from None
 
 
-def _anthropic(model, key, messages, mode):
+def _anthropic(model, key, messages, mode, system=SYSTEM):
     try:
         converted = []
         for message in messages:
@@ -112,7 +112,7 @@ def _anthropic(model, key, messages, mode):
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": key, "anthropic-version": "2023-06-01",
                      "Content-Type": "application/json"},
-            json={"model": model, "system": SYSTEM, "messages": converted,
+            json={"model": model, "system": system, "messages": converted,
                   "max_tokens": OUTPUT_LIMITS[mode], "thinking": {"type": "adaptive"},
                   "output_config": {"effort": EFFORT[mode]}, "stream": True},
             stream=True, timeout=(10, 90),
@@ -139,7 +139,7 @@ def _anthropic(model, key, messages, mode):
         raise ProviderError("anthropic_unavailable") from None
 
 
-def stream(mode, messages):
+def stream(mode, messages, system=None):
     """At most one fallback, only before any answer text has reached the caller."""
     attempted = False
     for provider, model, key in candidates(mode):
@@ -147,7 +147,8 @@ def stream(mode, messages):
         emitted = False
         finished = False
         try:
-            source = _openai(model, key, messages, mode) if provider == "openai" else _anthropic(model, key, messages, mode)
+            adapter = _openai if provider == "openai" else _anthropic
+            source = adapter(model, key, messages, mode) if system is None else adapter(model, key, messages, mode, system)
             yield {"type": "provider", "provider": provider, "model": model}
             for event in source:
                 if event["type"] == "delta":
