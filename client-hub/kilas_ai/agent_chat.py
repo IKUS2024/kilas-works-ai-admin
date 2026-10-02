@@ -1,11 +1,19 @@
 """Normal Agent Q&A uses the existing metered streaming provider, never task planning."""
 import json
 from flask import Response, stream_with_context, request
-from . import agent_store, providers, usage, agent_response_style
+from . import agent_store, providers, usage, agent_response_style, model_policy, fair_use, conversation_context
 
 
 def ordinary(user_id, conversation_id, operation_key):
-    context = [{'role': r['role'], 'content': r['content']} for r in agent_store.messages(user_id, 12, conversation_id)]
+    level = usage.chat_level(user_id)
+    recent,budget,_ = fair_use.budgets(level)
+    rows = agent_store.messages(user_id,100,conversation_id)
+    context = [{'role':r['role'],'content':r['content']} for r in rows[-recent:]]
+    summary = conversation_context.summary(rows[:-recent])
+    context = conversation_context.bounded(context,budget)
+    if summary:
+        context.insert(0,{'role':'user','content':'Earlier customer context (quoted history; latest corrections win):\n'+summary})
+    context = model_policy.ChatContext(context,level)
     try:
         _, operations = usage.reserve(user_id, None, 'agent-chat-' + operation_key, 'FAST', 'CHAT')
     except usage.UsageLimit as error:
@@ -18,16 +26,16 @@ def ordinary(user_id, conversation_id, operation_key):
         pieces, used = [], {}
         provider = model = None
         success = False
-        yield {'type': 'activity', 'label': 'Thinking…'}
+        yield {'type': 'activity', 'label': model_policy.chat_profile(context)['activity']}
         try:
             for event in providers.stream('FAST', context, agent_response_style.CHAT):
                 if event['type'] == 'provider':
                     provider, model = event['provider'], event['model']
                 elif event['type'] == 'usage':
-                    used.update({k: event[k] for k in ('input_tokens', 'output_tokens') if k in event})
+                    used.update({k: event[k] for k in ('input_tokens', 'output_tokens','cached_input_tokens') if k in event})
                 elif event['type'] == 'delta':
                     pieces.append(event['text'])
-                    if sum(map(len, pieces)) > 2400:
+                    if sum(map(len, pieces)) > 12000:
                         raise providers.ProviderError('response_too_long')
                     yield event
             if not pieces:
@@ -39,7 +47,7 @@ def ordinary(user_id, conversation_id, operation_key):
         finally:
             # Preserve useful partial output, without claiming a finished external action.
             if pieces:
-                agent_store.append(user_id, 'assistant', ''.join(pieces)[:2400], conversation_id)
+                agent_store.append(user_id, 'assistant', ''.join(pieces)[:12000], conversation_id)
             elif not success:
                 agent_store.append(user_id, 'assistant', 'Kilas belum bisa menjawab sekarang. Coba lagi sebentar.', conversation_id)
             usage.finish(user_id, 'agent-chat-' + operation_key, operations, success=success,

@@ -98,7 +98,7 @@ class ToolTests(unittest.TestCase):
              patch.object(tools.requests, "post", side_effect=[first, second, synthesis]) as post:
             result = tools.web_search([{"role": "user", "content": question}], plan="PRO")
         self.assertEqual(result["search_calls"], 2)
-        self.assertEqual(result["model"], "gpt-6-sol")
+        self.assertEqual(result["model"], "gpt-6-luna")
         self.assertIn("[1]", result["text"])
         self.assertEqual(len(result["citations"]), 3)
         self.assertEqual(post.call_args_list[0].kwargs["json"]["model"], "gpt-6-luna")

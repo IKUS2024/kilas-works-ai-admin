@@ -118,8 +118,9 @@ class UsageTests(unittest.TestCase):
                    "VALUES (?,?,?,?,?,'COMPLETE',?,?)",
                    (self.other, store.create_thread(self.other), "prior_cost_0123456789", "CHAT", "SMART", "2.10", now.isoformat()))
         thread_id = store.create_thread(self.other)
-        with self.assertRaises(usage.UsageLimit):
-            usage.reserve(self.other, thread_id, "guard_smart_0123456789", "SMART", "CHAT")
+        plan, operations = usage.reserve(self.other, thread_id, "guard_smart_0123456789", "SMART", "CHAT")
+        self.assertEqual(plan,"PLUS")
+        usage.finish(self.other,"guard_smart_0123456789",operations,success=False)
         plan, operations = usage.reserve(self.other, thread_id, "guard_fast_0123456789", "FAST", "CHAT")
         self.assertEqual((plan, operations), ("PLUS", ("CHAT",)))
         usage.finish(self.other, "guard_fast_0123456789", operations, success=False)

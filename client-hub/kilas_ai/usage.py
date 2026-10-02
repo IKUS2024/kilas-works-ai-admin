@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 import db
+from . import fair_use
 
 PLANS = {
     "FREE": {"price": 0, "CHAT": 100, "CHAT_DAILY": 10, "WEB_SEARCH": 3, "IMAGES": 2, "PDF": 10},
@@ -137,8 +138,8 @@ def _chat_only_sql():
 
 def _limit(plan, mode, operation):
     key = operation if operation in ("CHAT", "WEB_SEARCH", "PDF") else "IMAGES"
-    if key == "CHAT" and mode == "FAST" and plan != "FREE":
-        return 10000  # Hidden, generous ceiling for economical chat; burst/hourly gates still apply.
+    if key == "CHAT" and plan != "FREE":
+        return None  # Paid normal Chat has fair use, not a message allowance.
     if key in ("IMAGES", "PDF"):
         try:
             overrides = json.loads(os.environ.get("KILAS_AI_FAIR_USE_JSON", "{}"))
@@ -205,6 +206,36 @@ def web_call_budget(user_id, plan):
     return min({"FREE": 1, "PLUS": 3, "PRO": 4, "MAX": 5}.get(plan, 1), 1 + extra)
 
 
+def chat_cost_state(conn, user_id, plan, start, now):
+    rows = _rows(conn, "SELECT estimated_cost_usd,status FROM kilas_ai_usage u WHERE user_id=? "
+        "AND operation_type='CHAT' AND (thread_id IS NOT NULL OR operation_key LIKE 'agent-chat-%') "
+        "AND created_at>=? AND (status IN ('COMPLETE','FAILED') OR (status='PENDING' AND created_at>=?))" + _chat_only_sql(),
+        (user_id,start.isoformat(),(now-timedelta(minutes=10)).isoformat()))
+    spent = Decimal(0)
+    for row in rows:
+        if row[1]=='FAILED' and row[0] is None:
+            continue  # No returned billable usage; never invent a failed-call charge.
+        try:
+            cost = Decimal(str(row[0])) if row[0] is not None else GUARD_UNIT_USD['FAST']
+            spent += cost if cost.is_finite() and cost >= 0 else GUARD_UNIT_USD['FAST']
+        except InvalidOperation:
+            spent += GUARD_UNIT_USD['FAST']
+    return fair_use.cost_level(spent,PLANS[plan]['price'])
+
+
+def chat_level(user_id):
+    conn = _connect()
+    try:
+        now = _now()
+        plan,start,end = _plan(conn,user_id,now)
+        if plan == 'FREE' or _qa_quota_exempt(conn,user_id,now):
+            return 'NORMAL'
+        start = _period(plan,start,end,'CHAT',now)[0]
+        return chat_cost_state(conn,user_id,plan,start,now)
+    finally:
+        conn.close()
+
+
 def reserve(user_id, thread_id, key, mode, tool):
     """Atomically check and reserve all requested units before any provider call."""
     now = _now()
@@ -223,15 +254,30 @@ def reserve(user_id, thread_id, key, mode, tool):
         for seconds, ceiling in ((60, burst), (3600, hourly)):
             cutoff = now - timedelta(seconds=seconds)
             count = _query(conn, "SELECT COUNT(DISTINCT operation_key) FROM kilas_ai_usage WHERE user_id=? "
-                "AND (status='COMPLETE' OR (status='PENDING' AND created_at>=?)) AND created_at>=?",
+                "AND (status IN ('COMPLETE','FAILED') OR (status='PENDING' AND created_at>=?)) AND created_at>=?",
                 (user_id, (now - timedelta(minutes=10)).isoformat(), cutoff.isoformat()), one=True)[0]
             if count >= ceiling:
                 raise UsageLimit("Terlalu banyak permintaan dalam waktu singkat. Coba lagi sebentar.")
         operations = _operations(mode, tool)
         qa_exempt = _qa_quota_exempt(conn, user_id, now)
+        paid_chat = plan != 'FREE' and fair_use.normal_chat(thread_id,key,tool)
+        level = 'NORMAL'
+        if paid_chat and not qa_exempt:
+            start = _period(plan,paid_start,paid_end,'CHAT',now)[0]
+            level = chat_cost_state(conn,user_id,plan,start,now)
+            if level == 'PROTECTION':
+                chat_filter = " AND operation_type='CHAT' AND (thread_id IS NOT NULL OR operation_key LIKE 'agent-chat-%')"
+                recent = _query(conn,"SELECT COUNT(DISTINCT operation_key) FROM kilas_ai_usage WHERE user_id=? AND created_at>=? AND status IN ('COMPLETE','FAILED','PENDING')"+chat_filter,(user_id,(now-timedelta(minutes=5)).isoformat()),one=True)[0]
+                hour = _query(conn,"SELECT COUNT(DISTINCT operation_key) FROM kilas_ai_usage WHERE user_id=? AND created_at>=? AND status IN ('COMPLETE','FAILED','PENDING')"+chat_filter,(user_id,(now-timedelta(hours=1)).isoformat()),one=True)[0]
+                if recent >= 10 and hour >= 60:
+                    raise UsageLimit('Penggunaan sedang sangat intensif. Tunggu beberapa menit lalu coba lagi.')
+        concurrent = _query(conn,"SELECT COUNT(DISTINCT operation_key) FROM kilas_ai_usage WHERE user_id=? AND status='PENDING' AND created_at>=?",(user_id,(now-timedelta(minutes=10)).isoformat()),one=True)[0]
+        ceiling = fair_use.budgets(level)[2] if paid_chat else 3
+        if concurrent >= ceiling:
+            raise UsageLimit('Masih ada permintaan yang diproses. Tunggu jawabannya lalu coba lagi.')
         needs_topup = False
         for operation in (() if qa_exempt else operations):
-            limit = _limit(plan, mode, operation)
+            limit = None if paid_chat else ((10000 if mode=='FAST' else PLANS[plan]['CHAT']) if operation=='CHAT' and plan!='FREE' else _limit(plan,mode,operation))
             if limit is None:
                 continue
             start, end = _period(plan, paid_start, paid_end, operation, now, mode)
@@ -254,7 +300,7 @@ def reserve(user_id, thread_id, key, mode, tool):
                      (now - timedelta(minutes=10)).isoformat()), one=True)[0]
                 if daily >= PLANS[plan]["CHAT_DAILY"]:
                     needs_topup = True
-        if not qa_exempt:
+        if not qa_exempt and not paid_chat:
             try:
                 _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now)
             except UsageLimit:
@@ -278,7 +324,7 @@ def reserve(user_id, thread_id, key, mode, tool):
         conn.close()
 
 
-def estimate(model, input_tokens, output_tokens, operation, web_search_calls=1):
+def estimate(model, input_tokens, output_tokens, operation, web_search_calls=1, cached_input_tokens=0):
     """Only explicit verified server price maps produce an estimate."""
     try:
         rates = json.loads(os.environ.get("KILAS_AI_MODEL_PRICING_JSON", "{}"))
@@ -291,7 +337,9 @@ def estimate(model, input_tokens, output_tokens, operation, web_search_calls=1):
                 if prices is None:
                     return None
                 rate = {"input_per_million_usd": prices[0], "output_per_million_usd": prices[1]}
-            value = ((Decimal(str(input_tokens)) * Decimal(str(rate["input_per_million_usd"])) +
+            cached = max(0,min(int(input_tokens),int(cached_input_tokens)))
+            value = ((Decimal(str(int(input_tokens)-cached)) * Decimal(str(rate["input_per_million_usd"])) +
+                      Decimal(cached) * Decimal(str(rate.get('cached_input_per_million_usd',rate['input_per_million_usd']))) +
                       Decimal(str(output_tokens)) * Decimal(str(rate["output_per_million_usd"]))) / Decimal(1000000))
             if operation == "WEB_SEARCH":
                 value += Decimal("0.01") * max(1, min(5, int(web_search_calls)))
@@ -306,8 +354,9 @@ def estimate(model, input_tokens, output_tokens, operation, web_search_calls=1):
 
 def finish(user_id, key, operations, *, success, provider=None, model=None, usage=None):
     usage = usage or {}
-    input_tokens = max(0, int(usage.get("input_tokens") or 0))
-    output_tokens = max(0, int(usage.get("output_tokens") or 0))
+    input_tokens = max(0, int(usage.get("input_tokens") or usage.get('prompt_tokens') or 0))
+    output_tokens = max(0, int(usage.get("output_tokens") or usage.get('completion_tokens') or 0))
+    cached_tokens = usage.get('cached_input_tokens') or (usage.get('input_tokens_details') or usage.get('prompt_tokens_details') or {}).get('cached_tokens',0)
     conn = _connect()
     try:
         if db.BACKEND == "postgres":
@@ -316,7 +365,11 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
         for index, operation in enumerate(operations):
             billable = index == 0
             cost = (estimate(model, input_tokens if billable else 0, output_tokens if billable else 0,
-                             operation, usage.get("web_search_calls", 1)) if model else None)
+                             operation, usage.get("web_search_calls", 1), cached_tokens) if model else None)
+            if billable and usage.get('cost_components'):
+                components = [estimate(c['model'],c['input_tokens'],c['output_tokens'],c['operation'],
+                    cached_input_tokens=c.get('cached_input_tokens',0)) for c in usage['cost_components'][:6]]
+                cost = str(sum((Decimal(c) for c in components),Decimal(0))) if all(c is not None for c in components) else None
             if billable:
                 first_cost = cost
             _query(conn, "UPDATE kilas_ai_usage SET status=?,provider=?,model=?,input_tokens=?,output_tokens=?,estimated_cost_usd=? "

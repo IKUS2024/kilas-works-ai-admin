@@ -86,33 +86,19 @@ class ChatTests(unittest.TestCase):
             self.assertIn("cached", duplicate.get_data(as_text=True))
         self.assertEqual(len(store.messages(self.a, thread_id)), 2)
 
-    def test_provider_fallback_and_both_fail(self):
-        with patch.dict(os.environ, {"KILAS_AI_SMART_PRIMARY": "openai", "KILAS_AI_OPENAI_SMART_MODEL": "gpt-6-sol",
-                                     "KILAS_AI_ANTHROPIC_SMART_MODEL": "claude-sonnet-5", "OPENAI_API_KEY": "test",
-                                     "ANTHROPIC_API_KEY": "test"}):
-            def broken(*_):
-                raise providers.ProviderError("failed")
-                yield
-            with patch.object(providers, "_openai", broken), patch.object(providers, "_anthropic", return_value=iter([
-                {"type": "delta", "text": "Fallback works"}, {"type": "finish", "reason": "end_turn"}])):
-                events = list(providers.stream("SMART", [{"role": "user", "content": "hello"}]))
-            self.assertEqual("".join(event["text"] for event in events if event["type"] == "delta"), "Fallback works")
-            with patch.object(providers, "_openai", broken), patch.object(providers, "_anthropic", broken):
-                with self.assertRaises(providers.ProviderError):
-                    list(providers.stream("SMART", [{"role": "user", "content": "hello"}]))
+    def test_luna_failure_never_promotes_to_expensive_fallback(self):
+        with patch.dict(os.environ,{"OPENAI_API_KEY":"test","ANTHROPIC_API_KEY":"test","KILAS_AI_OPENAI_SMART_MODEL":"gpt-6-sol","KILAS_AI_ANTHROPIC_SMART_MODEL":"claude-sonnet-5"}),patch.object(providers,"_openai",side_effect=providers.ProviderError("failed")),patch.object(providers,"_anthropic") as expensive:
+            with self.assertRaises(providers.ProviderError):
+                list(providers.stream("SMART",[{"role":"user","content":"hello"}]))
+            expensive.assert_not_called()
 
     def test_routing_rejects_old_models_and_expensive_fast_fallback(self):
-        with patch.dict(os.environ, {"KILAS_AI_FAST_PRIMARY": "openai", "KILAS_AI_OPENAI_FAST_MODEL": "gpt-6-luna",
-                                     "KILAS_AI_ANTHROPIC_FAST_MODEL": "claude-haiku-4-5-20251001",
-                                     "KILAS_AI_OPENAI_SMART_MODEL": "gpt-6-sol", "KILAS_AI_ANTHROPIC_SMART_MODEL": "claude-sonnet-5",
-                                     "KILAS_AI_OPENAI_EXPERT_MODEL": "gpt-6-sol", "KILAS_AI_ANTHROPIC_EXPERT_MODEL": "claude-sonnet-5",
-                                     "OPENAI_API_KEY": "test", "ANTHROPIC_API_KEY": "test"}):
-            self.assertEqual([(p, m) for p, m, _ in providers.candidates("FAST")], [("openai", "gpt-6-luna")])
-            self.assertEqual([m for _, m, _ in providers.candidates("SMART")], ["gpt-6-sol", "claude-sonnet-5"])
-            self.assertEqual([m for _, m, _ in providers.candidates("EXPERT")], ["gpt-6-sol", "claude-sonnet-5"])
-            with patch.dict(os.environ, {"KILAS_AI_OPENAI_FAST_MODEL": "gpt-4.1-mini", "KILAS_AI_OPENAI_SMART_MODEL": "gpt-4.1"}):
-                self.assertEqual(list(providers.candidates("FAST")), [])
-                self.assertEqual([m for _, m, _ in providers.candidates("SMART")], ["claude-sonnet-5"])
+        with patch.dict(os.environ,{"OPENAI_API_KEY":"test","ANTHROPIC_API_KEY":"test","KILAS_AI_OPENAI_SMART_MODEL":"gpt-6-sol"}):
+            for mode in ("FAST","SMART","EXPERT"):
+                self.assertEqual([(p,m) for p,m,_ in providers.candidates(mode)],[("openai","gpt-6-luna")])
+            with patch.dict(os.environ,{"KILAS_AI_CHAT_MODEL":"gpt-6.1-sol"}):
+                with self.assertRaises(providers.ProviderError):
+                    list(providers.candidates("FAST"))
 
     def test_provider_requests_set_real_reasoning_controls(self):
         class EmptyResponse:
@@ -131,11 +117,11 @@ class ChatTests(unittest.TestCase):
         messages = [{"role": "user", "content": "Analyze this"}]
         with patch.object(providers.requests, "post", return_value=EmptyResponse()) as post:
             list(providers._openai("gpt-6-luna", "test", messages, "FAST"))
-            self.assertEqual(post.call_args.kwargs["json"]["reasoning_effort"], "none")
+            self.assertEqual(post.call_args.kwargs["json"]["reasoning_effort"], "medium")
             list(providers._openai("gpt-6-sol", "test", messages, "SMART"))
             self.assertEqual(post.call_args.kwargs["json"]["reasoning_effort"], "medium")
             list(providers._openai("gpt-6-sol", "test", messages, "EXPERT"))
-            self.assertEqual(post.call_args.kwargs["json"]["reasoning_effort"], "high")
+            self.assertEqual(post.call_args.kwargs["json"]["reasoning_effort"], "medium")
             list(providers._anthropic("claude-sonnet-5", "test", messages, "SMART"))
             self.assertEqual(post.call_args.kwargs["json"]["thinking"], {"type": "adaptive"})
             self.assertEqual(post.call_args.kwargs["json"]["output_config"], {"effort": "medium"})
