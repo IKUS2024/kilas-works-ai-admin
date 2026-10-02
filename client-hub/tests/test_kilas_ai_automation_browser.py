@@ -37,8 +37,11 @@ def main():
                 assert page.get_by_role("heading", name="Pengingat & jadwal", exact=True).is_visible()
                 assert page.locator("#auto-zone").input_value() == "Asia/Jakarta"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "home overflow")
-                page.get_by_role("link", name="+ Beri tugas").click()
-                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "form overflow")
+                page.locator(".auto-heading").get_by_role("link", name="Beri tugas", exact=True).click()
+                page.wait_for_load_state("networkidle")
+                page.evaluate("document.fonts.ready")
+                page.screenshot(path=os.path.join(tempfile.gettempdir(), f"kilas-schedule-form-{width}.png"), full_page=True)
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "form overflow", page.evaluate("[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,8).map(e=>({tag:e.tagName,cls:e.className,right:e.getBoundingClientRect().right}))"))
                 page.locator("#auto-instruction").fill("Ingetin gue bayar listrik.")
                 assert page.locator("#auto-schedule-mode").input_value() == "once"
                 page.locator("#auto-schedule-mode").select_option("daily")
@@ -65,7 +68,7 @@ def main():
                 assert page.get_by_text("Ingetin gue bayar listrik.").count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "list overflow")
                 page.get_by_role("link", name="Edit", exact=True).click()
-                assert page.get_by_role("heading", name="Edit pekerjaan Work").is_visible()
+                assert page.get_by_role("heading", name="Edit tugas").is_visible()
                 assert page.locator("#auto-run-date").input_value() == "2099-10-02"
                 assert page.locator("#auto-run-time").input_value() == "08:00"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "edit overflow")

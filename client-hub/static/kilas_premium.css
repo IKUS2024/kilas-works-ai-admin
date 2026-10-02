@@ -152,3 +152,18 @@ body.kilas-light.premium-workspace>.wrap{margin-left:240px!important;width:calc(
 body.finance-app.kilas-light{--orange:#a43c00;--accent:#a43c00}
 .kilas-light :is(.account-hero-edit,.account-quick-logout,.account-email-change-btn){font-size:13px;min-height:44px}
 .kilas-light .subscription-capabilities li{padding-left:0}.kilas-light .subscription-capabilities li::before{content:none}
+.kilas-light .auto-top{background:#fff;border-color:var(--line)}
+.kilas-light :is(.auto-usage,.auto-back,.auto-paging a){color:var(--accent)}
+.kilas-light .auto-empty a{color:var(--accent)}
+.kilas-light :is(.auto-timezone,.auto-filters,.auto-result-link,.auto-sources,.auto-examples){border-color:var(--line)}
+.kilas-light .auto-status.is-paused{background:#fff5e2;color:var(--yellow)}
+.kilas-light .auto-actions .auto-delete{color:var(--red);background:#fff;border-color:var(--line)}
+.kilas-light :is(.auto-heading p,.auto-subtitle,.auto-instruction,.auto-latest,.auto-result-link small){color:var(--muted)}
+.kilas-light :is(.auto-timezone label,.auto-quota){color:var(--muted)}
+.kilas-light .auto-filters a{color:var(--muted);border-color:var(--line)}
+.kilas-light .auto-filters a[aria-current=page],.kilas-light .auto-filters a.active{color:var(--accent);background:var(--premium-selected);border-color:#edc9ae}
+.kilas-light :is(.auto-preview-title,.auto-result-text,.auto-empty h2){color:var(--text)}
+.kilas-light .auto-page{padding:38px 32px 74px;min-width:0}
+.kilas-light .auto-form,.kilas-light .auto-form>*{min-width:0;max-width:100%}
+.kilas-light .auto-form input:is([type=date],[type=time]){color-scheme:light;min-width:0}
+@media(max-width:760px){.kilas-light .auto-page{padding:28px 20px 56px}}

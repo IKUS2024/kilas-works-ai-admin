@@ -94,6 +94,8 @@ def main():
                 expect(page.get_by_role('button', name='Hubungkan Google', exact=True)).to_be_visible()
                 assert page.locator('.premium-connections').get_by_text('Calendar').count() == 0
                 capture('preferences', '/kilas-ai/agent?view=settings')
+                capture('schedules', '/kilas-ai/automation')
+                capture('schedule-form', '/kilas-ai/automation/new')
                 capture('account', '/account')
                 page.locator('[data-profile-edit]').last.click()
                 expect(page.locator('#account-profile-dialog')).to_be_visible()

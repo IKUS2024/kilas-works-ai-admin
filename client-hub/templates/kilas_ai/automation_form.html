@@ -4,8 +4,8 @@
 <body class="premium-workspace kilas-light ">{% include '_premium_workspace.html' %}
 {% include 'kilas_ai/_automation_nav.html' %}
 <main id="kw-main" class="auto-page auto-narrow">
-  <p><a class="auto-back" href="{{ url_for('kilas_ai.automation_home') }}">← Work</a></p>
-  <h1>{{ 'Edit pekerjaan Work' if item else 'Beri tugas' }}</h1>
+  <p><a class="auto-back" href="{{ url_for('kilas_ai.automation_home') }}">Pengingat &amp; jadwal</a></p>
+  <h1>{{ 'Edit tugas' if item else 'Beri tugas' }}</h1>
   <p class="auto-subtitle">Tulis tugasnya, lalu pilih kapan Kilas menjalankannya.</p>
   {% if error %}<p class="auto-error" role="alert">{{ error }}</p>{% endif %}
   {% if preview %}

@@ -85,3 +85,23 @@ The final comprehensive browser run exposed the existing planning-card hydration
 race (37052400229): a generic accepted card was visible before its PLANNING label
 arrived. The same original `Menyiapkan rencana` assertion now uses Playwright's
 retrying text assertion. No backend, polling, timing delay or status change.
+
+## Supporting schedule UI regression check
+
+Run 37052790893 reported a 320px schedule-form overflow immediately after navigation.
+Added actual fully-loaded form captures/geometry diagnostics without removing the
+assertion. Local inspection also found a leftover secondary dark header and pale
+subtitle. Scoped auto-* CSS now provides white/header/border/text colors, readable
+state colors, 20px phone gutters and min-width bounds on form children; native date
+and time controls use light color-scheme. Task creation/preview/explicit activation,
+editing, pause and results remain unchanged. Secondary labels now say schedule/task
+rather than suggesting a second Work mode. Schedule list and form join the actual
+seven-width contrast/no-overflow acceptance matrix. Supplemental finish review is
+limited to these new captures. No production deployment at this checkpoint.
+
+The corrected schedule creation/edit/approval/pause browser and the expanded
+seven-width premium contrast/overflow journey both completed exit 0 on the final
+presentation. Supplemental review's single optional-plus finding was removed;
+final same-path captures show the text-only CTA and human schedule labels.
+
+Supplemental verdict: `ship`; the sole scored fix is resolved and remaining is clear.
