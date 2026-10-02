@@ -40,7 +40,7 @@ class AgentTests(unittest.TestCase):
     def test_empty_work_and_hidden_connections(self):
         client=self.client_for(self.owner)
         body=client.get('/kilas-ai/agent').text
-        self.assertIn('+ Work baru',body)
+        self.assertIn('+ Chat baru',body)
         self.assertNotIn('Connections',body)
         self.assertNotIn('Advanced settings',body)
         self.assertEqual(client.get('/kilas-ai/agent?view=connections').status_code,303)
@@ -54,7 +54,7 @@ class AgentTests(unittest.TestCase):
         with patch.object(connector_flow,'handle',side_effect=AssertionError('Work invoked connector')):
             response=client.post('/kilas-ai/agent/chat',data={'csrf_token':'agent-csrf','message':'setiap pagi cek email penting gue'})
         self.assertEqual(response.status_code,303)
-        self.assertIn('Work tidak mengakses koneksi akun',client.get(response.location).text)
+        self.assertIn('Kilas AI tidak mengakses koneksi akun',client.get(response.location).text)
         self.assertEqual(autonomous_store.list_jobs(self.owner),[])
         self.assertEqual(agent_planner.required_connection('cek kalender besok'),'Google Calendar')
         self.assertEqual(agent_planner.required_connection('rangkum laporan Finance'),'Kilas Finance')

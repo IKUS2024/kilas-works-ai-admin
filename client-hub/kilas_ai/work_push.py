@@ -54,7 +54,7 @@ def deliver(limit=10):
         # Commit before external delivery: ambiguous failures are never blindly resent.
         state='UNCERTAIN'
         try:
-            webpush({'endpoint':row['endpoint'],'keys':json.loads(row['keys_json'])},json.dumps({'title':'Kilas Work','body':row['summary'][:240],'tag':'work-'+str(row['event_id']),'url':'/kilas-ai/agent?conversation='+str(row['origin_conversation_id'])}),vapid_private_key=os.environ['KILAS_WEB_PUSH_PRIVATE_KEY'],vapid_claims={'sub':os.environ['KILAS_WEB_PUSH_SUBJECT']},timeout=5,ttl=3600)
+            webpush({'endpoint':row['endpoint'],'keys':json.loads(row['keys_json'])},json.dumps({'title':'Kilas AI','body':row['summary'][:240],'tag':'work-'+str(row['event_id']),'url':'/kilas-ai/agent?conversation='+str(row['origin_conversation_id'])}),vapid_private_key=os.environ['KILAS_WEB_PUSH_PRIVATE_KEY'],vapid_claims={'sub':os.environ['KILAS_WEB_PUSH_SUBJECT']},timeout=5,ttl=3600)
             state='SENT';sent+=1
         except WebPushException as error:
             if error.response is not None and error.response.status_code in (404,410):

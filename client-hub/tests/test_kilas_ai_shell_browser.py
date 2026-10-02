@@ -33,16 +33,16 @@ def main():
                 page.get_by_role('button',name='Kirim',exact=True).click()
                 page.get_by_text('Jawaban shell terverifikasi.',exact=True).wait_for()
                 normal_id=int(page.url.rsplit('/',1)[1]);assert len(store.list_threads(owner))==1
-                page.locator('.ai-mode-tabs').get_by_role('link',name='Work',exact=True).click()
-                expect(page.locator('.ai-mode-tabs [aria-current="page"]')).to_have_text('Work')
+                page.goto(origin+'/kilas-ai',wait_until='networkidle')
+                assert page.locator('.ai-mode-tabs').count()==0
                 page.get_by_label('Pesan untuk Kilas').fill('Riset kompetitor sampai selesai')
                 page.get_by_role('button',name='Kirim',exact=True).click()
                 expect(page.locator('[data-job-id]')).to_be_visible()
                 job=fixture.jobs.list_jobs(owner)[0];agent_id=job['origin_conversation_id']
                 dimensions=[]
                 for mode in ('agent','chat'):
-                    if mode=='chat':page.locator('.ai-mode-tabs').get_by_role('link',name='Chat',exact=True).click()
-                    expect(page.locator('.ai-mode-tabs [aria-current="page"]')).to_have_text('Work' if mode=='agent' else 'Chat')
+                    if mode=='chat':page.goto(origin+'/kilas-ai?attachments=1',wait_until='networkidle')
+                    assert page.locator('.ai-mode-tabs').count()==0
                     assert page.locator('.ai-app-header').count()==1
                     assert page.locator('.ai-app-header .ai-brand').inner_text()=='Kilas AI'
                     assert page.get_by_role('button',name='Buka menu chat').count()==0
@@ -66,7 +66,7 @@ def main():
                     if mode=='agent':
                         assert page.locator('.agent-chats').get_by_text('Riset kompetitor sampai selesai',exact=True).count()==1
                         assert page.locator('.agent-chats').get_by_text('Pertanyaan di normal Chat',exact=True).count()==0
-                        page.get_by_role('button',name='+ Work baru',exact=True).click()
+                        page.get_by_role('button',name='+ Chat baru',exact=True).click()
                         assert page.locator('.agent-message').count()==0
                         assert fixture.jobs.get(owner,job['id'])['status']=='PLANNING'
                     else:

@@ -82,13 +82,13 @@ class ResultTests(unittest.TestCase):
     def test_no_unverified_primary_result(self):
         self.assertEqual(results.primary_result([{'worker':'WEB','status':'WAITING','output_json':'{"text":"not finished"}'}])['text'],'')
 
-    def test_ordinary_has_agent_style_normal_provider_defaults_unchanged(self):
-        with patch.object(providers,'stream',return_value=iter([{'type':'delta','text':'Useful'}])) as stream:
+    def test_ordinary_reuses_shared_quality_provider_defaults(self):
+        events=[{'type':'delta','text':'Useful explanation of viral marketing.'},{'type':'finish','reason':'stop'}]
+        with patch.object(providers,'stream',return_value=iter(events)) as stream:
             self.send('Apa itu viral marketing?')
-            self.assertTrue(stream.call_args.args[2].startswith(style.CHAT))
-            self.assertIn('cannot access connected Google accounts',stream.call_args.args[2])
-            self.assertIn('Capability questions are conversational',stream.call_args.args[2])
-        self.assertNotEqual(providers.SYSTEM,style.CHAT)
+        self.assertEqual(stream.call_count,1)
+        self.assertEqual(len(stream.call_args.args),2)
+        self.assertNotIn('system',stream.call_args.kwargs)
 
     def test_research_planner_preserves_safety_instructions(self):
         job_id=fixture.jobs.create(self.owner,'Riset kompetitor')

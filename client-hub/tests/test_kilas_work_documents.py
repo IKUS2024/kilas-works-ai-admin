@@ -142,7 +142,7 @@ class WorkTests(unittest.TestCase):
     def test_artifact_card_result_first_and_customer_rename(self):
         job,file=self.complete()
         page=self.client().get('/kilas-ai/agent').text
-        self.assertIn('>Work</a>',page)
+        self.assertNotIn('ai-mode-tabs',page)
         self.assertNotIn('AI Agent',page)
         self.assertIn('proposal-kerja-sama.pdf',page)
         self.assertIn('Download',page)

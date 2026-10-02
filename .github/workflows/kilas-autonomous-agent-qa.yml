@@ -1,7 +1,7 @@
 name: Kilas Autonomous Agent QA
 on:
   push:
-    branches: [main, feature/kilas-work-real-worker-v2-20261002, feature/kilas-autonomous-agent-v1-20261002, feature/kilas-agent-chat-experience-20261002, fix/kilas-unified-chat-agent-shell-20261002, fix/kilas-agent-response-result-polish-20261002, fix/kilas-ai-cost-quality-routing-20261002, feature/kilas-work-universal-output-20261002]
+    branches: [main, feature/kilas-ai-unified-20261002, feature/kilas-work-real-worker-v2-20261002, feature/kilas-autonomous-agent-v1-20261002, feature/kilas-agent-chat-experience-20261002, fix/kilas-unified-chat-agent-shell-20261002, fix/kilas-agent-response-result-polish-20261002, fix/kilas-ai-cost-quality-routing-20261002, feature/kilas-work-universal-output-20261002]
   pull_request:
     branches: [main]
     paths:
@@ -47,6 +47,8 @@ jobs:
       - run: python client-hub/tests/test_kilas_agent_results.py
       - run: python client-hub/tests/test_kilas_ai_cost_quality.py
       - run: python client-hub/tests/test_kilas_work_documents.py
+      - run: python client-hub/tests/test_kilas_ai_unified.py
+      - run: python client-hub/tests/test_kilas_chat_quality_v2.py
       - run: python client-hub/tests/test_kilas_work_v2.py
       - run: python client-hub/tests/test_kilas_chat_intents.py
       - run: python client-hub/tests/test_kilas_ai_usage.py
@@ -95,6 +97,7 @@ jobs:
       - run: python client-hub/tests/test_kilas_ai_browser.py
       - run: python client-hub/tests/test_kilas_work_browser.py
       - run: python client-hub/tests/test_kilas_work_v2_browser.py
+      - run: python client-hub/tests/test_kilas_ai_unified_browser.py
       - run: python client-hub/tests/test_kilas_composer_focus_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
@@ -104,6 +107,7 @@ jobs:
             /tmp/agent-*.png
             /tmp/kilas-shell-*.png
             /tmp/kilas-work-v2-*.png
+            /tmp/kilas-unified-*.png
           if-no-files-found: ignore
   postgres:
     runs-on: ubuntu-latest

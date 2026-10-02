@@ -104,13 +104,15 @@ def agent_home():
         history_jobs=db.query_all('SELECT * FROM kilas_agent_jobs WHERE user_id=? ORDER BY id DESC LIMIT 21 OFFSET ?',(owner,(page-1)*20))
         autonomous_jobs=[job_card(dict(row)) for row in history_jobs[:20]]
     history_chats, more_chats = agent_store.conversation_page(owner,page) if view=='history' else ([],False)
+    from . import store as legacy_store
+    legacy_chats=legacy_store.list_threads(owner) if view=='history' else []
     more_chats=more_chats or (view=='history' and autonomous_runner.enabled() and len(history_jobs)>20)
     from .work_runtime import LABELS
     notifications = [{**dict(e),'label':e['summary'] if e['kind']=='REMINDER' else LABELS.get(e['kind'],'Pekerjaan diperbarui'),'time_label':time_label(e['created_at'],store.setting(owner))} for e in db.query_all('SELECT e.*,j.origin_conversation_id FROM kilas_agent_events e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE j.user_id=? AND e.unread=1 AND e.kind IN (\'REMINDER\',\'CONDITION_MET\',\'COMPLETED\',\'FAILED\',\'WAITING_INPUT\',\'WAITING_CAPABILITY\',\'NEEDS_APPROVAL\',\'BLOCKED\') ORDER BY e.id DESC LIMIT 30',(owner,))] if view=='notifications' else []
     location = session.get('work_location_request')
     return render_template('kilas_ai/agent.html', view=view, messages=messages, conversation=conversation, inline_jobs=inline_jobs,
         recent_chats=agent_store.recent_conversations(owner), older=bool(older), operation_key=secrets.token_urlsafe(24),
-        history_chats=history_chats, history_page=page, more_chats=more_chats, autonomous_jobs=autonomous_jobs,
+        history_chats=history_chats, legacy_chats=legacy_chats, history_page=page, more_chats=more_chats, autonomous_jobs=autonomous_jobs,
         autonomous_enabled=autonomous_runner.enabled(), active_count=active_count, autonomous_unread=autonomous_unread,
         notifications=notifications, timezone=store.setting(owner), push_available=work_push.configured(),
         location_request=location if location and location['conversation']==conversation_id else None,
@@ -160,7 +162,8 @@ def agent_chat():
         "AND status IN ('COMPLETED','FAILED','STOPPED'))",
         (owner, conversation_id))
     request.work_origin_message_id = agent_store.append(owner, 'user', text, conversation_id)
-    return work_runtime.handle(owner,text,key,conversation_id)
+    from .unified_runtime import dispatch
+    return dispatch(owner,text,key,conversation_id)
 
 
 @ai_bp.post("/agent/action", endpoint="agent_action")
