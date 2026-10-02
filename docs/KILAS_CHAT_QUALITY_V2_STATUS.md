@@ -13,7 +13,7 @@ Built from production/main `a0851ed7c6c1aec337b9fbd394442692f553e917` (PR #113) 
 
 HEAVY caps completion at 1,200; VERY_HEAVY and PROTECTION at 1,000, unchanged. No normal model Chat path has `none`, high or an expensive fallback. Existing environment validation rejects a non-Luna Chat model. A provider outage returns the existing calm retry message and never upgrades to Sol. Search retains its existing configured Web model and actual tool path; its former `none` setting becomes low for a quick search or medium for research. The existing research synthesis remains medium. Image generation uses the existing image tool, not the text Chat model.
 
-Reasoning classification now understands informal Indonesian recommendations (`menurut lu/lo`, `mending`), comparisons (`bandingin`), strategy, planning, business cost decisions and diagnostic language (`kemungkinan salahnya`, SQL/debugging). Obvious short references inherit the recent analytical user context. Extracted attachment evidence does not masquerade as a new user intent. No hidden classifier call or cosmetic delay is added. Processing labels reflect the real tier or actual tool/attachment operation.
+Reasoning classification now understands informal Indonesian recommendations (`menurut lu/lo`, `mending`), comparisons (`bandingin`), strategy, planning, multi-constraint requests, business cost decisions and diagnostic language (`kemungkinan salahnya`, SQL/debugging). Obvious short references inherit the recent analytical user context. Extracted attachment evidence does not masquerade as a new user intent. No hidden classifier call or cosmetic delay is added. Processing labels reflect the real tier or actual tool/attachment operation.
 
 ## Compact quality standard
 
@@ -45,7 +45,7 @@ Provider transport failures do not trigger a quality repair. Missing initial usa
 
 ## Routing and compatibility
 
-PR #113 image/PDF/Work boundaries and last-resort visual guard are retained. Small Chat corrections prevent general capability questions from authorizing image/PDF execution, distinguish text rewriting from image edits, and distinguish `cari kemungkinan salahnya` from an internet search. Existing price/capability discussion remains Chat. Explicit code stays code; actual creation still routes through real tools.
+PR #113 image/PDF/Work boundaries and last-resort visual guard are retained. Small Chat corrections prevent general capability questions from authorizing image/PDF execution, distinguish text rewriting from image edits, and distinguish `cari kemungkinan salahnya` from an internet search. Existing price/capability discussion remains Chat. Explicit current-fact requests keep Web priority even when phrased as discussion (`jelaskan berita terbaru`, `menurut lu harga ... sekarang`). Explicit code stays code; actual creation still routes through real tools.
 
 PR #111 retail mapping (PLUS / Rp99,000), thresholds, sustainability ceiling, paid Chat marketing, QA identity/expiry, burst/concurrency, tool limits and security are unchanged. Existing failed billable calls still count toward the cost ceiling. The QA exemption is neither extended nor broadened.
 

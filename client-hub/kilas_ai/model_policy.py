@@ -31,7 +31,8 @@ def chat_tier(text):
         r"\b(?:bisnis|usaha|business|pricing|monetisasi|monetization|saas|umkm)\b.{0,100}"
         r"\b(?:modal|budget|harga|biaya|untung|rugi|pilih|marketing|operasional|positioning)\b",
     )
-    if len(text) > 3500 or any(re.search(pattern, text) for pattern in analytical):
+    constraints = re.findall(r'\b(?:budget|modal|bujet|jangan|tanpa|harus|hanya|maksimal|sendiri|without|must|only|maximum)\b', text)
+    if len(text) > 3500 or (len(text) > 80 and len(constraints) >= 3) or any(re.search(pattern, text) for pattern in analytical):
         return 'DEEP'
     if len(text) < 250 and re.search(r'^(?:halo|hai|hi|hello|thanks|makasih|terima kasih|translate|terjemah|ubah format|formatkan|apa itu|what is|benerin typo|buat caption pendek)\b', text):
         return 'QUICK'

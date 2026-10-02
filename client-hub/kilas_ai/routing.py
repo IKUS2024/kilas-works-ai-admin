@@ -81,10 +81,10 @@ def tool_for(content, attachments=(), *, search=False, pdf_request=False,
         return "CHAT"
     if search:
         return "WEB"
-    if _discussion(text):
-        return "CHAT"
     if fresh_information(text):
         return "WEB"
+    if _discussion(text):
+        return "CHAT"
     if re.search(r'\b(?:buat|create|export|ekspor|ubah)\b',text) and re.search(r'\b(?:docx|xlsx|pptx|file word|file excel)\b',text):
         return "FILE"
     has_image = any(item.get("mime_type", "").startswith("image/") for item in attachments)

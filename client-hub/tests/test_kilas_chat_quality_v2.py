@@ -42,6 +42,9 @@ class QualityTests(unittest.TestCase):
         for prompt in ('halo','translate ini','apa itu API','berapa arti kata ini','benerin typo kalimat ini','buat caption pendek'):
             self.assertEqual(policy.chat_profile([{'role':'user','content':prompt}])['effort'],'low')
         self.assertEqual(policy.chat_tier('translate: business strategy and SQL debugging'),'QUICK')
+        self.assertEqual(policy.chat_tier('Modal saya 15 juta, saya bekerja sendiri, hanya punya dua jam sehari, dan harus bisa mulai dari rumah.'),'DEEP')
+        self.assertEqual(routing.tool_for('jelaskan berita terbaru hari ini'),'WEB')
+        self.assertEqual(routing.tool_for('menurut lu harga emas sekarang berapa?'),'WEB')
         self.assertNotIn('none',[effort for effort,_ in policy.TIERS.values()])
 
     def test_attachment_evidence_does_not_turn_simple_question_into_analysis(self):
