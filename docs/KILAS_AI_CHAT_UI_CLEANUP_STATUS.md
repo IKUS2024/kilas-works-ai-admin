@@ -43,6 +43,10 @@ release checkpoint is preserved in the named Git stash; it is not part of this p
 
 ## Release checkpoint
 
+Initial CI found a real PostgreSQL parameter-formatting regression in the hidden
+backing-thread filter. The LIKE pattern is now bound as a parameter; deployment
+waits for green native PostgreSQL and browser evidence on the corrected main SHA.
+
 Pending direct-main commit/push, relevant CI, Client Hub-only
 deployment and actual authenticated production acceptance. Do not deploy AI Admin or
 Cron, run migrations, reset data, or change credentials/configuration for this patch.

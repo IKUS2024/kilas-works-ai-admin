@@ -16,9 +16,9 @@ def list_threads(user_id, limit=50):
     return db.query_all(
         "SELECT id,title,selected_mode,created_at,updated_at FROM kilas_ai_threads "
         "WHERE user_id=? AND NOT EXISTS (SELECT 1 FROM kilas_ai_messages b "
-        "WHERE b.thread_id=kilas_ai_threads.id AND b.operation_key LIKE 'agent-attachments:%') "
+        "WHERE b.thread_id=kilas_ai_threads.id AND b.operation_key LIKE ?) "
         "ORDER BY updated_at DESC,id DESC LIMIT ?",
-        (user_id, limit),
+        (user_id, 'agent-attachments:%', limit),
     )
 
 
