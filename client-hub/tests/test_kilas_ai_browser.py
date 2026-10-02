@@ -53,6 +53,7 @@ def main():
                     session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="browser-csrf")
                 cookie = client.get_cookie(app.app.config.get("SESSION_COOKIE_NAME", "session"))
                 context = browser.new_context(viewport={"width": width, "height": height})
+                context.add_init_script("""desktop => { const native = window.matchMedia.bind(window); window.matchMedia = query => query === "(hover: hover) and (pointer: fine)" ? {matches: desktop, media: query, onchange: null, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){}, dispatchEvent(){return false;}} : native(query); }""", width > 760)
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
@@ -81,6 +82,7 @@ def main():
                 page.locator("#ai-input").fill("Halo Kilas AI")
                 page.get_by_role("button", name="Kirim").click()
                 page.get_by_text("Jawaban uji Kilas AI.").wait_for()
+                assert page.evaluate("document.activeElement.id === 'ai-input'") is (width > 760), (width, "composer focus after response")
                 assert page.locator(".ai-assistant .ai-copy").count() == 1
                 page.wait_for_url("**/kilas-ai/threads/*")
                 assert len(store.list_threads(owner)) == 1
