@@ -39,10 +39,10 @@ def main():
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.goto(origin + '/kilas-ai/agent?view=tasks')
-                assert page.get_by_role('heading', name='Pekerjaan berjalan').is_visible()
-                assert page.get_by_role('link', name='Lihat pekerjaan').is_visible()
+                assert page.get_by_role('heading', name='Sedang berjalan').is_visible()
+                assert page.get_by_role('link', name='Detail', exact=True).is_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, 'tasks overflow')
-                page.get_by_role('link', name='Lihat pekerjaan').click()
+                page.get_by_role('link', name='Detail', exact=True).click()
                 assert page.get_by_role('heading', name='Langkah pekerjaan').is_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, 'detail overflow')
                 page.get_by_role('button', name='Jeda', exact=True).click()

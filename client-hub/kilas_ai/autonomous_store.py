@@ -53,21 +53,33 @@ def get(user_id, job_id):
     return dict(row) if row else None
 
 
-def list_jobs(user_id):
-    return [dict(row) for row in db.query_all('SELECT j.*,(SELECT COUNT(*) FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status=\'SUCCEEDED\') AS done,(SELECT COUNT(*) FROM kilas_agent_steps s WHERE s.job_id=j.id) AS total,(SELECT instruction FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status NOT IN (\'SUCCEEDED\',\'SKIPPED\',\'STOPPED\') ORDER BY sequence LIMIT 1) AS current_step FROM kilas_agent_jobs j WHERE user_id=? ORDER BY id DESC LIMIT 50', (user_id,))]
+def list_jobs(user_id, conversation_id=None, active_only=False):
+    where, params = 'user_id=?', [user_id]
+    if conversation_id is not None:
+        where += ' AND origin_conversation_id=?'
+        params.append(conversation_id)
+    if active_only:
+        where += " AND status NOT IN ('COMPLETED','FAILED','STOPPED')"
+    else:
+        where += " AND (status NOT IN ('COMPLETED','FAILED','STOPPED') OR id IN (SELECT id FROM kilas_agent_jobs WHERE user_id=? AND status IN ('COMPLETED','FAILED','STOPPED') ORDER BY id DESC LIMIT 8))"
+        params.append(user_id)
+    order = "CASE WHEN status IN ('COMPLETED','FAILED','STOPPED') THEN 1 ELSE 0 END,id DESC"
+    return [dict(row) for row in db.query_all('SELECT j.*,(SELECT COUNT(*) FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status=\'SUCCEEDED\') AS done,(SELECT COUNT(*) FROM kilas_agent_steps s WHERE s.job_id=j.id) AS total,(SELECT instruction FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status NOT IN (\'SUCCEEDED\',\'SKIPPED\',\'STOPPED\') ORDER BY sequence LIMIT 1) AS current_step FROM kilas_agent_jobs j WHERE ' + where + ' ORDER BY ' + order + ' LIMIT 30', tuple(params))]
 
 
 def steps(job_id):
     return [dict(row) for row in db.query_all('SELECT * FROM kilas_agent_steps WHERE job_id=? ORDER BY sequence', (job_id,))]
 
 
-def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=None, interval=3600, expires_at=None):
+def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=None, interval=3600, expires_at=None, conversation_id=None, schedule=None):
     from .autonomous_planner import MODES
     if mode not in MODES or not isinstance(instruction, str) or not 1 <= len(instruction.strip()) <= 1200:
         raise ValueError('invalid_job')
     if not 300 <= int(interval) <= 2592000:
         raise ValueError('invalid_interval')
     with transaction() as conn:
+        if conversation_id is not None and not usage._query(conn, 'SELECT id FROM kilas_ai_conversations WHERE id=? AND user_id=?', (conversation_id, user_id), one=True):
+            raise ValueError('conversation_not_owned')
         if db.BACKEND == 'postgres':
             usage._query(conn, 'SELECT id FROM users WHERE id=? FOR UPDATE', (user_id,), one=True)
         count = usage._query(conn, "SELECT COUNT(*) FROM kilas_agent_jobs WHERE user_id=? AND status NOT IN ('COMPLETED','FAILED','STOPPED')", (user_id,), one=True)[0]
@@ -76,6 +88,9 @@ def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=N
         job_id = usage._query(conn, 'INSERT INTO kilas_agent_jobs(user_id,title,instruction,mode,status,constraints_json,next_wake_at,interval_seconds,expires_at) VALUES (?,?,?,?,?,?,?,?,?) RETURNING id',
                               (user_id, instruction[:90], instruction.strip(), mode, 'PLANNING', encode(constraints or []), stamp(wake_at), int(interval), stamp(expires_at) if expires_at else None), one=True)[0]
         event(conn, job_id, 'CREATED', 'Pekerjaan tersimpan. Kilas akan menyiapkan langkahnya.')
+        if conversation_id is not None or schedule:
+            usage._query(conn, 'UPDATE kilas_agent_jobs SET origin_conversation_id=?,schedule_json=? WHERE id=?',
+                         (conversation_id, encode(schedule or {}), job_id))
     return job_id
 
 

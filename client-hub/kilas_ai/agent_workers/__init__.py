@@ -35,7 +35,7 @@ def sensitive(worker, action):
 
 
 def market_request(text):
-    return bool(re.search(r'(?i)\b(?:XAUUSD|XAGUSD|BTCUSD|ETHUSD|OHLC|candles?|forex|saham|trading|market signal|sinyal|indikator teknikal|setup valid)\b', text or ''))
+    return bool(re.search(r'(?i)\b(?:XAUUSD|XAGUSD|BTCUSD|BTCUSDT|Bitcoin|Ethereum|ETHUSD|OHLC|candles?|forex|saham|trading|market signal|sinyal|indikator teknikal|setup valid)\b', text or ''))
 
 
 def validate_step(step):

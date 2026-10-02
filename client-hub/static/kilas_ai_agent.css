@@ -1,4 +1,8 @@
 .agent-body{overflow-x:hidden}
+.agent-body{--agent-bg:#191b1f;--agent-panel:#24262b;--agent-line:#42464d;--agent-text:#f1f2f3;--agent-muted:#c4c9d0;--agent-accent:#ffad6b;color:var(--agent-text);color-scheme:dark}
+.agent-body ::selection{background:#ffad6b;color:#191b1f}
+.agent-body :is(a,button,input,select,textarea,summary):focus-visible{outline:2px solid var(--agent-accent);outline-offset:3px}
+.agent-body input,.agent-body textarea{caret-color:var(--agent-accent)}
 .autonomous-detail{max-width:960px;margin:auto;min-height:calc(100dvh - 67px)}
 .autonomous-detail h1{font-size:clamp(24px,3vw,32px);line-height:1.25;overflow-wrap:anywhere;margin:0 0 12px}
 .autonomous-section{padding:24px 0;border-bottom:1px solid #383b41}
@@ -40,3 +44,83 @@
 @media(max-width:380px){.agent-section-head{display:block}.agent-section-head .auto-primary{margin-top:12px}.agent-live{margin-top:10px}.agent-message-user{max-width:94%}.agent-proposal dl div{display:block}.agent-proposal dt{margin-bottom:2px}}
 .agent-connections li>div{display:grid;gap:3px;min-width:0}.agent-connections li span,.agent-connections li small{display:block;text-align:left;color:#bfc4cb;overflow-wrap:anywhere}.agent-connections form{align-self:center;flex:none}.agent-connections button,.agent-approval-actions button{min-height:44px;padding:9px 14px;border:1px solid #666a72;border-radius:9px;background:#292c31;color:#fff;cursor:pointer}.agent-connections button:hover,.agent-approval-actions button:hover{border-color:#ffad6b}.agent-connections button:focus-visible,.agent-approval-actions button:focus-visible{outline:2px solid #ffad6b;outline-offset:2px}.agent-connections .auto-error{padding:12px 0}.agent-approval-actions{display:flex;flex-wrap:wrap;gap:9px}.agent-approval dl dd{white-space:pre-wrap}.agent-approval .auto-small{color:#c5cad1}
 @media(max-width:680px){.agent-connections li{display:flex;align-items:flex-start;flex-wrap:wrap}.agent-connections li>div{flex:1 1 180px}.agent-connections li form{width:100%}.agent-connections li button{width:100%}}
+
+/* Chat-first extension retains the existing Kilas dark surfaces and orange accent. */
+.agent-shell{grid-template-columns:248px minmax(0,1fr);max-width:1440px}
+.agent-main{padding:24px clamp(18px,4vw,64px);max-width:100%;min-width:0}
+.agent-shell[data-view="chat"] .agent-main{display:flex;flex-direction:column;height:calc(100dvh - 67px)}
+.agent-section-head{flex:none;align-items:center}
+.agent-section-head h2{font-size:24px;overflow-wrap:anywhere}
+.agent-section-head p{font-size:14px;line-height:1.5}
+.agent-conversation{flex:1;min-height:180px;max-height:none;width:100%;max-width:78ch;margin:0 auto;padding:28px 0;overscroll-behavior:contain}
+.agent-composer{width:100%;max-width:78ch;margin:0 auto;flex:none}
+.agent-composer textarea{font-size:16px;line-height:1.5;resize:none}
+.agent-composer textarea:focus-visible{outline:0}
+.agent-composer p{font-size:13px;line-height:1.5;color:var(--agent-muted)}
+.agent-composer label{font-size:14px}
+.agent-rail{padding:24px 14px;overflow-y:auto;max-height:calc(100dvh - 67px);position:sticky;top:0;scrollbar-color:#5c6068 transparent}
+.agent-rail-head{display:flex;align-items:center;justify-content:space-between;padding:0 10px 20px}
+.agent-rail-head h1{font-size:22px;margin:0}
+.agent-new-chat button{width:100%;min-height:46px;text-align:left;font:inherit;font-weight:650;background:#303238;border:1px solid #5a5d64;color:var(--agent-text);border-radius:10px;padding:10px 12px;cursor:pointer}
+.agent-new-chat button:hover{border-color:var(--agent-accent)}
+.agent-sections{margin:12px 0 24px}
+.agent-chats{display:grid;gap:4px;margin-bottom:24px;min-width:0}
+.agent-chats h2{font-size:14px;margin:0 12px 8px;color:var(--agent-muted);font-weight:600}
+.agent-chats a{padding:10px 12px;min-height:44px;line-height:1.4;border-radius:8px;overflow-wrap:anywhere;color:var(--agent-muted)}
+.agent-chats a:hover,.agent-chats a[aria-current="page"]{background:#303238;color:var(--agent-text);text-decoration:none}
+.agent-rail-foot p{line-height:1.5;color:var(--agent-muted);margin:0 0 8px}
+.agent-menu-button,.agent-drawer-close,.agent-drawer-backdrop{display:none}
+.agent-thinking{min-height:28px;display:flex;align-items:center;gap:9px;max-width:78ch;width:100%;margin:0 auto;color:var(--agent-muted);font-size:14px}
+.agent-thinking[hidden],.agent-drawer-backdrop[hidden]{display:none}
+.agent-thinking-dot{width:8px;height:8px;border-radius:50%;background:var(--agent-accent);animation:agent-thinking 1.4s ease-in-out infinite}
+@keyframes agent-thinking{50%{opacity:.3}}
+@media(prefers-reduced-motion:reduce){.agent-thinking-dot{animation:none}}
+.agent-task-group{font-size:15px;color:var(--agent-muted);margin:22px 0 0}
+.agent-background-tasks{margin-top:24px}
+.agent-task-head{flex-wrap:wrap;align-items:center}
+.agent-task-head h3{flex:1 1 200px}
+.agent-task .auto-meta{display:grid;gap:8px;font-variant-numeric:tabular-nums}
+.agent-task .auto-meta dd{font-size:14px;overflow-wrap:anywhere}
+.agent-task .auto-actions{display:flex;gap:8px;flex-wrap:wrap}
+.agent-task .auto-actions :is(a,button){min-height:44px;display:inline-flex;align-items:center;padding:9px 12px}
+.agent-task .auto-actions button,.agent-rename button{background:var(--agent-panel);border:1px solid #666a72;color:var(--agent-text);border-radius:8px;cursor:pointer;font:inherit}
+.agent-task .auto-actions button:hover{border-color:var(--agent-accent)}
+.agent-older{display:inline-flex;min-height:44px;align-items:center;color:var(--agent-accent);margin-bottom:20px}
+.agent-rename{position:relative;font-size:14px;flex:none}
+.agent-rename summary{min-height:44px;padding:12px;cursor:pointer}
+.agent-rename form{position:absolute;right:0;z-index:2;width:240px;max-width:calc(100vw - 36px);padding:16px;background:var(--agent-panel);border:1px solid var(--agent-line);border-radius:12px}
+.agent-rename label{display:block;margin-bottom:8px}
+.agent-rename input{width:100%;min-width:0;min-height:44px;margin-bottom:8px;background:var(--agent-bg);color:var(--agent-text);border:1px solid #666a72;padding:8px;border-radius:8px}
+.agent-rename button{min-height:44px;padding:8px 14px}
+.autonomous-options{margin:8px 0 0}
+.autonomous-options label{margin-top:8px}
+@media(max-width:1050px){.agent-shell{grid-template-columns:220px minmax(0,1fr)}}
+@media(max-width:680px){
+ .agent-shell{display:block;min-height:0}
+ .agent-shell[data-view="chat"] .agent-main{height:calc(100dvh - 155px);min-height:400px}
+ .agent-main{padding:16px}
+ .agent-section-head{gap:8px}
+ .agent-section-head h2{font-size:21px}
+ .agent-section-head p{font-size:14px}
+ .agent-rename summary{padding:12px 4px}
+ .agent-menu-button{display:block;min-height:44px;margin:8px 16px;padding:8px 12px;background:var(--agent-panel);color:var(--agent-text);border:1px solid #666a72;border-radius:8px;font:inherit;cursor:pointer}
+ .agent-rail{position:fixed;inset:0 auto 0 0;z-index:30;width:min(290px,calc(100vw - 44px));height:100dvh;max-height:none;display:none;flex-direction:column;border-right:1px solid var(--agent-line);padding:24px 14px;background:#1c1e22}
+ .agent-rail.is-open{display:flex}
+ .agent-rail-head,.agent-rail-foot{display:flex}
+ .agent-rail-foot{display:block}
+ .agent-sections{display:grid;overflow:visible}
+ .agent-sections a{font-size:15px;white-space:normal;border-radius:8px}
+ .agent-drawer-close{display:block;min-height:44px;padding:8px;background:transparent;border:0;color:var(--agent-muted);font:inherit;cursor:pointer}
+ .agent-drawer-backdrop:not([hidden]){display:block;position:fixed;inset:0;z-index:29;background:#0009;border:0}
+ .agent-composer>div{flex-direction:row;align-items:end}
+ .agent-composer button{align-self:flex-end;min-height:44px}
+ .agent-conversation{min-height:120px;padding-top:22px}
+ .agent-welcome{margin:24px auto}
+ .agent-welcome h3{font-size:28px;line-height:1.25}
+ .agent-message{margin-bottom:22px}
+ .agent-task-head h3{flex-basis:100%;font-size:18px}
+ .agent-task .auto-meta div{display:block}
+ .agent-task .auto-meta dd{margin:3px 0 0}
+ .agent-task .auto-status{white-space:normal}
+}
+@media(max-width:380px){.agent-section-head{display:flex;align-items:start}.agent-section-head h2{font-size:20px}.agent-section-head p{font-size:13px}.agent-rename{font-size:13px}}

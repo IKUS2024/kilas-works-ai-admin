@@ -296,6 +296,7 @@ MIGRATIONS = [
     ("0076_kilas_ai_agent_sqlite.sql", "0076_kilas_ai_agent_postgres.sql"),
     ("0077_kilas_ai_connectors_sqlite.sql", "0077_kilas_ai_connectors_postgres.sql"),
     ("0078_kilas_autonomous_agent_sqlite.sql", "0078_kilas_autonomous_agent_postgres.sql"),
+    ("0079_kilas_agent_conversations_sqlite.sql", "0079_kilas_agent_conversations_postgres.sql"),
 ]
 
 
@@ -358,6 +359,19 @@ def init_schema():
                 except Exception:
                     conn.rollback()
                     raise
+                continue
+            if sqlite_name == "0079_kilas_agent_conversations_sqlite.sql":
+                # Repeated local boots must continue after each already-added column,
+                # without reassociating messages belonging to an existing chat.
+                with conn:
+                    for statement in script.split(';'):
+                        if not statement.strip():
+                            continue
+                        try:
+                            conn.execute(statement)
+                        except sqlite3.OperationalError as error:
+                            if not (statement.strip().startswith('ALTER TABLE') and 'duplicate column name' in str(error)):
+                                raise
                 continue
             if sqlite_name == "0033_finance_branches_sqlite.sql":
                 from finance_branch_migration import migrate_sqlite
