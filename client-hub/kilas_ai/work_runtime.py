@@ -30,7 +30,7 @@ def deliver_reminder(conn,job,step):
     usage._query(conn,"INSERT INTO kilas_ai_agent_messages(user_id,conversation_id,role,content) VALUES (?,?,'assistant',?)",(job['user_id'],job['origin_conversation_id'],text))
     from . import work_push
     work_push.queue(conn,event[0],job['user_id'])
-    checkpoint=json.loads(job['checkpoint_json']);checkpoint['reminder']['scheduled_for']=job['next_wake_at'];checkpoint['reminder']['actual_delivery_time']=store.stamp()
+    checkpoint=json.loads(job['checkpoint_json']);checkpoint['reminder']['scheduled_for']=store.stamp(usage._as_utc(job['next_wake_at']));checkpoint['reminder']['actual_delivery_time']=store.stamp()
     job['checkpoint_json']=store.encode(checkpoint)
     usage._query(conn,'UPDATE kilas_agent_jobs SET checkpoint_json=? WHERE id=?',(store.encode(checkpoint),job['id']))
 
