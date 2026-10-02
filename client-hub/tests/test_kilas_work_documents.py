@@ -77,6 +77,18 @@ class WorkTests(unittest.TestCase):
         self.assertIn(fixture.app.app.test_client().get(path).status_code,(302,401))
         self.assertIn('attachment',self.client().get(path+'?download=1').headers['Content-Disposition'])
 
+    def test_compact_pdf_has_real_content_without_padding(self):
+        source='# QA Release\n\n## Tujuan\nUji produksi sintetis.\n\n## Langkah\n1. Cek dokumen.\n2. Verifikasi hasil.\n3. Selesai.'
+        self.assertLess(len(source),200)
+        job,file=self.complete('Buat PDF ringkas untuk QA release sintetis.',source)
+        response=self.client().get(f"/kilas-ai/agent/jobs/{job}/artifacts/{file['id']}")
+        reader=PdfReader(io.BytesIO(response.data),strict=True)
+        self.assertEqual(len(reader.pages),1)
+        self.assertIn('Verifikasi hasil',reader.pages[0].extract_text())
+        for empty in ('# QA Release\n\n## Langkah', '# QA Release\n\n## Langkah\n---'):
+            with self.assertRaisesRegex(ValueError,'document_structure_missing'):
+                docs.quality(empty,'Buat PDF QA.')
+
     def test_work_submission_creates_document_not_chat_prose(self):
         response=self.client().post('/kilas-ai/agent/chat',data={'message':REQUEST,'csrf_token':'work-csrf','conversation_id':self.conversation})
         self.assertEqual(response.status_code,303)

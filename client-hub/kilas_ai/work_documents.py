@@ -55,7 +55,8 @@ def quality(source, request, format='pdf', previous=''):
     if len(paragraphs)!=len(set(paragraphs)):raise ValueError('duplicate_document_paragraph')
     if format=='pdf':
         if re.search('[\U0001F300-\U0001FAFF]',source):raise ValueError('formal_document_emoji')
-        if not re.search(r'^# .{5,100}$',source,re.M) or not re.search(r'^## .+',source,re.M) or len(source.strip())<200:
+        body='\n'.join(line for line in source.splitlines() if not re.match(r'^#{1,6}\s',line))
+        if not re.search(r'^# .{5,100}$',source,re.M) or not re.search(r'^## .+',source,re.M) or len(re.sub(r'\W','',body))<20:
             raise ValueError('document_structure_missing')
         if '```' in source:raise ValueError('raw_document_code')
     # Check explicit prices/timelines; semantic fact safety also belongs to the writing instruction.
