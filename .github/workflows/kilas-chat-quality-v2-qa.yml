@@ -1,0 +1,54 @@
+name: Kilas Chat Quality V2 QA
+on:
+  pull_request:
+    paths:
+      - 'client-hub/kilas_ai/**'
+      - 'client-hub/static/kilas_ai.js'
+      - 'client-hub/tests/**kilas*quality*.py'
+      - 'client-hub/tests/fixtures/kilas_conversation_standard.json'
+      - '.github/workflows/kilas-chat-quality-v2-qa.yml'
+  push:
+    branches: ['feature/kilas-chat-quality-v2-*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  chat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Chat quality and existing tool, cost, context and security coverage
+        run: |
+          python client-hub/tests/test_kilas_chat_quality_v2.py
+          python client-hub/tests/test_kilas_ai_cost_quality.py
+          python client-hub/tests/test_kilas_ai_chat.py
+          python client-hub/tests/test_kilas_chat_intents.py
+          python client-hub/tests/test_kilas_ai_routing.py
+          python client-hub/tests/test_kilas_ai_natural_style.py
+          python client-hub/tests/test_kilas_ai_attachments.py
+          python client-hub/tests/test_kilas_ai_pdf.py
+          python client-hub/tests/test_kilas_ai_tools.py
+          python client-hub/tests/test_kilas_ai_usage.py
+          python client-hub/tests/test_kilas_ai_billing.py
+          python client-hub/tests/test_kilas_ai_topups.py
+          python client-hub/tests/test_kilas_ai_single_plan_console.py
+          python client-hub/tests/test_kilas_autonomous_agent.py
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Streaming, activity, retry, tools, attachments and mobile keyboard
+        run: |
+          python client-hub/tests/test_kilas_ai_browser.py
+          python client-hub/tests/test_kilas_composer_focus_browser.py
