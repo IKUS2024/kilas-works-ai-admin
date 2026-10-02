@@ -147,6 +147,12 @@ def fresh_information(text):
     # 'Cari kemungkinan salahnya' asks for diagnosis, not an internet search.
     if re.search(r"\bcari kemungkinan\b", text) and not re.search(r"\b(?:web|internet|terbaru|terkini|hari ini)\b", text):
         return False
+    # Current software versions need a source just like current prices/news.
+    # Keep creative follow-ups such as 'buat versi lain' on their existing path.
+    if (not re.search(r'\b(?:buat|bikin|bikinin|buatin|ubah|create|make)\s+(?:versi|version)\b', text)
+            and re.search(r'\b(?:terbaru|terkini|sekarang|saat ini|latest|current|today)\b', text)
+            and re.search(r'\b(?:(?:versi|version)\s+(?:stabil|stable|terbaru|latest)|(?:rilis|release)\s+(?:terbaru|latest)|(?:latest|current)\s+(?:stable\s+)?version)\b', text)):
+        return True
     if re.match(r'^(?:apa itu|what is|jelaskan cara|how to)\b',text):
         return False
     return bool(re.search(r'\b(?:cari|carikan|search|cek internet|cek web|berita terbaru|berita terkini|latest news)\b',text) or

@@ -19,6 +19,16 @@ MATRIX = {
 
 
 class IntentTests(unittest.TestCase):
+    def test_current_software_versions_need_search(self):
+        for text in ('Berapa versi stabil Firefox terbaru saat ini? Cek situs resmi Mozilla, sertakan sumber.',
+                     'Apa versi terbaru Python?', 'What is the latest stable version of Firefox?',
+                     'Cek rilis terbaru Chrome'):
+            with self.subTest(text=text):
+                self.assertEqual(routing.tool_for(text), 'WEB')
+        for text in ('buat versi lain', 'buat versi terbaru jawaban ini', 'apa itu versi stabil Firefox'):
+            with self.subTest(text=text):
+                self.assertEqual(routing.tool_for(text), 'CHAT')
+
     def test_matrix(self):
         self.assertGreaterEqual(sum(map(len, MATRIX.values())), 80)
         for expected, requests in MATRIX.items():
@@ -95,6 +105,12 @@ class RouteTests(unittest.TestCase):
         result={'text':'Harga dari sumber.','citations':[{'url':'https://example.test/source','title':'Sumber'}],'model':'configured-web','usage':{}}
         with patch.object(tools,'web_search_steps',return_value=[{'result':result}]) as web,patch.object(providers,'stream',side_effect=AssertionError('no prose')):
             self.assertIn('event: sources',self.send('harga emas hari ini').get_data(as_text=True))
+        web.assert_called_once()
+
+    def test_current_firefox_version_uses_real_search_not_chat(self):
+        result={'text':'Versi dari Mozilla.','citations':[{'url':'https://www.mozilla.org/firefox/releases/','title':'Mozilla'}],'model':'configured-web','usage':{}}
+        with patch.object(tools,'web_search_steps',return_value=[{'result':result}]) as web,patch.object(providers,'stream',side_effect=AssertionError('no memory answer')):
+            self.assertIn('event: sources',self.send('Berapa versi stabil Firefox terbaru saat ini? Cek situs resmi Mozilla, sertakan sumber.').get_data(as_text=True))
         web.assert_called_once()
 
     def test_guard_never_streams_or_persists_raw_visual_markup(self):
