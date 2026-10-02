@@ -56,3 +56,20 @@ Scoped Impeccable context and detector ran on Work only. Two static flat-type wa
 Local PostgreSQL is unavailable (loopback connection refused); native additive migration/lease/BYTEA checks and Linux sandbox execution are required CI gates. Protected Finance baseline (4) and Assist connection (9) modules hit existing Windows SQLite reset file-lock errors; their code was not changed. Known broad Master Assist/signup/language/customer and Phase10 browser baseline failures are outside this patch. CI status and final review evidence will be appended before stopping.
 
 **Not yet cleared for deployment.** Remaining review gates: final scoped diff, native PG/Linux sandbox/CI, live provider/device acceptance and explicit deployment authorization.
+
+## Review PR and explicit acceptance answers
+
+Review PR: https://github.com/IKUS2024/kilas-works-ai-admin/pull/115. Current main PR #113 is integrated; the final diff has no normal Chat routing, Finance, Assist, WhatsApp/Meta, pricing or payment implementation changes. `git diff --check` passes. Production remains untouched.
+
+Native PostgreSQL CI passed additive/idempotent 0081, existing lease fencing/BYTEA and concurrent cross-owner push registration. Linux sandbox CI passed. A focused CI assertion expected an exact Work prompt; it now verifies the unchanged base style plus the explicit Work-only capability boundary, and passes locally. Final CI rerun is pending at this checkpoint.
+
+1. **Does “kamu bisa bikin PDF ga?” create a job? No.** It is conversational Q&A.
+2. **Does clarification complete a job? No.** Pre-start questions have no job; started jobs wait and resume the same persisted job.
+3. **Does “buat company profile Kilas Works” produce a file? Yes, through the real PDF writer and private binary storage.** Verified facts are retained; absent facts are omitted or requested. Automated provider output is mocked; real-provider acceptance remains necessary.
+4. **Does “ingatkan aku besok jam 8” use local timezone? Yes.** Browser capture/manual account setting resolves to server UTC. Without a subject, Work asks what to remind about before creating a job.
+5. **Can a reminder notify with the tab closed? Yes, when configured and permitted Web Push is supported by that device.** Durable queuing and transport are tested with mocks; real closed-tab device delivery remains an acceptance gate. Delivery is not guaranteed after ambiguous failure.
+6. **GPS for ordinary reminders? No.** Only relevant location tasks present an explicit permission action or accept a typed area.
+7. **Connections gone from Work? Yes.** Existing backend/OAuth/approval routes and stored accounts remain intact.
+8. **Automation/Advanced gone from customer Work? Yes.** Existing scheduling/runner architecture remains behind natural chat requests.
+9. **Can Work continue after the browser closes? Yes.** Persisted jobs are claimed by the existing enabled Cron runner under current leases, revisions and limits. No new infrastructure is created.
+10. **Can Work interact with arbitrary websites? No.** Public research is supported; interactive cloud browser/login/click automation is intentionally unavailable.
