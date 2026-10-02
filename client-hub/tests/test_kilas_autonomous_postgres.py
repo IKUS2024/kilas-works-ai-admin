@@ -86,6 +86,21 @@ def main():
             winners=[r for r in registrations if r[1] is not None]
             assert len(winners)==1
             assert db.query_one('SELECT user_id FROM kilas_work_push_subscriptions')['user_id']==winners[0][0]
+            # Native TIMESTAMPTZ must serialize in the durable reminder checkpoint.
+            from kilas_ai import agent_store,work_push
+            with store.transaction() as conn:
+                conn.cursor().execute((Path(__file__).parents[1]/'migrations/0079_kilas_agent_conversations_postgres.sql').read_text())
+            conversation=agent_store.new_conversation(user)
+            due=store.now()-timedelta(minutes=2)
+            reminder=store.create(user,'Ingatkan cek QA',mode='SCHEDULED',wake_at=due,conversation_id=conversation,checkpoint={'reminder':{'subject':'cek QA'}})
+            with patch.object(work_push,'configured',return_value=False):
+                for _ in range(2):runner.execute(*store.claim_due(1)[0])
+            assert store.get(user,reminder)['status']=='COMPLETED'
+            assert db.query_one("SELECT COUNT(*) AS n FROM kilas_agent_events WHERE job_id=? AND kind='REMINDER'",(reminder,))['n']==1
+            assert sum(m['content']=='Pengingat: cek QA' for m in agent_store.messages(user,conversation_id=conversation))==1
+            assert store.claim_due(1)==[]
+            import json
+            assert json.loads(store.get(user,reminder)['checkpoint_json'])['reminder']['scheduled_for']==store.stamp(due)
             job = store.create(user, 'Stopped work')
             store.control(user, job, 'stop')
             assert store.claim_due(1) == []
