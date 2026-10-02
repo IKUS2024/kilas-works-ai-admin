@@ -78,7 +78,9 @@ def conversation_jobs(user_id, conversation_id, message_ids, include_unanchored=
         return []
     saved = "(j.checkpoint_json::jsonb->>'origin_message_id')::bigint" if db.BACKEND == 'postgres' else "json_extract(j.checkpoint_json,'$.origin_message_id')"
     before = "m.created_at<=j.created_at" if db.BACKEND == 'postgres' else "julianday(m.created_at)<=julianday(j.created_at)"
-    anchor = f"COALESCE({saved},(SELECT m.id FROM kilas_ai_agent_messages m WHERE m.user_id=j.user_id AND m.conversation_id=j.origin_conversation_id AND m.role='user' AND {before} ORDER BY CASE WHEN m.content=j.instruction THEN 0 ELSE 1 END,m.id DESC LIMIT 1),0)"
+    scope = f"m.user_id=j.user_id AND m.conversation_id=j.origin_conversation_id AND m.role='user' AND {before}"
+    # Older SQLite cannot reference the outer job in a subquery ORDER BY.
+    anchor = f"COALESCE({saved},(SELECT m.id FROM kilas_ai_agent_messages m WHERE {scope} AND m.content=j.instruction ORDER BY m.id DESC LIMIT 1),(SELECT m.id FROM kilas_ai_agent_messages m WHERE {scope} ORDER BY m.id DESC LIMIT 1),0)"
     rows = db.query_all(f"SELECT * FROM (SELECT j.*,{anchor} AS origin_message_id FROM kilas_agent_jobs j WHERE j.user_id=? AND j.origin_conversation_id=?) anchored WHERE origin_message_id IN ({','.join('?' for _ in ids)}) ORDER BY id", (user_id, conversation_id, *ids))
     return [dict(row) for row in rows]
 
