@@ -37,11 +37,16 @@ def main():
             assert jobs.get(owner,old_job)['status']=='PLANNING'
             new=chats.new_conversation(owner)
             assert chats.messages(owner,conversation_id=new)==[]
+            chats.append(owner,'user','New conversation message',new)
             assert chats.claim_request(owner,new,'operation-12345678')
             assert not chats.claim_request(owner,new,'operation-12345678')
             linked=jobs.create(owner,'New linked task',conversation_id=new)
             assert jobs.get(owner,linked)['origin_conversation_id']==new
             assert jobs.get(owner,old_job)['origin_conversation_id'] is None
+            db.init_schema()
+            assert chats.messages(owner,conversation_id=new)[0]['content']=='New conversation message'
+            assert chats.messages(owner,conversation_id=historical)[0]['content']=='Historical message'
+            assert jobs.get(owner,linked)['origin_conversation_id']==new
     finally:
         with control.cursor() as cur:cur.execute('DROP SCHEMA '+isolated+' CASCADE')
         control.close()

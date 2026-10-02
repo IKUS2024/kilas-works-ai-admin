@@ -1,5 +1,8 @@
 /* Chat owns only conversation UI. Tasks continue independently on the existing runner. */
 (() => {
+  document.addEventListener('submit', event => {
+    if (event.target.matches('[data-confirm-delete]') && !window.confirm('Hapus tugas ini? Riwayat hasilnya tetap tersimpan.')) event.preventDefault();
+  });
   const form = document.querySelector('#agent-chat-form');
   const menu = document.querySelector('.agent-menu-button');
   const sidebar = document.querySelector('#agent-sidebar');
@@ -86,7 +89,7 @@
     error.hidden = true; chat.querySelector('.agent-welcome')?.remove();
     message('user', input.value.trim());
     thinking.hidden = false;
-    thinking.lastElementChild.textContent = /\b(riset|research)\b/i.test(input.value) ? 'Mencari informasi…' : /\b(kerjain|kerjakan|pantau|perbaiki|setiap|besok)\b/i.test(input.value) ? 'Menyiapkan pekerjaan…' : 'Thinking…';
+    thinking.lastElementChild.textContent = /\b(riset|research)\b/i.test(input.value) ? 'Menyiapkan riset…' : /\b(kerjain|kerjakan|pantau|perbaiki|setiap|besok)\b/i.test(input.value) ? 'Menyiapkan pekerjaan…' : 'Thinking…';
     chat.setAttribute('aria-busy', 'true');
     let accepted = false;
     try {

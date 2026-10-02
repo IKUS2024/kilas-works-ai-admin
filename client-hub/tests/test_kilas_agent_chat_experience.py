@@ -106,6 +106,13 @@ class ChatTests(unittest.TestCase):
             self.send('Jelaskan apa yang perlu saya lakukan besok')
         self.assertEqual(jobs.list_jobs(self.owner),[])
 
+    def test_qa_after_connector_does_not_route_action(self):
+        with self.client.session_transaction() as state:state['agent_connector_context']='Gmail'
+        with patch.object(providers,'stream',return_value=iter([{'type':'delta','text':'Jawaban'}])) as stream:
+            self.send('Apa itu Bitcoin?')
+        self.assertTrue(stream.called)
+        self.assertEqual(jobs.list_jobs(self.owner),[])
+
     def test_provider_failure_honest(self):
         with patch.object(providers,'stream',side_effect=providers.ProviderError('unavailable')):
             self.send('Apa itu Bitcoin?')
@@ -274,6 +281,16 @@ class ChatTests(unittest.TestCase):
         self.assertEqual(conn.execute('SELECT COUNT(DISTINCT conversation_id) FROM kilas_ai_agent_messages').fetchone()[0],2)
         self.assertEqual(conn.execute('SELECT COUNT(*) FROM kilas_ai_agent_messages WHERE conversation_id IS NULL').fetchone()[0],0)
         conn.close()
+
+    def test_repeated_sqlite_boot_preserves_new_and_old_chats(self):
+        chats.append(self.owner,'user','History stays here',self.conv)
+        new=chats.new_conversation(self.owner)
+        chats.append(self.owner,'user','Separate new history',new)
+        job=jobs.create(self.owner,'Task stays here',conversation_id=new)
+        for _ in range(2):db.init_schema()
+        self.assertEqual(chats.messages(self.owner,conversation_id=self.conv)[-1]['content'],'History stays here')
+        self.assertEqual(chats.messages(self.owner,conversation_id=new)[-1]['content'],'Separate new history')
+        self.assertEqual(jobs.get(self.owner,job)['origin_conversation_id'],new)
 
 
 if __name__=='__main__': unittest.main()

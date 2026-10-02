@@ -179,7 +179,7 @@ def agent_chat():
                   else agent_planner.required_connection(text))
     from . import agent_intents, agent_chat as chat_provider
     schedule_followup = len(text) <= 80 and any(re.search(r'(?i)\b(?:zona waktu(?:nya)?|jam berapa|kapan|tanggal)\b', r['content']) for r in history if r['role'] == 'assistant')
-    if not connection and not session.get('agent_connector_context') and not schedule_followup and (agent_intents.QUESTION.search(text) or not re.search(r'(?i)\b(?:ingatkan|ingetin|remind|setiap|tiap|every|besok|tanggal|ubah|ganti|pause|jeda|resume|lanjut|stop|aktifkan)\b', text)):
+    if not connection and (agent_intents.QUESTION.search(text) or (not session.get('agent_connector_context') and not schedule_followup and not re.search(r'(?i)\b(?:ingatkan|ingetin|remind|setiap|tiap|every|besok|tanggal|ubah|ganti|pause|jeda|resume|lanjut|stop|aktifkan)\b', text))):
         response = chat_provider.ordinary(owner, conversation_id, key)
         return response if response is not None else redirect(url_for('kilas_ai.agent_home', view='chat'), code=303)
     connector_context = session.get("agent_connector_context")
