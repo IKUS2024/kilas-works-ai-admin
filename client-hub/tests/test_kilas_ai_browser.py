@@ -56,21 +56,22 @@ def main():
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Kilas Works").is_visible()
-                assert page.get_by_text("Apa yang ingin kamu kerjakan hari ini?").is_visible()
+                assert page.get_by_role("heading", name="Apa yang ingin kamu kerjakan?").is_visible()
+                assert page.get_by_text("Tanya sesuatu, cari informasi, atau bahas lampiranmu.").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "empty")
                 if width <= 760:
                     page.get_by_role("button", name="Buka riwayat").click()
                 page.get_by_role("link", name="+ Chat baru").click()
                 assert page.url.endswith("/kilas-ai")
                 assert store.list_threads(owner) == []
-                assert page.get_by_role("heading", name="Kilas Works").is_visible()
+                assert page.get_by_role("heading", name="Apa yang ingin kamu kerjakan?").is_visible()
                 assert page.locator(".ai-shell").get_attribute("data-max-files") == "2"
-                assert page.locator(".ai-sidebar-plan").inner_text() == "Kilas AI"
+                # Closed mobile history is now inert and visually hidden.
+                assert page.locator(".ai-sidebar-plan").text_content().strip() == "Kilas AI"
                 if width <= 760:
                     page.get_by_role("button", name="Buka riwayat").click()
                     assert page.locator("#ai-sidebar").is_visible()
-                    page.locator("#ai-close-menu").click()
+                    page.locator("[data-ai-close]").click()
                 page.locator("#ai-files").set_input_files({"name": "note.txt", "mimeType": "text/plain", "buffer": b"Hello browser"})
                 assert page.locator("#ai-pending .ai-pending-item").count() == 1
                 page.get_by_role("button", name="Hapus lampiran note.txt").click()
@@ -115,12 +116,12 @@ def main():
                     page.get_by_role("button", name="Buka riwayat").click()
                 page.get_by_role("link", name="+ Chat baru").click()
                 assert page.url.endswith("/kilas-ai")
-                assert page.get_by_role("heading", name="Kilas Works").is_visible()
+                assert page.get_by_role("heading", name="Apa yang ingin kamu kerjakan?").is_visible()
                 assert page.locator("#ai-tool,#ai-mode").count() == 0
                 assert len(store.list_threads(owner)) == count
                 legacy = store.create_thread(owner, "SMART")
                 page.goto(origin + f"/kilas-ai/threads/{legacy}", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Kilas Works").is_visible()
+                assert page.get_by_role("heading", name="Apa yang ingin kamu kerjakan?").is_visible()
                 assert page.locator(".ai-messages").is_hidden()
                 assert page.locator("#ai-composer").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "legacy empty")

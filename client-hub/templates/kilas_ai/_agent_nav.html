@@ -1,1 +1,1 @@
-<header class="auto-top"><a class="ai-brand" href="{{ url_for('kilas_ai.agent_home') }}">Kilas <span>AI</span></a><nav class="ai-product-nav" aria-label="Kilas AI"><a href="{{ url_for('kilas_ai.agent_home') }}" aria-current="page">Chat</a><a href="{{ url_for('kilas_ai.home',attachments='1') }}">Lampiran</a></nav><a class="auto-usage" href="{{ url_for('kilas_ai.usage_page') }}">Penggunaan</a></header>
+{% set ai_mode = 'agent' %}{% set ai_show_menu = false %}{% include 'kilas_ai/_app_header.html' %}

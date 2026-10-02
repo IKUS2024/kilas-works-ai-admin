@@ -41,21 +41,22 @@ def main():
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai/agent", wait_until="networkidle")
-                assert page.locator('.agent-section-head h2').inner_text() == 'Kilas AI'
+                assert page.locator('.ai-app-header .ai-brand').inner_text() == 'Kilas AI'
+                assert page.locator('.agent-section-head h2').inner_text() == 'Chat baru'
                 assert page.locator("#agent-message").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat overflow")
                 spec = schedule.parse("Setiap hari jam 8 cari berita AI terbaru.")
                 spec["title"] = "Rangkuman pasar untuk tim kerja dan pelanggan " + ("Nama proyek panjang " * 12)
                 store.create(owner, spec)
-                if width < 681: page.get_by_role("button", name="Buka menu chat").click()
+                if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
                 page.get_by_role("link", name="Active Tasks").click()
                 assert page.get_by_text("Rangkuman pasar untuk tim kerja").count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long task overflow")
-                if width < 681: page.get_by_role("button", name="Buka menu chat").click()
+                if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
                 page.get_by_role("link", name="Connections", exact=True).first.click()
                 assert page.get_by_role("heading", name="Belum ada koneksi eksternal").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "connections overflow")
-                if width < 681: page.get_by_role("button", name="Buka menu chat").click()
+                if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
                 page.get_by_role("link", name="Aktivitas", exact=True).first.click()
                 assert page.get_by_text("Belum ada aktivitas.").is_visible()
                 page.goto(origin + "/kilas-ai/agent?view=chat")

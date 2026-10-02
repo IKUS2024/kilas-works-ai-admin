@@ -4,28 +4,6 @@
     if (event.target.matches('[data-confirm-delete]') && !window.confirm('Hapus tugas ini? Riwayat hasilnya tetap tersimpan.')) event.preventDefault();
   });
   const form = document.querySelector('#agent-chat-form');
-  const menu = document.querySelector('.agent-menu-button');
-  const sidebar = document.querySelector('#agent-sidebar');
-  const backdrop = document.querySelector('.agent-drawer-backdrop');
-  const close = document.querySelector('.agent-drawer-close');
-  function drawer(open) {
-    menu?.setAttribute('aria-expanded', String(open));
-    sidebar?.classList.toggle('is-open', open);
-    if (backdrop) backdrop.hidden = !open;
-    if (open) close?.focus(); else menu?.focus();
-  }
-  menu?.addEventListener('click', () => drawer(true));
-  close?.addEventListener('click', () => drawer(false));
-  backdrop?.addEventListener('click', () => drawer(false));
-  document.addEventListener('keydown', event => {
-    if (menu?.getAttribute('aria-expanded') !== 'true') return;
-    if (event.key === 'Escape') drawer(false);
-    if (event.key === 'Tab') {
-      const items = [...sidebar.querySelectorAll('a,button,input')].filter(item => item.getClientRects().length);
-      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items.at(-1)?.focus(); }
-      if (!event.shiftKey && document.activeElement === items.at(-1)) { event.preventDefault(); items[0]?.focus(); }
-    }
-  });
   if (!form) {
     // The account-wide view uses the same bounded, read-only task cards.
     const tasks = document.querySelector('[data-task-cards]');
