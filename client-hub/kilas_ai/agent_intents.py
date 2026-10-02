@@ -6,6 +6,19 @@ CONTROL = re.compile(r'(?i)^(pause|jeda(?: dulu)?|resume|lanjut(?:kan)?|stop|ber
 FEEDBACK = re.compile(r"(?i)^(?:jangan |do not |don't |ubah caranya|coba pendekatan lain|try another approach|gunakan pendekatan lain|tambahkan .*langkah|stop (?:setelah|after)|ubah target)")
 WORK = re.compile(r'(?i)\b(?:kerjain|kerjakan|kerja(?:kan)? terus|terus kerjain|riset|research|pantau|monitor|watch|perbaiki|fix|buatkan|siapkan|upload|publish|work on|keep working|do this)\b')
 QUESTION = re.compile(r'(?i)^(?:apa(?: itu)?|what|why|how|mengapa|kenapa|jelaskan|explain|bagaimana|berapa)\b')
+RESEARCH = re.compile(r'(?i)\b(?:riset|research)\b|^(?:(?:bantu (?:aku|saya)|tolong|coba)\s+)?(?:cari|carikan)\s+.*(?:kompetitor|pesaing|tren|trend|viral|ramai|terbaru|sumber)\b')
+
+
+def broad_trends(text):
+    return bool(RESEARCH.search(text) and re.search(r'(?i)\b(?:viral|tren|trend|ramai)\b', text))
+
+
+def research_instruction(text):
+    if not broad_trends(text):
+        return text
+    scope = '' if re.search(r'(?i)\b(?:di|in|global|dunia|worldwide|internasional)\b', text) else ' Cakupan awal: Indonesia.'
+    guidance = scope + ' Gunakan sumber publik web/berita terbaru dan sinyal publik yang tersedia; jangan mengklaim ranking live resmi platform.'
+    return text + '\n' + guidance.strip() if len(text)+len(guidance)+1 <= 1200 else text
 
 
 def infer(text, now=None):
@@ -15,7 +28,7 @@ def infer(text, now=None):
     if re.search(r'(?i)\b(?:ingatkan|ingetin|remind|gmail|email|calendar|kalender|drive|contacts|kontak|whatsapp|finance)\b', text):
         return None
     scheduled = re.search(r'(?i)\b(?:setiap|tiap|every|besok|tomorrow|lusa|tanggal)\b', text)
-    if not WORK.search(text) and not scheduled and not re.search(r'(?i)sampai (?:selesai|semua test pass)', text):
+    if not WORK.search(text) and not RESEARCH.search(text) and not scheduled and not re.search(r'(?i)sampai (?:selesai|semua test pass)', text):
         return None
     until_stopped = bool(re.search(r'(?i)(?:sampai|until).{0,25}(?:saya|aku|i).{0,15}(?:stop|berhenti)', text))
     until_complete = bool(re.search(r'(?i)(?:sampai|until).{0,20}(?:selesai|complete|test pass|tests pass)', text))

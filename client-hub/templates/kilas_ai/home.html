@@ -7,7 +7,8 @@
   <title>{{ selected.title if selected else 'Chat baru' }} · Kilas AI</title>
   <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='shell-1') }}">
   {% if automation_enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_automation.css',v='1') }}">{% endif %}
-  <script src="{{ url_for('static',filename='kilas_ai.js',v='shell-1') }}" defer></script>
+  <script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='1') }}" defer></script>
+  <script src="{{ url_for('static',filename='kilas_ai.js',v='result-1') }}" defer></script>
   <script src="{{ url_for('static',filename='kilas_ai_shell.js',v='1') }}" defer></script>
 </head>
 <body>

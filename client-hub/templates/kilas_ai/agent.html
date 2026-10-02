@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="id">
-<head>{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='shell-1') }}"></head>
+<head>{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='result-1') }}"></head>
 <body class="agent-body">
 <div class="ai-shell agent-shell" data-ai-shell data-view="{{ view }}">
 <button class="ai-backdrop" data-ai-backdrop type="button" aria-label="Tutup riwayat"></button>
@@ -24,11 +24,11 @@
     <section class="agent-content">
     {% if error %}<p class="auto-error" role="alert">{{ {'message':'Tulis pesan hingga 1.200 karakter.','expired':'Konfirmasi sudah kedaluwarsa. Minta lagi lewat chat.','action':'Tugas belum bisa diubah. Periksa statusnya lalu coba lagi.','approval_expired':'Persetujuan sudah kedaluwarsa. Siapkan tindakan lagi.','approval_already_used':'Tindakan ini sudah pernah dikonfirmasi atau dibatalkan.','reauth_required':'Izin Google berakhir. Hubungkan ulang lewat Koneksi.','permission_missing':'Izin untuk tindakan ini belum tersedia. Kelola izin di Koneksi.','provider_unavailable':'Layanan belum merespons. Hasil tindakan belum dapat dipastikan.','provider_outcome_uncertain':'Hasil dari layanan belum pasti. Periksa layanan terkait sebelum mencoba lagi.','rate_limited':'Layanan sedang membatasi permintaan. Coba lagi nanti.','invalid_target':'Tujuan tindakan tidak ditemukan.'}.get(error,'Permintaan belum bisa diproses.') }}</p>{% endif %}
     {% if view == 'chat' %}
-      <header class="agent-section-head"><div><h2>{{ conversation.title if messages else 'Chat baru' }}</h2></div><details class="agent-rename"><summary>Nama chat</summary><form method="post" action="{{ url_for('kilas_ai.agent_rename_chat',conversation_id=conversation.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="chat-title">Nama chat</label><input id="chat-title" name="title" value="{{ conversation.title }}" maxlength="60" required><button type="submit">Simpan</button></form></details></header>
+      <header class="agent-section-head"><div><h2>{{ conversation.title if messages else 'Chat baru' }}</h2></div><details class="agent-rename"><summary aria-label="Ubah nama chat"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></summary><form method="post" action="{{ url_for('kilas_ai.agent_rename_chat',conversation_id=conversation.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="chat-title">Nama chat</label><input id="chat-title" name="title" value="{{ conversation.title }}" maxlength="60" required><button type="submit">Simpan</button></form></details></header>
       <div class="agent-conversation" id="agent-conversation" aria-live="polite">
         {% if older %}<a class="agent-older" href="{{ url_for('kilas_ai.agent_home',conversation=conversation.id,before=messages[0].id) }}">Lihat pesan sebelumnya</a>{% endif %}
         {% if messages %}
-          {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}"><div class="agent-speaker">{{ 'Kamu' if message.role == 'user' else 'Kilas' }}</div><p>{{ message.content }}</p></article>{% endfor %}
+          {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}"><div class="agent-speaker">{{ 'Kamu' if message.role == 'user' else 'Kilas' }}</div><div class="agent-message-text {{ 'ai-markdown' if message.role=='assistant' else '' }}" {% if message.role=='assistant' %}data-kilas-markdown{% endif %}>{{ message.content }}</div></article>{% endfor %}
         {% else %}
           <div class="agent-welcome"><h3>Apa yang ingin kamu kerjakan?</h3><p>Tanya sesuatu, riset sampai selesai, atau minta Kilas mengerjakannya di background.</p></div>
         {% endif %}
@@ -62,7 +62,7 @@
     </section>
   </main>
 </div>
-<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='shell-1') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='result-1') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_ai_shell.js',v='1') }}" defer></script>
 </body>
 </html>

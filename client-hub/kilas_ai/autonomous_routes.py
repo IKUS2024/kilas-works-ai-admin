@@ -86,13 +86,16 @@ def chat(user_id, text):
         return True
     session.pop('agent_work_clarification', None)
     try:
-        job_id = store.create(user_id, text, mode=spec['mode'], constraints=[text],
+        job_id = store.create(user_id, agent_intents.research_instruction(text), mode=spec['mode'], constraints=[text],
                               wake_at=spec['wake_at'], interval=spec['interval'],
                               conversation_id=conversation_id, schedule=spec['schedule'])
         if market_request(text) and market_worker.provider is None:
             message = 'Pekerjaan pemantauan tersimpan. Data market real-time belum tersedia; Kilas belum memantau harga atau menghasilkan sinyal.'
         elif spec['wake_at']:
             message = 'Pekerjaan tersimpan dan dijadwalkan mulai ' + agent_presentation.time_label(spec['wake_at'], spec['schedule'].get('timezone', 'Asia/Jakarta')) + '. Kamu boleh keluar dari aplikasi.'
+        elif agent_intents.broad_trends(text):
+            region = ' di Indonesia' if 'Cakupan awal: Indonesia.' in agent_intents.research_instruction(text) else ''
+            message = 'Siap, aku mulai cek topik yang sedang ramai' + region + ' dari sumber publik terbaru.'
         else:
             message = 'Kilas menyiapkan pekerjaan di background. Kamu boleh keluar dari aplikasi; kemajuan dan hasil tetap tersimpan di Active Tasks.'
         agent_store.append(user_id, 'assistant', message)
@@ -104,6 +107,8 @@ def chat(user_id, text):
 @ai_bp.get('/agent/jobs/<int:job_id>', endpoint='autonomous_detail')
 def detail(job_id):
     job = owned(job_id)
+    from . import agent_results
+    job['title'] = agent_results.task_title(job['instruction'])
     session['autonomous_job_id'] = job_id
     events = db.query_all('SELECT * FROM kilas_agent_events WHERE job_id=? ORDER BY id DESC LIMIT 100', (job_id,))
     from .agent_presentation import time_label as label
@@ -115,13 +120,16 @@ def detail(job_id):
     for item in approvals:
         item['payload'] = json.loads(item['payload_json'])
     job_steps = store.steps(job_id)
+    result = agent_results.primary_result(job_steps)
     for step in job_steps:
         output = json.loads(step['output_json'])
         step['result_text'] = output.get('text') or output.get('test_output') or output.get('diff') or ''
-        step['citations'] = output.get('citations') or []
+        step['citations'] = agent_results.compact_sources(output.get('citations') or [])
+        step['result_text'] = agent_results.readable_text(step['result_text'],step['citations'])
+        step['display_label'] = agent_results.step_label(step)
         step['reason_label'] = {'provider_not_configured': 'Data market real-time belum tersedia.', 'adapter_not_configured': 'Kemampuan eksternal belum tersedia.', 'sandbox_not_configured': 'Sandbox pengujian belum tersedia.', 'repository_not_configured': 'Repository belum dikonfigurasi.', 'unsupported_format': 'Format file belum didukung.'}.get(output.get('reason'), '')
         step['signal'] = output.get('signal')
-    return render_template('kilas_ai/autonomous_detail.html', job=job, steps=job_steps,
+    return render_template('kilas_ai/autonomous_detail.html', job=job, steps=job_steps, result=result,
                            events=list(reversed(events)), artifacts=artifacts, approvals=approvals,
                            constraints=json.loads(job['constraints_json']))
 
