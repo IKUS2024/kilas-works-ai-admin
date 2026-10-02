@@ -73,7 +73,7 @@ def main():
                 assert page.locator('.agent-message').count()==0
                 assert jobs.get(owner,job['id'])['status']=='PLANNING'
                 if width<=760:page.get_by_role('button',name='Buka riwayat').tap()
-                page.get_by_role('link',name='Active Tasks',exact=True).click()
+                page.get_by_role('link',name='Pekerjaan aktif',exact=True).click()
                 expect(page.locator('[data-job-id]')).to_be_visible()
                 page.get_by_role('button',name='Jeda',exact=True).click()
                 expect(page.get_by_text('Dijeda',exact=True)).to_be_visible()

@@ -29,6 +29,10 @@ def finish(job, token, step, result):
         usage._query(conn, 'UPDATE kilas_agent_steps SET status=?,output_json=?,error=?,completed_at=?,attempts=CASE WHEN ?=1 THEN 0 ELSE attempts END WHERE id=?',
                      (state, output, result.output.get('reason'), store.stamp() if state == 'SUCCEEDED' else None, int(state == 'WAITING'), step['id']))
         for artifact in result.artifacts[:3]:
+            if 'binary_file' in artifact:
+                from . import work_artifacts
+                work_artifacts.persist(conn,job,step,artifact['binary_file'])
+                continue
             content = artifact['content']
             if not isinstance(content, str) or len(content.encode()) > 24000:
                 raise ValueError('artifact_limit')

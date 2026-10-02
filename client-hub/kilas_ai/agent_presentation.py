@@ -39,5 +39,10 @@ def job_card(job):
     job['title'] = task_title(job['instruction'])
     job['current_step'] = step_label({'worker':job.get('current_worker'),'action':job.get('current_action'),'instruction':job.get('current_step') or ''}) if job.get('current_step') else ''
     job['result_hint'] = 'Hasil pekerjaan siap dibuka.' if job['status']=='COMPLETED' else 'Pekerjaan dihentikan.' if job['status']=='STOPPED' else ''
+    from . import work_artifacts
+    job['artifacts']=work_artifacts.listing(job['user_id'],job_id=job['id'])
+    if job['artifacts']:
+        job['title']=json.loads(job['artifacts'][0]['content']).get('title') or job['title']
+        if job['status']=='COMPLETED':job['result_hint']='Hasil selesai dan siap digunakan.'
     job['failure_label'] = job['capability_label'] or ('Batas eksekusi harian tercapai.' if job.get('last_error')=='daily_execution_limit' else 'Pekerjaan belum selesai. Buka detail untuk meninjau hasil dan instruksi.')
     return job

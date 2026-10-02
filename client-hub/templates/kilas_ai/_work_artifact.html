@@ -1,0 +1,4 @@
+<div class="work-file" aria-label="File hasil pekerjaan">
+  <div class="work-file-info"><strong>{{ artifact.name }}</strong><span>{{ artifact.name.rsplit('.',1)[-1]|upper }} · {{ (artifact.byte_size / 1024)|round(1) }} KB</span></div>
+  <div class="work-file-actions"><a href="{{ url_for('kilas_ai.autonomous_artifact',job_id=artifact.job_id if artifact.job_id else job.id,artifact_id=artifact.id) }}" target="_blank" rel="noopener">Buka</a><a href="{{ url_for('kilas_ai.autonomous_artifact',job_id=artifact.job_id if artifact.job_id else job.id,artifact_id=artifact.id,download='1') }}">Download</a></div>
+</div>

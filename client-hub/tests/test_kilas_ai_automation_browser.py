@@ -34,10 +34,10 @@ def main():
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai/automation", wait_until="networkidle")
-                assert page.get_by_role("heading", name="AI Agent", exact=True).is_visible()
+                assert page.get_by_role("heading", name="Work", exact=True).is_visible()
                 assert page.locator("#auto-zone").input_value() == "Asia/Jakarta"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "home overflow")
-                page.get_by_role("link", name="+ Beri tugas ke Agent").click()
+                page.get_by_role("link", name="+ Beri tugas").click()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "form overflow")
                 page.locator("#auto-instruction").fill("Ingetin gue bayar listrik.")
                 assert page.locator("#auto-schedule-mode").input_value() == "once"
@@ -65,7 +65,7 @@ def main():
                 assert page.get_by_text("Ingetin gue bayar listrik.").count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "list overflow")
                 page.get_by_role("link", name="Edit", exact=True).click()
-                assert page.get_by_role("heading", name="Edit tugas Agent").is_visible()
+                assert page.get_by_role("heading", name="Edit pekerjaan Work").is_visible()
                 assert page.locator("#auto-run-date").input_value() == "2099-10-02"
                 assert page.locator("#auto-run-time").input_value() == "08:00"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "edit overflow")
@@ -81,7 +81,7 @@ def main():
                 assert page.get_by_text("Penggunaan periode ini").count() == 0
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "usage overflow")
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
-                assert page.locator(".ai-mode-tabs").get_by_role("link", name="AI Agent").is_visible()
+                assert page.locator(".ai-mode-tabs").get_by_role("link", name="Work").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat nav overflow")
                 context.close()
             browser.close()

@@ -59,8 +59,12 @@ def _font_names():
 
 
 def _inline(value):
+    from urllib.parse import urlsplit
+    value=re.sub(r'\[([^\]]+)\]\(https?://[^\s)]+\)',r'\1',value)
+    value=re.sub(r'https?://[^\s<>]+',lambda m:urlsplit(m[0]).hostname or 'sumber',value)
     escaped = html.escape(value.strip())
-    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", escaped)
+    escaped=re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", escaped)
+    return re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)',r'<i>\1</i>',escaped)
 
 
 def _styles():
@@ -77,17 +81,19 @@ def _styles():
     }
 
 
-def _table(lines, styles, width):
+def _table(lines, styles, width, professional=False):
     rows = [[cell.strip() for cell in line.strip().strip("|").split("|")] for line in lines]
     if len(rows) < 2 or len(rows[0]) < 2:
         return None
     if all(re.fullmatch(r":?-{2,}:?", cell or "") for cell in rows[1]):
         rows.pop(1)
-    columns = min(len(rows[0]), 5)
+    if professional and (len(rows[0])>8 or any(len(row)!=len(rows[0]) for row in rows)):
+        raise ValueError('invalid_document_table')
+    columns = len(rows[0]) if professional else min(len(rows[0]), 5)
     if columns < 2:
         return None
     data = []
-    for index, row in enumerate(rows[:31]):
+    for index, row in enumerate(rows if professional else rows[:31]):
         data.append([Paragraph(_inline(row[column] if column < len(row) else ""),
                                styles["cell_head"] if index == 0 else styles["cell"]) for column in range(columns)])
     table = Table(data, colWidths=[width / columns] * columns, repeatRows=1, hAlign="LEFT")
@@ -99,7 +105,7 @@ def _table(lines, styles, width):
     return table
 
 
-def render(markdown, *, title_hint="Dokumen", logo=None, cover=False):
+def render(markdown, *, title_hint="Dokumen", logo=None, cover=False, professional=False):
     text = (markdown or "").strip()[:MAX_MARKDOWN]
     if not text:
         raise ValueError("empty_document")
@@ -147,7 +153,7 @@ def render(markdown, *, title_hint="Dokumen", logo=None, cover=False):
             block = []
             while index < len(lines) and lines[index].strip().startswith("|"):
                 block.append(lines[index]); index += 1
-            table = _table(block, styles, width)
+            table = _table(block, styles, width,professional)
             if table:
                 story.extend((Spacer(1, 8), table, Spacer(1, 12)))
             continue
@@ -171,7 +177,7 @@ def render(markdown, *, title_hint="Dokumen", logo=None, cover=False):
         canvas.line(margin, A4[1] - 43, A4[0] - margin, A4[1] - 43)
         canvas.setFont(styles["body"].fontName, 8)
         canvas.setFillColor(MUTED)
-        canvas.drawString(margin, 32, title[:65])
+        canvas.drawString(margin, 32, ('Kilas Works · ' if professional else '')+title[:55])
         canvas.drawRightString(A4[0] - margin, 32, str(doc.page))
         canvas.restoreState()
 

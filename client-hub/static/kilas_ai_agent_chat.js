@@ -31,6 +31,7 @@
   const thinking = document.querySelector('#agent-thinking');
   const error = document.querySelector('#agent-chat-error');
   let busy = false;
+  const canAutoFocus = () => Boolean(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
   function message(role, text) {
     const article = document.createElement('article');
     article.className = `agent-message agent-message-${role}`;
@@ -65,6 +66,7 @@
     event.preventDefault();
     if (busy || !input.value.trim()) return;
     const data = new FormData(form);
+    if (!canAutoFocus()) input.blur();
     busy = true; send.disabled = true; input.readOnly = true;
     error.hidden = true; chat.querySelector('.agent-welcome')?.remove();
     message('user', input.value.trim());
@@ -74,7 +76,11 @@
     let accepted = false;
     try {
       const response = await fetch(form.action, {method:'POST',body:data,headers:{'X-Agent-Chat':'1'}});
-      if (!response.ok) throw new Error('request');
+      if (!response.ok) {
+        const failure=new Error('request');
+        try { const payload=await response.json(); if(typeof payload.error==='string') failure.publicMessage=payload.error; } catch (_) { /* Preserve a safe fallback. */ }
+        throw failure;
+      }
       accepted = true;
       if (response.headers.get('content-type')?.includes('text/event-stream')) {
         const reader = response.body.getReader(), decoder = new TextDecoder();
@@ -99,16 +105,18 @@
         if (!complete) throw new Error('interrupted');
       }
       await refresh(); input.value = '';
+      const sources=form.querySelector('#work-source-files'); if(sources) sources.value='';
       form.elements.operation_key.value = crypto.randomUUID();
-    } catch (_) {
-      error.textContent = 'Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.';
+    } catch (failure) {
+      error.textContent = failure.publicMessage || 'Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.';
       error.hidden = false;
       // Same key is retained after an uncertain outcome: retry cannot create duplicate work.
       if (accepted) { try { await refresh(); } catch (_) { /* Keep visible local messages. */ } }
     } finally {
       busy = false; send.disabled = false; input.readOnly = false;
       thinking.hidden = true; chat.removeAttribute('aria-busy');
-      input.focus({preventScroll:true});
+      if (canAutoFocus()) input.focus({preventScroll:true});
+      else input.blur();
     }
   });
   // Read-only refresh of task cards; no new planner/model request and no hidden-tab polling.
