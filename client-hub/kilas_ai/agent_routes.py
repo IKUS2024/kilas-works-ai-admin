@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import time
+import secrets
 from datetime import datetime, timezone
 
 import db
@@ -23,16 +24,37 @@ def _owner():
     return session["user_id"]
 
 
+def _clear_chat_context():
+    for key in ('autonomous_job_id', 'agent_connector_context', 'agent_connector_context_at',
+                'agent_work_clarification', 'agent_pending_action', 'automation_preview',
+                'automation_preview_origin', 'connector_pending_intent'):
+        session.pop(key, None)
+
+
+@ai_bp.post('/agent/conversations', endpoint='agent_new_chat')
+def new_chat():
+    conversation_id = agent_store.new_conversation(_owner())
+    _clear_chat_context()
+    session['agent_conversation_id'] = conversation_id
+    return redirect(url_for('kilas_ai.agent_home', conversation=conversation_id), code=303)
+
+
+@ai_bp.post('/agent/conversations/<int:conversation_id>/rename', endpoint='agent_rename_chat')
+def rename_chat(conversation_id):
+    title = ' '.join(request.form.get('title', '').split())
+    if not agent_store.conversation(_owner(), conversation_id):
+        abort(404)
+    if not 1 <= len(title) <= 60:
+        abort(400)
+    db.execute('UPDATE kilas_ai_conversations SET title=? WHERE id=? AND user_id=?', (title, conversation_id, _owner()))
+    return redirect(url_for('kilas_ai.agent_home', conversation=conversation_id), code=303)
+
+
 def _tasks():
     tasks = []
     for status in ("ACTIVE", "PAUSED"):
-        page = 1
-        while page <= 25:
-            rows, more = store.list_for_owner(_owner(), status, page)
-            tasks.extend(dict(row) for row in rows)
-            if not more:
-                break
-            page += 1
+        rows, _ = store.list_for_owner(_owner(), status, 1)
+        tasks.extend(dict(row) for row in rows)
     return tasks
 
 
@@ -53,15 +75,20 @@ def agent_home():
     if view not in ("chat", "tasks", "activity", "connections"):
         view = "chat"
     owner = _owner()
+    selected = request.args.get('conversation', type=int)
+    if selected is not None:
+        if not agent_store.conversation(owner, selected):
+            abort(404)
+        if selected != session.get('agent_conversation_id'):
+            _clear_chat_context()
+        session['agent_conversation_id'] = selected
+    conversation_id = agent_store.current_conversation(owner)
+    conversation = agent_store.conversation(owner, conversation_id)
     from . import autonomous_runner, autonomous_store
-    autonomous_jobs = autonomous_store.list_jobs(owner) if autonomous_runner.enabled() else []
-    if autonomous_jobs:
-        from .autonomous_routes import time_label
-        for job in autonomous_jobs:
-            job['wake_label'] = time_label(job['next_wake_at'], owner)
-            job['updated_label'] = time_label(job['updated_at'], owner)
+    from .agent_presentation import job_card, time_label
+    autonomous_jobs = [job_card(j) for j in autonomous_store.list_jobs(owner, conversation_id=conversation_id if view == 'chat' else None)] if autonomous_runner.enabled() and view in ('chat', 'tasks') else []
     autonomous_unread = (db.query_one('SELECT COUNT(*) AS n FROM kilas_agent_events e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE j.user_id=? AND e.unread=1', (owner,))['n'] if autonomous_runner.enabled() else 0)
-    tasks = _tasks()
+    tasks = _tasks() if view == 'tasks' else []
     for item in tasks:
         item["schedule_label"] = schedule.describe(json.loads(item["schedule_json"]), item["timezone"])
         item["next_label"] = (usage._as_utc(item["next_run_at"]).astimezone(schedule.ZoneInfo(item["timezone"]))
@@ -103,8 +130,13 @@ def agent_home():
                       '"thread_id"' not in row["payload_json"])]
     for approval_row in approval_rows:
         approval_row["payload"] = json.loads(approval_row["payload_json"])
-    return render_template("kilas_ai/agent.html", view=view, messages=agent_store.messages(owner),
-                           tasks=tasks, activity=agent_store.activity(owner), preview=preview,
+    messages = agent_store.messages(owner, conversation_id=conversation_id, before=request.args.get('before', type=int)) if view == 'chat' else []
+    older = db.query_one('SELECT id FROM kilas_ai_agent_messages WHERE user_id=? AND conversation_id=? AND id<? LIMIT 1', (owner, conversation_id, messages[0]['id'])) if messages else None
+    activity = [{**dict(r), 'time_label': time_label(r['completed_at'] or r['scheduled_for'])} for r in agent_store.activity(owner)] if view == 'activity' else []
+    return render_template("kilas_ai/agent.html", view=view, messages=messages,
+                           conversation=conversation, recent_chats=agent_store.recent_conversations(owner),
+                           older=bool(older), operation_key=secrets.token_urlsafe(24),
+                           tasks=tasks, activity=activity, preview=preview,
                            action=action, capacity=store.usage_summary(owner),
                            autonomous_jobs=autonomous_jobs, autonomous_unread=autonomous_unread,
                            autonomous_enabled=autonomous_runner.enabled(),
@@ -117,10 +149,23 @@ def agent_home():
 
 @ai_bp.post("/agent/chat", endpoint="agent_chat")
 def agent_chat():
-    text = " ".join(str(request.form.get("message") or "").split())
+    text = str(request.form.get("message") or "").strip()
     if not 1 <= len(text) <= 1200:
         return redirect(url_for("kilas_ai.agent_home", error="message"), code=303)
     owner = _owner()
+    selected = request.form.get('conversation_id', type=int)
+    if selected is not None:
+        if not agent_store.conversation(owner, selected):
+            abort(404)
+        if selected != session.get('agent_conversation_id'):
+            _clear_chat_context()
+        session['agent_conversation_id'] = selected
+    conversation_id = agent_store.current_conversation(owner)
+    key = request.form.get('operation_key') or secrets.token_urlsafe(24)
+    if not re.fullmatch(r'[A-Za-z0-9_-]{16,96}', key):
+        abort(400)
+    if not agent_store.claim_request(owner, conversation_id, key):
+        return {'error': 'Pesan ini sudah diterima. Buka kembali chat untuk melihat hasilnya.'}, 409
     history = agent_store.messages(owner, 12)
     tasks = _tasks()
     agent_store.append(owner, "user", text)
@@ -132,6 +177,11 @@ def agent_chat():
     session.pop("agent_pending_action", None)
     connection = (None if re.search(r"\b(?:pause|jeda|resume|lanjutkan|aktifkan|ingatkan|remind|recuérdame)\b|提醒", text, re.I)
                   else agent_planner.required_connection(text))
+    from . import agent_intents, agent_chat as chat_provider
+    schedule_followup = len(text) <= 80 and any(re.search(r'(?i)\b(?:zona waktu(?:nya)?|jam berapa|kapan|tanggal)\b', r['content']) for r in history if r['role'] == 'assistant')
+    if not connection and not session.get('agent_connector_context') and not schedule_followup and (agent_intents.QUESTION.search(text) or not re.search(r'(?i)\b(?:ingatkan|ingetin|remind|setiap|tiap|every|besok|tanggal|ubah|ganti|pause|jeda|resume|lanjut|stop|aktifkan)\b', text)):
+        response = chat_provider.ordinary(owner, conversation_id, key)
+        return response if response is not None else redirect(url_for('kilas_ai.agent_home', view='chat'), code=303)
     connector_context = session.get("agent_connector_context")
     if connector_context and (int(time.time()) - int(session.get("agent_connector_context_at", 0)) > 600
                               or len(text) > 120

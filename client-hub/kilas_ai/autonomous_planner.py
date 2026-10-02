@@ -40,14 +40,14 @@ def validate(raw, mode, instruction=''):
     missing_market = any(s['worker'] == 'UNAVAILABLE' and s['input'].get('capability') == 'market_data_provider' for s in steps)
     if mode == 'CONDITION_WATCH' and not missing_market and not any(s['worker'] in ('WATCH', 'MARKET') for s in steps):
         raise ValueError('watch_condition_required')
-    if mode == 'CONDITION_WATCH' and market_request(instruction) and not missing_market and not any(s['worker'] == 'MARKET' for s in steps):
+    if mode in ('CONDITION_WATCH', 'CONTINUOUS') and market_request(instruction) and not missing_market and not any(s['worker'] == 'MARKET' for s in steps):
         raise ValueError('market_requires_provider')
     return {**raw, 'steps': steps}
 
 
 def propose(job, completed):
     from .agent_workers import capabilities, market_request, market_worker
-    if job['mode'] == 'CONDITION_WATCH' and market_request(job['instruction']) and market_worker.provider is None:
+    if job['mode'] in ('CONDITION_WATCH', 'CONTINUOUS') and market_request(job['instruction']) and market_worker.provider is None:
         return validate({'objective': job['instruction'][:90], 'mode': job['mode'],
             'stop_condition': 'Provider-backed condition or owner stop', 'next_action': 'Wait for real market provider',
             'steps': [{'worker': 'UNAVAILABLE', 'action': 'request', 'instruction': 'Menunggu market data provider.',

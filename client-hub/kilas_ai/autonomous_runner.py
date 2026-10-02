@@ -67,6 +67,10 @@ def finish(job, token, step, result):
             else:
                 state_job = 'COMPLETED'
         wake = None if state_job in store.TERMINAL + ('NEEDS_APPROVAL',) else store.stamp(store.now() + timedelta(seconds=delay))
+        calendar = json.loads(job.get('schedule_json') or '{}')
+        if state_job == 'PLANNING' and job['mode'] == 'RECURRING' and state == 'SUCCEEDED' and not remaining and calendar:
+            from .automation_schedule import next_occurrence
+            wake = store.stamp(next_occurrence(calendar['schedule'], calendar['timezone'], store.now()))
         usage._query(conn, 'UPDATE kilas_agent_jobs SET status=?,checkpoint_json=?,next_wake_at=?,failures=?,last_error=?,updated_at=?,completed_at=? WHERE id=?',
                      (state_job, store.encode(checkpoint), wake, failures, result.output.get('reason') if state != 'SUCCEEDED' else None, store.stamp(), store.stamp() if state_job == 'COMPLETED' else None, job['id']))
         # Waiting checks are quiet; capability block is recorded only once per step/reason.

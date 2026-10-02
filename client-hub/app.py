@@ -162,6 +162,11 @@ def create_app():
             applied = autonomous_schema.apply_release()
             print('Kilas AI autonomous additive schema: OK; applied=' + str(len(applied)))
 
+        if os.environ.get('KILAS_AI_AGENT_CONVERSATION_SCHEMA_APPLY','').strip().lower() == 'true':
+            from kilas_ai import agent_conversation_schema
+            applied = agent_conversation_schema.apply_release()
+            print('Kilas AI conversation additive schema: OK; applied=' + str(len(applied)))
+
         import ai_usage
         ai_usage.startup_schema_check()
 
