@@ -28,7 +28,7 @@ def main():
         return dict(settings, options=settings['options'] + ' -c search_path=' + isolated)
     try:
         with patch.object(db, '_postgres_connect_kwargs', side_effect=options):
-            with patch.object(db, 'MIGRATIONS', [m for m in db.MIGRATIONS if not m[0].startswith(('0078_', '0079_', '0080_'))]):
+            with patch.object(db, 'MIGRATIONS', [m for m in db.MIGRATIONS if not m[0].startswith(('0078_', '0079_', '0080_', '0081_'))]):
                 db.init_schema()
             before = {r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert schema.apply_release() == [schema.NAME]
@@ -66,6 +66,10 @@ def main():
                 work_artifacts.persist(conn,store.get(user,job),step,file)
             assert work_artifacts.listing(user,job_id=job)[0]['media_type']=='application/pdf'
             assert bytes(db.query_one('SELECT content FROM kilas_agent_artifact_files LIMIT 1')['content']).startswith(b'%PDF')
+            with store.transaction() as conn:
+                for _ in range(2):conn.cursor().execute((Path(__file__).parents[1]/'migrations/0081_kilas_work_push_postgres.sql').read_text())
+            from kilas_ai import work_push
+            assert db.query_one('SELECT COUNT(*) AS n FROM kilas_work_push_subscriptions')['n']==0
             job = store.create(user, 'Stopped work')
             store.control(user, job, 'stop')
             assert store.claim_due(1) == []

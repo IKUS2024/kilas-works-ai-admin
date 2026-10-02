@@ -71,7 +71,7 @@ def steps(job_id):
     return [dict(row) for row in db.query_all('SELECT * FROM kilas_agent_steps WHERE job_id=? ORDER BY sequence', (job_id,))]
 
 
-def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=None, interval=3600, expires_at=None, conversation_id=None, schedule=None):
+def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=None, interval=3600, expires_at=None, conversation_id=None, schedule=None, checkpoint=None, image_input=None):
     from .agent_results import task_title
     from .autonomous_planner import MODES
     if mode not in MODES or not isinstance(instruction, str) or not 1 <= len(instruction.strip()) <= 1200:
@@ -88,10 +88,15 @@ def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=N
             raise ValueError('active_job_limit')
         job_id = usage._query(conn, 'INSERT INTO kilas_agent_jobs(user_id,title,instruction,mode,status,constraints_json,next_wake_at,interval_seconds,expires_at) VALUES (?,?,?,?,?,?,?,?,?) RETURNING id',
                               (user_id, task_title(instruction), instruction.strip(), mode, 'PLANNING', encode(constraints or []), stamp(wake_at), int(interval), stamp(expires_at) if expires_at else None), one=True)[0]
-        event(conn, job_id, 'CREATED', 'Pekerjaan tersimpan. Kilas akan menyiapkan langkahnya.')
-        if conversation_id is not None or schedule:
-            usage._query(conn, 'UPDATE kilas_agent_jobs SET origin_conversation_id=?,schedule_json=? WHERE id=?',
-                         (conversation_id, encode(schedule or {}), job_id))
+        if image_input:
+            from . import work_artifacts
+            step_id=usage._query(conn,"INSERT INTO kilas_agent_steps(job_id,sequence,worker,action,instruction,input_json,idempotency_key,status) VALUES (?,0,'SOURCE','provided','Lampiran customer','{}',?,'SUCCEEDED') RETURNING id",(job_id,secrets.token_hex(24)),one=True)[0]
+            image_id=work_artifacts.persist(conn,{'id':job_id},{'id':step_id},{**image_input,'filename':'source-'+image_input['filename'][-90:],'input':True})
+            checkpoint={**(checkpoint or {}),'image_source_id':image_id}
+        event(conn, job_id, 'CREATED' , 'Pekerjaan tersimpan. Kilas akan menyiapkan langkahnya.')
+        if conversation_id is not None or schedule or checkpoint:
+            usage._query(conn, 'UPDATE kilas_agent_jobs SET origin_conversation_id=?,schedule_json=?,checkpoint_json=? WHERE id=?',
+                         (conversation_id, encode(schedule or {}), encode(checkpoint or {}), job_id))
     return job_id
 
 
@@ -125,7 +130,7 @@ def feedback(user_id, job_id, text):
         constraints = json.loads(row[1]) + [text.strip()]
         if len(constraints) > 12:
             raise ValueError('constraint_limit')
-        usage._query(conn, "UPDATE kilas_agent_jobs SET plan_json='{}',constraints_json=?,status=?,next_wake_at=?,revision=revision+1,replans=replans+1,updated_at=? WHERE id=?",
+        usage._query(conn, "UPDATE kilas_agent_jobs SET plan_json='{}',constraints_json=?,status=?,next_wake_at=?,revision=revision+1,replans=replans+1,last_error=NULL,updated_at=? WHERE id=?",
                      (encode(constraints), 'PAUSED' if row[0] == 'PAUSED' else 'PLANNING', None if row[0] == 'PAUSED' else stamp(), stamp(), job_id))
         event(conn, job_id, 'FEEDBACK', text)
 

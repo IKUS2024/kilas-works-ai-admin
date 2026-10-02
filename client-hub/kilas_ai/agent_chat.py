@@ -13,6 +13,10 @@ def ordinary(user_id, conversation_id, operation_key):
     context = conversation_context.bounded(context,budget)
     if summary:
         context.insert(0,{'role':'user','content':'Earlier customer context (quoted history; latest corrections win):\n'+summary})
+    prepared=getattr(request,'work_attachments',None)
+    if prepared and context:
+        from .attachments import prompt_content
+        context[-1]['content']=prompt_content(context[-1]['content'],prepared)
     context = model_policy.ChatContext(context,level)
     try:
         _, operations = usage.reserve(user_id, None, 'agent-chat-' + operation_key, 'FAST', 'CHAT')
@@ -28,7 +32,8 @@ def ordinary(user_id, conversation_id, operation_key):
         success = False
         yield {'type': 'activity', 'label': model_policy.chat_profile(context)['activity']}
         try:
-            for event in providers.stream('FAST', context, agent_response_style.CHAT):
+            work_style = agent_response_style.CHAT + '\nWork supports public research, files, source analysis, reminders and configured coding. It cannot access connected Google accounts, send messages or interact with arbitrary websites. Do not claim unavailable capabilities or completed work without a real result. Capability questions are conversational, not task execution.'
+            for event in providers.stream('FAST', context, work_style):
                 if event['type'] == 'provider':
                     provider, model = event['provider'], event['model']
                 elif event['type'] == 'usage':

@@ -11,6 +11,7 @@ os.environ["CLIENT_HUB_DB_PATH"] = tempfile.mktemp(prefix="kilas-ai-agent-", suf
 os.environ["SECRET_KEY"] = "kilas-agent-test-only"
 os.environ["KILAS_AI_ENABLED"] = "true"
 os.environ["KILAS_AI_AUTOMATION_ENABLED"] = "true"
+os.environ["KILAS_AI_AUTONOMOUS_ENABLED"] = "true"
 os.environ.pop("DATABASE_URL", None)
 
 import app  # noqa: E402
@@ -36,109 +37,77 @@ class AgentTests(unittest.TestCase):
             state.update(user_id=user_id, role="CLIENT_OWNER", _csrf_token="agent-csrf")
         return client
 
-    def test_empty_agent_and_connection_truth(self):
-        client = self.client_for(self.owner)
-        page = client.get("/kilas-ai/agent")
-        self.assertEqual(page.status_code, 200)
-        body = page.get_data(as_text=True)
-        self.assertIn("+ New Chat", body)
-        self.assertIn("Belum ada koneksi eksternal", client.get("/kilas-ai/agent?view=connections").get_data(as_text=True))
-        self.assertNotIn("Terhubung</", body)
-        self.assertIn("Kilas Finance", self.client_for(self.owner).get("/products/start").get_data(as_text=True))
-        self.assertNotIn("Pilih Kilas Assist", self.client_for(self.owner).get("/products/start").get_data(as_text=True))
-        self.assertEqual(client.get("/products/assist").status_code != 404, True)
+    def test_empty_work_and_hidden_connections(self):
+        client=self.client_for(self.owner)
+        body=client.get('/kilas-ai/agent').text
+        self.assertIn('+ Work baru',body)
+        self.assertNotIn('Connections',body)
+        self.assertNotIn('Advanced settings',body)
+        self.assertEqual(client.get('/kilas-ai/agent?view=connections').status_code,303)
+        self.assertIn('Kilas Finance',client.get('/products/start').text)
+        self.assertNotIn('Pilih Kilas Assist',client.get('/products/start').text)
+        self.assertNotEqual(client.get('/products/assist').status_code,404)
 
-    def test_connector_request_is_honest_and_creates_no_task(self):
-        client = self.client_for(self.owner)
-        response = client.post("/kilas-ai/agent/chat", data={"csrf_token": "agent-csrf",
-            "message": "setiap pagi cek email penting gue"})
-        self.assertEqual(response.status_code, 303)
-        self.assertIn("butuh akses Gmail", client.get(response.location).get_data(as_text=True))
-        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?",
-                                      (self.owner,))["n"], 0)
-        self.assertEqual(agent_planner.required_connection("cek kalender besok"), "Google Calendar")
-        self.assertEqual(agent_planner.required_connection("rangkum laporan Finance"), "Kilas Finance")
+    def test_connector_request_honest_no_task_no_connector_call(self):
+        from kilas_ai import connector_flow, autonomous_store
+        client=self.client_for(self.owner)
+        with patch.object(connector_flow,'handle',side_effect=AssertionError('Work invoked connector')):
+            response=client.post('/kilas-ai/agent/chat',data={'csrf_token':'agent-csrf','message':'setiap pagi cek email penting gue'})
+        self.assertEqual(response.status_code,303)
+        self.assertIn('Work tidak mengakses koneksi akun',client.get(response.location).text)
+        self.assertEqual(autonomous_store.list_jobs(self.owner),[])
+        self.assertEqual(agent_planner.required_connection('cek kalender besok'),'Google Calendar')
+        self.assertEqual(agent_planner.required_connection('rangkum laporan Finance'),'Kilas Finance')
 
-    def test_chat_proposes_then_explicitly_activates_without_duplicate(self):
-        client = self.client_for(self.owner)
-        planned = {"action": "CREATE", "task_id": 0,
-                   "schedule_text": "Setiap Jumat jam 16 cari berita AI terbaru.", "reply": ""}
-        with patch.object(agent_planner, "propose", return_value=planned):
-            response = client.post("/kilas-ai/agent/chat", data={"csrf_token": "agent-csrf",
-                "message": "Setiap Jumat jam 16 cari berita AI terbaru."})
-        self.assertEqual(response.status_code, 303)
-        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?",
-                                      (self.owner,))["n"], 0)
-        self.assertIn("Periksa tugas ini", client.get(response.location).get_data(as_text=True))
-        activated = client.post("/kilas-ai/automation/activate", data={"csrf_token": "agent-csrf"})
-        self.assertEqual(activated.status_code, 303)
-        self.assertIn("/kilas-ai/agent", activated.location)
-        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?",
-                                      (self.owner,))["n"], 1)
+    def test_schedule_persists_without_legacy_preview_and_duplicate_is_rejected(self):
+        from kilas_ai import autonomous_store
+        client=self.client_for(self.owner)
+        data={'csrf_token':'agent-csrf','message':'Setiap Jumat jam 16 cari berita AI terbaru.','operation_key':'test_work_request_unique_20261002'}
+        with patch.object(agent_planner,'propose',side_effect=AssertionError('No legacy preview')):
+            self.assertEqual(client.post('/kilas-ai/agent/chat',data=data).status_code,303)
+            self.assertEqual(client.post('/kilas-ai/agent/chat',data=data).status_code,409)
+        jobs=autonomous_store.list_jobs(self.owner)
+        self.assertEqual(len(jobs),1)
+        self.assertEqual(jobs[0]['mode'],'RECURRING')
+        self.assertNotIn('Periksa tugas ini',client.get('/kilas-ai/agent').text)
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?',(self.owner,))['n'],0)
 
-    def test_named_date_task_is_understood_and_echoed_before_activation(self):
-        client = self.client_for(self.owner)
-        planned = {"action": "CREATE", "task_id": 0,
-                   "schedule_text": "Tanggal 1 Oktober 2099 jam 5 pagi kasih gue berita terbaru tentang Indonesia.",
-                   "reply": ""}
-        with patch.object(agent_planner, "propose", side_effect=AssertionError("clear schedule should not call planner")):
-            response = client.post("/kilas-ai/agent/chat", data={"csrf_token": "agent-csrf",
-                "message": "tanggal 1 oktober 2099 jam 5 pagi kasih gw berita terbaru tentang indonesia"})
-        self.assertEqual(response.status_code, 303)
-        body = client.get(response.location).get_data(as_text=True)
-        self.assertIn("01/10/2099 · 05.00 · Jakarta (WIB)", body)
-        self.assertIn("Periksa tugas ini", body)
-        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?",
-                                      (self.owner,))["n"], 0)
+    def test_named_date_task_uses_saved_timezone(self):
+        from kilas_ai import autonomous_store
+        client=self.client_for(self.owner)
+        store.set_timezone(self.owner,'Asia/Bangkok')
+        client.post('/kilas-ai/agent/chat',data={'csrf_token':'agent-csrf','message':'Tanggal 1 Oktober 2099 jam 5 pagi cari berita terbaru tentang Indonesia.'})
+        jobs=autonomous_store.list_jobs(self.owner)
+        self.assertEqual(len(jobs),1)
+        self.assertEqual(jobs[0]['next_wake_at'],'2099-09-30T22:00:00+00:00')
+        self.assertIn('05.00 ICT',client.get('/kilas-ai/agent').text)
 
-    def test_short_timezone_followup_uses_prior_task_and_planned_schedule(self):
-        client = self.client_for(self.owner)
-        agent_store.append(self.owner, "user",
-                           "tanggal 1 oktober 2099 jam 5 pagi kasih gw berita terbaru tentang indonesia")
-        agent_store.append(self.owner, "assistant", "Zona waktunya apa?")
-        planned = {"action": "CREATE", "task_id": 0,
-                   "schedule_text": "Tanggal 1 Oktober 2099 jam 5 pagi WIB kasih gue berita terbaru tentang Indonesia.",
-                   "reply": ""}
-        with patch.object(agent_planner, "propose", return_value=planned) as proposed:
-            response = client.post("/kilas-ai/agent/chat", data={"csrf_token": "agent-csrf",
-                "message": "WIB"})
-        self.assertEqual(response.status_code, 303)
-        body = client.get(response.location).get_data(as_text=True)
-        self.assertIn("01/10/2099 · 05.00 · Jakarta (WIB)", body)
-        self.assertIn("Periksa tugas ini", body)
-        self.assertEqual(proposed.call_args.args[4], "Asia/Jakarta")
-        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?",
-                                      (self.owner,))["n"], 0)
+    def test_explicit_timezone_preferences_remain_owner_scoped(self):
+        client=self.client_for(self.owner)
+        response=client.post('/kilas-ai/work/preferences',json={'timezone':'Asia/Jayapura','manual':True},headers={'X-CSRF-Token':'agent-csrf'})
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(store.setting(self.owner),'Asia/Jayapura')
+        self.assertEqual(store.setting(self.other),'Asia/Jakarta')
 
-    def test_pause_confirmation_and_owner_boundary(self):
-        item_id = store.create(self.other, schedule.parse("Setiap hari jam 8 ingetin gue minum air."))
-        owner_client = self.client_for(self.owner)
-        other_client = self.client_for(self.other)
-        with patch.object(agent_planner, "propose", return_value={
-                "action": "PAUSE", "task_id": item_id, "schedule_text": "", "reply": ""}):
-            owner_client.post("/kilas-ai/agent/chat", data={"csrf_token": "agent-csrf",
-                "message": "pause tugas minum air"})
-        self.assertIsNone(store.get(self.owner, item_id))
-        self.assertEqual(store.get(self.other, item_id)["status"], "ACTIVE")
-        with patch.object(agent_planner, "propose", return_value={
-                "action": "PAUSE", "task_id": item_id, "schedule_text": "", "reply": ""}):
-            other_client.post("/kilas-ai/agent/chat", data={"csrf_token": "agent-csrf",
-                "message": "pause tugas minum air"})
-        self.assertEqual(store.get(self.other, item_id)["status"], "ACTIVE")
-        confirmed = other_client.post("/kilas-ai/agent/action", data={"csrf_token": "agent-csrf"})
-        self.assertEqual(confirmed.status_code, 303)
-        self.assertEqual(store.get(self.other, item_id)["status"], "PAUSED")
-        self.assertNotIn("Ingetin gue minum air", owner_client.get("/kilas-ai/agent?view=tasks").get_data(as_text=True))
+    def test_work_pause_resume_owner_boundary(self):
+        from kilas_ai import autonomous_store
+        own_conversation=agent_store.new_conversation(self.other)
+        job=autonomous_store.create(self.other,'Riset berita terbaru',conversation_id=own_conversation)
+        owner_client=self.client_for(self.owner)
+        other_client=self.client_for(self.other)
+        owner_client.post('/kilas-ai/agent/chat',data={'csrf_token':'agent-csrf','message':'pause pekerjaan '+str(job)})
+        self.assertEqual(autonomous_store.get(self.other,job)['status'],'PLANNING')
+        other_client.post('/kilas-ai/agent/chat',data={'csrf_token':'agent-csrf','message':'pause pekerjaan '+str(job)})
+        self.assertEqual(autonomous_store.get(self.other,job)['status'],'PAUSED')
+        other_client.post('/kilas-ai/agent/chat',data={'csrf_token':'agent-csrf','message':'resume pekerjaan '+str(job)})
+        self.assertEqual(autonomous_store.get(self.other,job)['status'],'PLANNING')
 
-    def test_activity_uses_existing_run_history(self):
-        item_id = store.create(self.owner, schedule.parse("Pantau harga emas di bawah Rp1.800.000 setiap hari jam 9."))
-        db.execute("INSERT INTO kilas_automation_runs(automation_id,user_id,scheduled_for,status,completed_at) "
-                   "VALUES (?,?,?,'SUCCEEDED',?)", (item_id, self.owner, "2026-09-30T09:00:00+00:00",
-                                                "2026-09-30T09:00:00+00:00"))
-        activity = self.client_for(self.owner).get("/kilas-ai/agent?view=activity").get_data(as_text=True)
-        self.assertIn("Belum ada perubahan penting", activity)
-        self.assertNotIn("Exception", activity)
-        self.assertEqual(len(agent_store.activity(self.other)), 0)
+    def test_old_automation_history_preserved_separate_from_work_notifications(self):
+        item_id=store.create(self.owner,schedule.parse('Pantau harga emas di bawah Rp1.800.000 setiap hari jam 9.'))
+        db.execute("INSERT INTO kilas_automation_runs(automation_id,user_id,scheduled_for,status,completed_at) VALUES (?,?,?,'SUCCEEDED',?)",(item_id,self.owner,'2026-09-30T09:00:00+00:00','2026-09-30T09:00:00+00:00'))
+        self.assertEqual(len(agent_store.activity(self.owner)),1)
+        self.assertEqual(len(agent_store.activity(self.other)),0)
+        self.assertEqual(self.client_for(self.owner).get('/kilas-ai/agent?view=activity').status_code,303)
 
     def test_simple_agent_planner_defaults_to_luna_and_account_timezone(self):
         class FakeResponse:

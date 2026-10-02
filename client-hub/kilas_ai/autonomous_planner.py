@@ -47,11 +47,17 @@ def validate(raw, mode, instruction=''):
 
 
 def propose(job, completed):
+    from .work_runtime import remind_plan
+    reminder = remind_plan(job)
+    if reminder:return validate(reminder,job['mode'],job['instruction'])
     from .agent_workers import capabilities, market_request, market_worker
     from . import work_documents
     document_plan=work_documents.plan(job)
     if document_plan:
         return validate(document_plan,job['mode'],job['instruction'])
+    source_id=json.loads(job['checkpoint_json']).get('image_source_id')
+    if source_id:
+        return validate({'objective':job['instruction'][:90],'mode':job['mode'],'stop_condition':'Gambar nyata tersimpan','next_action':'Ubah gambar','steps':[{'worker':'IMAGE','action':'edit','instruction':'Mengolah gambar sumber','input_json':json.dumps({'prompt':job['instruction'],'source_id':source_id}),'completion_criteria':'Gambar valid tersimpan','requires_approval':False}]},job['mode'],job['instruction'])
     if work_documents.image_request(job['instruction']):
         return validate({'objective':job['instruction'][:90],'mode':job['mode'],'stop_condition':'Gambar nyata tersimpan','next_action':'Buat gambar','steps':[{'worker':'IMAGE','action':'generate','instruction':'Membuat gambar','input_json':json.dumps({'prompt':job['instruction']}),'completion_criteria':'Gambar valid tersimpan','requires_approval':False}]},job['mode'],job['instruction'])
     if job['mode'] in ('CONDITION_WATCH', 'CONTINUOUS') and market_request(job['instruction']) and market_worker.provider is None:

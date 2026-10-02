@@ -103,11 +103,11 @@ class ResultTests(unittest.TestCase):
     def test_completed_card_is_compact_failed_card_has_failure_class(self):
         job_id=fixture.jobs.create(self.owner,'Riset kompetitor')
         fixture.db.execute("UPDATE kilas_agent_jobs SET status='COMPLETED' WHERE id=?",(job_id,))
-        html=self.client.get('/kilas-ai/agent?view=tasks').text
+        html=self.client.get('/kilas-ai/agent?view=history').text
         self.assertIn('Buka hasil',html)
         self.assertNotIn('Langkah sedang disiapkan',html)
         fixture.db.execute("UPDATE kilas_agent_jobs SET status='FAILED' WHERE id=?",(job_id,))
-        self.assertIn('is-failed',self.client.get('/kilas-ai/agent?view=tasks').text)
+        self.assertIn('is-failed',self.client.get('/kilas-ai/agent?view=history').text)
 
     def test_custom_provider_system_does_not_change_normal_chat(self):
         events=[{'type':'delta','text':'Answer'},{'type':'finish','reason':'stop'}]

@@ -10,6 +10,7 @@ from werkzeug.serving import make_server
 
 def tick(job):
     for _ in range(2):
+        if fixture.fixture.db.query_one('SELECT status FROM kilas_agent_jobs WHERE id=?',(job,))['status']=='COMPLETED':return
         fixture.fixture.db.execute('UPDATE kilas_agent_jobs SET next_wake_at=? WHERE id=?',(fixture.fixture.store.stamp(),job))
         fixture.fixture.runner.execute(*fixture.fixture.store.claim_due(1)[0])
 
@@ -41,7 +42,7 @@ def main():
                 page.get_by_role('button',name='Kirim',exact=True).click()
                 expect(page.locator('[data-job-id]')).to_have_count(1)
                 assert page.evaluate("document.activeElement.id === 'agent-message'") is (width>=760),(width,'work composer focus after response')
-                job=fixture.fixture.store.list_jobs(owner)[0]['id'];tick(job)
+                job=fixture.fixture.store.list_jobs(owner)[0]['id'];expect(page.locator('.work-file')).to_have_count(1,timeout=15000)
                 page.reload(wait_until='networkidle')
                 card=page.locator('.work-file')
                 expect(card.get_by_text('proposal-kerja-sama.pdf',exact=True)).to_be_visible()
@@ -60,11 +61,11 @@ def main():
                 page.locator('#agent-message').fill('Bikin lebih premium dan tambahkan timeline.')
                 page.get_by_role('button',name='Kirim',exact=True).click()
                 expect(page.locator('[data-job-id]')).to_have_count(2)
-                latest=fixture.fixture.store.list_jobs(owner)[0]['id'];tick(latest)
+                latest=fixture.fixture.store.list_jobs(owner)[0]['id'];expect(page.locator('.work-file')).to_have_count(2,timeout=15000)
                 page.reload(wait_until='networkidle');expect(page.locator('.work-file')).to_have_count(2)
                 active=fixture.fixture.store.create(owner,'Pantau perubahan harga sampai saya stop',conversation_id=conversation)
                 if width<760:page.get_by_role('button',name='Buka riwayat').click()
-                page.get_by_role('button',name='+ New Chat',exact=True).click()
+                page.get_by_role('button',name='+ Work baru',exact=True).click()
                 expect(page.get_by_role('heading',name='Apa yang ingin kamu kerjakan?')).to_be_visible()
                 assert fixture.fixture.store.get(owner,active)['status']=='PLANNING'
                 assert not errors,errors
