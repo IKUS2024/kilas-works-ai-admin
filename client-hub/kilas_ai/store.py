@@ -151,6 +151,16 @@ def latest_user_image(user_id, thread_id):
         "ORDER BY a.id DESC LIMIT 1", (user_id, thread_id))
 
 
+def recent_image(user_id, thread_id):
+    if not thread(user_id, thread_id):
+        return None
+    return db.query_one("SELECT a.filename,a.mime_type,a.content FROM kilas_ai_attachments a "
+        "JOIN kilas_ai_messages m ON m.id=a.message_id AND m.thread_id=a.thread_id "
+        "WHERE a.user_id=? AND a.thread_id=? AND a.mime_type LIKE 'image/%' "
+        "AND m.id IN (SELECT id FROM kilas_ai_messages WHERE thread_id=? ORDER BY id DESC LIMIT 4) "
+        "ORDER BY a.id DESC LIMIT 1", (user_id, thread_id, thread_id))
+
+
 def operation(user_id, thread_id, key):
     if not thread(user_id, thread_id):
         return None

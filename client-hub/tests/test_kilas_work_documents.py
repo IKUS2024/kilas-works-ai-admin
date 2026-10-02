@@ -196,14 +196,17 @@ class WorkTests(unittest.TestCase):
         from unittest.mock import patch
         import os
         raw=io.BytesIO();Image.new('RGB',(16,16)).save(raw,'PNG')
-        job=fixture.store.create(self.owner,'Buat poster promo restoran',conversation_id=self.conversation)
+        job=fixture.store.create(self.owner,'buat logo bagus buat kilas works',conversation_id=self.conversation)
         with patch.dict(os.environ,{'KILAS_AI_OPENAI_IMAGE_MODEL':'configured-image'}),patch.object(tools,'image',return_value={'raw':raw.getvalue(),'mime':'image/png','model':'configured-image','usage':{}}) as provider:
             for _ in range(2):
                 fixture.db.execute('UPDATE kilas_agent_jobs SET next_wake_at=? WHERE id=?',(fixture.store.stamp(),job))
                 fixture.runner.execute(*fixture.store.claim_due(1)[0])
             provider.assert_called_once()
+            self.assertIn('bukan kode SVG/HTML',provider.call_args.args[0])
         self.assertEqual(fixture.store.get(self.owner,job)['status'],'COMPLETED')
         self.assertEqual(work_artifacts.listing(self.owner,job_id=job)[0]['media_type'],'image/png')
+        self.assertEqual(fixture.store.steps(job)[0]['worker'],'IMAGE')
+        self.assertEqual(work_artifacts.listing(self.owner,job_id=job)[0]['byte_size'],len(raw.getvalue()))
 
     def test_research_sources_are_synthesized_before_pdf(self):
         from kilas_ai import tools

@@ -180,6 +180,8 @@ def regenerate(thread_id):
     last_user = store.last_user_message(user_id, thread_id)
     if not last_user:
         abort(400)
+    if routing.tool_for(last_user['content']) != 'CHAT' or routing.visual_result_requested(last_user['content']):
+        return {'error':'Kirim permintaan baru untuk membuat ulang gambar, dokumen, atau pekerjaan.'},400
     mode = routing.mode_for(last_user["content"])
     context = store.context(user_id, thread_id)
     while context and context[-1]["role"] == "assistant":
@@ -275,13 +277,13 @@ def send(thread_id):
             metadata = {}
         if metadata.get("status", "complete") == "complete" and metadata.get("tool") not in ("pdf", "image_generate", "image_edit"):
             prior_answer = row["content"]
-            break
-    prior_image = (store.latest_user_image(user_id, thread_id)
+        break
+    prior_image = (store.recent_image(user_id, thread_id)
                    if not any(item["mime_type"].startswith("image/") for item in prepared) and routing.may_edit_image(content)
                    else None)
     tool = routing.tool_for(content, prepared + ([prior_image] if prior_image else []), search=search,
                             pdf_request=ai_pdf.is_request(content, previous_document),
-                            has_previous_content=bool(prior_answer or previous_document))
+                            has_previous_content=bool(prior_answer or previous_document), previous_answer=prior_answer)
     if tool == "IMAGE_EDIT" and not any(item["mime_type"].startswith("image/") for item in prepared) and not prior_image:
         return {"error": "Upload gambar terlebih dahulu untuk diedit."}, 400
     if tool == "WEB" and any(item["mime_type"].startswith("image/") for item in prepared):
@@ -322,6 +324,24 @@ def send(thread_id):
         persisted = False
         reason = None
         try:
+            if tool in ("WORK", "CLARIFY", "FILE"):
+                if tool == "WORK":
+                    yield _sse("activity", {"label": "Menyiapkan pekerjaan…"})
+                    if automation_enabled():
+                        path = url_for("kilas_ai.agent_home", message=content[:1200])
+                        text = "Pekerjaan ini perlu berjalan di background. [Lanjutkan di Work](" + path + ") untuk memulainya dan mengikuti kemajuannya."
+                    else:
+                        text = "Work belum tersedia sekarang. Pekerjaan belum dimulai."
+                elif tool == "FILE":
+                    text = "Format file itu belum tersedia. Saya bisa menyiapkan isi dokumennya, atau membuat PDF jika kamu meminta PDF."
+                else:
+                    text = "Apa yang ingin kamu buat atau ubah?"
+                store.append_assistant(user_id, thread_id, text, mode, None, None, key,
+                    {"status": "complete", "tool": tool.lower()})
+                finished = persisted = True
+                yield _sse("delta", {"text": text})
+                yield _sse("done", {"finish_reason": "stop"})
+                return
             if tool == "PDF":
                 yield _sse("activity", {"label": "Menyusun dokumen…"})
                 document_context = ai_pdf.document_context(context, previous_document["extracted_text"] if previous_document else None)
@@ -337,6 +357,8 @@ def send(thread_id):
                         usage.update({k: int(v or 0) for k, v in event.items() if k in usage})
                 if not pieces:
                     raise providers.ProviderError("empty_document")
+                if not routing.response_safe(content, "".join(pieces)):
+                    raise providers.ProviderError("invalid_document_markup")
                 yield _sse("activity", {"label": "Membuat PDF…"})
                 logo = next((item["content"] for item in prepared if item["mime_type"].startswith("image/")
                              and "logo" in content.lower()), None)
@@ -361,7 +383,7 @@ def send(thread_id):
                 try:
                     if tool == "WEB":
                         research = ai_tools.research_requested(context)
-                        yield _sse("activity", {"label": "Mencari sumber…" if research else "Mencari di web…"})
+                        yield _sse("activity", {"label": "Mencari sumber terbaru…"})
                         result = None
                         for update in ai_tools.web_search_steps(context, mode=mode, plan=plan,
                                 max_calls=ai_usage.web_call_budget(user_id, plan) if research else 1):
@@ -401,7 +423,7 @@ def send(thread_id):
                     yield _sse("done", {"finish_reason": "stop"})
                     return
                 except ai_tools.ToolUnavailable as error:
-                    yield _sse("error", {"message": str(error)})
+                    yield _sse("error", {"message": "Gambar belum dapat dibuat sekarang. Coba lagi sebentar." if tool in ("IMAGE_GENERATE", "IMAGE_EDIT") else str(error)})
                     return
             yield _sse("activity", {"label": "Menganalisis gambar…" if any(item["mime_type"].startswith("image/") for item in prepared)
                           else "Membaca dokumen…" if any(item["extracted_text"] for item in prepared)
@@ -414,12 +436,17 @@ def send(thread_id):
                     size += len(event["text"])
                     if size > 30000:
                         raise providers.ProviderError("response_too_long")
-                    yield _sse("delta", {"text": event["text"]})
+                    if not routing.visual_result_requested(content):
+                        yield _sse("delta", {"text": event["text"]})
                 elif event["type"] == "usage":
                     usage.update({k: int(v or 0) for k, v in event.items() if k in usage})
                 elif event["type"] == "finish":
                     reason = event["reason"]
             if pieces:
+                if not routing.response_safe(content, "".join(pieces)):
+                    raise providers.ProviderError("invalid_visual_markup")
+                if routing.visual_result_requested(content):
+                    yield _sse("delta", {"text": "".join(pieces)})
                 finished = True
                 store.append_assistant(user_id, thread_id, "".join(pieces), mode, provider, model, key,
                                        {"status": "complete", "finish_reason": reason, "usage": usage,
@@ -431,7 +458,7 @@ def send(thread_id):
         except providers.ProviderError:
             yield _sse("error", {"message": "AI sedang tidak tersedia. Coba lagi."})
         finally:
-            if pieces and not persisted and tool != "PDF":
+            if pieces and not persisted and tool != "PDF" and routing.response_safe(content, "".join(pieces)):
                 store.append_assistant(user_id, thread_id, "".join(pieces), mode, provider, model, key,
                                        {"status": "interrupted",
                                         "finish_reason": reason, "usage": usage})

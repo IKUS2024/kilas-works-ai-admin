@@ -38,9 +38,8 @@ def plan(job):
 
 
 def image_request(text):
-    if re.search(r'(?i)\b(?:kode|code)\s+(?:svg|vector)|\bsvg\s+(?:code|kode)\b', text):
-        return False
-    return bool(CREATE.search(text) and re.search(r'(?i)\b(?:gambar|image|poster|banner|illustration|ilustrasi|logo|logotype|wordmark|brand.?mark|ikon|icon|emblem|maskot|mascot)\b',text))
+    from . import routing
+    return routing.tool_for(text) == 'IMAGE_GENERATE'
 
 
 def quality(source, request, format='pdf', previous=''):
