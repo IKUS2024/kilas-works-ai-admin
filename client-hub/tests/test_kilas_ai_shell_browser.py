@@ -66,12 +66,12 @@ def main():
                     if mode=='agent':
                         assert page.locator('.agent-chats').get_by_text('Riset kompetitor sampai selesai',exact=True).count()==1
                         assert page.locator('.agent-chats').get_by_text('Pertanyaan di normal Chat',exact=True).count()==0
-                        page.get_by_role('button',name='+ Chat baru',exact=True).click()
+                        page.get_by_role('button',name='Chat baru',exact=True).click()
                         assert page.locator('.agent-message').count()==0
                         assert fixture.jobs.get(owner,job['id'])['status']=='PLANNING'
                     else:
                         assert page.locator('.ai-history').get_by_text('Pertanyaan di normal Chat',exact=True).count()==1
-                        page.get_by_role('link',name='+ Chat baru',exact=True).click()
+                        page.get_by_role('link',name='Chat baru',exact=True).click()
                         expect(page.locator('#ai-composer')).to_be_visible()
                         assert 'attachments=1' in page.url
                         assert len(store.list_threads(owner))==1

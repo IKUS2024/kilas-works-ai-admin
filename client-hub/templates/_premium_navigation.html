@@ -1,0 +1,9 @@
+{% set premium_endpoint = request.endpoint or '' %}
+<nav class="premium-navigation" aria-label="Navigasi Kilas Works">
+  <a href="{{ url_for('products.product_start') }}" {% if premium_endpoint == 'products.product_start' %}aria-current="page"{% endif %}>Home</a>
+  <a href="{{ url_for('kilas_ai.home') }}" {% if request.blueprint == 'kilas_ai' and view|default('chat') not in ['connections', 'settings'] %}aria-current="page"{% endif %}>Kilas AI</a>
+  <form method="post" action="{{ url_for('products.product_start') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance"><button type="submit">Kilas Finance</button></form>
+  <a href="{{ url_for('kilas_ai.agent_home', view='connections') }}" {% if view|default('') == 'connections' %}aria-current="page"{% endif %}>Connections</a>
+  <a href="{{ url_for('auth.account_page') }}" {% if premium_endpoint == 'auth.account_page' %}aria-current="page"{% endif %}>Settings</a>
+  <a href="https://kilasworks.id" target="_blank" rel="noopener noreferrer">Kilas Services <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M10 4H4v16h16v-6"/></svg></a>
+</nav>

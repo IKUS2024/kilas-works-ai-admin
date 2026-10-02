@@ -1,20 +1,20 @@
 {% extends 'base.html' %}
-{% block title %}Mulai dengan Kilas{% endblock %}
-{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_ui.css', v='20260928') }}"><link rel="stylesheet" href="{{ url_for('static', filename='assist_ui.css', v='20260928') }}"><link rel="stylesheet" href="{{ url_for('static', filename='kilas_services.css', v='20260928') }}">{% endblock %}
+{% block title %}Home · Kilas Works{% endblock %}
 {% block content %}
-<style>
-.kw-product-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
-.kw-product-logout{flex:0 0 auto;min-height:40px;padding:9px 14px;border:1px solid var(--border);border-radius:12px;color:var(--text);text-decoration:none;font-weight:800}
-.kw-product-logout:hover,.kw-product-logout:focus{border-color:var(--orange);color:var(--orange);text-decoration:none}
-@media(max-width:560px){.kw-product-head{gap:12px}.kw-product-logout{padding:8px 11px;font-size:13px}}
-</style>
-<section class="kw-page kw-onboarding">
-<header class="kw-page-head kw-product-head"><div><p class="kw-eyebrow">KILAS WORKS</p><h1>Pilih layanan Kilas</h1><p>Layanan untuk membantu bisnis dan kebutuhan harian Anda.</p></div><a class="kw-product-logout" href="{{ url_for('auth.logout_page') }}">Keluar</a></header>
-<div class="kw-intent-grid">
-{% for key,title,description,detail in ([('finance','Kilas Finance','Catat pemasukan, pengeluaran, tagihan, dan invoice.','Buka workspace keuangan bisnis Anda.')] + ([('kilas_ai','Kilas AI','Chat, analisis dokumen, dan cari informasi di web.','Untuk kebutuhan pribadi, belajar, kerja, dan ide sehari-hari.')] if kilas_ai_enabled else []) + [('services','Kilas Services','Dapatkan bantuan langsung dari tim Kilas Works.','Form online dan bantuan aplikasi visa, produksi konten, serta talent.')]) %}
-<form class="card kw-intent" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="{{ key }}"><p class="kw-eyebrow">{{ '%02d'|format(loop.index) }}</p><h2>{{ title }}</h2><p>{{ description }}</p><p class="kw-note">{{ detail }}</p><button class="btn" type="submit">Pilih {{ title }} →</button></form>
-{% endfor %}
+<section class="premium-home">
+<header class="premium-page-heading"><h1>Home</h1><p>Ruang untuk ide, pekerjaan, dan bisnis kamu.</p></header>
+{% if kilas_ai_enabled %}
+<section class="premium-home-ai" aria-labelledby="home-ai-title">
+<h2 id="home-ai-title">Apa yang ingin kamu kerjakan?</h2>
+<p>Mulai percakapan dengan Kilas. Cari informasi, analisis file, buat gambar atau dokumen, dan selesaikan pekerjaan.</p>
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="kilas_ai"><button class="btn" type="submit">Buka Kilas AI</button></form>
+<div class="premium-home-capabilities"><span>Chat &amp; Search</span><span>Gambar &amp; dokumen</span><span>Pekerjaan &amp; pengingat</span></div>
+</section>
+{% endif %}
+<div class="premium-home-secondary">
+<section><h2>Kilas Finance</h2><p>Catat pemasukan, pengeluaran, tagihan, dan invoice. Kelola keuangan bisnis dari satu tempat.</p><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance"><button class="btn secondary" type="submit">Buka Kilas Finance</button></form></section>
+<section><h2>Kilas Services</h2><p>Bantuan langsung dari tim Kilas Works untuk kebutuhan layanan digital kamu.</p><a class="btn secondary" href="https://kilasworks.id" target="_blank" rel="noopener noreferrer">Kunjungi Kilas Services</a></section>
 </div>
-<p class="kw-note">Memilih layanan tidak otomatis membeli atau mengaktifkan langganan.</p>
+<p class="premium-home-note">Membuka layanan tidak otomatis membeli atau mengaktifkan langganan.</p>
 </section>
 {% endblock %}

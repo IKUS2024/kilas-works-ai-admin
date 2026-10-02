@@ -40,10 +40,10 @@ class AgentTests(unittest.TestCase):
     def test_empty_work_and_hidden_connections(self):
         client=self.client_for(self.owner)
         body=client.get('/kilas-ai/agent').text
-        self.assertIn('+ Chat baru',body)
-        self.assertNotIn('Connections',body)
+        self.assertIn('Chat baru',body)
+        self.assertIn('Connections',body)
         self.assertNotIn('Advanced settings',body)
-        self.assertEqual(client.get('/kilas-ai/agent?view=connections').status_code,303)
+        self.assertEqual(client.get('/kilas-ai/agent?view=connections').status_code,200)
         self.assertIn('Kilas Finance',client.get('/products/start').text)
         self.assertNotIn('Pilih Kilas Assist',client.get('/products/start').text)
         self.assertNotEqual(client.get('/products/assist').status_code,404)

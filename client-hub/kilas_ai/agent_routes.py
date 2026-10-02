@@ -87,8 +87,13 @@ def agent_home():
     conversation = agent_store.conversation(owner, conversation_id)
     from . import autonomous_runner, autonomous_store, work_push
     from .agent_presentation import job_card, time_label
-    if view in ('connections', 'activity'):
-        return redirect(url_for('kilas_ai.agent_home', view='settings' if view=='connections' else 'notifications'), code=303)
+    if view == 'activity':
+        return redirect(url_for('kilas_ai.agent_home', view='notifications'), code=303)
+    # Presentation-only connection state; never expose credential fields to templates.
+    google_status = db.query_one(
+        "SELECT status,display_identity FROM kilas_ai_connections WHERE user_id=? AND provider='GOOGLE'",
+        (owner,)) if view == 'connections' else None
+    google_ready = google_connection.configuration()['ready'] if view == 'connections' else False
     raw_autonomous_jobs = autonomous_store.list_jobs(owner, active_only=True) if autonomous_runner.enabled() and view=='tasks' else []
     autonomous_jobs = [job_card(j) for j in raw_autonomous_jobs]
     active_count = db.query_one("SELECT COUNT(*) AS n FROM kilas_agent_jobs WHERE user_id=? AND status NOT IN ('COMPLETED','FAILED','STOPPED')", (owner,))['n'] if autonomous_runner.enabled() else 0
@@ -117,6 +122,7 @@ def agent_home():
         history_chats=history_chats, legacy_chats=legacy_chats, history_page=page, more_chats=more_chats, autonomous_jobs=autonomous_jobs,
         autonomous_enabled=autonomous_runner.enabled(), active_count=active_count, autonomous_unread=autonomous_unread,
         notifications=notifications, timezone=store.setting(owner), push_available=work_push.configured(),
+        google_status=google_status, google_ready=google_ready,
         location_request=location if location and location['conversation']==conversation_id else None,
         error=request.args.get('error'), prefill=request.args.get('message','')[:1200])
 

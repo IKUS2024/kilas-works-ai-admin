@@ -58,8 +58,10 @@ class ConnectorTests(unittest.TestCase):
                 os.environ.pop(key, None)
             client = self.client_for(self.owner)
             page = client.get("/kilas-ai/agent?view=connections")
-            self.assertEqual(page.status_code, 303)
+            self.assertEqual(page.status_code, 200)
             self.assertFalse(google_connection.configuration()["ready"])
+            self.assertIn("Koneksi Google belum tersedia", page.text)
+            self.assertIn("disabled", page.text)
             response = client.post("/kilas-ai/agent/connections/google/gmail",
                                    data={"csrf_token": "connector-csrf"})
             self.assertEqual(response.status_code, 303)
@@ -198,7 +200,7 @@ class ConnectorTests(unittest.TestCase):
             with self.assertRaisesRegex(connectors.ConnectorError, 'google_tool_disabled'):
                 connectors.authorize(self.owner, tool)
         page = self.client_for(self.owner).get('/kilas-ai/agent?view=connections')
-        self.assertEqual(page.status_code, 303)
+        self.assertEqual(page.status_code, 200)
         self.assertEqual(connectors.google_connection(self.owner)['status'],'CONNECTED')
         self.assertNotIn('Google Calendar</strong>', page.text)
         self.assertNotIn('Google Drive</strong>', page.text)

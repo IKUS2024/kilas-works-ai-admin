@@ -337,14 +337,14 @@
         <h2>{{ display_name }}</h2>
         <div class="account-hero-email">{{ user.email }}</div>
       </div>
-      <button class="account-hero-edit" type="button" data-profile-edit>✎ Edit profil</button>
+      <button class="account-hero-edit" type="button" data-profile-edit><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L20 8a3.5 3.5 0 0 0-5-5L4 14z"/></svg>Edit profil</button>
     </div>
   </section>
 
   <dialog class="account-profile-dialog" id="account-profile-dialog">
     <div class="account-profile-dialog-head">
       <h2>Edit profil Pribadi</h2>
-      <button class="account-profile-dialog-close" type="button" data-profile-close aria-label="Tutup">×</button>
+      <button class="account-profile-dialog-close" type="button" data-profile-close aria-label="Tutup"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="account-profile-dialog-body">
       <div class="account-profile-dialog-preview">
@@ -380,7 +380,7 @@
   <dialog class="account-profile-dialog account-email-dialog" id="account-email-dialog">
     <div class="account-profile-dialog-head">
       <h2>Ganti Email</h2>
-      <button class="account-profile-dialog-close" type="button" data-email-change-close aria-label="Tutup">×</button>
+      <button class="account-profile-dialog-close" type="button" data-email-change-close aria-label="Tutup"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="account-profile-dialog-body">
       {% if pending_email_change %}

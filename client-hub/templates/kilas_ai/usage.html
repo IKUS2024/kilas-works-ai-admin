@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Langganan · Kilas AI</title>
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='7') }}"><link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_subscription.css',v='1') }}"></head>
-<body><main class="subscription-page">
-  <a class="subscription-back" href="{{ url_for('kilas_ai.home') }}">← Kembali ke chat</a>
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='7') }}"><link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_subscription.css',v='1') }}">{% include '_premium_styles.html' %}</head>
+<body class="premium-workspace kilas-light ">{% include '_premium_workspace.html' %}<main id="kw-main" class="subscription-page">
+  <a class="subscription-back" href="{{ url_for('kilas_ai.home') }}">Kembali ke chat</a>
   <header class="subscription-header"><p class="subscription-eyebrow">KILAS AI / AKUN</p><h1>Langganan</h1><p>Semua yang kamu perlukan untuk berpikir, membuat, dan menyelesaikan pekerjaan.</p></header>
   <div class="subscription-layout">
     <section class="subscription-offer" aria-labelledby="offer-title">

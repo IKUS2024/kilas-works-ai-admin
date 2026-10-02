@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="id">
-<head>{% include 'kilas_ai/_automation_head.html' %}</head>
-<body>
+<head>{% include 'kilas_ai/_automation_head.html' %}{% include '_premium_styles.html' %}</head>
+<body class="premium-workspace kilas-light ">{% include '_premium_workspace.html' %}
 {% include 'kilas_ai/_automation_nav.html' %}
-<main class="auto-page auto-narrow">
+<main id="kw-main" class="auto-page auto-narrow">
   <p><a class="auto-back" href="{{ url_for('kilas_ai.automation_home') }}">← Work</a></p>
   <h1>{{ 'Edit pekerjaan Work' if item else 'Beri tugas' }}</h1>
   <p class="auto-subtitle">Tulis tugasnya, lalu pilih kapan Kilas menjalankannya.</p>

@@ -37,7 +37,7 @@ def main():
                 page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto(origin+f'/kilas-ai/agent?conversation={conversation}',wait_until='networkidle')
                 assert page.locator('.ai-mode-tabs').count()==0
-                expect(page.get_by_role('heading',name='Apa yang ingin kamu lakukan?')).to_be_visible()
+                expect(page.get_by_role('heading',name='Apa yang ingin kamu kerjakan?')).to_be_visible()
                 page.locator('#agent-message').fill(fixture.REQUEST)
                 page.get_by_role('button',name='Kirim',exact=True).click()
                 expect(page.locator('[data-job-id]')).to_have_count(1)
@@ -81,8 +81,8 @@ def main():
                 expect(page.locator('[data-active-count],[data-notification-count]')).to_have_count(0)
                 expect(page.locator(f'[data-job-id="{job}"]')).to_have_count(1)
                 if width<760:page.get_by_role('button',name='Buka riwayat').click()
-                page.get_by_role('button',name='+ Chat baru',exact=True).click()
-                expect(page.get_by_role('heading',name='Apa yang ingin kamu lakukan?')).to_be_visible()
+                page.get_by_role('button',name='Chat baru',exact=True).click()
+                expect(page.get_by_role('heading',name='Apa yang ingin kamu kerjakan?')).to_be_visible()
                 assert fixture.fixture.store.get(owner,active)['status']=='PLANNING'
                 assert not errors,errors
                 fixture.fixture.store.control(owner,active,'stop')

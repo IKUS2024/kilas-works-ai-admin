@@ -50,7 +50,7 @@ def main():
                 assert page.locator('.agent-sections a[href*=notifications]').count()==0
                 expect(page.locator('.work-file')).to_have_count(4)
                 self_text=page.locator('body').inner_text()
-                for unwanted in ('Connections','Advanced settings','Instruksi pelaksanaan','Internal content not for display'):assert unwanted not in self_text,(width,unwanted)
+                for unwanted in ('Advanced settings','Instruksi pelaksanaan','Internal content not for display'):assert unwanted not in self_text,(width,unwanted)
                 expect(page.get_by_text('Menulis isi…',exact=True)).to_be_visible()
                 expect(page.get_by_text('Menunggu jawabanmu',exact=True).first).to_be_visible()
                 expect(page.get_by_text('Terjadwal',exact=True)).to_be_visible()

@@ -32,7 +32,7 @@ def main():
                 page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(origin+'/kilas-ai',wait_until='networkidle')
                 assert page.locator('.ai-mode-tabs,#ai-search').count()==0
-                assert page.locator('button').filter(has_text='+ Chat baru').count()==1
+                assert page.locator('button').filter(has_text='Chat baru').count()==1
                 def send(text):
                     count=page.locator('.agent-message-user').count()
                     page.locator('#agent-message').fill(text)
@@ -109,8 +109,8 @@ def main():
                 assert row.evaluate("e=>getComputedStyle(e).whiteSpace==='nowrap' && getComputedStyle(e).textOverflow==='ellipsis' && e.scrollWidth>e.clientWidth && e.getBoundingClientRect().height<=48")
                 assert page.locator('#agent-sidebar a[href*=tasks],#agent-sidebar a[href*=notifications]').count()==0
                 page.screenshot(path=str(Path(tempfile.gettempdir())/f'kilas-cleanup-sidebar-{width}.png'))
-                page.get_by_role('button',name='+ Chat baru',exact=True).click()
-                expect(page.get_by_role('heading',name='Apa yang ingin kamu lakukan?')).to_be_visible()
+                page.get_by_role('button',name='Chat baru',exact=True).click()
+                expect(page.get_by_role('heading',name='Apa yang ingin kamu kerjakan?')).to_be_visible()
                 expect(page.locator('.work-sent-file,[data-job-id]')).to_have_count(0)
                 page.goto(origin+'/kilas-ai/agent?view=history',wait_until='networkidle')
                 assert page.locator(f'nav[aria-label="Riwayat percakapan"] a[href$="conversation={original}"]').count()==1

@@ -100,11 +100,13 @@ jobs:
       - run: python client-hub/tests/test_kilas_work_v2_browser.py
       - run: python client-hub/tests/test_kilas_ai_unified_browser.py
       - run: python client-hub/tests/test_kilas_composer_focus_browser.py
+      - run: python client-hub/tests/test_kilas_premium_ui_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: kilas-agent-chat-responsive
           path: |
+            /tmp/kilas-premium-ui-qa/*.png
             /tmp/agent-*.png
             /tmp/kilas-shell-*.png
             /tmp/kilas-work-v2-*.png

@@ -1,0 +1,481 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-02T18:58:37.161088+00:00",
+  "title": "Design System: Kilas Works customer workspace",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Canvas",
+        "tonalRamp": [
+          "oklch(15% 0.00000 0.00)",
+          "oklch(27% 0.00000 0.00)",
+          "oklch(38% 0.00000 0.00)",
+          "oklch(50% 0.00000 0.00)",
+          "oklch(61% 0.00000 0.00)",
+          "oklch(73% 0.00000 0.00)",
+          "oklch(84% 0.00000 0.00)",
+          "oklch(95% 0.00000 0.00)"
+        ]
+      },
+      "neutral-rail": {
+        "role": "neutral",
+        "displayName": "Neutral Rail",
+        "tonalRamp": [
+          "oklch(15% 0.00132 106.42)",
+          "oklch(27% 0.00132 106.42)",
+          "oklch(38% 0.00132 106.42)",
+          "oklch(50% 0.00132 106.42)",
+          "oklch(61% 0.00132 106.42)",
+          "oklch(73% 0.00132 106.42)",
+          "oklch(84% 0.00132 106.42)",
+          "oklch(95% 0.00132 106.42)"
+        ]
+      },
+      "charcoal": {
+        "role": "neutral",
+        "displayName": "Charcoal",
+        "tonalRamp": [
+          "oklch(15% 0.01214 264.33)",
+          "oklch(27% 0.01214 264.33)",
+          "oklch(38% 0.01214 264.33)",
+          "oklch(50% 0.01214 264.33)",
+          "oklch(61% 0.01214 264.33)",
+          "oklch(73% 0.01214 264.33)",
+          "oklch(84% 0.01214 264.33)",
+          "oklch(95% 0.01214 264.33)"
+        ]
+      },
+      "secondary-text": {
+        "role": "neutral",
+        "displayName": "Secondary Text",
+        "tonalRamp": [
+          "oklch(15% 0.01505 266.59)",
+          "oklch(27% 0.01505 266.59)",
+          "oklch(38% 0.01505 266.59)",
+          "oklch(50% 0.01505 266.59)",
+          "oklch(61% 0.01505 266.59)",
+          "oklch(73% 0.01505 266.59)",
+          "oklch(84% 0.01505 266.59)",
+          "oklch(95% 0.01505 266.59)"
+        ]
+      },
+      "accent-text": {
+        "role": "primary",
+        "displayName": "Accent Text",
+        "tonalRamp": [
+          "oklch(15% 0.16515 42.47)",
+          "oklch(27% 0.16515 42.47)",
+          "oklch(38% 0.16515 42.47)",
+          "oklch(50% 0.16515 42.47)",
+          "oklch(61% 0.16515 42.47)",
+          "oklch(73% 0.16515 42.47)",
+          "oklch(84% 0.16515 42.47)",
+          "oklch(95% 0.16515 42.47)"
+        ]
+      },
+      "action-fill": {
+        "role": "primary",
+        "displayName": "Action Fill",
+        "tonalRamp": [
+          "oklch(15% 0.17943 45.98)",
+          "oklch(27% 0.17943 45.98)",
+          "oklch(38% 0.17943 45.98)",
+          "oklch(50% 0.17943 45.98)",
+          "oklch(61% 0.17943 45.98)",
+          "oklch(73% 0.17943 45.98)",
+          "oklch(84% 0.17943 45.98)",
+          "oklch(95% 0.17943 45.98)"
+        ]
+      },
+      "action-hover": {
+        "role": "primary",
+        "displayName": "Action Hover",
+        "tonalRamp": [
+          "oklch(15% 0.17097 49.36)",
+          "oklch(27% 0.17097 49.36)",
+          "oklch(38% 0.17097 49.36)",
+          "oklch(50% 0.17097 49.36)",
+          "oklch(61% 0.17097 49.36)",
+          "oklch(73% 0.17097 49.36)",
+          "oklch(84% 0.17097 49.36)",
+          "oklch(95% 0.17097 49.36)"
+        ]
+      },
+      "action-text": {
+        "role": "neutral",
+        "displayName": "Action Text",
+        "tonalRamp": [
+          "oklch(15% 0.02703 55.38)",
+          "oklch(27% 0.02703 55.38)",
+          "oklch(38% 0.02703 55.38)",
+          "oklch(50% 0.02703 55.38)",
+          "oklch(61% 0.02703 55.38)",
+          "oklch(73% 0.02703 55.38)",
+          "oklch(84% 0.02703 55.38)",
+          "oklch(95% 0.02703 55.38)"
+        ]
+      },
+      "selected": {
+        "role": "primary",
+        "displayName": "Selected",
+        "tonalRamp": [
+          "oklch(15% 0.02190 58.79)",
+          "oklch(27% 0.02190 58.79)",
+          "oklch(38% 0.02190 58.79)",
+          "oklch(50% 0.02190 58.79)",
+          "oklch(61% 0.02190 58.79)",
+          "oklch(73% 0.02190 58.79)",
+          "oklch(84% 0.02190 58.79)",
+          "oklch(95% 0.02190 58.79)"
+        ]
+      },
+      "selected-border": {
+        "role": "primary",
+        "displayName": "Selected Border",
+        "tonalRamp": [
+          "oklch(15% 0.05470 58.82)",
+          "oklch(27% 0.05470 58.82)",
+          "oklch(38% 0.05470 58.82)",
+          "oklch(50% 0.05470 58.82)",
+          "oklch(61% 0.05470 58.82)",
+          "oklch(73% 0.05470 58.82)",
+          "oklch(84% 0.05470 58.82)",
+          "oklch(95% 0.05470 58.82)"
+        ]
+      },
+      "divider": {
+        "role": "neutral",
+        "displayName": "Divider",
+        "tonalRamp": [
+          "oklch(15% 0.00291 264.54)",
+          "oklch(27% 0.00291 264.54)",
+          "oklch(38% 0.00291 264.54)",
+          "oklch(50% 0.00291 264.54)",
+          "oklch(61% 0.00291 264.54)",
+          "oklch(73% 0.00291 264.54)",
+          "oklch(84% 0.00291 264.54)",
+          "oklch(95% 0.00291 264.54)"
+        ]
+      },
+      "input-border": {
+        "role": "neutral",
+        "displayName": "Input Border",
+        "tonalRamp": [
+          "oklch(15% 0.00597 264.53)",
+          "oklch(27% 0.00597 264.53)",
+          "oklch(38% 0.00597 264.53)",
+          "oklch(50% 0.00597 264.53)",
+          "oklch(61% 0.00597 264.53)",
+          "oklch(73% 0.00597 264.53)",
+          "oklch(84% 0.00597 264.53)",
+          "oklch(95% 0.00597 264.53)"
+        ]
+      },
+      "control-border": {
+        "role": "neutral",
+        "displayName": "Control Border",
+        "tonalRamp": [
+          "oklch(15% 0.00466 258.33)",
+          "oklch(27% 0.00466 258.33)",
+          "oklch(38% 0.00466 258.33)",
+          "oklch(50% 0.00466 258.33)",
+          "oklch(61% 0.00466 258.33)",
+          "oklch(73% 0.00466 258.33)",
+          "oklch(84% 0.00466 258.33)",
+          "oklch(95% 0.00466 258.33)"
+        ]
+      },
+      "navigation-text": {
+        "role": "neutral",
+        "displayName": "Navigation Text",
+        "tonalRamp": [
+          "oklch(15% 0.01741 264.39)",
+          "oklch(27% 0.01741 264.39)",
+          "oklch(38% 0.01741 264.39)",
+          "oklch(50% 0.01741 264.39)",
+          "oklch(61% 0.01741 264.39)",
+          "oklch(73% 0.01741 264.39)",
+          "oklch(84% 0.01741 264.39)",
+          "oklch(95% 0.01741 264.39)"
+        ]
+      },
+      "neutral-hover": {
+        "role": "neutral",
+        "displayName": "Neutral Hover",
+        "tonalRamp": [
+          "oklch(15% 0.00133 106.42)",
+          "oklch(27% 0.00133 106.42)",
+          "oklch(38% 0.00133 106.42)",
+          "oklch(50% 0.00133 106.42)",
+          "oklch(61% 0.00133 106.42)",
+          "oklch(73% 0.00133 106.42)",
+          "oklch(84% 0.00133 106.42)",
+          "oklch(95% 0.00133 106.42)"
+        ]
+      },
+      "user-surface": {
+        "role": "neutral",
+        "displayName": "User Surface",
+        "tonalRamp": [
+          "oklch(15% 0.00132 106.42)",
+          "oklch(27% 0.00132 106.42)",
+          "oklch(38% 0.00132 106.42)",
+          "oklch(50% 0.00132 106.42)",
+          "oklch(61% 0.00132 106.42)",
+          "oklch(73% 0.00132 106.42)",
+          "oklch(84% 0.00132 106.42)",
+          "oklch(95% 0.00132 106.42)"
+        ]
+      },
+      "success": {
+        "role": "neutral",
+        "displayName": "Success",
+        "tonalRamp": [
+          "oklch(15% 0.09830 158.36)",
+          "oklch(27% 0.09830 158.36)",
+          "oklch(38% 0.09830 158.36)",
+          "oklch(50% 0.09830 158.36)",
+          "oklch(61% 0.09830 158.36)",
+          "oklch(73% 0.09830 158.36)",
+          "oklch(84% 0.09830 158.36)",
+          "oklch(95% 0.09830 158.36)"
+        ],
+        "purpose": "Semantic status; preserve visible status text."
+      },
+      "error": {
+        "role": "neutral",
+        "displayName": "Error",
+        "tonalRamp": [
+          "oklch(15% 0.17949 22.53)",
+          "oklch(27% 0.17949 22.53)",
+          "oklch(38% 0.17949 22.53)",
+          "oklch(50% 0.17949 22.53)",
+          "oklch(61% 0.17949 22.53)",
+          "oklch(73% 0.17949 22.53)",
+          "oklch(84% 0.17949 22.53)",
+          "oklch(95% 0.17949 22.53)"
+        ],
+        "purpose": "Semantic status; preserve visible status text."
+      },
+      "warning": {
+        "role": "neutral",
+        "displayName": "Warning",
+        "tonalRamp": [
+          "oklch(15% 0.10061 79.34)",
+          "oklch(27% 0.10061 79.34)",
+          "oklch(38% 0.10061 79.34)",
+          "oklch(50% 0.10061 79.34)",
+          "oklch(61% 0.10061 79.34)",
+          "oklch(73% 0.10061 79.34)",
+          "oklch(84% 0.10061 79.34)",
+          "oklch(95% 0.10061 79.34)"
+        ],
+        "purpose": "Semantic status; preserve visible status text."
+      },
+      "finance-surface": {
+        "role": "neutral",
+        "displayName": "Finance Surface",
+        "tonalRamp": [
+          "oklch(15% 0.00686 247.90)",
+          "oklch(27% 0.00686 247.90)",
+          "oklch(38% 0.00686 247.90)",
+          "oklch(50% 0.00686 247.90)",
+          "oklch(61% 0.00686 247.90)",
+          "oklch(73% 0.00686 247.90)",
+          "oklch(84% 0.00686 247.90)",
+          "oklch(95% 0.00686 247.90)"
+        ],
+        "purpose": "Finance compatibility layer only; do not extend into customer navigation."
+      },
+      "finance-accent-text": {
+        "role": "primary",
+        "displayName": "Finance Accent Text",
+        "purpose": "Darker orange for existing Finance accent text on its retained selected surfaces; scoped to Finance.",
+        "tonalRamp": [
+          "oklch(15% 0.14912 42.23)",
+          "oklch(27% 0.14912 42.23)",
+          "oklch(38% 0.14912 42.23)",
+          "oklch(50% 0.14912 42.23)",
+          "oklch(61% 0.14912 42.23)",
+          "oklch(73% 0.14912 42.23)",
+          "oklch(84% 0.14912 42.23)",
+          "oklch(95% 0.14912 42.23)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Page headline",
+        "purpose": "Customer page titles."
+      },
+      "title": {
+        "displayName": "Section title",
+        "purpose": "Ordinary customer sections."
+      },
+      "section": {
+        "displayName": "Small section",
+        "purpose": "Smaller customer section headings."
+      },
+      "body": {
+        "displayName": "Customer body",
+        "purpose": "Ordinary customer content."
+      },
+      "response": {
+        "displayName": "Document response",
+        "purpose": "Assistant Markdown responses."
+      },
+      "navigation": {
+        "displayName": "Navigation",
+        "purpose": "Compact product rail labels."
+      },
+      "finance-body": {
+        "displayName": "Preserved Finance body",
+        "purpose": "Original Finance family and density; compatibility scope only."
+      }
+    },
+    "shadows": [
+      {
+        "name": "floating",
+        "value": "0 12px 32px #20232912",
+        "purpose": "Customer menus and dialogs."
+      },
+      {
+        "name": "composer",
+        "value": "0 4px 14px #20232908",
+        "purpose": "Customer chat input enclosure."
+      }
+    ],
+    "motion": [
+      {
+        "name": "color-feedback",
+        "value": ".15s ease",
+        "purpose": "Background, foreground and border state changes."
+      },
+      {
+        "name": "rail-slide",
+        "value": ".18s ease",
+        "purpose": "Mobile off-canvas rail; disabled for reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-desktop",
+        "value": "1100px"
+      },
+      {
+        "name": "mobile-rail",
+        "value": "760px"
+      },
+      {
+        "name": "narrow-mobile",
+        "value": "360px"
+      }
+    ],
+    "tonalRampProvenance": "Synthesized OKLCH previews from the implemented swatches; ramps are descriptive panel metadata, not implemented CSS tokens."
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main customer action, using Kilas orange and a dark foreground.",
+      "html": "<button class=\"ds-primary\" type=\"button\">Buka Kilas AI</button>",
+      "css": ".ds-primary{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:700;border:1px solid transparent;text-decoration:none;font-family:Manrope,system-ui,sans-serif;transition:background-color .15s ease,color .15s ease,border-color .15s ease;background:var(--premium-accent-fill,#e96817);color:#22150c}.ds-primary:hover{background:#f27a2a;color:#22150c}.ds-primary:focus-visible{outline:2px solid var(--accent,#bd4700);outline-offset:3px;}.ds-primary:disabled{cursor:not-allowed;opacity:.55}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}}"
+    },
+    {
+      "name": "Secondary action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A supporting action with a visible neutral border.",
+      "html": "<button class=\"ds-secondary\" type=\"button\">Buka Kilas Finance</button>",
+      "css": ".ds-secondary{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:700;border:1px solid transparent;text-decoration:none;font-family:Manrope,system-ui,sans-serif;transition:background-color .15s ease,color .15s ease,border-color .15s ease;background:#fff;color:var(--text,#202329);border-color:#d5d7da}.ds-secondary:hover{background:var(--bg-soft,#f7f7f6)}.ds-secondary:focus-visible{outline:2px solid var(--accent,#bd4700);outline-offset:3px;}.ds-secondary:disabled{cursor:not-allowed;opacity:.55}@media(prefers-reduced-motion:reduce){.ds-secondary{transition:none}}"
+    },
+    {
+      "name": "Named text field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "The existing chat rename field with a visible label and orange focus.",
+      "html": "<label class=\"ds-field-label\" for=\"ds-chat-title\">Nama chat</label><input class=\"ds-field\" id=\"ds-chat-title\" value=\"Ide untuk bisnis\" maxlength=\"60\">",
+      "css": ".ds-field-label{display:block;margin-bottom:8px;font-size:14px;color:var(--text,#202329);font-family:Manrope,system-ui,sans-serif;}.ds-field{width:100%;min-width:0;min-height:44px;padding:8px;border:1px solid #c7c9cd;border-radius:8px;background:#fff;color:var(--text,#202329);font-size:15px;caret-color:var(--accent,#bd4700);font-family:Manrope,system-ui,sans-serif;}.ds-field::placeholder{color:var(--muted,#62666f)}.ds-field:focus-visible{outline:2px solid var(--accent,#bd4700);outline-offset:3px;}"
+    },
+    {
+      "name": "Product navigation",
+      "kind": "nav",
+      "refersTo": "navigation-item",
+      "description": "Current product selection uses orange tint; ordinary rail rows use neutral hover.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Navigasi Kilas Works\"><a href=\"#home\" aria-current=\"page\">Home</a><a href=\"#ai\">Kilas AI</a><a href=\"#connections\">Connections</a></nav>",
+      "css": ".ds-nav{display:grid;gap:3px;background:var(--bg-soft,#f7f7f6)}.ds-nav a{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:10px 12px;border-radius:7px;background:transparent;color:#545963;font:600 14px/1.4 Manrope,system-ui,sans-serif;text-decoration:none;transition:background-color .15s ease,color .15s ease,border-color .15s ease;}.ds-nav a:hover{background:#ececeb;color:var(--text,#202329)}.ds-nav [aria-current=page]{background:var(--premium-selected,#fff0e5);color:var(--accent,#bd4700)}.ds-nav a:focus-visible{outline:2px solid var(--accent,#bd4700);outline-offset:3px;}@media(prefers-reduced-motion:reduce){.ds-nav a{transition:none}}"
+    },
+    {
+      "name": "Content surface",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "White customer content with a thin divider border and no floating shadow.",
+      "html": "<section class=\"ds-card\"><p>Konten pekerjaan kamu.</p></section>",
+      "css": ".ds-card{background:var(--card,#fff);color:var(--text,#202329);border:1px solid var(--line,#e4e5e7);border-radius:var(--premium-radius,12px);box-shadow:none;font:15px/1.6 Manrope,system-ui,sans-serif}"
+    },
+    {
+      "name": "Conversation composer",
+      "kind": "custom",
+      "refersTo": "composer",
+      "description": "Bottom chat composer with document-sized text and the existing send action.",
+      "html": "<div class=\"ds-composer\"><label class=\"ds-composer-label\" for=\"ds-message\">Pesan untuk Kilas</label><textarea id=\"ds-message\" class=\"ds-composer-text\" rows=\"2\" placeholder=\"Tulis pesan untuk Kilas AI…\"></textarea><div class=\"ds-composer-actions\"><button class=\"ds-send\" type=\"button\">Kirim</button></div></div>",
+      "css": ".ds-composer{background:#fff;border:1px solid #c7c9cd;border-radius:14px;padding:13px 14px;box-shadow:0 4px 14px #20232908;color:var(--text,#202329);font-family:Manrope,system-ui,sans-serif;}.ds-composer:focus-within{border-color:var(--accent,#bd4700)}.ds-composer-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}.ds-composer-text{width:100%;min-height:60px;max-height:220px;padding:2px 4px;resize:none;border:0;background:transparent;color:var(--text,#202329);font-size:16px;font-family:Manrope,system-ui,sans-serif;}.ds-composer-text::placeholder{color:var(--muted,#62666f);opacity:1}.ds-composer-text:focus{outline:0}.ds-composer-actions{display:flex;gap:8px 10px;flex-wrap:wrap}.ds-send{margin-left:auto;min-height:44px;padding:9px 16px;border:0;border-radius:8px;background:var(--premium-accent-fill,#e96817);color:#22150c;font-weight:760;font-family:Manrope,system-ui,sans-serif;transition:background-color .15s ease,color .15s ease,border-color .15s ease;}.ds-send:hover{background:#f27a2a}.ds-send:focus-visible{outline:2px solid var(--accent,#bd4700);outline-offset:3px;}.ds-send:disabled{opacity:.55;cursor:wait}@media(prefers-reduced-motion:reduce){.ds-send{transition:none}}"
+    },
+    {
+      "name": "User message",
+      "kind": "custom",
+      "refersTo": "user-message",
+      "description": "Quiet neutral user content beside unboxed document-style assistant replies.",
+      "html": "<article class=\"ds-message\"><div class=\"ds-speaker\">Kamu</div><div class=\"ds-user-text\">Bantu susun ide untuk bisnis saya.</div></article>",
+      "css": ".ds-message{font:15px/1.6 Manrope,system-ui,sans-serif;color:var(--text,#202329)}.ds-speaker{font-size:13px;font-weight:700;margin:0 0 5px;color:var(--muted,#62666f)}.ds-user-text{background:#f5f5f4;color:var(--text,#202329);border-radius:12px;padding:12px 16px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Professional Workbench",
+    "overview": "The customer workspace feels calm, precise and trustworthy. White working surfaces, a neutral navigation rail and charcoal text let actual conversations, files and business tasks lead. Kilas orange carries identity and meaningful actions. The premium character comes from hierarchy, readable measures and consistent controls.\n\nThis records the implemented white workspace in `client-hub/static/kilas_premium.css`, its Finance color compatibility layer and the current customer templates. The owner's 2026-10-03 pinned brief replaces the historical dark customer direction and the audit-only visual restrictions in PRODUCT.md. Existing capabilities and permissions remain product truth. The theme is opt-in through `kilas-light`; Assist and admin keep their existing visual systems. Finance shares the light palette while retaining its original type, navigation, forms and layout, with the existing safe metric-text wrapping retained.",
+    "keyCharacteristics": [
+      "White working surfaces and neutral navigation.",
+      "Manrope typography with a distinct preserved Finance font.",
+      "Deliberate orange identity, actions and selection states.",
+      "Document-style assistant replies and compact persistent files.",
+      "Task-led content with restrained borders and elevation."
+    ],
+    "rules": [
+      {
+        "name": "The Deliberate Orange Rule",
+        "body": "Use orange for identity, meaningful actions, links and selection; keep the main working canvas white.",
+        "section": "colors"
+      },
+      {
+        "name": "The Finance Type Boundary Rule",
+        "body": "Finance keeps the finance-body family and density; Manrope and the customer heading ramp do not replace its established typography.",
+        "section": "typography"
+      },
+      {
+        "name": "The Actual Work Rule",
+        "body": "Build hierarchy around the real task, conversation, connection or account state; do not populate decorative dashboards with synthetic metrics.",
+        "section": "layout"
+      },
+      {
+        "name": "The Content Before Chrome Rule",
+        "body": "Let spacing, borders and tonal surfaces organize ordinary content; reserve the customer floating shadow for menus and dialogs.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use the opt-in customer theme and its recorded tokens for new customer surfaces.",
+      "Do lead with the actual task and readable content.",
+      "Do retain visible focus, meaningful labels and real status text.",
+      "Do preserve Finance's typography, geometry and financial behavior.",
+      "Do preserve persistent file links, chat history and existing permissions."
+    ],
+    "donts": [
+      "Don't return the customer workspace to a dark primary background.",
+      "Don't add synthetic metrics, decorative AI art or unrequested mode controls.",
+      "Don't use the customer theme to restyle Assist or admin globally.",
+      "Don't treat orange as the background for the whole workspace."
+    ]
+  }
+}

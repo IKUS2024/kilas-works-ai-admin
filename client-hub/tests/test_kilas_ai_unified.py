@@ -148,7 +148,7 @@ class UnifiedTests(unittest.TestCase):
         self.assertEqual(self.client().get('/kilas-ai/threads/'+str(thread)).status_code,200)
         html=self.client().get('/kilas-ai/agent').text
         for hidden in ('ai-mode-tabs','id="ai-search"','+ Work baru','Pengaturan Work'):self.assertNotIn(hidden,html)
-        self.assertIn('+ Chat baru',html)
+        self.assertIn('Chat baru',html)
 
     test_waiting_same_job=base.WorkV2Tests.test_started_clarification_waits_without_artifact_and_reply_resumes_same_job
     test_anchored_result=base.WorkV2Tests.test_completed_result_stays_in_original_chat_turn_after_open_and_new_message

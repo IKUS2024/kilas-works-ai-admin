@@ -68,8 +68,8 @@ def main():
                     page.keyboard.press('Escape')
                     expect(page.locator('#agent-sidebar')).to_be_hidden()
                     page.get_by_role('button',name='Buka riwayat').tap()
-                page.get_by_role('button',name='+ Chat baru',exact=True).click()
-                expect(page.get_by_role('heading',name='Apa yang ingin kamu lakukan?',exact=True)).to_be_visible()
+                page.get_by_role('button',name='Chat baru',exact=True).click()
+                expect(page.get_by_role('heading',name='Apa yang ingin kamu kerjakan?',exact=True)).to_be_visible()
                 assert page.locator('.agent-message').count()==0
                 assert jobs.get(owner,job['id'])['status']=='PLANNING'
                 if width<=760:page.get_by_role('button',name='Buka riwayat').tap()

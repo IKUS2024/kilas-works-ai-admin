@@ -1,7 +1,7 @@
 <!doctype html>
-<html lang="id"><head>{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='work-v2') }}"></head>
-<body class="agent-body">{% include 'kilas_ai/_agent_nav.html' %}
-<main class="autonomous-detail agent-main">
+<html lang="id"><head>{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='work-v2') }}">{% include '_premium_styles.html' %}</head>
+<body class="premium-workspace kilas-light agent-body">{% include '_premium_workspace.html' %}{% include 'kilas_ai/_agent_nav.html' %}
+<main id="kw-main" class="autonomous-detail agent-main">
   <a class="autonomous-back" href="{{ url_for('kilas_ai.agent_home',view='tasks') }}">← Tugas aktif</a>
   {% if job.origin_conversation_id %}<a class="autonomous-back" href="{{ url_for('kilas_ai.agent_home',conversation=job.origin_conversation_id) }}">Buka percakapan</a>{% endif %}
   <div data-work-detail-updates data-live="{{ 'true' if job.live else 'false' }}">

@@ -1,7 +1,7 @@
-<!doctype html><html lang="id"><head>{% include 'kilas_ai/_automation_head.html' %}</head><body>
+<!doctype html><html lang="id"><head>{% include 'kilas_ai/_automation_head.html' %}{% include '_premium_styles.html' %}</head><body class="premium-workspace kilas-light ">{% include '_premium_workspace.html' %}
 {% include 'kilas_ai/_automation_nav.html' %}
-<main class="auto-page">
-  <div class="auto-heading"><div><h1>Work</h1><p>Jadwalkan pengingat, riset, dan pemantauan. Hasilnya tersimpan di Kilas AI.</p></div><a class="auto-primary" href="{{ url_for('kilas_ai.automation_new') }}">+ Beri tugas</a></div>
+<main id="kw-main" class="auto-page">
+  <div class="auto-heading"><div><h1>Pengingat &amp; jadwal</h1><p>Jadwalkan pengingat, riset, dan pemantauan. Hasilnya tersimpan di Kilas AI.</p></div><a class="auto-primary" href="{{ url_for('kilas_ai.automation_new') }}">+ Beri tugas</a></div>
   {% if error %}<p class="auto-error" role="alert">{{ 'Pilih zona waktu yang valid.' if error == 'timezone' else error }}</p>{% endif %}
   <form class="auto-timezone" method="post" action="{{ url_for('kilas_ai.automation_timezone') }}" id="auto-timezone-form" {% if detect_timezone %}data-detect="1"{% endif %}>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -90,7 +90,7 @@ class WorkV2Tests(unittest.TestCase):
         self.assertNotIn('Pekerjaan aktif',html)
         self.assertNotIn('view=notifications',html)
         self.assertIn(f'data-job-id="{active}"',html)
-        self.assertNotIn('Connections',html)
+        self.assertIn('Connections',html)
         self.assertNotIn('Advanced settings',html)
         self.assertNotIn('autonomous_mode',html)
         self.assertIn('Kondisi terpantau terpenuhi.',self.client().get('/kilas-ai/agent?view=notifications').text)
