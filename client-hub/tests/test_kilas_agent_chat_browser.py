@@ -58,7 +58,7 @@ def main():
                 expect(page.locator('[data-job-id]')).to_be_visible()
                 job=jobs.list_jobs(owner)[0]
                 assert job['origin_conversation_id'] is not None
-                assert 'Menyiapkan rencana' in page.locator('[data-job-id]').inner_text()
+                expect(page.locator('[data-job-id]')).to_contain_text('Menyiapkan rencana')
                 expect(page.get_by_role('button',name='Kirim',exact=True)).to_be_enabled()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),(width,'task')
                 page.screenshot(path=str(Path(tempfile.gettempdir())/f'agent-chat-{width}.png'),full_page=True)

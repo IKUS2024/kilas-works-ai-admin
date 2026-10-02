@@ -80,3 +80,8 @@ occasionally read composer focus after the first response text, before SSE DONE
 local journeys. The focused browser now waits for the real input re-enabled state
 before asserting desktop/mobile focus. No delay and no application JS change.
 All original focus expectations are preserved. Rerun final main CI after this fix.
+
+The final comprehensive browser run exposed the existing planning-card hydration
+race (37052400229): a generic accepted card was visible before its PLANNING label
+arrived. The same original `Menyiapkan rencana` assertion now uses Playwright's
+retrying text assertion. No backend, polling, timing delay or status change.
