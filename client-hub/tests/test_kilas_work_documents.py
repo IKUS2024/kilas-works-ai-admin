@@ -114,7 +114,7 @@ class WorkTests(unittest.TestCase):
         self.assertIn('Baris 69',''.join(p.extract_text() for p in reader.pages))
         self.assertIn(str(len(reader.pages)),reader.pages[-1].extract_text())
 
-    def test_normal_question_no_document_and_unsupported_office_honest(self):
+    def test_normal_question_no_document_and_office_document_plan(self):
         self.assertIsNone(docs.intent('Apa itu proposal kerja sama?'))
         self.assertIsNone(docs.intent('halo'))
         self.assertEqual(docs.intent('Buat proposal'),'pdf')
@@ -124,7 +124,8 @@ class WorkTests(unittest.TestCase):
         for format in ('xlsx','docx','pptx'):
             job=fixture.store.create(self.owner,'Buat dokumen '+format)
             plan=fixture.planner.propose(fixture.store.get(self.owner,job),[])
-            self.assertEqual(plan['steps'][0]['worker'],'UNAVAILABLE')
+            self.assertEqual(plan['steps'][0]['worker'],'DOCUMENT')
+            self.assertEqual(plan['steps'][0]['input']['format'],format)
 
     def test_artifact_card_result_first_and_customer_rename(self):
         job,file=self.complete()

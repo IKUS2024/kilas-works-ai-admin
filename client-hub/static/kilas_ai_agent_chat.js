@@ -6,11 +6,29 @@
   window.KilasMarkdown.hydrate();
   const form = document.querySelector('#agent-chat-form');
   if (!form) {
+    if (document.querySelector('[data-work-detail-updates]')) {
+      let updating=false;
+      const updateDetail=async (force=false) => {
+        if(document.hidden || updating || (!force && !document.querySelector('[data-work-detail-updates][data-live="true"]'))) return;
+        updating=true;
+        try {
+          const response=await fetch(location.href,{cache:'no-store'});
+          if(!response.ok) return;
+          const doc=new DOMParser().parseFromString(await response.text(),'text/html');
+          const current=doc.querySelector('[data-work-detail-updates]');
+          if(current) {document.querySelector('[data-work-detail-updates]').replaceWith(current);window.KilasMarkdown.hydrate(current);}
+        } catch (_) { /* Retain persisted progress and untouched feedback input. */ }
+        finally {updating=false;}
+      };
+      setInterval(updateDetail,3000);
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden) updateDetail(true);});
+      window.addEventListener('focus',()=>updateDetail(true));
+    }
     // The account-wide view uses the same bounded, read-only task cards.
     const tasks = document.querySelector('[data-task-cards]');
     if (tasks) {
-      const update = async () => {
-        if (document.hidden) return;
+      const update = async (force=false) => {
+        if (document.hidden || (!force && !document.querySelector('[data-live="true"]'))) return;
         try {
           const response = await fetch('/kilas-ai/agent?view=tasks', {cache:'no-store'});
           if (!response.ok) return;
@@ -19,9 +37,9 @@
           if (current) document.querySelector('[data-task-cards]')?.replaceWith(current);
         } catch (_) { /* Retain the last verified state. */ }
       };
-      setInterval(update, 10000);
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) update(); });
-      window.addEventListener('focus', update);
+      setInterval(update, 3000);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) update(true); });
+      window.addEventListener('focus', () => update(true));
     }
     return;
   }
@@ -55,6 +73,10 @@
     if (chats) document.querySelector('.agent-chats')?.replaceChildren(...chats.childNodes);
     const heading = doc.querySelector('.agent-section-head h2');
     if (heading) document.querySelector('.agent-section-head h2').textContent = heading.textContent;
+    const permission=doc.querySelector('.work-context-permission');
+    const currentPermission=form.querySelector('.work-context-permission');
+    if(permission) { if(currentPermission) currentPermission.replaceWith(permission);else form.prepend(permission); }
+    else currentPermission?.remove();
     chat.scrollTop = chat.scrollHeight;
   }
   input.addEventListener('keydown', event => {
@@ -105,6 +127,8 @@
         if (!complete) throw new Error('interrupted');
       }
       await refresh(); input.value = '';
+      form.dispatchEvent(new Event('work:accepted'));
+      startDue();
       const sources=form.querySelector('#work-source-files'); if(sources) sources.value='';
       form.elements.operation_key.value = crypto.randomUUID();
     } catch (failure) {
@@ -120,8 +144,11 @@
     }
   });
   // Read-only refresh of task cards; no new planner/model request and no hidden-tab polling.
-  async function refreshTasks() {
-    if (document.hidden || busy || !chat.querySelector('[data-job-id]')) return;
+  let polling=false;
+  async function refreshTasks(force=false) {
+    if (document.hidden || busy || (!force && !chat.querySelector('[data-live="true"]'))) return;
+    if (polling) return;
+    polling=true;
     const position = chat.scrollTop;
     try {
       const response = await fetch(`/kilas-ai/agent?conversation=${encodeURIComponent(form.elements.conversation_id.value)}`, {cache:'no-store'});
@@ -129,10 +156,35 @@
       const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
       const cards = doc.querySelector('[data-task-cards]');
       if (cards) chat.querySelector('[data-task-cards]')?.replaceWith(cards);
+      const active=doc.querySelector('[data-active-count]');
+      if(active) document.querySelector('[data-active-count]').textContent=active.textContent;
+      // Reminder/clarification messages arrive through the same durable conversation.
+      const incoming=doc.querySelector('#agent-conversation');
+      if(incoming && incoming.querySelectorAll('.agent-message').length!==chat.querySelectorAll('.agent-message').length) {chat.replaceChildren(...incoming.childNodes);window.KilasMarkdown.hydrate(chat);}
       chat.scrollTop = position;
     } catch (_) { /* Existing progress stays visible until the next read. */ }
+    finally {polling=false;}
   }
-  setInterval(refreshTasks, 10000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshTasks(); });
-  window.addEventListener('focus', refreshTasks);
+  let starting=false;
+  async function startDue() {
+    if(starting || document.hidden) return;
+    const job=chat.querySelector('[data-due="true"]');
+    if(!job) return;
+    starting=true;
+    try {
+      // Bounded, persisted owner-scoped execution; cron remains the recovery path.
+      for(let pass=0;pass<3;pass++) {
+        const response=await fetch(`/kilas-ai/work/jobs/${job.dataset.jobId}/start`,{method:'POST',headers:{'X-CSRF-Token':form.elements.csrf_token.value,'Content-Type':'application/json'},body:'{}'});
+        if(!response.ok) break;
+        const result=await response.json();if(!result.started) break;
+        await refreshTasks();
+        if(!chat.querySelector(`[data-job-id="${job.dataset.jobId}"][data-due="true"]`)) break;
+      }
+    } catch (_) { /* Persisted jobs continue through the existing cron. */ }
+    finally {starting=false;}
+  }
+  startDue();
+  setInterval(refreshTasks, 3000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshTasks(true); });
+  window.addEventListener('focus', () => refreshTasks(true));
 })();

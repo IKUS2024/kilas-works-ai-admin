@@ -41,7 +41,7 @@ def main():
                 page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto(origin+'/kilas-ai/agent',wait_until='networkidle')
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),(width,'empty')
-                assert not page.locator('.autonomous-options').evaluate('(el)=>el.open')
+                assert page.locator('.autonomous-options').count()==0
                 assert not page.locator('.agent-main').inner_text().find('UTC')>=0
                 composer=page.get_by_label('Pesan untuk Kilas')
                 composer.fill('Apa itu Bitcoin?');composer.press('Enter')
@@ -68,7 +68,7 @@ def main():
                     page.keyboard.press('Escape')
                     expect(page.locator('#agent-sidebar')).to_be_hidden()
                     page.get_by_role('button',name='Buka riwayat').tap()
-                page.get_by_role('button',name='+ New Chat',exact=True).click()
+                page.get_by_role('button',name='+ Work baru',exact=True).click()
                 expect(page.get_by_role('heading',name='Apa yang ingin kamu kerjakan?',exact=True)).to_be_visible()
                 assert page.locator('.agent-message').count()==0
                 assert jobs.get(owner,job['id'])['status']=='PLANNING'
@@ -76,7 +76,7 @@ def main():
                 page.get_by_role('link',name='Pekerjaan aktif',exact=True).click()
                 expect(page.locator('[data-job-id]')).to_be_visible()
                 page.get_by_role('button',name='Jeda',exact=True).click()
-                expect(page.get_by_text('Dijeda',exact=True)).to_be_visible()
+                expect(page.get_by_text('Dijeda',exact=True).first).to_be_visible()
                 page.get_by_role('button',name='Lanjutkan',exact=True).click()
                 assert jobs.get(owner,job['id'])['status']=='PLANNING'
                 page.get_by_role('link',name='Buka percakapan',exact=True).click()

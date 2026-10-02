@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import secrets
 import time
 from datetime import timedelta
 import db
@@ -15,6 +16,9 @@ def enabled():
 
 
 def finish(job, token, step, result):
+    from .work_schedule import clarification
+    if result.status=='SUCCEEDED' and clarification(result.output.get('text','')):
+        result=agent_workers.Result('WAITING',result.output['text'],{'reason':'waiting_input','question':result.output['text'][:500]})
     if result.status not in ('SUCCEEDED', 'FAILED', 'WAITING', 'WAITING_CAPABILITY', 'NEEDS_APPROVAL'):
         raise ValueError('invalid_worker_result')
     if result.status == 'SUCCEEDED' and not result.verified:
@@ -38,12 +42,21 @@ def finish(job, token, step, result):
                 raise ValueError('artifact_limit')
             usage._query(conn, 'INSERT INTO kilas_agent_artifacts(job_id,step_id,name,media_type,content,digest) VALUES (?,?,?,?,?,?) ON CONFLICT(step_id,name,digest) DO NOTHING',
                          (job['id'], step['id'], artifact['name'][:100], artifact['media_type'], content, store.digest(content)))
+        if state=='SUCCEEDED' and step['worker']=='REMINDER':
+            from .work_runtime import deliver_reminder
+            deliver_reminder(conn,job,step)
         checkpoint = json.loads(job['checkpoint_json'])
+        if result.output.get('reason')=='waiting_input':checkpoint['waiting_question']=result.output.get('question',result.summary)[:500]
         checkpoint_output = result.output if len(output.encode()) < 10000 else {'excerpt': output[:6000], 'full_result': 'Stored in step output/artifacts'}
         checkpoint[str(step['sequence'])] = {'summary': result.summary[:1000], 'output': checkpoint_output, 'verified': result.verified}
         # Keep a bounded recent checkpoint; verified historical outputs remain in steps/artifacts.
-        checkpoint = dict(list(checkpoint.items())[-4:])
-        state_job, delay = 'RUNNING', 60
+        reserved = {k:v for k,v in checkpoint.items() if not k.isdecimal()}
+        checkpoint = {**reserved, **dict([(k,v) for k,v in checkpoint.items() if k.isdecimal()][-4:])}
+        while len(json.dumps(checkpoint,ensure_ascii=False).encode())>42000:
+            numeric=next((k for k in checkpoint if k.isdecimal()),None)
+            if numeric is None:break
+            checkpoint.pop(numeric)  # Full verified history stays in steps/artifacts.
+        state_job, delay = 'RUNNING', 0 if state=='SUCCEEDED' else 60
         if state == 'NEEDS_APPROVAL':
             state_job = 'NEEDS_APPROVAL'
             store.approval(conn, job['id'], step, {'worker': step['worker'], 'action': step['action'], 'input': json.loads(step['input_json'])})
@@ -68,21 +81,31 @@ def finish(job, token, step, result):
                 # Append the next cycle; completed history never changes. Overall max_steps remains a hard cap.
                 state_job, delay = 'PLANNING', job['interval_seconds']
                 usage._query(conn, 'UPDATE kilas_agent_jobs SET cycle=cycle+1 WHERE id=?', (job['id'],))
+                if step['worker']=='REMINDER' and checkpoint.get('reminder'):
+                    # A reminder reuses one bounded registered step. Each cycle keeps its
+                    # own durable event/message key; general worker step caps stay intact.
+                    state_job='RUNNING'
+                    usage._query(conn, "UPDATE kilas_agent_steps SET status='PENDING',attempts=0,idempotency_key=?,completed_at=NULL WHERE id=?", (secrets.token_hex(24),step['id']))
             else:
                 state_job = 'COMPLETED'
-        wake = None if state_job in store.TERMINAL + ('NEEDS_APPROVAL',) else store.stamp(store.now() + timedelta(seconds=delay))
+        wake = None if state_job in store.TERMINAL + ('NEEDS_APPROVAL',) or result.output.get('reason')=='waiting_input' else store.stamp(store.now() + timedelta(seconds=delay))
         calendar = json.loads(job.get('schedule_json') or '{}')
-        if state_job == 'PLANNING' and job['mode'] == 'RECURRING' and state == 'SUCCEEDED' and not remaining and calendar:
+        if state_job in ('PLANNING','RUNNING') and job['mode'] == 'RECURRING' and state == 'SUCCEEDED' and not remaining and calendar:
             from .automation_schedule import next_occurrence
             wake = store.stamp(next_occurrence(calendar['schedule'], calendar['timezone'], store.now()))
         usage._query(conn, 'UPDATE kilas_agent_jobs SET status=?,checkpoint_json=?,next_wake_at=?,failures=?,last_error=?,updated_at=?,completed_at=? WHERE id=?',
                      (state_job, store.encode(checkpoint), wake, failures, result.output.get('reason') if state != 'SUCCEEDED' else None, store.stamp(), store.stamp() if state_job == 'COMPLETED' else None, job['id']))
         # Waiting checks are quiet; capability block is recorded only once per step/reason.
-        if state != 'WAITING' or result.status == 'WAITING_CAPABILITY':
+        if step['worker']!='REMINDER' and (state != 'WAITING' or result.status == 'WAITING_CAPABILITY'):
             key = f"step-{step['id']}-{state}" + ('-' + str(result.output.get('reason')) if state == 'WAITING' else '')
             notifications.publish(conn, job['id'], result.status, result.summary, key)
+        if state=='SUCCEEDED' and step['worker'] in ('WATCH','MARKET') and (result.output.get('matched') is True or result.output.get('signal') is True):
+            store.event(conn,job['id'],'CONDITION_MET','Kondisi terpantau terpenuhi.',f"condition-{step['id']}")
         if state_job == 'COMPLETED':
-            store.event(conn, job['id'], 'COMPLETED', 'Pekerjaan selesai. Hasil terverifikasi tersedia.', f"job-{job['id']}-completed")
+            store.event(conn, job['id'], 'COMPLETED', 'Pekerjaan selesai. Hasil terverifikasi tersedia.', f"job-{job['id']}-completed",unread=step['worker']!='REMINDER')
+        if result.output.get('reason')=='waiting_input':
+            from .work_runtime import persist_question
+            persist_question(conn,job,step,checkpoint['waiting_question'])
     return True
 
 
@@ -123,6 +146,9 @@ def execute(job_id, token):
             approved = db.query_one("SELECT id FROM kilas_agent_approvals WHERE step_id=? AND digest=? AND status='APPROVED' AND expires_at>?", (step['id'], store.digest({'worker': step['worker'], 'action': step['action'], 'input': json.loads(step['input_json'])}), store.stamp()))
             result = agent_workers.execute(job, step) if approved else agent_workers.Result('NEEDS_APPROVAL', 'Tindakan eksternal memerlukan persetujuan untuk isi yang tepat.')
         else:
+            from .work_runtime import progress, LABELS
+            kind='WRITING' if step['worker'] in ('DOCUMENT','AI_TEXT') else 'SEARCHING' if step['worker']=='WEB' else 'WORKING'
+            progress(job,kind,LABELS[kind])
             result = agent_workers.execute(job, step)
         finish(job, token, step, result)
     except Exception as error:
@@ -151,7 +177,9 @@ def execute(job_id, token):
 def run_once(limit=2, max_seconds=100):
     if not enabled():
         return {'claimed': 0, 'disabled': True}
+    from .work_push import deliver
     start, count = time.monotonic(), 0
+    deliver(limit=2)
     from .agent_workers.code_worker import cleanup
     for row in db.query_all("SELECT id FROM kilas_agent_jobs WHERE status IN ('COMPLETED','FAILED','STOPPED') AND (lease_until IS NULL OR lease_until<=?) ORDER BY id DESC LIMIT 20", (store.stamp(),)):
         cleanup(row)

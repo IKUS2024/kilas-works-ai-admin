@@ -38,6 +38,14 @@ def chat(user_id, text):
     from . import work_documents,work_artifacts
     previous=work_artifacts.latest_document(user_id,conversation_id)
     document_format=work_documents.intent(text,bool(previous))
+    from . import routing
+    image_inputs=[item for item in getattr(request,'work_attachments',[]) if item['mime_type'].startswith('image/')]
+    image_previous=next((item for item in work_artifacts.listing(user_id,conversation_id=conversation_id) if item['media_type'].startswith('image/')),None)
+    editing_image=routing.tool_for(text)== 'IMAGE_EDIT' or (image_inputs and routing.may_edit_image(text))
+    if editing_image:document_format=None
+    if editing_image and not image_inputs and not image_previous:
+        agent_store.append(user_id,'assistant','Tambahkan gambar yang ingin diubah.')
+        return True
     explicit = re.search(r'\b(?:pekerjaan|task|tugas)\s*#?(\d+)\b', text, re.I)
     controls = agent_intents.CONTROL.fullmatch(text.strip())
     feedback = agent_intents.FEEDBACK.search(text)
@@ -65,7 +73,7 @@ def chat(user_id, text):
     if pending and pending.get('conversation_id') == conversation_id and re.fullmatch(r'(?i)(?:jam |pukul |di bawah |di atas |target |\d).{0,100}', text):
         text = pending['text'] + ' ' + text
     spec = agent_intents.infer(text)
-    if (document_format or work_documents.image_request(text)) and not spec:
+    if (document_format or work_documents.image_request(text) or editing_image) and not spec:
         spec={'mode':'ONE_SHOT','wake_at':None,'interval':3600,'schedule':{},'clarify':None}
     selected_mode = request.form.get('autonomous_mode', '')
     if selected_mode:
@@ -91,16 +99,14 @@ def chat(user_id, text):
         return True
     session.pop('agent_work_clarification', None)
     try:
-        job_id = store.create(user_id, agent_intents.research_instruction(text), mode=spec['mode'], constraints=[text],
-                              wake_at=spec['wake_at'], interval=spec['interval'],
-                              conversation_id=conversation_id, schedule=spec['schedule'])
-        if document_format and previous and work_documents.REVISE.search(text):
-            db.execute('UPDATE kilas_agent_jobs SET checkpoint_json=? WHERE id=? AND user_id=?',(store.encode({'document_source_id':previous['id']}),job_id,user_id))
-        source_materials=getattr(request,'work_source_materials',None)
-        if source_materials:
-            checkpoint=json.loads(store.get(user_id,job_id)['checkpoint_json'])
-            checkpoint['source_materials']=source_materials
-            db.execute('UPDATE kilas_agent_jobs SET checkpoint_json=? WHERE id=? AND user_id=?',(store.encode(checkpoint),job_id,user_id))
+        checkpoint={}
+        if document_format and previous and work_documents.REVISE.search(text):checkpoint['document_source_id']=previous['id']
+        if editing_image and not image_inputs:checkpoint['image_source_id']=image_previous['id']
+        sources=getattr(request,'work_source_materials',None)
+        if sources:checkpoint['source_materials']=sources
+        job_id=store.create(user_id,agent_intents.research_instruction(text),mode=spec['mode'],constraints=[text],
+            wake_at=spec['wake_at'],interval=spec['interval'],conversation_id=conversation_id,schedule=spec['schedule'],
+            checkpoint=checkpoint,image_input=image_inputs[0] if editing_image and image_inputs else None)
         if market_request(text) and market_worker.provider is None:
             message = 'Pekerjaan pemantauan tersimpan. Data market real-time belum tersedia; Kilas belum memantau harga atau menghasilkan sinyal.'
         elif spec['wake_at']:
@@ -118,16 +124,21 @@ def chat(user_id, text):
 
 @ai_bp.get('/agent/jobs/<int:job_id>', endpoint='autonomous_detail')
 def detail(job_id):
-    job = owned(job_id)
+    from .agent_presentation import job_card
+    job = job_card(owned(job_id))
+    # Opening a job/result acknowledges its notifications so a terminal result is
+    # retained in History without being pinned again in the conversation.
+    db.execute('UPDATE kilas_agent_events SET unread=0 WHERE job_id=?', (job_id,))
     from . import agent_results
-    job['title'] = agent_results.task_title(job['instruction'])
     session['autonomous_job_id'] = job_id
     events = db.query_all('SELECT * FROM kilas_agent_events WHERE job_id=? ORDER BY id DESC LIMIT 100', (job_id,))
     from .agent_presentation import time_label as label
     calendar = json.loads(job.get('schedule_json') or '{}')
+    from .work_runtime import LABELS
     events = [{**dict(e), 'time_label': label(e['created_at'], calendar.get('timezone', 'Asia/Jakarta')),
-               'summary': 'Data market real-time belum tersedia.' if e['summary']=='Market data provider is not configured.' else e['summary']} for e in events]
-    artifacts = db.query_all("SELECT a.id,a.name,a.media_type,f.byte_size FROM kilas_agent_artifacts a LEFT JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE a.job_id=? AND a.name!='_workspace.json' ORDER BY a.id DESC LIMIT 50", (job_id,))
+               'summary': e['summary'] if e['kind']=='REMINDER' else LABELS.get(e['kind'],'Pekerjaan diperbarui')} for e in events]
+    artifacts = db.query_all("SELECT a.id,a.name,a.media_type,a.content,f.byte_size FROM kilas_agent_artifacts a LEFT JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE a.job_id=? AND a.name!='_workspace.json' ORDER BY a.id DESC LIMIT 50", (job_id,))
+    artifacts=[a for a in artifacts if not a['byte_size'] or not json.loads(a['content']).get('input')]
     approvals = [dict(r) for r in db.query_all("SELECT * FROM kilas_agent_approvals WHERE job_id=? AND status='PENDING' AND expires_at>?", (job_id, store.stamp()))]
     for item in approvals:
         item['payload'] = json.loads(item['payload_json'])
@@ -144,7 +155,7 @@ def detail(job_id):
         step['display_label'] = agent_results.step_label(step)
         step['reason_label'] = {'provider_not_configured': 'Data market real-time belum tersedia.', 'adapter_not_configured': 'Kemampuan eksternal belum tersedia.', 'sandbox_not_configured': 'Sandbox pengujian belum tersedia.', 'repository_not_configured': 'Repository belum dikonfigurasi.', 'unsupported_format': 'Format file belum didukung.'}.get(output.get('reason'), '')
         step['signal'] = output.get('signal')
-    return render_template('kilas_ai/autonomous_detail.html', job=job, steps=job_steps, result=result,
+    return render_template('kilas_ai/autonomous_detail.html', job=job, waiting_question=job.get('waiting_question',''), steps=job_steps, result=result,
                            events=list(reversed(events)), artifacts=artifacts, approvals=approvals,
                            constraints=json.loads(job['constraints_json']),files=files)
 
@@ -180,6 +191,7 @@ def approve(job_id, approval_id):
 @ai_bp.get('/agent/jobs/<int:job_id>/artifacts/<int:artifact_id>', endpoint='autonomous_artifact')
 def artifact(job_id, artifact_id):
     owned(job_id)
+    db.execute('UPDATE kilas_agent_events SET unread=0 WHERE job_id=?', (job_id,))
     row = db.query_one('SELECT a.name,a.media_type,a.content,f.content AS binary_content FROM kilas_agent_artifacts a LEFT JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE a.id=? AND a.job_id=?', (artifact_id, job_id))
     if not row:
         abort(404)

@@ -58,8 +58,8 @@ class ConnectorTests(unittest.TestCase):
                 os.environ.pop(key, None)
             client = self.client_for(self.owner)
             page = client.get("/kilas-ai/agent?view=connections")
-            self.assertEqual(page.status_code, 200)
-            self.assertIn("Koneksi Google belum tersedia", page.text)
+            self.assertEqual(page.status_code, 303)
+            self.assertFalse(google_connection.configuration()["ready"])
             response = client.post("/kilas-ai/agent/connections/google/gmail",
                                    data={"csrf_token": "connector-csrf"})
             self.assertEqual(response.status_code, 303)
@@ -198,8 +198,8 @@ class ConnectorTests(unittest.TestCase):
             with self.assertRaisesRegex(connectors.ConnectorError, 'google_tool_disabled'):
                 connectors.authorize(self.owner, tool)
         page = self.client_for(self.owner).get('/kilas-ai/agent?view=connections')
-        self.assertEqual(page.status_code, 200)
-        self.assertIn('<strong>Google</strong>', page.text)
+        self.assertEqual(page.status_code, 303)
+        self.assertEqual(connectors.google_connection(self.owner)['status'],'CONNECTED')
         self.assertNotIn('Google Calendar</strong>', page.text)
         self.assertNotIn('Google Drive</strong>', page.text)
         self.assertNotIn('Google Contacts</strong>', page.text)
@@ -299,8 +299,8 @@ class ConnectorTests(unittest.TestCase):
             {"to": "daniel@example.test", "subject": "Rapat", "body": "Senin jam 10 bisa."})
         client = self.client_for(self.owner)
         approvals_page = client.get("/kilas-ai/agent")
-        self.assertIn("wilson@example.test", approvals_page.text)
-        self.assertIn("daniel@example.test", approvals_page.text)
+        self.assertNotIn("wilson@example.test", approvals_page.text)
+        self.assertNotIn("daniel@example.test", approvals_page.text)
         self.assertEqual(connectors.approval(self.owner, another_id)["status"], "PENDING")
         response = client.post(f"/kilas-ai/agent/approval/{approval_id}/edit",
                                data={"csrf_token": "connector-csrf"})
@@ -483,13 +483,13 @@ class ConnectorTests(unittest.TestCase):
             provider.assert_not_called()
         client = self.client_for(self.owner)
         with patch.object(connectors, "available_tools", return_value=["gmail.search"]), \
-             patch.object(connector_flow, "handle", side_effect=usage.UsageLimit(notice)):
+             patch.object(connector_flow, "handle", side_effect=usage.UsageLimit(notice)) as flow:
             response = client.post("/kilas-ai/agent/chat", data={
                 "csrf_token": "connector-csrf", "message": "Find Google Verification Test in Gmail"})
         self.assertEqual(response.status_code, 303)
         page = client.get(response.location)
-        self.assertIn(notice, page.text)
-        self.assertNotIn("Periksa tujuan dan izin", page.text)
+        self.assertIn("Work tidak mengakses koneksi akun", page.text)
+        flow.assert_not_called()
 
     def test_production_english_schedule_keeps_google_runner_and_explicit_zone(self):
         instruction = ('Every morning at 8 AM Asia/Jakarta, check only my emails with subject '
@@ -502,7 +502,7 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(response.status_code, 303)
         with client.session_transaction() as state:
             self.assertNotIn("automation_preview", state)
-        self.assertIn("belum tersedia", client.get(response.location).text)
+        self.assertIn("Work tidak mengakses koneksi akun", client.get(response.location).text)
 
     def test_calendar_planner_iso_strings_still_require_safe_offsets(self):
         tools = connector_actions.google_tools

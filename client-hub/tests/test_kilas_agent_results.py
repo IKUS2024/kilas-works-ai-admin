@@ -85,7 +85,9 @@ class ResultTests(unittest.TestCase):
     def test_ordinary_has_agent_style_normal_provider_defaults_unchanged(self):
         with patch.object(providers,'stream',return_value=iter([{'type':'delta','text':'Useful'}])) as stream:
             self.send('Apa itu viral marketing?')
-        self.assertEqual(stream.call_args.args[2],style.CHAT)
+            self.assertTrue(stream.call_args.args[2].startswith(style.CHAT))
+            self.assertIn('cannot access connected Google accounts',stream.call_args.args[2])
+            self.assertIn('Capability questions are conversational',stream.call_args.args[2])
         self.assertNotEqual(providers.SYSTEM,style.CHAT)
 
     def test_research_planner_preserves_safety_instructions(self):
@@ -103,11 +105,11 @@ class ResultTests(unittest.TestCase):
     def test_completed_card_is_compact_failed_card_has_failure_class(self):
         job_id=fixture.jobs.create(self.owner,'Riset kompetitor')
         fixture.db.execute("UPDATE kilas_agent_jobs SET status='COMPLETED' WHERE id=?",(job_id,))
-        html=self.client.get('/kilas-ai/agent?view=tasks').text
+        html=self.client.get('/kilas-ai/agent?view=history').text
         self.assertIn('Buka hasil',html)
         self.assertNotIn('Langkah sedang disiapkan',html)
         fixture.db.execute("UPDATE kilas_agent_jobs SET status='FAILED' WHERE id=?",(job_id,))
-        self.assertIn('is-failed',self.client.get('/kilas-ai/agent?view=tasks').text)
+        self.assertIn('is-failed',self.client.get('/kilas-ai/agent?view=history').text)
 
     def test_custom_provider_system_does_not_change_normal_chat(self):
         events=[{'type':'delta','text':'Answer'},{'type':'finish','reason':'stop'}]
