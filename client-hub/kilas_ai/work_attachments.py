@@ -32,7 +32,7 @@ def prepare_many(files, plan):
                     for sheet in book.worksheets[:5]:
                         for row in sheet.iter_rows(max_row=200,max_col=20):
                             if any(c.data_type=='f' for c in row):raise ValueError('formula_input')
-                            parts.append(', '.join(str(c.value or '')[:200] for c in row))
+                            parts.append(', '.join(str(c.value if c.value is not None else '')[:200] for c in row))
                     text='\n'.join(parts)
                 finally:book.close()
             else:

