@@ -86,7 +86,20 @@ def agent_home():
     conversation = agent_store.conversation(owner, conversation_id)
     from . import autonomous_runner, autonomous_store
     from .agent_presentation import job_card, time_label
-    autonomous_jobs = [job_card(j) for j in autonomous_store.list_jobs(owner, conversation_id=conversation_id if view == 'chat' else None)] if autonomous_runner.enabled() and view in ('chat', 'tasks') else []
+    raw_autonomous_jobs = autonomous_store.list_jobs(owner, conversation_id=conversation_id if view == 'chat' else None) if autonomous_runner.enabled() and view in ('chat', 'tasks') else []
+    if view == 'chat' and raw_autonomous_jobs:
+        # Terminal results belong to the conversation only until the owner has actually viewed
+        # that job/result. Once its events are read, keep history in the task/detail surfaces
+        # instead of pinning stale "Selesai terbaru" cards under every later reply.
+        unread_terminal = {row['job_id'] for row in db.query_all(
+            "SELECT DISTINCT e.job_id FROM kilas_agent_events e "
+            "JOIN kilas_agent_jobs j ON j.id=e.job_id "
+            "WHERE j.user_id=? AND j.origin_conversation_id=? AND e.unread=1",
+            (owner, conversation_id))}
+        raw_autonomous_jobs = [job for job in raw_autonomous_jobs
+                               if job['status'] not in autonomous_store.TERMINAL
+                               or job['id'] in unread_terminal]
+    autonomous_jobs = [job_card(j) for j in raw_autonomous_jobs]
     autonomous_unread = (db.query_one('SELECT COUNT(*) AS n FROM kilas_agent_events e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE j.user_id=? AND e.unread=1', (owner,))['n'] if autonomous_runner.enabled() else 0)
     tasks = _tasks() if view == 'tasks' else []
     for item in tasks:
