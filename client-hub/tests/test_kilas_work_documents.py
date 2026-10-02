@@ -128,13 +128,20 @@ class WorkTests(unittest.TestCase):
 
     def test_artifact_card_result_first_and_customer_rename(self):
         job,file=self.complete()
-        page=self.client().get('/kilas-ai/agent').text
+        client=self.client()
+        page=client.get('/kilas-ai/agent').text
         self.assertIn('>Work</a>',page)
         self.assertNotIn('AI Agent',page)
         self.assertIn('proposal-kerja-sama.pdf',page)
         self.assertIn('Download',page)
-        detail=self.client().get('/kilas-ai/agent/jobs/'+str(job)).text
+        detail=client.get('/kilas-ai/agent/jobs/'+str(job)).text
         self.assertLess(detail.index('work-file'),detail.index('Detail pekerjaan'))
+        # Once the owner has viewed the finished result, it must not be repinned under
+        # every later Work message/reload. History/tasks still retain the completed job.
+        conversation=client.get('/kilas-ai/agent').text
+        self.assertNotIn('proposal-kerja-sama.pdf',conversation)
+        tasks=client.get('/kilas-ai/agent?view=tasks').text
+        self.assertIn('proposal-kerja-sama.pdf',tasks)
 
     def test_registry_cannot_invent_formats(self):
         with self.assertRaises(ValueError):fixture.workers.validate_step({'worker':'DOCUMENT','action':'create','input':{'request':REQUEST,'format':'exe'}})
