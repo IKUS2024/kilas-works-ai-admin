@@ -185,20 +185,28 @@ class WorkTests(unittest.TestCase):
         self.assertIn(b'Operasional,5000000',response.data)
         self.assertEqual(file['name'].rsplit('.',1)[1],'csv')
 
+    def test_logo_creation_is_registered_as_image_work(self):
+        self.assertTrue(docs.image_request('Buat logo bagus buat Kilas Works'))
+        self.assertTrue(docs.image_request('Create a clean wordmark for Kilas Works'))
+        self.assertFalse(docs.image_request('Buat kode SVG logo Kilas Works'))
+
     def test_image_output_reuses_real_validated_provider_and_persists(self):
         from PIL import Image
         from kilas_ai import tools
         from unittest.mock import patch
         import os
         raw=io.BytesIO();Image.new('RGB',(16,16)).save(raw,'PNG')
-        job=fixture.store.create(self.owner,'Buat poster promo restoran',conversation_id=self.conversation)
+        job=fixture.store.create(self.owner,'buat logo bagus buat kilas works',conversation_id=self.conversation)
         with patch.dict(os.environ,{'KILAS_AI_OPENAI_IMAGE_MODEL':'configured-image'}),patch.object(tools,'image',return_value={'raw':raw.getvalue(),'mime':'image/png','model':'configured-image','usage':{}}) as provider:
             for _ in range(2):
                 fixture.db.execute('UPDATE kilas_agent_jobs SET next_wake_at=? WHERE id=?',(fixture.store.stamp(),job))
                 fixture.runner.execute(*fixture.store.claim_due(1)[0])
             provider.assert_called_once()
+            self.assertIn('bukan kode SVG/HTML',provider.call_args.args[0])
         self.assertEqual(fixture.store.get(self.owner,job)['status'],'COMPLETED')
         self.assertEqual(work_artifacts.listing(self.owner,job_id=job)[0]['media_type'],'image/png')
+        self.assertEqual(fixture.store.steps(job)[0]['worker'],'IMAGE')
+        self.assertEqual(work_artifacts.listing(self.owner,job_id=job)[0]['byte_size'],len(raw.getvalue()))
 
     def test_research_sources_are_synthesized_before_pdf(self):
         from kilas_ai import tools

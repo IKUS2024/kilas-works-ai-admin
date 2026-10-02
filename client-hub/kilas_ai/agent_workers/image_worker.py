@@ -2,7 +2,7 @@
 import os
 import re
 from . import Result
-from .. import tools,usage,work_artifacts
+from .. import tools,usage,work_artifacts,routing
 
 
 def run(job,step,data):
@@ -12,7 +12,7 @@ def run(job,step,data):
     if not ops:raise ValueError('duplicate_reservation')
     success=False;result={}
     try:
-        result=tools.image(data['prompt'],request_timeout=60)
+        result=tools.image(routing.enhance_image_prompt(data['prompt']),request_timeout=60)
         extension={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[result['mime']]
         title=' '.join(data['prompt'].split()[:8])
         name=re.sub(r'[^a-z0-9-]+','-',title.lower()).strip('-')[:70] or 'gambar-kilas'

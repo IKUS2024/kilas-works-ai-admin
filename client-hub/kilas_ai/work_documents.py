@@ -38,7 +38,8 @@ def plan(job):
 
 
 def image_request(text):
-    return bool(CREATE.search(text) and re.search(r'(?i)\b(?:gambar|image|poster|banner|illustration|ilustrasi)\b',text))
+    from . import routing
+    return routing.tool_for(text) == 'IMAGE_GENERATE'
 
 
 def quality(source, request, format='pdf', previous=''):
