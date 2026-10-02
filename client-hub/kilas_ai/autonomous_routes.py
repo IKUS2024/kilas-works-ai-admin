@@ -126,6 +126,9 @@ def chat(user_id, text):
 def detail(job_id):
     from .agent_presentation import job_card
     job = job_card(owned(job_id))
+    # Opening a job/result acknowledges its notifications so a terminal result is
+    # retained in History without being pinned again in the conversation.
+    db.execute('UPDATE kilas_agent_events SET unread=0 WHERE job_id=?', (job_id,))
     from . import agent_results
     session['autonomous_job_id'] = job_id
     events = db.query_all('SELECT * FROM kilas_agent_events WHERE job_id=? ORDER BY id DESC LIMIT 100', (job_id,))
@@ -188,6 +191,7 @@ def approve(job_id, approval_id):
 @ai_bp.get('/agent/jobs/<int:job_id>/artifacts/<int:artifact_id>', endpoint='autonomous_artifact')
 def artifact(job_id, artifact_id):
     owned(job_id)
+    db.execute('UPDATE kilas_agent_events SET unread=0 WHERE job_id=?', (job_id,))
     row = db.query_one('SELECT a.name,a.media_type,a.content,f.content AS binary_content FROM kilas_agent_artifacts a LEFT JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE a.id=? AND a.job_id=?', (artifact_id, job_id))
     if not row:
         abort(404)
