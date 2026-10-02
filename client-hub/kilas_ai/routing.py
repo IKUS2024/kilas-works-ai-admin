@@ -73,7 +73,9 @@ def tool_for(content, attachments=(), *, search=False, pdf_request=False,
         return "PDF"
     if _edit_intent(text, False):
         return "IMAGE_EDIT"
-    visual = r"(?:gambar|foto|ilustrasi|poster|image|picture|photo|visual)"
+    if re.search(r"\b(?:kode|code)\s+(?:svg|vector)|\bsvg\s+(?:code|kode)\b", text):
+        return "CHAT"
+    visual = r"(?:gambar|foto|ilustrasi|poster|image|picture|photo|visual|logo|logotype|wordmark|brand.?mark|ikon|icon|emblem|maskot|mascot)"
     create = r"(?:buat|create|generate|draw|lukis|gambarkan)"
     if re.search(r"\b" + create + r"\b.{0,75}\b" + visual + r"\b|\b(?:draw|lukis)\s+\S+", text):
         return "IMAGE_GENERATE"
@@ -96,6 +98,8 @@ def enhance_image_prompt(prompt, requested_action_text=None):
     text = (requested_action_text or prompt).lower()
     if re.search(r"\b(?:nyanyi|menyanyi|bernyanyi|singing|sing)\b", text):
         return prompt + "\nAksi utama harus tampak jelas: subjek sedang bernyanyi, mulut terbuka saat menyanyi, bukan hanya berpose. Pertahankan subjek, gaya, dan detail yang diminta."
+    if re.search(r"\b(?:logo|logotype|wordmark|brand.?mark|ikon|icon|emblem)\b", text):
+        return prompt + "\nHasilkan gambar logo final, bukan kode SVG/HTML dan bukan penjelasan. Buat desain original yang bersih, sederhana, profesional, mudah dikenali, dan tetap jelas pada ukuran kecil. Jika nama merek disebut, gunakan nama itu sebagai identitas visual utama dan jangan menambahkan teks lain yang tidak diminta."
     if re.search(r"\b(?:menari|berlari|memasak|melukis|membaca|menulis|dancing|running|cooking|painting|reading|writing)\b", text):
         return prompt + "\nTampilkan aksi utama yang diminta dengan jelas, bukan pose diam. Pertahankan subjek, gaya, dan detail yang diminta."
     return prompt
