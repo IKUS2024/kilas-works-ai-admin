@@ -49,7 +49,7 @@ def main():
                 spec["title"] = "Rangkuman pasar untuk tim kerja dan pelanggan " + ("Nama proyek panjang " * 12)
                 store.create(owner, spec)
                 if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
-                page.get_by_role("link", name="Active Tasks").click()
+                page.get_by_role("link", name="Pekerjaan aktif").click()
                 assert page.get_by_text("Rangkuman pasar untuk tim kerja").count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long task overflow")
                 if width <= 760: page.get_by_role("button", name="Buka riwayat").click()

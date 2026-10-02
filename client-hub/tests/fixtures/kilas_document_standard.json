@@ -1,0 +1,1322 @@
+[
+  {
+    "id": "D01-id",
+    "category": "proposal bisnis",
+    "request": "Buat proposal bisnis untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D01-en",
+    "category": "business proposal",
+    "request": "Create a business proposal for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D02-id",
+    "category": "proposal kerja sama",
+    "request": "Buat proposal kerja sama untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D02-en",
+    "category": "partnership proposal",
+    "request": "Create a partnership proposal for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D03-id",
+    "category": "penawaran jasa",
+    "request": "Buat penawaran jasa untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D03-en",
+    "category": "quotation document",
+    "request": "Create a quotation document for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D04-id",
+    "category": "laporan proyek",
+    "request": "Buat laporan proyek untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D04-en",
+    "category": "project report",
+    "request": "Create a project report for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D05-id",
+    "category": "laporan riset",
+    "request": "Buat laporan riset untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D05-en",
+    "category": "research report",
+    "request": "Create a research report for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D06-id",
+    "category": "SOP customer service",
+    "request": "Buat SOP customer service untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D06-en",
+    "category": "SOP document",
+    "request": "Create a SOP document for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D07-id",
+    "category": "surat resmi",
+    "request": "Buat surat resmi untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D07-en",
+    "category": "formal letter",
+    "request": "Create a formal letter for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D08-id",
+    "category": "surat bisnis informal",
+    "request": "Buat surat bisnis informal untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D08-en",
+    "category": "informal business letter",
+    "request": "Create a informal business letter for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D09-id",
+    "category": "notulen rapat",
+    "request": "Buat notulen rapat untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D09-en",
+    "category": "meeting minutes",
+    "request": "Create a meeting minutes for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D10-id",
+    "category": "brief proyek",
+    "request": "Buat brief proyek untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D10-en",
+    "category": "project brief",
+    "request": "Create a project brief for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D11-id",
+    "category": "brief pemasaran",
+    "request": "Buat brief pemasaran untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D11-en",
+    "category": "marketing brief",
+    "request": "Create a marketing brief for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D12-id",
+    "category": "rencana kerja",
+    "request": "Buat rencana kerja untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D12-en",
+    "category": "work plan",
+    "request": "Create a work plan for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D13-id",
+    "category": "itinerary",
+    "request": "Buat itinerary untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D13-en",
+    "category": "itinerary",
+    "request": "Create a itinerary for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D14-id",
+    "category": "checklist",
+    "request": "Buat checklist untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D14-en",
+    "category": "checklist",
+    "request": "Create a checklist for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D15-id",
+    "category": "laporan perbandingan",
+    "request": "Buat laporan perbandingan untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D15-en",
+    "category": "comparison report",
+    "request": "Create a comparison report for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D16-id",
+    "category": "laporan ringkasan eksekutif",
+    "request": "Buat laporan ringkasan eksekutif untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D16-en",
+    "category": "executive report",
+    "request": "Create a executive report for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D17-id",
+    "category": "panduan pelanggan",
+    "request": "Buat panduan pelanggan untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D17-en",
+    "category": "customer guide",
+    "request": "Create a customer guide for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D18-id",
+    "category": "panduan internal",
+    "request": "Buat panduan internal untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D18-en",
+    "category": "internal guide",
+    "request": "Create a internal guide for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D19-id",
+    "category": "company profile",
+    "request": "Buat company profile untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D19-en",
+    "category": "company profile",
+    "request": "Create a company profile for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D20-id",
+    "category": "memo bisnis",
+    "request": "Buat memo bisnis untuk layanan restoran. Harga Rp5.000.000 dan implementasi 14 hari.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 hari"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural id prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  },
+  {
+    "id": "D20-en",
+    "category": "business memo",
+    "request": "Create a business memo for a restaurant service. Price Rp5.000.000 and implementation 14 days.",
+    "important_facts": [
+      "Rp5.000.000",
+      "14 days"
+    ],
+    "must_not_invent": [
+      "company name",
+      "client name",
+      "payment schedule",
+      "address",
+      "statistics",
+      "additional commercial terms"
+    ],
+    "desired_characteristics": [
+      "meaningful title",
+      "logical useful sections",
+      "professional typography",
+      "natural en prose",
+      "finished document",
+      "exact supplied facts"
+    ],
+    "undesired_characteristics": [
+      "generic AI preamble",
+      "duplicated paragraph",
+      "raw tool language",
+      "placeholder",
+      "invented facts",
+      "unnecessary emojis"
+    ]
+  }
+]

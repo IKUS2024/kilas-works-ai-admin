@@ -22,6 +22,8 @@ FIELDS = {
     ('WATCH', 'observe'): {'query', 'operator', 'threshold'},
     ('MARKET', 'observe'): {'symbol', 'timeframe', 'operator', 'threshold'},
     ('FILE', 'create'): {'name', 'format', 'content'},
+    ('DOCUMENT', 'create'): {'request', 'format'},
+    ('IMAGE', 'generate'): {'prompt'},
     ('CODE', 'inspect'): {'repo', 'paths'}, ('CODE', 'patch'): {'repo', 'patch'},
     ('CODE', 'test'): {'repo'}, ('CODE', 'diff'): {'repo'},
     ('EXTERNAL', 'push'): {'repo'}, ('EXTERNAL', 'merge'): {'repo'},
@@ -47,6 +49,11 @@ def validate_step(step):
         raise ValueError('input_too_large')
     if any(not isinstance(v, (str, int, float, list)) or isinstance(v, bool) for v in data.values()):
         raise ValueError('invalid_input')
+    if step['worker']=='DOCUMENT':
+        from ..work_documents import FORMATS
+        if data['format'] not in FORMATS or not isinstance(data['request'],str) or not 1 <= len(data['request']) <= 1200:
+            raise ValueError('invalid_document_input')
+    if step['worker']=='IMAGE' and (not isinstance(data['prompt'],str) or not 1 <= len(data['prompt']) <= 1200):raise ValueError('invalid_image_input')
     if step['worker'] in ('WATCH', 'MARKET'):
         if data['operator'] not in ('lt', 'gt', 'change') or (data['operator'] != 'change' and not isinstance(data['threshold'], (int, float))):
             raise ValueError('invalid_condition')
@@ -60,7 +67,7 @@ def validate_step(step):
 def capabilities():
     from . import market_worker, code_worker
     return [{'worker': worker, 'action': action, 'input_fields': sorted(fields),
-             'available': worker not in ('EXTERNAL', 'UNAVAILABLE') and (worker != 'MARKET' or market_worker.provider is not None) and (worker != 'CODE' or bool(os.environ.get('KILAS_AI_CODE_REPOSITORIES'))),
+             'available': worker not in ('EXTERNAL', 'UNAVAILABLE') and (worker != 'IMAGE' or bool(os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL'))) and (worker != 'MARKET' or market_worker.provider is not None) and (worker != 'CODE' or bool(os.environ.get('KILAS_AI_CODE_REPOSITORIES'))),
              'repository_aliases': sorted(code_worker.repositories()) if worker == 'CODE' else [],
              'requires_approval': sensitive(worker, action)} for (worker, action), fields in FIELDS.items()]
 
@@ -69,10 +76,16 @@ def execute(job, step):
     data = json.loads(step['input_json'])
     validate_step({'worker': step['worker'], 'action': step['action'], 'input': data})
     if step['worker'] in ('EXTERNAL', 'UNAVAILABLE'):
+        if step['worker']=='UNAVAILABLE' and data['capability'] in ('docx','xlsx','pptx'):
+            return Result('WAITING_CAPABILITY','Format '+data['capability'].upper()+' belum tersedia. Minta PDF untuk dokumen atau CSV untuk data.',{'reason':'unsupported_format'})
         if step['worker'] == 'UNAVAILABLE' and data['capability'] == 'market_data_provider':
             return Result('WAITING_CAPABILITY', 'Market data provider is not configured.', {'reason': 'provider_not_configured'})
         return Result('WAITING_CAPABILITY', 'Kemampuan ini belum tersedia. Tidak ada tindakan eksternal dijalankan.', {'reason': 'adapter_not_configured'})
-    if step['worker'] == 'CODE':
+    if step['worker'] == 'IMAGE':
+        from .image_worker import run
+    elif step['worker'] == 'DOCUMENT':
+        from .document_worker import run
+    elif step['worker'] == 'CODE':
         from .code_worker import run
     elif step['worker'] == 'MARKET':
         from .market_worker import run

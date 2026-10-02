@@ -33,7 +33,7 @@ def step_label(step):
         return 'Memeriksa sumber' if re.search(r'(?i)cross.?check|verify|verifikasi|periksa|banding', step.get('instruction','')) else 'Mencari sumber terbaru'
     return {('AI_TEXT','write'):'Menyusun hasil', ('CODE','inspect'):'Memeriksa kode',
             ('CODE','patch'):'Menerapkan perbaikan', ('CODE','test'):'Menjalankan test',
-            ('CODE','diff'):'Meninjau perubahan', ('FILE','create'):'Menyiapkan file',
+            ('CODE','diff'):'Meninjau perubahan', ('FILE','create'):'Menyiapkan file', ('DOCUMENT','create'):'Menyusun dokumen', ('IMAGE','generate'):'Membuat gambar',
             ('WATCH','observe'):'Memeriksa kondisi', ('MARKET','observe'):'Memeriksa kondisi market',
             ('UNAVAILABLE','request'):'Menunggu kemampuan yang diperlukan',
             ('EXTERNAL','deploy'):'Menyiapkan deployment', ('EXTERNAL','publish'):'Menyiapkan publikasi',

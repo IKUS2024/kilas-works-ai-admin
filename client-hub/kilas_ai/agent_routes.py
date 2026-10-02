@@ -156,6 +156,17 @@ def agent_chat():
     if not 1 <= len(text) <= 1200:
         return redirect(url_for("kilas_ai.agent_home", error="message"), code=303)
     owner = _owner()
+    files=[f for f in request.files.getlist('source_files') if f.filename]
+    if files:
+        from . import attachments,work_documents
+        if not work_documents.intent(text):
+            return {'error':'Lampiran ini dapat digunakan untuk membuat dokumen. Sebutkan dokumen yang ingin disiapkan.'},400
+        try:
+            prepared=attachments.prepare_many(files,usage.effective_plan(owner)['plan'])
+            if any(not item['extracted_text'] for item in prepared):raise attachments.AttachmentError('Gunakan dokumen dengan teks yang dapat dibaca.')
+            request.work_source_materials=[{'filename':item['filename'],'text':item['extracted_text'][:4000]} for item in prepared]
+        except attachments.AttachmentError as error:
+            return {'error':str(error)},400
     selected = request.form.get('conversation_id', type=int)
     if selected is not None:
         if not agent_store.conversation(owner, selected):

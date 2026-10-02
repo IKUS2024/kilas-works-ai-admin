@@ -1,13 +1,16 @@
 name: Kilas Autonomous Agent QA
 on:
   push:
-    branches: [feature/kilas-autonomous-agent-v1-20261002, feature/kilas-agent-chat-experience-20261002, fix/kilas-unified-chat-agent-shell-20261002, fix/kilas-agent-response-result-polish-20261002, fix/kilas-ai-cost-quality-routing-20261002]
+    branches: [feature/kilas-autonomous-agent-v1-20261002, feature/kilas-agent-chat-experience-20261002, fix/kilas-unified-chat-agent-shell-20261002, fix/kilas-agent-response-result-polish-20261002, fix/kilas-ai-cost-quality-routing-20261002, feature/kilas-work-universal-output-20261002]
   pull_request:
     branches: [main]
     paths:
       - 'client-hub/kilas_ai/**'
       - 'client-hub/migrations/0078_*'
       - 'client-hub/migrations/0079_*'
+      - 'client-hub/migrations/0080_*'
+      - 'client-hub/tests/test_kilas_work*'
+      - 'client-hub/tests/fixtures/kilas_document_standard.json'
       - 'client-hub/tests/test_kilas_agent_chat*'
       - 'client-hub/tests/test_kilas_agent_results*'
       - 'client-hub/tests/test_kilas_ai_cost_quality.py'
@@ -39,6 +42,7 @@ jobs:
       - run: python client-hub/tests/test_kilas_agent_chat_experience.py
       - run: python client-hub/tests/test_kilas_agent_results.py
       - run: python client-hub/tests/test_kilas_ai_cost_quality.py
+      - run: python client-hub/tests/test_kilas_work_documents.py
       - run: python client-hub/tests/test_kilas_ai_usage.py
       - run: python client-hub/tests/test_kilas_ai_attachments.py
       - run: python client-hub/tests/test_kilas_ai_pdf.py
@@ -83,6 +87,7 @@ jobs:
       - run: python client-hub/tests/test_kilas_ai_agent_browser.py
       - run: python client-hub/tests/test_kilas_ai_shell_browser.py
       - run: python client-hub/tests/test_kilas_ai_browser.py
+      - run: python client-hub/tests/test_kilas_work_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

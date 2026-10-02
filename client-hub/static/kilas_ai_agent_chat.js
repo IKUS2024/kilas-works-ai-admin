@@ -74,7 +74,11 @@
     let accepted = false;
     try {
       const response = await fetch(form.action, {method:'POST',body:data,headers:{'X-Agent-Chat':'1'}});
-      if (!response.ok) throw new Error('request');
+      if (!response.ok) {
+        const failure=new Error('request');
+        try { const payload=await response.json(); if(typeof payload.error==='string') failure.publicMessage=payload.error; } catch (_) { /* Preserve a safe fallback. */ }
+        throw failure;
+      }
       accepted = true;
       if (response.headers.get('content-type')?.includes('text/event-stream')) {
         const reader = response.body.getReader(), decoder = new TextDecoder();
@@ -99,9 +103,10 @@
         if (!complete) throw new Error('interrupted');
       }
       await refresh(); input.value = '';
+      const sources=form.querySelector('#work-source-files'); if(sources) sources.value='';
       form.elements.operation_key.value = crypto.randomUUID();
-    } catch (_) {
-      error.textContent = 'Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.';
+    } catch (failure) {
+      error.textContent = failure.publicMessage || 'Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.';
       error.hidden = false;
       // Same key is retained after an uncertain outcome: retry cannot create duplicate work.
       if (accepted) { try { await refresh(); } catch (_) { /* Keep visible local messages. */ } }

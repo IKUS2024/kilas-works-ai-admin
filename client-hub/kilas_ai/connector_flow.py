@@ -35,7 +35,7 @@ def scheduled_read(user_id, instruction, timezone_name, *, run_id=None):
     if DRAFT_WORDS.search(instruction) and run_id is not None:
         key = hashlib.sha256(f"automation-draft:{run_id}".encode()).hexdigest()[:48]
         if connectors.approval_for_key(user_id, key):
-            return "Draf Gmail untuk jadwal ini sudah disiapkan. Periksa Gmail atau Agent Chat."
+            return "Draf Gmail untuk jadwal ini sudah disiapkan. Periksa Gmail atau Work."
     available = connectors.available_tools(user_id)
     businesses = connectors.business_connections(user_id)
     plan = connector_planner.propose(user_id, instruction, [], available, businesses,
@@ -62,7 +62,7 @@ def _scheduled_gmail_draft(user_id, instruction, args, timezone_name, run_id):
     key = (hashlib.sha256(f"automation-draft:{run_id}".encode()).hexdigest()[:48]
            if run_id is not None else None)
     if key and connectors.approval_for_key(user_id, key):
-        return "Draf Gmail untuk jadwal ini sudah disiapkan. Periksa Gmail atau Agent Chat."
+        return "Draf Gmail untuk jadwal ini sudah disiapkan. Periksa Gmail atau Work."
     rows = google_tools.gmail_search(user_id, args.get("query"))
     if not rows:
         return "Tidak ada email yang cocok untuk disiapkan balasannya."
@@ -106,7 +106,7 @@ def _scheduled_gmail_draft(user_id, instruction, args, timezone_name, run_id):
     payload["draft_id"] = draft["draft_id"]
     connectors.propose_action(user_id, "gmail.send", recipient, payload, ttl_minutes=1440,
                               idempotency_key=key)
-    return (f"Draf balasan untuk {recipient} siap diperiksa di Agent Chat. "
+    return (f"Draf balasan untuk {recipient} siap diperiksa di Work. "
             "Email belum dikirim; kamu perlu menyetujui tindakan ini secara terpisah.")
 
 

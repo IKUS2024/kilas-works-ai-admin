@@ -231,7 +231,7 @@ def finalize_scheduled_search(instruction, search_text, citations):
     return {"text": answer[:12000], "model": model, "usage": data.get("usage") or {}}
 
 
-def image(prompt, source=None):
+def image(prompt, source=None, *, request_timeout=120):
     model = os.environ.get("KILAS_AI_OPENAI_IMAGE_MODEL", "").strip()
     if not model:
         raise ToolUnavailable("Pembuatan gambar belum tersedia.")
@@ -241,12 +241,12 @@ def image(prompt, source=None):
         if source is None:
             response = requests.post("https://api.openai.com/v1/images/generations",
                 headers=headers, json={"model": model, "prompt": prompt[:4000], "size": "1024x1024", "quality": "low", "n": 1},
-                timeout=(10, 120))
+                timeout=(10, request_timeout))
         else:
             response = requests.post("https://api.openai.com/v1/images/edits", headers=headers,
                 data={"model": model, "prompt": prompt[:4000], "size": "1024x1024", "quality": "low", "n": "1"},
                 files={"image": (source["filename"], bytes(source["content"]), source["mime_type"])},
-                timeout=(10, 120))
+                timeout=(10, request_timeout))
         response.raise_for_status()
         data = response.json()
         encoded = data["data"][0]["b64_json"]

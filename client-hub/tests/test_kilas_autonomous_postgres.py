@@ -28,7 +28,7 @@ def main():
         return dict(settings, options=settings['options'] + ' -c search_path=' + isolated)
     try:
         with patch.object(db, '_postgres_connect_kwargs', side_effect=options):
-            with patch.object(db, 'MIGRATIONS', [m for m in db.MIGRATIONS if not m[0].startswith(('0078_', '0079_'))]):
+            with patch.object(db, 'MIGRATIONS', [m for m in db.MIGRATIONS if not m[0].startswith(('0078_', '0079_', '0080_'))]):
                 db.init_schema()
             before = {r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert schema.apply_release() == [schema.NAME]
@@ -57,6 +57,15 @@ def main():
             runner.execute(*store.claim_due(1)[0])
             assert store.get(user, job)['status'] == 'COMPLETED'
             assert db.query_one('SELECT COUNT(*) AS n FROM kilas_agent_artifacts WHERE job_id=?', (job,))['n'] == 1
+            # Additive binary storage is idempotent and round-trips native BYTEA.
+            from kilas_ai import pdf,work_artifacts
+            with store.transaction() as conn:
+                for _ in range(2):conn.cursor().execute((Path(__file__).parents[1]/'migrations/0080_kilas_work_artifact_files_postgres.sql').read_text())
+                file=pdf.render('# Proposal Test\n\n## Lingkup\nDokumen verifikasi penyimpanan biner.\n')
+                step=store.steps(job)[0]
+                work_artifacts.persist(conn,store.get(user,job),step,file)
+            assert work_artifacts.listing(user,job_id=job)[0]['media_type']=='application/pdf'
+            assert bytes(db.query_one('SELECT content FROM kilas_agent_artifact_files LIMIT 1')['content']).startswith(b'%PDF')
             job = store.create(user, 'Stopped work')
             store.control(user, job, 'stop')
             assert store.claim_due(1) == []

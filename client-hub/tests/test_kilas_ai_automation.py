@@ -243,7 +243,7 @@ class AutomationFlowTests(unittest.TestCase):
         self.assertEqual(self.client_for(self.other).get(f"/kilas-ai/automation/results/{ids[0]}").status_code, 404)
         self.assertEqual(client.get(f"/kilas-ai/automation/results/{ids[0]}").status_code, 200)
         chat = client.get(f"/kilas-ai?automation_result={ids[0]}")
-        self.assertIn("Lanjutkan dari hasil AI Agent", chat.get_data(as_text=True))
+        self.assertIn("Lanjutkan dari hasil Work", chat.get_data(as_text=True))
         self.assertFalse(store.result(self.owner, ids[0])["unread"])
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE user_id=?", (self.owner,))["n"], 0)
 

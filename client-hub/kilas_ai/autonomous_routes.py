@@ -35,10 +35,13 @@ def chat(user_id, text):
     if not runner.enabled():
         return False
     conversation_id = agent_store.current_conversation(user_id)
+    from . import work_documents,work_artifacts
+    previous=work_artifacts.latest_document(user_id,conversation_id)
+    document_format=work_documents.intent(text,bool(previous))
     explicit = re.search(r'\b(?:pekerjaan|task|tugas)\s*#?(\d+)\b', text, re.I)
     controls = agent_intents.CONTROL.fullmatch(text.strip())
     feedback = agent_intents.FEEDBACK.search(text)
-    if controls or explicit or feedback:
+    if controls or explicit or (feedback and not document_format):
         jobs = store.list_jobs(user_id, active_only=True)
         focused = session.get('autonomous_job_id')
         focused_job = store.get(user_id, focused) if focused else None
@@ -48,7 +51,7 @@ def chat(user_id, text):
             return False
         job = store.get(user_id, int(explicit[1])) if explicit else focused_job or (jobs[0] if len(jobs) == 1 else None)
         if not job:
-            agent_store.append(user_id, 'assistant', 'Ada beberapa pekerjaan. Pilih salah satu di Active Tasks agar instruksi diterapkan ke pekerjaan yang tepat.')
+            agent_store.append(user_id, 'assistant', 'Ada beberapa pekerjaan. Pilih salah satu di Pekerjaan aktif agar instruksi diterapkan ke pekerjaan yang tepat.')
             return True
         verb = text.lower().split()[0]
         action = None if feedback else 'pause' if verb in ('pause', 'jeda') else 'resume' if verb in ('resume', 'lanjut', 'lanjutkan') else 'stop' if verb in ('stop', 'berhenti', 'batalkan') else None
@@ -62,6 +65,8 @@ def chat(user_id, text):
     if pending and pending.get('conversation_id') == conversation_id and re.fullmatch(r'(?i)(?:jam |pukul |di bawah |di atas |target |\d).{0,100}', text):
         text = pending['text'] + ' ' + text
     spec = agent_intents.infer(text)
+    if (document_format or work_documents.image_request(text)) and not spec:
+        spec={'mode':'ONE_SHOT','wake_at':None,'interval':3600,'schedule':{},'clarify':None}
     selected_mode = request.form.get('autonomous_mode', '')
     if selected_mode:
         try:
@@ -89,6 +94,13 @@ def chat(user_id, text):
         job_id = store.create(user_id, agent_intents.research_instruction(text), mode=spec['mode'], constraints=[text],
                               wake_at=spec['wake_at'], interval=spec['interval'],
                               conversation_id=conversation_id, schedule=spec['schedule'])
+        if document_format and previous and work_documents.REVISE.search(text):
+            db.execute('UPDATE kilas_agent_jobs SET checkpoint_json=? WHERE id=? AND user_id=?',(store.encode({'document_source_id':previous['id']}),job_id,user_id))
+        source_materials=getattr(request,'work_source_materials',None)
+        if source_materials:
+            checkpoint=json.loads(store.get(user_id,job_id)['checkpoint_json'])
+            checkpoint['source_materials']=source_materials
+            db.execute('UPDATE kilas_agent_jobs SET checkpoint_json=? WHERE id=? AND user_id=?',(store.encode(checkpoint),job_id,user_id))
         if market_request(text) and market_worker.provider is None:
             message = 'Pekerjaan pemantauan tersimpan. Data market real-time belum tersedia; Kilas belum memantau harga atau menghasilkan sinyal.'
         elif spec['wake_at']:
@@ -97,7 +109,7 @@ def chat(user_id, text):
             region = ' di Indonesia' if 'Cakupan awal: Indonesia.' in agent_intents.research_instruction(text) else ''
             message = 'Siap, aku mulai cek topik yang sedang ramai' + region + ' dari sumber publik terbaru.'
         else:
-            message = 'Kilas menyiapkan pekerjaan di background. Kamu boleh keluar dari aplikasi; kemajuan dan hasil tetap tersimpan di Active Tasks.'
+            message = 'Kilas menyiapkan pekerjaan di background. Kamu boleh keluar dari aplikasi; kemajuan dan hasil tetap tersimpan di Pekerjaan aktif.'
         agent_store.append(user_id, 'assistant', message)
     except (ValueError, TypeError):
         agent_store.append(user_id, 'assistant', 'Pekerjaan belum dibuat. Periksa jadwal dan batas pekerjaan aktif, lalu coba lagi.')
@@ -115,12 +127,15 @@ def detail(job_id):
     calendar = json.loads(job.get('schedule_json') or '{}')
     events = [{**dict(e), 'time_label': label(e['created_at'], calendar.get('timezone', 'Asia/Jakarta')),
                'summary': 'Data market real-time belum tersedia.' if e['summary']=='Market data provider is not configured.' else e['summary']} for e in events]
-    artifacts = db.query_all("SELECT id,name FROM kilas_agent_artifacts WHERE job_id=? AND name!='_workspace.json' ORDER BY id DESC LIMIT 50", (job_id,))
+    artifacts = db.query_all("SELECT a.id,a.name,a.media_type,f.byte_size FROM kilas_agent_artifacts a LEFT JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE a.job_id=? AND a.name!='_workspace.json' ORDER BY a.id DESC LIMIT 50", (job_id,))
     approvals = [dict(r) for r in db.query_all("SELECT * FROM kilas_agent_approvals WHERE job_id=? AND status='PENDING' AND expires_at>?", (job_id, store.stamp()))]
     for item in approvals:
         item['payload'] = json.loads(item['payload_json'])
     job_steps = store.steps(job_id)
     result = agent_results.primary_result(job_steps)
+    from . import work_artifacts
+    files=work_artifacts.listing(session['user_id'],job_id=job_id)
+    if files:job['title']=json.loads(files[0]['content']).get('title') or job['title']
     for step in job_steps:
         output = json.loads(step['output_json'])
         step['result_text'] = output.get('text') or output.get('test_output') or output.get('diff') or ''
@@ -131,7 +146,7 @@ def detail(job_id):
         step['signal'] = output.get('signal')
     return render_template('kilas_ai/autonomous_detail.html', job=job, steps=job_steps, result=result,
                            events=list(reversed(events)), artifacts=artifacts, approvals=approvals,
-                           constraints=json.loads(job['constraints_json']))
+                           constraints=json.loads(job['constraints_json']),files=files)
 
 
 @ai_bp.post('/agent/jobs/<int:job_id>/<action>', endpoint='autonomous_control')
@@ -165,7 +180,12 @@ def approve(job_id, approval_id):
 @ai_bp.get('/agent/jobs/<int:job_id>/artifacts/<int:artifact_id>', endpoint='autonomous_artifact')
 def artifact(job_id, artifact_id):
     owned(job_id)
-    row = db.query_one('SELECT name,content FROM kilas_agent_artifacts WHERE id=? AND job_id=?', (artifact_id, job_id))
+    row = db.query_one('SELECT a.name,a.media_type,a.content,f.content AS binary_content FROM kilas_agent_artifacts a LEFT JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE a.id=? AND a.job_id=?', (artifact_id, job_id))
     if not row:
         abort(404)
-    return send_file(io.BytesIO(row['content'].encode()), mimetype='text/plain', as_attachment=True, download_name=row['name'])
+    raw=bytes(row['binary_content']) if row['binary_content'] is not None else row['content'].encode()
+    response=send_file(io.BytesIO(raw),mimetype=row['media_type'],as_attachment=request.args.get('download')=='1' or row['binary_content'] is None,download_name=row['name'],max_age=0)
+    response.headers['Cache-Control']='private, no-store'
+    response.headers['X-Content-Type-Options']='nosniff'
+    response.headers['Content-Security-Policy']="default-src 'none'; sandbox"
+    return response

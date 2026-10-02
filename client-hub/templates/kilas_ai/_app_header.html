@@ -3,4 +3,4 @@
   <a class="ai-brand" href="{{ url_for('kilas_ai.home',attachments='1') }}">Kilas <span>AI</span></a>
   {{ ai_header_actions|default('') }}
 </header>
-{% if automation_enabled or ai_mode == 'agent' %}<nav class="ai-mode-tabs" aria-label="Mode Kilas AI"><a href="{{ url_for('kilas_ai.home',attachments='1') }}" {% if ai_mode == 'chat' %}aria-current="page"{% endif %}>Chat</a><a href="{{ url_for('kilas_ai.agent_home') }}" {% if ai_mode == 'agent' %}aria-current="page"{% endif %}>AI Agent</a></nav>{% endif %}
+{% if automation_enabled or ai_mode == 'agent' %}<nav class="ai-mode-tabs" aria-label="Mode Kilas AI"><a href="{{ url_for('kilas_ai.home',attachments='1') }}" {% if ai_mode == 'chat' %}aria-current="page"{% endif %}>Chat</a><a href="{{ url_for('kilas_ai.agent_home') }}" {% if ai_mode == 'agent' %}aria-current="page"{% endif %}>Work</a></nav>{% endif %}
