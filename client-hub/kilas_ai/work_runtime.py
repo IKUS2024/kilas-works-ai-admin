@@ -5,7 +5,7 @@ import db
 from flask import request, session, redirect, url_for
 from . import autonomous_store as store, agent_store, automation_store, work_schedule, usage
 
-LABELS={'CREATED':'Pekerjaan tersimpan','PLANNED':'Memahami permintaan…','EXECUTING':'Sedang mengerjakan…','ACCEPTED':'Pekerjaan tersimpan','PLANNING':'Memahami permintaan…','WORKING':'Sedang mengerjakan…','SEARCHING':'Mencari sumber…','WRITING':'Menulis isi…','CREATING_FILE':'Membuat file…','VERIFYING':'Memeriksa hasil…','WAITING_INPUT':'Menunggu jawabanmu','SCHEDULED':'Terjadwal','COMPLETED':'Selesai','FAILED':'Perlu perhatian','STOP':'Dihentikan','STOPPED':'Dihentikan','WAITING_CAPABILITY':'Kemampuan belum tersedia','SUCCEEDED':'Langkah selesai','BLOCKED':'Perlu perhatian','PAUSE':'Dijeda','RESUME':'Dilanjutkan','FEEDBACK':'Instruksi diperbarui','REMINDER':'Pengingat'}
+LABELS={'CONDITION_MET':'Kondisi terpantau terpenuhi.','CREATED':'Pekerjaan tersimpan','PLANNED':'Memahami permintaan…','EXECUTING':'Sedang mengerjakan…','ACCEPTED':'Pekerjaan tersimpan','PLANNING':'Memahami permintaan…','WORKING':'Sedang mengerjakan…','SEARCHING':'Mencari sumber…','WRITING':'Menulis isi…','CREATING_FILE':'Membuat file…','VERIFYING':'Memeriksa hasil…','WAITING_INPUT':'Menunggu jawabanmu','SCHEDULED':'Terjadwal','COMPLETED':'Selesai','FAILED':'Perlu perhatian','STOP':'Dihentikan','STOPPED':'Dihentikan','WAITING_CAPABILITY':'Kemampuan belum tersedia','SUCCEEDED':'Langkah selesai','BLOCKED':'Perlu perhatian','PAUSE':'Dijeda','RESUME':'Dilanjutkan','FEEDBACK':'Instruksi diperbarui','REMINDER':'Pengingat'}
 
 
 def progress(job,kind,label):

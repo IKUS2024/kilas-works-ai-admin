@@ -84,11 +84,13 @@ class WorkV2Tests(unittest.TestCase):
         f.fixture.db.execute("UPDATE kilas_agent_jobs SET status='COMPLETED' WHERE id=?",(completed,))
         with f.fixture.store.transaction() as conn:
             for _ in range(6):f.fixture.store.event(conn,completed,'FAILED','Internal diagnostic')
+            f.fixture.store.event(conn,active,'CONDITION_MET','Kondisi terpantau terpenuhi.')
         html=self.client().get('/kilas-ai/agent').text
         self.assertIn('data-active-count>1</span>',html)
         self.assertNotIn('Connections',html)
         self.assertNotIn('Advanced settings',html)
         self.assertNotIn('autonomous_mode',html)
+        self.assertIn('Kondisi terpantau terpenuhi.',self.client().get('/kilas-ai/agent?view=notifications').text)
         self.client().post('/kilas-ai/agent/conversations',data={'csrf_token':'work-csrf'})
         self.assertEqual(f.fixture.store.get(self.owner,active)['status'],'PLANNING')
 

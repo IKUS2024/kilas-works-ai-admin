@@ -99,6 +99,8 @@ def finish(job, token, step, result):
         if step['worker']!='REMINDER' and (state != 'WAITING' or result.status == 'WAITING_CAPABILITY'):
             key = f"step-{step['id']}-{state}" + ('-' + str(result.output.get('reason')) if state == 'WAITING' else '')
             notifications.publish(conn, job['id'], result.status, result.summary, key)
+        if state=='SUCCEEDED' and step['worker'] in ('WATCH','MARKET') and (result.output.get('matched') is True or result.output.get('signal') is True):
+            store.event(conn,job['id'],'CONDITION_MET','Kondisi terpantau terpenuhi.',f"condition-{step['id']}")
         if state_job == 'COMPLETED':
             store.event(conn, job['id'], 'COMPLETED', 'Pekerjaan selesai. Hasil terverifikasi tersedia.', f"job-{job['id']}-completed",unread=step['worker']!='REMINDER')
         if result.output.get('reason')=='waiting_input':
