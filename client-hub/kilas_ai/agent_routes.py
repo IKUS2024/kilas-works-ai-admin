@@ -89,7 +89,18 @@ def agent_home():
     from .agent_presentation import job_card, time_label
     if view in ('connections', 'activity'):
         return redirect(url_for('kilas_ai.agent_home', view='settings' if view=='connections' else 'notifications'), code=303)
-    autonomous_jobs = [job_card(j) for j in autonomous_store.list_jobs(owner, conversation_id=conversation_id if view=='chat' else None, active_only=view=='tasks')] if autonomous_runner.enabled() and view in ('chat','tasks') else []
+    raw_autonomous_jobs = autonomous_store.list_jobs(owner, conversation_id=conversation_id if view=='chat' else None, active_only=view=='tasks') if autonomous_runner.enabled() and view in ('chat','tasks') else []
+    if view == 'chat' and raw_autonomous_jobs:
+        unread_terminal = {row['job_id'] for row in db.query_all(
+            "SELECT DISTINCT e.job_id FROM kilas_agent_events e "
+            "JOIN kilas_agent_jobs j ON j.id=e.job_id "
+            "WHERE j.user_id=? AND j.origin_conversation_id=? "
+            "AND j.status IN ('COMPLETED','FAILED','STOPPED') AND e.unread=1",
+            (owner, conversation_id))}
+        raw_autonomous_jobs = [job for job in raw_autonomous_jobs
+                               if job['status'] not in autonomous_store.TERMINAL
+                               or job['id'] in unread_terminal]
+    autonomous_jobs = [job_card(j) for j in raw_autonomous_jobs]
     active_count = db.query_one("SELECT COUNT(*) AS n FROM kilas_agent_jobs WHERE user_id=? AND status NOT IN ('COMPLETED','FAILED','STOPPED')", (owner,))['n'] if autonomous_runner.enabled() else 0
     autonomous_unread = db.query_one('SELECT COUNT(*) AS n FROM kilas_agent_events e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE j.user_id=? AND e.unread=1 AND e.kind IN (\'REMINDER\',\'CONDITION_MET\',\'COMPLETED\',\'FAILED\',\'WAITING_INPUT\',\'WAITING_CAPABILITY\',\'NEEDS_APPROVAL\',\'BLOCKED\')', (owner,))['n'] if autonomous_runner.enabled() else 0
     messages = agent_store.messages(owner, conversation_id=conversation_id, before=request.args.get('before',type=int)) if view=='chat' else []
@@ -147,6 +158,14 @@ def agent_chat():
         except ValueError:pass
     try:request.work_location=work_routes.location_payload(request.form.get('work_location'))
     except ValueError:return {'error':'Lokasi tidak valid. Berikan lokasi lagi atau sebutkan daerahnya.'},400
+    # A new instruction acknowledges terminal results already shown in this Work
+    # conversation. Keep them in History/detail, but do not repin stale result cards
+    # underneath every later reply.
+    db.execute(
+        "UPDATE kilas_agent_events SET unread=0 WHERE job_id IN ("
+        "SELECT id FROM kilas_agent_jobs WHERE user_id=? AND origin_conversation_id=? "
+        "AND status IN ('COMPLETED','FAILED','STOPPED'))",
+        (owner, conversation_id))
     agent_store.append(owner, 'user', text, conversation_id)
     return work_runtime.handle(owner,text,key,conversation_id)
 
