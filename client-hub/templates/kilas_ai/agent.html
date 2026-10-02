@@ -2,7 +2,7 @@
 <html lang="id">
 <head>{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='chat-1') }}"></head>
 <body class="agent-body">
-{% include 'kilas_ai/_automation_nav.html' %}
+{% include 'kilas_ai/_agent_nav.html' %}
 <main class="agent-shell" data-view="{{ view }}">
   <button class="agent-menu-button" type="button" aria-expanded="false" aria-controls="agent-sidebar">Buka menu chat</button>
   <button class="agent-drawer-backdrop" type="button" aria-label="Tutup menu chat" hidden></button>
@@ -16,7 +16,7 @@
       <a href="{{ url_for('kilas_ai.usage_page') }}">Settings &amp; penggunaan</a>
     </nav>
     <nav class="agent-chats" aria-label="Chat terbaru"><h2>Chats</h2>{% for chat in recent_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}" {% if view=='chat' and chat.id==conversation.id %}aria-current="page"{% endif %}>{{ chat.title }}</a>{% endfor %}<a href="{{ url_for('kilas_ai.agent_home',view='history') }}">Lihat semua chat</a></nav>
-    <div class="agent-rail-foot"><p>Chat untuk bertanya. Kilas juga bisa mengerjakan pekerjaan di background.</p><a href="{{ url_for('kilas_ai.home') }}">Chat dengan lampiran</a></div>
+    <div class="agent-rail-foot"><p>Chat untuk bertanya. Kilas juga bisa mengerjakan pekerjaan di background.</p><a href="{{ url_for('kilas_ai.home',attachments='1') }}">Chat dengan lampiran</a></div>
   </aside>
 
   <section class="agent-main" aria-label="{{ {'chat':'Percakapan Agent','tasks':'Tugas Agent','activity':'Aktivitas Agent','connections':'Koneksi Agent','history':'Riwayat chat'}[view] }}">
@@ -40,7 +40,7 @@
       <form class="agent-composer" method="post" action="{{ url_for('kilas_ai.agent_chat') }}" id="agent-chat-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="conversation_id" value="{{ conversation.id }}"><input type="hidden" name="operation_key" value="{{ operation_key }}"><label for="agent-message">Pesan untuk Kilas</label>
         <div><textarea id="agent-message" name="message" rows="2" maxlength="1200" required placeholder="Tanya atau berikan pekerjaan untuk Kilas…">{{ prefill }}</textarea><button class="auto-primary" type="submit">Kirim</button></div>
         {% if autonomous_enabled %}<details class="autonomous-options"><summary>Advanced settings</summary><label for="autonomous-mode">Cara mengerjakan</label><select id="autonomous-mode" name="autonomous_mode"><option value="">Tentukan dari pesan</option><option value="ONE_SHOT">Kerjakan sampai selesai</option><option value="CONTINUOUS">Teruskan sampai dihentikan</option><option value="CONDITION_WATCH">Pantau sampai kondisi terpenuhi</option><option value="RECURRING">Ulangi secara berkala</option><option value="SCHEDULED">Mulai pada waktu tertentu</option></select><label for="autonomous-wake">Waktu mulai (WIB)</label><input id="autonomous-wake" type="datetime-local" name="wake_at"><label for="autonomous-interval">Frekuensi</label><select id="autonomous-interval" name="interval_seconds"><option value="300">Setiap 5 menit</option><option value="900">Setiap 15 menit</option><option value="3600" selected>Setiap 1 jam</option><option value="86400">Setiap 1 hari</option></select><p>Tindakan eksternal tetap membutuhkan persetujuanmu. Setiap pekerjaan memiliki batas langkah dan percobaan.</p></details>{% endif %}
-        <p>Enter untuk kirim · Shift+Enter untuk baris baru. <a href="{{ url_for('kilas_ai.home') }}">Chat dengan lampiran</a></p>
+        <p>Enter untuk kirim · Shift+Enter untuk baris baru. <a href="{{ url_for('kilas_ai.home',attachments='1') }}">Chat dengan lampiran</a></p>
       </form>
     {% elif view == 'tasks' %}
       <header class="agent-section-head"><div><h2>Active Tasks</h2><p>Jadwal, status, dan kendali setiap tugas ada di sini.</p></div><a class="auto-primary" href="{{ url_for('kilas_ai.automation_new') }}">Beri tugas</a></header>

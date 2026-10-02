@@ -33,6 +33,9 @@ def require_access():
 
 @ai_bp.get("")
 def home():
+    from . import autonomous_runner
+    if automation_enabled() and autonomous_runner.enabled() and request.args.get('attachments') != '1' and not request.args.get('automation_result'):
+        return redirect(url_for('kilas_ai.agent_home'), code=302)
     from . import attachments, store, usage
     current_plan = usage.effective_plan(session["user_id"])["plan"]
     from . import automation_store

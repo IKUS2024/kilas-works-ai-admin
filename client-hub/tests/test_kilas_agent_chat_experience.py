@@ -50,6 +50,14 @@ class ChatTests(unittest.TestCase):
         self.assertEqual(chats.messages(self.owner,conversation_id=new),[])
         self.assertIn('Old meaningful',chats.messages(self.owner,conversation_id=self.conv)[0]['content'])
 
+    def test_primary_entry_chat_first_attachments_preserved(self):
+        response=self.client.get('/kilas-ai')
+        self.assertEqual(response.status_code,302)
+        self.assertIn('/kilas-ai/agent',response.location)
+        response=self.client.get('/kilas-ai?attachments=1')
+        self.assertEqual(response.status_code,200)
+        self.assertIn('id="ai-files"',response.get_data(as_text=True))
+
     def test_new_chat_preserves_job_and_lease(self):
         job=jobs.create(self.owner,'Riset sampai selesai',conversation_id=self.conv)
         claim=jobs.claim_due(1)[0]
