@@ -30,7 +30,7 @@ def main():
                 with client.session_transaction() as state:state.update(user_id=owner,role='CLIENT_OWNER',agent_conversation_id=conversation,_csrf_token='browser-work')
                 cookie=client.get_cookie('session')
                 context=browser.new_context(viewport={'width':width,'height':height},has_touch=width<760,reduced_motion='reduce')
-                context.add_init_script("""desktop => { const native = window.matchMedia.bind(window); window.matchMedia = query => query === '(hover: hover) and (pointer: fine)' ? {matches: desktop, media: query, onchange: null, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){}, dispatchEvent(){return false;}} : native(query); }""", width>=760)
+                context.add_init_script("""const nativeMatchMedia = window.matchMedia.bind(window); const desktopFocus = """ + ('true' if width>=760 else 'false') + """; window.matchMedia = query => query === '(hover: hover) and (pointer: fine)' ? {matches: desktopFocus, media: query, onchange: null, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){}, dispatchEvent(){return false;}} : nativeMatchMedia(query);""")
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
                 page=context.new_page();errors=[]
                 page.on('pageerror',lambda error:errors.append(str(error)))
