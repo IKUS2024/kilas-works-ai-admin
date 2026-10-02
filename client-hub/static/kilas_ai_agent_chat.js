@@ -31,6 +31,7 @@
   const thinking = document.querySelector('#agent-thinking');
   const error = document.querySelector('#agent-chat-error');
   let busy = false;
+  const canAutoFocus = () => Boolean(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
   function message(role, text) {
     const article = document.createElement('article');
     article.className = `agent-message agent-message-${role}`;
@@ -65,6 +66,7 @@
     event.preventDefault();
     if (busy || !input.value.trim()) return;
     const data = new FormData(form);
+    if (!canAutoFocus()) input.blur();
     busy = true; send.disabled = true; input.readOnly = true;
     error.hidden = true; chat.querySelector('.agent-welcome')?.remove();
     message('user', input.value.trim());
@@ -113,7 +115,8 @@
     } finally {
       busy = false; send.disabled = false; input.readOnly = false;
       thinking.hidden = true; chat.removeAttribute('aria-busy');
-      input.focus({preventScroll:true});
+      if (canAutoFocus()) input.focus({preventScroll:true});
+      else input.blur();
     }
   });
   // Read-only refresh of task cards; no new planner/model request and no hidden-tab polling.
