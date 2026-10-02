@@ -6,11 +6,29 @@
   window.KilasMarkdown.hydrate();
   const form = document.querySelector('#agent-chat-form');
   if (!form) {
+    if (document.querySelector('[data-work-detail-updates]')) {
+      let updating=false;
+      const updateDetail=async (force=false) => {
+        if(document.hidden || updating || (!force && !document.querySelector('[data-work-detail-updates][data-live="true"]'))) return;
+        updating=true;
+        try {
+          const response=await fetch(location.href,{cache:'no-store'});
+          if(!response.ok) return;
+          const doc=new DOMParser().parseFromString(await response.text(),'text/html');
+          const current=doc.querySelector('[data-work-detail-updates]');
+          if(current) {document.querySelector('[data-work-detail-updates]').replaceWith(current);window.KilasMarkdown.hydrate(current);}
+        } catch (_) { /* Retain persisted progress and untouched feedback input. */ }
+        finally {updating=false;}
+      };
+      setInterval(updateDetail,3000);
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden) updateDetail(true);});
+      window.addEventListener('focus',()=>updateDetail(true));
+    }
     // The account-wide view uses the same bounded, read-only task cards.
     const tasks = document.querySelector('[data-task-cards]');
     if (tasks) {
-      const update = async () => {
-        if (document.hidden || !document.querySelector('[data-live="true"]')) return;
+      const update = async (force=false) => {
+        if (document.hidden || (!force && !document.querySelector('[data-live="true"]'))) return;
         try {
           const response = await fetch('/kilas-ai/agent?view=tasks', {cache:'no-store'});
           if (!response.ok) return;
@@ -20,8 +38,8 @@
         } catch (_) { /* Retain the last verified state. */ }
       };
       setInterval(update, 3000);
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) update(); });
-      window.addEventListener('focus', update);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) update(true); });
+      window.addEventListener('focus', () => update(true));
     }
     return;
   }
@@ -127,8 +145,8 @@
   });
   // Read-only refresh of task cards; no new planner/model request and no hidden-tab polling.
   let polling=false;
-  async function refreshTasks() {
-    if (document.hidden || busy || !chat.querySelector('[data-live="true"]')) return;
+  async function refreshTasks(force=false) {
+    if (document.hidden || busy || (!force && !chat.querySelector('[data-live="true"]'))) return;
     if (polling) return;
     polling=true;
     const position = chat.scrollTop;
@@ -167,6 +185,6 @@
   }
   startDue();
   setInterval(refreshTasks, 3000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshTasks(); });
-  window.addEventListener('focus', refreshTasks);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshTasks(true); });
+  window.addEventListener('focus', () => refreshTasks(true));
 })();
