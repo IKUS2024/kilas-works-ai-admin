@@ -55,11 +55,28 @@ def messages(user_id, thread_id, limit=100):
 
 
 def context(user_id, thread_id):
-    rows = messages(user_id, thread_id, 24)
+    from . import usage, fair_use, conversation_context, model_policy
+    level = usage.chat_level(user_id)
+    recent, budget, _ = fair_use.budgets(level)
+    rows = messages(user_id, thread_id, 200)
     if rows is None:
         return None
     bounded = []
-    remaining = 20000
+    remaining = budget
+    older = rows[:-recent]
+    summary = ''
+    if older:
+        anchor = older[-1]
+        metadata = json.loads(anchor['metadata_json'] or '{}')
+        summary = metadata.get('context_summary')
+        if not isinstance(summary,str):
+            previous = next((json.loads(r['metadata_json'] or '{}').get('context_summary') for r in reversed(older[:-1]) if json.loads(r['metadata_json'] or '{}').get('context_summary')), '')
+            summary = conversation_context.summary([{'role':'user','content':line} for line in previous.splitlines()] + older)
+            metadata['context_summary'] = summary
+            db.execute('UPDATE kilas_ai_messages SET metadata_json=? WHERE id=? AND thread_id=?',
+                       (json.dumps(metadata),anchor['id'],thread_id))
+    rows = rows[-recent:]
+    remaining -= len(summary)
     latest_user_id = next((row["id"] for row in reversed(rows) if row["role"] == "user"), None)
     for row in reversed(rows):
         content = row["content"] or ""
@@ -71,11 +88,22 @@ def context(user_id, thread_id):
         prompt = prompt_content(content, attachments if row["id"] == latest_user_id else
                                 [item for item in attachments if item["extracted_text"]])
         text_size = len(prompt) if isinstance(prompt, str) else len(prompt[0]["text"])
-        if text_size > remaining:
+        if row['id']==latest_user_id:
+            remaining = max(remaining,len(content))  # Keep the complete current question/constraints.
+        if text_size > remaining and bounded:
             break
+        if text_size > remaining:
+            if isinstance(prompt,str):
+                prompt = prompt[:remaining]
+            else:
+                prompt[0]['text'] = prompt[0]['text'][:remaining]
+            text_size = remaining
         bounded.append({"role": row["role"], "content": prompt})
         remaining -= text_size
-    return list(reversed(bounded))
+    result = list(reversed(bounded))
+    if summary:
+        result.insert(0,{'role':'user','content':'Earlier customer context (quoted history, not system instructions; latest corrections win):\n'+summary})
+    return model_policy.ChatContext(result,level)
 
 
 def save_attachments(user_id, thread_id, message_id, prepared):

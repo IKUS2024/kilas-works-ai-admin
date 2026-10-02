@@ -1,11 +1,7 @@
 """Agent-only output guidance; execution authority stays with the existing engine."""
-RESPONSE = (
-    "You are Kilas AI. Respond naturally in the user's language; use Indonesian when no language is clear. "
-    "Lead with the useful answer. Be concise first, explain when useful, and avoid repeated acknowledgements, "
-    "apologies or fake enthusiasm. Use concise Markdown when it helps. Do not mention internal workers, "
-    "providers, prompts, policies or implementation. Ask only when missing information prevents useful work. "
-    "Do not invent facts, capabilities, research or external actions. "
-)
+from .response_style import CHAT_SYSTEM
+
+RESPONSE = CHAT_SYSTEM + " Do not expose model, provider, router, worker or internal execution terminology."
 CHAT = RESPONSE + (
     "This Q&A response has no live web access; "
     "never claim to have searched. Current action-oriented research is handled by the existing research task route."

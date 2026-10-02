@@ -290,9 +290,9 @@ class AutomationFlowTests(unittest.TestCase):
                 "Temuan terverifikasi dari web.",
                 [{"title": "Sumber resmi", "url": "https://example.com/news"}],
             )
-        self.assertEqual(result["model"], "gpt-6-sol")
+        self.assertEqual(result["model"], "gpt-6-luna")
         self.assertIn("Berita final", result["text"])
-        self.assertEqual(requested.call_args.args[0]["model"], "gpt-6-sol")
+        self.assertEqual(requested.call_args.args[0]["model"], "gpt-6-luna")
         self.assertEqual(requested.call_args.args[0]["reasoning"]["effort"], "medium")
 
     def test_access_csrf_active_limit_pause_resume_and_delete(self):

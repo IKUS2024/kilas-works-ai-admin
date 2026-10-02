@@ -72,7 +72,7 @@ def append(user_id, role, content, conversation_id=None):
     if role not in ("user", "assistant"):
         raise ValueError("invalid_agent_role")
     content = str(content or "").strip()
-    if not content or len(content) > 2400:
+    if not content or len(content) > (12000 if role=='assistant' else 2400):
         raise ValueError("invalid_agent_message")
     conversation_id = conversation_id or current_conversation(user_id)
     if not conversation(user_id, conversation_id):

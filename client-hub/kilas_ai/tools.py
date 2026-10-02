@@ -95,7 +95,8 @@ def _enough_evidence(text, citations):
 
 
 def _synthesize_research(chunks, citations):
-    model = os.environ.get("KILAS_AI_OPENAI_SMART_MODEL", "gpt-6-sol").strip()
+    from .model_policy import luna_model
+    model = luna_model()
     sources = "\n".join(f"[{index}] {item['title']} — {item['url']}"
                         for index, item in enumerate(citations, 1))
     evidence = "\n\n".join(chunks)[:18000]
@@ -129,6 +130,7 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
               "Verify remaining gaps using current reputable sources.",
               "Cross-check any unresolved high-impact claim against a separate credible source.")
     parts, citations, calls = [], [], 0
+    cost_components = []
     input_tokens = output_tokens = 0
     for index in range(limit):
         previous = "\n".join(item["url"] for item in citations[-8:])
@@ -149,6 +151,9 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
             continue
         searched, answer, found = _web_response(data)
         used = data.get("usage") or {}
+        cost_components.append({'model':model,'operation':'WEB_SEARCH',
+            'input_tokens':used.get('input_tokens',0),'output_tokens':used.get('output_tokens',0),
+            'cached_input_tokens':(used.get('input_tokens_details') or {}).get('cached_tokens',0)})
         input_tokens += int(used.get("input_tokens") or 0)
         output_tokens += int(used.get("output_tokens") or 0)
         if not searched or not answer or not found:
@@ -171,13 +176,17 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
         yield {"activity": "Menyusun hasil riset…"}
         try:
             answer, model, used = _synthesize_research(parts, citations[:8])
+            cost_components.append({'model':model,'operation':'CHAT',
+                'input_tokens':used.get('input_tokens',0),'output_tokens':used.get('output_tokens',0),
+                'cached_input_tokens':(used.get('input_tokens_details') or {}).get('cached_tokens',0)})
             input_tokens += int(used.get("input_tokens") or 0)
             output_tokens += int(used.get("output_tokens") or 0)
         except ToolUnavailable:
             pass  # Keep only the source-backed search findings when synthesis fails.
     yield {"result": {"text": answer[:30000], "citations": citations[:8], "model": model,
             "search_calls": calls, "research": complex_request,
-            "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens, "web_search_calls": calls}}}
+            "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens, "web_search_calls": calls,
+                      'cost_components':cost_components}}}
 
 
 def web_search(context, mode="FAST", plan="FREE", max_calls=None, request_timeout=None):
@@ -186,10 +195,9 @@ def web_search(context, mode="FAST", plan="FREE", max_calls=None, request_timeou
 
 
 def finalize_scheduled_search(instruction, search_text, citations):
-    """Rewrite a completed scheduled Search with GPT-6 Sol using only verified findings."""
-    model = os.environ.get("KILAS_AI_AUTOMATION_SEARCH_FINAL_MODEL", "gpt-6-sol").strip()
-    if model != "gpt-6-sol":
-        raise ToolUnavailable("Model final Search Agent tidak valid.")
+    """Rewrite completed scheduled Search economically using only verified findings."""
+    from .model_policy import luna_model
+    model = luna_model()
     safe_sources = [item for item in (citations or [])[:8] if str(item.get("url") or "").startswith("https://")]
     if not safe_sources or not str(search_text or "").strip():
         raise ToolUnavailable("Hasil Search belum cukup untuk disusun.")
@@ -219,7 +227,7 @@ def finalize_scheduled_search(instruction, search_text, citations):
     data = _request(payload)
     _, answer, _ = _web_response(data)
     if not answer:
-        raise ToolUnavailable("GPT-6 Sol tidak mengembalikan hasil final.")
+        raise ToolUnavailable("Hasil final belum tersedia. Coba lagi.")
     return {"text": answer[:12000], "model": model, "usage": data.get("usage") or {}}
 
 

@@ -69,7 +69,7 @@
     error.hidden = true; chat.querySelector('.agent-welcome')?.remove();
     message('user', input.value.trim());
     thinking.hidden = false;
-    thinking.lastElementChild.textContent = /\b(riset|research)\b/i.test(input.value) ? 'Menyiapkan riset…' : /\b(kerjain|kerjakan|pantau|perbaiki|setiap|besok)\b/i.test(input.value) ? 'Menyiapkan pekerjaan…' : 'Thinking…';
+    thinking.lastElementChild.textContent = /\b(riset|research)\b/i.test(input.value) ? 'Menyiapkan riset…' : /\b(kerjain|kerjakan|pantau|perbaiki|setiap|besok)\b/i.test(input.value) ? 'Menyiapkan pekerjaan…' : 'Menyiapkan jawaban…';
     chat.setAttribute('aria-busy', 'true');
     let accepted = false;
     try {

@@ -90,6 +90,20 @@ def execute(job_id, token):
             store.control(job['user_id'], job_id, 'stop')
             return
         if job['status'] == 'PLANNING':
+            # Reuse only a fully verified bounded, non-side-effect cycle. The existing
+            # install transaction supplies new idempotency keys and enforces max_steps.
+            prior = json.loads(job['plan_json'] or '{}')
+            old_steps = store.steps(job_id)
+            reusable = (job['cycle'] > 0 and job['mode'] in ('RECURRING','CONTINUOUS')
+                and not job['last_error'] and not job['failures']
+                and prior.get('steps') and old_steps
+                and len(old_steps)>=len(prior['steps'])
+                and all(s['status']=='SUCCEEDED' for s in old_steps[-len(prior['steps']):])
+                and all(s['worker'] in ('WEB','AI_TEXT','WATCH','MARKET','FILE') and not s['requires_approval'] for s in prior['steps']))
+            if reusable:
+                raw = {**prior,'steps':[{**{k:v for k,v in s.items() if k!='input'},'input_json':store.encode(s['input'])} for s in prior['steps']]}
+                store.install_plan(job,token,planner.validate(raw,job['mode'],job['instruction']))
+                return
             completed = [{'instruction': s['instruction'], 'output': json.loads(s['output_json'])} for s in store.steps(job_id) if s['status'] == 'SUCCEEDED'][-4:]
             proposal = planner.propose(job, completed)
             store.install_plan(job, token, proposal)

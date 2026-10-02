@@ -4,7 +4,7 @@ import os
 
 import requests
 
-from . import response_style
+from . import response_style, model_policy
 
 
 class ProviderError(Exception):
@@ -13,31 +13,22 @@ class ProviderError(Exception):
 
 SYSTEM = response_style.CHAT_SYSTEM
 PROVIDERS = ("openai", "anthropic")
-MODEL_TIERS = {
-    "FAST": {"openai": "gpt-6-luna"},
-    "SMART": {"openai": "gpt-6-sol", "anthropic": "claude-sonnet-5"},
-    "EXPERT": {"openai": "gpt-6-sol", "anthropic": "claude-sonnet-5"},
-}
-OUTPUT_LIMITS = {"FAST": 800, "SMART": 1600, "EXPERT": 2400}
-EFFORT = {"FAST": "none", "SMART": "medium", "EXPERT": "high"}
+MODEL_TIERS = {mode: {"openai": model_policy.LUNA} for mode in ("FAST","SMART","EXPERT")}
+OUTPUT_LIMITS = {"FAST": 1000, "SMART": 1500, "EXPERT": 1500}
+EFFORT = {"FAST": "low", "SMART": "medium", "EXPERT": "medium"}
 
 
 def candidates(mode):
-    mode = mode.upper()
-    if mode not in ("FAST", "SMART", "EXPERT"):
+    if mode.upper() not in MODEL_TIERS:
         raise ValueError("invalid_mode")
-    primary = os.environ.get("KILAS_AI_" + mode + "_PRIMARY", "openai").strip().lower()
-    if primary not in PROVIDERS:
-        raise ProviderError("invalid_provider_configuration")
-    alternate = "anthropic" if primary == "openai" else "openai"
-    for provider in (primary, alternate):
-        expected = MODEL_TIERS[mode].get(provider)
-        if not expected:
-            continue
-        model = os.environ.get("KILAS_AI_" + provider.upper() + "_" + mode + "_MODEL", "").strip()
-        key = os.environ.get("OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY", "").strip()
-        if model == expected and key:
-            yield provider, model, key
+    try:
+        model = model_policy.luna_model()
+    except ValueError:
+        raise ProviderError("invalid_provider_configuration") from None
+    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    # Legacy SMART/EXPERT provider configuration cannot promote ordinary Chat or its fallback.
+    if key:
+        yield "openai", model, key
 
 
 def _events(response):
@@ -64,12 +55,13 @@ def _events(response):
 
 
 def _openai(model, key, messages, mode, system=SYSTEM):
+    profile = model_policy.chat_profile(messages)
     try:
         with requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
             json={"model": model, "messages": [{"role": "system", "content": system}] + messages,
-                  "max_completion_tokens": OUTPUT_LIMITS[mode], "reasoning_effort": EFFORT[mode], "stream": True,
+                  "max_completion_tokens": profile["output_tokens"], "reasoning_effort": profile["effort"], "stream": True,
                   "stream_options": {"include_usage": True}, "store": False},
             stream=True, timeout=(10, 90),
         ) as response:
@@ -78,7 +70,8 @@ def _openai(model, key, messages, mode, system=SYSTEM):
                 usage = event.get("usage") or {}
                 if usage:
                     yield {"type": "usage", "input_tokens": usage.get("prompt_tokens", 0),
-                           "output_tokens": usage.get("completion_tokens", 0)}
+                           "output_tokens": usage.get("completion_tokens", 0),
+                           "cached_input_tokens": (usage.get("prompt_tokens_details") or {}).get("cached_tokens",0)}
                 choices = event.get("choices") or []
                 if choices:
                     delta = (choices[0].get("delta") or {}).get("content")

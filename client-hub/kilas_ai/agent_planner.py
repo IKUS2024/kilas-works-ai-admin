@@ -59,8 +59,8 @@ def propose(user_id, text, history, tasks, default_timezone="Asia/Jakarta"):
         raise PlanUnavailable("agent_planner_unavailable")
     key = "agent-plan-" + secrets.token_hex(16)
     intent_mode = _mode(text)
-    # Agent planning is a high-value control surface: use the stronger reasoning budget even
-    # for short conversational follow-ups so intent, context, and schedule edits stay coherent.
+    from .model_policy import agent_planner
+    model, effort, reason = agent_planner({'instruction':text})
     mode = "SMART"
     try:
         _, operations = usage.reserve(user_id, None, key, mode, "CHAT")
@@ -68,13 +68,6 @@ def propose(user_id, text, history, tasks, default_timezone="Asia/Jakarta"):
         raise PlanUnavailable(str(error)) from None
     if not operations:
         raise PlanUnavailable("duplicate_agent_plan")
-    model = os.environ.get(
-        "KILAS_AI_AGENT_MODEL",
-        os.environ.get("KILAS_AI_AGENT_SMART_MODEL", "gpt-6.1-sol"),
-    )
-    if model not in ("gpt-6-luna", "gpt-6.1-sol"):
-        usage.finish(user_id, key, operations, success=False)
-        raise PlanUnavailable("invalid_agent_model")
     system = (
         "You are the Kilas AI Agent task planner. " + response_style.BASE_STYLE + " "
         "Return JSON only. Propose exactly one action. Never claim a connector or task ran. "
@@ -111,7 +104,7 @@ def propose(user_id, text, history, tasks, default_timezone="Asia/Jakarta"):
             json={"model": model, "instructions": system, "input": previous + [{"role": "user", "content": prompt}],
                   "text": {"format": {"type": "json_schema", "name": "kilas_agent_intent",
                                       "strict": True, "schema": SCHEMA}},
-                  "reasoning": {"effort": "medium" if intent_mode == "SMART" else "none"},
+                  "reasoning": {"effort": effort},
                   "max_output_tokens": 600, "store": False},
             timeout=(10, 45))
         response.raise_for_status()

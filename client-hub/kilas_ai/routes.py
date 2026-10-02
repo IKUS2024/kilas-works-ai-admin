@@ -209,10 +209,10 @@ def regenerate(thread_id):
         pieces = []
         size = 0
         provider = model = None
-        usage = {"input_tokens": 0, "output_tokens": 0}
+        usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens":0}
         completed = False
         try:
-            yield _sse("activity", {"label": "Berpikir lebih dalam…" if mode in ("SMART", "EXPERT") else "Berpikir…"})
+            yield _sse("activity", {"label": providers.model_policy.chat_profile(context)["activity"]})
             for event in providers.stream(mode, context):
                 if event["type"] == "provider":
                     provider, model = event["provider"], event["model"]
@@ -232,7 +232,8 @@ def regenerate(thread_id):
         finally:
             store.finish_regeneration(user_id, thread_id, message_id, "".join(pieces), provider, model,
                                       {"status": "complete" if completed else "interrupted" if pieces else "failed",
-                                       "usage": usage, "regenerated": True})
+                                       "usage": usage, "regenerated": True,
+                                       "reasoning_tier":providers.model_policy.chat_profile(context)['tier']})
             ai_usage.finish(user_id, key, operations, success=completed, provider=provider, model=model, usage=usage)
         if completed:
             yield _sse("done", {"finish_reason": "stop"})
@@ -316,7 +317,7 @@ def send(thread_id):
         pieces = []
         size = 0
         provider = model = None
-        usage = {"input_tokens": 0, "output_tokens": 0}
+        usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens":0}
         finished = False
         persisted = False
         reason = None
@@ -404,7 +405,7 @@ def send(thread_id):
                     return
             yield _sse("activity", {"label": "Menganalisis gambar…" if any(item["mime_type"].startswith("image/") for item in prepared)
                           else "Membaca dokumen…" if any(item["extracted_text"] for item in prepared)
-                          else "Berpikir lebih dalam…" if mode in ("SMART", "EXPERT") else "Berpikir…"})
+                          else providers.model_policy.chat_profile(context)["activity"]})
             for event in providers.stream(mode, context):
                 if event["type"] == "provider":
                     provider, model = event["provider"], event["model"]
@@ -421,7 +422,8 @@ def send(thread_id):
             if pieces:
                 finished = True
                 store.append_assistant(user_id, thread_id, "".join(pieces), mode, provider, model, key,
-                                       {"status": "complete", "finish_reason": reason, "usage": usage})
+                                       {"status": "complete", "finish_reason": reason, "usage": usage,
+                                        "reasoning_tier":providers.model_policy.chat_profile(context)['tier']})
                 persisted = True
                 yield _sse("done", {"finish_reason": reason or "stop"})
             else:

@@ -140,7 +140,7 @@ class AgentTests(unittest.TestCase):
         self.assertNotIn("Exception", activity)
         self.assertEqual(len(agent_store.activity(self.other)), 0)
 
-    def test_simple_agent_planner_defaults_to_sol_and_account_timezone(self):
+    def test_simple_agent_planner_defaults_to_luna_and_account_timezone(self):
         class FakeResponse:
             def raise_for_status(self):
                 pass
@@ -159,7 +159,7 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(plan["action"], "CREATE")
         self.assertEqual(reserved.call_args.args[3], "SMART")
         payload = posted.call_args.kwargs["json"]
-        self.assertEqual(payload["model"], "gpt-6.1-sol")
+        self.assertEqual(payload["model"], "gpt-6-luna")
         self.assertIn("saved timezone: Asia/Jakarta", payload["instructions"])
         self.assertIn("do not ask them to choose WIB/WITA/WIT", payload["instructions"])
         self.assertTrue(finished.call_args.kwargs["success"])
@@ -179,7 +179,7 @@ class AgentTests(unittest.TestCase):
             plan = agent_planner.propose(self.owner, "gabungkan beberapa sumber dan analisis risiko", [], [])
         self.assertEqual(plan["action"], "HELP")
         self.assertEqual(reserved.call_args.args[3], "SMART")
-        self.assertEqual(posted.call_args.kwargs["json"]["model"], "gpt-6.1-sol")
+        self.assertEqual(posted.call_args.kwargs["json"]["model"], "gpt-6-luna")
         self.assertEqual(posted.call_args.kwargs["json"]["text"]["format"]["type"], "json_schema")
         self.assertTrue(finished.call_args.kwargs["success"])
 
