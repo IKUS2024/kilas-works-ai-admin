@@ -2,7 +2,30 @@
 
 Branch: `fix/kilas-ai-cost-quality-routing-20261002`.
 Base: remote main `8130cdadc1ea6560458d52d6b2abb28176ee872a`, containing deployed PR #110.
-State: implemented and locally verified; one focused PR for review. **Do not merge or deploy as part of this task.** No Render environment, production connection, production data or infrastructure was changed.
+State: sustainability follow-up implemented on the existing branch and PR #111. **Do not merge or deploy as part of this task.** No Render environment, production connection, production data or infrastructure was changed.
+
+## PR #111 sustainability follow-up
+
+The new `KILAS_AI_CHAT_SUSTAINABILITY_COST_RATIO` defaults to 0.35, accepts finite 0.20–0.60, and falls back to 0.35 for invalid values. Its effective value is never below the configured PROTECTION threshold. Incompatible PROTECTION settings above 0.60 fail closed instead of silently violating either constraint. Defaults remain HEAVY 16%, VERY_HEAVY 24%, PROTECTION 30%, ceiling 35%.
+
+The existing per-user reservation transaction checks active-cycle normal Chat cost before provider calls or top-up reservation, independently of request frequency. Existing normal-Chat filtering includes ordinary Agent Q&A and billable interrupted calls; excludes Search/PDF paired historical CHAT, images, background execution and external actions. It reuses existing pending-call accounting and PROTECTION concurrency of one. One bounded in-flight response may cross the ceiling; further normal calls stop. This is an estimated provider-cost safeguard, not an exact invoice guarantee. Next paid billing cycle resets eligibility automatically. Existing tool/free limits, approval, security and model routing are retained.
+
+Denial copy: “Pemakaian Chat akun ini sangat intensif dan sementara dibatasi sesuai Fair Use. Akses Chat normal akan kembali pada periode penggunaan berikutnya.” No Chat top-up or Sol fallback is offered.
+
+Exact public footnote: “Unlimited AI Chat untuk penggunaan normal. Penggunaan otomatis atau sangat intensif dapat diperlambat atau dibatasi sementara sesuai Fair Use. Search, gambar, PDF, AI Agent, dan tindakan eksternal memiliki batas penggunaan tersendiri.” The display retains **Unlimited AI Chat***. Internal percentages, models and provider costs stay hidden.
+
+Controlled synthetic checkout verifies the public Rp99k offer creates internal **PLUS / 99000**, even if a client submits `plan=PRO`. Historical PRO/MAX invoice IDs and amounts stay unchanged. Payment verification and billing implementation are untouched. The exact existing QA grant bypasses the new ceiling while retaining security and metering.
+
+Follow-up files only:
+
+- `client-hub/kilas_ai/fair_use.py`
+- `client-hub/kilas_ai/usage.py`
+- `client-hub/templates/kilas_ai/usage.html`
+- `client-hub/scripts/kilas_ai_cost_simulation.py`
+- `client-hub/tests/test_kilas_ai_cost_quality.py`
+- `client-hub/tests/test_kilas_ai_usage.py`
+- `client-hub/tests/test_kilas_ai_topups.py`
+- `docs/KILAS_AI_COST_QUALITY_ROUTING_STATUS.md`
 
 ## Model and reasoning policy
 
@@ -34,7 +57,7 @@ Internal cost tiers derive from recorded normal Chat cost within the paid period
 | HEAVY | 10 | 14,000 characters | 2 | at most 1,200 tokens |
 | VERY_HEAVY / PROTECTION | 8 | 11,000 characters | 1 | at most 1,000 tokens |
 
-The complete current user question is retained even when longer than the tightened historical budget, within the existing input limit. Existing burst/hour limits, provider timeouts and idempotency remain. Failed attempts cannot be used to escape burst protection. Cost PROTECTION alone does not permanently block Chat: a temporary slowdown requires both at least 60 normal Chat attempts in the previous hour and 10 in the previous five minutes. Paid users are not sent to buy Chat messages for this throttle. Limits are derived per request; there is no permanent ban or new Redis resource.
+The complete current user question is retained even when longer than the tightened historical budget, within the existing input limit. Existing burst/hour limits, provider timeouts and idempotency remain. Failed attempts cannot be used to escape burst protection. Below the sustainability ceiling, the existing PROTECTION frequency slowdown still requires both at least 60 normal Chat attempts in the previous hour and 10 in the previous five minutes. At the ceiling, new normal Chat provider calls stop regardless of frequency until the next paid period. Paid users are not sent to buy Chat messages. There is no permanent ban or new Redis resource.
 
 Subscription wording now says **Kilas Pro / Rp99.000 / Unlimited AI Chat*** and explains fair use plus separately limited tools. No new model selector or quota counter is exposed. Existing checkout/payment verification and capacity credit data are unchanged.
 
@@ -66,21 +89,32 @@ Illustrative assumptions: 2,400 input tokens, including 1,200 cached tokens, and
 | HEAVY | 2,000 | 1.1300 | 19.40% | HEAVY |
 | EXTREME | 10,000 | 5.6500 | 97.02% | PROTECTION |
 
-The extreme scenario is a real margin risk if sustained at a human-like frequency. Tightened context/output and automated-use throttles reduce exposure, but the ratios are **not guaranteed absolute spending caps**. Owner should review this tradeoff before release. The paid promise does not silently become a numeric message limit to conceal that risk.
+**SIMULATION ONLY / NOT OBSERVED CUSTOMER USAGE / NOT AN OFFICIAL PROVIDER INVOICE.** The table above retains the unthrottled baseline. Under the new sequential policy simulation:
+
+| Requested turns | Provider calls | Denied turns | Enforced estimate USD | Revenue share |
+| --- | --- | --- | --- | --- |
+| 100 | 100 | 0 | 0.056500 | 0.97% |
+| 500 | 500 | 0 | 0.282500 | 4.85% |
+| 2,000 | 2,000 | 0 | 1.130000 | 19.40% |
+| 10,000 | 3,608 | 6,392 | 2.038520 | 35.00% |
+
+The default ceiling is USD 2.038235 using Rp99k / 17000. One simulated turn crosses it by USD 0.000285. This closes the previous slow-extreme-user margin risk; it is not a fixed message allowance, live usage measurement or guarantee of official invoice totals. Actual bounded turns have variable cost; tools are separately limited.
 
 ## Verification and limits
 
-**241 tests passed across 15 focused suites**: cost/quality 24; Chat 8; usage 5; tools/Search 12; natural style 7; attachments 6; PDF 4; Agent 9; Automation 17; connectors/Gmail approval 32; Agent chat experience 43; autonomous engine 47; PR #110 results 18; single subscription console 4; top-ups 5.
+**254 tests passed across 16 focused suites**: cost/quality 35; Chat 8; usage 5; tools/Search 12; natural style 7; attachments 6; PDF 4; Agent 9; Automation 17; connectors/Gmail approval 32; Agent chat experience 43; autonomous engine 47; PR #110 results 18; single subscription console 4; top-ups 5; billing activation/renewal 2. Existing usage/top-up expectations above the ceiling now assert Fair Use denial; image credits remain independent and cannot bypass the Chat ceiling.
 
 **Seven Chromium browser scripts passed**: PR #110 response/results, Agent chat, Agent, autonomous details, shared shell, normal Chat/subscription/attachments, Automation. PR #110 checks include 320/360/390/820/1440 px, safe stored/streamed Markdown, compact result-first cards and no horizontal overflow. The browser heading assertion was updated for the requested Kilas Pro wording. Existing security assertions are retained.
 
-Old Sol-default/fallback test expectations were updated to the intentional Luna policy. One intermediate browser test edit had incorrect indentation and was fixed before the successful rerun. No unresolved focused test failure remains. No unrelated baseline suite failure was encountered in the tests run; the whole repository suite was not run. PostgreSQL and Linux sandbox checks remain CI gates, not local Windows passes.
+Old Sol-default/fallback test expectations were updated to the intentional Luna policy. One intermediate browser test edit had incorrect indentation and was fixed before the successful rerun. No unresolved focused test failure remains. The whole repository suite was not run. Known prior-head CI baseline failures are listed below. PostgreSQL and Linux sandbox checks remain CI gates, not local Windows passes.
 
 The corpus validates the behavioral contract offline; it does not prove live model prose sounds natural on every case. No production model/search request or authenticated production test was performed. The simulation is illustrative. Existing free/tool quota and provider outages can still prevent those separate features. No whole-app redesign or full Impeccable audit was performed.
 
 Diff review: no Finance, Assist, WhatsApp/Meta, Google scopes, Gmail approvals, payment provider code, sandbox changes, schema/migration changes, production data reset or infrastructure changes. `git diff --check` passes. CI includes the new cost/quality tests plus the directly relevant quota/attachment/style/top-up regressions.
 
-Technically ready for PR/CI review. **Do not claim fully safe to deploy until CI (including native PostgreSQL/sandbox) passes and the owner reviews the documented extreme-use margin risk.** A future authorized release should update Client Hub and the existing Cron runner together; no AI Admin deployment, migration or new resource is needed.
+Technically ready for PR/CI review; sustainability risk addressed. **Do not claim fully safe to deploy until current-head relevant CI (including native PostgreSQL/sandbox) passes.** PR #111 remains open and unmerged; no deployment is authorized in this follow-up. A future authorized release should update Client Hub and the existing Cron runner together; no AI Admin deployment, migration or new resource is needed.
+
+Prior-head CI (`fb73d47`): Connectors, Automation, Autonomous Agent (including native PostgreSQL/sandbox/browser) and Phase 8 passed. The known older baseline failures remain: Phase 7 `finance-baseline` (branches, invoice conversation and dashboard assertions; Finance runtime passed), Master `assist-regression`, Phase 9 `product-ux` mobile/tablet/desktop package/operator UI, and Phase 10 `authenticated-journeys` (login/Web Chat/takeover/Bridge/Finance payment). These already failed before this follow-up and are outside its eight-file scope. No protected-product fix or full repository suite was attempted. Current-head CI is recorded in the PR and final report.
 
 ## Exact changed files
 

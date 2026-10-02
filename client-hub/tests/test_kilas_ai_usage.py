@@ -110,7 +110,7 @@ class UsageTests(unittest.TestCase):
             self.assertIn("Halo", response.get_data(as_text=True))
             self.assertEqual(streamed.call_args.args[0], "FAST")
 
-    def test_paid_cost_guard_protects_premium_tools_but_keeps_fast_available(self):
+    def test_paid_sustainability_ceiling_protects_both_normal_chat_modes(self):
         now = datetime.now(timezone.utc)
         db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?)",
                    (self.other, (now - timedelta(days=1)).isoformat(), (now + timedelta(days=29)).isoformat()))
@@ -118,12 +118,9 @@ class UsageTests(unittest.TestCase):
                    "VALUES (?,?,?,?,?,'COMPLETE',?,?)",
                    (self.other, store.create_thread(self.other), "prior_cost_0123456789", "CHAT", "SMART", "2.10", now.isoformat()))
         thread_id = store.create_thread(self.other)
-        plan, operations = usage.reserve(self.other, thread_id, "guard_smart_0123456789", "SMART", "CHAT")
-        self.assertEqual(plan,"PLUS")
-        usage.finish(self.other,"guard_smart_0123456789",operations,success=False)
-        plan, operations = usage.reserve(self.other, thread_id, "guard_fast_0123456789", "FAST", "CHAT")
-        self.assertEqual((plan, operations), ("PLUS", ("CHAT",)))
-        usage.finish(self.other, "guard_fast_0123456789", operations, success=False)
+        for mode in ('SMART','FAST'):
+            with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):
+                usage.reserve(self.other, thread_id, 'guard_'+mode+'_0123456789', mode, 'CHAT')
 
 
 if __name__ == "__main__":

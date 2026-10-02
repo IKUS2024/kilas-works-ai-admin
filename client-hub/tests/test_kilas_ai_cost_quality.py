@@ -3,6 +3,7 @@ import json
 import os
 import unittest
 from datetime import timedelta
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch, Mock
 import test_kilas_autonomous_agent as fixture
@@ -73,12 +74,110 @@ class CostQualityTests(unittest.TestCase):
         self.assertEqual(ctx.fair_use_level,'VERY_HEAVY')
         self.assertLessEqual(policy.chat_profile(policy.ChatContext([{'role':'user','content':'Analisis strategi'}],'VERY_HEAVY'))['output_tokens'],1000)
 
-    def test_extreme_cost_without_abnormal_frequency_remains_functional(self):
-        self.spend(10)
+    def test_protection_below_ceiling_without_abnormal_frequency_remains_functional(self):
+        self.spend('1.8')
         self.assertEqual(usage.reserve(self.uid,self.thread,'still-human','SMART','CHAT')[0],'PLUS')
 
-    def test_protection_temporarily_throttles_abnormal_activity(self):
+    def test_sustainability_configuration_is_bounded_and_not_below_protection(self):
+        revenue=fair_use.revenue_usd(99000)
+        for configured,expected in [('0.20','0.30'),('0.60','0.60'),('NaN','0.35'),('Infinity','0.35'),('bad','0.35'),('0.19','0.35'),('0.61','0.35')]:
+            with self.subTest(configured=configured),patch.dict(os.environ,{'KILAS_AI_CHAT_SUSTAINABILITY_COST_RATIO':configured}):
+                self.assertEqual(fair_use.sustainability_ceiling(99000),revenue*Decimal(expected))
+        with patch.dict(os.environ,{'KILAS_AI_CHAT_PROTECTION_COST_RATIO':'0.40','KILAS_AI_CHAT_SUSTAINABILITY_COST_RATIO':'0.30'}):
+            self.assertEqual(fair_use.sustainability_ceiling(99000),revenue*Decimal('0.40'))
+        with patch.dict(os.environ,{'KILAS_AI_CHAT_PROTECTION_COST_RATIO':'0.70'}):
+            with self.assertRaises(ValueError):fair_use.sustainability_ceiling(99000)
+
+    def test_all_cost_tiers_below_ceiling_still_allow_chat(self):
+        revenue=fair_use.revenue_usd(99000)
+        for n,(ratio,level) in enumerate([('0.10','NORMAL'),('0.18','HEAVY'),('0.25','VERY_HEAVY'),('0.32','PROTECTION')]):
+            fixture.db.execute('DELETE FROM kilas_ai_usage WHERE user_id=?',(self.uid,))
+            self.spend(revenue*Decimal(ratio))
+            self.assertEqual(usage.chat_level(self.uid),level)
+            self.assertEqual(usage.reserve(self.uid,self.thread,'tier-'+str(n),'SMART','CHAT')[0],'PLUS')
+
+    def test_slow_user_at_ceiling_is_denied_before_provider_or_topup(self):
+        from kilas_ai import topups
+        self.spend(fair_use.sustainability_ceiling(99000))
+        client=fixture.app.app.test_client()
+        with client.session_transaction() as state:state.update(user_id=self.uid,role='CLIENT_OWNER',_csrf_token='ceiling-csrf')
+        with patch.object(providers,'stream') as provider,patch.object(topups,'reserve') as credit:
+            response=client.post('/kilas-ai/threads/'+str(self.thread)+'/send',json={'content':'Jelaskan ide ini','mode':'SMART','operation_key':'chatop_ceiling0123456789'},headers={'X-CSRF-Token':'ceiling-csrf'})
+            self.assertEqual(response.status_code,429)
+            self.assertIn('Fair Use',response.json['error'])
+            self.assertIn('periode penggunaan berikutnya',response.json['error'])
+            provider.assert_not_called();credit.assert_not_called()
+        self.assertEqual(fixture.db.query_one("SELECT COUNT(*) n FROM kilas_ai_usage WHERE user_id=? AND status='PENDING'",(self.uid,))['n'],0)
+
+    def test_single_bounded_call_may_cross_ceiling_then_next_call_stops(self):
+        self.spend(fair_use.sustainability_ceiling(99000)-Decimal('0.0001'))
+        _,ops=usage.reserve(self.uid,self.thread,'cross-ceiling','SMART','CHAT')
+        with self.assertRaises(usage.UsageLimit):usage.reserve(self.uid,self.thread,'parallel-crossing','SMART','CHAT')
+        usage.finish(self.uid,'cross-ceiling',ops,success=True,provider='openai',model=policy.LUNA,usage={'input_tokens':2400,'output_tokens':650})
+        with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):usage.reserve(self.uid,self.thread,'after-crossing','SMART','CHAT')
+
+    def test_next_paid_cycle_resets_chat_cost(self):
         self.spend(10)
+        with self.assertRaises(usage.UsageLimit):usage.reserve(self.uid,self.thread,'old-cycle','SMART','CHAT')
+        fixture.db.execute('UPDATE kilas_ai_subscriptions SET period_start=? WHERE user_id=?',((usage._now()-timedelta(minutes=1)).isoformat(),self.uid))
+        self.assertEqual(usage.chat_level(self.uid),'NORMAL')
+        self.assertEqual(usage.reserve(self.uid,self.thread,'next-cycle','SMART','CHAT')[0],'PLUS')
+
+    def test_tool_and_background_costs_do_not_consume_normal_chat_ceiling(self):
+        old=(usage._now()-timedelta(hours=2)).isoformat()
+        for key,operation,thread in [('web-pair','CHAT',self.thread),('web-pair','WEB_SEARCH',self.thread),('pdf-pair','CHAT',self.thread),('pdf-pair','PDF',self.thread),('image','IMAGE',self.thread),('background','CHAT',None),('external','EXTERNAL_ACTION',None)]:
+            fixture.db.execute("INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,estimated_cost_usd,created_at) VALUES (?,?,?,?,'SMART','COMPLETE','10',?)",(self.uid,thread,key,operation,old))
+        self.assertEqual(usage.chat_level(self.uid),'NORMAL')
+        self.assertEqual(usage.reserve(self.uid,self.thread,'independent-chat','SMART','CHAT')[0],'PLUS')
+
+    def test_ordinary_agent_qa_cost_is_subject_to_the_same_ceiling(self):
+        self.spend(fair_use.sustainability_ceiling(99000))
+        fixture.db.execute("UPDATE kilas_ai_usage SET thread_id=NULL,operation_key='agent-chat-existing' WHERE user_id=?",(self.uid,))
+        with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):usage.reserve(self.uid,None,'agent-chat-normal-ceiling','SMART','CHAT')
+
+    def test_billable_failed_chat_still_consumes_ceiling(self):
+        self.spend(fair_use.sustainability_ceiling(99000))
+        fixture.db.execute("UPDATE kilas_ai_usage SET status='FAILED' WHERE user_id=?",(self.uid,))
+        with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):usage.reserve(self.uid,self.thread,'failed-ceiling','SMART','CHAT')
+
+    def test_exact_owner_qa_bypasses_ceiling_but_remains_metered(self):
+        fixture.db.execute('DELETE FROM kilas_ai_usage WHERE user_id=9')
+        now=usage._now()
+        fixture.db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (9,'PLUS','ACTIVE',?,?) ON CONFLICT(user_id) DO UPDATE SET plan='PLUS',status='ACTIVE',period_start=excluded.period_start,period_end=excluded.period_end",((now-timedelta(days=1)).isoformat(),(now+timedelta(days=29)).isoformat()))
+        thread=store.create_thread(9)
+        fixture.db.execute("INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,estimated_cost_usd,created_at) VALUES (9,?,'qa-expensive','CHAT','SMART','COMPLETE','100',?)",(thread,(usage._now()-timedelta(hours=2)).isoformat()))
+        with patch.object(fair_use,'sustainability_ceiling',side_effect=AssertionError('QA ceiling applied')):
+            usage.reserve(9,thread,'qa-ceiling-bypass','SMART','CHAT')
+        self.assertEqual(fixture.db.query_one('SELECT COUNT(*) n FROM kilas_ai_usage WHERE user_id=9')['n'],2)
+        fixture.db.execute('DELETE FROM kilas_ai_usage WHERE user_id=9')
+
+    def test_public_rp99k_checkout_uses_plus_and_preserves_historical_plans(self):
+        from kilas_ai import billing
+        historical=[billing.create_invoice(self.uid,plan) for plan in ('PRO','MAX')]
+        before=[dict(billing.invoice(self.uid,invoice)) for invoice in historical]
+        client=fixture.app.app.test_client()
+        with client.session_transaction() as state:state.update(user_id=self.uid,role='CLIENT_OWNER',_csrf_token='checkout-csrf')
+        response=client.post('/kilas-ai/checkout',data={'csrf_token':'checkout-csrf','plan':'PRO'})
+        self.assertEqual(response.status_code,303)
+        invoice=fixture.db.query_one("SELECT plan,amount_idr FROM kilas_ai_invoices WHERE user_id=? AND plan='PLUS'",(self.uid,))
+        self.assertEqual((invoice['plan'],invoice['amount_idr']),('PLUS',99000))
+        self.assertEqual(usage.snapshot(self.uid)['plan'],'PLUS')
+        self.assertEqual([dict(billing.invoice(self.uid,invoice)) for invoice in historical],before)
+
+    def test_qa_owner_gmail_still_requires_explicit_approval(self):
+        from kilas_ai import connectors,connector_flow,connector_actions
+        stamp=connectors.stamp()
+        fixture.db.execute("INSERT INTO kilas_ai_connections(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) VALUES (9,'GOOGLE','CONNECTED',?,'{}','synthetic',?,?)",('["https://www.googleapis.com/auth/gmail.send"]',stamp,stamp))
+        with patch.object(connector_actions.google_tools,'gmail_send',return_value={'id':'controlled-qa-send'}) as send:
+            approval=connector_flow._proposal(9,'gmail.send',{'to':'controlled@example.test','subject':'QA','body':'Synthetic test'},None,'Kirim email ke controlled@example.test')
+            self.assertEqual(connectors.approval(9,approval)['status'],'PENDING')
+            send.assert_not_called()
+            self.assertEqual(connector_actions.execute(9,approval)['id'],'controlled-qa-send')
+            send.assert_called_once()
+            with self.assertRaises(connectors.ConnectorError):connector_actions.execute(9,approval)
+
+    def test_protection_temporarily_throttles_abnormal_activity(self):
+        self.spend('1.8')
         now=usage._now()
         for n in range(70):
             at=now-timedelta(seconds=100+n)
@@ -155,6 +254,9 @@ class CostQualityTests(unittest.TestCase):
             report=module.simulate()
         self.assertEqual([r['turns'] for r in report],[100,500,2000,10000])
         self.assertGreater(float(report[-1]['provider_cost_usd']),float(report[0]['provider_cost_usd']))
+        self.assertEqual(report[-1]['policy_enforced']['provider_calls'],3608)
+        self.assertEqual(report[-1]['policy_enforced']['denied_turns'],6392)
+        self.assertLessEqual(float(report[-1]['policy_enforced']['cost_revenue_percent']),35.01)
 
     def test_actual_adapter_request_uses_reasoning_caps_and_reports_cache(self):
         class Response:
@@ -181,9 +283,11 @@ class CostQualityTests(unittest.TestCase):
         with client.session_transaction() as state:state.update(user_id=self.uid,role='CLIENT_OWNER')
         page=client.get('/kilas-ai/usage').text
         self.assertIn('Unlimited AI Chat',page)
-        self.assertIn('Fair usage applies',page)
+        self.assertIn('dibatasi sementara sesuai Fair Use',page)
         self.assertNotIn('600 /',page)
         self.assertNotIn('gpt-6',page)
+        for internal in ('16%','24%','30%','35%','API cost','token cost','GPT-6','OpenAI'):
+            self.assertNotIn(internal,page)
 
     def test_provider_token_aliases_remain_metered(self):
         _,ops=usage.reserve(self.uid,self.thread,'actual-token-count','FAST','CHAT')

@@ -206,7 +206,7 @@ def web_call_budget(user_id, plan):
     return min({"FREE": 1, "PLUS": 3, "PRO": 4, "MAX": 5}.get(plan, 1), 1 + extra)
 
 
-def chat_cost_state(conn, user_id, plan, start, now):
+def chat_cost(conn, user_id, start, now):
     rows = _rows(conn, "SELECT estimated_cost_usd,status FROM kilas_ai_usage u WHERE user_id=? "
         "AND operation_type='CHAT' AND (thread_id IS NOT NULL OR operation_key LIKE 'agent-chat-%') "
         "AND created_at>=? AND (status IN ('COMPLETE','FAILED') OR (status='PENDING' AND created_at>=?))" + _chat_only_sql(),
@@ -220,7 +220,11 @@ def chat_cost_state(conn, user_id, plan, start, now):
             spent += cost if cost.is_finite() and cost >= 0 else GUARD_UNIT_USD['FAST']
         except InvalidOperation:
             spent += GUARD_UNIT_USD['FAST']
-    return fair_use.cost_level(spent,PLANS[plan]['price'])
+    return spent
+
+
+def chat_cost_state(conn, user_id, plan, start, now):
+    return fair_use.cost_level(chat_cost(conn,user_id,start,now),PLANS[plan]['price'])
 
 
 def chat_level(user_id):
@@ -264,7 +268,14 @@ def reserve(user_id, thread_id, key, mode, tool):
         level = 'NORMAL'
         if paid_chat and not qa_exempt:
             start = _period(plan,paid_start,paid_end,'CHAT',now)[0]
-            level = chat_cost_state(conn,user_id,plan,start,now)
+            spent = chat_cost(conn,user_id,start,now)
+            try:
+                sustainability = fair_use.sustainability_ceiling(PLANS[plan]['price'])
+            except ValueError:
+                raise UsageLimit('Chat belum dapat digunakan saat ini. Coba lagi nanti atau hubungi dukungan.') from None
+            if spent >= sustainability:
+                raise UsageLimit('Pemakaian Chat akun ini sangat intensif dan sementara dibatasi sesuai Fair Use. Akses Chat normal akan kembali pada periode penggunaan berikutnya.')
+            level = fair_use.cost_level(spent,PLANS[plan]['price'])
             if level == 'PROTECTION':
                 chat_filter = " AND operation_type='CHAT' AND (thread_id IS NOT NULL OR operation_key LIKE 'agent-chat-%')"
                 recent = _query(conn,"SELECT COUNT(DISTINCT operation_key) FROM kilas_ai_usage WHERE user_id=? AND created_at>=? AND status IN ('COMPLETE','FAILED','PENDING')"+chat_filter,(user_id,(now-timedelta(minutes=5)).isoformat()),one=True)[0]

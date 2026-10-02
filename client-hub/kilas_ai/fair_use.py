@@ -13,12 +13,29 @@ def setting(name, default, minimum='0.01', maximum='1000000'):
     return Decimal(default)
 
 
-def cost_level(cost, retail):
-    revenue = Decimal(str(retail)) / setting('KILAS_AI_USD_IDR','17000','1000','100000')
-    ratio = Decimal(str(cost))/revenue if revenue else Decimal(0)
+def thresholds():
     soft = setting('KILAS_AI_CHAT_SOFT_COST_RATIO','0.16','0.01','1')
     heavy = max(soft,setting('KILAS_AI_CHAT_HEAVY_COST_RATIO','0.24','0.01','1'))
     protection = max(heavy,setting('KILAS_AI_CHAT_PROTECTION_COST_RATIO','0.30','0.01','1'))
+    return soft,heavy,protection
+
+
+def revenue_usd(retail):
+    return Decimal(str(retail))/setting('KILAS_AI_USD_IDR','17000','1000','100000')
+
+
+def sustainability_ceiling(retail):
+    ratio = setting('KILAS_AI_CHAT_SUSTAINABILITY_COST_RATIO','0.35','0.20','0.60')
+    protection = thresholds()[2]
+    if protection > Decimal('0.60'):
+        raise ValueError('incompatible_fair_use_thresholds')
+    return revenue_usd(retail)*max(ratio,protection)
+
+
+def cost_level(cost, retail):
+    revenue = revenue_usd(retail)
+    ratio = Decimal(str(cost))/revenue if revenue else Decimal(0)
+    soft,heavy,protection = thresholds()
     return 'PROTECTION' if ratio >= protection else 'VERY_HEAVY' if ratio >= heavy else 'HEAVY' if ratio >= soft else 'NORMAL'
 
 

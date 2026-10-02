@@ -153,7 +153,7 @@ class TopupTests(unittest.TestCase):
         with patch.object(usage, "_now", return_value=now + timedelta(days=92)):
             self.assertEqual(balance_percent(owner), 0)
 
-    def test_paid_premium_guard_uses_topup_but_keeps_economical_chat(self):
+    def test_paid_chat_ceiling_cannot_be_bypassed_by_tool_topup(self):
         owner = self.new_owner("guard")
         now = usage._now()
         thread = store.create_thread(owner)
@@ -161,12 +161,15 @@ class TopupTests(unittest.TestCase):
                    (owner, (now - timedelta(days=1)).isoformat(), (now + timedelta(days=29)).isoformat()))
         db.execute("INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,estimated_cost_usd,created_at) "
                    "VALUES (?,?,?,?,?,'COMPLETE',?,?)", (owner, thread, "cost-prior", "CHAT", "SMART", "2.10", now.isoformat()))
-        _, fast = usage.reserve(owner, thread, "guard-fast-0123456789", "FAST", "CHAT")
-        self.assertEqual(db.query_one("SELECT quota_source FROM kilas_ai_usage WHERE operation_key='guard-fast-0123456789'")["quota_source"], "BASE")
-        usage.finish(owner, "guard-fast-0123456789", fast, success=False)
+        with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):
+            usage.reserve(owner, thread, "guard-fast-0123456789", "FAST", "CHAT")
         with self.assertRaises(usage.UsageLimit):
             usage.reserve(owner, thread, "guard-image-no-credit", "FAST", "IMAGE_GENERATE")
         self.verified(owner)
+        before=topups.balance(owner)
+        with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):
+            usage.reserve(owner, thread, 'chat-with-credit', 'SMART', 'CHAT')
+        self.assertEqual(topups.balance(owner),before)
         _, image = usage.reserve(owner, thread, "guard-image-with-credit", "FAST", "IMAGE_GENERATE")
         self.assertEqual(db.query_one("SELECT quota_source FROM kilas_ai_usage WHERE operation_key='guard-image-with-credit'")["quota_source"], "TOPUP")
         usage.finish(owner, "guard-image-with-credit", image, success=False)
