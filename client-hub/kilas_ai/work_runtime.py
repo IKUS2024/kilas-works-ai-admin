@@ -80,7 +80,7 @@ def handle(owner,text,key,conversation):
         if autonomous_routes.chat(owner,text):return redirect(url_for('kilas_ai.agent_home',conversation=conversation),code=303)
     active=store.list_jobs(owner,conversation_id=conversation,active_only=True)
     waiting=[j for j in active if j['last_error']=='waiting_input']
-    if waiting and not re.search(r'(?i)^(?:buat(?:kan)?|bikin(?:kan)?|siapkan|susun|tulis|riset|pantau|ingatkan|stop|jeda|lanjut)\b',text):
+    if waiting and not re.search(r'(?i)^(?:buat(?:kan|in)?|bikin(?:kan|in)?|bkin|siapkan|susun|tulis|riset|pantau|ingatkan|stop|jeda|lanjut)\b',text):
         if len(waiting)!=1:return reply(owner,'Pekerjaan mana yang ingin kamu lanjutkan? Buka pekerjaan lalu balas dari sana.',conversation)
         try:store.feedback(owner,waiting[0]['id'],text)
         except ValueError:return reply(owner,'Batas revisi pekerjaan ini sudah tercapai. Buat pekerjaan baru untuk melanjutkan.',conversation)
@@ -131,11 +131,12 @@ def handle(owner,text,key,conversation):
             calendar={'timezone':spec['timezone'],'schedule':spec['schedule']}
             checkpoint={'reminder':{'subject':subject}} if reminder or editing else {'source_materials':getattr(request,'work_source_materials',[])}
             if editing:
+                checkpoint = {**json.loads(prior['checkpoint_json']), **checkpoint}
                 with store.transaction() as conn:
                     usage._query(conn,'UPDATE kilas_agent_jobs SET schedule_json=?,checkpoint_json=?,next_wake_at=?,mode=?,revision=revision+1,status=\'PLANNING\',plan_json=\'{}\' WHERE id=? AND user_id=?',(store.encode(calendar),store.encode(checkpoint),store.stamp(spec['next_run_at']),mode,prior['id'],owner))
                     store.event(conn,prior['id'],'SCHEDULED','Jadwal diperbarui.')
             else:
-                job=store.create(owner,text,mode=mode,wake_at=spec['next_run_at'],conversation_id=conversation,schedule=calendar,checkpoint=checkpoint)
+                job=store.create(owner,text,mode=mode,wake_at=spec['next_run_at'],conversation_id=conversation,schedule=calendar,checkpoint=checkpoint,origin_message_id=getattr(request,'work_origin_message_id',None))
                 db.execute('UPDATE kilas_agent_jobs SET title=? WHERE id=?',(subject[:90],job))
                 with store.transaction() as conn:store.event(conn,job,'SCHEDULED','Pengingat tersimpan.' if reminder else 'Pekerjaan terjadwal tersimpan.')
             from .agent_presentation import time_label
@@ -145,7 +146,7 @@ def handle(owner,text,key,conversation):
     pending_document=session.pop('work_document_pending',None)
     if pending_document and pending_document['conversation']==conversation and store.now().timestamp()-pending_document['created']<1800:
         text=(pending_document['text']+' tentang '+text)[:1200]
-    if re.fullmatch(r'(?i)(?:tolong )?(?:buat(?:kan)?|bikin(?:kan)?|siapkan) (?:sebuah )?(?:pdf|dokumen|document|docx|xlsx|pptx)[.! ]*',text):
+    if re.fullmatch(r'(?i)(?:tolong )?(?:buat(?:kan|in)?|bikin(?:kan|in)?|bkin|siapkan) (?:sebuah )?(?:pdf|dokumen|document|docx|xlsx|pptx)[.! ]*',text):
         session['work_document_pending']={'text':text,'conversation':conversation,'created':store.now().timestamp()}
         return reply(owner,'Dokumen ini tentang apa dan untuk siapa?',conversation)
     if autonomous_routes.chat(owner,text):return redirect(url_for('kilas_ai.agent_home',conversation=conversation),code=303)

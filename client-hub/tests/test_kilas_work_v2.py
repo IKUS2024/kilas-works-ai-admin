@@ -86,7 +86,10 @@ class WorkV2Tests(unittest.TestCase):
             for _ in range(6):f.fixture.store.event(conn,completed,'FAILED','Internal diagnostic')
             f.fixture.store.event(conn,active,'CONDITION_MET','Kondisi terpantau terpenuhi.')
         html=self.client().get('/kilas-ai/agent').text
-        self.assertIn('data-active-count>1</span>',html)
+        self.assertNotIn('data-active-count',html)
+        self.assertNotIn('Pekerjaan aktif',html)
+        self.assertNotIn('view=notifications',html)
+        self.assertIn(f'data-job-id="{active}"',html)
         self.assertNotIn('Connections',html)
         self.assertNotIn('Advanced settings',html)
         self.assertNotIn('autonomous_mode',html)
@@ -94,27 +97,62 @@ class WorkV2Tests(unittest.TestCase):
         self.client().post('/kilas-ai/agent/conversations',data={'csrf_token':'work-csrf'})
         self.assertEqual(f.fixture.store.get(self.owner,active)['status'],'PLANNING')
 
-    def test_completed_result_is_not_repinned_after_view_or_next_instruction(self):
+    def test_completed_result_stays_in_original_chat_turn_after_open_and_new_message(self):
+        agent_store.append(self.owner,'user',f.REQUEST,self.conversation)
         job,file=self.complete(f.REQUEST,f.SOURCE)
-        chat=self.client().get('/kilas-ai/agent').text
-        self.assertIn(f'data-job-id="{job}"',chat)
-        self.assertIn(file['name'],chat)
-
-        # Opening the result acknowledges it. The job remains available in history/detail
-        # but must stop being pinned under every later Work reply.
-        self.assertEqual(self.client().get(f'/kilas-ai/agent/jobs/{job}').status_code,200)
-        chat=self.client().get('/kilas-ai/agent').text
-        self.assertNotIn(f'data-job-id="{job}"',chat)
+        self.client().get(f'/kilas-ai/agent/jobs/{job}')
+        self.client().get(f"/kilas-ai/agent/jobs/{job}/artifacts/{file['id']}?download=1")
+        with patch('kilas_ai.agent_chat.ordinary',return_value=None):self.submit('Pesan baru sesudah hasil lama')
+        for _ in range(2):
+            chat=self.client().get('/kilas-ai/agent').text
+            self.assertEqual(chat.count(f'data-job-id="{job}"'),1)
+            self.assertIn(file['name'],chat)
+            self.assertLess(chat.index(f'data-job-id="{job}"'),chat.index('>Pesan baru sesudah hasil lama<'))
+            self.assertNotIn('Selesai terbaru',chat)
         self.assertIn(f'data-job-id="{job}"',self.client().get('/kilas-ai/agent?view=history').text)
+        self.assertEqual(f.fixture.store.get(self.owner,job)['status'],'COMPLETED')
 
-        second=f.fixture.store.create(self.owner,'Pekerjaan selesai lain',conversation_id=self.conversation)
-        f.fixture.db.execute("UPDATE kilas_agent_jobs SET status='COMPLETED' WHERE id=?",(second,))
-        with f.fixture.store.transaction() as conn:
-            f.fixture.store.event(conn,second,'COMPLETED','Pekerjaan selesai. Hasil tersedia.')
-        self.assertIn(f'data-job-id="{second}"',self.client().get('/kilas-ai/agent').text)
-        with patch('kilas_ai.agent_chat.ordinary',return_value=None):
-            self.submit('halo')
-        self.assertNotIn(f'data-job-id="{second}"',self.client().get('/kilas-ai/agent').text)
+    def test_old_results_beyond_eight_survive_acknowledgment_and_message_pagination(self):
+        original=[]
+        for i in range(12):
+            agent_store.append(self.owner,'user',f'Buat PDF arsip {i}',self.conversation)
+            job=f.fixture.store.create(self.owner,f'Buat PDF arsip {i}',conversation_id=self.conversation)
+            f.fixture.db.execute("UPDATE kilas_agent_jobs SET status='COMPLETED' WHERE id=?",(job,))
+            original.append(job)
+        # Legacy data has no saved anchor, and its created_at may be a native PG datetime.
+        f.fixture.db.execute("UPDATE kilas_agent_jobs SET checkpoint_json='{}' WHERE id=?",(original[0],))
+        chat=self.client().get('/kilas-ai/agent').text
+        for job in original:self.assertEqual(chat.count(f'data-job-id="{job}"'),1)
+        for i in range(65):agent_store.append(self.owner,'user',f'Pesan berikutnya {i}',self.conversation)
+        newest=agent_store.messages(self.owner,conversation_id=self.conversation)
+        chat=self.client().get('/kilas-ai/agent').text
+        for job in original:self.assertNotIn(f'data-job-id="{job}"',chat)
+        earlier=self.client().get(f"/kilas-ai/agent?before={newest[0]['id']}").text
+        for job in original:self.assertEqual(earlier.count(f'data-job-id="{job}"'),1)
+        self.assertNotIn(f'data-job-id="{original[0]}"',self.client(self.other).get('/kilas-ai/agent').text)
+
+    def test_submissions_anchor_to_their_own_message_even_when_another_arrives(self):
+        first=agent_store.append(self.owner,'user','Buat PDF pertama',self.conversation)
+        second=agent_store.append(self.owner,'user','Buat PDF kedua',self.conversation)
+        job=f.fixture.store.create(self.owner,'Buat PDF pertama',conversation_id=self.conversation,origin_message_id=first)
+        self.assertEqual([j['id'] for j in f.fixture.store.conversation_jobs(self.owner,self.conversation,[first])],[job])
+        self.assertEqual(f.fixture.store.conversation_jobs(self.owner,self.conversation,[second]),[])
+        foreign=agent_store.new_conversation(self.other)
+        foreign_message=agent_store.append(self.other,'user','Buat PDF luar',foreign)
+        with self.assertRaisesRegex(ValueError,'message_not_owned'):
+            f.fixture.store.create(self.owner,'Buat PDF pertama',conversation_id=self.conversation,origin_message_id=foreign_message)
+
+    def test_informal_pdf_request_creates_real_document_instead_of_chat_prose(self):
+        request='bikinin gw pdf dah bro untuk company profile random aja untuk kilasworks yang bergerak di bidang sosial media'
+        with patch('kilas_ai.agent_chat.ordinary',side_effect=AssertionError('PDF must use real document pipeline')):
+            self.submit(request)
+        job=f.fixture.store.list_jobs(self.owner)[0]['id']
+        with patch.object(f.content_worker,'text',return_value=('# Company Profile Kilas Works\n\n## Tentang Kami\nKilas Works adalah brand sintetis layanan sosial media.\n\n## Layanan\nPerencanaan konten dan pengelolaan media sosial.',f.model_policy.LUNA,{})):
+            self.tick(job);self.tick(job)
+        artifact=work_artifacts.listing(self.owner,job_id=job)[0]
+        response=self.client().get(f"/kilas-ai/agent/jobs/{job}/artifacts/{artifact['id']}")
+        self.assertTrue(response.data.startswith(b'%PDF'))
+        self.assertEqual(f.fixture.store.get(self.owner,job)['status'],'COMPLETED')
 
     def test_raw_execution_prompts_not_visible_and_progress_persists(self):
         job=f.fixture.store.create(self.owner,'Buat proposal',conversation_id=self.conversation)

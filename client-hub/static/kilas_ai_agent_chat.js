@@ -151,16 +151,21 @@
     polling=true;
     const position = chat.scrollTop;
     try {
-      const response = await fetch(`/kilas-ai/agent?conversation=${encodeURIComponent(form.elements.conversation_id.value)}`, {cache:'no-store'});
+      const query = new URLSearchParams(window.location.search);
+      query.set('conversation',form.elements.conversation_id.value);
+      const response = await fetch(`/kilas-ai/agent?${query}`, {cache:'no-store'});
       if (!response.ok) return;
       const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-      const cards = doc.querySelector('[data-task-cards]');
-      if (cards) chat.querySelector('[data-task-cards]')?.replaceWith(cards);
-      const active=doc.querySelector('[data-active-count]');
-      if(active) document.querySelector('[data-active-count]').textContent=active.textContent;
-      // Reminder/clarification messages arrive through the same durable conversation.
+      // Preserve each result's position in the durable message timeline.
       const incoming=doc.querySelector('#agent-conversation');
-      if(incoming && incoming.querySelectorAll('.agent-message').length!==chat.querySelectorAll('.agent-message').length) {chat.replaceChildren(...incoming.childNodes);window.KilasMarkdown.hydrate(chat);}
+      if(incoming && incoming.querySelectorAll('.agent-message').length!==chat.querySelectorAll('.agent-message').length) {
+        chat.replaceChildren(...incoming.childNodes);window.KilasMarkdown.hydrate(chat);
+      } else if(incoming) {
+        for(const card of incoming.querySelectorAll('[data-job-id]')) {
+          const previous=chat.querySelector(`[data-job-id="${card.dataset.jobId}"]`);
+          if(previous && previous.outerHTML!==card.outerHTML) previous.replaceWith(card);
+        }
+      }
       chat.scrollTop = position;
     } catch (_) { /* Existing progress stays visible until the next read. */ }
     finally {polling=false;}

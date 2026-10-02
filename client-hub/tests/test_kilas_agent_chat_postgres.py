@@ -42,6 +42,13 @@ def main():
             assert not chats.claim_request(owner,new,'operation-12345678')
             linked=jobs.create(owner,'New linked task',conversation_id=new)
             assert jobs.get(owner,linked)['origin_conversation_id']==new
+            origin=chats.messages(owner,conversation_id=new)[0]['id']
+            chats.append(owner,'user','Later unrelated message',new)
+            db.execute("UPDATE kilas_agent_jobs SET status='COMPLETED' WHERE id=?",(linked,))
+            assert [j['id'] for j in jobs.conversation_jobs(owner,new,[origin])]==[linked]
+            db.execute("UPDATE kilas_agent_jobs SET checkpoint_json='{}' WHERE id=?",(linked,))
+            assert [j['id'] for j in jobs.conversation_jobs(owner,new,[origin])]==[linked]
+            assert jobs.conversation_jobs(owner+100000,new,[origin])==[]
             assert jobs.get(owner,old_job)['origin_conversation_id'] is None
             db.init_schema()
             assert chats.messages(owner,conversation_id=new)[0]['content']=='New conversation message'

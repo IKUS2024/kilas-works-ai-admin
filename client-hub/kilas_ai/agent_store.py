@@ -79,11 +79,12 @@ def append(user_id, role, content, conversation_id=None):
         raise ValueError('conversation_not_owned')
     from .autonomous_store import transaction
     with transaction() as conn:
-        usage._query(conn, "INSERT INTO kilas_ai_agent_messages(user_id,role,content,conversation_id) VALUES (?,?,?,?)",
-                     (user_id, role, content, conversation_id))
+        message_id = usage._query(conn, "INSERT INTO kilas_ai_agent_messages(user_id,role,content,conversation_id) VALUES (?,?,?,?) RETURNING id",
+                     (user_id, role, content, conversation_id), one=True)[0]
         title = ' '.join(content.split())[:60].rstrip()
         usage._query(conn, "UPDATE kilas_ai_conversations SET updated_at=?,title=CASE WHEN title='Chat baru' AND ?='user' THEN ? ELSE title END WHERE id=? AND user_id=?",
                      (datetime.now(timezone.utc).isoformat(), role, title, conversation_id, user_id))
+    return message_id
 
 
 def activity(user_id, limit=12):

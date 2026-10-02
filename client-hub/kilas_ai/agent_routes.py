@@ -89,22 +89,16 @@ def agent_home():
     from .agent_presentation import job_card, time_label
     if view in ('connections', 'activity'):
         return redirect(url_for('kilas_ai.agent_home', view='settings' if view=='connections' else 'notifications'), code=303)
-    raw_autonomous_jobs = autonomous_store.list_jobs(owner, conversation_id=conversation_id if view=='chat' else None, active_only=view=='tasks') if autonomous_runner.enabled() and view in ('chat','tasks') else []
-    if view == 'chat' and raw_autonomous_jobs:
-        unread_terminal = {row['job_id'] for row in db.query_all(
-            "SELECT DISTINCT e.job_id FROM kilas_agent_events e "
-            "JOIN kilas_agent_jobs j ON j.id=e.job_id "
-            "WHERE j.user_id=? AND j.origin_conversation_id=? "
-            "AND j.status IN ('COMPLETED','FAILED','STOPPED') AND e.unread=1",
-            (owner, conversation_id))}
-        raw_autonomous_jobs = [job for job in raw_autonomous_jobs
-                               if job['status'] not in autonomous_store.TERMINAL
-                               or job['id'] in unread_terminal]
+    raw_autonomous_jobs = autonomous_store.list_jobs(owner, active_only=True) if autonomous_runner.enabled() and view=='tasks' else []
     autonomous_jobs = [job_card(j) for j in raw_autonomous_jobs]
     active_count = db.query_one("SELECT COUNT(*) AS n FROM kilas_agent_jobs WHERE user_id=? AND status NOT IN ('COMPLETED','FAILED','STOPPED')", (owner,))['n'] if autonomous_runner.enabled() else 0
     autonomous_unread = db.query_one('SELECT COUNT(*) AS n FROM kilas_agent_events e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE j.user_id=? AND e.unread=1 AND e.kind IN (\'REMINDER\',\'CONDITION_MET\',\'COMPLETED\',\'FAILED\',\'WAITING_INPUT\',\'WAITING_CAPABILITY\',\'NEEDS_APPROVAL\',\'BLOCKED\')', (owner,))['n'] if autonomous_runner.enabled() else 0
     messages = agent_store.messages(owner, conversation_id=conversation_id, before=request.args.get('before',type=int)) if view=='chat' else []
     older = db.query_one('SELECT id FROM kilas_ai_agent_messages WHERE user_id=? AND conversation_id=? AND id<? LIMIT 1',(owner,conversation_id,messages[0]['id'])) if messages else None
+    inline_jobs = {}
+    if view == 'chat' and autonomous_runner.enabled():
+        for job in autonomous_store.conversation_jobs(owner, conversation_id, [m['id'] for m in messages], include_unanchored=not older):
+            inline_jobs.setdefault(job['origin_message_id'], []).append(job_card(job))
     page = max(1,min(request.args.get('page',1,type=int),10000))
     if view=='history' and autonomous_runner.enabled():
         history_jobs=db.query_all('SELECT * FROM kilas_agent_jobs WHERE user_id=? ORDER BY id DESC LIMIT 21 OFFSET ?',(owner,(page-1)*20))
@@ -114,7 +108,7 @@ def agent_home():
     from .work_runtime import LABELS
     notifications = [{**dict(e),'label':e['summary'] if e['kind']=='REMINDER' else LABELS.get(e['kind'],'Pekerjaan diperbarui'),'time_label':time_label(e['created_at'],store.setting(owner))} for e in db.query_all('SELECT e.*,j.origin_conversation_id FROM kilas_agent_events e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE j.user_id=? AND e.unread=1 AND e.kind IN (\'REMINDER\',\'CONDITION_MET\',\'COMPLETED\',\'FAILED\',\'WAITING_INPUT\',\'WAITING_CAPABILITY\',\'NEEDS_APPROVAL\',\'BLOCKED\') ORDER BY e.id DESC LIMIT 30',(owner,))] if view=='notifications' else []
     location = session.get('work_location_request')
-    return render_template('kilas_ai/agent.html', view=view, messages=messages, conversation=conversation,
+    return render_template('kilas_ai/agent.html', view=view, messages=messages, conversation=conversation, inline_jobs=inline_jobs,
         recent_chats=agent_store.recent_conversations(owner), older=bool(older), operation_key=secrets.token_urlsafe(24),
         history_chats=history_chats, history_page=page, more_chats=more_chats, autonomous_jobs=autonomous_jobs,
         autonomous_enabled=autonomous_runner.enabled(), active_count=active_count, autonomous_unread=autonomous_unread,
@@ -158,15 +152,14 @@ def agent_chat():
         except ValueError:pass
     try:request.work_location=work_routes.location_payload(request.form.get('work_location'))
     except ValueError:return {'error':'Lokasi tidak valid. Berikan lokasi lagi atau sebutkan daerahnya.'},400
-    # A new instruction acknowledges terminal results already shown in this Work
-    # conversation. Keep them in History/detail, but do not repin stale result cards
-    # underneath every later reply.
+    # Acknowledgment clears event unread state only; durable inline results stay
+    # attached to their original message, independently of this flag.
     db.execute(
         "UPDATE kilas_agent_events SET unread=0 WHERE job_id IN ("
         "SELECT id FROM kilas_agent_jobs WHERE user_id=? AND origin_conversation_id=? "
         "AND status IN ('COMPLETED','FAILED','STOPPED'))",
         (owner, conversation_id))
-    agent_store.append(owner, 'user', text, conversation_id)
+    request.work_origin_message_id = agent_store.append(owner, 'user', text, conversation_id)
     return work_runtime.handle(owner,text,key,conversation_id)
 
 

@@ -2,7 +2,7 @@
 import json
 import re
 
-CREATE = re.compile(r'(?i)\b(?:buat(?:kan)?|bikin(?:kan)?|siapkan|susun(?:kan)?|tulis(?:kan)?|jadikan|ubah|ekspor|export|create|make|write|prepare|generate|turn|convert|draft|ringkas|summarize|butuh|perlu|need|want)\b')
+CREATE = re.compile(r'(?i)\b(?:buat(?:kan|in)?|bikin(?:kan|in)?|bkin|siapkan|susun(?:kan)?|tulis(?:kan)?|jadikan|ubah|ekspor|export|create|make|write|prepare|generate|turn|convert|draft|ringkas|summarize|butuh|perlu|need|want)\b')
 KINDS = re.compile(r'(?i)\b(?:proposal|laporan|report|sop|surat|letter|dokumen|document|pdf|brief|rencana kerja|work plan|company profile|quotation|penawaran|itinerary|checklist|resume|cv|memo|agenda|minutes|notulen|panduan|guide|manual|slide|slides|pitch deck|tabel keuangan|presentasi|presentation|spreadsheet|excel|word|docx|pptx|xlsx|csv|json|budget|anggaran)\b')
 REVISE = re.compile(r'(?i)\b(?:revisi|revise|tambahkan|add|ubah|change|bikin lebih|make it|lebih premium|lebih singkat|shorter|perbaiki dokumen)\b')
 FORMATS = ('pdf','csv','json','md','txt','docx','xlsx','pptx')

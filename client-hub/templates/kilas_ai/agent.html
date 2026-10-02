@@ -9,8 +9,6 @@
     <form method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" class="agent-new-chat"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">+ Work baru</button></form>
     <nav class="ai-history agent-chats" aria-label="Chat terbaru"><h2 class="ai-history-heading">Terbaru</h2>{% for chat in recent_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}" {% if view=='chat' and chat.id==conversation.id %}aria-current="page"{% endif %}>{{ chat.title }}</a>{% endfor %}<a href="{{ url_for('kilas_ai.agent_home',view='history') }}">Riwayat</a></nav>
     <nav class="agent-sections" aria-label="Bagian Work">
-      <a href="{{ url_for('kilas_ai.agent_home',view='tasks') }}" aria-label="Pekerjaan aktif" {% if view=='tasks' %}aria-current="page"{% endif %}>Pekerjaan aktif <span class="ai-unread" data-active-count>{{ active_count }}</span></a>
-      <a href="{{ url_for('kilas_ai.agent_home',view='notifications') }}" {% if view=='notifications' %}aria-current="page"{% endif %}>Notifikasi{% if autonomous_unread %}<span class="ai-unread" data-notification-count>{{ autonomous_unread }}</span>{% endif %}</a>
       <a href="{{ url_for('kilas_ai.agent_home',view='settings') }}" {% if view=='settings' %}aria-current="page"{% endif %}>Pengaturan</a>
     </nav>
     <div class="ai-sidebar-bottom"><p>Pekerjaan dan hasil tetap tersimpan saat kamu keluar.</p></div>
@@ -26,11 +24,12 @@
       <div class="agent-conversation" id="agent-conversation" aria-live="polite">
         {% if older %}<a class="agent-older" href="{{ url_for('kilas_ai.agent_home',conversation=conversation.id,before=messages[0].id) }}">Lihat pesan sebelumnya</a>{% endif %}
         {% if messages %}
-          {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}"><div class="agent-speaker">{{ 'Kamu' if message.role == 'user' else 'Kilas' }}</div><div class="agent-message-text {{ 'ai-markdown' if message.role=='assistant' else '' }}" {% if message.role=='assistant' %}data-kilas-markdown{% endif %}>{{ message.content }}</div></article>{% endfor %}
+          {% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}
+          {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}"><div class="agent-speaker">{{ 'Kamu' if message.role == 'user' else 'Kilas' }}</div><div class="agent-message-text {{ 'ai-markdown' if message.role=='assistant' else '' }}" {% if message.role=='assistant' %}data-kilas-markdown{% endif %}>{{ message.content }}</div></article>{% for job in inline_jobs.get(message.id,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endfor %}
         {% else %}
           <div class="agent-welcome"><h3>Apa yang ingin kamu kerjakan?</h3><p>Beri pekerjaan untuk Kilas dan terima hasil yang siap digunakan.</p></div>
         {% endif %}
-        {% include 'kilas_ai/_autonomous_tasks.html' %}
+        {% if not messages %}{% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endif %}
       </div>
       <div id="agent-thinking" class="agent-thinking" role="status" aria-live="polite" hidden><span class="agent-thinking-dot" aria-hidden="true"></span><span>Menyiapkan jawaban…</span></div>
       <p id="agent-chat-error" class="auto-error" role="alert" hidden></p>
@@ -65,7 +64,7 @@
     </section>
   </main>
 </div>
-<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='work-v2') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='inline-results-v3') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_ai_shell.js',v='1') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_work.js',v='1') }}" defer></script>
 </body>

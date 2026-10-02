@@ -58,7 +58,7 @@ def main():
                 expect(page.locator('[data-job-id]')).to_be_visible()
                 job=jobs.list_jobs(owner)[0]
                 assert job['origin_conversation_id'] is not None
-                assert 'Menyiapkan rencana' in page.locator('[data-task-cards]').inner_text()
+                assert 'Menyiapkan rencana' in page.locator('[data-job-id]').inner_text()
                 expect(page.get_by_role('button',name='Kirim',exact=True)).to_be_enabled()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),(width,'task')
                 page.screenshot(path=str(Path(tempfile.gettempdir())/f'agent-chat-{width}.png'),full_page=True)
@@ -73,7 +73,7 @@ def main():
                 assert page.locator('.agent-message').count()==0
                 assert jobs.get(owner,job['id'])['status']=='PLANNING'
                 if width<=760:page.get_by_role('button',name='Buka riwayat').tap()
-                page.get_by_role('link',name='Pekerjaan aktif',exact=True).click()
+                page.goto(origin + '/kilas-ai/agent?view=history')
                 expect(page.locator('[data-job-id]')).to_be_visible()
                 page.get_by_role('button',name='Jeda',exact=True).click()
                 expect(page.get_by_text('Dijeda',exact=True).first).to_be_visible()

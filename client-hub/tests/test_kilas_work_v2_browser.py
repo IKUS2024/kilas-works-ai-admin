@@ -45,7 +45,9 @@ def main():
                 page=context.new_page();errors=[]
                 page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto(origin+f'/kilas-ai/agent?conversation={conversation}',wait_until='networkidle')
-                expect(page.locator('[data-active-count]')).to_have_text('3')
+                expect(page.locator('[data-active-count]')).to_have_count(0)
+                expect(page.get_by_role('link',name='Pekerjaan aktif',exact=True)).to_have_count(0)
+                expect(page.get_by_role('link',name='Notifikasi',exact=True)).to_have_count(0)
                 expect(page.locator('.work-file')).to_have_count(4)
                 self_text=page.locator('body').inner_text()
                 for unwanted in ('Connections','Advanced settings','Instruksi pelaksanaan','Internal content not for display'):assert unwanted not in self_text,(width,unwanted)
@@ -65,8 +67,10 @@ def main():
                 page.screenshot(path=str(Path(tempfile.gettempdir())/f'kilas-work-v2-chat-{width}.png'),full_page=True)
                 page.locator('#agent-message').fill(f.REQUEST)
                 page.get_by_role('button',name='Kirim',exact=True).click()
-                expect(page.locator('.work-file')).to_have_count(1,timeout=15000)
-                expect(page.locator('[data-active-count]')).to_have_text('3')
+                expect(page.locator('.work-file')).to_have_count(5,timeout=15000)
+                expect(page.locator('[data-active-count]')).to_have_count(0)
+                expect(page.get_by_role('link',name='Pekerjaan aktif',exact=True)).to_have_count(0)
+                expect(page.get_by_role('link',name='Notifikasi',exact=True)).to_have_count(0)
                 assert page.evaluate("document.activeElement.id==='agent-message'") is (width>=760),(width,'completion focus')
                 if width<760:
                     page.locator('#agent-message').click()
@@ -92,7 +96,7 @@ def main():
                 context.close()
             browser.close()
     finally:server.shutdown()
-    print('PASS Work V2: 320/360/390/820/1440, Office/PDF cards, progress/wait/schedule, active count, attachments/remove, no overflow, 44px, coarse-pointer completion/manual focus, no automatic GPS/push prompt.')
+    print('PASS Work V2: 320/360/390/820/1440, Office/PDF cards, progress/wait/schedule, inline persistent results, removed task/notification navigation, attachments/remove, no overflow, 44px, coarse-pointer completion/manual focus, no automatic GPS/push prompt.')
 
 
 if __name__=='__main__':main()

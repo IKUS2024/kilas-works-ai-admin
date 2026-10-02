@@ -1,7 +1,7 @@
 name: Kilas AI Automation QA
 on:
   push:
-    branches: [feature/kilas-ai-automation-v1-20260929]
+    branches: [main, feature/kilas-ai-automation-v1-20260929]
   pull_request:
     branches: [main]
     paths:

@@ -1,7 +1,7 @@
 name: Kilas Autonomous Agent QA
 on:
   push:
-    branches: [feature/kilas-work-real-worker-v2-20261002, feature/kilas-autonomous-agent-v1-20261002, feature/kilas-agent-chat-experience-20261002, fix/kilas-unified-chat-agent-shell-20261002, fix/kilas-agent-response-result-polish-20261002, fix/kilas-ai-cost-quality-routing-20261002, feature/kilas-work-universal-output-20261002]
+    branches: [main, feature/kilas-work-real-worker-v2-20261002, feature/kilas-autonomous-agent-v1-20261002, feature/kilas-agent-chat-experience-20261002, fix/kilas-unified-chat-agent-shell-20261002, fix/kilas-agent-response-result-polish-20261002, fix/kilas-ai-cost-quality-routing-20261002, feature/kilas-work-universal-output-20261002]
   pull_request:
     branches: [main]
     paths:

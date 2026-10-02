@@ -67,11 +67,27 @@ def list_jobs(user_id, conversation_id=None, active_only=False):
     return [dict(row) for row in db.query_all('SELECT j.*,(SELECT COUNT(*) FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status=\'SUCCEEDED\') AS done,(SELECT COUNT(*) FROM kilas_agent_steps s WHERE s.job_id=j.id) AS total,(SELECT instruction FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status NOT IN (\'SUCCEEDED\',\'SKIPPED\',\'STOPPED\') ORDER BY sequence LIMIT 1) AS current_step,(SELECT worker FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status NOT IN (\'SUCCEEDED\',\'SKIPPED\',\'STOPPED\') ORDER BY sequence LIMIT 1) AS current_worker,(SELECT action FROM kilas_agent_steps s WHERE s.job_id=j.id AND s.status NOT IN (\'SUCCEEDED\',\'SKIPPED\',\'STOPPED\') ORDER BY sequence LIMIT 1) AS current_action FROM kilas_agent_jobs j WHERE ' + where + ' ORDER BY ' + order + ' LIMIT 30', tuple(params))]
 
 
+def conversation_jobs(user_id, conversation_id, message_ids, include_unanchored=False):
+    """Project durable jobs into their original chat turn, including older pages.
+
+    New jobs save their message ID. Legacy jobs derive an anchor without writing
+    or hiding acknowledged results. Scope both the job and fallback messages.
+    """
+    ids = list(message_ids) + ([0] if include_unanchored else [])
+    if not ids:
+        return []
+    saved = "(j.checkpoint_json::jsonb->>'origin_message_id')::bigint" if db.BACKEND == 'postgres' else "json_extract(j.checkpoint_json,'$.origin_message_id')"
+    before = "m.created_at<=j.created_at" if db.BACKEND == 'postgres' else "julianday(m.created_at)<=julianday(j.created_at)"
+    anchor = f"COALESCE({saved},(SELECT m.id FROM kilas_ai_agent_messages m WHERE m.user_id=j.user_id AND m.conversation_id=j.origin_conversation_id AND m.role='user' AND {before} ORDER BY CASE WHEN m.content=j.instruction THEN 0 ELSE 1 END,m.id DESC LIMIT 1),0)"
+    rows = db.query_all(f"SELECT * FROM (SELECT j.*,{anchor} AS origin_message_id FROM kilas_agent_jobs j WHERE j.user_id=? AND j.origin_conversation_id=?) anchored WHERE origin_message_id IN ({','.join('?' for _ in ids)}) ORDER BY id", (user_id, conversation_id, *ids))
+    return [dict(row) for row in rows]
+
+
 def steps(job_id):
     return [dict(row) for row in db.query_all('SELECT * FROM kilas_agent_steps WHERE job_id=? ORDER BY sequence', (job_id,))]
 
 
-def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=None, interval=3600, expires_at=None, conversation_id=None, schedule=None, checkpoint=None, image_input=None):
+def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=None, interval=3600, expires_at=None, conversation_id=None, schedule=None, checkpoint=None, image_input=None, origin_message_id=None):
     from .agent_results import task_title
     from .autonomous_planner import MODES
     if mode not in MODES or not isinstance(instruction, str) or not 1 <= len(instruction.strip()) <= 1200:
@@ -81,6 +97,14 @@ def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=N
     with transaction() as conn:
         if conversation_id is not None and not usage._query(conn, 'SELECT id FROM kilas_ai_conversations WHERE id=? AND user_id=?', (conversation_id, user_id), one=True):
             raise ValueError('conversation_not_owned')
+        if conversation_id is not None:
+            if origin_message_id is not None:
+                origin = usage._query(conn, "SELECT id FROM kilas_ai_agent_messages WHERE user_id=? AND conversation_id=? AND role='user' AND id=?", (user_id, conversation_id, origin_message_id), one=True)
+                if not origin:
+                    raise ValueError('message_not_owned')
+            else:
+                origin = usage._query(conn, "SELECT id FROM kilas_ai_agent_messages WHERE user_id=? AND conversation_id=? AND role='user' ORDER BY id DESC LIMIT 1", (user_id, conversation_id), one=True)
+            checkpoint = {**(checkpoint or {}), 'origin_message_id': origin[0] if origin else 0}
         if db.BACKEND == 'postgres':
             usage._query(conn, 'SELECT id FROM users WHERE id=? FOR UPDATE', (user_id,), one=True)
         count = usage._query(conn, "SELECT COUNT(*) FROM kilas_agent_jobs WHERE user_id=? AND status NOT IN ('COMPLETED','FAILED','STOPPED')", (user_id,), one=True)[0]

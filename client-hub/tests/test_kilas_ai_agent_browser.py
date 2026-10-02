@@ -48,7 +48,7 @@ def main():
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat overflow")
                 autonomous_store.create(owner,'Rangkuman pasar untuk tim kerja dan pelanggan '+('Nama proyek panjang '*12),wake_at=autonomous_store.now()+__import__('datetime').timedelta(days=1))
                 if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
-                page.get_by_role("link", name="Pekerjaan aktif").click()
+                page.goto(origin + '/kilas-ai/agent?view=tasks')
                 assert page.get_by_text("Rangkuman Pasar",exact=False).count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long task overflow")
                 if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
@@ -56,7 +56,7 @@ def main():
                 assert page.get_by_role('heading',name='Pengaturan Work').is_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 if width<=760:page.get_by_role('button',name='Buka riwayat').click()
-                page.get_by_role('link',name='Notifikasi',exact=False).first.click()
+                page.goto(origin + '/kilas-ai/agent?view=notifications')
                 assert page.get_by_role('heading',name='Notifikasi',exact=True).is_visible()
                 page.goto(origin + "/kilas-ai/agent?view=chat")
                 page.locator("#agent-message").fill("setiap pagi cek email penting gue")

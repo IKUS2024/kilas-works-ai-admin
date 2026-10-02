@@ -106,7 +106,8 @@ def chat(user_id, text):
         if sources:checkpoint['source_materials']=sources
         job_id=store.create(user_id,agent_intents.research_instruction(text),mode=spec['mode'],constraints=[text],
             wake_at=spec['wake_at'],interval=spec['interval'],conversation_id=conversation_id,schedule=spec['schedule'],
-            checkpoint=checkpoint,image_input=image_inputs[0] if editing_image and image_inputs else None)
+            checkpoint=checkpoint,image_input=image_inputs[0] if editing_image and image_inputs else None,
+            origin_message_id=getattr(request,'work_origin_message_id',None))
         if market_request(text) and market_worker.provider is None:
             message = 'Pekerjaan pemantauan tersimpan. Data market real-time belum tersedia; Kilas belum memantau harga atau menghasilkan sinyal.'
         elif spec['wake_at']:

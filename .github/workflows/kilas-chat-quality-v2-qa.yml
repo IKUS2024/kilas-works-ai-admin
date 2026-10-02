@@ -8,7 +8,7 @@ on:
       - 'client-hub/tests/fixtures/kilas_conversation_standard.json'
       - '.github/workflows/kilas-chat-quality-v2-qa.yml'
   push:
-    branches: ['feature/kilas-chat-quality-v2-*']
+    branches: [main, 'feature/kilas-chat-quality-v2-*']
   workflow_dispatch:
 permissions:
   contents: read
