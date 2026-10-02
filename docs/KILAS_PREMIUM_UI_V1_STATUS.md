@@ -57,3 +57,17 @@ mandatory. Preserve the failing check and report its actual outcome transparentl
 
 Final release SHA, CI run results, reviewer verdict and Render deployment evidence
 will be recorded after those gates; no production claim is made at this checkpoint.
+
+## First pushed release CI checkpoint
+
+- UI commit `85572ff507eefe1b72e032722e468d4b908832bd`, message
+  `Redesign Kilas Works customer UI`, pushed directly to current main.
+- Run 37051599884: focused Finance/Assist/AI boundaries and Autonomous PostgreSQL
+  /code sandbox passed; responsive browser still running at this checkpoint.
+- Run 37051599829: Chat Quality V2 unit/browser passed.
+- Run 37051599683: foundation/browser passed; unchanged PostgreSQL bootstrap failure
+  reproduced precisely (`kilas_ai_agent_messages` missing).
+- Run 37051599646: Automation unit/boundaries/PostgreSQL passed; browser used the
+  obsolete exact heading `Work`. Assertion updated to `Pengingat & jadwal`, with
+  all creation, preview approval, schedule editing, pause and results checks retained.
+- No production deploy yet. Final corrected main must complete relevant CI first.

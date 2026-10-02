@@ -34,7 +34,7 @@ def main():
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai/automation", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Work", exact=True).is_visible()
+                assert page.get_by_role("heading", name="Pengingat & jadwal", exact=True).is_visible()
                 assert page.locator("#auto-zone").input_value() == "Asia/Jakarta"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "home overflow")
                 page.get_by_role("link", name="+ Beri tugas").click()
