@@ -19,6 +19,16 @@ No schema/migration, infrastructure creation, production data reset, pricing, Fi
 
 Focused routing/Work suites: 43 Agent experience, 18 result safety, 22 Work V2, 21 new unified tests and 12 intent tests passed. Shared Chat Quality V2: 18 passed with Python UTF-8 mode. Cost/fair-use, attachments, PDF, normal style, subscriptions, existing Agent/Automation/connector and legacy Chat tests passed after updating intentional UI wording expectations.
 
-Responsive Work V2, shared shell, result rendering, composer focus, Automation and autonomous browser journeys passed. New unified five-width acceptance and remaining browser reruns are in progress. Finance baseline and Assist connections local tests hit existing Windows SQLite deletion locks; unchanged tests will run on Linux CI.
+All eleven local browser journeys passed, including canonical unified Chat/analysis/Search/images/PDF/reminders at 320/360/390/820/1440. Screenshots: temporary `kilas-unified-{width}.png` and Work/shell acceptance captures. Image previews use the same private validated artifact URL, without a public storage route.
 
-Preparing the single release PR; no merge or production deployment yet. Controlled production login window is open; awaiting user sign-in before authenticated production QA. Client Hub and existing Cron must both deploy the final merged SHA and reach LIVE before production success can be claimed.
+PR: https://github.com/IKUS2024/kilas-works-ai-admin/pull/119. Implementation head: `6bdfcc69dffa506579bdcbbcaf41eebde6cfe042`.
+
+Current-head CI passed Autonomous/Work focused, browser, native PostgreSQL and Linux code sandbox; dedicated Chat Quality focused/browser; Automation schema/focused/browser/boundaries; Connectors browser/focused/PostgreSQL/baseline; Phase 8 WhatsApp runtime; Finance runtime/mobile; root bot and additive PostgreSQL release checks. Linux focused checks also passed the unchanged Finance baseline and Assist connections, confirming their local Windows deletion-lock errors are environmental.
+
+Broad failures were compared with the existing production lineage's PR #118 evidence: Assist billing expects 200 but receives 302, and language normalization expects an English directive but receives None. Phase 9 expects the removed Finance onboarding heading; Phase 10 expects the removed Mulai Sekarang button. Same failure names/messages; related implementation files are unchanged. Full Phase 7 Finance baseline is still running and will be compared mechanically before release.
+
+Scoped Impeccable engine 0.1.6 check: one existing flat-type-hierarchy suggestion. Detector cannot resolve Jinja stylesheet URLs; browser inspection is authoritative. No full audit or unrelated typography redesign.
+
+No merge or production deployment yet. Production baseline Client Hub is LIVE on `8da611167d3ea23b243ddb4405e9cdc094205b04`, deploy `dep-davs2p0u01pc73fuhh30`; authenticated entry redirects normally to login, public login returns 200, baseline error-level logs are empty. Controlled production login window is open; awaiting user sign-in before authenticated production QA. Client Hub and existing Cron must both deploy the final merged SHA and reach LIVE before production success can be claimed.
+
+Known limits: legacy history links the latest 50 historical threads without migrating them; older direct/shared links remain valid. Unified conversations do not add sharing. Simple image actions reuse the existing durable image worker internally. Optional Web Push depends on existing configuration; reminders still persist and deliver into their originating conversation.
