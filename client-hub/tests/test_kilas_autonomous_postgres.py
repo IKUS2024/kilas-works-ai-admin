@@ -70,6 +70,22 @@ def main():
                 for _ in range(2):conn.cursor().execute((Path(__file__).parents[1]/'migrations/0081_kilas_work_push_postgres.sql').read_text())
             from kilas_ai import work_push
             assert db.query_one('SELECT COUNT(*) AS n FROM kilas_work_push_subscriptions')['n']==0
+            # Real concurrent cross-owner registration cannot replace another account's keys.
+            import base64
+            from cryptography.hazmat.primitives.asymmetric import ec
+            from cryptography.hazmat.primitives import serialization
+            point=ec.generate_private_key(ec.SECP256R1()).public_key().public_bytes(serialization.Encoding.X962,serialization.PublicFormat.UncompressedPoint)
+            encoded=lambda value:base64.urlsafe_b64encode(value).decode().rstrip('=')
+            subscription={'endpoint':'https://fcm.googleapis.com/fcm/send/isolated-pg-qa','keys':{'p256dh':encoded(point),'auth':encoded(b'1234567890123456')}}
+            with store.transaction() as conn:
+                other=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('other-pg@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
+            def register(owner):
+                try:return owner,work_push.register(owner,subscription)
+                except ValueError:return owner,None
+            with ThreadPoolExecutor(2) as pool:registrations=list(pool.map(register,(user,other)))
+            winners=[r for r in registrations if r[1] is not None]
+            assert len(winners)==1
+            assert db.query_one('SELECT user_id FROM kilas_work_push_subscriptions')['user_id']==winners[0][0]
             job = store.create(user, 'Stopped work')
             store.control(user, job, 'stop')
             assert store.claim_due(1) == []
@@ -77,7 +93,7 @@ def main():
         with control.cursor() as cur:
             cur.execute('DROP SCHEMA ' + isolated + ' CASCADE')
         control.close()
-    print('PASS: 0078 additive/checksum/idempotency + PostgreSQL concurrent claim, lease fencing and terminal stop')
+    print('PASS: 0078/0080/0081 additive/idempotent + PostgreSQL concurrent claim, lease fencing, BYTEA, push ownership and terminal stop')
 
 
 if __name__ == '__main__':
