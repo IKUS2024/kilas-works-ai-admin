@@ -59,9 +59,9 @@ def main():
                 page.goto(origin+f'/kilas-ai/agent?conversation={conversation}',wait_until='networkidle')
                 page.locator('#agent-message').fill('Bikin lebih premium dan tambahkan timeline.')
                 page.get_by_role('button',name='Kirim',exact=True).click()
-                expect(page.locator('[data-job-id]')).to_have_count(2)
+                expect(page.locator('[data-job-id]')).to_have_count(1)  # viewed old result is no longer repinned
                 latest=fixture.fixture.store.list_jobs(owner)[0]['id'];tick(latest)
-                page.reload(wait_until='networkidle');expect(page.locator('.work-file')).to_have_count(2)
+                page.reload(wait_until='networkidle');expect(page.locator('.work-file')).to_have_count(1)
                 active=fixture.fixture.store.create(owner,'Pantau perubahan harga sampai saya stop',conversation_id=conversation)
                 if width<760:page.get_by_role('button',name='Buka riwayat').click()
                 page.get_by_role('button',name='+ New Chat',exact=True).click()
