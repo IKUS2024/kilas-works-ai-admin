@@ -65,7 +65,8 @@ def main():
                 page.screenshot(path=str(Path(tempfile.gettempdir())/f'kilas-work-v2-chat-{width}.png'),full_page=True)
                 page.locator('#agent-message').fill(f.REQUEST)
                 page.get_by_role('button',name='Kirim',exact=True).click()
-                expect(page.locator('.work-file')).to_have_count(5,timeout=15000)
+                expect(page.locator('.work-file')).to_have_count(1,timeout=15000)
+                expect(page.locator('[data-active-count]')).to_have_text('3')
                 assert page.evaluate("document.activeElement.id==='agent-message'") is (width>=760),(width,'completion focus')
                 if width<760:
                     page.locator('#agent-message').click()
