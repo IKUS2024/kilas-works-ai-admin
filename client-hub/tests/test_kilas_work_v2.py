@@ -94,6 +94,28 @@ class WorkV2Tests(unittest.TestCase):
         self.client().post('/kilas-ai/agent/conversations',data={'csrf_token':'work-csrf'})
         self.assertEqual(f.fixture.store.get(self.owner,active)['status'],'PLANNING')
 
+    def test_completed_result_is_not_repinned_after_view_or_next_instruction(self):
+        job,file=self.complete(f.REQUEST,f.SOURCE)
+        chat=self.client().get('/kilas-ai/agent').text
+        self.assertIn(f'data-job-id="{job}"',chat)
+        self.assertIn(file['name'],chat)
+
+        # Opening the result acknowledges it. The job remains available in history/detail
+        # but must stop being pinned under every later Work reply.
+        self.assertEqual(self.client().get(f'/kilas-ai/agent/jobs/{job}').status_code,200)
+        chat=self.client().get('/kilas-ai/agent').text
+        self.assertNotIn(f'data-job-id="{job}"',chat)
+        self.assertIn(f'data-job-id="{job}"',self.client().get('/kilas-ai/agent?view=history').text)
+
+        second=f.fixture.store.create(self.owner,'Pekerjaan selesai lain',conversation_id=self.conversation)
+        f.fixture.db.execute("UPDATE kilas_agent_jobs SET status='COMPLETED' WHERE id=?",(second,))
+        with f.fixture.store.transaction() as conn:
+            f.fixture.store.event(conn,second,'COMPLETED','Pekerjaan selesai. Hasil tersedia.')
+        self.assertIn(f'data-job-id="{second}"',self.client().get('/kilas-ai/agent').text)
+        with patch('kilas_ai.agent_chat.ordinary',return_value=None):
+            self.submit('halo')
+        self.assertNotIn(f'data-job-id="{second}"',self.client().get('/kilas-ai/agent').text)
+
     def test_raw_execution_prompts_not_visible_and_progress_persists(self):
         job=f.fixture.store.create(self.owner,'Buat proposal',conversation_id=self.conversation)
         claim=f.fixture.store.claim_due(1)[0]
