@@ -1,7 +1,7 @@
 name: Kilas Autonomous Agent QA
 on:
   push:
-    branches: [feature/kilas-autonomous-agent-v1-20261002, feature/kilas-agent-chat-experience-20261002, fix/kilas-unified-chat-agent-shell-20261002, fix/kilas-agent-response-result-polish-20261002, fix/kilas-ai-cost-quality-routing-20261002, feature/kilas-work-universal-output-20261002]
+    branches: [feature/kilas-work-real-worker-v2-20261002, feature/kilas-autonomous-agent-v1-20261002, feature/kilas-agent-chat-experience-20261002, fix/kilas-unified-chat-agent-shell-20261002, fix/kilas-agent-response-result-polish-20261002, fix/kilas-ai-cost-quality-routing-20261002, feature/kilas-work-universal-output-20261002]
   pull_request:
     branches: [main]
     paths:
@@ -9,6 +9,7 @@ on:
       - 'client-hub/migrations/0078_*'
       - 'client-hub/migrations/0079_*'
       - 'client-hub/migrations/0080_*'
+      - 'client-hub/migrations/0081_*'
       - 'client-hub/tests/test_kilas_work*'
       - 'client-hub/tests/test_kilas_chat_intents.py'
       - 'client-hub/tests/test_kilas_composer_focus_browser.py'
@@ -22,6 +23,7 @@ on:
       - 'client-hub/templates/kilas_ai/**'
       - 'client-hub/static/kilas_ai_agent.css'
       - 'client-hub/static/kilas_ai_agent_chat.js'
+      - 'client-hub/static/kilas_work*.js'
       - 'client-hub/static/kilas_ai_shell.js'
       - 'client-hub/static/kilas_ai.css'
       - 'client-hub/static/kilas_ai.js'
@@ -45,6 +47,7 @@ jobs:
       - run: python client-hub/tests/test_kilas_agent_results.py
       - run: python client-hub/tests/test_kilas_ai_cost_quality.py
       - run: python client-hub/tests/test_kilas_work_documents.py
+      - run: python client-hub/tests/test_kilas_work_v2.py
       - run: python client-hub/tests/test_kilas_chat_intents.py
       - run: python client-hub/tests/test_kilas_ai_usage.py
       - run: python client-hub/tests/test_kilas_ai_attachments.py
@@ -91,6 +94,7 @@ jobs:
       - run: python client-hub/tests/test_kilas_ai_shell_browser.py
       - run: python client-hub/tests/test_kilas_ai_browser.py
       - run: python client-hub/tests/test_kilas_work_browser.py
+      - run: python client-hub/tests/test_kilas_work_v2_browser.py
       - run: python client-hub/tests/test_kilas_composer_focus_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
@@ -99,6 +103,7 @@ jobs:
           path: |
             /tmp/agent-*.png
             /tmp/kilas-shell-*.png
+            /tmp/kilas-work-v2-*.png
           if-no-files-found: ignore
   postgres:
     runs-on: ubuntu-latest

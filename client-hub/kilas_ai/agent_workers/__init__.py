@@ -24,6 +24,8 @@ FIELDS = {
     ('FILE', 'create'): {'name', 'format', 'content'},
     ('DOCUMENT', 'create'): {'request', 'format'},
     ('IMAGE', 'generate'): {'prompt'},
+    ('IMAGE', 'edit'): {'prompt','source_id'},
+    ('REMINDER', 'deliver'): {'subject'},
     ('CODE', 'inspect'): {'repo', 'paths'}, ('CODE', 'patch'): {'repo', 'patch'},
     ('CODE', 'test'): {'repo'}, ('CODE', 'diff'): {'repo'},
     ('EXTERNAL', 'push'): {'repo'}, ('EXTERNAL', 'merge'): {'repo'},
@@ -54,6 +56,7 @@ def validate_step(step):
         if data['format'] not in FORMATS or not isinstance(data['request'],str) or not 1 <= len(data['request']) <= 1200:
             raise ValueError('invalid_document_input')
     if step['worker']=='IMAGE' and (not isinstance(data['prompt'],str) or not 1 <= len(data['prompt']) <= 1200):raise ValueError('invalid_image_input')
+    if step['worker']=='IMAGE' and step['action']=='edit' and (not isinstance(data['source_id'],int) or data['source_id']<1):raise ValueError('invalid_image_source')
     if step['worker'] in ('WATCH', 'MARKET'):
         if data['operator'] not in ('lt', 'gt', 'change') or (data['operator'] != 'change' and not isinstance(data['threshold'], (int, float))):
             raise ValueError('invalid_condition')
@@ -81,6 +84,9 @@ def execute(job, step):
         if step['worker'] == 'UNAVAILABLE' and data['capability'] == 'market_data_provider':
             return Result('WAITING_CAPABILITY', 'Market data provider is not configured.', {'reason': 'provider_not_configured'})
         return Result('WAITING_CAPABILITY', 'Kemampuan ini belum tersedia. Tidak ada tindakan eksternal dijalankan.', {'reason': 'adapter_not_configured'})
+    if step['worker'] == 'REMINDER':
+        if not json.loads(job['checkpoint_json']).get('reminder'):return Result('FAILED','Pengingat belum memiliki informasi yang valid.')
+        return Result('SUCCEEDED','Pengingat tersimpan di percakapan.',{'reminder':True},verified=True)
     if step['worker'] == 'IMAGE':
         from .image_worker import run
     elif step['worker'] == 'DOCUMENT':

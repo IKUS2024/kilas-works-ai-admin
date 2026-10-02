@@ -28,7 +28,7 @@ def main():
         return dict(settings, options=settings['options'] + ' -c search_path=' + isolated)
     try:
         with patch.object(db, '_postgres_connect_kwargs', side_effect=options):
-            with patch.object(db, 'MIGRATIONS', [m for m in db.MIGRATIONS if not m[0].startswith(('0078_', '0079_', '0080_'))]):
+            with patch.object(db, 'MIGRATIONS', [m for m in db.MIGRATIONS if not m[0].startswith(('0078_', '0079_', '0080_', '0081_'))]):
                 db.init_schema()
             before = {r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert schema.apply_release() == [schema.NAME]
@@ -66,6 +66,41 @@ def main():
                 work_artifacts.persist(conn,store.get(user,job),step,file)
             assert work_artifacts.listing(user,job_id=job)[0]['media_type']=='application/pdf'
             assert bytes(db.query_one('SELECT content FROM kilas_agent_artifact_files LIMIT 1')['content']).startswith(b'%PDF')
+            with store.transaction() as conn:
+                for _ in range(2):conn.cursor().execute((Path(__file__).parents[1]/'migrations/0081_kilas_work_push_postgres.sql').read_text())
+            from kilas_ai import work_push
+            assert db.query_one('SELECT COUNT(*) AS n FROM kilas_work_push_subscriptions')['n']==0
+            # Real concurrent cross-owner registration cannot replace another account's keys.
+            import base64
+            from cryptography.hazmat.primitives.asymmetric import ec
+            from cryptography.hazmat.primitives import serialization
+            point=ec.generate_private_key(ec.SECP256R1()).public_key().public_bytes(serialization.Encoding.X962,serialization.PublicFormat.UncompressedPoint)
+            encoded=lambda value:base64.urlsafe_b64encode(value).decode().rstrip('=')
+            subscription={'endpoint':'https://fcm.googleapis.com/fcm/send/isolated-pg-qa','keys':{'p256dh':encoded(point),'auth':encoded(b'1234567890123456')}}
+            with store.transaction() as conn:
+                other=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('other-pg@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
+            def register(owner):
+                try:return owner,work_push.register(owner,subscription)
+                except ValueError:return owner,None
+            with ThreadPoolExecutor(2) as pool:registrations=list(pool.map(register,(user,other)))
+            winners=[r for r in registrations if r[1] is not None]
+            assert len(winners)==1
+            assert db.query_one('SELECT user_id FROM kilas_work_push_subscriptions')['user_id']==winners[0][0]
+            # Native TIMESTAMPTZ must serialize in the durable reminder checkpoint.
+            from kilas_ai import agent_store,work_push
+            with store.transaction() as conn:
+                conn.cursor().execute((Path(__file__).parents[1]/'migrations/0079_kilas_agent_conversations_postgres.sql').read_text())
+            conversation=agent_store.new_conversation(user)
+            due=store.now()-timedelta(minutes=2)
+            reminder=store.create(user,'Ingatkan cek QA',mode='SCHEDULED',wake_at=due,conversation_id=conversation,checkpoint={'reminder':{'subject':'cek QA'}})
+            with patch.object(work_push,'configured',return_value=False):
+                for _ in range(2):runner.execute(*store.claim_due(1)[0])
+            assert store.get(user,reminder)['status']=='COMPLETED'
+            assert db.query_one("SELECT COUNT(*) AS n FROM kilas_agent_events WHERE job_id=? AND kind='REMINDER'",(reminder,))['n']==1
+            assert sum(m['content']=='Pengingat: cek QA' for m in agent_store.messages(user,conversation_id=conversation))==1
+            assert store.claim_due(1)==[]
+            import json
+            assert json.loads(store.get(user,reminder)['checkpoint_json'])['reminder']['scheduled_for']==store.stamp(due)
             job = store.create(user, 'Stopped work')
             store.control(user, job, 'stop')
             assert store.claim_due(1) == []
@@ -73,7 +108,7 @@ def main():
         with control.cursor() as cur:
             cur.execute('DROP SCHEMA ' + isolated + ' CASCADE')
         control.close()
-    print('PASS: 0078 additive/checksum/idempotency + PostgreSQL concurrent claim, lease fencing and terminal stop')
+    print('PASS: 0078/0080/0081 additive/idempotent + PostgreSQL concurrent claim, lease fencing, BYTEA, push ownership and terminal stop')
 
 
 if __name__ == '__main__':

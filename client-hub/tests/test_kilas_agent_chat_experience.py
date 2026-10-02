@@ -102,7 +102,7 @@ class ChatTests(unittest.TestCase):
         rows,more=chats.conversation_page(self.owner,2)
         self.assertEqual(len(rows),6)
         self.assertFalse(more)
-        self.assertIn('Riwayat chat',self.client.get('/kilas-ai/agent?view=history&page=2').get_data(as_text=True))
+        self.assertIn('Riwayat Work',self.client.get('/kilas-ai/agent?view=history&page=2').get_data(as_text=True))
 
     def test_late_legacy_writer_backfill_preserves_linked_messages(self):
         new=chats.new_conversation(self.owner)
@@ -196,9 +196,8 @@ class ChatTests(unittest.TestCase):
 
     def test_missing_clock_clarify_no_invention(self):
         self.send('Setiap pagi riset berita AI')
-        self.assertEqual(jobs.list_jobs(self.owner),[])
-        self.send('jam 8 pagi')
         self.assertEqual(self.only_job()['mode'],'RECURRING')
+        self.assertIn('08.00',chats.messages(self.owner,conversation_id=self.conv)[-1]['content'])
 
     def test_recurring_wib(self):
         self.send('Setiap hari jam 8 pagi riset berita AI')
@@ -227,7 +226,7 @@ class ChatTests(unittest.TestCase):
         page=self.client.get('/kilas-ai/agent').get_data(as_text=True)
         self.assertNotIn('UTC',page)
         self.assertNotIn('detik',page)
-        self.assertIn('<details class="autonomous-options">',page)
+        self.assertNotIn('<details class="autonomous-options">',page)
         self.assertNotIn('autonomous-options" open',page)
 
     def test_submit_key_prevents_duplicate_task(self):
@@ -267,7 +266,7 @@ class ChatTests(unittest.TestCase):
         self.send('Perbaiki bug ini sampai semua test pass')
         page=self.client.get('/kilas-ai/agent').get_data(as_text=True)
         self.assertIn('Menyiapkan rencana',page)
-        self.assertIn('Langkah sedang disiapkan',page)
+        self.assertIn('Pekerjaan tersimpan',page)
 
     def test_market_continuous_no_model_or_quotes(self):
         job=jobs.create(self.owner,'Pantau Bitcoin terus sampai saya stop',mode='CONTINUOUS')

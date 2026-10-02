@@ -8,11 +8,12 @@ from .. import tools,usage,work_artifacts,routing
 def run(job,step,data):
     if not os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL'):return Result('WAITING_CAPABILITY','Pembuatan gambar belum tersedia.',{'reason':'image_not_configured'})
     key=step['idempotency_key']+'-'+str(step['attempts'])
-    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_GENERATE')
+    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE')
     if not ops:raise ValueError('duplicate_reservation')
     success=False;result={}
     try:
-        result=tools.image(routing.enhance_image_prompt(data['prompt']),request_timeout=60)
+        source=work_artifacts.image_source(job['user_id'],data['source_id'],job['origin_conversation_id']) if step['action']=='edit' else None
+        result=tools.image(routing.enhance_image_prompt(data['prompt']),source=source,request_timeout=60)
         extension={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[result['mime']]
         title=' '.join(data['prompt'].split()[:8])
         name=re.sub(r'[^a-z0-9-]+','-',title.lower()).strip('-')[:70] or 'gambar-kilas'

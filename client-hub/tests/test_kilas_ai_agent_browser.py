@@ -10,6 +10,7 @@ os.environ["CLIENT_HUB_DB_PATH"] = tempfile.mktemp(prefix="kilas-agent-browser-"
 os.environ["SECRET_KEY"] = "kilas-agent-browser-test"
 os.environ["KILAS_AI_ENABLED"] = "true"
 os.environ["KILAS_AI_AUTOMATION_ENABLED"] = "true"
+os.environ["KILAS_AI_AUTONOMOUS_ENABLED"] = "true"
 os.environ["KILAS_GOOGLE_CLIENT_ID"] = "browser-fixture-client"
 os.environ["KILAS_GOOGLE_CLIENT_SECRET"] = "browser-fixture-secret"
 os.environ["KILAS_GOOGLE_REDIRECT_URI"] = "https://app.example.test/kilas-ai/agent/connections/google/callback"
@@ -19,7 +20,7 @@ os.environ.pop("DATABASE_URL", None)
 import app  # noqa: E402
 import db  # noqa: E402
 import repo  # noqa: E402
-from kilas_ai import agent_planner, automation_schedule as schedule, automation_store as store, connectors  # noqa: E402
+from kilas_ai import autonomous_store, agent_planner, automation_schedule as schedule, automation_store as store, connectors  # noqa: E402
 from playwright.sync_api import sync_playwright, expect  # noqa: E402
 from werkzeug.serving import make_server  # noqa: E402
 
@@ -45,24 +46,22 @@ def main():
                 assert page.locator('.agent-section-head h2').inner_text() == 'Chat baru'
                 assert page.locator("#agent-message").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat overflow")
-                spec = schedule.parse("Setiap hari jam 8 cari berita AI terbaru.")
-                spec["title"] = "Rangkuman pasar untuk tim kerja dan pelanggan " + ("Nama proyek panjang " * 12)
-                store.create(owner, spec)
+                autonomous_store.create(owner,'Rangkuman pasar untuk tim kerja dan pelanggan '+('Nama proyek panjang '*12),wake_at=autonomous_store.now()+__import__('datetime').timedelta(days=1))
                 if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
                 page.get_by_role("link", name="Pekerjaan aktif").click()
-                assert page.get_by_text("Rangkuman pasar untuk tim kerja").count() >= 1
+                assert page.get_by_text("Rangkuman Pasar",exact=False).count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long task overflow")
                 if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
-                page.get_by_role("link", name="Connections", exact=True).first.click()
-                assert page.get_by_role("heading", name="Belum ada koneksi eksternal").is_visible()
-                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "connections overflow")
-                if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
-                page.get_by_role("link", name="Aktivitas", exact=True).first.click()
-                assert page.get_by_text("Belum ada aktivitas.").is_visible()
+                page.get_by_role('link',name='Pengaturan',exact=True).click()
+                assert page.get_by_role('heading',name='Pengaturan Work').is_visible()
+                assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+                if width<=760:page.get_by_role('button',name='Buka riwayat').click()
+                page.get_by_role('link',name='Notifikasi',exact=False).first.click()
+                assert page.get_by_role('heading',name='Notifikasi',exact=True).is_visible()
                 page.goto(origin + "/kilas-ai/agent?view=chat")
                 page.locator("#agent-message").fill("setiap pagi cek email penting gue")
                 page.get_by_role("button", name="Kirim").click()
-                expect(page.get_by_text("Kilas butuh akses Gmail", exact=False)).to_be_visible()
+                expect(page.get_by_text("Work tidak mengakses koneksi akun", exact=False)).to_be_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "reply overflow")
                 stamp = connectors.stamp()
                 long_email = ("very-long-business-account-name-" * 4) + "@example.test"
@@ -77,11 +76,13 @@ def main():
                     {"to": "wilson@example.test", "subject": "Pertemuan",
                      "body": "Besok jam 2 bisa."})
                 page.goto(origin + "/kilas-ai/agent?view=connections", wait_until="networkidle")
-                assert page.get_by_text(long_email).is_visible()
+                assert page.get_by_text(long_email).count()==0
+                assert connectors.google_connection(owner)["status"]=="CONNECTED"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long identity overflow")
                 page.goto(origin + "/kilas-ai/agent?view=chat", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Periksa sebelum dikirim").is_visible()
-                assert page.get_by_role("button", name="Konfirmasi tindakan").is_visible()
+                assert page.get_by_role("heading", name="Periksa sebelum dikirim").count()==0
+                assert page.get_by_role("button", name="Konfirmasi tindakan").count()==0
+                assert db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_action_approvals WHERE user_id=? AND status='PENDING'",(owner,))["n"]==1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "approval overflow")
                 context.close()
             browser.close()
