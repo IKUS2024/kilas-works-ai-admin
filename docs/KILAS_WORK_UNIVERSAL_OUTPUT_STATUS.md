@@ -70,3 +70,11 @@ Branch `feature/kilas-work-universal-output-20261002`; implementation commit `1b
 The broad Master Completion Assist failures are the same three failing tests verified in the previous PR #111 run 36981912395: `test_signup_first_public_pricing`, `test_latest_owner_language_correction_is_normalized`, and `test_owner_customers_unifies_inbox_contacts_without_stage_ui`. Protected Assist code was not changed to resolve those baseline failures. Other broad checks may remain red or pending; this is not an all-repository green claim. Latest check status is visible on the PR.
 
 Before deployment: owner review, controlled live-model document acceptance, targeted 0080 migration and coordinated Client Hub/existing runner rollout remain necessary. This task stops at the review PR.
+
+## Mobile composer focus follow-up
+
+Both Chat and Work now explicitly blur on valid submission when `(hover: hover) and (pointer: fine)` does not match, and never automatically refocus in completion/error/Stop cleanup on those devices. Fine-pointer desktop autofocus remains, using `preventScroll`. No width checks, UA sniffing, timers, streaming changes or backend changes.
+
+Focused Chromium coverage uses real composer pages with controlled SSE: blur during streaming, no focus event or viewport movement at DONE, desktop focus, manual tap afterward, Shift+Enter, Work Enter submission and Chat Stop. Includes 320/360/390 px, wide coarse-pointer and narrow fine-pointer cases. Browser emulation checks DOM focus and visual viewport stability; actual Android keyboard rendering still requires device verification. Added the focused script to existing CI. No merge/deployment is authorized by this follow-up.
+
+All three local scripts passed: focused composer focus, existing Chat/attachments/Search/browser regressions and existing Work/artifact/progress browser regressions. Follow-up CI is pending; prior implementation CI evidence above belongs to `1bca6c5`.

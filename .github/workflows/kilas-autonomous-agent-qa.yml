@@ -10,6 +10,7 @@ on:
       - 'client-hub/migrations/0079_*'
       - 'client-hub/migrations/0080_*'
       - 'client-hub/tests/test_kilas_work*'
+      - 'client-hub/tests/test_kilas_composer_focus_browser.py'
       - 'client-hub/tests/fixtures/kilas_document_standard.json'
       - 'client-hub/tests/test_kilas_agent_chat*'
       - 'client-hub/tests/test_kilas_agent_results*'
@@ -88,6 +89,7 @@ jobs:
       - run: python client-hub/tests/test_kilas_ai_shell_browser.py
       - run: python client-hub/tests/test_kilas_ai_browser.py
       - run: python client-hub/tests/test_kilas_work_browser.py
+      - run: python client-hub/tests/test_kilas_composer_focus_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
