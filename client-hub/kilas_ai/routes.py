@@ -169,7 +169,7 @@ def _sse(event, payload):
 
 @ai_bp.post("/threads/<int:thread_id>/regenerate")
 def regenerate(thread_id):
-    from . import providers, routing, store, usage as ai_usage
+    from . import providers, routing, store, chat_quality, usage as ai_usage
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
@@ -213,9 +213,11 @@ def regenerate(thread_id):
         provider = model = None
         usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens":0}
         completed = False
+        quality_source = None
         try:
             yield _sse("activity", {"label": providers.model_policy.chat_profile(context)["activity"]})
-            for event in providers.stream(mode, context):
+            quality_source = chat_quality.ChatQualityStream(user_id, thread_id, key, mode, operations, context)
+            for event in quality_source:
                 if event["type"] == "provider":
                     provider, model = event["provider"], event["model"]
                 elif event["type"] == "delta":
@@ -224,6 +226,12 @@ def regenerate(thread_id):
                     if size > 30000:
                         raise providers.ProviderError("response_too_long")
                     yield _sse("delta", {"text": event["text"]})
+                elif event["type"] == "reset":
+                    pieces.clear()
+                    size = 0
+                    yield _sse("reset", {})
+                elif event["type"] == "activity":
+                    yield _sse("activity", {"label": event["label"]})
                 elif event["type"] == "usage":
                     usage.update({k: int(v or 0) for k, v in event.items() if k in usage})
             completed = bool(pieces)
@@ -236,7 +244,8 @@ def regenerate(thread_id):
                                       {"status": "complete" if completed else "interrupted" if pieces else "failed",
                                        "usage": usage, "regenerated": True,
                                        "reasoning_tier":providers.model_policy.chat_profile(context)['tier']})
-            ai_usage.finish(user_id, key, operations, success=completed, provider=provider, model=model, usage=usage)
+            if not quality_source or not quality_source.initial_finalized:
+                ai_usage.finish(user_id, key, operations, success=completed, provider=provider, model=model, usage=usage)
         if completed:
             yield _sse("done", {"finish_reason": "stop"})
 
@@ -248,7 +257,7 @@ def regenerate(thread_id):
 
 @ai_bp.post("/threads/<int:thread_id>/send")
 def send(thread_id):
-    from . import attachments, pdf as ai_pdf, providers, routing, store, usage as ai_usage
+    from . import attachments, pdf as ai_pdf, providers, routing, store, chat_quality, usage as ai_usage
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
@@ -321,6 +330,7 @@ def send(thread_id):
         provider = model = None
         usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens":0}
         finished = False
+        quality_source = None
         persisted = False
         reason = None
         try:
@@ -428,7 +438,8 @@ def send(thread_id):
             yield _sse("activity", {"label": "Menganalisis gambar…" if any(item["mime_type"].startswith("image/") for item in prepared)
                           else "Membaca dokumen…" if any(item["extracted_text"] for item in prepared)
                           else providers.model_policy.chat_profile(context)["activity"]})
-            for event in providers.stream(mode, context):
+            quality_source = chat_quality.ChatQualityStream(user_id, thread_id, key, mode, operations, context)
+            for event in quality_source:
                 if event["type"] == "provider":
                     provider, model = event["provider"], event["model"]
                 elif event["type"] == "delta":
@@ -438,6 +449,12 @@ def send(thread_id):
                         raise providers.ProviderError("response_too_long")
                     if not routing.visual_result_requested(content):
                         yield _sse("delta", {"text": event["text"]})
+                elif event["type"] == "reset":
+                    pieces.clear()
+                    size = 0
+                    yield _sse("reset", {})
+                elif event["type"] == "activity":
+                    yield _sse("activity", {"label": event["label"]})
                 elif event["type"] == "usage":
                     usage.update({k: int(v or 0) for k, v in event.items() if k in usage})
                 elif event["type"] == "finish":
@@ -462,7 +479,8 @@ def send(thread_id):
                 store.append_assistant(user_id, thread_id, "".join(pieces), mode, provider, model, key,
                                        {"status": "interrupted",
                                         "finish_reason": reason, "usage": usage})
-            ai_usage.finish(user_id, key, operations, success=finished, provider=provider, model=model, usage=usage)
+            if not quality_source or not quality_source.initial_finalized:
+                ai_usage.finish(user_id, key, operations, success=finished, provider=provider, model=model, usage=usage)
 
     response = Response(stream_with_context(generate()), mimetype="text/event-stream")
     response.headers["Cache-Control"] = "no-store"

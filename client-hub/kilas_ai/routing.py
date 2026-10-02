@@ -37,7 +37,7 @@ def _discussion(text):
         return True
     return bool(re.search(
         r"^(?:apa (?:itu|arti)|what is|jelaskan cara|bagaimana cara|cara |how (?:to|do)|"
-        r"kenapa|mengapa|why |model |perbedaan |"
+        r"kenapa|mengapa|why |model |perbedaan |berapa harga |"
         r"tolong (?:jelaskan|terangkan) cara)\b", text))
 
 
@@ -68,16 +68,23 @@ def _pdf_intent(text, has_previous_content):
 def tool_for(content, attachments=(), *, search=False, pdf_request=False,
              has_previous_content=False, previous_answer=""):
     text = _normalize(content)
+    # A general capability question is discussion, never authorization to execute.
+    if re.fullmatch(r"(?:kamu |lu |lo |anda )?bisa (?:buat|bikin|generate|membuat) (?:pdf|gambar(?: logo)?|logo|file|video)(?: (?:ga|gak|nggak|tidak|ngga))?[?!.]*", text):
+        return "CHAT"
+    if re.fullmatch(r"can you (?:make|create|generate) (?:a |an )?(?:pdf|image|logo|file|video)[?!.]*", text):
+        return "CHAT"
+    if re.search(r"\b(?:benerin typo|perbaiki typo|ubah kalimat|tulis ulang|rewrite|translate|terjemahkan)\b", text):
+        return "CHAT"
     if work_requested(text):
         return "WORK"
     if explicit_code(content):
         return "CHAT"
     if search:
         return "WEB"
-    if _discussion(text):
-        return "CHAT"
     if fresh_information(text):
         return "WEB"
+    if _discussion(text):
+        return "CHAT"
     if re.search(r'\b(?:buat|create|export|ekspor|ubah)\b',text) and re.search(r'\b(?:docx|xlsx|pptx|file word|file excel)\b',text):
         return "FILE"
     has_image = any(item.get("mime_type", "").startswith("image/") for item in attachments)
@@ -137,6 +144,9 @@ def work_requested(text):
 
 
 def fresh_information(text):
+    # 'Cari kemungkinan salahnya' asks for diagnosis, not an internet search.
+    if re.search(r"\bcari kemungkinan\b", text) and not re.search(r"\b(?:web|internet|terbaru|terkini|hari ini)\b", text):
+        return False
     if re.match(r'^(?:apa itu|what is|jelaskan cara|how to)\b',text):
         return False
     return bool(re.search(r'\b(?:cari|carikan|search|cek internet|cek web|berita terbaru|berita terkini|latest news)\b',text) or

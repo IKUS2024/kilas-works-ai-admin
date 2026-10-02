@@ -133,7 +133,7 @@ def _anthropic(model, key, messages, mode, system=SYSTEM):
 
 
 def stream(mode, messages, system=None):
-    """At most one fallback, only before any answer text has reached the caller."""
+    """One Luna candidate; failure never promotes ordinary Chat to another model."""
     attempted = False
     for provider, model, key in candidates(mode):
         attempted = True
@@ -149,7 +149,7 @@ def stream(mode, messages, system=None):
                 elif event["type"] == "finish":
                     finished = True
                 yield event
-            if emitted and finished:
+            if finished:
                 return
             if emitted:
                 raise ProviderError("incomplete_provider_stream")

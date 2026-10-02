@@ -15,24 +15,14 @@ class NaturalResponseStyleTests(unittest.TestCase):
     def test_chat_system_uses_shared_adaptive_style(self):
         self.assertEqual(providers.SYSTEM, response_style.CHAT_SYSTEM)
         self.assertEqual(providers.MODEL_TIERS["FAST"]["openai"], "gpt-6-luna")
-        for phrase in (
-            "naturally match their level of formality",
-            "Avoid canned openings",
-            "Do not be artificially terse",
-            "Keep continuity with the conversation",
-            "Do not automatically greet",
-            "Do not append a generic follow-up",
-            "prefer a few natural paragraphs",
-            "yang kedua",
-        ):
+        for phrase in ("user's language and formality", "Do not default", "useful depth",
+                       "recent context", "generic offers", "natural paragraphs", "yang kedua"):
             self.assertIn(phrase, providers.SYSTEM)
 
     def test_fast_luna_prompt_is_calibrated_without_forced_slang(self):
         style = response_style.CHAT_SYSTEM
-        self.assertIn("bro, weh, kak, gue, or lu", style)
-        self.assertIn("do not repeat those forms mechanically", style)
-        self.assertIn("generic textbook explanation", style)
-        self.assertIn("simple calculation, short translation", style)
+        for phrase in ("forcing slang", "typos naturally", "practical step", "translation/rewriting"):
+            self.assertIn(phrase, style)
 
     def test_search_and_automation_keep_explanation_without_robotic_brevity(self):
         search = response_style.search_instructions("2026-09-30", "Answer directly.")

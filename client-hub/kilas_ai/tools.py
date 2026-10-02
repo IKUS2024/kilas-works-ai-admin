@@ -139,7 +139,7 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
         payload = {"model": model, "instructions": response_style.search_instructions(
             today, angles[index] if complex_request else "Answer the user's question directly."),
             "input": query, "tools": [{"type": "web_search"}], "tool_choice": "required", "store": False,
-            "reasoning": {"effort": "none"}, "max_tool_calls": 1, "max_output_tokens": 2048}
+            "reasoning": {"effort": "medium" if complex_request else "low"}, "max_tool_calls": 1, "max_output_tokens": 2048}
         calls += 1
         try:
             data = _request(payload) if request_timeout is None else _request(payload, timeout=request_timeout)

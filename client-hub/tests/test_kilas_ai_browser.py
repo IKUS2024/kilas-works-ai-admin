@@ -15,14 +15,29 @@ os.environ.pop("DATABASE_URL", None)
 import app  # noqa: E402
 import repo  # noqa: E402
 from PIL import Image  # noqa: E402
-from kilas_ai import providers, store, tools  # noqa: E402
-from playwright.sync_api import sync_playwright  # noqa: E402
+from kilas_ai import providers, store, tools, model_policy  # noqa: E402
+from playwright.sync_api import sync_playwright, expect  # noqa: E402
 from werkzeug.serving import make_server  # noqa: E402
 
 
-def stream_reply(*_):
-    yield {"type": "provider", "provider": "openai", "model": "mock-browser"}
-    yield {"type": "delta", "text": "Jawaban uji Kilas AI."}
+ATTEMPTS = {}
+
+
+def stream_reply(mode, messages, **kwargs):
+    prompt = next((m['content'] for m in reversed(messages) if m['role']=='user'), '')
+    prompt = model_policy.request_text(prompt)
+    if prompt == 'Uji perbaikan jawaban':
+        attempt = ATTEMPTS.get(prompt, 0)
+        ATTEMPTS[prompt] = attempt + 1
+        text = 'PDF sudah dibuat.' if attempt == 0 else 'Jawaban berhasil diperbaiki tanpa klaim palsu.'
+    elif prompt.startswith('Analisis'):
+        text = 'Analisis uji: validasi permintaan dahulu, sisakan cadangan kas, dan batasi biaya tetap.'
+    elif prompt == 'Uji jawaban rusak terus':
+        text = 'PDF sudah dibuat.'
+    else:
+        text = 'Jawaban uji Kilas AI.'
+    yield {"type": "provider", "provider": "openai", "model": model_policy.LUNA}
+    yield {"type": "delta", "text": text}
     yield {"type": "usage", "input_tokens": 4, "output_tokens": 6}
     yield {"type": "finish", "reason": "stop"}
 
@@ -46,7 +61,7 @@ def main():
              patch.object(tools, "image", return_value={"raw": sample_image(), "mime": "image/png",
                 "model": "gpt-image-2", "usage": {}}), sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
-            for width, height in ((1440, 900), (768, 1024), (390, 844), (320, 700)):
+            for width, height in ((1440, 900), (820, 1024), (390, 844), (360, 780), (320, 700)):
                 owner = repo.create_user(f"kilas-ai-browser-{width}@example.test", "hash")
                 client = app.app.test_client()
                 with client.session_transaction() as session:
@@ -113,6 +128,39 @@ def main():
                 page.get_by_role("button", name="Kirim").click()
                 page.locator(".ai-image-result img").wait_for()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "image")
+                expect(page.locator("#ai-send")).to_be_enabled()
+                # Exercise server-selected activity, attached content and real SSE reset UX.
+                page.evaluate("""() => {
+                    window.activityLabels = [];
+                    new MutationObserver(() => {
+                        document.querySelectorAll('.ai-activity').forEach(el => {
+                            if (el.textContent) activityLabels.push(el.textContent);
+                        });
+                    }).observe(document.getElementById('ai-messages'), {subtree:true, childList:true, characterData:true, attributes:true});
+                }""")
+                page.locator("#ai-input").fill("Analisis perbandingan bisnis laundry atau cafe dengan modal 150 juta")
+                page.get_by_role("button", name="Kirim").click()
+                page.wait_for_function("activityLabels.some(label => label.includes('Menganalisis'))")
+                expect(page.locator("#ai-send")).to_be_enabled()
+                page.locator("#ai-files").set_input_files({"name":"brief.txt","mimeType":"text/plain","buffer":b"Synthetic business brief"})
+                page.locator("#ai-input").fill("Analisis strategi bisnis laundry dengan modal 150 juta")
+                page.get_by_role("button", name="Kirim").click()
+                page.wait_for_function("activityLabels.some(label => label.includes('Membaca dokumen'))")
+                expect(page.locator("#ai-send")).to_be_enabled()
+                assert page.locator("#ai-pending .ai-pending-item").count() == 0
+                ATTEMPTS.clear()
+                page.locator("#ai-input").fill("Uji perbaikan jawaban")
+                page.get_by_role("button", name="Kirim").click()
+                page.get_by_text("Jawaban berhasil diperbaiki tanpa klaim palsu.").wait_for()
+                expect(page.locator("#ai-send")).to_be_enabled()
+                assert page.get_by_text("PDF sudah dibuat.", exact=True).count() == 0
+                page.locator("#ai-input").fill("Uji jawaban rusak terus")
+                page.get_by_role("button", name="Kirim").click()
+                page.locator('#ai-notice').get_by_text("AI sedang tidak tersedia. Coba lagi.").wait_for()
+                assert page.get_by_text("PDF sudah dibuat.", exact=True).count() == 0
+                expect(page.locator("#ai-send")).to_be_enabled()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "retry")
+                assert page.evaluate("document.activeElement.id === 'ai-input'") is (width > 760)
                 count = len(store.list_threads(owner))
                 if width <= 760:
                     page.get_by_role("button", name="Buka riwayat").click()
@@ -156,7 +204,7 @@ def main():
             with admin_client.session_transaction() as session:
                 session.update(user_id=admin_id, role="KILAS_ADMIN", _csrf_token="browser-csrf")
             admin_cookie = admin_client.get_cookie(app.app.config.get("SESSION_COOKIE_NAME", "session"))
-            for width, height in ((1440, 900), (768, 1024), (390, 844), (320, 700)):
+            for width, height in ((1440, 900), (820, 1024), (390, 844), (360, 780), (320, 700)):
                 context = browser.new_context(viewport={"width": width, "height": height})
                 context.add_cookies([{"name": admin_cookie.key, "value": admin_cookie.value, "url": origin}])
                 page = context.new_page()

@@ -43,7 +43,7 @@ class CostQualityTests(unittest.TestCase):
         for text,tier in [('halo','QUICK'),('translate ini ke English','QUICK'),('Jelaskan ide ini','NORMAL'),('bantu analisis bisnis gue ada 3 cabang','DEEP'),('jelasin kenapa query SQL ini error','DEEP'),('menurut lu mending usaha laundry atau cafe dengan modal 200 juta','DEEP')]:
             profile=policy.chat_profile([{'role':'user','content':text}])
             self.assertEqual(profile['tier'],tier)
-            self.assertIn(profile['effort'],('none','low','medium'))
+            self.assertIn(profile['effort'],('low','medium'))
             self.assertEqual(profile['output_tokens'],policy.TIERS[tier][1])
 
     def test_simple_and_complex_agent_policy(self):
@@ -238,8 +238,8 @@ class CostQualityTests(unittest.TestCase):
 
     def test_runtime_standard_and_offline_corpus_are_separate(self):
         cases=json.loads((Path(__file__).parent/'fixtures/kilas_conversation_standard.json').read_text(encoding='utf-8'))
-        self.assertEqual(len(cases),60)
-        self.assertEqual(len({c['id'] for c in cases}),60)
+        self.assertGreaterEqual(len(cases),200)
+        self.assertEqual(len({c['id'] for c in cases}),len(cases))
         self.assertLess(len(conversation_standard.SYSTEM),4000)
         for c in cases:
             with self.subTest(c['id']):
@@ -265,7 +265,7 @@ class CostQualityTests(unittest.TestCase):
             def raise_for_status(self):pass
             def iter_lines(self,**_):
                 return iter(['data: '+json.dumps({'usage':{'prompt_tokens':100,'completion_tokens':20,'prompt_tokens_details':{'cached_tokens':70}},'choices':[]}), ''])
-        for prompt,effort,cap in [('halo','none',600),('Jelaskan ide ini','low',1000),('Analisis strategi','medium',1500)]:
+        for prompt,effort,cap in [('halo','low',600),('Jelaskan ide ini','low',1000),('Analisis strategi','medium',1500)]:
             with patch.object(providers.requests,'post',return_value=Response()) as request:
                 events=list(providers._openai(policy.LUNA,'synthetic',[{'role':'user','content':prompt}],'SMART'))
             self.assertEqual(request.call_args.kwargs['json']['reasoning_effort'],effort)

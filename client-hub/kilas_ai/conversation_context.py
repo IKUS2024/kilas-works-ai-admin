@@ -2,20 +2,34 @@
 import re
 
 
+CORRECTION = re.compile(r"\b(?:koreksi|correction|bukan itu|maksud (?:gw|gue|gua|lu|saya|aku)|yang tadi salah|ganti jadi|eh bukan|sebenarnya|actually|instead|changed my mind)\b", re.I)
+CONSTRAINT = re.compile(r"\b(?:jangan|gak mau|nggak mau|tidak mau|ga mau|harus|ingat|bukan|must|never|don't|do not|budget|modal|pilih|decided|prefer|keputusan)\b", re.I)
+
+
 def summary(rows, limit=3000):
-    # Preserve original user wording/corrections in chronological order, never invent facts.
+    # Extract original wording only; chronological quotes let the latest correction win.
+    # Select whole entries by priority rather than slicing through a correction at the end.
     facts = []
     for row in rows:
         if row['role'] != 'user':
             continue
         text = row['content']
-        if re.search(r'(?i)password|api.?key|secret|token\s*[:=]|kata sandi', text):
+        if not isinstance(text, str) or re.search(r'(?i)password|api.?key|secret|token\s*[:=]|kata sandi', text):
             continue
-        facts.append(' '.join(text.split())[:650])
-    important = [text for text in facts if re.search(r'(?i)\b(?:jangan|harus|ingat|bukan|koreksi|correction|actually|must|never|budget|modal|pilih|decided)\b', text)]
-    selected = set(important[-8:] + facts[-6:])
-    chosen = list(dict.fromkeys(text for text in facts if text in selected))
-    return '\n'.join(chosen)[-limit:]
+        text = ' '.join(text.split())
+        if text:
+            facts.append(text if len(text) <= 650 else text[:300] + ' … ' + text[-347:])
+    last_occurrence = {text: i for i, text in enumerate(facts)}
+    candidates = [text for i, text in enumerate(facts) if last_occurrence[text] == i]
+    ranked = sorted(range(len(candidates)), key=lambda i: (
+        2 if CORRECTION.search(candidates[i]) else 1 if CONSTRAINT.search(candidates[i]) else 0, i), reverse=True)
+    chosen, remaining = [], max(0, limit)
+    for i in ranked:
+        size = len(candidates[i]) + (1 if chosen else 0)
+        if size <= remaining:
+            chosen.append(i)
+            remaining -= size
+    return '\n'.join(candidates[i] for i in sorted(chosen))
 
 
 def bounded(messages, budget):
