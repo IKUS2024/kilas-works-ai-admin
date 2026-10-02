@@ -28,7 +28,7 @@ def main():
         return dict(settings, options=settings['options'] + ' -c search_path=' + isolated)
     try:
         with patch.object(db, '_postgres_connect_kwargs', side_effect=options):
-            with patch.object(db, 'MIGRATIONS', [m for m in db.MIGRATIONS if not m[0].startswith('0078_')]):
+            with patch.object(db, 'MIGRATIONS', [m for m in db.MIGRATIONS if not m[0].startswith(('0078_', '0079_'))]):
                 db.init_schema()
             before = {r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert schema.apply_release() == [schema.NAME]

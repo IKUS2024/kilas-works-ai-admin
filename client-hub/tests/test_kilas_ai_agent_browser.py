@@ -20,7 +20,7 @@ import app  # noqa: E402
 import db  # noqa: E402
 import repo  # noqa: E402
 from kilas_ai import agent_planner, automation_schedule as schedule, automation_store as store, connectors  # noqa: E402
-from playwright.sync_api import sync_playwright  # noqa: E402
+from playwright.sync_api import sync_playwright, expect  # noqa: E402
 from werkzeug.serving import make_server  # noqa: E402
 
 
@@ -41,24 +41,27 @@ def main():
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai/agent", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Agent Chat").is_visible()
+                assert page.locator('.agent-section-head h2').inner_text() == 'Kilas AI'
                 assert page.locator("#agent-message").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat overflow")
                 spec = schedule.parse("Setiap hari jam 8 cari berita AI terbaru.")
                 spec["title"] = "Rangkuman pasar untuk tim kerja dan pelanggan " + ("Nama proyek panjang " * 12)
                 store.create(owner, spec)
-                page.get_by_role("link", name="Tugas aktif").click()
+                if width < 681: page.get_by_role("button", name="Buka menu chat").click()
+                page.get_by_role("link", name="Active Tasks").click()
                 assert page.get_by_text("Rangkuman pasar untuk tim kerja").count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long task overflow")
-                page.get_by_role("link", name="Koneksi", exact=True).first.click()
+                if width < 681: page.get_by_role("button", name="Buka menu chat").click()
+                page.get_by_role("link", name="Connections", exact=True).first.click()
                 assert page.get_by_role("heading", name="Belum ada koneksi eksternal").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "connections overflow")
+                if width < 681: page.get_by_role("button", name="Buka menu chat").click()
                 page.get_by_role("link", name="Aktivitas", exact=True).first.click()
                 assert page.get_by_text("Belum ada aktivitas.").is_visible()
-                page.get_by_role("link", name="Agent Chat").click()
+                page.goto(origin + "/kilas-ai/agent?view=chat")
                 page.locator("#agent-message").fill("setiap pagi cek email penting gue")
                 page.get_by_role("button", name="Kirim").click()
-                assert page.get_by_text("Kilas butuh akses Gmail", exact=False).is_visible()
+                expect(page.get_by_text("Kilas butuh akses Gmail", exact=False)).to_be_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "reply overflow")
                 stamp = connectors.stamp()
                 long_email = ("very-long-business-account-name-" * 4) + "@example.test"

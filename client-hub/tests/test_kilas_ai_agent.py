@@ -41,7 +41,7 @@ class AgentTests(unittest.TestCase):
         page = client.get("/kilas-ai/agent")
         self.assertEqual(page.status_code, 200)
         body = page.get_data(as_text=True)
-        self.assertIn("Agent Chat", body)
+        self.assertIn("+ New Chat", body)
         self.assertIn("Belum ada koneksi eksternal", client.get("/kilas-ai/agent?view=connections").get_data(as_text=True))
         self.assertNotIn("Terhubung</", body)
         self.assertIn("Kilas Finance", self.client_for(self.owner).get("/products/start").get_data(as_text=True))
