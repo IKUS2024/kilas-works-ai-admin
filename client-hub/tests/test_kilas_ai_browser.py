@@ -53,7 +53,7 @@ def main():
                     session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="browser-csrf")
                 cookie = client.get_cookie(app.app.config.get("SESSION_COOKIE_NAME", "session"))
                 context = browser.new_context(viewport={"width": width, "height": height})
-                context.add_init_script("""desktop => { const native = window.matchMedia.bind(window); window.matchMedia = query => query === "(hover: hover) and (pointer: fine)" ? {matches: desktop, media: query, onchange: null, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){}, dispatchEvent(){return false;}} : native(query); }""", width > 760)
+                context.add_init_script("""const nativeMatchMedia = window.matchMedia.bind(window); const desktopFocus = """ + ("true" if width > 760 else "false") + """; window.matchMedia = query => query === "(hover: hover) and (pointer: fine)" ? {matches: desktopFocus, media: query, onchange: null, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){}, dispatchEvent(){return false;}} : nativeMatchMedia(query);""")
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
