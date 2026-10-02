@@ -15,7 +15,7 @@ os.environ.pop("DATABASE_URL", None)
 from PIL import Image  # noqa: E402
 import app  # noqa: E402
 import repo  # noqa: E402
-from kilas_ai import providers, store, tools, usage  # noqa: E402
+from kilas_ai import providers, routing, store, tools, usage  # noqa: E402
 import db  # noqa: E402
 
 
@@ -56,6 +56,13 @@ class ToolTests(unittest.TestCase):
         with client.session_transaction() as session:
             session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="tool-csrf")
         return client
+
+    def test_logo_creation_routes_to_real_image_tool_not_chat_svg(self):
+        self.assertEqual(routing.tool_for("buat logo bagus buat kilas works"), "IMAGE_GENERATE")
+        self.assertEqual(routing.tool_for("create a clean wordmark for Kilas Works"), "IMAGE_GENERATE")
+        self.assertEqual(routing.tool_for("buat kode SVG logo Kilas Works"), "CHAT")
+        prompt = routing.enhance_image_prompt("buat logo bagus buat Kilas Works", "buat logo bagus buat Kilas Works")
+        self.assertIn("bukan kode SVG/HTML", prompt)
 
     def test_web_uses_only_returned_sources(self):
         data = {"output": [{"type": "web_search_call", "status": "completed"},
