@@ -53,6 +53,14 @@ def agent_home():
     if view not in ("chat", "tasks", "activity", "connections"):
         view = "chat"
     owner = _owner()
+    from . import autonomous_runner, autonomous_store
+    autonomous_jobs = autonomous_store.list_jobs(owner) if autonomous_runner.enabled() else []
+    if autonomous_jobs:
+        from .autonomous_routes import time_label
+        for job in autonomous_jobs:
+            job['wake_label'] = time_label(job['next_wake_at'], owner)
+            job['updated_label'] = time_label(job['updated_at'], owner)
+    autonomous_unread = (db.query_one('SELECT COUNT(*) AS n FROM kilas_agent_events e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE j.user_id=? AND e.unread=1', (owner,))['n'] if autonomous_runner.enabled() else 0)
     tasks = _tasks()
     for item in tasks:
         item["schedule_label"] = schedule.describe(json.loads(item["schedule_json"]), item["timezone"])
@@ -98,6 +106,8 @@ def agent_home():
     return render_template("kilas_ai/agent.html", view=view, messages=agent_store.messages(owner),
                            tasks=tasks, activity=agent_store.activity(owner), preview=preview,
                            action=action, capacity=store.usage_summary(owner),
+                           autonomous_jobs=autonomous_jobs, autonomous_unread=autonomous_unread,
+                           autonomous_enabled=autonomous_runner.enabled(),
                            google=google, google_connection=google_row,
                            google_services=google_services,
                            internal_connections=internal_connections, connector_approvals=approval_rows,
@@ -114,6 +124,9 @@ def agent_chat():
     history = agent_store.messages(owner, 12)
     tasks = _tasks()
     agent_store.append(owner, "user", text)
+    from . import autonomous_routes
+    if autonomous_routes.chat(owner, text):
+        return redirect(url_for('kilas_ai.agent_home', view='chat'), code=303)
     session.pop("automation_preview", None)
     session.pop("automation_preview_origin", None)
     session.pop("agent_pending_action", None)

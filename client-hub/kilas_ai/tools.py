@@ -115,7 +115,7 @@ def _synthesize_research(chunks, citations):
     return answer, model, data.get("usage") or {}
 
 
-def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None):
+def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_timeout=None):
     model = os.environ.get("KILAS_AI_OPENAI_WEB_MODEL", "").strip()
     if not model:
         raise ToolUnavailable("Web search belum tersedia.")
@@ -140,7 +140,7 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None):
             "reasoning": {"effort": "none"}, "max_tool_calls": 1, "max_output_tokens": 2048}
         calls += 1
         try:
-            data = _request(payload)
+            data = _request(payload) if request_timeout is None else _request(payload, timeout=request_timeout)
         except ToolUnavailable:
             if not complex_request or not parts:
                 if index + 1 < limit:
@@ -180,8 +180,8 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None):
             "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens, "web_search_calls": calls}}}
 
 
-def web_search(context, mode="FAST", plan="FREE", max_calls=None):
-    return next(event["result"] for event in web_search_steps(context, mode, plan, max_calls)
+def web_search(context, mode="FAST", plan="FREE", max_calls=None, request_timeout=None):
+    return next(event["result"] for event in web_search_steps(context, mode, plan, max_calls, request_timeout)
                 if "result" in event)
 
 

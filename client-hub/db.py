@@ -295,6 +295,7 @@ MIGRATIONS = [
     ("0075_kilas_ai_automation_sqlite.sql", "0075_kilas_ai_automation_postgres.sql"),
     ("0076_kilas_ai_agent_sqlite.sql", "0076_kilas_ai_agent_postgres.sql"),
     ("0077_kilas_ai_connectors_sqlite.sql", "0077_kilas_ai_connectors_postgres.sql"),
+    ("0078_kilas_autonomous_agent_sqlite.sql", "0078_kilas_autonomous_agent_postgres.sql"),
 ]
 
 
