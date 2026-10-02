@@ -35,7 +35,7 @@ def main():
                 with client.session_transaction() as state: state.update(user_id=owner,role='CLIENT_OWNER',_csrf_token='chat-browser')
                 cookie=client.get_cookie('session')
                 context=browser.new_context(viewport={'width':width,'height':height},timezone_id='Asia/Jakarta',
-                                            has_touch=width<681,reduced_motion='reduce')
+                                            has_touch=width<=760,reduced_motion='reduce')
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
                 page=context.new_page();errors=[]
                 page.on('pageerror',lambda error:errors.append(str(error)))
@@ -62,17 +62,17 @@ def main():
                 expect(page.get_by_role('button',name='Kirim',exact=True)).to_be_enabled()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),(width,'task')
                 page.screenshot(path=str(Path(tempfile.gettempdir())/f'agent-chat-{width}.png'),full_page=True)
-                if width<681:
-                    page.get_by_role('button',name='Buka menu chat').tap()
+                if width<=760:
+                    page.get_by_role('button',name='Buka riwayat').tap()
                     expect(page.locator('#agent-sidebar')).to_be_visible()
                     page.keyboard.press('Escape')
                     expect(page.locator('#agent-sidebar')).to_be_hidden()
-                    page.get_by_role('button',name='Buka menu chat').tap()
+                    page.get_by_role('button',name='Buka riwayat').tap()
                 page.get_by_role('button',name='+ New Chat',exact=True).click()
                 expect(page.get_by_role('heading',name='Apa yang ingin kamu kerjakan?',exact=True)).to_be_visible()
                 assert page.locator('.agent-message').count()==0
                 assert jobs.get(owner,job['id'])['status']=='PLANNING'
-                if width<681:page.get_by_role('button',name='Buka menu chat').tap()
+                if width<=760:page.get_by_role('button',name='Buka riwayat').tap()
                 page.get_by_role('link',name='Active Tasks',exact=True).click()
                 expect(page.locator('[data-job-id]')).to_be_visible()
                 page.get_by_role('button',name='Jeda',exact=True).click()
