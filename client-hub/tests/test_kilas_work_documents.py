@@ -185,6 +185,11 @@ class WorkTests(unittest.TestCase):
         self.assertIn(b'Operasional,5000000',response.data)
         self.assertEqual(file['name'].rsplit('.',1)[1],'csv')
 
+    def test_logo_creation_is_registered_as_image_work(self):
+        self.assertTrue(docs.image_request('Buat logo bagus buat Kilas Works'))
+        self.assertTrue(docs.image_request('Create a clean wordmark for Kilas Works'))
+        self.assertFalse(docs.image_request('Buat kode SVG logo Kilas Works'))
+
     def test_image_output_reuses_real_validated_provider_and_persists(self):
         from PIL import Image
         from kilas_ai import tools
