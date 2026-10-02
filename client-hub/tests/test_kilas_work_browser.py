@@ -30,6 +30,7 @@ def main():
                 with client.session_transaction() as state:state.update(user_id=owner,role='CLIENT_OWNER',agent_conversation_id=conversation,_csrf_token='browser-work')
                 cookie=client.get_cookie('session')
                 context=browser.new_context(viewport={'width':width,'height':height},has_touch=width<760,reduced_motion='reduce')
+                context.add_init_script("""desktop => { const native = window.matchMedia.bind(window); window.matchMedia = query => query === '(hover: hover) and (pointer: fine)' ? {matches: desktop, media: query, onchange: null, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){}, dispatchEvent(){return false;}} : native(query); }""", width>=760)
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
                 page=context.new_page();errors=[]
                 page.on('pageerror',lambda error:errors.append(str(error)))
@@ -39,6 +40,7 @@ def main():
                 page.locator('#agent-message').fill(fixture.REQUEST)
                 page.get_by_role('button',name='Kirim',exact=True).click()
                 expect(page.locator('[data-job-id]')).to_have_count(1)
+                assert page.evaluate("document.activeElement.id === 'agent-message'") is (width>=760),(width,'work composer focus after response')
                 job=fixture.fixture.store.list_jobs(owner)[0]['id'];tick(job)
                 page.reload(wait_until='networkidle')
                 card=page.locator('.work-file')
