@@ -32,10 +32,11 @@ Existing image byte/MIME validation, CSRF, owner/thread access, idempotency, tim
 - Exact logo HTTP/SSE test proves no prose call, real image event and persisted PNG, foreign-account denial, IMAGE_GENERATION accounting, logo quality direction and honest failure with no fallback.
 - Context tests cover concept-to-image, recent generated-image edit, previous draft-to-real-PDF; guard test proves raw SVG is neither streamed nor stored. Actual Work runner persists validated PNG through IMAGE with no AI_TEXT fallback.
 - **Four Chromium scripts passed**: existing Chat/attachments/Search/image/PDF regression browser, Work/artifact/progress browser, held-stream composer focus browser, Agent chat browser. Combined coverage includes 320/360/390/820/1440 px and no overflow. Coarse-pointer completion remains unfocused; manual tap and desktop workflows remain. Browser emulation does not claim actual Android keyboard testing.
-- All provider calls were mocked; no production model/image/search calls or production account mutations. Existing focused CI now includes the intent script. Current release CI will be linked on PR #113; it is not yet an all-repository green claim.
+- All provider calls were mocked; no production model/image/search calls or production account mutations. Existing focused CI now includes the intent script.
+- Implementation commit `a9b8086ba2998c349d666afd381f0fc79752df84`: [Autonomous Agent QA run 36995962995](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/36995962995) passed all four jobs (focused, browser, PostgreSQL, Linux sandbox). Phase 8 also passed. Broad Master Assist billing/language-correction failures remain, matching previously verified baseline tests; Phase 10 authenticated journeys is also red. Protected areas were not changed to resolve those failures. This is not an all-repository green claim.
 
 Diff review: no Finance, Assist, WhatsApp/Meta, OAuth, payment/pricing, schema/migration, lease/fencing, infrastructure or production data changes. Existing Work artifact migration is untouched. No new dependencies.
 
 ## Release state
 
-Ready for code review. Not automatically cleared for deployment: relevant latest-head CI, owner approval and controlled provider acceptance remain review gates. **Do not merge or deploy this task.**
+Ready for code review; relevant implementation CI is green. Not automatically cleared for deployment: owner approval and controlled provider acceptance remain review gates, with broad baseline failures documented separately. **Do not merge or deploy this task.**
