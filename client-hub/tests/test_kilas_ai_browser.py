@@ -97,6 +97,8 @@ def main():
                 page.locator("#ai-input").fill("Halo Kilas AI")
                 page.get_by_role("button", name="Kirim").click()
                 page.get_by_text("Jawaban uji Kilas AI.").wait_for()
+                # Text arrives before the stream closes; check completion focus at DONE.
+                page.wait_for_function("!document.getElementById('ai-input').disabled")
                 assert page.evaluate("document.activeElement.id === 'ai-input'") is (width > 760), (width, "composer focus after response")
                 assert page.locator(".ai-assistant .ai-copy").count() == 1
                 page.wait_for_url("**/kilas-ai/threads/*")

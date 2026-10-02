@@ -71,3 +71,12 @@ will be recorded after those gates; no production claim is made at this checkpoi
   obsolete exact heading `Work`. Assertion updated to `Pengingat & jadwal`, with
   all creation, preview approval, schedule editing, pause and results checks retained.
 - No production deploy yet. Final corrected main must complete relevant CI first.
+
+## Final CI synchronization correction
+
+Automation browser passed on `723f63e` (run 37051955588). Chat Quality browser
+occasionally read composer focus after the first response text, before SSE DONE
+(run 37051955697, 820px); the identical application code passed the prior run and
+local journeys. The focused browser now waits for the real input re-enabled state
+before asserting desktop/mobile focus. No delay and no application JS change.
+All original focus expectations are preserved. Rerun final main CI after this fix.
