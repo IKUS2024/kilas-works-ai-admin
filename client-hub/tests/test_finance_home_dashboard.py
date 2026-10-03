@@ -596,7 +596,8 @@ class DashboardHomeTests(unittest.TestCase):
                       'Tahun ini','Semua waktu','Tanggal khusus'):
             self.assertIn(label,custom.text)
 
-    def test_reports_are_one_complete_dashboard_aligned_report(self):
+    @patch.object(fixture.f, 'business_today', return_value=__import__('datetime').date(2026, 9, 22))
+    def test_reports_are_one_complete_dashboard_aligned_report(self, clock):
         branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
         expense_cat=fixture.f.list_categories(
             self.b,'EXPENSE',actor_user_id=self.uid)[0]['id']
@@ -669,7 +670,8 @@ class DashboardHomeTests(unittest.TestCase):
         html,_=self.page('?month=2026-09')
         self.assertIn('finance-dashboard-link',html)
         self.assertIn('>Dashboard</a>',html)
-        self.assertIn('← Keluar Finance</a>',html)
+        self.assertIn('href="/products/start">← Home</a>',html)
+        self.assertNotIn('href="/workspace/more"',html)
 
     def test_workspace_entry_redirects_directly_to_business_finance(self):
         import finance_branches
@@ -732,7 +734,7 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Kilas<span>Works</span> Client Hub',html)
         self.assertNotIn('class="finance-context-bar"',html)
         self.assertNotIn('class="topbar-active" aria-current="page"',html)
-        self.assertIn('Keluar Finance',html)
+        self.assertIn('href="/products/start">← Home</a>',html)
         self.assertIn('finance-exit-bar',html)
 
     def test_transaction_form_can_add_income_and_expense_categories_in_place(self):

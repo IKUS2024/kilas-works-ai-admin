@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Penerima · Kilas Finance{% endblock %}
+{% block title %}{{ ui_t('Penerima · Kilas Finance') }}{% endblock %}
 {% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-homebudget-1') }}">
@@ -51,26 +51,26 @@
 
 <div class="fin-section-head">
   <div>
-    <span class="finance-eyebrow">KILAS FINANCE</span>
-    <h1 class="fin-page-title">Penerima</h1>
-    <p class="muted fin-page-subtitle">Toko, vendor, atau pihak yang kamu bayar dari Pengeluaran.</p>
+    <span class="finance-eyebrow">{{ ui_t('KILAS FINANCE') }}</span>
+    <h1 class="fin-page-title">{{ ui_t('Penerima') }}</h1>
+    <p class="muted fin-page-subtitle">{{ ui_t('Toko, vendor, atau pihak yang kamu bayar dari Pengeluaran.') }}</p>
   </div>
-  <button class="btn" type="button" onclick="document.getElementById('payee-dialog').showModal()">＋ Tambah Penerima</button>
+  <button class="btn" type="button" onclick="document.getElementById('payee-dialog').showModal()">{{ ui_t('＋ Tambah Penerima') }}</button>
 </div>
 
 <dialog id="payee-dialog" class="fin-payee-dialog">
   <div class="fin-payee-dialog-head">
-    <h2>Tambah Penerima</h2>
-    <button class="fin-payee-dialog-close" type="button" aria-label="Tutup" onclick="document.getElementById('payee-dialog').close()">×</button>
+    <h2>{{ ui_t('Tambah Penerima') }}</h2>
+    <button class="fin-payee-dialog-close" type="button" aria-label="{{ ui_t('Tutup') }}" onclick="document.getElementById('payee-dialog').close()">×</button>
   </div>
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
     <input type="hidden" name="display_currency" value="{{ display_currency }}">
-    <label>Nama penerima
-      <input name="name" maxlength="160" placeholder="Contoh: Indomaret, PLN, Vendor A" autocomplete="off" required autofocus>
+    <label>{{ ui_t('Nama penerima') }}
+      <input name="name" maxlength="160" placeholder="{{ ui_t('Contoh: Indomaret, PLN, Vendor A') }}" autocomplete="off" required autofocus>
     </label>
-    <button class="btn" type="submit">Simpan Penerima</button>
+    <button class="btn" type="submit">{{ ui_t('Simpan Penerima') }}</button>
   </form>
 </dialog>
 
@@ -78,23 +78,23 @@
   <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
   <input type="hidden" name="display_currency" value="{{ display_currency }}">
   <label>
-    <span class="sr-only">Cari penerima</span>
-    <input name="q" value="{{ q }}" placeholder="Ketik nama penerima" autocomplete="off">
+    <span class="sr-only">{{ ui_t('Cari penerima') }}</span>
+    <input name="q" value="{{ q }}" placeholder="{{ ui_t('Ketik nama penerima') }}" autocomplete="off">
   </label>
-  <button class="btn secondary">Cari</button>
+  <button class="btn secondary">{{ ui_t('Cari') }}</button>
 </form>
 
 <section class="card fin-payee-list">
   <div class="fin-payee-list-head">
-    <h2>Daftar Penerima</h2>
-    <p class="muted">{{ payee_total }} penerima{% if payee_total %} · total ditampilkan dalam {{ display_currency }}{% endif %}</p>
+    <h2>{{ ui_t('Daftar Penerima') }}</h2>
+    <p class="muted">{{ payee_total }} {{ ui_t('penerima') }}{% if payee_total %} {{ ui_t('· total ditampilkan dalam') }} {{ display_currency }}{% endif %}</p>
   </div>
 
   {% for item in payees %}
   <article class="fin-payee-row">
     <div class="fin-payee-main">
       <span class="fin-payee-name">{{ item.name }}</span>
-      <span class="fin-payee-meta">{{ item.transaction_count }} pembayaran{% if item.last_paid_on %} · terakhir {{ item.last_paid_on }}{% else %} · belum pernah dibayar{% endif %}</span>
+      <span class="fin-payee-meta">{{ item.transaction_count }} {{ ui_t('pembayaran') }}{% if item.last_paid_on %} {{ ui_t('· terakhir') }} {{ item.last_paid_on }}{% else %} {{ ui_t('· belum pernah dibayar') }}{% endif %}</span>
     </div>
     <div class="fin-payee-side">
       <div class="fin-payee-total">
@@ -105,14 +105,14 @@
       </div>
       {% if item.payee_id %}
       <div class="fin-payee-actions">
-        <button class="finance-mini-action" type="button" onclick="document.getElementById('payee-edit-{{ item.payee_id }}').showModal()">✏️ Edit</button>
-        <form method="post" action="{{ url_for('finance.delete_payee',business_id=business.id,branch_id=g.finance_branch_id,payee_id=item.payee_id) }}" onsubmit="return confirm('Hapus {{ item.name }} dari daftar Penerima? Transaksi lama tetap tersimpan.');">
+        <button class="finance-mini-action" type="button" onclick="document.getElementById('payee-edit-{{ item.payee_id }}').showModal()">{{ ui_t('✏️ Edit') }}</button>
+        <form method="post" action="{{ url_for('finance.delete_payee',business_id=business.id,branch_id=g.finance_branch_id,payee_id=item.payee_id) }}" onsubmit='return confirm({{ ui_t('Hapus {name} dari daftar Penerima? Transaksi lama tetap tersimpan.', name=item.name)|tojson }});'>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
           <input type="hidden" name="display_currency" value="{{ display_currency }}">
           <input type="hidden" name="q" value="{{ q }}">
           <input type="hidden" name="page" value="{{ page }}">
-          <button class="finance-mini-action finance-danger" type="submit">🗑️ Hapus</button>
+          <button class="finance-mini-action finance-danger" type="submit">{{ ui_t('🗑️ Hapus') }}</button>
         </form>
       </div>
       {% endif %}
@@ -121,8 +121,8 @@
   {% if item.payee_id %}
   <dialog id="payee-edit-{{ item.payee_id }}" class="fin-payee-dialog">
     <div class="fin-payee-dialog-head">
-      <h2>Edit Penerima</h2>
-      <button class="fin-payee-dialog-close" type="button" aria-label="Tutup" onclick="document.getElementById('payee-edit-{{ item.payee_id }}').close()">×</button>
+      <h2>{{ ui_t('Edit Penerima') }}</h2>
+      <button class="fin-payee-dialog-close" type="button" aria-label="{{ ui_t('Tutup') }}" onclick="document.getElementById('payee-edit-{{ item.payee_id }}').close()">×</button>
     </div>
     <form method="post" action="{{ url_for('finance.update_payee',business_id=business.id,branch_id=g.finance_branch_id,payee_id=item.payee_id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -130,21 +130,21 @@
       <input type="hidden" name="display_currency" value="{{ display_currency }}">
       <input type="hidden" name="q" value="{{ q }}">
       <input type="hidden" name="page" value="{{ page }}">
-      <label>Nama penerima
+      <label>{{ ui_t('Nama penerima') }}
         <input name="name" value="{{ item.name }}" maxlength="160" autocomplete="off" required>
       </label>
-      <button class="btn" type="submit">Simpan Edit</button>
+      <button class="btn" type="submit">{{ ui_t('Simpan Edit') }}</button>
     </form>
   </dialog>
   {% endif %}
   {% else %}
-  <div class="fin-empty fin-payee-empty">Belum ada penerima. Tekan “＋ Tambah Penerima” untuk menambah toko, vendor, atau pihak yang biasa kamu bayar.</div>
+  <div class="fin-empty fin-payee-empty">{{ ui_t('Belum ada penerima. Tekan “＋ Tambah Penerima” untuk menambah toko, vendor, atau pihak yang biasa kamu bayar.') }}</div>
   {% endfor %}
 
   {% if pages>1 %}
   <nav class="fin-pagination">
     {% if page>1 %}<a class="btn small secondary" href="{{ url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,q=q,display_currency=display_currency,page=page-1) }}">‹</a>{% endif %}
-    <span>Halaman {{ page }} / {{ pages }}</span>
+    <span>{{ ui_t('Halaman') }} {{ page }} / {{ pages }}</span>
     {% if page<pages %}<a class="btn small secondary" href="{{ url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,q=q,display_currency=display_currency,page=page+1) }}">›</a>{% endif %}
   </nav>
   {% endif %}

@@ -1,46 +1,46 @@
 <dialog id="balance-dialog" class="finance-sheet">
-  <div class="finance-sheet-head"><h2>💰 Rincian Total Saldo</h2><button type="button" class="finance-sheet-close" data-finance-close="balance-dialog" aria-label="Tutup">×</button></div>
+  <div class="finance-sheet-head"><h2>{{ ui_t('💰 Rincian Total Saldo') }}</h2><button type="button" class="finance-sheet-close" data-finance-close="balance-dialog" aria-label="{{ ui_t('Tutup') }}">×</button></div>
   <div class="finance-sheet-body">
-    <p class="cash-muted">Total saldo dihitung dari seluruh riwayat: saldo awal + pemasukan − pengeluaran. Penukaran mata uang hanya ditampilkan kalau memang pernah terjadi.</p>
+    <p class="cash-muted">{{ ui_t('Total saldo dihitung dari seluruh riwayat: saldo awal + pemasukan − pengeluaran. Penukaran mata uang hanya ditampilkan kalau memang pernah terjadi.') }}</p>
 
     {% for row in balance_totals %}
     <section class="cash-detail-group">
       <h3>{{ row.currency }}</h3>
       <dl class="cash-equation">
-        <div><dt>Saldo awal rekening</dt><dd class="cash-money">{{ row.opening_balance_minor|finance_money(row.currency) }}</dd></div>
-        <div><dt>+ Seluruh pemasukan</dt><dd class="cash-money">{{ row.income_minor|finance_money(row.currency) }}</dd></div>
-        <div><dt>− Seluruh pengeluaran</dt><dd class="cash-money">{{ row.expense_minor|finance_money(row.currency) }}</dd></div>
+        <div><dt>{{ ui_t('Saldo awal rekening') }}</dt><dd class="cash-money">{{ row.opening_balance_minor|finance_money(row.currency) }}</dd></div>
+        <div><dt>{{ ui_t('+ Seluruh pemasukan') }}</dt><dd class="cash-money">{{ row.income_minor|finance_money(row.currency) }}</dd></div>
+        <div><dt>{{ ui_t('− Seluruh pengeluaran') }}</dt><dd class="cash-money">{{ row.expense_minor|finance_money(row.currency) }}</dd></div>
         {% if row.exchange_in_minor or row.exchange_out_minor %}
-        <div><dt>+ Penukaran masuk</dt><dd class="cash-money">{{ row.exchange_in_minor|finance_money(row.currency) }}</dd></div>
-        <div><dt>− Penukaran keluar</dt><dd class="cash-money">{{ row.exchange_out_minor|finance_money(row.currency) }}</dd></div>
+        <div><dt>{{ ui_t('+ Penukaran masuk') }}</dt><dd class="cash-money">{{ row.exchange_in_minor|finance_money(row.currency) }}</dd></div>
+        <div><dt>{{ ui_t('− Penukaran keluar') }}</dt><dd class="cash-money">{{ row.exchange_out_minor|finance_money(row.currency) }}</dd></div>
         {% endif %}
-        <div class="cash-equation-total"><dt>= Saldo saat ini</dt><dd class="cash-money">{{ row.balance_minor|finance_money(row.currency) }}</dd></div>
+        <div class="cash-equation-total"><dt>{{ ui_t('= Saldo saat ini') }}</dt><dd class="cash-money">{{ row.balance_minor|finance_money(row.currency) }}</dd></div>
       </dl>
     </section>
     {% endfor %}
 
-    <p class="cash-muted">Saldo awal adalah uang yang sudah dimiliki saat akun ditambahkan, jadi bukan pemasukan. Penukaran mata uang juga bukan pendapatan atau biaya baru—hanya memindahkan nilai antar-akun/mata uang. Perubahan estimasi nilai gabungan karena kurs tidak otomatis dianggap pemasukan/pengeluaran.</p>
+    <p class="cash-muted">{{ ui_t('Saldo awal adalah uang yang sudah dimiliki saat akun ditambahkan, jadi bukan pemasukan. Penukaran mata uang juga bukan pendapatan atau biaya baru—hanya memindahkan nilai antar-akun/mata uang. Perubahan estimasi nilai gabungan karena kurs tidak otomatis dianggap pemasukan/pengeluaran.') }}</p>
 
-    <h3 style="margin-top:18px">Per Akun</h3>
+    <h3 style="margin-top:18px">{{ ui_t('Per Akun') }}</h3>
     {% for a in balances %}
     <details class="cash-account-detail">
-      <summary><span>{{ a.name }}<small>{% if all_branches %}{{ a.branch_name }} · {% endif %}{{ a.currency }}{{ ' · Nonaktif' if not a.is_active }}</small></span><strong class="cash-money">{{ a.balance_minor|finance_money(a.currency) }}</strong></summary>
+      <summary><span>{{ a.name }}<small>{% if all_branches %}{{ a.branch_name }} · {% endif %}{{ a.currency }}{{ ui_t(' · Nonaktif') if not a.is_active }}</small></span><strong class="cash-money">{{ a.balance_minor|finance_money(a.currency) }}</strong></summary>
       <dl class="cash-equation" style="margin-top:8px">
-        <div><dt>Saldo awal</dt><dd class="cash-money">{{ a.opening_balance_minor|finance_money(a.currency) }}</dd></div>
-        <div><dt>+ Pemasukan</dt><dd class="cash-money">{{ a.income_minor|finance_money(a.currency) }}</dd></div>
-        <div><dt>− Pengeluaran</dt><dd class="cash-money">{{ a.expense_minor|finance_money(a.currency) }}</dd></div>
+        <div><dt>{{ ui_t('Saldo awal') }}</dt><dd class="cash-money">{{ a.opening_balance_minor|finance_money(a.currency) }}</dd></div>
+        <div><dt>{{ ui_t('+ Pemasukan') }}</dt><dd class="cash-money">{{ a.income_minor|finance_money(a.currency) }}</dd></div>
+        <div><dt>{{ ui_t('− Pengeluaran') }}</dt><dd class="cash-money">{{ a.expense_minor|finance_money(a.currency) }}</dd></div>
         {% if a.exchange_in_minor or a.exchange_out_minor %}
-        <div><dt>+ Penukaran masuk</dt><dd class="cash-money">{{ a.exchange_in_minor|finance_money(a.currency) }}</dd></div>
-        <div><dt>− Penukaran keluar</dt><dd class="cash-money">{{ a.exchange_out_minor|finance_money(a.currency) }}</dd></div>
+        <div><dt>{{ ui_t('+ Penukaran masuk') }}</dt><dd class="cash-money">{{ a.exchange_in_minor|finance_money(a.currency) }}</dd></div>
+        <div><dt>{{ ui_t('− Penukaran keluar') }}</dt><dd class="cash-money">{{ a.exchange_out_minor|finance_money(a.currency) }}</dd></div>
         {% endif %}
       </dl>
     </details>
-    {% else %}<p class="finance-empty">Belum ada akun.</p>{% endfor %}
+    {% else %}<p class="finance-empty">{{ ui_t('Belum ada akun.') }}</p>{% endfor %}
 
     {% set active_accounts = accounts|selectattr('is_active')|list %}
     {% set active_currencies = active_accounts|map(attribute='currency')|unique|list %}
     {% if not all_branches and active_currencies|length>1 %}
-    <button type="button" class="btn secondary" data-finance-open="fx-dialog">⇄ Penukaran Mata Uang</button>
+    <button type="button" class="btn secondary" data-finance-open="fx-dialog">{{ ui_t('⇄ Penukaran Mata Uang') }}</button>
     {% endif %}
   </div>
 </dialog>

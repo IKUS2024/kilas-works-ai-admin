@@ -1,0 +1,35 @@
+name: Kilas Global UI QA
+on:
+  push:
+    branches: [main, 'feature/kilas-global-language-*']
+    paths: ['client-hub/**', '.github/workflows/kilas-global-ui-qa.yml']
+  pull_request:
+    paths: ['client-hub/**', '.github/workflows/kilas-global-ui-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  finance-and-localization:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: cd client-hub/tests && python -m unittest test_ui_i18n test_finance_home_dashboard test_finance_style_loading test_finance_ui_integrity test_finance_invoice_editor test_finance_workspace_corrections
+  languages-and-responsive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_global_ui_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-global-ui-responsive
+          path: /tmp/kilas-global-ui-qa/

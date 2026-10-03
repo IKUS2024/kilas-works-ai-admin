@@ -206,11 +206,16 @@ class MultiBusinessTests(unittest.TestCase):
             self.assertNotIn(text, html)
         for tag, attrs in Elements(html).elements:
             if tag == 'form':
-                self.assertEqual(attrs.get('method', 'get').lower(), 'get')
+                # Global product/language preference forms do not write Finance records.
+                if attrs.get('action') in ('/language', '/products/start'):
+                    self.assertEqual(attrs.get('method', '').lower(), 'post')
+                else:
+                    self.assertEqual(attrs.get('method', 'get').lower(), 'get')
         self.assertEqual(self.client.post('/finance').status_code, 405)
         self.assertIn('no-store', response.headers['Cache-Control'])
         single, _ = self.page('/finance?business_id='+str(self.b)+'&month=2026-09')
-        for text in ('AI Finance', 'Pemasukan', 'Pengeluaran'):
+        self.assertNotIn('AI Finance', single.get_data(as_text=True))
+        for text in ('Pemasukan', 'Pengeluaran'):
             self.assertIn(text, single.get_data(as_text=True))
 
     def test_login_and_feature_gates_unchanged(self):

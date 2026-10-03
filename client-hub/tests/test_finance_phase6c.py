@@ -100,7 +100,7 @@ class AssistantTests(unittest.TestCase):
         response=self.client.get(self.assistant_url)
         self.assertEqual(response.status_code,200)
         self.assertIn(b'Kilas Finance AI',response.data)
-        self.assertIn(self.assistant_url.encode(),self.client.get(self.url).data)
+        self.assertNotIn(self.assistant_url.encode(),self.client.get(self.url).data)
         self.assertEqual(before,self.snapshot());self.http.assert_not_called()
 
     def test_unauthenticated_access(self):

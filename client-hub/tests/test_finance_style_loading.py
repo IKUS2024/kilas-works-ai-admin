@@ -38,7 +38,10 @@ class FinanceStyleLoadingTests(unittest.TestCase):
                 parsed=Styles(html)
                 self.assertTrue(parsed.links)
                 self.assertTrue(all(in_head for in_head,_ in parsed.links),'Stylesheet discovered after body started')
-                self.assertIn('finance_ui.css',parsed.links[-1][1]['href'],'Shared overrides must remain last')
+                self.assertIn('ui_i18n.css',parsed.links[-1][1]['href'],'Shared UI controls must load before paint')
+                paths=[attrs['href'] for _,attrs in parsed.links]
+                self.assertLess(next(i for i,p in enumerate(paths) if 'finance_ui.css' in p),next(i for i,p in enumerate(paths) if 'kilas_premium_finance.css' in p))
+                self.assertEqual(sum('kilas_premium_finance.css' in p for p in paths),1)
                 self.assertEqual(sum('finance_ui.css' in attrs['href'] for _,attrs in parsed.links),1)
                 for _,attrs in parsed.links:
                     self.assertNotIn('onload',attrs)

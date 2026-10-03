@@ -13,29 +13,29 @@
 .finance-scope-noscript{width:100%;margin-top:4px}
 @media(max-width:600px){.finance-scope-card{padding:14px}.finance-scope-business{font-size:16px}.finance-scope-form select{height:46px;font-size:16px}.finance-scope-help{margin-top:8px}}
 </style>
-<section class="card finance-scope-card" aria-label="Cabang Finance">
+<section class="card finance-scope-card" aria-label="{{ ui_t('Cabang Finance') }}">
   <div class="finance-scope-head">
     <div>
-      <span class="finance-scope-kicker">Kilas Finance · {{ finance_workspace_label }}</span>
-      <strong class="finance-scope-business">{{ 'Pribadi' if finance_workspace_personal else business.business_name }}</strong>
+      <span class="finance-scope-kicker">{{ ui_t('Kilas Finance ·') }} {{ finance_workspace_label }}</span>
+      <strong class="finance-scope-business">{{ ui_t('Pribadi') if finance_workspace_personal else business.business_name }}</strong>
     </div>
-    {% if not finance_workspace_personal %}<a class="finance-scope-chip" href="{{ url_for('finance.workspace_choice',business_id=finance_branch_business_id) }}">Bisnis · Ganti</a>{% endif %}
+    {% if not finance_workspace_personal %}<a class="finance-scope-chip" href="{{ url_for('finance.workspace_choice',business_id=finance_branch_business_id) }}">{{ ui_t('Bisnis · Ganti') }}</a>{% endif %}
   </div>
 
   {% if not finance_workspace_personal %}
   {% set branch_destination = request.endpoint if request.endpoint in ('finance.dashboard','finance.reports','finance.collections','finance.operations','finance.receivables','finance.bank_index','finance.assistant') else 'finance.dashboard' %}
   <form method="get" action="{{ url_for(branch_destination,business_id=finance_branch_business_id) }}" class="finance-scope-form">
     {% for key in ('month','period_mode','range_start','range_end','display_currency','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
-    <label for="finance-branch"><span>Cabang</span><small>Lokasi / outlet</small></label>
+    <label for="finance-branch"><span>{{ ui_t('Cabang') }}</span><small>{{ ui_t('Lokasi / outlet') }}</small></label>
     <select id="finance-branch" name="branch_id" onchange="this.form.submit()">
       {% for branch in finance_branches if branch.is_active %}<option value="{{ branch.id }}" {{ 'selected' if branch.id == selected_branch_id }}>{{ branch.name }}</option>{% endfor %}
     </select>
-    <noscript><button class="btn secondary finance-scope-noscript">Gunakan Cabang</button></noscript>
+    <noscript><button class="btn secondary finance-scope-noscript">{{ ui_t('Gunakan Cabang') }}</button></noscript>
   </form>
-  <p class="finance-scope-help">Setiap cabang bisnis berdiri sendiri. Data cabang lain tidak digabung ke cabang yang sedang dipilih.</p>
-  {% if selected_branch %}<p class="finance-scope-status" role="status">Cabang aktif: <strong>{{ selected_branch.name }}</strong>.</p>{% endif %}
+  <p class="finance-scope-help">{{ ui_t('Setiap cabang bisnis berdiri sendiri. Data cabang lain tidak digabung ke cabang yang sedang dipilih.') }}</p>
+  {% if selected_branch %}<p class="finance-scope-status" role="status">{{ ui_t('Cabang aktif:') }} <strong>{{ selected_branch.name }}</strong>.</p>{% endif %}
   {% else %}
-  <p class="finance-scope-help">Finance Pribadi · tanpa pilihan bisnis atau cabang. Semua pencatatan di ruang ini khusus akunmu.</p>
+  <p class="finance-scope-help">{{ ui_t('Finance Pribadi · tanpa pilihan bisnis atau cabang. Semua pencatatan di ruang ini khusus akunmu.') }}</p>
   {% endif %}
 </section>
 {% if branch_read_only and finance_branches|selectattr('is_active')|list %}<style>form[method="post"]{display:none!important}a[data-finance-write]{display:none!important}</style>{% endif %}

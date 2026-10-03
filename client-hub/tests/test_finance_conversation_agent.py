@@ -118,7 +118,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(self.values(r)['end_on'],'2027-01-01')
     def test_invoice_create_review_exactly_once_no_issue_no_ledger(self):
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
-        r=self.message('buat invoice Wilson jasa foto 2 juta jatuh tempo 30 september')
+        r=self.message('buat invoice Wilson jasa foto 2 juta jatuh tempo '+(date.today()+timedelta(days=30)).isoformat())
         self.assertTrue(r.json['ready'],r.json)
         before=len(f.list_finance_invoices(self.b))
         for _ in range(2):
@@ -130,7 +130,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(f.list_transactions(self.b),[])
     def test_invoice_concurrent_confirmation_and_conflict(self):
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
-        r=self.message('buat invoice Wilson jasa foto 2 juta jatuh tempo 30 september').json
+        r=self.message('buat invoice Wilson jasa foto 2 juta jatuh tempo '+(date.today()+timedelta(days=30)).isoformat()).json
         def write():
             with app.app_context():return flow.confirm(self.b,self.uid,r['token'])
         rows=self.race([write,write]);self.assertEqual(rows[0],rows[1])
@@ -138,7 +138,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(self.follow(revised.json,'oke').status_code,400)
     def test_invoice_issue_separate_reviewed_confirmation(self):
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
-        r=self.message('buat invoice Wilson jasa foto 2 juta jatuh tempo 30 september')
+        r=self.message('buat invoice Wilson jasa foto 2 juta jatuh tempo '+(date.today()+timedelta(days=30)).isoformat())
         saved=self.follow(r.json,'oke').json
         row=f.get_finance_invoice(self.b,saved['record_id'])
         r=self.message('terbitkan '+row['invoice_number'])
@@ -170,7 +170,7 @@ class ConversationTests(unittest.TestCase):
     def test_all_branch_dashboard_offers_readonly_assistant(self):
         page=self.client.get(f'/business/{self.b}/finance?branch_id=all')
         self.assertEqual(page.status_code,200)
-        self.assertIn(f'/business/{self.b}/finance/assistant?branch_id={self.branch}',page.text)
+        self.assertNotIn(f'/business/{self.b}/finance/assistant?branch_id={self.branch}',page.text)
     def test_unknown_invoice_number_does_not_return_other_invoices(self):
         response=self.message('status invoice KFIN-2099-999999?')
         self.assertEqual(response.json['kind'],'answer')
@@ -180,7 +180,7 @@ class ConversationTests(unittest.TestCase):
         for key in contracts.INVOICE:
             self.assertIn('name="'+key+'"',html) if key!='items' else self.assertIn('item_description',html)
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
-        draft=self.message('buat invoice Wilson jasa foto 2 juta jatuh tempo 30 september')
+        draft=self.message('buat invoice Wilson jasa foto 2 juta jatuh tempo '+(date.today()+timedelta(days=30)).isoformat())
         data=__import__('finance_assistant_invoice').invoice_data(self.b,self.uid,self.values(draft))
         self.assertEqual(set(data),set(contracts.INVOICE))
     def test_currency_document_context_filters_bank_accounts(self):
@@ -228,7 +228,7 @@ class ConversationTests(unittest.TestCase):
         self.assertIn('Sisa tagihan: Rp0',saved.json['message'])
     def test_invoice_issue_replay_and_changed_draft_rejected(self):
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
-        draft=self.message('buat invoice Wilson jasa foto 2 juta jatuh tempo 30 september')
+        draft=self.message('buat invoice Wilson jasa foto 2 juta jatuh tempo '+(date.today()+timedelta(days=30)).isoformat())
         saved=self.follow(draft.json,'oke').json
         row=f.get_finance_invoice(self.b,saved['record_id'])
         issue=self.message('terbitkan '+row['invoice_number']).json

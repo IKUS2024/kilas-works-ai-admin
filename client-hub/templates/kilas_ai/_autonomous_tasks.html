@@ -1,8 +1,8 @@
 {% if autonomous_jobs %}
-<section aria-label="Pekerjaan Kilas" class="agent-background-tasks" data-task-cards>
+<section aria-label="{{ ui_t('Pekerjaan Kilas') }}" class="agent-background-tasks" data-task-cards>
   {% for label,statuses in [('Sedang berjalan',['PLANNING','RUNNING','WAITING']),('Perlu persetujuan',['NEEDS_APPROVAL']),('Dijeda',['PAUSED']),('Selesai terbaru',['COMPLETED','FAILED','STOPPED'])] %}
   {% set group = autonomous_jobs|selectattr('status','in',statuses)|list %}
-  {% if group %}<h3 class="agent-task-group">{{ label }}</h3>{% for job in group %}
+  {% if group %}<h3 class="agent-task-group">{{ label|ui_text }}</h3>{% for job in group %}
   {% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endif %}{% endfor %}
 </section>
 {% endif %}

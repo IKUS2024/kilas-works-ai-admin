@@ -1,24 +1,24 @@
 {% extends 'base.html' %}
-{% block title %}Edit Transaksi{% endblock %}
+{% block title %}{{ ui_t('Edit Transaksi') }}{% endblock %}
 {% block finance_styles %}
 <style>.finance-edit-actions{display:flex;gap:10px;flex-wrap:wrap}.finance-edit-actions form{margin:0}.finance-delete{color:var(--red)}[data-other-field][hidden]{display:none!important}</style>
 {% endblock %}
 {% block content %}
 
-<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id) }}">← Finance</a>
-<h1>Edit Transaksi</h1>
+<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id) }}">{{ ui_t('← Finance') }}</a>
+<h1>{{ ui_t('Edit Transaksi') }}</h1>
 <form method="post" class="card">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<p>{{ 'Pemasukan' if transaction.direction == 'INCOME' else 'Pengeluaran' }}</p>
-<label>Nominal {{ transaction.currency }}<input name="amount" value="{{ transaction.amount_minor|finance_input_money(transaction.currency) }}" inputmode="decimal" maxlength="25" autocomplete="off" required></label>
-<label>Tanggal<input name="occurred_on" type="date" value="{{ transaction.occurred_on }}" max="{{ today }}" required></label>
-<label>Akun<select name="account_id" required>{% for a in accounts if a.currency == transaction.currency %}<option value="{{ a.id }}" {{ 'selected' if a.id == transaction.account_id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
-<p class="muted">Pilih tempat uang yang dipakai: tunai, rekening bank, atau e-wallet.</p>
-<label>Kategori<select name="category_id" data-other-category required>{% for c in categories %}<option value="{{ c.id }}" data-other="{{ 'true' if c.name in ('Lainnya','Pendapatan Lain','Pengeluaran Lain') else 'false' }}" {{ 'selected' if c.id == transaction.category_id }}>{{ ((c.parent_name ~ ' / ') if c.parent_name else '') ~ ('Lainnya' if c.name in ('Pendapatan Lain','Pengeluaran Lain') else c.name) }}</option>{% endfor %}</select></label>
-<label data-other-field hidden>Keterangan lainnya<input name="other_description" value="{{ initial_other_description }}" placeholder="Contoh: Servis mesin kopi" maxlength="1000"></label>
-<label>Catatan<textarea name="description" maxlength="4000">{{ initial_description }}</textarea></label>
-<button class="btn">💾 Simpan Perubahan</button>
+<p>{{ ui_t('Pemasukan') if transaction.direction == 'INCOME' else ui_t('Pengeluaran') }}</p>
+<label>{{ ui_t('Nominal') }} {{ transaction.currency }}<input name="amount" value="{{ transaction.amount_minor|finance_input_money(transaction.currency) }}" inputmode="decimal" maxlength="25" autocomplete="off" required></label>
+<label>{{ ui_t('Tanggal') }}<input name="occurred_on" type="date" value="{{ transaction.occurred_on }}" max="{{ today }}" required></label>
+<label>{{ ui_t('Akun') }}<select name="account_id" required>{% for a in accounts if a.currency == transaction.currency %}<option value="{{ a.id }}" {{ 'selected' if a.id == transaction.account_id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
+<p class="muted">{{ ui_t('Pilih tempat uang yang dipakai: tunai, rekening bank, atau e-wallet.') }}</p>
+<label>{{ ui_t('Kategori') }}<select name="category_id" data-other-category required>{% for c in categories %}<option value="{{ c.id }}" data-other="{{ 'true' if c.name in (ui_t('Lainnya'),ui_t('Pendapatan Lain'),ui_t('Pengeluaran Lain')) else 'false' }}" {{ 'selected' if c.id == transaction.category_id }}>{{ ((c.parent_name ~ ' / ') if c.parent_name else '') ~ (ui_t('Lainnya') if c.name in (ui_t('Pendapatan Lain'),ui_t('Pengeluaran Lain')) else c.name) }}</option>{% endfor %}</select></label>
+<label data-other-field hidden>{{ ui_t('Keterangan lainnya') }}<input name="other_description" value="{{ initial_other_description }}" placeholder="{{ ui_t('Contoh: Servis mesin kopi') }}" maxlength="1000"></label>
+<label>{{ ui_t('Catatan') }}<textarea name="description" maxlength="4000">{{ initial_description }}</textarea></label>
+<button class="btn">{{ ui_t('💾 Simpan Perubahan') }}</button>
 </form>
-<div class="card"><h2>Tindakan</h2><p class="muted">Menghapus transaksi akan mengeluarkan nilainya dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar perubahan dapat dilacak.</p><form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=transaction.id) }}" onsubmit="return confirm('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari semua perhitungan Finance.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary finance-delete" type="submit">🗑️ Hapus Transaksi</button></form></div>
+<div class="card"><h2>{{ ui_t('Tindakan') }}</h2><p class="muted">{{ ui_t('Menghapus transaksi akan mengeluarkan nilainya dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar perubahan dapat dilacak.') }}</p><form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=transaction.id) }}" onsubmit='return confirm({{ ui_t('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari semua perhitungan Finance.')|tojson }});'><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary finance-delete" type="submit">{{ ui_t('🗑️ Hapus Transaksi') }}</button></form></div>
 <script src="{{ url_for('static',filename='finance_branches.js',v='20260922-decimal-1') }}" defer></script>
 {% endblock %}

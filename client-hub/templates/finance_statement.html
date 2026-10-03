@@ -1,4 +1,4 @@
-{% extends 'base.html' %}{% block title %}Statement Customer · Kilas Finance{% endblock %}
+{% extends 'base.html' %}{% block title %}{{ ui_t('Statement Customer · Kilas Finance') }}{% endblock %}
 {% block finance_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice.css') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_collections.css') }}">
@@ -6,10 +6,10 @@
 {% block content %}
 
 <div class="fin-page"><div class="card no-print invoice-controls invoice-share">
-<a href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id) }}">← Penagihan</a>
-<a class="btn secondary" href="{{ url_for('finance.statement_print',business_id=business.id,branch_id=g.finance_branch_id,customer_id=customer_id) }}" target="_blank" rel="noopener noreferrer">Print / Save as PDF</a>
-<form method="post" action="{{ url_for('finance.statement_share',business_id=business.id,branch_id=g.finance_branch_id,customer_id=customer_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Bagikan Statement</button></form>
-<p>Tautan pribadi berlaku 7 hari. Penerima dapat melihat semua invoice terbuka customer ini, termasuk invoice yang diterbitkan selama tautan berlaku. Tidak ada pengiriman otomatis.</p>
-{% if share_url %}<label for="statement-link">Tautan customer</label><input id="statement-link" readonly value="{{ share_url }}"><button type="button" class="btn secondary" data-copy-target="statement-link">Salin Tautan</button><a class="btn secondary" href="{{ share_url }}" target="_blank" rel="noopener noreferrer">Buka Tampilan Customer</a><p id="copy-status" role="status">Kirim manual hanya kepada penerima yang dituju.</p>{% endif %}</div>
+<a href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id) }}">{{ ui_t('← Penagihan') }}</a>
+<a class="btn secondary" href="{{ url_for('finance.statement_print',business_id=business.id,branch_id=g.finance_branch_id,customer_id=customer_id) }}" target="_blank" rel="noopener noreferrer">{{ ui_t('Print / Save as PDF') }}</a>
+<form method="post" action="{{ url_for('finance.statement_share',business_id=business.id,branch_id=g.finance_branch_id,customer_id=customer_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">{{ ui_t('Bagikan Statement') }}</button></form>
+<p>{{ ui_t('Tautan pribadi berlaku 7 hari. Penerima dapat melihat semua invoice terbuka customer ini, termasuk invoice yang diterbitkan selama tautan berlaku. Tidak ada pengiriman otomatis.') }}</p>
+{% if share_url %}<label for="statement-link">{{ ui_t('Tautan customer') }}</label><input id="statement-link" readonly value="{{ share_url }}"><button type="button" class="btn secondary" data-copy-target="statement-link">{{ ui_t('Salin Tautan') }}</button><a class="btn secondary" href="{{ share_url }}" target="_blank" rel="noopener noreferrer">{{ ui_t('Buka Tampilan Customer') }}</a><p id="copy-status" role="status">{{ ui_t('Kirim manual hanya kepada penerima yang dituju.') }}</p>{% endif %}</div>
 {% include '_finance_statement_document.html' %}</div><script src="{{ url_for('static',filename='finance_collections.js') }}" defer></script>
 {% endblock %}

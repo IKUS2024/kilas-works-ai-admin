@@ -54,6 +54,8 @@ class ClientHubRequest(Request):
 
 def create_app():
     app = Flask(__name__)
+    import ui_i18n
+    ui_i18n.install(app)
     app.request_class = ClientHubRequest
 
     secret_key = os.environ.get("SECRET_KEY")
@@ -365,6 +367,7 @@ def create_app():
                 "auth.account_business_photo",
                 "auth.logout_page",
                 "healthz",
+                "set_ui_language",
                 "privacy",
                 "terms",
                 "privacy_policy",

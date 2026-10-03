@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Akun · Kilas Works{% endblock %}
+{% block title %}{{ ui_t('Akun · Kilas Works') }}{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
 <style>
@@ -309,42 +309,42 @@
 <div class="account-page">
   <header class="account-head">
     <div class="account-head-copy">
-      <h1>Akun</h1>
-      <p class="muted">Kelola profil Pribadi, Bisnis, keamanan, dan data invoice Kilas Works.</p>
+      <h1>{{ ui_t('Akun') }}</h1>
+      <p class="muted">{{ ui_t('Kelola profil Pribadi, Bisnis, keamanan, dan data invoice Kilas Works.') }}</p>
     </div>
     <div class="account-head-actions">
-      <a class="account-back-finance" href="{{ url_for('finance.workspace_choice', business_id=finance_return_business_id) if finance_return_business_id else url_for('products.finance_entry') }}" aria-label="Kembali ke dashboard Finance">
+      <a class="account-back-finance" href="{{ url_for('finance.workspace_choice', business_id=finance_return_business_id) if finance_return_business_id else url_for('products.finance_entry') }}" aria-label="{{ ui_t('Kembali ke dashboard Finance') }}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
-        <span>Finance</span>
+        <span>{{ ui_t('Finance') }}</span>
       </a>
-      <a class="account-quick-logout" href="{{ url_for('auth.logout_page') }}" aria-label="Keluar dari akun">
+      <a class="account-quick-logout" href="{{ url_for('auth.logout_page') }}" aria-label="{{ ui_t('Keluar dari akun') }}">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M10 17l5-5-5-5"></path>
           <path d="M15 12H3"></path>
           <path d="M13 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
         </svg>
-        <span>Keluar</span>
+        <span>{{ ui_t('Keluar') }}</span>
       </a>
     </div>
   </header>
 
   <section class="card account-hero">
     <div class="account-hero-main">
-      <button class="account-avatar-button" type="button" data-profile-edit aria-label="Edit profil Pribadi">
+      <button class="account-avatar-button" type="button" data-profile-edit aria-label="{{ ui_t('Edit profil Pribadi') }}">
         <span class="account-avatar" aria-hidden="true">{% if personal_photo %}<img src="{{ url_for('auth.account_personal_photo', v=personal_photo.id) }}" alt="">{% else %}{{ initial }}{% endif %}</span>
       </button>
       <div class="account-hero-copy">
         <h2>{{ display_name }}</h2>
         <div class="account-hero-email">{{ user.email }}</div>
       </div>
-      <button class="account-hero-edit" type="button" data-profile-edit><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L20 8a3.5 3.5 0 0 0-5-5L4 14z"/></svg>Edit profil</button>
+      <button class="account-hero-edit" type="button" data-profile-edit><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L20 8a3.5 3.5 0 0 0-5-5L4 14z"/></svg>{{ ui_t('Edit profil') }}</button>
     </div>
   </section>
 
   <dialog class="account-profile-dialog" id="account-profile-dialog">
     <div class="account-profile-dialog-head">
-      <h2>Edit profil Pribadi</h2>
-      <button class="account-profile-dialog-close" type="button" data-profile-close aria-label="Tutup"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      <h2>{{ ui_t('Edit profil Pribadi') }}</h2>
+      <button class="account-profile-dialog-close" type="button" data-profile-close aria-label="{{ ui_t('Tutup') }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="account-profile-dialog-body">
       <div class="account-profile-dialog-preview">
@@ -355,22 +355,22 @@
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="profile">
-        <label>Nama lengkap
-          <input type="text" name="full_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="Nama kamu" required>
+        <label>{{ ui_t('Nama lengkap') }}
+          <input type="text" name="full_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="{{ ui_t('Nama kamu') }}" required>
         </label>
         <div class="account-profile-dialog-actions">
-          <button class="btn" type="submit">Simpan Nama</button>
+          <button class="btn" type="submit">{{ ui_t('Simpan Nama') }}</button>
         </div>
       </form>
 
       <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="personal_photo">
-        <label>Foto profil
+        <label>{{ ui_t('Foto profil') }}
           <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" required>
         </label>
         <div class="account-profile-dialog-actions">
-          <button class="btn secondary" type="submit">{{ 'Ganti Foto' if personal_photo else 'Tambah Foto' }}</button>
+          <button class="btn secondary" type="submit">{{ ui_t('Ganti Foto') if personal_photo else ui_t('Tambah Foto') }}</button>
         </div>
       </form>
     </div>
@@ -379,23 +379,23 @@
   {% set pending_email_change = session.get('_email_change') %}
   <dialog class="account-profile-dialog account-email-dialog" id="account-email-dialog">
     <div class="account-profile-dialog-head">
-      <h2>Ganti Email</h2>
-      <button class="account-profile-dialog-close" type="button" data-email-change-close aria-label="Tutup"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      <h2>{{ ui_t('Ganti Email') }}</h2>
+      <button class="account-profile-dialog-close" type="button" data-email-change-close aria-label="{{ ui_t('Tutup') }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="account-profile-dialog-body">
       {% if pending_email_change %}
-        <p class="account-email-dialog-copy">Masukkan kode OTP 6 digit yang dikirim ke email baru.</p>
+        <p class="account-email-dialog-copy">{{ ui_t('Masukkan kode OTP 6 digit yang dikirim ke email baru.') }}</p>
         <div class="account-email-target">{{ pending_email_change.email }}</div>
 
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="email_change_verify">
           <input type="hidden" name="return_tab" value="{{ pending_email_change.return_tab or 'personal' }}">
-          <label for="email-otp">Kode OTP
+          <label for="email-otp">{{ ui_t('Kode OTP') }}
             <input id="email-otp" name="otp_code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required autofocus>
           </label>
           <div class="account-email-dialog-actions">
-            <button class="btn" type="submit">Verifikasi &amp; Ganti Email</button>
+            <button class="btn" type="submit">{{ ui_t('Verifikasi') }} &amp; {{ ui_t('Ganti Email') }}</button>
           </div>
         </form>
 
@@ -405,44 +405,44 @@
             <input type="hidden" name="action" value="email_change_request">
             <input type="hidden" name="return_tab" value="{{ pending_email_change.return_tab or 'personal' }}">
             <input type="hidden" name="new_email" value="{{ pending_email_change.email }}">
-            <button class="btn secondary small" type="submit">Kirim Ulang OTP</button>
+            <button class="btn secondary small" type="submit">{{ ui_t('Kirim Ulang OTP') }}</button>
           </form>
           <form method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="email_change_cancel">
             <input type="hidden" name="return_tab" value="{{ pending_email_change.return_tab or 'personal' }}">
-            <button class="btn secondary small" type="submit">Batal</button>
+            <button class="btn secondary small" type="submit">{{ ui_t('Batal') }}</button>
           </form>
         </div>
       {% else %}
-        <p class="account-email-dialog-copy">Email baru harus belum terdaftar. Kilas akan mengirim OTP untuk verifikasi sebelum email akun berubah.</p>
+        <p class="account-email-dialog-copy">{{ ui_t('Email baru harus belum terdaftar. Kilas akan mengirim OTP untuk verifikasi sebelum email akun berubah.') }}</p>
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="email_change_request">
           <input type="hidden" name="return_tab" id="email-change-return-tab" value="personal">
-          <label for="new-account-email">Email baru
+          <label for="new-account-email">{{ ui_t('Email baru') }}
             <input id="new-account-email" type="email" name="new_email" value="{{ user.email }}" autocomplete="email" required>
           </label>
           <div class="account-email-dialog-actions">
-            <button class="btn" type="submit">Kirim OTP</button>
+            <button class="btn" type="submit">{{ ui_t('Kirim OTP') }}</button>
           </div>
         </form>
       {% endif %}
     </div>
   </dialog>
 
-  <div class="account-tabs" role="tablist" aria-label="Menu akun">
-    <button class="account-tab active" type="button" role="tab" aria-selected="true" aria-controls="account-panel-personal" data-account-tab="personal">Pribadi</button>
-    <button class="account-tab" type="button" role="tab" aria-selected="false" aria-controls="account-panel-business" data-account-tab="business">Bisnis</button>
-    <button class="account-tab" type="button" role="tab" aria-selected="false" aria-controls="account-panel-security" data-account-tab="security">Keamanan</button>
+  <div class="account-tabs" role="tablist" aria-label="{{ ui_t('Menu akun') }}">
+    <button class="account-tab active" type="button" role="tab" aria-selected="true" aria-controls="account-panel-personal" data-account-tab="personal">{{ ui_t('Pribadi') }}</button>
+    <button class="account-tab" type="button" role="tab" aria-selected="false" aria-controls="account-panel-business" data-account-tab="business">{{ ui_t('Bisnis') }}</button>
+    <button class="account-tab" type="button" role="tab" aria-selected="false" aria-controls="account-panel-security" data-account-tab="security">{{ ui_t('Keamanan') }}</button>
   </div>
 
   <section id="account-panel-personal" class="account-panel" data-account-panel="personal" role="tabpanel">
     <div class="card account-section">
       <div class="account-section-head">
         <div>
-          <h2>Data Pribadi</h2>
-          <p class="muted">Kontak dan metode pembayaran ini terhubung ke Finance dan dipakai otomatis saat membuat invoice Pribadi baru.</p>
+          <h2>{{ ui_t('Data Pribadi') }}</h2>
+          <p class="muted">{{ ui_t('Kontak dan metode pembayaran ini terhubung ke Finance dan dipakai otomatis saat membuat invoice Pribadi baru.') }}</p>
         </div>
       </div>
 
@@ -452,62 +452,62 @@
 
         <div class="business-form-grid">
           <label>
-            <span class="account-label">Nama lengkap</span>
-            <input type="text" name="full_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="Nama kamu" required>
+            <span class="account-label">{{ ui_t('Nama lengkap') }}</span>
+            <input type="text" name="full_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="{{ ui_t('Nama kamu') }}" required>
           </label>
           <label>
-            <span class="account-label">Email</span>
+            <span class="account-label">{{ ui_t('Email') }}</span>
             <span class="account-email-row">
               <span class="account-email-value">{{ user.email }}</span>
-              <button class="account-email-change-btn" type="button" data-email-change-open data-email-tab="personal">Ganti</button>
+              <button class="account-email-change-btn" type="button" data-email-change-open data-email-tab="personal">{{ ui_t('Ganti') }}</button>
             </span>
           </label>
           <label>
-            <span class="account-label">Nomor telepon</span>
-            <input name="phone" type="tel" maxlength="254" value="{{ personal_profile.phone or '' }}" placeholder="Opsional">
+            <span class="account-label">{{ ui_t('Nomor telepon') }}</span>
+            <input name="phone" type="tel" maxlength="254" value="{{ personal_profile.phone or '' }}" placeholder="{{ ui_t('Opsional') }}">
           </label>
           <label>
-            <span class="account-label">Website / sosial</span>
-            <input name="website" maxlength="254" value="{{ personal_profile.website or '' }}" placeholder="Opsional">
+            <span class="account-label">{{ ui_t('Website / sosial') }}</span>
+            <input name="website" maxlength="254" value="{{ personal_profile.website or '' }}" placeholder="{{ ui_t('Opsional') }}">
           </label>
           <label class="wide">
-            <span class="account-label">Alamat pribadi</span>
-            <textarea name="address" maxlength="2000" rows="3" placeholder="Opsional untuk invoice">{{ personal_profile.address or '' }}</textarea>
+            <span class="account-label">{{ ui_t('Alamat pribadi') }}</span>
+            <textarea name="address" maxlength="2000" rows="3" placeholder="{{ ui_t('Opsional untuk invoice') }}">{{ personal_profile.address or '' }}</textarea>
           </label>
           <label>
-            <span class="account-label">NPWP / Tax ID</span>
-            <input name="tax_id" maxlength="254" value="{{ personal_profile.tax_id or '' }}" placeholder="Opsional">
+            <span class="account-label">{{ ui_t('NPWP / Tax ID') }}</span>
+            <input name="tax_id" maxlength="254" value="{{ personal_profile.tax_id or '' }}" placeholder="{{ ui_t('Opsional') }}">
           </label>
         </div>
 
         <div class="business-form-group">
-          <h3>Metode pembayaran Pribadi</h3>
+          <h3>{{ ui_t('Metode pembayaran Pribadi') }}</h3>
           <div class="business-form-grid">
             <label>
-              <span class="account-label">Metode pembayaran</span>
-              <input name="payment_method" maxlength="254" value="{{ personal_profile.payment_method or '' }}" placeholder="Transfer Bank / QRIS">
+              <span class="account-label">{{ ui_t('Metode pembayaran') }}</span>
+              <input name="payment_method" maxlength="254" value="{{ personal_profile.payment_method or '' }}" placeholder="{{ ui_t('Transfer Bank / QRIS') }}">
             </label>
             <label>
-              <span class="account-label">Bank / penyedia</span>
-              <input name="payment_bank_name" maxlength="254" value="{{ personal_profile.payment_bank_name or '' }}" placeholder="BCA, SeaBank, dll">
+              <span class="account-label">{{ ui_t('Bank / penyedia') }}</span>
+              <input name="payment_bank_name" maxlength="254" value="{{ personal_profile.payment_bank_name or '' }}" placeholder="{{ ui_t('BCA, SeaBank, dll') }}">
             </label>
             <label>
-              <span class="account-label">Nomor rekening / tujuan</span>
+              <span class="account-label">{{ ui_t('Nomor rekening / tujuan') }}</span>
               <input name="payment_account_number" maxlength="254" value="{{ personal_profile.payment_account_number or '' }}">
             </label>
             <label>
-              <span class="account-label">Nama pemilik rekening</span>
+              <span class="account-label">{{ ui_t('Nama pemilik rekening') }}</span>
               <input name="payment_account_name" maxlength="254" value="{{ personal_profile.payment_account_name or '' }}">
             </label>
             <label class="wide">
-              <span class="account-label">Instruksi pembayaran</span>
+              <span class="account-label">{{ ui_t('Instruksi pembayaran') }}</span>
               <textarea name="payment_instructions" maxlength="2000" rows="2">{{ personal_profile.payment_instructions or '' }}</textarea>
             </label>
           </div>
         </div>
 
         <div class="business-branch-actions">
-          <button class="btn" type="submit">Simpan Data</button>
+          <button class="btn" type="submit">{{ ui_t('Simpan Data') }}</button>
         </div>
       </form>
     </div>
@@ -517,8 +517,8 @@
     <div class="card account-section">
       <div class="account-section-head">
         <div>
-          <h2>Profil bisnis & invoice</h2>
-          <p class="muted">Kelola identitas bisnis, cabang, kontak, dan metode pembayaran untuk Kilas Finance.</p>
+          <h2>{{ ui_t('Profil bisnis') }} & {{ ui_t('invoice') }}</h2>
+          <p class="muted">{{ ui_t('Kelola identitas bisnis, cabang, kontak, dan metode pembayaran untuk Kilas Finance.') }}</p>
         </div>
       </div>
 
@@ -531,7 +531,7 @@
                   <div class="business-icon" aria-hidden="true">{% if business.profile_photo %}<img src="{{ url_for('auth.account_business_photo', business_id=business.id, v=business.profile_photo.id) }}" alt="">{% else %}{{ business.business_name[:1]|upper }}{% endif %}</div>
                   <div>
                     <div class="business-name">{{ business.business_name }}</div>
-                    <div class="business-sub">Kilas Finance · {{ business.finance_branches|length }} cabang</div>
+                    <div class="business-sub">{{ ui_t('Kilas Finance ·') }} {{ business.finance_branches|length }} {{ ui_t('cabang') }}</div>
                   </div>
                 </div>
               </div>
@@ -545,9 +545,9 @@
                       <summary>
                         <span class="business-branch-summary">
                           <strong>{{ branch.display_name }}</strong>
-                          <span>Data pengirim & pembayaran invoice</span>
+                          <span>{{ ui_t('Data pengirim') }} & {{ ui_t('pembayaran invoice') }}</span>
                         </span>
-                        {% if branch.is_default %}<span class="business-branch-badge">Cabang utama</span>{% else %}<span class="security-arrow" aria-hidden="true">⌄</span>{% endif %}
+                        {% if branch.is_default %}<span class="business-branch-badge">{{ ui_t('Cabang utama') }}</span>{% else %}<span class="security-arrow" aria-hidden="true">⌄</span>{% endif %}
                       </summary>
 
                       <form method="post" class="business-branch-form">
@@ -558,63 +558,63 @@
 
                         <div class="business-form-grid">
                           <label>
-                            <span class="account-label">Nama cabang</span>
+                            <span class="account-label">{{ ui_t('Nama cabang') }}</span>
                             <input name="branch_name" maxlength="160" value="{{ branch.display_name }}" required>
                           </label>
                           <label>
-                            <span class="account-label">Nomor telepon bisnis</span>
+                            <span class="account-label">{{ ui_t('Nomor telepon bisnis') }}</span>
                             <input name="business_phone" type="tel" maxlength="254" value="{{ sender.get('phone','') }}" required>
                           </label>
                           <label class="wide">
-                            <span class="account-label">Alamat bisnis / cabang</span>
+                            <span class="account-label">{{ ui_t('Alamat bisnis / cabang') }}</span>
                             <textarea name="address" maxlength="2000" rows="3" required>{{ sender.get('address','') }}</textarea>
                           </label>
                           <label>
-                            <span class="account-label">Email bisnis</span>
+                            <span class="account-label">{{ ui_t('Email bisnis') }}</span>
                             <span class="account-email-row">
                               <span class="account-email-value">{{ user.email }}</span>
-                              <button class="account-email-change-btn" type="button" data-email-change-open data-email-tab="business">Ganti</button>
+                              <button class="account-email-change-btn" type="button" data-email-change-open data-email-tab="business">{{ ui_t('Ganti') }}</button>
                             </span>
                           </label>
                           <label>
-                            <span class="account-label">Website</span>
+                            <span class="account-label">{{ ui_t('Website') }}</span>
                             <input name="website" maxlength="254" value="{{ sender.get('website','') }}" placeholder="https://...">
                           </label>
                           <label>
-                            <span class="account-label">NPWP / Tax ID</span>
+                            <span class="account-label">{{ ui_t('NPWP / Tax ID') }}</span>
                             <input name="tax_id" maxlength="254" value="{{ sender.get('tax_id','') }}">
                           </label>
                         </div>
 
                         <div class="business-form-group">
-                          <h3>Metode pembayaran invoice</h3>
+                          <h3>{{ ui_t('Metode pembayaran invoice') }}</h3>
                           <div class="business-form-grid">
                             <label>
-                              <span class="account-label">Metode pembayaran</span>
-                              <input name="payment_method" maxlength="254" value="{{ payment.get('method','') }}" placeholder="Transfer Bank / QRIS">
+                              <span class="account-label">{{ ui_t('Metode pembayaran') }}</span>
+                              <input name="payment_method" maxlength="254" value="{{ payment.get('method','') }}" placeholder="{{ ui_t('Transfer Bank / QRIS') }}">
                             </label>
                             <label>
-                              <span class="account-label">Bank / penyedia</span>
-                              <input name="payment_bank_name" maxlength="254" value="{{ payment.get('bank','') }}" placeholder="BCA, SeaBank, Mandiri...">
+                              <span class="account-label">{{ ui_t('Bank / penyedia') }}</span>
+                              <input name="payment_bank_name" maxlength="254" value="{{ payment.get('bank','') }}" placeholder="{{ ui_t('BCA, SeaBank, Mandiri...') }}">
                             </label>
                             <label>
-                              <span class="account-label">Nomor rekening / tujuan</span>
+                              <span class="account-label">{{ ui_t('Nomor rekening / tujuan') }}</span>
                               <input name="payment_account_number" maxlength="254" value="{{ payment.get('account_number','') }}">
                             </label>
                             <label>
-                              <span class="account-label">Nama pemilik rekening</span>
+                              <span class="account-label">{{ ui_t('Nama pemilik rekening') }}</span>
                               <input name="payment_account_name" maxlength="254" value="{{ payment.get('account_holder','') }}">
                             </label>
                             <label class="wide">
-                              <span class="account-label">Instruksi pembayaran</span>
+                              <span class="account-label">{{ ui_t('Instruksi pembayaran') }}</span>
                               <textarea name="payment_instructions" maxlength="2000" rows="2">{{ payment.get('instructions','') }}</textarea>
                             </label>
                           </div>
                         </div>
 
                         <div class="business-branch-actions">
-                          <button class="btn" type="submit">Simpan Data Cabang</button>
-                          <a class="btn secondary" href="{{ url_for('finance.receivables', business_id=business.id, branch_id=branch.id, section='invoices') }}">Buka Invoice</a>
+                          <button class="btn" type="submit">{{ ui_t('Simpan Data Cabang') }}</button>
+                          <a class="btn secondary" href="{{ url_for('finance.receivables', business_id=business.id, branch_id=branch.id, section='invoices') }}">{{ ui_t('Buka Invoice') }}</a>
                         </div>
                       </form>
                     </details>
@@ -622,7 +622,7 @@
                 </div>
               {% else %}
                 <div class="account-help">
-                  Bisnis ini belum memiliki cabang Finance. Data invoice tersedia setelah Finance diaktifkan.
+                  {{ ui_t('Bisnis ini belum memiliki cabang Finance. Data invoice tersedia setelah Finance diaktifkan.') }}
                 </div>
               {% endif %}
 
@@ -630,7 +630,7 @@
           {% endfor %}
         </div>
       {% else %}
-        <div class="account-empty">Belum ada bisnis yang terhubung ke akun ini.</div>
+        <div class="account-empty">{{ ui_t('Belum ada bisnis yang terhubung ke akun ini.') }}</div>
       {% endif %}
     </div>
   </section>
@@ -639,8 +639,8 @@
     <div class="card account-section">
       <div class="account-section-head">
         <div>
-          <h2>Keamanan akun</h2>
-          <p class="muted">Kelola password dan sesi login dari satu tempat.</p>
+          <h2>{{ ui_t('Keamanan akun') }}</h2>
+          <p class="muted">{{ ui_t('Kelola password dan sesi login dari satu tempat.') }}</p>
         </div>
       </div>
 
@@ -650,41 +650,41 @@
             <span class="security-summary-main">
               <span class="security-icon" aria-hidden="true">🔒</span>
               <span class="security-copy">
-                <strong>Ubah password</strong>
-                <span>Gunakan password baru minimal 8 karakter.</span>
+                <strong>{{ ui_t('Ubah password') }}</strong>
+                <span>{{ ui_t('Gunakan password baru minimal 8 karakter.') }}</span>
               </span>
             </span>
             <span class="security-arrow" aria-hidden="true">⌄</span>
           </summary>
 
           <div class="security-body">
-            <p class="security-note">Untuk keamanan, masukkan password saat ini terlebih dahulu. Perubahan baru dianggap berhasil setelah tersimpan dan terverifikasi di sistem.</p>
+            <p class="security-note">{{ ui_t('Untuk keamanan, masukkan password saat ini terlebih dahulu. Perubahan baru dianggap berhasil setelah tersimpan dan terverifikasi di sistem.') }}</p>
             <form method="post">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="action" value="password">
 
               <div class="password-field">
-                <label for="current-password">Password saat ini</label>
+                <label for="current-password">{{ ui_t('Password saat ini') }}</label>
                 <input id="current-password" type="password" name="current_password" autocomplete="current-password" required>
-                <button class="password-toggle" type="button" data-password-toggle="current-password">Lihat</button>
+                <button class="password-toggle" type="button" data-password-toggle="current-password">{{ ui_t('Lihat') }}</button>
               </div>
 
               <div class="account-row">
                 <div class="password-field">
-                  <label for="new-password">Password baru</label>
+                  <label for="new-password">{{ ui_t('Password baru') }}</label>
                   <input id="new-password" type="password" name="new_password" autocomplete="new-password" minlength="8" required>
-                  <button class="password-toggle" type="button" data-password-toggle="new-password">Lihat</button>
+                  <button class="password-toggle" type="button" data-password-toggle="new-password">{{ ui_t('Lihat') }}</button>
                 </div>
                 <div class="password-field">
-                  <label for="confirm-password">Ulangi password baru</label>
+                  <label for="confirm-password">{{ ui_t('Ulangi password baru') }}</label>
                   <input id="confirm-password" type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
-                  <button class="password-toggle" type="button" data-password-toggle="confirm-password">Lihat</button>
+                  <button class="password-toggle" type="button" data-password-toggle="confirm-password">{{ ui_t('Lihat') }}</button>
                 </div>
               </div>
 
               <div class="account-actions">
-                <button class="btn" type="submit">Simpan Password Baru</button>
-                <a class="btn secondary" href="{{ url_for('auth.forgot_password_page') }}">Lupa Password?</a>
+                <button class="btn" type="submit">{{ ui_t('Simpan Password Baru') }}</button>
+                <a class="btn secondary" href="{{ url_for('auth.forgot_password_page') }}">{{ ui_t('Lupa Password?') }}</a>
               </div>
             </form>
           </div>
@@ -692,10 +692,10 @@
 
         <div class="session-card">
           <div class="session-copy">
-            <strong>Keluar dari akun</strong>
-            <span>Akhiri sesi Kilas Works di perangkat ini.</span>
+            <strong>{{ ui_t('Keluar dari akun') }}</strong>
+            <span>{{ ui_t('Akhiri sesi Kilas Works di perangkat ini.') }}</span>
           </div>
-          <a class="btn danger" href="{{ url_for('auth.logout_page') }}">Logout</a>
+          <a class="btn danger" href="{{ url_for('auth.logout_page') }}">{{ ui_t('Logout') }}</a>
         </div>
       </div>
     </div>
@@ -771,7 +771,7 @@
       if (!input) return;
       const show = input.type === 'password';
       input.type = show ? 'text' : 'password';
-      button.textContent = show ? 'Sembunyi' : 'Lihat';
+      button.textContent = show ? window.KilasUI.t('Sembunyi') : window.KilasUI.t('Lihat');
     });
   });
 })();

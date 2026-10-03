@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="id">
+<html lang="{{ ui_language() }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -300,11 +300,13 @@
 {% set premium_ui = session.get('role') != 'KILAS_ADMIN' and (request.blueprint == 'auth' or request.blueprint == 'kilas_ai' or request.blueprint == 'finance' or request.endpoint == 'products.product_start' or (not assist_refresh and request.blueprint in ['products', 'projects', 'client'])) %}
 {% set premium_workspace = premium_ui and session.get('user_id') and not (finance_ui and finance_ui.enabled) %}
 {% if premium_ui %}{% include '_premium_styles.html' %}{% endif %}
+{% if premium_ui %}{% include '_ui_i18n_head.html' %}{% endif %}
 </head>
 <body data-finance-month="{{ finance_ui.month if finance_ui else '' }}" data-finance-currency="{{ finance_ui.currency if finance_ui else '' }}" class="{{ 'kilas-light' if premium_ui }} {{ 'premium-workspace' if premium_workspace }} {{ 'kw-app' if not premium_ui and workspace_ui and workspace_ui.enabled and workspace_ui.product == 'ai' and not (finance_ui and finance_ui.enabled) else '' }} {{ 'finance-app' if finance_ui and finance_ui.enabled else '' }} {% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
+{% if premium_ui and not session.get('user_id') %}<div class="public-language">{% set language_location = 'public' %}{% include '_language_selector.html' %}</div>{% endif %}
 {% if request.blueprint != 'finance' and (not session.get('user_id') or session.get('role') == 'KILAS_ADMIN') %}
 <div class="topbar">
-  <div class="brand">Kilas<span>Works</span> Client Hub</div>
+  {% if session.get('role') == 'KILAS_ADMIN' %}<div class="brand">Kilas<span>Works</span> Client Hub</div>{% else %}<a class="brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span> Client Hub</a>{% endif %}
   <nav>
     {% if session.get('user_id') %}
       {% if session.get('role') == 'KILAS_ADMIN' %}
@@ -351,15 +353,15 @@
     {% if finance_nav_business_id and finance_nav_branch_id and request.endpoint != 'finance.workspace_choice' %}
     <a class="finance-exit-link finance-dashboard-link" href="{{ url_for('finance.dashboard',business_id=finance_nav_business_id,branch_id=finance_nav_branch_id) }}">Dashboard</a>
     {% endif %}
-    <a class="finance-exit-link" href="{{ url_for('client.dashboard') }}">Keluar Finance</a>
+    <a class="finance-exit-link" href="{{ url_for('products.product_start') }}">{{ ui_t('Home') }}</a>
   </nav>
   {% endif %}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
-      <div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}" aria-live="polite">{{ message }}</div>
+      <div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}" aria-live="polite">{{ message|ui_text if premium_ui else message }}</div>
     {% endfor %}
   {% endwith %}
-  {% if finance_read_only %}<section class="card" role="status"><h2>Finance hanya-baca</h2><p>Data dan laporan tetap tersedia. Aktifkan trial atau perpanjang langganan untuk mencatat dan memakai AI.</p><a class="btn" href="{{ url_for('products.finance_setup',business_id=finance_access_business_id) }}">Trial &amp; Langganan Finance</a></section>{% endif %}
+  {% if finance_read_only %}<section class="card" role="status"><h2>{{ ui_t('Finance hanya-baca') }}</h2><p>{{ ui_t('Data dan laporan tetap tersedia. Periksa akses Finance untuk melanjutkan pencatatan.') }}</p><a class="btn" href="{{ url_for('products.finance_setup',business_id=finance_access_business_id) }}">{{ ui_t('Kelola akses Finance') }}</a></section>{% endif %}
   {% block content %}{% endblock %}
   {% if finance_ui and finance_ui.enabled %}<script src="{{ url_for('static',filename='finance_ui.js',v='20260922-unified-1') }}" defer></script>{% endif %}
   {% if request.blueprint=='products' %}<script src="{{ url_for('static',filename='product_forms.js') }}" defer></script>{% endif %}
@@ -545,12 +547,13 @@
 </script>
 <script>
 (function () {
+  function uiCopy(message, values) { return window.KilasUI ? window.KilasUI.t(message, values) : message.replace('{size}', values.size); }
   function validateFiles(input) {
     var files = Array.from(input.files || []), total = 0, error = '';
     var financeDocument = !!input.closest('[data-finance-document-upload]');
     var perFile = financeDocument ? 20 : 10, aggregate = financeDocument ? 25 : 11;
-    files.forEach(function (file) { total += file.size; if (file.size > perFile * 1024 * 1024) error = 'Setiap file maksimal ' + perFile + ' MiB.'; });
-    if (total > aggregate * 1024 * 1024) error = 'Total file maksimal ' + aggregate + ' MiB per unggahan.';
+    files.forEach(function (file) { total += file.size; if (file.size > perFile * 1024 * 1024) error = uiCopy('Setiap file maksimal {size} MiB.', {size:perFile}); });
+    if (total > aggregate * 1024 * 1024) error = uiCopy('Total file maksimal {size} MiB per unggahan.', {size:aggregate});
     input.setCustomValidity(error);
     return !error;
   }
@@ -570,6 +573,5 @@
   });
 }());
 </script>
-{% if premium_ui %}{% include '_premium_styles.html' %}{% endif %}
 </body>
 </html>

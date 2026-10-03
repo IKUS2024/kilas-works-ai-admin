@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Login · Kilas Works{% endblock %}
+{% block title %}{{ ui_t('Login · Kilas Works') }}{% endblock %}
 {% block assist_entry_styles %}{% endblock %}
 {% block content %}
 <div class="auth-shell {{ 'assist-auth' if session.get('active_product') != 'finance' and 'finance' not in request.args.get('next', '') else '' }}">
@@ -10,56 +10,56 @@
       </a>
       <div class="auth-wordmark"><strong>Kilas<span>Works</span></strong><small>Client Hub</small></div>
     </div>
-    <p class="auth-tagline">Satu platform untuk semua produk bisnismu.</p>
+    <p class="auth-tagline">{{ ui_t('Satu platform untuk semua produk bisnismu.') }}</p>
 
-    <nav class="auth-tabs" aria-label="Login atau daftar">
-      <a class="auth-tab active" href="{{ url_for('auth.login_page') }}" aria-current="page">Login</a>
-      <a class="auth-tab" href="{{ url_for('auth.register_page') }}">Daftar</a>
+    <nav class="auth-tabs" aria-label="{{ ui_t('Login atau daftar') }}">
+      <a class="auth-tab active" href="{{ url_for('auth.login_page') }}" aria-current="page">{{ ui_t('Login') }}</a>
+      <a class="auth-tab" href="{{ url_for('auth.register_page') }}">{{ ui_t('Daftar') }}</a>
     </nav>
 
     <section class="card auth-card">
-      <h1>Masuk</h1>
-      <p class="auth-card-lead">Kelola semua produk bisnismu dari satu tempat, bersama KilasWorks.</p>
+      <h1>{{ ui_t('Masuk') }}</h1>
+      <p class="auth-card-lead">{{ ui_t('Kelola semua produk bisnismu dari satu tempat, bersama KilasWorks.') }}</p>
 
       <form method="post" class="auth-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label for="auth-email">Email</label>
+        <label for="auth-email">{{ ui_t('Email') }}</label>
         <div class="auth-field">
           <span class="auth-field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg></span>
-          <input id="auth-email" type="email" name="email" value="{{ email or '' }}" autocomplete="email" placeholder="Masukkan email kamu" required autofocus>
+          <input id="auth-email" type="email" name="email" value="{{ email or '' }}" autocomplete="email" placeholder="{{ ui_t('Masukkan email kamu') }}" required autofocus>
         </div>
 
-        <label for="auth-password">Password</label>
+        <label for="auth-password">{{ ui_t('Password') }}</label>
         <div class="auth-field">
           <span class="auth-field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
-          <input id="auth-password" type="password" name="password" autocomplete="current-password" placeholder="Masukkan password kamu" required>
-          <button class="password-toggle" type="button" aria-label="Tampilkan password" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg></button>
+          <input id="auth-password" type="password" name="password" autocomplete="current-password" placeholder="{{ ui_t('Masukkan password kamu') }}" required>
+          <button class="password-toggle" type="button" aria-label="{{ ui_t('Tampilkan password') }}" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg></button>
         </div>
 
-        <button class="btn auth-submit" type="submit">Login </button>
+        <button class="btn auth-submit" type="submit">{{ ui_t('Login') }} </button>
       </form>
 
-      <a class="auth-forgot" href="{{ url_for('auth.forgot_password_page') }}">Lupa Password?</a>
+      <a class="auth-forgot" href="{{ url_for('auth.forgot_password_page') }}">{{ ui_t('Lupa Password?') }}</a>
 
-      <div class="auth-divider"><span>atau lanjut dengan</span></div>
+      <div class="auth-divider"><span>{{ ui_t('atau lanjut dengan') }}</span></div>
 
       <div class="oauth-list">
         <a class="oauth-btn" href="{{ url_for('auth.oauth_start', provider='google') }}">
           <span class="oauth-icon google" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img" aria-label="Google">
+            <svg viewBox="0 0 24 24" role="img" aria-label="{{ ui_t('Google') }}">
               <path fill="#4285F4" d="M21.35 12.18c0-.73-.07-1.43-.19-2.11H12v3.99h5.24a4.48 4.48 0 0 1-1.94 2.94v2.44h3.14c1.84-1.69 2.91-4.19 2.91-7.26Z"/>
               <path fill="#34A853" d="M12 21.68c2.62 0 4.82-.87 6.43-2.35l-3.14-2.44c-.87.58-1.98.93-3.29.93-2.53 0-4.67-1.71-5.44-4.01H3.31v2.52A9.72 9.72 0 0 0 12 21.68Z"/>
               <path fill="#FBBC05" d="M6.56 13.81a5.84 5.84 0 0 1 0-3.73V7.56H3.31a9.72 9.72 0 0 0 0 8.77l3.25-2.52Z"/>
               <path fill="#EA4335" d="M12 6.07c1.42 0 2.69.49 3.69 1.45l2.77-2.77C16.82 3.22 14.62 2.3 12 2.3a9.72 9.72 0 0 0-8.69 5.26l3.25 2.52C7.33 7.78 9.47 6.07 12 6.07Z"/>
             </svg>
-          </span><span>Masuk dengan Google</span>
+          </span><span>{{ ui_t('Masuk dengan Google') }}</span>
         </a>
       </div>
 
-      <p class="muted auth-register">Belum punya akun? <a href="{{ url_for('auth.register_page') }}">Daftar</a></p>
+      <p class="muted auth-register">{{ ui_t('Belum punya akun?') }} <a href="{{ url_for('auth.register_page') }}">{{ ui_t('Daftar') }}</a></p>
     </section>
 
-    <div class="auth-footer">Kilas Works · Bersama, bisnis lebih maju.</div>
+    <div class="auth-footer">{{ ui_t('Kilas Works · Bersama, bisnis lebih maju.') }}</div>
   </div>
 </div>
 
@@ -72,7 +72,7 @@
     var show=input.type==='password';
     input.type=show?'text':'password';
     btn.setAttribute('aria-pressed',show?'true':'false');
-    btn.setAttribute('aria-label',show?'Sembunyikan password':'Tampilkan password');
+    btn.setAttribute('aria-label',show?'Sembunyikan password':window.KilasUI.t('Tampilkan password'));
   });
 })();
 </script>

@@ -141,13 +141,14 @@ with sync_playwright() as p:
     assert evidence['packages']==['AI_ADMIN'] and evidence['finance_accounts']==0,evidence
     page.screenshot(path=str(OUT/'390-ai-continue-later.png'),full_page=True)
     page.goto(BASE+'/dev/finance-onboarding',wait_until='networkidle')
-    page.get_by_role('button',name='Pilih Kilas Finance',exact=False).click()
-    expect(page.get_by_role('heading',name='Mulai Kilas Finance',exact=True)).to_be_visible()
-    page.get_by_role('button',name='Mulai Sekarang',exact=False).click()
+    page.get_by_role('button',name='Kilas Finance',exact=False).click()
+    expect(page.get_by_role('heading',name='Buat bisnis Finance',exact=True)).to_be_visible()
+    page.get_by_label('Nama bisnis',exact=True).fill('Finance Nadia')
+    page.get_by_role('button',name='Buat Bisnis',exact=False).click()
     expect(page.get_by_role('heading',name='Nadia',exact=True)).to_be_visible()
     evidence=journey.request.get(BASE+'/dev/owner-evidence').json()
     assert evidence['packages']==['NONE'] and evidence['finance_accounts']>0,evidence
-    expect(page.locator('.finance-app-sidebar nav').first.get_by_text('AI Finance',exact=True)).to_be_visible()
+    expect(page.locator('.finance-app-sidebar nav').first.get_by_text('AI Finance',exact=True)).to_have_count(0)
     assert page.locator('.finance-app-sidebar nav').first.get_by_text('Tanya Kilas',exact=True).count()==0
     page.screenshot(path=str(OUT/'390-finance-onboarded.png'),full_page=True)
     journey.close()

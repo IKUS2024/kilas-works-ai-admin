@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from '_finance_invoice_fields.html' import sender,payment %}
-{% block title %}Pengaturan Invoice · Kilas Finance{% endblock %}
+{% block title %}{{ ui_t('Pengaturan Invoice · Kilas Finance') }}{% endblock %}
 {% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice_editor.css') }}">
@@ -11,28 +11,28 @@
 
 <header class="invoice-page-head">
   <div class="invoice-page-head-copy">
-    <h1>Pengaturan Invoice</h1>
-    <p>Atur identitas pengirim dan metode pembayaran default untuk invoice baru.</p>
+    <h1>{{ ui_t('Pengaturan Invoice') }}</h1>
+    <p>{{ ui_t('Atur identitas pengirim dan metode pembayaran default untuk invoice baru.') }}</p>
   </div>
-  <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">Selesai</a>
+  <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">{{ ui_t('Selesai') }}</a>
 </header>
 {% set invoice_tab='settings' %}{% include '_finance_invoice_hub_nav.html' %}
 
 <form method="post" class="card invoice-settings-card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <section class="invoice-editor-section">
-    <h2><span class="invoice-step-number">1</span>Detail Pengirim</h2>
-    <p class="muted">Dipakai otomatis untuk invoice baru. Invoice lama tidak ikut berubah.</p>
+    <h2><span class="invoice-step-number">1</span>{{ ui_t('Detail Pengirim') }}</h2>
+    <p class="muted">{{ ui_t('Dipakai otomatis untuk invoice baru. Invoice lama tidak ikut berubah.') }}</p>
     {{ sender(data.sender,['name'] if g.finance_workspace_type=='PERSONAL' else ['name','address','phone']) }}
   </section>
   <section class="invoice-editor-section">
-    <h2><span class="invoice-step-number">2</span>Metode Pembayaran</h2>
-    <p class="muted">Informasi pembayaran yang ditampilkan kepada pelanggan pada invoice baru.</p>
+    <h2><span class="invoice-step-number">2</span>{{ ui_t('Metode Pembayaran') }}</h2>
+    <p class="muted">{{ ui_t('Informasi pembayaran yang ditampilkan kepada pelanggan pada invoice baru.') }}</p>
     {{ payment(data.payment) }}
   </section>
   <div class="invoice-editor-actions-sticky">
-    <button class="btn" data-finance-write>Simpan Pengaturan</button>
-    <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">Batal</a>
+    <button class="btn" data-finance-write>{{ ui_t('Simpan Pengaturan') }}</button>
+    <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">{{ ui_t('Batal') }}</a>
   </div>
 </form>
 </div>

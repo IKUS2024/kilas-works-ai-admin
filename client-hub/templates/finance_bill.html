@@ -1,48 +1,48 @@
 {% extends 'base.html' %}
-{% block title %}Tagihan Finance #{{ bill.id }}{% endblock %}
+{% block title %}{{ ui_t('Tagihan Finance #') }}{{ bill.id }}{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
 <div class="client-page">
-  <a class="muted" href="{{ url_for('products.finance_setup',business_id=business.id) }}">← Langganan Finance</a>
+  <a class="muted" href="{{ url_for('products.finance_setup',business_id=business.id) }}">{{ ui_t('← Langganan Finance') }}</a>
   <header class="client-head" style="margin-top:10px;">
-    <div><h1>Tagihan Finance #{{ bill.id }}</h1><p>{{ business.business_name }}</p></div>
-    <span class="client-status {{ 'ok' if bill.status=='VERIFIED' else ('warn' if bill.status in ('PENDING','REVIEW') else ('danger' if bill.status=='REJECTED' else '')) }}">{{ {'PENDING':'Menunggu pembayaran','REVIEW':'Sedang diperiksa','REJECTED':'Ditolak','VERIFIED':'Terverifikasi'}[bill.status] }}</span>
+    <div><h1>{{ ui_t('Tagihan Finance #') }}{{ bill.id }}</h1><p>{{ business.business_name }}</p></div>
+    <span class="client-status {{ 'ok' if bill.status=='VERIFIED' else ('warn' if bill.status in ('PENDING','REVIEW') else ('danger' if bill.status=='REJECTED' else '')) }}">{{ {'PENDING':ui_t('Menunggu pembayaran'),'REVIEW':ui_t('Sedang diperiksa'),'REJECTED':ui_t('Ditolak'),'VERIFIED':ui_t('Terverifikasi')}[bill.status] }}</span>
   </header>
 
   <section class="card">
     <div class="client-stats">
-      <div class="client-stat" style="grid-column:span 2;"><strong>{{ bill.amount_minor|finance_money('IDR') }}</strong><span>Total</span></div>
-      <div class="client-stat"><strong>{{ bill.currency }}</strong><span>Mata uang</span></div>
+      <div class="client-stat" style="grid-column:span 2;"><strong>{{ bill.amount_minor|finance_money('IDR') }}</strong><span>{{ ui_t('Total') }}</span></div>
+      <div class="client-stat"><strong>{{ bill.currency }}</strong><span>{{ ui_t('Mata uang') }}</span></div>
     </div>
-    <p class="client-note">Langganan aplikasi Finance. Bukan invoice pelanggan dan tidak masuk sebagai transaksi Finance.</p>
+    <p class="client-note">{{ ui_t('Langganan aplikasi Finance. Bukan invoice pelanggan dan tidak masuk sebagai transaksi Finance.') }}</p>
 
     {% if bank %}
       <details class="client-collapsible" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;">
-        <summary>Rekening Pembayaran</summary>
-        <div class="client-collapsible-body"><p class="client-note">{{ bank.BANK_NAME }} · {{ bank.BANK_ACCOUNT }} · a.n. {{ bank.BANK_HOLDER }}</p></div>
+        <summary>{{ ui_t('Rekening Pembayaran') }}</summary>
+        <div class="client-collapsible-body"><p class="client-note">{{ bank.BANK_NAME }} · {{ bank.BANK_ACCOUNT }} {{ ui_t('· a.n.') }} {{ bank.BANK_HOLDER }}</p></div>
       </details>
-    {% else %}<div class="client-empty">Rekening pembayaran belum dikonfigurasi.</div>{% endif %}
+    {% else %}<div class="client-empty">{{ ui_t('Rekening pembayaran belum dikonfigurasi.') }}</div>{% endif %}
   </section>
 
   {% if bill.status in ('PENDING','REJECTED') %}
     <section class="card">
-      <h2>Upload Bukti</h2>
-      {% if bill.status=='REJECTED' %}<p class="client-note" style="color:var(--red);">Bukti sebelumnya ditolak. Kirim bukti yang benar.</p>{% endif %}
+      <h2>{{ ui_t('Upload Bukti') }}</h2>
+      {% if bill.status=='REJECTED' %}<p class="client-note" style="color:var(--red);">{{ ui_t('Bukti sebelumnya ditolak. Kirim bukti yang benar.') }}</p>{% endif %}
       <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="file" name="proof_file" accept=".jpg,.jpeg,.png,.webp" required>
-        <p class="client-note">JPG / PNG / WEBP · maksimal 5 MiB.</p>
-        <div class="client-actions"><button class="btn" type="submit">Kirim Bukti</button></div>
+        <p class="client-note">{{ ui_t('JPG / PNG / WEBP · maksimal 5 MiB.') }}</p>
+        <div class="client-actions"><button class="btn" type="submit">{{ ui_t('Kirim Bukti') }}</button></div>
       </form>
     </section>
   {% else %}
-    <section class="card"><div class="client-item-head"><div><div class="client-item-title">{{ 'Pembayaran selesai' if bill.status=='VERIFIED' else 'Bukti sedang diperiksa' }}</div><div class="client-item-meta">{{ 'Langganan akan/ sudah aktif.' if bill.status=='VERIFIED' else 'Tidak perlu kirim ulang selama review.' }}</div></div><a class="btn small secondary" href="{{ url_for('products.proof',business_id=business.id,bill_id=bill.id) }}">Bukti</a></div></section>
+    <section class="card"><div class="client-item-head"><div><div class="client-item-title">{{ ui_t('Pembayaran selesai') if bill.status=='VERIFIED' else ui_t('Bukti sedang diperiksa') }}</div><div class="client-item-meta">{{ ui_t('Langganan akan/ sudah aktif.') if bill.status=='VERIFIED' else ui_t('Tidak perlu kirim ulang selama review.') }}</div></div><a class="btn small secondary" href="{{ url_for('products.proof',business_id=business.id,bill_id=bill.id) }}">{{ ui_t('Bukti') }}</a></div></section>
   {% endif %}
 
   {% if admin and bill.status=='REVIEW' %}
     <details class="card client-collapsible">
-      <summary>Aksi Admin</summary>
-      <div class="client-collapsible-body"><form method="post" action="{{ url_for('products.review',business_id=business.id,bill_id=bill.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="client-actions"><button class="btn" name="decision" value="approve">Verifikasi</button><button class="btn danger" name="decision" value="reject">Tolak</button></div></form></div>
+      <summary>{{ ui_t('Aksi Admin') }}</summary>
+      <div class="client-collapsible-body"><form method="post" action="{{ url_for('products.review',business_id=business.id,bill_id=bill.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="client-actions"><button class="btn" name="decision" value="approve">{{ ui_t('Verifikasi') }}</button><button class="btn danger" name="decision" value="reject">{{ ui_t('Tolak') }}</button></div></form></div>
     </details>
   {% endif %}
 </div>

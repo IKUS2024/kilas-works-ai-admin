@@ -22,7 +22,7 @@ colors:
   success: "#20704a"
   error: "#b42330"
   warning: "#805a06"
-  finance-surface: "#f0f4f8"
+  finance-surface: "#f7f7f6"
 typography:
   headline:
     fontFamily: "Manrope, system-ui, sans-serif"
@@ -58,10 +58,10 @@ typography:
     fontWeight: 600
     lineHeight: 1.4
   finance-body:
-    fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif"
-    fontSize: "13px"
+    fontFamily: "Manrope, system-ui, sans-serif"
+    fontSize: "14px"
     fontWeight: 400
-    lineHeight: 1.45
+    lineHeight: 1.55
 rounded:
   navigation: "7px"
   control: "8px"
@@ -125,12 +125,12 @@ components:
 
 The customer workspace feels calm, precise and trustworthy. White working surfaces, a neutral navigation rail and charcoal text let actual conversations, files and business tasks lead. Kilas orange carries identity and meaningful actions. The premium character comes from hierarchy, readable measures and consistent controls.
 
-This records the implemented white workspace in `client-hub/static/kilas_premium.css`, its Finance color compatibility layer and the current customer templates. The owner's 2026-10-03 pinned brief replaces the historical dark customer direction and the audit-only visual restrictions in PRODUCT.md. Existing capabilities and permissions remain product truth. The theme is opt-in through `kilas-light`; Assist and admin keep their existing visual systems. Finance shares the light palette while retaining its original type, navigation, forms and layout, with the existing safe metric-text wrapping retained.
+This records the implemented white workspace in `client-hub/static/kilas_premium.css`, its scoped Finance presentation layer and the current customer templates. The owner's 2026-10-03 pinned brief replaces the historical dark customer direction and the audit-only visual restrictions in PRODUCT.md. Existing capabilities and permissions remain product truth. The theme is opt-in through `kilas-light`; Assist and admin keep their existing visual systems. Finance now shares Manrope and the neutral workbench surface through a scoped presentation layer. Its established financial workflows and overall shell geometry remain; presentation adds readable controls and safe metric-text wrapping.
 
 **Key Characteristics:**
 
 - White working surfaces and neutral navigation.
-- Manrope typography with a distinct preserved Finance font.
+- Manrope typography with a compact Finance body role.
 - Deliberate orange identity, actions and selection states.
 - Document-style assistant replies and compact persistent files.
 - Task-led content with restrained borders and elevation.
@@ -157,7 +157,7 @@ Manrope is self-hosted as a variable face (weights 200–800), with `font-displa
 
 The implemented display range is contextual: Home's task question spans `clamp(28px, 3.4vw, 40px)`, authentication spans `clamp(26px, 3vw, 36px)`, and the chat welcome spans `clamp(26px, 3vw, 36px)` at weight 650. These are surface expressions rather than a universal hero style. Subscription titles retain their observed size (32px).
 
-**The Finance Type Boundary Rule.** Finance keeps the finance-body family and density; Manrope and the customer heading ramp do not replace its established typography.
+**The Finance Density Rule.** Finance uses the compact finance-body role with Manrope; preserve its established task hierarchy rather than applying the customer heading ramp wholesale.
 
 ## Layout
 
@@ -201,6 +201,12 @@ Customer cards use white, divider borders and the surface radius with no shadow.
 
 Product navigation uses compact labels, a 44px minimum row height and neutral hover. Current customer product navigation uses selected tint with accent text; current chat-history items use neutral hover with charcoal text. These states are deliberately distinct. Home leads to Kilas AI, existing Finance and external Kilas Services; Connections and Settings expose actual account destinations. AI preferences and history remain reachable within the AI rail.
 
+### Language preference
+
+The shared language form offers Bahasa Indonesia, English, Español and 中文 (`id`, `en`, `es`, `zh`). A visible label, native select and explicit Apply action use 44px minimum touch heights, neutral borders and the existing orange focus outline. Selection applies on submission and persists in the `kilas_language` cookie for one year. UI controls use the selected language; user names, customer text and generated content retain their original language.
+
+Finance places language and Home controls in its desktop sidebar and exposes a compact return row on mobile at 760px and below. Home returns to the same product start page across the customer navigation and Finance shells.
+
 ### Conversation and files
 
 Assistant messages render as readable documents with Markdown headings, tables, code and sources. User messages use user surface, surface corners and comfortable inner spacing. The bottom composer uses a composer radius, input border, a subtle shadow and orange send action. Its textarea remains readable (16px) and the existing attachment, Stop and keyboard behavior is preserved. Files persist beside their originating message with existing private download links; pending files keep individual removal controls.
@@ -212,7 +218,7 @@ Assistant messages render as readable documents with Markdown headings, tables, 
 - Do use the opt-in customer theme and its recorded tokens for new customer surfaces.
 - Do lead with the actual task and readable content.
 - Do retain visible focus, meaningful labels and real status text.
-- Do preserve Finance's typography, geometry and financial behavior.
+- Do use the compact Finance body role while preserving its overall geometry and financial behavior.
 - Do preserve persistent file links, chat history and existing permissions.
 
 ### Don't:

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Anggaran · Kilas Finance{% endblock %}
+{% block title %}{{ ui_t('Anggaran · Kilas Finance') }}{% endblock %}
 {% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-budget-subcats-1') }}">
@@ -12,18 +12,18 @@
 
 <header class="finance-budget-header">
   <div>
-    <span class="finance-eyebrow">KILAS FINANCE</span>
-    <h1>Anggaran</h1>
+    <span class="finance-eyebrow">{{ ui_t('KILAS FINANCE') }}</span>
+    <h1>{{ ui_t('Anggaran') }}</h1>
     <strong>{{ total_budget_display }}</strong>
     <small>{{ business.business_name }} · {{ selected_branch.name }}</small>
   </div>
   <details class="finance-budget-options">
-    <summary aria-label="Opsi anggaran">•••</summary>
+    <summary aria-label="{{ ui_t('Opsi anggaran') }}">•••</summary>
     <div class="finance-budget-options-menu">
       <form method="get">
         <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
         <input type="hidden" name="month" value="{{ month }}">
-        <label>Mata uang
+        <label>{{ ui_t('Mata uang') }}
           <select name="display_currency" onchange="this.form.submit()">
             {% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}
           </select>
@@ -33,10 +33,10 @@
   </details>
 </header>
 
-<nav class="finance-month-nav finance-budget-month-nav" aria-label="Navigasi bulan anggaran">
-  <a aria-label="Bulan sebelumnya" href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=previous_month,display_currency=display_currency) }}">‹</a>
-  <span class="finance-budget-month-label">{{ month_label }}</span>
-  <a aria-label="Bulan berikutnya" href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=next_month,display_currency=display_currency) }}">›</a>
+<nav class="finance-month-nav finance-budget-month-nav" aria-label="{{ ui_t('Navigasi bulan anggaran') }}">
+  <a aria-label="{{ ui_t('Bulan sebelumnya') }}" href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=previous_month,display_currency=display_currency) }}">‹</a>
+  <span class="finance-budget-month-label">{{ month_label|ui_period }}</span>
+  <a aria-label="{{ ui_t('Bulan berikutnya') }}" href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=next_month,display_currency=display_currency) }}">›</a>
 </nav>
 
 <section class="card finance-budget-list">
@@ -47,7 +47,7 @@
         <span>{{ row.category.name }}</span>
         <strong>{{ row.budget_display }}</strong>
       </div>
-      <div class="finance-budget-category-sub"><span></span><small>Bulanan</small></div>
+      <div class="finance-budget-category-sub"><span></span><small>{{ ui_t('Bulanan') }}</small></div>
       <div class="finance-budget-progress {{ 'over' if row.over_budget else '' }}" aria-label="{{ row.percent_used }} persen terpakai">
         <i style="--budget-progress:{{ [row.percent_used,100]|min }}%"></i>
       </div>
@@ -59,29 +59,29 @@
     <span class="finance-budget-chevron" aria-hidden="true">›</span>
   </button>
   {% else %}
-  <div class="fin-empty">Belum ada kategori Pengeluaran aktif.</div>
+  <div class="fin-empty">{{ ui_t('Belum ada kategori Pengeluaran aktif.') }}</div>
   {% endfor %}
-  <button type="button" class="finance-budget-add-category" data-finance-open="budget-add-category-dialog">＋ Tambah Kategori</button>
-  <p class="finance-budget-list-note">Ketuk kategori untuk mengatur anggaran, mengedit, atau menghapus kategori.</p>
+  <button type="button" class="finance-budget-add-category" data-finance-open="budget-add-category-dialog">{{ ui_t('＋ Tambah Kategori') }}</button>
+  <p class="finance-budget-list-note">{{ ui_t('Ketuk kategori untuk mengatur anggaran, mengedit, atau menghapus kategori.') }}</p>
 </section>
 
 <footer class="card finance-budget-footer">
-  <div><span>Terpakai</span><strong>{{ total_spent_display }}</strong></div>
-  <div class="finance-budget-footer-available"><span>Tersedia</span><strong>{{ remaining_display }}</strong></div>
-  <div><span>Mata uang</span><strong>{{ display_currency }}</strong></div>
+  <div><span>{{ ui_t('Terpakai') }}</span><strong>{{ total_spent_display }}</strong></div>
+  <div class="finance-budget-footer-available"><span>{{ ui_t('Tersedia') }}</span><strong>{{ remaining_display }}</strong></div>
+  <div><span>{{ ui_t('Mata uang') }}</span><strong>{{ display_currency }}</strong></div>
 </footer>
 
 {% for row in rows %}
 <dialog id="budget-dialog-{{ row.category.id }}" class="finance-sheet finance-budget-sheet">
   <div class="finance-sheet-head">
-    <div><small>Atur Anggaran</small><h2>{{ row.category.name }}</h2></div>
-    <button type="button" class="finance-sheet-close" data-finance-close="budget-dialog-{{ row.category.id }}" aria-label="Tutup">×</button>
+    <div><small>{{ ui_t('Atur Anggaran') }}</small><h2>{{ row.category.name }}</h2></div>
+    <button type="button" class="finance-sheet-close" data-finance-close="budget-dialog-{{ row.category.id }}" aria-label="{{ ui_t('Tutup') }}">×</button>
   </div>
   <div class="finance-sheet-body">
     <div class="finance-budget-sheet-summary">
-      <div><span>Anggaran</span><strong>{{ row.budget_display }}</strong></div>
-      <div><span>Terpakai</span><strong>{{ row.spent_display }}</strong></div>
-      <div><span>Sisa</span><strong class="{{ 'finance-danger' if row.over_budget else '' }}">{{ row.remaining_display }}</strong></div>
+      <div><span>{{ ui_t('Anggaran') }}</span><strong>{{ row.budget_display }}</strong></div>
+      <div><span>{{ ui_t('Terpakai') }}</span><strong>{{ row.spent_display }}</strong></div>
+      <div><span>{{ ui_t('Sisa') }}</span><strong class="{{ 'finance-danger' if row.over_budget else '' }}">{{ row.remaining_display }}</strong></div>
     </div>
     <div class="finance-budget-progress {{ 'over' if row.over_budget else '' }}" aria-label="{{ row.percent_used }} persen terpakai">
       <i style="--budget-progress:{{ [row.percent_used,100]|min }}%"></i>
@@ -93,10 +93,10 @@
       <input type="hidden" name="month" value="{{ month }}">
       <input type="hidden" name="display_currency" value="{{ display_currency }}">
       <input type="hidden" name="category_id" value="{{ row.category.id }}">
-      <label>Nama Kategori
+      <label>{{ ui_t('Nama Kategori') }}
         <span class="finance-budget-inline-edit">
           <input name="name" value="{{ row.category.name }}" maxlength="160" autocomplete="off" required>
-          <button class="finance-mini-action" name="action" value="rename_category">✏️ Simpan Edit</button>
+          <button class="finance-mini-action" name="action" value="rename_category">{{ ui_t('✏️ Simpan Edit') }}</button>
         </span>
       </label>
     </form>
@@ -107,36 +107,36 @@
       <input type="hidden" name="month" value="{{ month }}">
       <input type="hidden" name="display_currency" value="{{ display_currency }}">
       <input type="hidden" name="category_id" value="{{ row.category.id }}">
-      <label>Jumlah Anggaran
+      <label>{{ ui_t('Jumlah Anggaran') }}
         <input name="amount" inputmode="decimal" value="{{ row.input_amount }}" placeholder="0" required>
       </label>
-      <label>Mata uang
+      <label>{{ ui_t('Mata uang') }}
         <select name="currency">{% for code in supported_currencies %}<option value="{{ code }}" {{ 'selected' if code==row.input_currency }}>{{ code }}</option>{% endfor %}</select>
       </label>
       <div class="finance-budget-readonly-grid">
-        <div><span>Siklus Anggaran</span><strong>Bulanan</strong></div>
-        <div><span>Periode</span><strong>{{ month_label }}</strong></div>
+        <div><span>{{ ui_t('Siklus Anggaran') }}</span><strong>{{ ui_t('Bulanan') }}</strong></div>
+        <div><span>{{ ui_t('Periode') }}</span><strong>{{ month_label|ui_period }}</strong></div>
       </div>
-      <button class="btn" name="action" value="save">Simpan Anggaran</button>
+      <button class="btn" name="action" value="save">{{ ui_t('Simpan Anggaran') }}</button>
     </form>
 
-    <form method="post" class="finance-budget-sheet-delete" onsubmit="return confirm('Hapus kategori {{ row.category.name }} dari daftar aktif? Transaksi dan laporan lama tetap tersimpan.');">
+    <form method="post" class="finance-budget-sheet-delete" onsubmit='return confirm({{ ui_t('Hapus kategori {name} dari daftar aktif? Transaksi dan laporan lama tetap tersimpan.', name=row.category.name)|tojson }});'>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
       <input type="hidden" name="month" value="{{ month }}">
       <input type="hidden" name="display_currency" value="{{ display_currency }}">
       <input type="hidden" name="category_id" value="{{ row.category.id }}">
-      <button class="finance-mini-action finance-danger" name="action" value="delete_category">🗑️ Hapus Kategori</button>
+      <button class="finance-mini-action finance-danger" name="action" value="delete_category">{{ ui_t('🗑️ Hapus Kategori') }}</button>
     </form>
 
     {% if row.budget %}
-    <form method="post" class="finance-budget-sheet-delete" onsubmit="return confirm('Hapus anggaran kategori ini? Transaksi tidak akan berubah.');">
+    <form method="post" class="finance-budget-sheet-delete" onsubmit='return confirm({{ ui_t('Hapus anggaran kategori ini? Transaksi tidak akan berubah.')|tojson }});'>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
       <input type="hidden" name="month" value="{{ month }}">
       <input type="hidden" name="display_currency" value="{{ display_currency }}">
       <input type="hidden" name="budget_id" value="{{ row.budget.id }}">
-      <button class="finance-mini-action finance-danger" name="action" value="delete">Hapus anggaran bulan ini</button>
+      <button class="finance-mini-action finance-danger" name="action" value="delete">{{ ui_t('Hapus anggaran bulan ini') }}</button>
     </form>
     {% endif %}
   </div>
@@ -145,8 +145,8 @@
 
 <dialog id="budget-add-category-dialog" class="finance-sheet finance-budget-sheet">
   <div class="finance-sheet-head">
-    <div><small>Kategori Pengeluaran</small><h2>Tambah Kategori</h2></div>
-    <button type="button" class="finance-sheet-close" data-finance-close="budget-add-category-dialog" aria-label="Tutup">×</button>
+    <div><small>{{ ui_t('Kategori Pengeluaran') }}</small><h2>{{ ui_t('Tambah Kategori') }}</h2></div>
+    <button type="button" class="finance-sheet-close" data-finance-close="budget-add-category-dialog" aria-label="{{ ui_t('Tutup') }}">×</button>
   </div>
   <div class="finance-sheet-body">
     <form method="post" class="finance-budget-sheet-form">
@@ -155,11 +155,11 @@
       <input type="hidden" name="month" value="{{ month }}">
       <input type="hidden" name="display_currency" value="{{ display_currency }}">
       <input type="hidden" name="action" value="create_category">
-      <label>Nama Kategori
-        <input name="name" maxlength="160" autocomplete="off" placeholder="Contoh: Sewa Studio" required>
+      <label>{{ ui_t('Nama Kategori') }}
+        <input name="name" maxlength="160" autocomplete="off" placeholder="{{ ui_t('Contoh: Sewa Studio') }}" required>
       </label>
-      <p class="finance-budget-dialog-note">Kategori baru langsung tersedia di Anggaran dan pilihan Pengeluaran.</p>
-      <button class="btn" type="submit">Tambah Kategori</button>
+      <p class="finance-budget-dialog-note">{{ ui_t('Kategori baru langsung tersedia di Anggaran dan pilihan Pengeluaran.') }}</p>
+      <button class="btn" type="submit">{{ ui_t('Tambah Kategori') }}</button>
     </form>
   </div>
 </dialog>

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-02T18:58:37.161088+00:00",
+  "generatedAt": "2026-10-03T09:18:34.1357578Z",
   "title": "Design System: Kilas Works customer workspace",
   "extensions": {
     "colorMeta": {
@@ -277,16 +277,16 @@
         "role": "neutral",
         "displayName": "Finance Surface",
         "tonalRamp": [
-          "oklch(15% 0.00686 247.90)",
-          "oklch(27% 0.00686 247.90)",
-          "oklch(38% 0.00686 247.90)",
-          "oklch(50% 0.00686 247.90)",
-          "oklch(61% 0.00686 247.90)",
-          "oklch(73% 0.00686 247.90)",
-          "oklch(84% 0.00686 247.90)",
-          "oklch(95% 0.00686 247.90)"
+          "oklch(15% 0.00132 106.42)",
+          "oklch(27% 0.00132 106.42)",
+          "oklch(38% 0.00132 106.42)",
+          "oklch(50% 0.00132 106.42)",
+          "oklch(61% 0.00132 106.42)",
+          "oklch(73% 0.00132 106.42)",
+          "oklch(84% 0.00132 106.42)",
+          "oklch(95% 0.00132 106.42)"
         ],
-        "purpose": "Finance compatibility layer only; do not extend into customer navigation."
+        "purpose": "Neutral Finance shell, field and table-header surfaces in the scoped presentation layer."
       },
       "finance-accent-text": {
         "role": "primary",
@@ -330,8 +330,8 @@
         "purpose": "Compact product rail labels."
       },
       "finance-body": {
-        "displayName": "Preserved Finance body",
-        "purpose": "Original Finance family and density; compatibility scope only."
+        "displayName": "Compact Finance body",
+        "purpose": "Manrope body text at Finance density in the scoped presentation layer."
       }
     },
     "shadows": [
@@ -430,14 +430,21 @@
       "description": "Quiet neutral user content beside unboxed document-style assistant replies.",
       "html": "<article class=\"ds-message\"><div class=\"ds-speaker\">Kamu</div><div class=\"ds-user-text\">Bantu susun ide untuk bisnis saya.</div></article>",
       "css": ".ds-message{font:15px/1.6 Manrope,system-ui,sans-serif;color:var(--text,#202329)}.ds-speaker{font-size:13px;font-weight:700;margin:0 0 5px;color:var(--muted,#62666f)}.ds-user-text{background:#f5f5f4;color:var(--text,#202329);border-radius:12px;padding:12px 16px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65}"
+    },
+    {
+      "name": "Language preference",
+      "kind": "custom",
+      "description": "Native id/en/es/zh UI selection with a visible label, 44px controls and explicit Apply action. Submission persists the preference in a one-year cookie; user and generated content retain their original language. Finance exposes this alongside its consistent Home return on desktop and mobile.",
+      "html": "<form class=\"ds-language\"><label for=\"ds-language-select\">Language</label><select id=\"ds-language-select\" name=\"language\"><option value=\"id\">Bahasa Indonesia</option><option value=\"en\">English</option><option value=\"es\">Español</option><option value=\"zh\">中文</option></select><button type=\"submit\">Apply</button></form>",
+      "css": ".ds-language{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;align-items:center;margin:18px 0 0;max-width:100%;font:13px Manrope,system-ui,sans-serif;color:#545963}.ds-language label{grid-column:1/-1;margin:0;font-size:13px;line-height:1.4}.ds-language select,.ds-language button{min-width:0;min-height:44px;margin:0;padding:8px 10px;border:1px solid #c7c9cd;border-radius:8px;background:#fff;color:#202329;font:inherit}.ds-language button{cursor:pointer;font-weight:600}.ds-language :is(select,button):focus-visible{outline:2px solid #bd4700;outline-offset:3px}"
     }
   ],
   "narrative": {
     "northStar": "The Quiet Professional Workbench",
-    "overview": "The customer workspace feels calm, precise and trustworthy. White working surfaces, a neutral navigation rail and charcoal text let actual conversations, files and business tasks lead. Kilas orange carries identity and meaningful actions. The premium character comes from hierarchy, readable measures and consistent controls.\n\nThis records the implemented white workspace in `client-hub/static/kilas_premium.css`, its Finance color compatibility layer and the current customer templates. The owner's 2026-10-03 pinned brief replaces the historical dark customer direction and the audit-only visual restrictions in PRODUCT.md. Existing capabilities and permissions remain product truth. The theme is opt-in through `kilas-light`; Assist and admin keep their existing visual systems. Finance shares the light palette while retaining its original type, navigation, forms and layout, with the existing safe metric-text wrapping retained.",
+    "overview": "The customer workspace feels calm, precise and trustworthy. White working surfaces, a neutral navigation rail and charcoal text let actual conversations, files and business tasks lead. Kilas orange carries identity and meaningful actions. The premium character comes from hierarchy, readable measures and consistent controls.\n\nThis records the implemented white workspace in `client-hub/static/kilas_premium.css`, its scoped Finance presentation layer and the current customer templates. The owner's 2026-10-03 pinned brief replaces the historical dark customer direction and the audit-only visual restrictions in PRODUCT.md. Existing capabilities and permissions remain product truth. The theme is opt-in through `kilas-light`; Assist and admin keep their existing visual systems. Finance now shares Manrope and the neutral workbench surface through a scoped presentation layer. Its established financial workflows and overall shell geometry remain; presentation adds readable controls and safe metric-text wrapping.",
     "keyCharacteristics": [
       "White working surfaces and neutral navigation.",
-      "Manrope typography with a distinct preserved Finance font.",
+      "Manrope typography with a compact Finance body role.",
       "Deliberate orange identity, actions and selection states.",
       "Document-style assistant replies and compact persistent files.",
       "Task-led content with restrained borders and elevation."
@@ -449,8 +456,8 @@
         "section": "colors"
       },
       {
-        "name": "The Finance Type Boundary Rule",
-        "body": "Finance keeps the finance-body family and density; Manrope and the customer heading ramp do not replace its established typography.",
+        "name": "The Finance Density Rule",
+        "body": "Finance uses the compact finance-body role with Manrope; preserve its established task hierarchy rather than applying the customer heading ramp wholesale.",
         "section": "typography"
       },
       {
@@ -468,7 +475,7 @@
       "Do use the opt-in customer theme and its recorded tokens for new customer surfaces.",
       "Do lead with the actual task and readable content.",
       "Do retain visible focus, meaningful labels and real status text.",
-      "Do preserve Finance's typography, geometry and financial behavior.",
+      "Do use the compact Finance body role while preserving its overall geometry and financial behavior.",
       "Do preserve persistent file links, chat history and existing permissions."
     ],
     "donts": [
