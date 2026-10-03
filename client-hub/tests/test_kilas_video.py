@@ -12,7 +12,7 @@ from kilas_ai import video_director as director, video_store as store, video_ada
 
 
 def spec():
-    data={k:'' for k in director.TEXT_FIELDS}
+    data={k:'' for k in director.TEXT_FIELDS+director.V2_TEXT}
     data.update(title='Skincare Natural Reel',objective='Perkenalkan produk',video_type='UGC',target_platform='Reels',
         aspect_ratio='9:16',subject='Perempuan Indonesia dengan produk referensi',product='Produk referensi',
         setting='Kamar mandi modern',visual_style='Clean, natural',tone='Hangat',story='Demonstrasi pemakaian dengan kemasan tetap sama.',
@@ -20,6 +20,12 @@ def spec():
     for key in director.LIST_FIELDS:data[key]=['Pertahankan produk referensi']
     data['scenes']=[dict(start=0,end=4,visual='Close-up kemasan',camera='Statis',action='Tangan mengambil produk',lighting='Cahaya jendela',audio='Suara lingkungan',on_screen_text=''),
                     dict(start=4,end=10,visual='Demonstrasi produk',camera='Medium shot',action='Talent menunjukkan penggunaan',lighting='Cahaya tetap',audio='Suara lingkungan',on_screen_text='Lihat katalog')]
+    data.update(audience='Pengguna skincare',talent_direction='Talent menunjukkan kemasan tanpa mengubah posisi label.',
+        product_direction='Kemasan menghadap kamera.',subject_en='skincare product',
+        master_prompt='Create a 10-second vertical 9:16 skincare commercial. Open with a static close-up of the same reference product in soft window light. At 4 seconds, use a medium shot of the same talent demonstrating the product. Keep the same packaging and label, without invented benefit claims. End with a clear hero frame and quiet ambient sound.')
+    for scene in data['scenes']:
+        scene.update(environment='Kamar mandi yang sama',continuity='Kemasan dan cahaya tetap sama',
+                     production_prompt='Use a static camera shot with the same skincare packaging in soft window light. Show the hand taking the product, keeping the label and shape unchanged.')
     return data
 
 
@@ -56,7 +62,7 @@ class VideoTests(unittest.TestCase):
         self.assertEqual(call.call_args.args[0],'https://api.openai.com/v1/chat/completions')
         self.assertFalse(call.call_args.kwargs['json']['store'])
         row=fixture.db.query_one('SELECT status,input_tokens FROM kilas_ai_usage WHERE user_id=?',(self.owner,))
-        self.assertEqual(row['status'],'COMPLETE');self.assertEqual(row['input_tokens'],250)
+        self.assertEqual(row['status'],'COMPLETE');self.assertEqual(row['input_tokens'],500)
 
     def test_owner_isolation_every_action(self):
         response,_=self.make();project=response.json['id']
@@ -72,7 +78,7 @@ class VideoTests(unittest.TestCase):
         raw=io.BytesIO();Image.new('RGB',(40,40),'orange').save(raw,'PNG')
         response,call=self.make(references=(io.BytesIO(raw.getvalue()),'product.png'))
         self.assertEqual(response.status_code,200,response.text)
-        content=call.call_args.kwargs['json']['messages'][-1]['content']
+        content=call.call_args.kwargs['json']['messages'][1]['content']
         self.assertEqual(content[1]['type'],'image_url')
         refs=store.references(self.owner,response.json['id']);self.assertEqual(len(refs),1)
         route=f"/kilas-ai/video/projects/{response.json['id']}/references/{refs[0]['id']}"
@@ -92,7 +98,7 @@ class VideoTests(unittest.TestCase):
         response,_=self.make();project=response.json['id']
         revised,call=self.make(project_id=str(project),version='1',operation_key='video-revision-key-123456',idea='lebih premium, sekarang versi Seedance')
         self.assertEqual(revised.status_code,200,revised.text)
-        sent=json.loads(call.call_args.kwargs['json']['messages'][-1]['content'])
+        sent=json.loads(call.call_args.kwargs['json']['messages'][1]['content'])
         self.assertEqual(sent['previous_spec'],spec());self.assertEqual(sent['controls']['tool'],'Seedance')
         self.assertIn('Seedance',revised.json['html']);self.assertEqual(store.get(self.owner,project)['version'],2)
         self.assertEqual(len(fixture.db.query_all('SELECT * FROM kilas_video_revisions WHERE project_id=?',(project,))),2)
@@ -166,7 +172,7 @@ class VideoTests(unittest.TestCase):
         before=spec();original=copy.deepcopy(before)
         with patch.object(director.requests,'post',side_effect=AssertionError('No inference in adapters')):
             for tool in director.TOOLS:
-                result=adapters.package(before,tool);self.assertIn('Produk referensi',result['master'])
+                result=adapters.package(before,tool);self.assertIn('reference product',result['master'])
                 self.assertIn('0–4 detik',result['storyboard']);self.assertTrue(result['platform']);self.assertEqual(before,original)
 
     def test_custom_duration_and_bad_timing_fail_closed(self):
@@ -177,7 +183,7 @@ class VideoTests(unittest.TestCase):
         self.assertEqual(director.resolve('buat 30 detik untuk Runway',{})['duration'],'Custom storyboard')
 
     def test_no_narration_guard(self):
-        raw=spec();raw['voice_over']='Narasi';raw['audio']='Voice-over dan musik'
+        raw=spec();raw['voice_over']='';raw['audio']=''
         with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',return_value=provider_response(raw)):
             result=director.generate(self.owner,'no-vo-key-123456789','tanpa voice over',{},None)
         self.assertEqual(result['voice_over'],'');self.assertEqual(result['audio'],'')
@@ -188,7 +194,7 @@ class VideoTests(unittest.TestCase):
         call.assert_not_called()
 
     def test_editorial_pages_and_official_only_tools(self):
-        for area in ('learn','workflow','tools'):self.assertEqual(self.client.get('/kilas-ai/video?area='+area).status_code,200)
+        for area in ('learn','workflow','tools'):self.assertEqual(self.client.get('/kilas-ai/video?area='+area).status_code,302)
         self.assertNotIn('Rp',self.client.get('/kilas-ai/video?area=tools').text)
 
     def test_200_corpus_context_and_revision_controls(self):

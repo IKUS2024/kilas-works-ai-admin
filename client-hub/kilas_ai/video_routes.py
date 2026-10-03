@@ -3,10 +3,11 @@ import io
 import json
 import re
 import secrets
+import time
 from werkzeug.exceptions import HTTPException
 from flask import abort, redirect, render_template, request, session, send_file, url_for
 from .routes import ai_bp
-from . import attachments, usage, video_store as store, video_director as director, video_adapters as adapters, video_content
+from . import attachments, usage, video_store as store, video_director as director, video_adapters as adapters, video_brief
 
 
 def owner():return session['user_id']
@@ -20,22 +21,23 @@ def owned(project):
 
 def output(row):
     spec=json.loads(row['spec_json']) if row['version'] else None
-    controls=json.loads(row['options_json'])
+    controls={k:v for k,v in json.loads(row['options_json']).items() if not k.startswith('_')}
+    active_refs=json.loads(row['options_json']).get('_brief',{}).get('use_references',True)
     return dict(project=row,spec=spec,controls=controls,package=adapters.package(spec,controls.get('tool','Universal')) if spec else None,
-                references=store.references(owner(),row['id']))
+                references=store.references(owner(),row['id']) if active_refs else [])
 
 
 @ai_bp.get('/video',endpoint='video_home')
 @ai_bp.get('/video/projects/<int:project>',endpoint='video_project')
 def home(project=None):
     area=request.args.get('area','plan')
-    if area not in ('plan','learn','workflow','tools'):abort(404)
+    if area in ('learn','workflow','tools'):return redirect(url_for('kilas_ai.video_home'),code=302)
+    if area!='plan':abort(404)
     try:page=max(1,min(10000,int(request.args.get('page',1))))
     except ValueError:abort(400)
     row=owned(project) if project else None
     rows=store.history(owner(),page)
     return render_template('kilas_video/home.html',area=area,history=rows[:20],more=len(rows)>20,page=page,
-        tools=video_content.TOOLS,lessons=video_content.LESSONS,workflows=video_content.WORKFLOWS,
         plan_types=('Product','UGC','Ads','Cinematic','Social Content','Education','Fashion','Food','Travel','Other'),
         target_tools=director.TOOLS,operation_key=secrets.token_hex(16),
         project=row,controls=json.loads(row['options_json']) if row else {},**({k:v for k,v in output(row).items() if k not in ('project','controls')} if row else {'spec':None,'package':None,'references':[]}))
@@ -43,6 +45,7 @@ def home(project=None):
 
 @ai_bp.post('/video/plan',endpoint='video_generate')
 def generate():
+    deadline=time.monotonic()+145  # Below incumbent 180s worker timeout, including uploads.
     text=str(request.form.get('idea','')).strip()
     key=str(request.form.get('operation_key',''))
     if not 3<=len(text)<=2400 or not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',key):return {'error':'Tulis ide atau revisi hingga 2.400 karakter, lalu coba lagi.'},400
@@ -69,7 +72,11 @@ def generate():
             text=row['idea'];controls=json.loads(row['options_json'])
         if not store.claim(owner(),row['id'],row['version']):return {'error':'Rencana sedang disusun. Tunggu, lalu buka ulang rencana.','url':url_for('kilas_ai.video_project',project=row['id'])},409
         try:
-            spec=director.generate(owner(),key,text,controls,json.loads(row['spec_json']) if row['version'] else None,store.references(owner(),row['id']))
+            previous=json.loads(row['spec_json']) if row['version'] else None
+            brief=video_brief.build(text,controls,previous,row['version'],row['id'])
+            refs=store.references(owner(),row['id']) if brief.get('use_references',True) else []
+            spec=director.generate(owner(),key,text,controls,previous,refs,brief=brief,deadline=deadline)
+            controls['_brief']=video_brief.commit(brief,spec)
             store.save(owner(),row['id'],row['version'],spec,controls,text)
         except Exception:
             store.fail(owner(),row['id'],row['version']);raise

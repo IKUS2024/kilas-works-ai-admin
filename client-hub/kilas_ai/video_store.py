@@ -34,16 +34,17 @@ def references(owner,project):
 
 def claim(owner,project,version):
     with transaction() as conn:
-        row=usage._query(conn,"UPDATE kilas_video_projects SET status='GENERATING',updated_at=? WHERE id=? AND user_id=? AND version=? AND deleted_at IS NULL AND (status!='GENERATING' OR updated_at<?) RETURNING id",(stamp(),project,owner,version,(datetime.now(timezone.utc)-timedelta(minutes=3)).isoformat()),one=True)
+        row=usage._query(conn,"UPDATE kilas_video_projects SET status='GENERATING',updated_at=? WHERE id=? AND user_id=? AND version=? AND deleted_at IS NULL AND (status!='GENERATING' OR updated_at<?) RETURNING id",(stamp(),project,owner,version,(datetime.now(timezone.utc)-timedelta(minutes=6)).isoformat()),one=True)
         return bool(row)
 
 
 def save(owner,project,version,spec,options,instruction):
     encoded=json.dumps(spec,ensure_ascii=False)
     with transaction() as conn:
-        row=usage._query(conn,"UPDATE kilas_video_projects SET spec_json=?,options_json=?,version=version+1,status='READY',title=CASE WHEN version=0 THEN ? ELSE title END,updated_at=? WHERE id=? AND user_id=? AND version=? AND status='GENERATING' AND deleted_at IS NULL RETURNING id",(encoded,json.dumps(options),spec['title'][:60],stamp(),project,owner,version),one=True)
+        row=usage._query(conn,"UPDATE kilas_video_projects SET spec_json=?,options_json=?,idea=?,version=version+1,status='READY',title=?,updated_at=? WHERE id=? AND user_id=? AND version=? AND status='GENERATING' AND deleted_at IS NULL RETURNING id",(encoded,json.dumps(options),instruction,spec['title'][:60],stamp(),project,owner,version),one=True)
         if not row:raise ValueError('revision_conflict')
-        usage._query(conn,'INSERT INTO kilas_video_revisions(project_id,version,instruction,spec_json,created_at) VALUES (?,?,?,?,?)',(project,version+1,instruction,encoded,stamp()))
+        snapshot=json.dumps({'plan':spec,'brief':options['_brief']},ensure_ascii=False) if '_brief' in options else encoded
+        usage._query(conn,'INSERT INTO kilas_video_revisions(project_id,version,instruction,spec_json,created_at) VALUES (?,?,?,?,?)',(project,version+1,instruction,snapshot,stamp()))
 
 
 def fail(owner,project,version):

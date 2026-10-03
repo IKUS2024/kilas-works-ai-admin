@@ -1,5 +1,6 @@
 """0082 additive rehearsal and owner/reference/revision preservation on loopback PostgreSQL only."""
 import os
+import json
 from pathlib import Path
 import sys
 import uuid
@@ -38,6 +39,16 @@ def main():
             assert video_schema.apply_release()==[]
             assert video_store.get(owner,project)['version']==1
             assert not video_store.claim(owner,project,0)
+            for version,subject in [(1,'baju'),(2,'makanan')]:
+                assert video_store.claim(owner,project,version)
+                brief={'subject':subject,'revision_number':version+1,'revision_kind':'REPLACE_CORE'}
+                video_store.save(owner,project,version,{'title':'Arahan '+subject},{'_brief':brief},'Ganti jadi '+subject)
+                active=video_store.get(owner,project)
+                assert active['title']=='Arahan '+subject and active['version']==version+1
+                assert json.loads(active['options_json'])['_brief']==brief
+            snapshots=db.query_all('SELECT version,spec_json FROM kilas_video_revisions WHERE project_id=? ORDER BY version',(project,))
+            assert [s['version'] for s in snapshots]==[1,2,3]
+            assert json.loads(snapshots[-1]['spec_json'])['brief']['subject']=='makanan'
             video_store.delete(owner,project);assert video_store.get(owner,project) is None
             assert db.query_one('SELECT id FROM kilas_video_projects WHERE id=?',(project,))
     finally:

@@ -1,0 +1,9 @@
+﻿# Kilas Video Director V2 status
+
+Starting remote main: bb751ceee6637e807be0dc93adf4ec5cbd08fca2. Work branch: feature/kilas-video-director-v2-20261003.
+
+IN PROGRESS. Scope is Video only. Existing projects/references/history are preserved; no schema migration. Canonical brief lives in server-only options JSON; each new revision stores its brief snapshot with the plan in existing revision JSON. Core replacement clears old derived context and unrequested references; active title/options/plan/version save atomically. Two bounded, metered existing Sol planning/review calls; English master and per-scene production prompts, deterministic contamination/language/timing/claim checks, old-plan compatibility. One editorial white workspace; retired education/workflow/tools URLs redirect to Video Plan.
+
+Local 22 incumbent tests and 12 new V2 contracts passed, including 320 offline canonical replacement evaluations. These are deterministic offline evaluations, not 320 live model answers. Eight-width real-browser QA, bounded Impeccable review/documentation, production Sol call availability and creative quality, CI/native PostgreSQL, release diff and controlled production replacement chain remain pending. Existing unrelated dirty release documents remain preserved.
+
+Eight-width browser replacement chain and all incumbent Video journeys PASS. A first rendered review found incorrect AJAX history insertion after adding the outline; fixed the narrow selector, added assertions, and confirmed all widths. One scoped detector produced Jinja/CSS-resolution and local typography advisories. Independent finish reviewer requested only visible copy-feedback recaptures; these are in progress. Video requests have a 145-second shared time budget below the existing 180-second worker timeout; no global server configuration change.

@@ -35,7 +35,7 @@
     event.preventDefault();if(!form.reportValidity())return;
     const button=root.querySelector('#video-submit'),status=root.querySelector('#video-status'),error=root.querySelector('#video-error');
     const data=new FormData(form);data.delete('references');if(!form.elements.project_id.value)pending.forEach(file=>data.append('references',file));
-    input.blur();button.disabled=true;picker.disabled=true;form.setAttribute('aria-busy','true');error.hidden=true;status.textContent='Menyusun konsep, storyboard, dan arahan produksi…';
+    input.blur();button.disabled=true;picker.disabled=true;form.setAttribute('aria-busy','true');error.hidden=true;status.textContent='Menyusun dan meninjau arahan kreatif, storyboard, dan prompt produksi…';
     try{const response=await fetch(form.action,{method:'POST',body:data,headers:{'Accept':'application/json'}});if(response.redirected){location.assign(response.url);return;}
       const result=await response.json();if(!response.ok){
         form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');
@@ -43,16 +43,20 @@
         throw new Error(result.error||'Rencana belum dapat disusun. Coba lagi.');
       }
       root.querySelector('#video-result').innerHTML=result.html;
+      root.querySelector('#video-active-title').textContent=result.title;
+      root.querySelector('#video-active-version').textContent='Versi '+result.version+' · Rencana aktif';
+      root.querySelector('#video-revision-context').hidden=false;
+      root.querySelector('#video-outline').hidden=false;
       root.querySelector('#video-project-actions').innerHTML=result.manage_html;
       form.elements.project_id.value=result.id;form.elements.version.value=result.version;form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');
       for(const [key,value] of Object.entries(result.controls))if(form.elements[key])form.elements[key].value=value;
       input.value='';input.placeholder='Contoh: lebih premium, tanpa voice-over, produknya tetap sama.';
-      root.querySelector('#video-composer-label').textContent='Apa yang ingin kamu ubah?';
+      root.querySelector('#video-composer-label').textContent='Ubah atau sempurnakan rencana';
       root.querySelector('#video-reference-control').hidden=true;pending=[];showPending();button.textContent='Perbarui rencana';
       history.replaceState(null,'',result.url);status.textContent='Rencana tersimpan. Kamu bisa menyalin prompt atau meminta revisi.';
-      const list=root.querySelector('.video-history ul')||document.createElement('ul');const link=document.createElement('a');link.href=result.url;link.textContent=result.title;link.setAttribute('aria-current','page');
+      const list=root.querySelector('.video-history>ul')||document.createElement('ul');const link=document.createElement('a');link.href=result.url;link.textContent=result.title;link.setAttribute('aria-current','page');
       list.querySelectorAll('a').forEach(a=>{a.removeAttribute('aria-current');if(a.getAttribute('href')===result.url)a.parentElement.remove();});const item=document.createElement('li');item.append(link);list.prepend(item);
-      if(!list.parentElement){root.querySelector('.video-history>p')?.remove();root.querySelector('.video-history h2').after(list);}
+      if(!list.parentElement){root.querySelector('.video-history>p')?.remove();root.querySelector('.video-history>h2').after(list);}
       // No automatic composer focus: completing a plan must not reopen a mobile keyboard.
     }catch(problem){error.textContent=problem.message||'Koneksi terputus. Buka riwayat sebelum mencoba ulang.';error.hidden=false;status.textContent='';}
     finally{button.disabled=false;picker.disabled=false;form.removeAttribute('aria-busy');}
