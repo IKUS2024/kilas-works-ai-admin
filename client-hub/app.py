@@ -241,10 +241,15 @@ def create_app():
     from kilas_ai import agent_routes  # Agent UI reuses the existing Automation engine.
     from kilas_ai import autonomous_routes  # Additive jobs remain behind their own disabled-by-default flag.
     from kilas_ai import connector_routes  # Owner-only OAuth and exact-payload approval routes.
+    from kilas_ai import video_routes  # Isolated, metered Video planning; no video inference.
+    if kilas_ai_enabled():
+        from kilas_ai import video_schema
+        video_schema.apply_release()  # Only additive 0082; checksum-idempotent.
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)
     app.jinja_env.globals["kilas_ai_enabled"] = kilas_ai_enabled
+    app.jinja_env.globals["kilas_video_enabled"] = kilas_ai_enabled
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
     from routes_workspace import workspace_bp

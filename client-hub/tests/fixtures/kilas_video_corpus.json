@@ -1,0 +1,2002 @@
+[
+  {
+    "id": "V001",
+    "category": "parfum",
+    "video_type": "UGC",
+    "idea": "gw mau bikin parfum buat reels, natural, di malam di Jakarta, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Universal",
+    "preserve": "kemasan botol",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V002",
+    "category": "parfum",
+    "video_type": "Ads",
+    "idea": "Buat iklan parfum 15 detik untuk TikTok di malam di Jakarta. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Google Flow",
+    "preserve": "kemasan botol",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V003",
+    "category": "parfum",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep parfum yg premium, setting malam di Jakarta, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Seedance",
+    "preserve": "kemasan botol",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V004",
+    "category": "parfum",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang parfum, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Higgsfield",
+    "preserve": "kemasan botol",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V005",
+    "category": "parfum",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about parfum at malam di Jakarta; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Runway",
+    "preserve": "kemasan botol",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V006",
+    "category": "parfum",
+    "video_type": "Product",
+    "idea": "ini foto parfum, bikin konsep premium di malam di Jakarta, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Universal",
+    "preserve": "kemasan botol",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V007",
+    "category": "parfum",
+    "video_type": "UGC",
+    "idea": "gue mau parfum kaya gini, natural aja di malam di Jakarta, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Google Flow",
+    "preserve": "kemasan botol",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V008",
+    "category": "parfum",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang parfum di malam di Jakarta, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Seedance",
+    "preserve": "kemasan botol",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V009",
+    "category": "skincare",
+    "video_type": "UGC",
+    "idea": "gw mau bikin skincare buat reels, natural, di kamar mandi modern, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Google Flow",
+    "preserve": "bentuk dan label produk",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V010",
+    "category": "skincare",
+    "video_type": "Ads",
+    "idea": "Buat iklan skincare 15 detik untuk TikTok di kamar mandi modern. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Seedance",
+    "preserve": "bentuk dan label produk",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V011",
+    "category": "skincare",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep skincare yg premium, setting kamar mandi modern, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Higgsfield",
+    "preserve": "bentuk dan label produk",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V012",
+    "category": "skincare",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang skincare, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Runway",
+    "preserve": "bentuk dan label produk",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V013",
+    "category": "skincare",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about skincare at kamar mandi modern; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Universal",
+    "preserve": "bentuk dan label produk",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V014",
+    "category": "skincare",
+    "video_type": "Product",
+    "idea": "ini foto skincare, bikin konsep premium di kamar mandi modern, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Google Flow",
+    "preserve": "bentuk dan label produk",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V015",
+    "category": "skincare",
+    "video_type": "UGC",
+    "idea": "gue mau skincare kaya gini, natural aja di kamar mandi modern, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Seedance",
+    "preserve": "bentuk dan label produk",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V016",
+    "category": "skincare",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang skincare di kamar mandi modern, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Higgsfield",
+    "preserve": "bentuk dan label produk",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V017",
+    "category": "kopi",
+    "video_type": "UGC",
+    "idea": "gw mau bikin kopi buat reels, natural, di kafe pagi, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Seedance",
+    "preserve": "cangkir dan logo",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V018",
+    "category": "kopi",
+    "video_type": "Ads",
+    "idea": "Buat iklan kopi 15 detik untuk TikTok di kafe pagi. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Higgsfield",
+    "preserve": "cangkir dan logo",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V019",
+    "category": "kopi",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep kopi yg premium, setting kafe pagi, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Runway",
+    "preserve": "cangkir dan logo",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V020",
+    "category": "kopi",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang kopi, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Universal",
+    "preserve": "cangkir dan logo",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V021",
+    "category": "kopi",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about kopi at kafe pagi; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Google Flow",
+    "preserve": "cangkir dan logo",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V022",
+    "category": "kopi",
+    "video_type": "Product",
+    "idea": "ini foto kopi, bikin konsep premium di kafe pagi, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Seedance",
+    "preserve": "cangkir dan logo",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V023",
+    "category": "kopi",
+    "video_type": "UGC",
+    "idea": "gue mau kopi kaya gini, natural aja di kafe pagi, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Higgsfield",
+    "preserve": "cangkir dan logo",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V024",
+    "category": "kopi",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang kopi di kafe pagi, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Runway",
+    "preserve": "cangkir dan logo",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V025",
+    "category": "sepatu sport",
+    "video_type": "UGC",
+    "idea": "gw mau bikin sepatu sport buat reels, natural, di lapangan olahraga, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Higgsfield",
+    "preserve": "warna dan sol sepatu",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V026",
+    "category": "sepatu sport",
+    "video_type": "Ads",
+    "idea": "Buat iklan sepatu sport 15 detik untuk TikTok di lapangan olahraga. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Runway",
+    "preserve": "warna dan sol sepatu",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V027",
+    "category": "sepatu sport",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep sepatu sport yg premium, setting lapangan olahraga, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Universal",
+    "preserve": "warna dan sol sepatu",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V028",
+    "category": "sepatu sport",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang sepatu sport, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Google Flow",
+    "preserve": "warna dan sol sepatu",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V029",
+    "category": "sepatu sport",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about sepatu sport at lapangan olahraga; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Seedance",
+    "preserve": "warna dan sol sepatu",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V030",
+    "category": "sepatu sport",
+    "video_type": "Product",
+    "idea": "ini foto sepatu sport, bikin konsep premium di lapangan olahraga, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Higgsfield",
+    "preserve": "warna dan sol sepatu",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V031",
+    "category": "sepatu sport",
+    "video_type": "UGC",
+    "idea": "gue mau sepatu sport kaya gini, natural aja di lapangan olahraga, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Runway",
+    "preserve": "warna dan sol sepatu",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V032",
+    "category": "sepatu sport",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang sepatu sport di lapangan olahraga, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Universal",
+    "preserve": "warna dan sol sepatu",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V033",
+    "category": "fashion",
+    "video_type": "UGC",
+    "idea": "gw mau bikin fashion buat reels, natural, di studio natural, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Runway",
+    "preserve": "pakaian dan talent",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V034",
+    "category": "fashion",
+    "video_type": "Ads",
+    "idea": "Buat iklan fashion 15 detik untuk TikTok di studio natural. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Universal",
+    "preserve": "pakaian dan talent",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V035",
+    "category": "fashion",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep fashion yg premium, setting studio natural, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Google Flow",
+    "preserve": "pakaian dan talent",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V036",
+    "category": "fashion",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang fashion, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Seedance",
+    "preserve": "pakaian dan talent",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V037",
+    "category": "fashion",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about fashion at studio natural; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Higgsfield",
+    "preserve": "pakaian dan talent",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V038",
+    "category": "fashion",
+    "video_type": "Product",
+    "idea": "ini foto fashion, bikin konsep premium di studio natural, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Runway",
+    "preserve": "pakaian dan talent",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V039",
+    "category": "fashion",
+    "video_type": "UGC",
+    "idea": "gue mau fashion kaya gini, natural aja di studio natural, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Universal",
+    "preserve": "pakaian dan talent",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V040",
+    "category": "fashion",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang fashion di studio natural, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Google Flow",
+    "preserve": "pakaian dan talent",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V041",
+    "category": "makanan",
+    "video_type": "UGC",
+    "idea": "gw mau bikin makanan buat reels, natural, di dapur, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Universal",
+    "preserve": "bentuk sajian",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V042",
+    "category": "makanan",
+    "video_type": "Ads",
+    "idea": "Buat iklan makanan 15 detik untuk TikTok di dapur. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Google Flow",
+    "preserve": "bentuk sajian",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V043",
+    "category": "makanan",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep makanan yg premium, setting dapur, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Seedance",
+    "preserve": "bentuk sajian",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V044",
+    "category": "makanan",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang makanan, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Higgsfield",
+    "preserve": "bentuk sajian",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V045",
+    "category": "makanan",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about makanan at dapur; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Runway",
+    "preserve": "bentuk sajian",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V046",
+    "category": "makanan",
+    "video_type": "Product",
+    "idea": "ini foto makanan, bikin konsep premium di dapur, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Universal",
+    "preserve": "bentuk sajian",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V047",
+    "category": "makanan",
+    "video_type": "UGC",
+    "idea": "gue mau makanan kaya gini, natural aja di dapur, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Google Flow",
+    "preserve": "bentuk sajian",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V048",
+    "category": "makanan",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang makanan di dapur, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Seedance",
+    "preserve": "bentuk sajian",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V049",
+    "category": "aplikasi kasir",
+    "video_type": "UGC",
+    "idea": "gw mau bikin aplikasi kasir buat reels, natural, di toko UMKM, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Google Flow",
+    "preserve": "tampilan aplikasi",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V050",
+    "category": "aplikasi kasir",
+    "video_type": "Ads",
+    "idea": "Buat iklan aplikasi kasir 15 detik untuk TikTok di toko UMKM. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Seedance",
+    "preserve": "tampilan aplikasi",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V051",
+    "category": "aplikasi kasir",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep aplikasi kasir yg premium, setting toko UMKM, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Higgsfield",
+    "preserve": "tampilan aplikasi",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V052",
+    "category": "aplikasi kasir",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang aplikasi kasir, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Runway",
+    "preserve": "tampilan aplikasi",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V053",
+    "category": "aplikasi kasir",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about aplikasi kasir at toko UMKM; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Universal",
+    "preserve": "tampilan aplikasi",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V054",
+    "category": "aplikasi kasir",
+    "video_type": "Product",
+    "idea": "ini foto aplikasi kasir, bikin konsep premium di toko UMKM, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Google Flow",
+    "preserve": "tampilan aplikasi",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V055",
+    "category": "aplikasi kasir",
+    "video_type": "UGC",
+    "idea": "gue mau aplikasi kasir kaya gini, natural aja di toko UMKM, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Seedance",
+    "preserve": "tampilan aplikasi",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V056",
+    "category": "aplikasi kasir",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang aplikasi kasir di toko UMKM, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Higgsfield",
+    "preserve": "tampilan aplikasi",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V057",
+    "category": "teknologi laptop",
+    "video_type": "UGC",
+    "idea": "gw mau bikin teknologi laptop buat reels, natural, di meja kerja, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Seedance",
+    "preserve": "bentuk perangkat",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V058",
+    "category": "teknologi laptop",
+    "video_type": "Ads",
+    "idea": "Buat iklan teknologi laptop 15 detik untuk TikTok di meja kerja. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Higgsfield",
+    "preserve": "bentuk perangkat",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V059",
+    "category": "teknologi laptop",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep teknologi laptop yg premium, setting meja kerja, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Runway",
+    "preserve": "bentuk perangkat",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V060",
+    "category": "teknologi laptop",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang teknologi laptop, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Universal",
+    "preserve": "bentuk perangkat",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V061",
+    "category": "teknologi laptop",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about teknologi laptop at meja kerja; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Google Flow",
+    "preserve": "bentuk perangkat",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V062",
+    "category": "teknologi laptop",
+    "video_type": "Product",
+    "idea": "ini foto teknologi laptop, bikin konsep premium di meja kerja, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Seedance",
+    "preserve": "bentuk perangkat",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V063",
+    "category": "teknologi laptop",
+    "video_type": "UGC",
+    "idea": "gue mau teknologi laptop kaya gini, natural aja di meja kerja, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Higgsfield",
+    "preserve": "bentuk perangkat",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V064",
+    "category": "teknologi laptop",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang teknologi laptop di meja kerja, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Runway",
+    "preserve": "bentuk perangkat",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V065",
+    "category": "hotel",
+    "video_type": "UGC",
+    "idea": "gw mau bikin hotel buat reels, natural, di lobi, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Higgsfield",
+    "preserve": "interior referensi",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V066",
+    "category": "hotel",
+    "video_type": "Ads",
+    "idea": "Buat iklan hotel 15 detik untuk TikTok di lobi. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Runway",
+    "preserve": "interior referensi",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V067",
+    "category": "hotel",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep hotel yg premium, setting lobi, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Universal",
+    "preserve": "interior referensi",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V068",
+    "category": "hotel",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang hotel, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Google Flow",
+    "preserve": "interior referensi",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V069",
+    "category": "hotel",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about hotel at lobi; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Seedance",
+    "preserve": "interior referensi",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V070",
+    "category": "hotel",
+    "video_type": "Product",
+    "idea": "ini foto hotel, bikin konsep premium di lobi, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Higgsfield",
+    "preserve": "interior referensi",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V071",
+    "category": "hotel",
+    "video_type": "UGC",
+    "idea": "gue mau hotel kaya gini, natural aja di lobi, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Runway",
+    "preserve": "interior referensi",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V072",
+    "category": "hotel",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang hotel di lobi, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Universal",
+    "preserve": "interior referensi",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V073",
+    "category": "travel",
+    "video_type": "UGC",
+    "idea": "gw mau bikin travel buat reels, natural, di pantai, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Runway",
+    "preserve": "lokasi yang diberikan",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V074",
+    "category": "travel",
+    "video_type": "Ads",
+    "idea": "Buat iklan travel 15 detik untuk TikTok di pantai. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Universal",
+    "preserve": "lokasi yang diberikan",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V075",
+    "category": "travel",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep travel yg premium, setting pantai, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Google Flow",
+    "preserve": "lokasi yang diberikan",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V076",
+    "category": "travel",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang travel, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Seedance",
+    "preserve": "lokasi yang diberikan",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V077",
+    "category": "travel",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about travel at pantai; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Higgsfield",
+    "preserve": "lokasi yang diberikan",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V078",
+    "category": "travel",
+    "video_type": "Product",
+    "idea": "ini foto travel, bikin konsep premium di pantai, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Runway",
+    "preserve": "lokasi yang diberikan",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V079",
+    "category": "travel",
+    "video_type": "UGC",
+    "idea": "gue mau travel kaya gini, natural aja di pantai, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Universal",
+    "preserve": "lokasi yang diberikan",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V080",
+    "category": "travel",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang travel di pantai, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Google Flow",
+    "preserve": "lokasi yang diberikan",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V081",
+    "category": "event musik",
+    "video_type": "UGC",
+    "idea": "gw mau bikin event musik buat reels, natural, di panggung, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Universal",
+    "preserve": "identitas acara",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V082",
+    "category": "event musik",
+    "video_type": "Ads",
+    "idea": "Buat iklan event musik 15 detik untuk TikTok di panggung. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Google Flow",
+    "preserve": "identitas acara",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V083",
+    "category": "event musik",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep event musik yg premium, setting panggung, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Seedance",
+    "preserve": "identitas acara",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V084",
+    "category": "event musik",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang event musik, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Higgsfield",
+    "preserve": "identitas acara",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V085",
+    "category": "event musik",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about event musik at panggung; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Runway",
+    "preserve": "identitas acara",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V086",
+    "category": "event musik",
+    "video_type": "Product",
+    "idea": "ini foto event musik, bikin konsep premium di panggung, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Universal",
+    "preserve": "identitas acara",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V087",
+    "category": "event musik",
+    "video_type": "UGC",
+    "idea": "gue mau event musik kaya gini, natural aja di panggung, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Google Flow",
+    "preserve": "identitas acara",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V088",
+    "category": "event musik",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang event musik di panggung, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Seedance",
+    "preserve": "identitas acara",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V089",
+    "category": "jasa foto",
+    "video_type": "UGC",
+    "idea": "gw mau bikin jasa foto buat reels, natural, di studio, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Google Flow",
+    "preserve": "layanan yang diberikan",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V090",
+    "category": "jasa foto",
+    "video_type": "Ads",
+    "idea": "Buat iklan jasa foto 15 detik untuk TikTok di studio. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Seedance",
+    "preserve": "layanan yang diberikan",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V091",
+    "category": "jasa foto",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep jasa foto yg premium, setting studio, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Higgsfield",
+    "preserve": "layanan yang diberikan",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V092",
+    "category": "jasa foto",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang jasa foto, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Runway",
+    "preserve": "layanan yang diberikan",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V093",
+    "category": "jasa foto",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about jasa foto at studio; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Universal",
+    "preserve": "layanan yang diberikan",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V094",
+    "category": "jasa foto",
+    "video_type": "Product",
+    "idea": "ini foto jasa foto, bikin konsep premium di studio, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Google Flow",
+    "preserve": "layanan yang diberikan",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V095",
+    "category": "jasa foto",
+    "video_type": "UGC",
+    "idea": "gue mau jasa foto kaya gini, natural aja di studio, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Seedance",
+    "preserve": "layanan yang diberikan",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V096",
+    "category": "jasa foto",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang jasa foto di studio, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Higgsfield",
+    "preserve": "layanan yang diberikan",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V097",
+    "category": "kursus",
+    "video_type": "UGC",
+    "idea": "gw mau bikin kursus buat reels, natural, di ruang belajar, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Seedance",
+    "preserve": "materi pelajaran",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V098",
+    "category": "kursus",
+    "video_type": "Ads",
+    "idea": "Buat iklan kursus 15 detik untuk TikTok di ruang belajar. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Higgsfield",
+    "preserve": "materi pelajaran",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V099",
+    "category": "kursus",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep kursus yg premium, setting ruang belajar, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Runway",
+    "preserve": "materi pelajaran",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V100",
+    "category": "kursus",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang kursus, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Universal",
+    "preserve": "materi pelajaran",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V101",
+    "category": "kursus",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about kursus at ruang belajar; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Google Flow",
+    "preserve": "materi pelajaran",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V102",
+    "category": "kursus",
+    "video_type": "Product",
+    "idea": "ini foto kursus, bikin konsep premium di ruang belajar, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Seedance",
+    "preserve": "materi pelajaran",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V103",
+    "category": "kursus",
+    "video_type": "UGC",
+    "idea": "gue mau kursus kaya gini, natural aja di ruang belajar, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Higgsfield",
+    "preserve": "materi pelajaran",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V104",
+    "category": "kursus",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang kursus di ruang belajar, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Runway",
+    "preserve": "materi pelajaran",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V105",
+    "category": "restoran",
+    "video_type": "UGC",
+    "idea": "gw mau bikin restoran buat reels, natural, di meja makan, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Higgsfield",
+    "preserve": "menu referensi",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V106",
+    "category": "restoran",
+    "video_type": "Ads",
+    "idea": "Buat iklan restoran 15 detik untuk TikTok di meja makan. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Runway",
+    "preserve": "menu referensi",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V107",
+    "category": "restoran",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep restoran yg premium, setting meja makan, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Universal",
+    "preserve": "menu referensi",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V108",
+    "category": "restoran",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang restoran, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Google Flow",
+    "preserve": "menu referensi",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V109",
+    "category": "restoran",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about restoran at meja makan; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Seedance",
+    "preserve": "menu referensi",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V110",
+    "category": "restoran",
+    "video_type": "Product",
+    "idea": "ini foto restoran, bikin konsep premium di meja makan, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Higgsfield",
+    "preserve": "menu referensi",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V111",
+    "category": "restoran",
+    "video_type": "UGC",
+    "idea": "gue mau restoran kaya gini, natural aja di meja makan, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Runway",
+    "preserve": "menu referensi",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V112",
+    "category": "restoran",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang restoran di meja makan, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Universal",
+    "preserve": "menu referensi",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V113",
+    "category": "tas",
+    "video_type": "UGC",
+    "idea": "gw mau bikin tas buat reels, natural, di studio, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Runway",
+    "preserve": "warna dan jahitan",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V114",
+    "category": "tas",
+    "video_type": "Ads",
+    "idea": "Buat iklan tas 15 detik untuk TikTok di studio. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Universal",
+    "preserve": "warna dan jahitan",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V115",
+    "category": "tas",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep tas yg premium, setting studio, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Google Flow",
+    "preserve": "warna dan jahitan",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V116",
+    "category": "tas",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang tas, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Seedance",
+    "preserve": "warna dan jahitan",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V117",
+    "category": "tas",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about tas at studio; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Higgsfield",
+    "preserve": "warna dan jahitan",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V118",
+    "category": "tas",
+    "video_type": "Product",
+    "idea": "ini foto tas, bikin konsep premium di studio, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Runway",
+    "preserve": "warna dan jahitan",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V119",
+    "category": "tas",
+    "video_type": "UGC",
+    "idea": "gue mau tas kaya gini, natural aja di studio, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Universal",
+    "preserve": "warna dan jahitan",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V120",
+    "category": "tas",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang tas di studio, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Google Flow",
+    "preserve": "warna dan jahitan",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V121",
+    "category": "perhiasan",
+    "video_type": "UGC",
+    "idea": "gw mau bikin perhiasan buat reels, natural, di meja display, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Universal",
+    "preserve": "bentuk produk",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V122",
+    "category": "perhiasan",
+    "video_type": "Ads",
+    "idea": "Buat iklan perhiasan 15 detik untuk TikTok di meja display. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Google Flow",
+    "preserve": "bentuk produk",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V123",
+    "category": "perhiasan",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep perhiasan yg premium, setting meja display, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Seedance",
+    "preserve": "bentuk produk",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V124",
+    "category": "perhiasan",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang perhiasan, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Higgsfield",
+    "preserve": "bentuk produk",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V125",
+    "category": "perhiasan",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about perhiasan at meja display; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Runway",
+    "preserve": "bentuk produk",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V126",
+    "category": "perhiasan",
+    "video_type": "Product",
+    "idea": "ini foto perhiasan, bikin konsep premium di meja display, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Universal",
+    "preserve": "bentuk produk",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V127",
+    "category": "perhiasan",
+    "video_type": "UGC",
+    "idea": "gue mau perhiasan kaya gini, natural aja di meja display, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Google Flow",
+    "preserve": "bentuk produk",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V128",
+    "category": "perhiasan",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang perhiasan di meja display, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Seedance",
+    "preserve": "bentuk produk",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V129",
+    "category": "salon",
+    "video_type": "UGC",
+    "idea": "gw mau bikin salon buat reels, natural, di salon, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Google Flow",
+    "preserve": "layanan dan talent",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V130",
+    "category": "salon",
+    "video_type": "Ads",
+    "idea": "Buat iklan salon 15 detik untuk TikTok di salon. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Seedance",
+    "preserve": "layanan dan talent",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V131",
+    "category": "salon",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep salon yg premium, setting salon, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Higgsfield",
+    "preserve": "layanan dan talent",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V132",
+    "category": "salon",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang salon, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Runway",
+    "preserve": "layanan dan talent",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V133",
+    "category": "salon",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about salon at salon; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Universal",
+    "preserve": "layanan dan talent",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V134",
+    "category": "salon",
+    "video_type": "Product",
+    "idea": "ini foto salon, bikin konsep premium di salon, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Google Flow",
+    "preserve": "layanan dan talent",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V135",
+    "category": "salon",
+    "video_type": "UGC",
+    "idea": "gue mau salon kaya gini, natural aja di salon, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Seedance",
+    "preserve": "layanan dan talent",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V136",
+    "category": "salon",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang salon di salon, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Higgsfield",
+    "preserve": "layanan dan talent",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V137",
+    "category": "bengkel",
+    "video_type": "UGC",
+    "idea": "gw mau bikin bengkel buat reels, natural, di bengkel, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Seedance",
+    "preserve": "kendaraan referensi",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V138",
+    "category": "bengkel",
+    "video_type": "Ads",
+    "idea": "Buat iklan bengkel 15 detik untuk TikTok di bengkel. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Higgsfield",
+    "preserve": "kendaraan referensi",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V139",
+    "category": "bengkel",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep bengkel yg premium, setting bengkel, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Runway",
+    "preserve": "kendaraan referensi",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V140",
+    "category": "bengkel",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang bengkel, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Universal",
+    "preserve": "kendaraan referensi",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V141",
+    "category": "bengkel",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about bengkel at bengkel; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Google Flow",
+    "preserve": "kendaraan referensi",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V142",
+    "category": "bengkel",
+    "video_type": "Product",
+    "idea": "ini foto bengkel, bikin konsep premium di bengkel, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Seedance",
+    "preserve": "kendaraan referensi",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V143",
+    "category": "bengkel",
+    "video_type": "UGC",
+    "idea": "gue mau bengkel kaya gini, natural aja di bengkel, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Higgsfield",
+    "preserve": "kendaraan referensi",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V144",
+    "category": "bengkel",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang bengkel di bengkel, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Runway",
+    "preserve": "kendaraan referensi",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V145",
+    "category": "toko bunga",
+    "video_type": "UGC",
+    "idea": "gw mau bikin toko bunga buat reels, natural, di toko, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Higgsfield",
+    "preserve": "susunan bunga",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V146",
+    "category": "toko bunga",
+    "video_type": "Ads",
+    "idea": "Buat iklan toko bunga 15 detik untuk TikTok di toko. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Runway",
+    "preserve": "susunan bunga",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V147",
+    "category": "toko bunga",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep toko bunga yg premium, setting toko, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Universal",
+    "preserve": "susunan bunga",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V148",
+    "category": "toko bunga",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang toko bunga, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Google Flow",
+    "preserve": "susunan bunga",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V149",
+    "category": "toko bunga",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about toko bunga at toko; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Seedance",
+    "preserve": "susunan bunga",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V150",
+    "category": "toko bunga",
+    "video_type": "Product",
+    "idea": "ini foto toko bunga, bikin konsep premium di toko, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Higgsfield",
+    "preserve": "susunan bunga",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V151",
+    "category": "toko bunga",
+    "video_type": "UGC",
+    "idea": "gue mau toko bunga kaya gini, natural aja di toko, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Runway",
+    "preserve": "susunan bunga",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V152",
+    "category": "toko bunga",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang toko bunga di toko, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Universal",
+    "preserve": "susunan bunga",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V153",
+    "category": "buku",
+    "video_type": "UGC",
+    "idea": "gw mau bikin buku buat reels, natural, di perpustakaan, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Runway",
+    "preserve": "sampul buku",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V154",
+    "category": "buku",
+    "video_type": "Ads",
+    "idea": "Buat iklan buku 15 detik untuk TikTok di perpustakaan. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Universal",
+    "preserve": "sampul buku",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V155",
+    "category": "buku",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep buku yg premium, setting perpustakaan, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Google Flow",
+    "preserve": "sampul buku",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V156",
+    "category": "buku",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang buku, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Seedance",
+    "preserve": "sampul buku",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V157",
+    "category": "buku",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about buku at perpustakaan; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Higgsfield",
+    "preserve": "sampul buku",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V158",
+    "category": "buku",
+    "video_type": "Product",
+    "idea": "ini foto buku, bikin konsep premium di perpustakaan, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Runway",
+    "preserve": "sampul buku",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V159",
+    "category": "buku",
+    "video_type": "UGC",
+    "idea": "gue mau buku kaya gini, natural aja di perpustakaan, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Universal",
+    "preserve": "sampul buku",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V160",
+    "category": "buku",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang buku di perpustakaan, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Google Flow",
+    "preserve": "sampul buku",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V161",
+    "category": "furnitur",
+    "video_type": "UGC",
+    "idea": "gw mau bikin furnitur buat reels, natural, di ruang tamu, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Universal",
+    "preserve": "bentuk kursi",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V162",
+    "category": "furnitur",
+    "video_type": "Ads",
+    "idea": "Buat iklan furnitur 15 detik untuk TikTok di ruang tamu. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Google Flow",
+    "preserve": "bentuk kursi",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V163",
+    "category": "furnitur",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep furnitur yg premium, setting ruang tamu, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Seedance",
+    "preserve": "bentuk kursi",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V164",
+    "category": "furnitur",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang furnitur, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Higgsfield",
+    "preserve": "bentuk kursi",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V165",
+    "category": "furnitur",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about furnitur at ruang tamu; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Runway",
+    "preserve": "bentuk kursi",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V166",
+    "category": "furnitur",
+    "video_type": "Product",
+    "idea": "ini foto furnitur, bikin konsep premium di ruang tamu, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Universal",
+    "preserve": "bentuk kursi",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V167",
+    "category": "furnitur",
+    "video_type": "UGC",
+    "idea": "gue mau furnitur kaya gini, natural aja di ruang tamu, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Google Flow",
+    "preserve": "bentuk kursi",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V168",
+    "category": "furnitur",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang furnitur di ruang tamu, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Seedance",
+    "preserve": "bentuk kursi",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V169",
+    "category": "minuman",
+    "video_type": "UGC",
+    "idea": "gw mau bikin minuman buat reels, natural, di taman, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Google Flow",
+    "preserve": "label botol",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V170",
+    "category": "minuman",
+    "video_type": "Ads",
+    "idea": "Buat iklan minuman 15 detik untuk TikTok di taman. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Seedance",
+    "preserve": "label botol",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V171",
+    "category": "minuman",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep minuman yg premium, setting taman, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Higgsfield",
+    "preserve": "label botol",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V172",
+    "category": "minuman",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang minuman, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Runway",
+    "preserve": "label botol",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V173",
+    "category": "minuman",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about minuman at taman; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Universal",
+    "preserve": "label botol",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V174",
+    "category": "minuman",
+    "video_type": "Product",
+    "idea": "ini foto minuman, bikin konsep premium di taman, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Google Flow",
+    "preserve": "label botol",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V175",
+    "category": "minuman",
+    "video_type": "UGC",
+    "idea": "gue mau minuman kaya gini, natural aja di taman, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Seedance",
+    "preserve": "label botol",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V176",
+    "category": "minuman",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang minuman di taman, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Higgsfield",
+    "preserve": "label botol",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V177",
+    "category": "layanan desain",
+    "video_type": "UGC",
+    "idea": "gw mau bikin layanan desain buat reels, natural, di ruang kerja, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Seedance",
+    "preserve": "hasil karya referensi",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V178",
+    "category": "layanan desain",
+    "video_type": "Ads",
+    "idea": "Buat iklan layanan desain 15 detik untuk TikTok di ruang kerja. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Higgsfield",
+    "preserve": "hasil karya referensi",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V179",
+    "category": "layanan desain",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep layanan desain yg premium, setting ruang kerja, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Runway",
+    "preserve": "hasil karya referensi",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V180",
+    "category": "layanan desain",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang layanan desain, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Universal",
+    "preserve": "hasil karya referensi",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V181",
+    "category": "layanan desain",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about layanan desain at ruang kerja; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Google Flow",
+    "preserve": "hasil karya referensi",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V182",
+    "category": "layanan desain",
+    "video_type": "Product",
+    "idea": "ini foto layanan desain, bikin konsep premium di ruang kerja, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Seedance",
+    "preserve": "hasil karya referensi",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V183",
+    "category": "layanan desain",
+    "video_type": "UGC",
+    "idea": "gue mau layanan desain kaya gini, natural aja di ruang kerja, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Higgsfield",
+    "preserve": "hasil karya referensi",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V184",
+    "category": "layanan desain",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang layanan desain di ruang kerja, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Runway",
+    "preserve": "hasil karya referensi",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V185",
+    "category": "wisata kota",
+    "video_type": "UGC",
+    "idea": "gw mau bikin wisata kota buat reels, natural, di Jakarta, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Higgsfield",
+    "preserve": "landmark yang diberikan",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V186",
+    "category": "wisata kota",
+    "video_type": "Ads",
+    "idea": "Buat iklan wisata kota 15 detik untuk TikTok di Jakarta. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Runway",
+    "preserve": "landmark yang diberikan",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V187",
+    "category": "wisata kota",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep wisata kota yg premium, setting Jakarta, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Universal",
+    "preserve": "landmark yang diberikan",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V188",
+    "category": "wisata kota",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang wisata kota, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Google Flow",
+    "preserve": "landmark yang diberikan",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V189",
+    "category": "wisata kota",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about wisata kota at Jakarta; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Seedance",
+    "preserve": "landmark yang diberikan",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V190",
+    "category": "wisata kota",
+    "video_type": "Product",
+    "idea": "ini foto wisata kota, bikin konsep premium di Jakarta, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Higgsfield",
+    "preserve": "landmark yang diberikan",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V191",
+    "category": "wisata kota",
+    "video_type": "UGC",
+    "idea": "gue mau wisata kota kaya gini, natural aja di Jakarta, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Runway",
+    "preserve": "landmark yang diberikan",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V192",
+    "category": "wisata kota",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang wisata kota di Jakarta, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Universal",
+    "preserve": "landmark yang diberikan",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V193",
+    "category": "pendidikan sains",
+    "video_type": "UGC",
+    "idea": "gw mau bikin pendidikan sains buat reels, natural, di kelas, produknya jangan berubah",
+    "revision": "orangnya jangan ganti, bajunya sama, sekarang versi Runway",
+    "preserve": "fakta pelajaran",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V194",
+    "category": "pendidikan sains",
+    "video_type": "Ads",
+    "idea": "Buat iklan pendidikan sains 15 detik untuk TikTok di kelas. Jangan mengarang manfaat produk.",
+    "revision": "scene kedua terlalu rame, sederhanakan. Buat untuk Universal",
+    "preserve": "fakta pelajaran",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V195",
+    "category": "pendidikan sains",
+    "video_type": "Cinematic",
+    "idea": "weh bikinin konsep pendidikan sains yg premium, setting kelas, tanpa voice over",
+    "revision": "tempatnya jangan beda, produk tetap sama, sekarang versi Google Flow",
+    "preserve": "fakta pelajaran",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V196",
+    "category": "pendidikan sains",
+    "video_type": "Education",
+    "idea": "Susun video edukasi tentang pendidikan sains, rencana 20 detik, fokus pada informasi yang saya berikan.",
+    "revision": "gmn biar lebih jelas? scene 2 ganti, buat untuk Seedance",
+    "preserve": "fakta pelajaran",
+    "target_tool": "Seedance",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V197",
+    "category": "pendidikan sains",
+    "video_type": "Social Content",
+    "idea": "Plan a 30 second vertical video about pendidikan sains at kelas; keep the subject consistent.",
+    "revision": "Keep the outfit and location. Make a version for Higgsfield",
+    "preserve": "fakta pelajaran",
+    "target_tool": "Higgsfield",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V198",
+    "category": "pendidikan sains",
+    "video_type": "Product",
+    "idea": "ini foto pendidikan sains, bikin konsep premium di kelas, detail referensi dipertahankan",
+    "revision": "yang tadi aja, cahaya lebih lembut. Buat untuk Runway",
+    "preserve": "fakta pelajaran",
+    "target_tool": "Runway",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V199",
+    "category": "pendidikan sains",
+    "video_type": "UGC",
+    "idea": "gue mau pendidikan sains kaya gini, natural aja di kelas, pakai teks layar bukan narasi",
+    "revision": "jangan kaya AI, tanpa voice over. Sekarang versi Universal",
+    "preserve": "fakta pelajaran",
+    "target_tool": "Universal",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  },
+  {
+    "id": "V200",
+    "category": "pendidikan sains",
+    "video_type": "Ads",
+    "idea": "Bikin storyboard beberapa klip tentang pendidikan sains di kelas, ada hook dan CTA lihat katalog.",
+    "revision": "bikin mahal tapi jangan tambah klaim. Buat untuk Google Flow",
+    "preserve": "fakta pelajaran",
+    "target_tool": "Google Flow",
+    "expected": "Timed storyboard; useful hook and shot directions; preserved supplied identity; no invented claims; tool adapter only, no video generation."
+  }
+]

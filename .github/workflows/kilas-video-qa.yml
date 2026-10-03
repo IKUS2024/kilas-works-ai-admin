@@ -1,0 +1,71 @@
+name: Kilas Video QA
+on:
+  push:
+    branches: [main, 'feature/kilas-video-*']
+    paths:
+      - 'client-hub/kilas_ai/video_*.py'
+      - 'client-hub/templates/kilas_video/**'
+      - 'client-hub/static/kilas_video.*'
+      - 'client-hub/templates/_premium_navigation.html'
+      - 'client-hub/templates/product_start.html'
+      - 'client-hub/migrations/0082_*'
+      - 'client-hub/app.py'
+      - 'client-hub/db.py'
+      - 'client-hub/tests/test_kilas_video*.py'
+      - 'client-hub/tests/fixtures/kilas_video_corpus.json'
+      - '.github/workflows/kilas-video-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: cd client-hub && python tests/test_kilas_video.py
+      - run: cd client-hub && python tests/test_kilas_product_hardening.py
+      - run: cd client-hub && python tests/test_kilas_work_v2.py && python tests/test_kilas_work_documents.py
+      - run: cd client-hub && python tests/test_kilas_ai_tools.py && python tests/test_kilas_ai_usage.py
+      - run: cd client-hub && python tests/test_kilas_finance_baseline.py && python tests/test_assist_connections.py
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python client-hub/tests/test_kilas_video_browser.py
+      - run: python client-hub/tests/test_kilas_premium_ui_browser.py
+      - run: python client-hub/tests/test_kilas_ai_unified_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-video-responsive
+          path: /tmp/kilas-video-browser/*.png
+          if-no-files-found: ignore
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: video_qa}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d video_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python client-hub/tests/test_kilas_video_postgres.py
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/video_qa
+          KILAS_AI_POSTGRES_QA: '1'

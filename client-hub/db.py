@@ -299,6 +299,7 @@ MIGRATIONS = [
     ("0079_kilas_agent_conversations_sqlite.sql", "0079_kilas_agent_conversations_postgres.sql"),
     ("0080_kilas_work_artifact_files_sqlite.sql", "0080_kilas_work_artifact_files_postgres.sql"),
     ("0081_kilas_work_push_sqlite.sql", "0081_kilas_work_push_postgres.sql"),
+    ("0082_kilas_video_sqlite.sql", "0082_kilas_video_postgres.sql"),
 ]
 
 

@@ -1,0 +1,49 @@
+"""0082 additive rehearsal and owner/reference/revision preservation on loopback PostgreSQL only."""
+import os
+from pathlib import Path
+import sys
+import uuid
+from unittest.mock import patch
+from urllib.parse import urlsplit
+if os.environ.get('KILAS_AI_POSTGRES_QA')!='1' or urlsplit(os.environ.get('DATABASE_URL','')).hostname not in ('localhost','127.0.0.1'):
+    raise SystemExit('Explicit disposable loopback PostgreSQL required')
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+import db
+from kilas_ai import video_schema,video_store,usage
+
+
+def main():
+    isolated='video_qa_'+uuid.uuid4().hex
+    control=db.psycopg2.connect(db.DATABASE_URL);control.autocommit=True
+    with control.cursor() as cur:cur.execute('CREATE SCHEMA '+isolated)
+    original=db._postgres_connect_kwargs
+    def options():
+        values=original();return dict(values,options=values['options']+' -c search_path='+isolated)
+    try:
+        with patch.object(db,'_postgres_connect_kwargs',side_effect=options):
+            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith('0082_')]):db.init_schema()
+            before={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
+            assert video_schema.apply_release()==[video_schema.NAME];assert video_schema.apply_release()==[]
+            after={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
+            assert after-before=={'kilas_video_projects','kilas_video_revisions','kilas_video_references','kilas_video_releases'}
+            from kilas_ai.autonomous_store import transaction
+            with transaction() as conn:
+                owner=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES('video@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
+            project=video_store.create(owner,'Synthetic Video QA',{},'video-pg-key-123456789',images=[{'filename':'qa.png','mime_type':'image/png','byte_size':3,'content':b'abc'}])
+            assert bytes(video_store.references(owner,project)[0]['content'])==b'abc'
+            assert video_store.references(owner+1000,project)==[];assert video_store.get(owner+1000,project) is None
+            assert video_store.claim(owner,project,0);assert not video_store.claim(owner,project,0)
+            video_store.save(owner,project,0,{'title':'Synthetic Plan'}, {},'Original')
+            assert video_store.get(owner,project)['version']==1
+            assert video_schema.apply_release()==[]
+            assert video_store.get(owner,project)['version']==1
+            assert not video_store.claim(owner,project,0)
+            video_store.delete(owner,project);assert video_store.get(owner,project) is None
+            assert db.query_one('SELECT id FROM kilas_video_projects WHERE id=?',(project,))
+    finally:
+        with control.cursor() as cur:cur.execute('DROP SCHEMA '+isolated+' CASCADE')
+        control.close()
+    print('PASS: PostgreSQL 0082 additive/idempotent/bytea/owner/revision/lease/soft-delete preservation')
+
+
+if __name__=='__main__':main()
