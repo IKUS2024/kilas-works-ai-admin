@@ -57,6 +57,16 @@ def main():
             assert agent_attachments.sources(owner,new)==[{'filename':'qa.txt','text':'synthetic fact'}]
             assert agent_attachments.sources(owner+100000,new)==[]
             assert agent_attachments.sources(owner,historical)==[]
+            assert agent_attachments.latest_scan(owner,new) is None
+            chats.append(owner,'user','Synthetic scan',new,attachments=[{
+                'filename':'qa.pdf','mime_type':'application/pdf','byte_size':4,
+                'content':b'scan','extracted_text':'PDF scan: synthetic page'}])
+            assert agent_attachments.latest_scan(owner,new)['filename']=='qa.pdf'
+            assert agent_attachments.latest_scan(owner+100000,new) is None
+            chats.append(owner,'user','Synthetic image',new,attachments=[{
+                'filename':'qa.png','mime_type':'image/png','byte_size':5,'content':b'image'}])
+            assert agent_attachments.latest_images(owner,new)[0]['filename']=='qa.png'
+            assert agent_attachments.latest_images(owner+100000,new)==[]
             db.init_schema()
             assert chats.messages(owner,conversation_id=new)[0]['content']=='New conversation message'
             assert chats.messages(owner,conversation_id=historical)[0]['content']=='Historical message'

@@ -45,7 +45,7 @@ def latest_scan(user_id,conversation_id):
         'JOIN kilas_ai_threads t ON t.id=b.thread_id AND t.user_id=m.user_id '
         'JOIN kilas_ai_attachments a ON a.message_id=b.id AND a.thread_id=t.id AND a.user_id=m.user_id '
         "WHERE m.user_id=? AND m.conversation_id=? AND a.mime_type='application/pdf' "
-        "AND a.extracted_text LIKE '%PDF scan:%' ORDER BY m.id DESC,a.id DESC LIMIT 1",(user_id,conversation_id))
+        'AND a.extracted_text LIKE ? ORDER BY m.id DESC,a.id DESC LIMIT 1',(user_id,conversation_id,'%PDF scan:%'))
     return dict(row) if row else None
 
 
