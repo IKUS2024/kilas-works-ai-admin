@@ -134,5 +134,22 @@ class HardeningTests(base.UnifiedTests):
         self.assertEqual(unified_runtime.intent('ringkas PDF ini',prepared),'CHAT')
         self.assertEqual(unified_runtime.intent('ringkas PDF ini jadiin PDF baru',prepared),'DOCUMENT')
 
+    def test_all_recent_documents_survive_followup_budget(self):
+        from kilas_ai import agent_attachments, agent_chat
+        files=[{'filename':f'proposal-{n}.txt','mime_type':'text/plain','byte_size':12000,
+                'content':b'x'*12000,'extracted_text':str(n)*12000} for n in range(5)]
+        agent_store.append(self.owner,'user','bandingkan semua',self.conversation,attachments=files)
+        self.assertEqual(len(agent_attachments.sources(self.owner,self.conversation)),5)
+        with self.client().application.test_request_context():
+            messages=agent_chat.context(self.owner,self.conversation)
+        for n in range(5):self.assertIn(f'proposal-{n}.txt',str(messages))
+
+    def test_scheduled_research_document_retains_real_file_plan(self):
+        from kilas_ai import autonomous_planner, autonomous_store
+        job_id=autonomous_store.create(self.owner,'besok jam 5 buat laporan berita terbaru Amerika dalam PDF',mode='SCHEDULED')
+        plan=autonomous_planner.propose(autonomous_store.get(self.owner,job_id),[])
+        self.assertEqual([s['worker'] for s in plan['steps']],['WEB','DOCUMENT'])
+        self.assertEqual(plan['steps'][-1]['input']['format'],'pdf')
+
 
 if __name__=='__main__':unittest.main()

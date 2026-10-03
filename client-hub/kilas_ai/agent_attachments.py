@@ -8,7 +8,7 @@ import db
 from . import usage
 
 
-def sources(user_id, conversation_id):
+def sources(user_id, conversation_id, budget=12000):
     """Bounded document context from this owner's conversation, never binary replay."""
     rows=db.query_all(
         'SELECT a.filename,a.extracted_text FROM kilas_ai_agent_messages m '
@@ -17,13 +17,11 @@ def sources(user_id, conversation_id):
         'JOIN kilas_ai_attachments a ON a.message_id=b.id AND a.thread_id=t.id AND a.user_id=m.user_id '
         'WHERE m.user_id=? AND m.conversation_id=? AND a.extracted_text IS NOT NULL '
         'ORDER BY m.id DESC,a.id DESC LIMIT 5', (user_id,conversation_id))
-    budget=12000
+    per_file=min(4000,max(0,budget)//max(1,len(rows)))
     result=[]
     for row in rows:
-        value=row['extracted_text'][:min(4000,budget)]
+        value=row['extracted_text'][:per_file]
         if value:result.append({'filename':row['filename'],'text':value})
-        budget-=len(value)
-        if budget<=0:break
     return list(reversed(result))
 
 

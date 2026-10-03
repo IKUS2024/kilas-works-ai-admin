@@ -53,6 +53,9 @@ def propose(job, completed):
     from .agent_workers import capabilities, market_request, market_worker
     from . import work_documents
     from . import routing
+    document_plan=work_documents.plan(job)
+    if document_plan:
+        return validate(document_plan,job['mode'],job['instruction'])
     if job['mode'] in ('SCHEDULED','RECURRING') and routing.fresh_information(routing._normalize(job['instruction'])):
         query=job['instruction']
         return validate({'objective':query[:90],'mode':job['mode'],'stop_condition':'Riset terbaru dengan sumber tersimpan',
@@ -63,9 +66,6 @@ def propose(job, completed):
                 {'worker':'AI_TEXT','action':'write','instruction':'Merangkum hasil terverifikasi',
                  'input_json':json.dumps({'prompt':'Ringkas hasil pencarian terverifikasi untuk: '+query}),
                  'completion_criteria':'Ringkasan dan sumber tersimpan','requires_approval':False}]},job['mode'],query)
-    document_plan=work_documents.plan(job)
-    if document_plan:
-        return validate(document_plan,job['mode'],job['instruction'])
     source_id=json.loads(job['checkpoint_json']).get('image_source_id')
     if source_id:
         return validate({'objective':job['instruction'][:90],'mode':job['mode'],'stop_condition':'Gambar nyata tersimpan','next_action':'Ubah gambar','steps':[{'worker':'IMAGE','action':'edit','instruction':'Mengolah gambar sumber','input_json':json.dumps({'prompt':job['instruction'],'source_id':source_id}),'completion_criteria':'Gambar valid tersimpan','requires_approval':False}]},job['mode'],job['instruction'])

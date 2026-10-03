@@ -76,7 +76,9 @@ def main():
                     {"to": "wilson@example.test", "subject": "Pertemuan",
                      "body": "Besok jam 2 bisa."})
                 page.goto(origin + "/kilas-ai/agent?view=connections", wait_until="networkidle")
-                assert page.get_by_text(long_email).count()==1
+                assert page.get_by_text(long_email).count()==0
+                assert page.get_by_role("button", name="Hubungkan Google").count()==0
+                assert page.locator('.premium-navigation').get_by_text("Connections", exact=True).count()==0
                 assert connectors.google_connection(owner)["status"]=="CONNECTED"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long identity overflow")
                 page.goto(origin + "/kilas-ai/agent?view=chat", wait_until="networkidle")

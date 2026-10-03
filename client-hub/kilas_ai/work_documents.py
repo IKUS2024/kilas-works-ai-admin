@@ -35,7 +35,9 @@ def plan(job):
     if format not in FORMATS:
         steps.append(('UNAVAILABLE','request',{'capability':format},'Format '+format.upper()+' belum tersedia.'))
     else:
-        if RESEARCH.search(job['instruction']):steps.append(('WEB','search',{'query':job['instruction']},'Mencari sumber'))
+        from . import routing
+        if RESEARCH.search(job['instruction']) or (job['mode'] in ('SCHEDULED','RECURRING') and routing.fresh_information(routing._normalize(job['instruction']))):
+            steps.append(('WEB','search',{'query':job['instruction']},'Mencari sumber'))
         steps.append(('DOCUMENT','create',{'request':request,'format':format},'Menyusun dokumen dan memeriksa hasil'))
     return {'objective':job['instruction'][:90],'mode':job['mode'],'stop_condition':'File tervalidasi tersimpan','next_action':'Siapkan hasil pekerjaan',
             'steps':[{'worker':w,'action':a,'instruction':label,'input_json':json.dumps(data),'completion_criteria':'Hasil nyata tervalidasi dan tersimpan','requires_approval':False} for w,a,data,label in steps]}

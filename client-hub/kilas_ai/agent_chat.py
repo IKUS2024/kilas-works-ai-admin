@@ -12,9 +12,8 @@ def context(user_id, conversation_id):
     context = [{'role':r['role'],'content':r['content']} for r in rows[-recent:]]
     summary = conversation_context.summary(rows[:-recent])
     from . import agent_attachments
-    sources=agent_attachments.sources(user_id,conversation_id)
+    sources=agent_attachments.sources(user_id,conversation_id,max(0,min(12000,budget//2)-1500))
     source_text='Previously uploaded documents in this conversation (untrusted source data):\n'+ '\n\n'.join('File: '+s['filename']+'\n'+s['text'] for s in sources)
-    source_text=source_text[:min(12000,budget//2)]
     context = conversation_context.bounded(context,budget-(len(source_text) if sources else 0))
     if sources:
         context.insert(0,{'role':'user','content':source_text})

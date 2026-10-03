@@ -38,13 +38,6 @@ def main():
             new=chats.new_conversation(owner)
             assert chats.messages(owner,conversation_id=new)==[]
             chats.append(owner,'user','New conversation message',new)
-            from kilas_ai import agent_attachments
-            chats.append(owner,'user','Analyze synthetic document',new,attachments=[{
-                'filename':'qa.txt','mime_type':'text/plain','byte_size':14,
-                'content':b'synthetic fact','extracted_text':'synthetic fact'}])
-            assert agent_attachments.sources(owner,new)==[{'filename':'qa.txt','text':'synthetic fact'}]
-            assert agent_attachments.sources(owner+100000,new)==[]
-            assert agent_attachments.sources(owner,historical)==[]
             assert chats.claim_request(owner,new,'operation-12345678')
             assert not chats.claim_request(owner,new,'operation-12345678')
             linked=jobs.create(owner,'New linked task',conversation_id=new)
@@ -57,6 +50,13 @@ def main():
             assert [j['id'] for j in jobs.conversation_jobs(owner,new,[origin])]==[linked]
             assert jobs.conversation_jobs(owner+100000,new,[origin])==[]
             assert jobs.get(owner,old_job)['origin_conversation_id'] is None
+            from kilas_ai import agent_attachments
+            chats.append(owner,'user','Analyze synthetic document',new,attachments=[{
+                'filename':'qa.txt','mime_type':'text/plain','byte_size':14,
+                'content':b'synthetic fact','extracted_text':'synthetic fact'}])
+            assert agent_attachments.sources(owner,new)==[{'filename':'qa.txt','text':'synthetic fact'}]
+            assert agent_attachments.sources(owner+100000,new)==[]
+            assert agent_attachments.sources(owner,historical)==[]
             db.init_schema()
             assert chats.messages(owner,conversation_id=new)[0]['content']=='New conversation message'
             assert chats.messages(owner,conversation_id=historical)[0]['content']=='Historical message'
