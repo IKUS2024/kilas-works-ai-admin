@@ -53,6 +53,14 @@ class ConnectedVideoTests(unittest.TestCase):
         for total,strategy in [(0,'auto'),(181,'auto'),(30,'7'),(10,'15'),(True,'auto'),(180,'5')]:
             with self.assertRaises(ValueError):parts.timeline(total,strategy)
 
+    def test_connected_plan_bounds_reasoning_and_keeps_both_review_calls(self):
+        response,calls=self.send(multipart())
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(calls.call_count,2)
+        self.assertTrue(all(c.kwargs['json']['reasoning_effort']=='low' for c in calls.call_args_list))
+        self.assertLessEqual(calls.call_args_list[0].kwargs['timeout'][1],50)
+        self.assertLessEqual(calls.call_args_list[1].kwargs['timeout'][1],20)
+
     def test_single_legacy_contract_is_unchanged(self):
         value=spec();director.quality(value,briefs.build('video skincare 10 detik',{'plan_mode':'single'}))
         self.assertNotIn('parts',value);self.assertEqual(adapters.package(value)['master'],value['master_prompt'])

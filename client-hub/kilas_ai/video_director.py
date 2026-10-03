@@ -1,5 +1,6 @@
 """Metered idea/reference -> universal spec. No video generation APIs or tools."""
 import json
+import logging
 import copy
 import math
 import os
@@ -149,6 +150,9 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
     success=False;recorded={'input_tokens':0,'output_tokens':0,'cost_components':[]}
     # Reuse the configured, already supported complex Sol planner policy only here.
     brief=brief or video_brief.build(idea,controls,previous,1 if previous else 0)
+    # Connected plans already have deterministic timing/identity checks and a review.
+    # Bound reasoning latency as well as transport time for their larger JSON output.
+    if brief.get('plan_mode')=='multi':effort='low'
     deadline=deadline or time.monotonic()+75
     try:
         previous=video_brief.generation_context(brief,previous)
@@ -159,10 +163,15 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
         for stage in range(2):
             remaining=deadline-time.monotonic()-5
             if remaining<=0:raise ValueError('video_time_budget')
-            response=requests.post('https://api.openai.com/v1/chat/completions',
+            started=time.monotonic()
+            try:
+                response=requests.post('https://api.openai.com/v1/chat/completions',
                 headers={'Authorization':'Bearer '+provider_key,'Content-Type':'application/json'},
                 json={'model':model,'messages':messages,'response_format':{'type':'json_object'},
                       'max_completion_tokens':12000 if brief.get('plan_mode')=='multi' else 9000,'reasoning_effort':effort,'store':False},timeout=(5,min(50 if stage==0 else 20,remaining)))
+            except requests.Timeout:
+                logging.getLogger(__name__).warning('Video provider timeout stage=%s elapsed_seconds=%.1f',stage,time.monotonic()-started)
+                raise
             response.raise_for_status();data=response.json();used=data.get('usage') or {}
             inp=int(used.get('prompt_tokens',0));out=int(used.get('completion_tokens',0))
             recorded['input_tokens']+=inp;recorded['output_tokens']+=out
@@ -175,7 +184,12 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
                 parsed=json.loads(draft)
                 if stage:parsed=refinement(first_draft,parsed)
                 spec=quality(parsed,brief,previous);issue=''
-            except ValueError as error:spec=None;issue='Fix deterministic validation failure: '+str(error)+'.'
+            except ValueError as error:
+                spec=None;issue='Fix deterministic validation failure: '+str(error)+'.'
+                # Validation codes are server-defined; never log the returned plan.
+                code=str(error)
+                if re.fullmatch(r'[a-z_]+(?::[a-z_]+)?',code):
+                    logging.getLogger(__name__).warning('Video validation rejected stage=%s code=%s',stage,code)
             except (TypeError,KeyError):spec=None;issue='Fix the incomplete JSON schema.'
             if stage==0:
                 try:first_draft=json.loads(draft)

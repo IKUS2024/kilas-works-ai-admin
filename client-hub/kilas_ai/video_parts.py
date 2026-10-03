@@ -35,6 +35,9 @@ On-screen text and voice_over are actual intended script, optional; empty voice_
 For UGC/review: conversational real actions, restrained camera, practical light, no invented
 testimonials, benefit claims or robotic sales delivery. Tutorial/demo shots show causal steps.
 Overall scenes and master_prompt must agree with parts, duration, latest subject and Bible.
+Keep the complete JSON compact: one overall scene per clip, concise overall directions,
+2-3 practical shot_list entries per clip, and 80-120 words per clip master_prompt.
+Do not repeat the Bible in overall or clip prompts. Specific action and handoff remain mandatory.
 For STYLE_CHANGE with the same timeline, retain each opening/ending state VERBATIM
 and the supplied stable Bible identity fields. Improve only requested style/audio/script;
 do not restage the action, replace the product, wardrobe, packaging or location.
