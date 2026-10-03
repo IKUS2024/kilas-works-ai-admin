@@ -43,20 +43,20 @@ class SinglePlanConsoleTests(unittest.TestCase):
         client = self.client_for(self.owner)
         body = client.get("/kilas-ai/usage").get_data(as_text=True)
         self.assertIn("Rp99.000", body)
-        self.assertIn("Kapasitas Tambahan", body)
+        self.assertIn("Kapasitas Premium", body)
         self.assertEqual(body.count('action="/kilas-ai/checkout"'), 1)
-        for forbidden in ("Penggunaan periode ini", "Pilih paket", "Pilih Plus", "Pilih Pro",
-                          "Pilih Max", "GPT-6", "provider cost", "Chat hari ini", "MINI"):
+        for forbidden in ("Penggunaan periode ini", "Pilih Plus", "Pilih Pro",
+                          "Pilih Max", "GPT-6", "provider cost", "Chat hari ini"):
             self.assertNotIn(forbidden, body)
         for amount in ("", "-20000", "19999", "abc", "1e6", "100000001"):
             with self.subTest(amount=amount):
                 response = client.post("/kilas-ai/topups", data={"amount_idr": amount, "csrf_token": "console-csrf"})
                 self.assertEqual(response.status_code, 400)
-        response = client.post("/kilas-ai/topups", data={"amount_idr": "20001", "csrf_token": "console-csrf"})
+        response = client.post("/kilas-ai/topups", data={"pack":"MINI","amount_idr":"1","csrf_token":"console-csrf"})
         self.assertEqual(response.status_code, 303)
         item = topups.owner_orders(self.owner)[0]
-        self.assertEqual(item["amount_idr"], 20001)
-        self.assertTrue(item["invoice_number"].startswith("KAI-C-"))
+        self.assertEqual(item["amount_idr"], 25000)
+        self.assertTrue(item["invoice_number"].startswith("KAI-P-"))
         self.assertEqual(self.client_for(self.other).get(f"/kilas-ai/topups/{item['id']}").status_code, 404)
 
     def test_custom_payment_allocates_once_and_expires_after_365_days(self):

@@ -50,7 +50,7 @@ class CostQualityTests(unittest.TestCase):
         for text in ('riset 5 kompetitor AI UMKM Indonesia','buatkan dokumen ringkas','pantau halaman ini setiap jam'):
             self.assertEqual(policy.agent_planner({'instruction':text})[:2],(policy.LUNA,'medium'))
         for text in ('kerjain bug di repo ini sampai test pass','refactor authentication across 15 files, tests and retry'):
-            self.assertEqual(policy.agent_planner({'instruction':text})[:2],(policy.SOL,'medium'))
+            self.assertEqual(policy.agent_planner({'instruction':text})[:2],(policy.SOL,'low'))
         self.assertEqual(policy.agent_planner({'instruction':'Riset','replans':1,'last_error':'worker_failed'})[0],policy.SOL)
         self.assertEqual(policy.agent_planner({'instruction':'Riset','replans':1})[0],policy.LUNA)
 
@@ -68,11 +68,11 @@ class CostQualityTests(unittest.TestCase):
 
     def test_cost_tiers_tighten_budget_without_monthly_hard_wall(self):
         self.spend('1.5')
-        self.assertEqual(usage.chat_level(self.uid),'VERY_HEAVY')
+        self.assertEqual(usage.chat_level(self.uid),'NORMAL')
         self.assertEqual(usage.reserve(self.uid,self.thread,'heavy-human','SMART','CHAT')[0],'PLUS')
         ctx=store.context(self.uid,self.thread)
-        self.assertEqual(ctx.fair_use_level,'VERY_HEAVY')
-        self.assertLessEqual(policy.chat_profile(policy.ChatContext([{'role':'user','content':'Analisis strategi'}],'VERY_HEAVY'))['output_tokens'],1000)
+        self.assertEqual(ctx.fair_use_level,'NORMAL')
+        self.assertGreater(policy.chat_profile(policy.ChatContext([{'role':'user','content':'Analisis strategi'}],'VERY_HEAVY'))['output_tokens'],1500)
 
     def test_protection_below_ceiling_without_abnormal_frequency_remains_functional(self):
         self.spend('1.8')
@@ -93,28 +93,28 @@ class CostQualityTests(unittest.TestCase):
         for n,(ratio,level) in enumerate([('0.10','NORMAL'),('0.18','HEAVY'),('0.25','VERY_HEAVY'),('0.32','PROTECTION')]):
             fixture.db.execute('DELETE FROM kilas_ai_usage WHERE user_id=?',(self.uid,))
             self.spend(revenue*Decimal(ratio))
-            self.assertEqual(usage.chat_level(self.uid),level)
+            self.assertEqual(usage.chat_level(self.uid),'NORMAL')
             self.assertEqual(usage.reserve(self.uid,self.thread,'tier-'+str(n),'SMART','CHAT')[0],'PLUS')
 
     def test_slow_user_at_ceiling_is_denied_before_provider_or_topup(self):
-        from kilas_ai import topups
-        self.spend(fair_use.sustainability_ceiling(99000))
+        from kilas_ai import capacity,topups
+        self.spend(capacity.allowance())
         client=fixture.app.app.test_client()
         with client.session_transaction() as state:state.update(user_id=self.uid,role='CLIENT_OWNER',_csrf_token='ceiling-csrf')
-        with patch.object(providers,'stream') as provider,patch.object(topups,'reserve') as credit:
-            response=client.post('/kilas-ai/threads/'+str(self.thread)+'/send',json={'content':'Jelaskan ide ini','mode':'SMART','operation_key':'chatop_ceiling0123456789'},headers={'X-CSRF-Token':'ceiling-csrf'})
+        with patch.object(providers,'stream') as provider:
+            response=client.post('/kilas-ai/threads/'+str(self.thread)+'/send',json={'content':'Analisis strategi bisnis secara komprehensif','operation_key':'chatop_ceiling0123456789'},headers={'X-CSRF-Token':'ceiling-csrf'})
             self.assertEqual(response.status_code,429)
-            self.assertIn('Fair Use',response.json['error'])
-            self.assertIn('periode penggunaan berikutnya',response.json['error'])
-            provider.assert_not_called();credit.assert_not_called()
-        self.assertEqual(fixture.db.query_one("SELECT COUNT(*) n FROM kilas_ai_usage WHERE user_id=? AND status='PENDING'",(self.uid,))['n'],0)
+            self.assertIn('Kapasitas Premium',response.json['error'])
+            provider.assert_not_called()
+        self.assertEqual(usage.reserve(self.uid,self.thread,'normal-at-exhaustion','FAST','CHAT')[0],'PLUS')
 
     def test_single_bounded_call_may_cross_ceiling_then_next_call_stops(self):
-        self.spend(fair_use.sustainability_ceiling(99000)-Decimal('0.0001'))
+        from kilas_ai import capacity
+        self.spend(capacity.allowance()-Decimal('0.19'))
         _,ops=usage.reserve(self.uid,self.thread,'cross-ceiling','SMART','CHAT')
         with self.assertRaises(usage.UsageLimit):usage.reserve(self.uid,self.thread,'parallel-crossing','SMART','CHAT')
-        usage.finish(self.uid,'cross-ceiling',ops,success=True,provider='openai',model=policy.LUNA,usage={'input_tokens':2400,'output_tokens':650})
-        with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):usage.reserve(self.uid,self.thread,'after-crossing','SMART','CHAT')
+        usage.finish(self.uid,'cross-ceiling',ops,success=True,provider='openai',model=policy.SOL,usage={'input_tokens':2400,'output_tokens':650})
+        self.assertEqual(usage.reserve(self.uid,self.thread,'after-settlement','FAST','CHAT')[0],'PLUS')
 
     def test_next_paid_cycle_resets_chat_cost(self):
         self.spend(10)
@@ -128,17 +128,17 @@ class CostQualityTests(unittest.TestCase):
         for key,operation,thread in [('web-pair','CHAT',self.thread),('web-pair','WEB_SEARCH',self.thread),('pdf-pair','CHAT',self.thread),('pdf-pair','PDF',self.thread),('image','IMAGE',self.thread),('background','CHAT',None),('external','EXTERNAL_ACTION',None)]:
             fixture.db.execute("INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,estimated_cost_usd,created_at) VALUES (?,?,?,?,'SMART','COMPLETE','10',?)",(self.uid,thread,key,operation,old))
         self.assertEqual(usage.chat_level(self.uid),'NORMAL')
-        self.assertEqual(usage.reserve(self.uid,self.thread,'independent-chat','SMART','CHAT')[0],'PLUS')
+        self.assertEqual(usage.reserve(self.uid,self.thread,'independent-chat','FAST','CHAT')[0],'PLUS')
 
     def test_ordinary_agent_qa_cost_is_subject_to_the_same_ceiling(self):
         self.spend(fair_use.sustainability_ceiling(99000))
         fixture.db.execute("UPDATE kilas_ai_usage SET thread_id=NULL,operation_key='agent-chat-existing' WHERE user_id=?",(self.uid,))
-        with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):usage.reserve(self.uid,None,'agent-chat-normal-ceiling','SMART','CHAT')
+        with self.assertRaisesRegex(usage.UsageLimit,'Kapasitas Premium'):usage.reserve(self.uid,None,'agent-chat-normal-ceiling','SMART','CHAT')
 
     def test_billable_failed_chat_still_consumes_ceiling(self):
         self.spend(fair_use.sustainability_ceiling(99000))
         fixture.db.execute("UPDATE kilas_ai_usage SET status='FAILED' WHERE user_id=?",(self.uid,))
-        with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):usage.reserve(self.uid,self.thread,'failed-ceiling','SMART','CHAT')
+        with self.assertRaisesRegex(usage.UsageLimit,'Kapasitas Premium'):usage.reserve(self.uid,self.thread,'failed-ceiling','SMART','CHAT')
 
     def test_exact_owner_qa_bypasses_ceiling_but_remains_metered(self):
         fixture.db.execute('DELETE FROM kilas_ai_usage WHERE user_id=9')
@@ -179,11 +179,10 @@ class CostQualityTests(unittest.TestCase):
     def test_protection_temporarily_throttles_abnormal_activity(self):
         self.spend('1.8')
         now=usage._now()
-        for n in range(70):
-            at=now-timedelta(seconds=100+n)
-            fixture.db.execute("INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,estimated_cost_usd,created_at) VALUES (?,? ,?,'CHAT','FAST','COMPLETE','0.001',?)",(self.uid,self.thread,'abuse-'+str(n),at.isoformat()))
-        with self.assertRaisesRegex(usage.UsageLimit,'beberapa menit'):
-            usage.reserve(self.uid,self.thread,'automated-more','FAST','CHAT')
+        for i in range(30):
+            fixture.db.execute("INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,estimated_cost_usd,created_at) VALUES (?,?,?,'CHAT','FAST','COMPLETE','0.0001',?)",(self.uid,self.thread,'rapid-'+str(i),now.isoformat()))
+        with patch.dict(os.environ,{'KILAS_AI_BURST_PER_MINUTE':'30'}):
+            with self.assertRaisesRegex(usage.UsageLimit,'waktu singkat'):usage.reserve(self.uid,self.thread,'burst-after-cost','FAST','CHAT')
 
     def test_separate_tools_remain_limited(self):
         self.spend(10)
@@ -203,14 +202,14 @@ class CostQualityTests(unittest.TestCase):
             with self.assertRaises(usage.UsageLimit):usage.reserve(9,thread,'qa-concurrent','SMART','CHAT')
         with patch.dict(os.environ,{'KILAS_AI_BURST_PER_MINUTE':'1'}):
             with self.assertRaises(usage.UsageLimit):usage.reserve(9,thread,'qa-burst','FAST','CHAT')
-        self.assertEqual(usage.QA_QUOTA_EXEMPTIONS[9][0],'irvankarnavi@gmail.com')
+        self.assertTrue(usage.qa_exempt(9))
 
     def test_history_budget_preserves_correction_and_followup(self):
         for n,text in enumerate(['Modal 150 juta. Jangan pilih cafe.','Koreksi: laundry kiloan.']+['Percakapan '+str(i) for i in range(25)]+['kalau modal gw cuma 150 juta?']):
             store.append_user_once(self.uid,self.thread,text,'FAST','history-'+str(n))
             if n<27:store.append_assistant(self.uid,self.thread,'Diskusi singkat','FAST','openai',policy.LUNA,'history-'+str(n),{})
         context=store.context(self.uid,self.thread)
-        self.assertLessEqual(len(context),13)
+        self.assertLessEqual(len(context),17)
         self.assertIn('Jangan pilih cafe',context[0]['content'])
         self.assertIn('laundry kiloan',context[0]['content'])
         self.assertEqual(context[-1]['content'],'kalau modal gw cuma 150 juta?')
@@ -265,7 +264,7 @@ class CostQualityTests(unittest.TestCase):
             def raise_for_status(self):pass
             def iter_lines(self,**_):
                 return iter(['data: '+json.dumps({'usage':{'prompt_tokens':100,'completion_tokens':20,'prompt_tokens_details':{'cached_tokens':70}},'choices':[]}), ''])
-        for prompt,effort,cap in [('halo','low',600),('Jelaskan ide ini','low',1000),('Analisis strategi','medium',1500)]:
+        for prompt,effort,cap in [('halo','low',1200),('Jelaskan ide ini','medium',3500),('Analisis strategi','low',7000)]:
             with patch.object(providers.requests,'post',return_value=Response()) as request:
                 events=list(providers._openai(policy.LUNA,'synthetic',[{'role':'user','content':prompt}],'SMART'))
             self.assertEqual(request.call_args.kwargs['json']['reasoning_effort'],effort)
@@ -283,7 +282,7 @@ class CostQualityTests(unittest.TestCase):
         with client.session_transaction() as state:state.update(user_id=self.uid,role='CLIENT_OWNER')
         page=client.get('/kilas-ai/usage').text
         self.assertIn('Unlimited AI Chat',page)
-        self.assertIn('dibatasi sementara sesuai Fair Use',page)
+        self.assertIn('Chat normal tetap tersedia sesuai Fair Use',page)
         self.assertNotIn('600 /',page)
         self.assertNotIn('gpt-6',page)
         for internal in ('16%','24%','30%','35%','API cost','token cost','GPT-6','OpenAI'):
@@ -299,7 +298,7 @@ class CostQualityTests(unittest.TestCase):
     def test_interrupted_billable_calls_cannot_escape_cost_tiers(self):
         self.spend('1.5')
         fixture.db.execute("UPDATE kilas_ai_usage SET status='FAILED' WHERE user_id=?",(self.uid,))
-        self.assertEqual(usage.chat_level(self.uid),'VERY_HEAVY')
+        self.assertEqual(usage.chat_level(self.uid),'NORMAL')
 
     def test_mixed_search_and_synthesis_costs_are_not_charged_at_one_model(self):
         _,ops=usage.reserve(self.uid,self.thread,'mixed-model-search','FAST','WEB')

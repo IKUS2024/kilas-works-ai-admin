@@ -91,7 +91,9 @@ def search(owner,key,conversation):
             success=True
             yield {'type':'delta','text':text[:12000]}
             yield {'type':'done'}
-        except Exception:
+        except Exception as error:
+            model = getattr(error,'model',None) or model
+            used.update(getattr(error,'usage',{}) or {})
             agent_store.append(owner,'assistant','Informasi terbaru belum dapat diperiksa. Coba lagi sebentar.',conversation)
             yield {'type':'error','message':'Informasi terbaru belum dapat diperiksa. Coba lagi sebentar.'}
         finally:usage.finish(owner,meter,operations,success=success,provider='openai' if model else None,model=model,usage=used)

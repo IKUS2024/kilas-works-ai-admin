@@ -106,4 +106,4 @@ def propose(job, completed):
         return plan
     finally:
         usage.finish(job['user_id'], key, operations, success=success, provider='openai' if success else None,
-                     model=model if success else None, usage=used)
+                     model=model if success or used else None, usage=used)

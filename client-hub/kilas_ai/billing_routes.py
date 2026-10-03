@@ -5,7 +5,7 @@ from flask import Blueprint, abort, redirect, render_template, request, send_fil
 
 import payment_service
 import security
-from . import billing, topups
+from . import billing, topups, payment_gateways
 from .routes import ai_bp, enabled
 
 admin_bp = Blueprint("kilas_ai_admin", __name__, url_prefix="/admin/kilas-ai")
@@ -25,7 +25,7 @@ def admin_access():
 @ai_bp.post("/checkout")
 def checkout():
     try:
-        invoice_id = billing.create_invoice(session["user_id"], "PLUS")
+        invoice_id = payment_gateways.current().subscription(session["user_id"])
     except billing.BillingError as error:
         return {"error": str(error)}, 400
     return redirect(url_for("kilas_ai.invoice_page", invoice_id=invoice_id), code=303)
@@ -55,7 +55,7 @@ def proof_upload(invoice_id):
 @ai_bp.post("/topups")
 def topup_checkout():
     try:
-        order_id = topups.create_custom_order(session["user_id"], request.form.get("amount_idr"))
+        order_id = payment_gateways.current().capacity(session["user_id"], request.form.get("pack"))
     except topups.TopupError as error:
         return {"error": str(error)}, 400
     return redirect(url_for("kilas_ai.topup_invoice", order_id=order_id), code=303)

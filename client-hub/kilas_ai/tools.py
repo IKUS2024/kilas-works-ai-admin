@@ -13,7 +13,10 @@ from . import response_style
 
 
 class ToolUnavailable(Exception):
-    pass
+    def __init__(self, message, *, model=None, usage=None):
+        super().__init__(message)
+        self.model = model
+        self.usage = usage or {}
 
 
 def _openai_key():
@@ -23,7 +26,7 @@ def _openai_key():
     return key
 
 
-SEARCH_CALL_CAPS = {"FREE": 1, "PLUS": 3, "PRO": 4, "MAX": 5}
+SEARCH_CALL_CAPS = {"FREE": 1, "PLUS": 5, "PRO": 5, "MAX": 5}
 
 
 def _search_text(context):
@@ -108,11 +111,11 @@ def _synthesize_research(chunks, citations):
     _, answer, _ = _web_response(data)
     indices = [int(value) for value in re.findall(r"\[(\d+)\]", answer)]
     if not indices or any(index < 1 or index > len(citations) for index in indices):
-        raise ToolUnavailable("research_synthesis_uncited")
+        raise ToolUnavailable("research_synthesis_uncited", model=model, usage=data.get('usage'))
     allowed = {item["url"] for item in citations}
     if any(_source_url(value.rstrip(".,)")) not in allowed
            for value in re.findall(r"https?://[^\s)]+", answer)):
-        raise ToolUnavailable("research_synthesis_uncited")
+        raise ToolUnavailable("research_synthesis_uncited", model=model, usage=data.get('usage'))
     return answer, model, data.get("usage") or {}
 
 
@@ -121,7 +124,7 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
     if not model:
         raise ToolUnavailable("Web search belum tersedia.")
     complex_request = research_requested(context)
-    limit = min(SEARCH_CALL_CAPS.get(plan, 1), max(1, int(max_calls or SEARCH_CALL_CAPS.get(plan, 1)))) if complex_request else 1
+    limit = min(5, max(1, int(max_calls or SEARCH_CALL_CAPS.get(plan, 1)))) if complex_request else 1
     prompt = _search_text(context)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     angles = ("Find the most relevant primary or official evidence for the request.",
@@ -170,7 +173,8 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
         if index + 1 < limit:
             yield {"activity": "Membandingkan informasi…"}
     if not parts or not citations:
-        raise ToolUnavailable("Web search tidak mengembalikan sumber yang dapat ditampilkan.")
+        raise ToolUnavailable("Web search tidak mengembalikan sumber yang dapat ditampilkan.", model=model,
+            usage={'input_tokens':input_tokens,'output_tokens':output_tokens,'cost_components':cost_components})
     answer = "\n\n".join(parts)
     if complex_request and len(parts) > 1 and len(citations) > 1:
         yield {"activity": "Menyusun hasil riset…"}
@@ -181,7 +185,11 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
                 'cached_input_tokens':(used.get('input_tokens_details') or {}).get('cached_tokens',0)})
             input_tokens += int(used.get("input_tokens") or 0)
             output_tokens += int(used.get("output_tokens") or 0)
-        except ToolUnavailable:
+        except ToolUnavailable as error:
+            if error.model and error.usage:
+                used = error.usage
+                cost_components.append({'model':error.model,'operation':'CHAT',
+                    'input_tokens':used.get('input_tokens',0),'output_tokens':used.get('output_tokens',0)})
             pass  # Keep only the source-backed search findings when synthesis fails.
     yield {"result": {"text": answer[:30000], "citations": citations[:8], "model": model,
             "search_calls": calls, "research": complex_request,
@@ -227,7 +235,7 @@ def finalize_scheduled_search(instruction, search_text, citations):
     data = _request(payload)
     _, answer, _ = _web_response(data)
     if not answer:
-        raise ToolUnavailable("Hasil final belum tersedia. Coba lagi.")
+        raise ToolUnavailable("Hasil final belum tersedia. Coba lagi.", model=model, usage=data.get("usage"))
     return {"text": answer[:12000], "model": model, "usage": data.get("usage") or {}}
 
 
@@ -237,6 +245,7 @@ def image(prompt, source=None, *, request_timeout=120):
         raise ToolUnavailable("Pembuatan gambar belum tersedia.")
     key = _openai_key()
     headers = {"Authorization": "Bearer " + key}
+    data = None
     try:
         if source is None:
             response = requests.post("https://api.openai.com/v1/images/generations",
@@ -260,5 +269,7 @@ def image(prompt, source=None, *, request_timeout=120):
             if not mime or opened.width * opened.height > 20_000_000:
                 raise ValueError("image_format")
     except (requests.RequestException, ValueError, KeyError, IndexError, TypeError):
-        raise ToolUnavailable("Gambar belum dapat dibuat. Coba lagi.") from None
+        raise ToolUnavailable("Gambar belum dapat dibuat. Coba lagi.",
+            model=model if isinstance(data,dict) else None,
+            usage=data.get('usage') if isinstance(data,dict) else None) from None
     return {"raw": raw, "mime": mime, "model": model, "usage": data.get("usage") or {}}

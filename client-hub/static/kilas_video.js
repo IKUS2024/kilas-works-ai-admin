@@ -81,6 +81,6 @@
       if(!list.parentElement){root.querySelector('.video-history>p')?.remove();root.querySelector('.video-history>h2').after(list);}
       // No automatic composer focus: completing a plan must not reopen a mobile keyboard.
     }catch(problem){if(form.elements.project_id.value)form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');error.textContent=problem.message||t('Koneksi terputus. Buka riwayat sebelum mencoba ulang.');error.hidden=false;status.textContent='';}
-    finally{button.disabled=false;picker.disabled=false;form.removeAttribute('aria-busy');}
+    finally{document.dispatchEvent(new Event('kilas:request-finished'));button.disabled=false;picker.disabled=false;form.removeAttribute('aria-busy');}
   });
 })();

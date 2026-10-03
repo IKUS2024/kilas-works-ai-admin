@@ -1,26 +1,43 @@
 <!doctype html>
-<html lang="{{ ui_language() }}"><head>{% include '_ui_i18n_head.html' %}<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ ui_t('Langganan · Kilas AI') }}</title>
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='7') }}"><link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_subscription.css',v='1') }}">{% include '_premium_styles.html' %}</head>
+<html lang="{{ ui_language() }}"><head>{% include '_ui_i18n_head.html' %}<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ ui_t('Langganan & Pembayaran') }}</title>
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='7') }}"><link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_subscription.css',v='2') }}">{% include '_premium_styles.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_capacity.css',v='1') }}"></head>
 <body class="premium-workspace kilas-light ">{% include '_premium_workspace.html' %}<main id="kw-main" class="subscription-page">
   <a class="subscription-back" href="{{ url_for('kilas_ai.home') }}">{{ ui_t('Kembali ke chat') }}</a>
-  <header class="subscription-header"><p class="subscription-eyebrow">{{ ui_t('KILAS AI / AKUN') }}</p><h1>{{ ui_t('Langganan') }}</h1><p>{{ ui_t('Semua yang kamu perlukan untuk berpikir, membuat, dan menyelesaikan pekerjaan.') }}</p></header>
+  <header class="subscription-header"><h1>{{ ui_t('Langganan & Pembayaran') }}</h1><p>{{ ui_t('Semua yang kamu perlukan untuk berpikir, membuat, dan menyelesaikan pekerjaan.') }}</p></header>
   <div class="subscription-layout">
     <section class="subscription-offer" aria-labelledby="offer-title">
-      <div class="subscription-offer-head"><div><p class="subscription-eyebrow">{{ ui_t('SATU LANGGANAN') }}</p><h2 id="offer-title">{{ ui_t('Kilas Pro') }}</h2></div><span class="subscription-status">{{ ui_t('Aktif') if subscription.status == 'ACTIVE' else ui_t('Belum aktif') }}</span></div>
+      <div class="subscription-offer-head"><div><h2 id="offer-title">{{ ui_t('Kilas Pro') }}</h2></div><span class="subscription-status">{{ ui_t('Aktif') if subscription.status == 'ACTIVE' else ui_t('Belum aktif') }}</span></div>
       <p class="subscription-price">{{ ui_t('Rp99.000') }} <span>/ 30 hari</span></p>
-      {% if subscription.status == 'ACTIVE' %}<p class="subscription-period">{{ ui_t('Aktif hingga') }} {{ subscription.period_end.strftime('%d/%m/%Y') }}{{ ui_t('. Perpanjangan dilakukan melalui tagihan baru.') }}</p>{% else %}<p class="subscription-period">{{ ui_t('AI untuk membantu pekerjaan sehari-hari.') }}</p>{% endif %}
-      <ul class="subscription-capabilities"><li>{{ ui_t('Unlimited AI Chat*') }}</li><li>{{ ui_t('Cari informasi terbaru dari web') }}</li><li>{{ ui_t('Analisis dokumen dan file') }}</li><li>{{ ui_t('Baca dan rangkum PDF') }}</li><li>{{ ui_t('Buat dan edit gambar') }}</li><li>{{ ui_t('Bantu menulis, merencanakan, dan menganalisis') }}</li><li>{{ ui_t('Riwayat percakapan tersimpan') }}</li></ul>
-      <form method="post" action="{{ url_for('kilas_ai.checkout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="subscription-primary" type="submit">{{ ui_t('Perpanjang langganan') if subscription.status == 'ACTIVE' else ui_t('Mulai berlangganan') }}</button></form>
-      <p class="subscription-fine">{{ ui_t('*Unlimited AI Chat untuk penggunaan normal. Penggunaan otomatis atau sangat intensif dapat diperlambat atau dibatasi sementara sesuai Fair Use. Search, gambar, PDF, Work, dan tindakan eksternal memiliki batas penggunaan tersendiri.') }}</p>
+      {% if subscription.status == 'ACTIVE' %}<p class="subscription-period">{{ ui_t('Aktif hingga') }} {{ subscription.period_end.strftime('%d/%m/%Y') }}{{ ui_t('. Perpanjangan dilakukan melalui tagihan baru.') }}</p>{% elif subscription_expired %}<p class="subscription-period">{{ ui_t('Masa aktif Kilas Pro telah berakhir.') }}</p>{% else %}<p class="subscription-period">{{ ui_t('AI untuk membantu pekerjaan sehari-hari.') }}</p>{% endif %}
+      <ul class="subscription-capabilities"><li>{{ ui_t('Unlimited AI Chat*') }}</li><li>{{ ui_t('Cari informasi terbaru dari web') }}</li><li>{{ ui_t('Analisis dokumen dan file') }}</li><li>{{ ui_t('Baca dan rangkum PDF') }}</li><li>{{ ui_t('Buat dan edit gambar') }}</li><li>{{ ui_t('Bantu menulis, merencanakan, dan menganalisis') }}</li><li>{{ ui_t('Video Plan dan Work') }}</li><li>{{ ui_t('Riwayat percakapan tersimpan') }}</li></ul>
+      <form method="post" action="{{ url_for('kilas_ai.checkout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="subscription-primary" type="submit">{{ ui_t('Perpanjang Rp99.000 / 30 hari') if subscription_expired else ui_t('Perpanjang langganan') if subscription.status == 'ACTIVE' else ui_t('Mulai berlangganan') }}</button></form>
+      <p class="subscription-fine">{{ ui_t('*Chat normal tetap tersedia sesuai Fair Use. Search, gambar, Video, Work, analisis mendalam, dan dokumen menggunakan Kapasitas Premium bersama. Batas keamanan dan persetujuan tindakan eksternal tetap berlaku.') }}</p>
     </section>
     <div class="subscription-side">
-      <section class="subscription-section" aria-labelledby="capacity-title"><p class="subscription-eyebrow">{{ ui_t('UNTUK KEBUTUHAN INTENSIF') }}</p><h2 id="capacity-title">{{ ui_t('Kapasitas Tambahan') }}</h2><p>{{ ui_t('Tambahkan kapasitas untuk fitur terbatas seperti Search, gambar, PDF, dan Work. Chat biasa berlangganan tidak memerlukan pembelian pesan tambahan.') }}</p>
-        {% if capacity.available %}<p class="subscription-available">{{ ui_t('Kapasitas tambahan aktif ·') }} {{ capacity.percent }}{{ ui_t('% tersisa') }}</p>{% endif %}
-        <form method="post" action="{{ url_for('kilas_ai.topup_checkout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="capacity-amount">{{ ui_t('Nominal') }}</label><div class="subscription-input"><span>Rp</span><input id="capacity-amount" name="amount_idr" type="number" inputmode="numeric" min="20000" max="100000000" step="1" placeholder="20.000" required></div><p class="subscription-fine">{{ ui_t('Minimum Rp20.000 · Berlaku 12 bulan setelah pembayaran terverifikasi.') }}</p><button class="subscription-secondary" type="submit">{{ ui_t('Tambah kapasitas') }}</button></form>
+      <section class="subscription-section" aria-labelledby="capacity-title">
+        <div class="subscription-capacity-heading"><h2 id="capacity-title">{{ ui_t('Kapasitas Premium') }}</h2><span class="subscription-status" data-capacity-state>{{ ui_t(capacity.state) }}</span></div>
+        <p>{{ ui_t('Satu kapasitas bersama untuk Search, gambar, Video, Work, dan analisis intensif. Chat normal dan Finance tetap tersedia saat kapasitas habis.') }}</p>
+        {% if not capacity.active %}<p class="subscription-fine">{{ ui_t('Kapasitas tambahan tersimpan dan dapat digunakan saat Kilas Pro aktif.') }}</p>{% endif %}
+        <button class="subscription-secondary" type="button" data-capacity-open>{{ ui_t('Tambah kapasitas') }}</button>
+        <p class="subscription-fine">{{ ui_t('Pilih paket tetap. Berlaku 90 hari setelah pembayaran terverifikasi.') }}</p>
       </section>
       <section class="subscription-section" aria-labelledby="billing-title"><h2 id="billing-title">{{ ui_t('Tagihan') }} & {{ ui_t('pembayaran') }}</h2>
         {% if invoices or topup_orders %}<div class="subscription-invoices">{% for invoice in topup_orders %}<a href="{{ url_for('kilas_ai.topup_invoice',order_id=invoice.id) }}"><span><strong>{{ ui_t('Kapasitas Tambahan') }}</strong><small>{{ invoice.invoice_number }}</small></span><span>Rp{{ '{:,.0f}'.format(invoice.amount_idr).replace(',', '.') }}<small>{{ invoice.status.replace('_',' ').title() }}</small></span></a>{% endfor %}{% for invoice in invoices %}<a href="{{ url_for('kilas_ai.invoice_page',invoice_id=invoice.id) }}"><span><strong>Kilas AI</strong><small>{{ invoice.invoice_number }}</small></span><span>Rp{{ '{:,.0f}'.format(invoice.amount_idr).replace(',', '.') }}<small>{{ invoice.status.replace('_',' ').title() }}</small></span></a>{% endfor %}</div>{% else %}<p>{{ ui_t('Belum ada tagihan.') }}</p>{% endif %}
       </section>
     </div>
   </div>
-</main></body></html>
+</main>
+<dialog class="capacity-dialog" id="capacity-dialog" aria-labelledby="capacity-dialog-title" aria-describedby="capacity-dialog-copy">
+  <div class="capacity-dialog-head"><h2 id="capacity-dialog-title">{{ ui_t('Tambah Kapasitas Premium') }}</h2><button type="button" data-capacity-close aria-label="{{ ui_t('Tutup') }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+  <p id="capacity-dialog-copy">{{ ui_t('Untuk kebutuhan intensif, tanpa membeli pesan Chat. Kapasitas tambahan berlaku 90 hari setelah pembayaran terverifikasi.') }}</p>
+  <form method="post" action="{{ url_for('kilas_ai.topup_checkout') }}" data-capacity-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <fieldset class="capacity-packs"><legend>{{ ui_t('Pilih paket') }}</legend>
+      {% for pack, amount in [('MINI','25.000'),('EXTRA','50.000'),('POWER','100.000')] %}<label><input type="radio" name="pack" value="{{ pack }}" {% if loop.first %}checked{% endif %} required><span>Rp{{ amount }}</span></label>{% endfor %}
+    </fieldset>
+    <p class="subscription-fine">{{ ui_t('Pembayaran melalui transfer dan verifikasi bukti. Kapasitas aktif setelah pembayaran disetujui.') }}</p>
+    <button class="subscription-primary" type="submit" data-capacity-submit data-loading-label="{{ ui_t('Menyiapkan tagihan…') }}">{{ ui_t('Lanjut ke pembayaran') }}</button>
+  </form>
+</dialog>
+<script src="{{ url_for('static',filename='kilas_ai_capacity.js',v='1') }}" defer></script>
+</body></html>

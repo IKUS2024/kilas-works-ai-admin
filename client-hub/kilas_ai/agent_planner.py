@@ -109,6 +109,7 @@ def propose(user_id, text, history, tasks, default_timezone="Asia/Jakarta"):
             timeout=(10, 45))
         response.raise_for_status()
         data = response.json()
+        used = data.get("usage") or {}
         if data.get("status") != "completed":
             raise PlanUnavailable("incomplete_agent_plan")
         used = data.get("usage") or {}
@@ -124,4 +125,4 @@ def propose(user_id, text, history, tasks, default_timezone="Asia/Jakarta"):
         raise PlanUnavailable("agent_planner_unavailable") from error
     finally:
         usage.finish(user_id, key, operations, success=success, provider="openai" if success else None,
-                     model=model if success else None, usage=used)
+                     model=model if success or used else None, usage=used)

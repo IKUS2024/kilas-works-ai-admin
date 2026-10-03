@@ -46,6 +46,7 @@ jobs:
       - run: python client-hub/tests/test_kilas_agent_chat_experience.py
       - run: python client-hub/tests/test_kilas_agent_results.py
       - run: python client-hub/tests/test_kilas_ai_cost_quality.py
+      - run: python client-hub/tests/test_kilas_intelligence_capacity.py
       - run: python client-hub/tests/test_kilas_work_documents.py
       - run: python client-hub/tests/test_kilas_ai_unified.py
       - run: python client-hub/tests/test_kilas_product_hardening.py
@@ -98,6 +99,7 @@ jobs:
       - run: python client-hub/tests/test_kilas_ai_agent_browser.py
       - run: python client-hub/tests/test_kilas_ai_shell_browser.py
       - run: python client-hub/tests/test_kilas_ai_browser.py
+      - run: python client-hub/tests/test_kilas_capacity_browser.py
       - run: python client-hub/tests/test_kilas_work_browser.py
       - run: python client-hub/tests/test_kilas_work_v2_browser.py
       - run: python client-hub/tests/test_kilas_ai_unified_browser.py
@@ -144,3 +146,9 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/autonomous_qa
           KILAS_AI_POSTGRES_QA: '1'
           SECRET_KEY: synthetic-chat-pg-qa
+
+      - run: python client-hub/tests/test_kilas_capacity_postgres.py
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/autonomous_qa
+          KILAS_AI_POSTGRES_QA: '1'
+          SECRET_KEY: synthetic-capacity-pg-qa

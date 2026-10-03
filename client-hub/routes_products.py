@@ -105,6 +105,8 @@ def _start_finance_trial_now(business_id, user):
         return url_for('products.continue_product')
     state = entitlement.state(business_id)
     if state['active']:
+        if not finance.list_accounts(business_id, actor_user_id=user['id']):
+            entitlement.setup(business_id, user['id'], 'Kas', 'CASH', 0)
         session['dashboard_business_id'] = business_id
         session.pop('product_intent', None)
         return url_for('finance.workspace_choice', business_id=business_id)
@@ -791,6 +793,7 @@ def finance_setup(business_id):
             if request.form.get('terms')!='yes':abort(400)
             entitlement.start_trial(business_id,user['id'])
         elif action=='subscribe':
+            abort(404)  # Free Finance cannot create new subscription charges.
             if entitlement.state(business_id)['status']=='TRIAL_ACTIVE':
                 flash('Trial Finance masih aktif. Tagihan langganan baru tersedia setelah trial berakhir.','info')
                 return redirect(url_for('products.finance_setup',business_id=business_id),code=303)

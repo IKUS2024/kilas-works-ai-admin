@@ -20,5 +20,8 @@ def run(job,step,data):
         file={'filename':name+'.'+extension,'mime_type':result['mime'],'content':result['raw'],'title':title}
         work_artifacts.validate(file);success=True
         return Result('SUCCEEDED','Gambar selesai dan siap digunakan.',{'title':title,'image_ready':True},[{'binary_file':file}],result.get('usage',{}),True)
+    except tools.ToolUnavailable as error:
+        result = {'model':error.model,'usage':error.usage}
+        raise
     finally:
         usage.finish(job['user_id'],key,ops,success=success,provider='openai' if result else None,model=result.get('model'),usage=result.get('usage',{}))

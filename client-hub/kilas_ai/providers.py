@@ -18,11 +18,11 @@ OUTPUT_LIMITS = {"FAST": 1000, "SMART": 1500, "EXPERT": 1500}
 EFFORT = {"FAST": "low", "SMART": "medium", "EXPERT": "medium"}
 
 
-def candidates(mode):
+def candidates(mode, messages=None):
     if mode.upper() not in MODEL_TIERS:
         raise ValueError("invalid_mode")
     try:
-        model = model_policy.luna_model()
+        model = model_policy.chat_profile(messages)['model'] if messages is not None else model_policy.luna_model()
     except ValueError:
         raise ProviderError("invalid_provider_configuration") from None
     key = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -133,11 +133,11 @@ def _anthropic(model, key, messages, mode, system=SYSTEM):
 
 
 def stream(mode, messages, system=None):
-    """One Luna candidate; failure never promotes ordinary Chat to another model."""
+    """One server-selected candidate; only the separately metered guard may repair."""
     from .capabilities import instruction
-    system=(SYSTEM if system is None else system)+'\n'+instruction()
+    system=(SYSTEM if system is None else system)+'\n'+instruction()+'\n'+model_policy.intelligence.playbook(model_policy.chat_profile(messages))
     attempted = False
-    for provider, model, key in candidates(mode):
+    for provider, model, key in candidates(mode,messages):
         attempted = True
         emitted = False
         finished = False

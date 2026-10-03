@@ -57,6 +57,8 @@ def finance_access(view):
         if not (beta_enabled() or entitlement.self_service()) and user['role'] != 'KILAS_ADMIN':
             abort(404)
         business = security.require_business_access(business_id, user=user)
+        if any(part in request.path.split('/') for part in ('analyst','operator','assistant','receipts','bank-imports')):
+            abort(404)  # Archived paid AI flows are unavailable even with legacy flags.
         if request.method != 'GET':
             try: entitlement.require_write(business_id,user['id'])
             except finance.FinanceError:

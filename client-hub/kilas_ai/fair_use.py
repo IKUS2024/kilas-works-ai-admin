@@ -40,9 +40,9 @@ def cost_level(cost, retail):
 
 
 def budgets(level):
-    return {'NORMAL':(12,18000,3),'HEAVY':(10,14000,2),
-            'VERY_HEAVY':(8,11000,1),'PROTECTION':(8,11000,1)}[level]
+    # Commercial capacity never weakens conversation grounding or response depth.
+    return (16,32000,3)
 
 
 def normal_chat(thread_id, key, tool):
-    return tool == 'CHAT' and (thread_id is not None or key.startswith('agent-chat-'))
+    return tool == 'CHAT' and (thread_id is not None or (key.startswith('agent-chat-') and not key.startswith('agent-chat-video-')))

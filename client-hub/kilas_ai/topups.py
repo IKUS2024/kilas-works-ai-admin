@@ -8,7 +8,8 @@ import db
 import file_utils
 from . import usage
 
-PACKS = {"MINI": 19000, "EXTRA": 39000, "POWER": 79000}
+PACKS = {"MINI": 25000, "EXTRA": 50000, "POWER": 100000}
+PACK_ALLOWANCES_IDR = {25000: 10000, 50000: 22000, 100000: 48000}
 FORECAST_MICRO = {"FAST": 5000, "SMART": 50000, "EXPERT": 80000,
                   "WEB_SEARCH": 80000, "IMAGE_GENERATION": 80000, "IMAGE_EDIT": 80000,
                   "PDF": 20000}
@@ -39,11 +40,11 @@ def create_order(user_id, pack):
     try:
         _lock_user(conn, user_id)
         existing = usage._query(conn, "SELECT id FROM kilas_ai_topup_orders WHERE user_id=? AND pack=? "
-            "AND status IN ('PAYMENT_PENDING','UNDER_REVIEW') ORDER BY id DESC LIMIT 1", (user_id, pack), one=True)
+            "AND amount_idr=? AND invoice_number LIKE 'KAI-P-%' AND status IN ('PAYMENT_PENDING','UNDER_REVIEW') ORDER BY id DESC LIMIT 1", (user_id, pack, PACKS[pack]), one=True)
         if existing:
             conn.commit()
             return existing[0]
-        number = "KAI-Q-" + str(usage._now().year) + "-" + secrets.token_hex(8).upper()
+        number = "KAI-P-" + str(usage._now().year) + "-" + secrets.token_hex(8).upper()
         sql = "INSERT INTO kilas_ai_topup_orders(user_id,invoice_number,pack,amount_idr) VALUES (?,?,?,?)"
         params = (user_id, number, pack, PACKS[pack])
         if db.BACKEND == "postgres":
@@ -179,7 +180,8 @@ def review(order_id, admin_id, decision, note=""):
         if decision == "VERIFIED":
             usage._query(conn, "INSERT INTO kilas_ai_topup_credits(order_id,user_id,total_micro,expires_at) "
                 "VALUES (?,?,?,?) ON CONFLICT(order_id) DO NOTHING",
-                (order_id, user_id, _budget_micro(row[1]),
+                (order_id, user_id, (int(Decimal(PACK_ALLOWANCES_IDR[row[1]]) / Decimal(os.environ.get('KILAS_AI_USD_IDR', '17000')) * Decimal(1000000))
+                  if row[2].startswith('KAI-P-') else _budget_micro(row[1])),
                  (now + timedelta(days=365 if row[2].startswith("KAI-C-") else 90)).isoformat()))
         conn.commit()
         return True
@@ -191,15 +193,15 @@ def review(order_id, admin_id, decision, note=""):
 
 
 def _lots(conn, user_id, now):
-    return usage._rows(conn, "SELECT c.id,c.total_micro,COALESCE(SUM(CASE WHEN d.status='COMPLETE' "
+    return usage._rows(conn, "SELECT c.id,c.total_micro,COALESCE(SUM(CASE WHEN d.status IN ('COMPLETE','FAILED') "
         "THEN d.charged_micro WHEN d.status='PENDING' THEN d.reserved_micro ELSE 0 END),0) "
         "FROM kilas_ai_topup_credits c LEFT JOIN kilas_ai_topup_debits d ON d.credit_id=c.id "
         "WHERE c.user_id=? AND c.expires_at>? GROUP BY c.id,c.total_micro,c.expires_at "
         "ORDER BY c.expires_at,c.id", (user_id, now.isoformat()))
 
 
-def reserve(conn, user_id, key, operation, mode, now):
-    forecast = FORECAST_MICRO[mode if operation == "CHAT" else operation]
+def reserve(conn, user_id, key, operation, mode, now, *, forecast_micro=None):
+    forecast = forecast_micro if forecast_micro is not None else FORECAST_MICRO[mode if operation == "CHAT" else operation]
     remaining = forecast
     for credit_id, total, spent in _lots(conn, user_id, now):
         available = max(0, int(total) - int(spent))
@@ -217,11 +219,11 @@ def reserve(conn, user_id, key, operation, mode, now):
 def settle(conn, user_id, key, success, actual_micro):
     rows = usage._rows(conn, "SELECT id,reserved_micro FROM kilas_ai_topup_debits "
                        "WHERE user_id=? AND operation_key=? AND status='PENDING' ORDER BY id", (user_id, key))
-    remaining = max(0, int(actual_micro)) if success else 0
+    remaining = max(0, int(actual_micro))
     for index, (debit_id, reserved) in enumerate(rows):
         charged = min(remaining, int(reserved))
         remaining -= charged
-        if success and index == len(rows) - 1 and remaining:
+        if index == len(rows) - 1 and remaining:
             charged += remaining  # Record an unexpectedly high real cost instead of hiding it.
             remaining = 0
         usage._query(conn, "UPDATE kilas_ai_topup_debits SET status=?,charged_micro=? WHERE id=? AND user_id=?",

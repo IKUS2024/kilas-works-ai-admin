@@ -72,12 +72,8 @@ def allowlisted(env_name, business_id):
 
 
 def configuration():
-    key=os.environ.get('ANTHROPIC_API_KEY','').strip()
-    model=os.environ.get('CLIENT_HUB_FINANCE_ANALYST_MODEL','').strip() or 'claude-haiku-4-5-20251001'
-    if not key or len(key)>512 or any(c.isspace() for c in key) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',model):
-        raise ValueError('not_configured')
-    return key,model
-
+    # Retained connector architecture; paid Finance AI is disabled server-side.
+    raise ValueError('finance_ai_disabled')
 
 
 def record_usage(model, response_body, business_id, classification='normal', context='finance_ai'):

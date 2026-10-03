@@ -41,6 +41,7 @@ class UnifiedTests(unittest.TestCase):
     def test_analysis_uses_luna_medium_without_job(self):
         with patch.object(providers,'stream',side_effect=lambda *a,**k:answer('Laundry lebih cocok bila ingin tim kecil. Uji permintaan dan hitung biaya sewa, mesin, air, listrik serta cadangan kas sebelum memilih.')) as called:
             self.submit('menurut lu modal 150 juta mending laundry atau cafe?')
+        self.assertEqual(model_policy.chat_profile(called.call_args.args[1])['model'],model_policy.LUNA)
         self.assertEqual(model_policy.chat_profile(called.call_args.args[1])['effort'],'medium')
         self.assertEqual(called.call_count,1)
         self.assertEqual(self.jobs.list_jobs(self.owner),[])
@@ -72,7 +73,8 @@ class UnifiedTests(unittest.TestCase):
         with patch.object(providers,'stream',side_effect=[answer('PDF sudah dibuat.'),answer()]) as called:
             self.submit('halo')
         self.assertEqual(called.call_count,2)
-        self.assertEqual(model_policy.chat_profile(called.call_args.args[1])['effort'],'medium')
+        self.assertEqual(model_policy.chat_profile(called.call_args.args[1])['model'],model_policy.SOL)
+        self.assertEqual(model_policy.chat_profile(called.call_args.args[1])['effort'],'low')
         self.assertEqual(agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['content'],'Halo! Ada yang bisa saya bantu?')
 
     def test_second_bad_answer_stops(self):

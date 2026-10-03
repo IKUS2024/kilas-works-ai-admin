@@ -1,0 +1,6 @@
+<aside class="ai-capacity-notice" data-premium-capacity-notice hidden aria-live="polite">
+  <p data-premium-capacity-copy data-low="{{ ui_t('Kapasitas Premium mulai menipis. Chat normal tetap tersedia.') }}" data-empty="{{ ui_t('Kapasitas Premium habis. Tambah kapasitas untuk fitur intensif, atau lanjutkan Chat biasa.') }}"></p>
+  <div><a href="{{ url_for('kilas_ai.usage_page',capacity=1) }}">{{ ui_t('Tambah kapasitas') }}</a><a href="{{ url_for('kilas_ai.home') }}">{{ ui_t('Lanjut Chat') }}</a></div>
+</aside>
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_capacity_notice.css',v='1') }}">
+<script src="{{ url_for('static',filename='kilas_ai_capacity_notice.js',v='1') }}" defer></script>

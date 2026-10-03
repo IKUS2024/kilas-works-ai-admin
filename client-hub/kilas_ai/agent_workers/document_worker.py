@@ -52,5 +52,9 @@ def run(job,step,data):
         work_artifacts.validate(file)
         success=True
         return Result('SUCCEEDED','Dokumen selesai dan siap digunakan.',{'title':file['title'],'format':format,'document_ready':True},[{'binary_file':file}],used,True)
+    except Exception as error:
+        model = getattr(error,'model',None) or model
+        used.update(getattr(error,'usage',{}) or {})
+        raise
     finally:
         usage.finish(job['user_id'],key,ops,success=success,provider='openai' if model else None,model=model,usage=used)

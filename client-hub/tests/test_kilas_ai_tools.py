@@ -116,7 +116,7 @@ class ToolTests(unittest.TestCase):
     def test_research_plan_caps_and_early_stop(self):
         question = "Riset kompetitor AI untuk UMKM Indonesia dari beberapa sumber."
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test", "KILAS_AI_OPENAI_WEB_MODEL": "gpt-6-luna"}):
-            for plan, cap in (("FREE", 1), ("PLUS", 3), ("PRO", 4), ("MAX", 5)):
+            for plan, cap in (("FREE", 1), ("PLUS", 5), ("PRO", 5), ("MAX", 5)):
                 hits = []
                 def search(*args, **kwargs):
                     hits.append(kwargs["json"])
@@ -138,7 +138,7 @@ class ToolTests(unittest.TestCase):
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test", "KILAS_AI_OPENAI_WEB_MODEL": "gpt-6-luna"}), \
              patch.object(tools.requests, "post", side_effect=[web_result(["https://one.example/a"]),
                 tools.requests.RequestException(), tools.requests.RequestException()]):
-            result = tools.web_search(context, plan="PLUS")
+            result = tools.web_search(context, plan="PLUS", max_calls=3)
             self.assertEqual(result["citations"][0]["url"], "https://one.example/a")
             self.assertEqual(result["search_calls"], 3)
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test", "KILAS_AI_OPENAI_WEB_MODEL": "gpt-6-luna"}), \

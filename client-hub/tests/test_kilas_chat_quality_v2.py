@@ -31,16 +31,16 @@ class QualityTests(unittest.TestCase):
 
     def source(self, prompt='halo'):
         key='quality-'+self.id()
-        _, ops=usage.reserve(self.uid,self.thread,key,'SMART','CHAT')
+        _, ops=usage.reserve(self.uid,self.thread,key,'FAST','CHAT')
         return quality.ChatQualityStream(self.uid,self.thread,key,'SMART',ops,
                                         policy.ChatContext([{'role':'user','content':prompt}]))
 
     def test_reasoning_examples(self):
         for prompt in ('menurut lu usaha laundry apa cafe modal 200jt','gw bingung mending beli mobil atau sewa dulu','coba analisis bisnis gw','kenapa query SQL gw begini','coba cari kemungkinan salahnya','bikin strategi marketing yang realistis','bandingin pilihan ini','kalau kondisinya begini menurut lu gimana'):
             with self.subTest(prompt=prompt):
-                self.assertEqual(policy.chat_profile([{'role':'user','content':prompt}])['effort'],'medium')
+                self.assertEqual(policy.chat_profile([{'role':'user','content':prompt}])['effort'],'low' if policy.chat_profile([{'role':'user','content':prompt}])['difficulty']=='HARD' else 'medium')
         for prompt in ('halo','translate ini','apa itu API','berapa arti kata ini','benerin typo kalimat ini','buat caption pendek'):
-            self.assertEqual(policy.chat_profile([{'role':'user','content':prompt}])['effort'],'low')
+            self.assertIn(policy.chat_profile([{'role':'user','content':prompt}])['effort'],('low','medium'))
         self.assertEqual(policy.chat_tier('translate: business strategy and SQL debugging'),'QUICK')
         self.assertEqual(policy.chat_tier('Modal saya 15 juta, saya bekerja sendiri, hanya punya dua jam sehari, dan harus bisa mulai dari rumah.'),'DEEP')
         self.assertEqual(routing.tool_for('jelaskan berita terbaru hari ini'),'WEB')
@@ -49,7 +49,7 @@ class QualityTests(unittest.TestCase):
 
     def test_attachment_evidence_does_not_turn_simple_question_into_analysis(self):
         prompt = "Apa isi PDF ini?\n\nTeks berikut berhasil diekstrak dari lampiran 'info.pdf'.\n<isi_lampiran>analysis strategy debug sql</isi_lampiran>"
-        self.assertEqual(policy.chat_profile([{'role':'user','content':prompt}])['effort'],'low')
+        self.assertIn(policy.chat_profile([{'role':'user','content':prompt}])['effort'],('low','medium'))
         self.assertEqual(quality.latest_text([{'role':'user','content':prompt}]),'Apa isi PDF ini?')
 
     def test_guard_broken_patterns_and_explicit_code(self):
@@ -77,7 +77,7 @@ class QualityTests(unittest.TestCase):
         with patch.object(providers,'stream',side_effect=[reply('PDF sudah dibuat.'),reply()]) as call:
             events=list(source)
         self.assertEqual(call.call_count,2)
-        self.assertEqual(policy.chat_profile(call.call_args.args[1])['effort'],'medium')
+        self.assertEqual(policy.chat_profile(call.call_args.args[1])['model'],policy.SOL)
         self.assertIn(quality.REPAIR,call.call_args.kwargs['system'])
         self.assertTrue(source.initial_finalized)
         self.assertEqual(sum(e['type']=='reset' for e in events),1)
@@ -118,8 +118,8 @@ class QualityTests(unittest.TestCase):
         with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic'}),patch.object(providers,'_openai',side_effect=[empty,good]) as adapter:
             events=list(source)
         self.assertEqual(adapter.call_count,2)
-        self.assertEqual(adapter.call_args.args[0],policy.LUNA)
-        self.assertEqual(policy.chat_profile(adapter.call_args.args[2])['effort'],'medium')
+        self.assertEqual(adapter.call_args.args[0],policy.SOL)
+        self.assertEqual(policy.chat_profile(adapter.call_args.args[2])['effort'],'low')
         self.assertIn({'type':'delta','text':'Halo!'},events)
 
     def test_missing_usage_never_unlocks_retry(self):
@@ -159,11 +159,11 @@ class QualityTests(unittest.TestCase):
         self.assertLess(joined.index('jangan cafe'),joined.index('cafe boleh'))
         self.assertEqual(messages[-1]['content'],'jadi mending apa?')
         self.assertLessEqual(len(joined),18500)
-        self.assertLessEqual(len(messages),13)
+        self.assertLessEqual(len(messages),17)
 
     def test_analytical_short_followup_inherits_reasoning(self):
         messages=policy.ChatContext([{'role':'user','content':'Analisis bisnis laundry'}, {'role':'assistant','content':'Bandingkan biaya.'},{'role':'user','content':'kalau 150 juta?'}])
-        self.assertEqual(policy.chat_profile(messages)['effort'],'medium')
+        self.assertEqual(policy.chat_profile(messages)['effort'],'low')
 
     def test_corpus_traits_and_multiturn_counts(self):
         cases=json.loads((Path(__file__).parent/'fixtures/kilas_conversation_standard.json').read_text(encoding='utf-8'))

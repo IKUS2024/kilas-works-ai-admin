@@ -1,0 +1,6 @@
+.ai-capacity-notice{margin:12px 0;padding:12px 16px;background:#fff7ef;border-radius:10px;color:#6e360f;font-size:.9rem;line-height:1.5;overflow-wrap:anywhere}
+.ai-capacity-notice[hidden]{display:none}
+.ai-capacity-notice p{margin:0 0 6px}
+.ai-capacity-notice div{display:flex;gap:16px;flex-wrap:wrap}
+.ai-capacity-notice a{display:inline-flex;align-items:center;min-height:44px;color:#8f3b0a;font-weight:650;text-underline-offset:3px}
+.ai-capacity-notice a:focus-visible{outline:2px solid #a9430d;outline-offset:3px}

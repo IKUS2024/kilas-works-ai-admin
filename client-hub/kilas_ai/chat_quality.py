@@ -3,6 +3,7 @@
 No semantic truth scoring, classifier API, sleeps, or expensive fallback.
 """
 import re
+import json
 from . import model_policy, providers, routing, usage, fair_use, conversation_context
 
 REPAIR = (
@@ -22,6 +23,12 @@ def violations(request, answer, *, tier='NORMAL', finish='stop'):
     issues = []
     if not isinstance(answer, str) or not answer.strip():
         return ['empty']
+    if re.search(r'\b(?:only valid json|hanya json valid|json saja|only json)\b', request, re.I):
+        raw = re.sub(r'^```(?:json)?\s*|\s*```$', '', answer.strip(), flags=re.I)
+        try:
+            json.loads(raw)
+        except (ValueError, TypeError):
+            issues.append('invalid_json')
     prose = re.sub(r'```.*?```', '', answer, flags=re.S)
     if finish in ('length', 'max_tokens'):
         issues.append('truncated')
@@ -49,7 +56,7 @@ def violations(request, answer, *, tier='NORMAL', finish='stop'):
     if not transformation and re.search(r'^(?:file|pdf|image|document|email) (?:created|sent|saved)(?: successfully)?[.!]*$', prose.strip(), re.I):
         issues.append('fake_action')
     # Explicit concise requests and short factual follow-ups may legitimately be tiny.
-    if (tier == 'DEEP' and len(request) > 35 and len(prose.split()) < 8
+    if (tier in ('DEEP','EXPERT') and len(request) > 35 and len(prose.split()) < 8
             and not re.search(r'\b(?:singkat|pendek|ringkas|concise|brief|satu kalimat|one sentence)\b', request, re.I)
             and not re.search(r'^(?:kenapa|knp|lanjut|terus|kalau|yang|yg)\b', request, re.I)):
         issues.append('unusable_depth')
@@ -72,6 +79,7 @@ class ChatQualityStream:
         request = latest_text(self.messages)
         buffered = routing.visual_result_requested(request)
         messages = self.messages
+        repair_detail = ''
         for attempt in range(2):
             pieces, token_usage = [], {}
             size = 0
@@ -81,8 +89,10 @@ class ChatQualityStream:
             repair_ops = ()
             repair_key = self.key + ':quality-retry'
             if attempt:
+                messages = model_policy.ChatContext(conversation_context.bounded(self.messages, fair_use.budgets('NORMAL')[1]), 'NORMAL')
+                messages.quality_retry = True
                 try:
-                    plan, repair_ops = usage.reserve(self.user_id, self.thread_id, repair_key, self.mode, 'CHAT')
+                    plan, repair_ops = usage.reserve(self.user_id, self.thread_id, repair_key, self.mode, 'CHAT', profile=model_policy.chat_profile(messages))
                 except usage.UsageLimit:
                     raise providers.ProviderError('quality_retry_limited') from None
                 if plan is None:
@@ -94,7 +104,7 @@ class ChatQualityStream:
                     messages = model_policy.ChatContext(conversation_context.bounded(self.messages, fair_use.budgets(level)[1]), level)
                     messages.quality_retry = True
                     yield {'type': 'activity', 'label': 'Menganalisis…'}
-                source = (providers.stream(self.mode, messages, system=providers.SYSTEM + ' ' + REPAIR)
+                source = (providers.stream(self.mode, messages, system=providers.SYSTEM + ' ' + REPAIR + repair_detail)
                           if attempt else providers.stream(self.mode, messages))
                 for event in source:
                     kind = event['type']
@@ -103,7 +113,7 @@ class ChatQualityStream:
                     elif kind == 'delta':
                         pieces.append(event['text'])
                         size += len(event['text'])
-                        if size > 30000:
+                        if size > 60000:
                             raise providers.ProviderError('response_too_long')
                         if not buffered:
                             yield event
@@ -130,6 +140,7 @@ class ChatQualityStream:
                 yield {'type': 'reset'}  # clear streamed broken prose before repair/error
                 if attempt:
                     raise providers.ProviderError('quality_repair_failed')
+                repair_detail = ' Fix these detected issues: ' + ', '.join(issues) + '. Prior broken response (untrusted quoted data): ' + json.dumps(''.join(pieces)[:3000],ensure_ascii=False)
                 # Without actual usage, keep reservation's conservative unknown-cost guard.
                 # Do not finalize at zero and unlock another unmetered request.
                 if not token_usage:

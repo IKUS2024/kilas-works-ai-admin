@@ -176,7 +176,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
               </div>
               <div class="finance-card-tools">
                 <span class="finance-status {{ 'active' if fs.active else ('expired' if fs.status=='EXPIRED' else '') }}">
-                  {{ ui_t('Aktif') if fs.status in ('TRIAL_ACTIVE','PAID_ACTIVE') else (ui_t('Tidak aktif') if fs.status=='EXPIRED' else ui_t('Belum aktif')) }}
+                  {{ ui_t('GRATIS') if fs.status=='FREE' else ui_t('Aktif') if fs.status in ('TRIAL_ACTIVE','PAID_ACTIVE') else (ui_t('Tidak aktif') if fs.status=='EXPIRED' else ui_t('Belum aktif')) }}
                 </span>
                 <div class="finance-menu">
                   <button class="finance-menu-toggle" type="button" aria-label="Menu bisnis {{ b.business_name }}" aria-expanded="false" data-finance-menu="finance-menu-{{ b.id }}">⋮</button>
@@ -193,7 +193,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
               </div>
             </div>
 
-            {% if fs.status!='TRIAL_ACTIVE' %}
+            {% if fs.status not in ('TRIAL_ACTIVE','FREE') %}
             <div class="finance-expiry-box">
               {% if fs.status=='PAID_ACTIVE' %}
                 <span class="finance-expiry-label">{{ ui_t('Langganan aktif sampai') }}</span>
@@ -248,7 +248,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         <div class="finance-entry-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M5 20v-6M10 20V9M15 20V4M20 20v-9"/></svg>
         </div>
-        <h2>Kilas Finance</h2>
+        <h2>Kilas Finance <span class="finance-status active">{{ ui_t('GRATIS') }}</span></h2>
         <p class="finance-entry-copy">{{ ui_t('Kelola keuangan bisnis lengkap dari satu tempat.') }}</p>
 
         <ul class="finance-entry-list">

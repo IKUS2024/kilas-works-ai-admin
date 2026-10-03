@@ -24,7 +24,7 @@ class StandaloneBoundaryTests(unittest.TestCase):
         with patch.dict(os.environ,{'KILAS_CORE_V2_ENABLED':'false','KILAS_CUSTOMERS_V2_ENABLED':'false',
                                   'KILAS_JOBS_V2_ENABLED':'false','KILAS_FINANCE_BRIDGE_ENABLED':'false'}):
             for path in ('','/receivables?section=invoices','/reports','/assistant'):
-                with self.subTest(path=path): self.assertEqual(self.client.get(self.url+path).status_code,200)
+                with self.subTest(path=path): self.assertEqual(self.client.get(self.url+path).status_code,404 if path=='/assistant' else 200)
 
     def test_existing_compound_boundary_atomically_rolls_back_all_writes(self):
         db.execute('CREATE TABLE qa_core_link(invoice_id INTEGER)')
@@ -60,7 +60,7 @@ class StandaloneBoundaryTests(unittest.TestCase):
     def test_expired_emergency_and_all_branch_writes_fail_closed(self):
         invoice=self.draft()
         with patch.dict(os.environ,{'KILAS_FINANCE_ACCESS_MODE':'self_service','KILAS_FINANCE_UNLIMITED_TRIAL':'false'}):
-            with self.assertRaisesRegex(finance.FinanceError,'finance_read_only'): self.draft()
+            self.assertIsInstance(self.draft(),int)
             self.assertEqual(finance.get_invoice_totals(self.b,invoice)['total_minor'],200000000)
         with patch.dict(os.environ,{'KILAS_FINANCE_EMERGENCY_DISABLE':'true'}):
             with self.assertRaisesRegex(finance.FinanceError,'finance_read_only'): self.draft()

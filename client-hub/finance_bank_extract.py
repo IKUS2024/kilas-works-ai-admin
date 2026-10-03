@@ -298,11 +298,8 @@ def validate_sources(files):
 
 
 def configuration():
-    key=os.environ.get('ANTHROPIC_API_KEY','').strip()
-    model=os.environ.get('CLIENT_HUB_MODEL','').strip() or 'claude-sonnet-4-6'
-    if not key or len(key)>512 or any(c.isspace() for c in key) or not re.fullmatch('[A-Za-z0-9._-]{1,128}',model):
-        raise BankError('not_configured')
-    return key, model
+    # Retained connector architecture; paid Finance AI is disabled server-side.
+    raise BankError('finance_ai_disabled')
 
 
 def provider_content(source):

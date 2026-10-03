@@ -30,7 +30,7 @@ class FinanceStyleLoadingTests(unittest.TestCase):
             ('',{'view':'transactions','direction':'EXPENSE'}),('',{'view':'accounts'}),('',{'view':'accounts','account_id':self.a}),
             ('/operations',{}),('/budget',{}),('/receivables',{'section':'invoices'}),('/receivables',{'section':'customers'}),
             ('/invoices/new',{}),('/invoices/'+str(invoice),{}),('/invoices/'+str(invoice)+'/edit',{}),
-            ('/invoices/settings',{}),('/payees',{}),('/reports',{}),('/assistant',{}),('/receipts/new',{}),
+            ('/invoices/settings',{}),('/payees',{}),('/reports',{}),
             ('/transactions/'+str(transaction)+'/edit',{})]
         for suffix,params in pages:
             with self.subTest(page=suffix,params=params):

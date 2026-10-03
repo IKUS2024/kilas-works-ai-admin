@@ -133,7 +133,7 @@ def agent_chat():
     if files:
         from . import attachments,work_attachments
         try:
-            prepared=work_attachments.prepare_many(files,usage.effective_plan(owner)['plan'])
+            prepared=work_attachments.prepare_many(files,usage.attachment_plan(owner))
             request.work_attachments=prepared
             request.work_source_materials=[{'filename':item['filename'],'text':item['extracted_text'][:4000]} for item in prepared if item.get('extracted_text')]
         except attachments.AttachmentError as error:

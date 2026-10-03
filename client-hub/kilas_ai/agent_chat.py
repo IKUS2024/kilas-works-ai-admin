@@ -43,7 +43,7 @@ def ordinary(user_id, conversation_id, operation_key):
     messages = context(user_id,conversation_id)
     meter_key = 'agent-chat-' + operation_key
     try:
-        _, operations = usage.reserve(user_id, None, meter_key, 'FAST', 'CHAT')
+        _, operations = usage.reserve(user_id, None, meter_key, 'FAST', 'CHAT', profile=model_policy.chat_profile(messages))
     except usage.UsageLimit as error:
         agent_store.append(user_id, 'assistant', str(error)[:1200], conversation_id)
         return None
@@ -64,7 +64,7 @@ def ordinary(user_id, conversation_id, operation_key):
                     used.update({k: event[k] for k in ('input_tokens', 'output_tokens','cached_input_tokens') if k in event})
                 elif event['type'] == 'delta':
                     pieces.append(event['text'])
-                    if sum(map(len, pieces)) > 12000:
+                    if sum(map(len, pieces)) > 60000:
                         raise providers.ProviderError('response_too_long')
                     yield event
                 elif event['type'] == 'reset':
@@ -83,7 +83,7 @@ def ordinary(user_id, conversation_id, operation_key):
         finally:
             # Preserve useful partial output, without claiming a finished external action.
             if pieces:
-                agent_store.append(user_id, 'assistant', ''.join(pieces)[:12000], conversation_id)
+                agent_store.append(user_id, 'assistant', ''.join(pieces)[:60000], conversation_id)
             elif not success:
                 agent_store.append(user_id, 'assistant', 'Kilas belum bisa menjawab sekarang. Coba lagi sebentar.', conversation_id)
             if not quality.initial_finalized:

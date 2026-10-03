@@ -154,7 +154,7 @@ class UnifiedFinanceTests(unittest.TestCase):
                ('',{'view':'transactions','direction':'INCOME'}),('',{'view':'transactions','direction':'EXPENSE'}),
                ('/operations',{}),('/budget',{}),('/payees',{}),('/receivables',{}),('/reports',{}),
                ('/invoices/new',{}),('/invoices/'+str(invoice),{}),('/invoices/'+str(invoice)+'/edit',{}),
-               ('/transactions/'+str(tx)+'/edit',{}),('/assistant',{}),('/receipts/new',{})]
+               ('/transactions/'+str(tx)+'/edit',{})]
         for suffix,args in pages:
             with self.subTest(page=suffix,args=args):
                 html,_=self.page(suffix,month='2026-08',display_currency='USD',**args)

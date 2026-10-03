@@ -204,6 +204,10 @@ def run(job, step, data):
                 data = {**data, 'patch': generated}
                 apply_patch(workspace, generated)
                 success = True
+            except Exception as error:
+                model = getattr(error,'model',None) or model
+                used.update(getattr(error,'usage',{}) or {})
+                raise
             finally:
                 usage.finish(job['user_id'], key, operations, success=success, provider='openai' if success else None, model=model, usage=used)
         else:

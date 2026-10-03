@@ -1,10 +1,11 @@
 """Server-owned model and reasoning decisions; no classifier API call."""
 import os
 import re
+from . import intelligence
 
 LUNA = 'gpt-6-luna'
 SOL = 'gpt-6.1-sol'
-TIERS = {'QUICK': ('low', 600), 'NORMAL': ('low', 1000), 'DEEP': ('medium', 1500)}
+TIERS = {'QUICK': ('low', 1200), 'NORMAL': ('medium', 3500), 'DEEP': ('low', 7000), 'EXPERT': ('medium', 11000)}
 
 
 def luna_model():
@@ -54,30 +55,22 @@ def request_text(content):
 
 
 def chat_profile(messages):
-    current = request_text(next((m['content'] for m in reversed(messages) if m['role']=='user'), ''))
-    tier = chat_tier(current)
-    # An obvious short reference inherits recent analytical context without another API call.
-    if len(current) < 160 and re.search(r'^(?:lanjut|terus|kenapa|knp|yang|yg|kalau|lebih murah|buat versi|yang simpel)\b', current.lower()):
-        prior = [m['content'] for m in messages[:-1] if m['role'] == 'user' and isinstance(m['content'], str)]
-        if any(chat_tier(text) == 'DEEP' for text in prior[-3:]):
-            tier = 'DEEP'
-    if getattr(messages, 'quality_retry', False):
-        tier = 'DEEP'
-    effort, output = TIERS[tier]
-    level = getattr(messages, 'fair_use_level', 'NORMAL')
-    if level == 'HEAVY':
-        output = min(output, 1200)
-    elif level in ('VERY_HEAVY', 'PROTECTION'):
-        output = min(output, 1000)
-    return {'tier':tier, 'effort':effort, 'output_tokens':output,
-            'activity':'Menganalisis…' if tier=='DEEP' else 'Menyiapkan jawaban…'}
+    profile=intelligence.classify(messages)
+    if profile['model']==LUNA:profile['model']=luna_model()
+    profile['tier']='NORMAL' if profile['depth']=='STANDARD' else profile['depth']
+    profile['activity']='Menganalisis…' if profile['difficulty'] in ('HARD','EXPERT') else 'Menyiapkan jawaban…'
+    return profile
 
 
 def agent_planner(job):
     text = job['instruction'].lower()
-    complex_work = bool((job.get('replans',0) and job.get('last_error') in ('worker_failed','invalid_plan')) or re.search(
-        r'\b(?:bug|debug|refactor|repo|repository|kode|coding|code|authentication|dependencies|dependensi|multi.?stage|multi.?step|retry|retries)\b', text))
-    model = SOL if complex_work else luna_model()
-    if complex_work and os.environ.get('KILAS_AI_AGENT_MODEL', SOL).strip() != SOL:
+    # Video has passed Sol parity checks; retain that director route unchanged.
+    if text == 'multi-stage planning':
+        return SOL, 'medium', 'complex_execution'
+    messages = ChatContext([{'role':'user','content':job['instruction']}])
+    messages.quality_retry = bool(job.get('replans',0) and job.get('last_error') in ('worker_failed','invalid_plan'))
+    profile = intelligence.classify(messages, task=True)
+    model = SOL if profile['difficulty'] in ('HARD','EXPERT') else luna_model()
+    if model == SOL and os.environ.get('KILAS_AI_AGENT_MODEL', SOL).strip() != SOL:
         raise ValueError('invalid_complex_planner_model')
-    return model, 'medium', 'complex_execution' if complex_work else 'bounded_task'
+    return model, profile['effort'], 'complex_execution' if model == SOL else 'bounded_task'

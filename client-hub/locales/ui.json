@@ -7798,5 +7798,120 @@
     "en": "Maximum 8 clips per plan. Reduce the total duration or choose longer clips.",
     "es": "Máximo 8 clips por plan. Reduce la duración total o elige clips más largos.",
     "zh": "每个计划最多 8 个片段。请缩短总时长或选择更长的片段。"
+  },
+  "Langganan & Pembayaran": {
+    "en": "Subscription & Payments",
+    "es": "Suscripción y pagos",
+    "zh": "订阅与付款"
+  },
+  "GRATIS": {
+    "en": "FREE",
+    "es": "GRATIS",
+    "zh": "免费"
+  },
+  "Kapasitas Premium": {
+    "en": "Premium Capacity",
+    "es": "Capacidad Premium",
+    "zh": "高级容量"
+  },
+  "Cukup": {
+    "en": "Available",
+    "es": "Disponible",
+    "zh": "充足"
+  },
+  "Menipis": {
+    "en": "Running low",
+    "es": "Casi agotada",
+    "zh": "即将耗尽"
+  },
+  "Habis": {
+    "en": "Used up",
+    "es": "Agotada",
+    "zh": "已耗尽"
+  },
+  "Tambah Kapasitas Premium": {
+    "en": "Add Premium Capacity",
+    "es": "Añadir capacidad Premium",
+    "zh": "增加高级容量"
+  },
+  "Video Plan dan Work": {
+    "en": "Video Plans and Work",
+    "es": "Planes de vídeo y Work",
+    "zh": "视频计划与工作"
+  },
+  "Satu kapasitas bersama untuk Search, gambar, Video, Work, dan analisis intensif. Chat normal dan Finance tetap tersedia saat kapasitas habis.": {
+    "en": "Shared capacity for Search, images, Video, Work and intensive analysis. Normal Chat and Finance remain available when capacity runs out.",
+    "es": "Capacidad compartida para búsquedas, imágenes, vídeo, Work y análisis intensivo. El chat normal y Finance siguen disponibles al agotarse.",
+    "zh": "搜索、图片、视频、工作和深入分析共享容量。容量耗尽后，普通聊天与财务仍可使用。"
+  },
+  "Kapasitas tambahan tersimpan dan dapat digunakan saat Kilas Pro aktif.": {
+    "en": "Additional capacity is preserved and can be used while Kilas Pro is active.",
+    "es": "La capacidad adicional se conserva y puede utilizarse con Kilas Pro activo.",
+    "zh": "额外容量会保留，可在 Kilas Pro 有效期间使用。"
+  },
+  "Pilih paket tetap. Berlaku 90 hari setelah pembayaran terverifikasi.": {
+    "en": "Choose a fixed pack. Valid for 90 days after payment verification.",
+    "es": "Elige un paquete fijo. Válido durante 90 días tras verificar el pago.",
+    "zh": "选择固定套餐。付款验证后有效期为90天。"
+  },
+  "Untuk kebutuhan intensif, tanpa membeli pesan Chat. Kapasitas tambahan berlaku 90 hari setelah pembayaran terverifikasi.": {
+    "en": "For intensive use, without buying Chat messages. Additional capacity is valid for 90 days after payment verification.",
+    "es": "Para uso intensivo, sin comprar mensajes. La capacidad adicional dura 90 días tras verificar el pago.",
+    "zh": "适用于高强度使用，无需购买聊天消息。付款验证后，额外容量有效期为90天。"
+  },
+  "Pilih paket": {
+    "en": "Choose a pack",
+    "es": "Elige un paquete",
+    "zh": "选择套餐"
+  },
+  "Pembayaran melalui transfer dan verifikasi bukti. Kapasitas aktif setelah pembayaran disetujui.": {
+    "en": "Pay by transfer and submit proof for verification. Capacity becomes active after payment approval.",
+    "es": "Paga por transferencia y envía el comprobante. La capacidad se activa tras aprobar el pago.",
+    "zh": "通过转账并提交凭证验证。付款获批后容量生效。"
+  },
+  "Menyiapkan tagihan…": {
+    "en": "Preparing invoice…",
+    "es": "Preparando factura…",
+    "zh": "正在准备账单…"
+  },
+  "Lanjut ke pembayaran": {
+    "en": "Continue to payment",
+    "es": "Continuar al pago",
+    "zh": "继续付款"
+  },
+  "*Chat normal tetap tersedia sesuai Fair Use. Search, gambar, Video, Work, analisis mendalam, dan dokumen menggunakan Kapasitas Premium bersama. Batas keamanan dan persetujuan tindakan eksternal tetap berlaku.": {
+    "en": "*Normal Chat remains available under Fair Use. Search, images, Video, Work, deep analysis and documents share Premium Capacity. Security limits and external-action approvals still apply.",
+    "es": "*El chat normal sigue disponible bajo uso justo. Búsqueda, imágenes, vídeo, Work, análisis profundo y documentos comparten capacidad Premium. Se mantienen los límites de seguridad y las aprobaciones.",
+    "zh": "*普通聊天按公平使用规则保持可用。搜索、图片、视频、工作、深入分析与文档共享高级容量。安全限制和外部操作审批仍然适用。"
+  },
+  "Kapasitas Premium mulai menipis. Chat normal tetap tersedia.": {
+    "en": "Premium Capacity is running low. Normal Chat remains available.",
+    "es": "La capacidad Premium está bajando. El chat normal sigue disponible.",
+    "zh": "高级容量即将耗尽。普通聊天仍可使用。"
+  },
+  "Kapasitas Premium habis. Tambah kapasitas untuk fitur intensif, atau lanjutkan Chat biasa.": {
+    "en": "Premium Capacity has run out. Add capacity for intensive features, or continue normal Chat.",
+    "es": "La capacidad Premium se agotó. Añade capacidad para funciones intensivas o continúa con el chat normal.",
+    "zh": "高级容量已耗尽。可增加容量使用高强度功能，或继续普通聊天。"
+  },
+  "Lanjut Chat": {
+    "en": "Continue Chat",
+    "es": "Continuar chat",
+    "zh": "继续聊天"
+  },
+  "Berlaku 90 hari setelah pembayaran terverifikasi.": {
+    "en": "Valid for 90 days after verified payment.",
+    "es": "Válido 90 días tras verificar el pago.",
+    "zh": "付款验证后有效期为90天。"
+  },
+  "Masa aktif Kilas Pro telah berakhir.": {
+    "en": "Your Kilas Pro subscription has expired.",
+    "es": "Tu suscripción a Kilas Pro ha caducado.",
+    "zh": "你的 Kilas Pro 订阅已到期。"
+  },
+  "Perpanjang Rp99.000 / 30 hari": {
+    "en": "Renew for Rp99,000 / 30 days",
+    "es": "Renovar por Rp99.000 / 30 días",
+    "zh": "续订 Rp99,000 / 30 天"
   }
 }

@@ -92,22 +92,19 @@ class TopupTests(unittest.TestCase):
         self.seed_base(owner, thread, "WEB_SEARCH", 3)
         self.seed_base(owner, thread, "IMAGE_GENERATION", 2)
         self.seed_base(owner, thread, "PDF", 10)
-        for tool, operation in (("CHAT", "CHAT"), ("WEB", "WEB_SEARCH"),
-                                ("IMAGE_GENERATE", "IMAGE_GENERATION"), ("PDF", "PDF")):
-            key = "topup-base-" + operation.lower() + "-0123456789"
-            plan, operations = usage.reserve(owner, thread, key, "FAST", tool)
-            self.assertEqual((plan, operations), ("FREE", (operation,)))
-            self.assertEqual(db.query_one("SELECT quota_source FROM kilas_ai_usage WHERE user_id=? AND operation_key=?",
-                                          (owner, key))["quota_source"], "TOPUP")
-            usage.finish(owner, key, operations, success=True, provider="openai", model="gpt-6-luna",
-                         usage={"input_tokens": 100, "output_tokens": 20})
-        state = usage.snapshot(owner)
-        self.assertEqual(state["usage"]["Chat"]["used"], 10)
-        self.assertEqual(state["usage"]["Search"]["used"], 3)
-        self.assertEqual(state["usage"]["Gambar"]["used"], 2)
-        self.assertEqual(state["usage"]["PDF"]["used"], 10)
-        self.assertTrue(state["creative_high"])
-        self.assertLess(state["topup"]["percent"], 100)
+        before=topups.balance(owner)
+        with self.assertRaises(usage.UsageLimit):usage.reserve(owner,thread,'expired-feature','FAST','IMAGE_GENERATE')
+        self.assertEqual(before,topups.balance(owner))
+        now=usage._now()
+        db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?)",(owner,(now-timedelta(days=1)).isoformat(),(now+timedelta(days=29)).isoformat()))
+        db.execute("UPDATE kilas_ai_usage SET estimated_cost_usd='1',mode='SMART' WHERE user_id=?",(owner,))
+        for tool,operation in (("WEB","WEB_SEARCH"),("IMAGE_GENERATE","IMAGE_GENERATION"),("PDF","PDF")):
+            key='topup-base-'+operation.lower()+'-0123456789'
+            plan,operations=usage.reserve(owner,thread,key,'FAST',tool)
+            self.assertEqual((plan,operations),('PLUS',(operation,)))
+            self.assertEqual(db.query_one('SELECT quota_source FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(owner,key))['quota_source'],'TOPUP')
+            usage.finish(owner,key,operations,success=True,provider='openai',model='gpt-6-luna',usage={'input_tokens':100,'output_tokens':20})
+        self.assertLess(topups.balance(owner)['percent'],100)
 
     def test_image_fair_use_does_not_disable_base_chat_or_search(self):
         owner = self.new_owner("fair")
@@ -136,6 +133,8 @@ class TopupTests(unittest.TestCase):
                                                     credits[0]["total_micro"] - 30000, credits[0]["total_micro"] - 30000))
         thread = store.create_thread(owner)
         self.seed_base(owner, thread, "IMAGE_GENERATION", 2)
+        db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?)",(owner,(now-timedelta(days=1)).isoformat(),(now+timedelta(days=29)).isoformat()))
+        db.execute("UPDATE kilas_ai_usage SET estimated_cost_usd='2' WHERE user_id=?",(owner,))
         key = "earliest-image-0123456789"
         _, operations = usage.reserve(owner, thread, key, "FAST", "IMAGE_GENERATE")
         debits = db.query_all("SELECT credit_id,reserved_micro FROM kilas_ai_topup_debits WHERE operation_key=? ORDER BY id", (key,))
@@ -144,7 +143,7 @@ class TopupTests(unittest.TestCase):
         usage.finish(owner, key, operations, success=True, provider="openai", model="gpt-image-2")
         before = topups.balance(owner)["percent"]
         start = now + timedelta(days=20)
-        db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?)",
+        db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?) ON CONFLICT(user_id) DO UPDATE SET period_start=excluded.period_start,period_end=excluded.period_end",
                    (owner, start.isoformat(), (start + timedelta(days=30)).isoformat()))
         self.assertEqual(topups.balance(owner)["percent"], before)
         with patch.object(usage, "_now", return_value=now + timedelta(days=90, hours=12)):
@@ -161,15 +160,13 @@ class TopupTests(unittest.TestCase):
                    (owner, (now - timedelta(days=1)).isoformat(), (now + timedelta(days=29)).isoformat()))
         db.execute("INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,estimated_cost_usd,created_at) "
                    "VALUES (?,?,?,?,?,'COMPLETE',?,?)", (owner, thread, "cost-prior", "CHAT", "SMART", "2.10", now.isoformat()))
-        with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):
-            usage.reserve(owner, thread, "guard-fast-0123456789", "FAST", "CHAT")
+        self.assertEqual(usage.reserve(owner,thread,'guard-fast-0123456789','FAST','CHAT')[0],'PLUS')
         with self.assertRaises(usage.UsageLimit):
             usage.reserve(owner, thread, "guard-image-no-credit", "FAST", "IMAGE_GENERATE")
         self.verified(owner)
         before=topups.balance(owner)
-        with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):
-            usage.reserve(owner, thread, 'chat-with-credit', 'SMART', 'CHAT')
-        self.assertEqual(topups.balance(owner),before)
+        self.assertEqual(usage.reserve(owner,thread,'chat-with-credit','SMART','CHAT')[0],'PLUS')
+        self.assertLess(topups.balance(owner)['percent'],before['percent'])
         _, image = usage.reserve(owner, thread, "guard-image-with-credit", "FAST", "IMAGE_GENERATE")
         self.assertEqual(db.query_one("SELECT quota_source FROM kilas_ai_usage WHERE operation_key='guard-image-with-credit'")["quota_source"], "TOPUP")
         usage.finish(owner, "guard-image-with-credit", image, success=False)

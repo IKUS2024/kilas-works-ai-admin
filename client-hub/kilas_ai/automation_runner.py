@@ -17,20 +17,26 @@ def _plain_ai(prompt, mode="FAST"):
     length = 0
     provider = model = None
     recorded = {"input_tokens": 0, "output_tokens": 0}
-    for event in providers.stream(mode, [{"role": "user", "content": prompt[:4000]}]):
-        if event["type"] == "provider":
-            provider, model = event["provider"], event["model"]
-        elif event["type"] == "delta":
-            pieces.append(event["text"])
-            length += len(event["text"])
-            if length > 12000:
-                raise RunError("result_too_long")
-        elif event["type"] == "usage":
-            recorded.update({key: max(0, int(event.get(key) or 0)) for key in recorded if key in event})
-    answer = "".join(pieces).strip()
-    if not answer:
-        raise RunError("empty_result")
-    return answer[:12000], provider, model, recorded
+    try:
+        for event in providers.stream(mode, [{"role": "user", "content": prompt[:4000]}]):
+            if event["type"] == "provider":
+                provider, model = event["provider"], event["model"]
+            elif event["type"] == "delta":
+                pieces.append(event["text"])
+                length += len(event["text"])
+                if length > 12000:
+                    raise RunError("result_too_long")
+            elif event["type"] == "usage":
+                recorded.update({key: max(0, int(event.get(key) or 0)) for key in recorded if key in event})
+        answer = "".join(pieces).strip()
+        if not answer:
+            raise RunError("empty_result")
+        return answer[:12000], provider, model, recorded
+    except Exception as error:
+        error.provider = provider
+        error.model = model
+        error.usage = recorded
+        raise
 
 
 def _watch_value(text):
@@ -68,7 +74,7 @@ def _numeric_value(value):
 def _settle(user_id, reservations, *, results):
     for key, operations in reservations:
         result = results.get(key) or {}
-        usage.finish(user_id, key, operations, success=bool(result),
+        usage.finish(user_id, key, operations, success=bool(result) and not result.get("_failed"),
                      provider=result.get("provider"), model=result.get("model"), usage=result.get("usage"))
 
 
@@ -177,7 +183,11 @@ def execute(run_id):
     except usage.UsageLimit:
         _settle(user_id, reservations, results=results)
         store.finish_run(run_id, status="SKIPPED_QUOTA", error="underlying_quota")
-    except (providers.ProviderError, tools.ToolUnavailable, RunError, ValueError, KeyError):
+    except (providers.ProviderError, tools.ToolUnavailable, RunError, ValueError, KeyError) as error:
+        if getattr(error,'model',None) and getattr(error,'usage',None):
+            failed_key = next((key for key,_ in reservations if key not in results), None)
+            if failed_key:
+                results[failed_key] = {'model':error.model,'provider':'openai','usage':error.usage,'_failed':True}
         _settle(user_id, reservations, results=results)
         store.finish_run(run_id, status="FAILED", error="temporary", retry=True)
     return False

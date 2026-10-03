@@ -86,6 +86,7 @@ def propose(user_id, text, history, available, businesses, timezone_name, *, sch
             timeout=(10, 45))
         response.raise_for_status()
         data = response.json()
+        metering = data.get("usage") or {}
         if data.get("status") != "completed":
             raise InterpretationError("planner_incomplete")
         metering = data.get("usage") or {}
@@ -102,4 +103,4 @@ def propose(user_id, text, history, available, businesses, timezone_name, *, sch
         raise InterpretationError("planner_unavailable") from None
     finally:
         usage.finish(user_id, key, operations, success=success,
-                     provider="openai" if success else None, model=model if success else None, usage=metering)
+                     provider="openai" if success else None, model=model if success or metering else None, usage=metering)

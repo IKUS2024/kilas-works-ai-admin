@@ -30,19 +30,13 @@ class UsageLimit(ValueError):
     pass
 
 
-# Owner-authorized production QA window. This does not grant a paid plan,
-# erase usage, or bypass burst limits, connector authorization or approvals.
-QA_QUOTA_EXEMPTIONS = {
-    9: ("irvankarnavi@gmail.com", datetime(2026, 11, 1, 0, 0, tzinfo=timezone.utc)),
-}
-
-
+# Server-owned allowlist; never accepted from a request, user field or plan record.
 def _qa_quota_exempt(conn, user_id, now):
-    grant = QA_QUOTA_EXEMPTIONS.get(user_id)
-    if not grant or now >= grant[1]:
-        return False
+    allowed = {v.strip().casefold() for v in os.environ.get(
+        'KILAS_AI_INTERNAL_QA_EMAILS', 'irvankarnavi@gmail.com').split(',') if v.strip()}
     row = _query(conn, "SELECT email FROM users WHERE id=?", (user_id,), one=True)
-    return bool(row and str(row[0]).casefold() == grant[0].casefold())
+    return bool(row and str(row[0]).strip().casefold() in allowed)
+
 
 
 def _now():
@@ -180,30 +174,22 @@ def _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now
 
 
 def web_call_budget(user_id, plan):
-    """Bound optional research calls by the remaining internal account cost guard."""
-    now = _now()
-    state = effective_plan(user_id)
-    if plan != state["plan"]:
-        return 1
-    if plan == "FREE":
-        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        hard = Decimal(os.environ.get("KILAS_AI_FREE_COST_CAP_USD", "0.15"))
-    else:
-        start = _period(plan, state["period_start"], state["period_end"], "WEB_SEARCH", now)[0]
-        hard = (Decimal(PLANS[plan]["price"]) / Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000"))
-                * Decimal(os.environ.get("KILAS_AI_COST_HARD_RATIO", "0.35")))
-    rows = db.query_all("SELECT operation_type,mode,estimated_cost_usd FROM kilas_ai_usage "
-                        "WHERE user_id=? AND created_at>=? AND status IN ('COMPLETE','PENDING')",
-                        (user_id, start.isoformat()))
-    spent = Decimal(0)
-    for row in rows:
-        try:
-            spent += (Decimal(str(row["estimated_cost_usd"])) if row["estimated_cost_usd"] is not None
-                      else _guard_unit(row["operation_type"], row["mode"]))
-        except (InvalidOperation, KeyError):
-            spent += Decimal("0.05")
-    extra = max(0, int((hard - spent) / Decimal("0.01")))
-    return min({"FREE": 1, "PLUS": 3, "PRO": 4, "MAX": 5}.get(plan, 1), 1 + extra)
+    """Technical research ceiling, independent of commercial usage/depth."""
+    return 5 if plan != 'FREE' or qa_exempt(user_id) else 1
+
+
+def qa_exempt(user_id):
+    conn = _connect()
+    try:
+        return _qa_quota_exempt(conn, user_id, _now())
+    finally:
+        conn.close()
+
+
+def attachment_plan(user_id):
+    # QA bypasses commercial pack differences; technical upload bounds still apply.
+    return 'MAX' if qa_exempt(user_id) else effective_plan(user_id)['plan']
+
 
 
 def chat_cost(conn, user_id, start, now):
@@ -228,19 +214,12 @@ def chat_cost_state(conn, user_id, plan, start, now):
 
 
 def chat_level(user_id):
-    conn = _connect()
-    try:
-        now = _now()
-        plan,start,end = _plan(conn,user_id,now)
-        if plan == 'FREE' or _qa_quota_exempt(conn,user_id,now):
-            return 'NORMAL'
-        start = _period(plan,start,end,'CHAT',now)[0]
-        return chat_cost_state(conn,user_id,plan,start,now)
-    finally:
-        conn.close()
+    # Quality/context do not deteriorate as premium capacity is consumed.
+    return 'NORMAL'
 
 
-def reserve(user_id, thread_id, key, mode, tool):
+
+def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
     """Atomically check and reserve all requested units before any provider call."""
     now = _now()
     conn = _connect()
@@ -265,29 +244,16 @@ def reserve(user_id, thread_id, key, mode, tool):
         operations = _operations(mode, tool)
         qa_exempt = _qa_quota_exempt(conn, user_id, now)
         paid_chat = plan != 'FREE' and fair_use.normal_chat(thread_id,key,tool)
+        from . import capacity
+        if tool == 'CHAT' and profile and profile['model'].endswith('-sol'):
+            mode = 'EXPERT' if profile['difficulty'] == 'EXPERT' else 'SMART'
         level = 'NORMAL'
-        if paid_chat and not qa_exempt:
-            start = _period(plan,paid_start,paid_end,'CHAT',now)[0]
-            spent = chat_cost(conn,user_id,start,now)
-            try:
-                sustainability = fair_use.sustainability_ceiling(PLANS[plan]['price'])
-            except ValueError:
-                raise UsageLimit('Chat belum dapat digunakan saat ini. Coba lagi nanti atau hubungi dukungan.') from None
-            if spent >= sustainability:
-                raise UsageLimit('Pemakaian Chat akun ini sangat intensif dan sementara dibatasi sesuai Fair Use. Akses Chat normal akan kembali pada periode penggunaan berikutnya.')
-            level = fair_use.cost_level(spent,PLANS[plan]['price'])
-            if level == 'PROTECTION':
-                chat_filter = " AND operation_type='CHAT' AND (thread_id IS NOT NULL OR operation_key LIKE 'agent-chat-%')"
-                recent = _query(conn,"SELECT COUNT(DISTINCT operation_key) FROM kilas_ai_usage WHERE user_id=? AND created_at>=? AND status IN ('COMPLETE','FAILED','PENDING')"+chat_filter,(user_id,(now-timedelta(minutes=5)).isoformat()),one=True)[0]
-                hour = _query(conn,"SELECT COUNT(DISTINCT operation_key) FROM kilas_ai_usage WHERE user_id=? AND created_at>=? AND status IN ('COMPLETE','FAILED','PENDING')"+chat_filter,(user_id,(now-timedelta(hours=1)).isoformat()),one=True)[0]
-                if recent >= 10 and hour >= 60:
-                    raise UsageLimit('Penggunaan sedang sangat intensif. Tunggu beberapa menit lalu coba lagi.')
         concurrent = _query(conn,"SELECT COUNT(DISTINCT operation_key) FROM kilas_ai_usage WHERE user_id=? AND status='PENDING' AND created_at>=?",(user_id,(now-timedelta(minutes=10)).isoformat()),one=True)[0]
         ceiling = fair_use.budgets(level)[2] if paid_chat else 3
         if concurrent >= ceiling:
             raise UsageLimit('Masih ada permintaan yang diproses. Tunggu jawabannya lalu coba lagi.')
         needs_topup = False
-        for operation in (() if qa_exempt else operations):
+        for operation in (() if qa_exempt or plan != 'FREE' else operations):
             limit = None if paid_chat else ((10000 if mode=='FAST' else PLANS[plan]['CHAT']) if operation=='CHAT' and plan!='FREE' else _limit(plan,mode,operation))
             if limit is None:
                 continue
@@ -311,21 +277,30 @@ def reserve(user_id, thread_id, key, mode, tool):
                      (now - timedelta(minutes=10)).isoformat()), one=True)[0]
                 if daily >= PLANS[plan]["CHAT_DAILY"]:
                     needs_topup = True
-        if not qa_exempt and not paid_chat:
-            try:
-                _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now)
-            except UsageLimit:
-                needs_topup = True
+        is_premium = capacity.premium(operations[0], mode, thread_id, key)
+        predicted = capacity.forecast(operations[0], mode, profile)
+        if not qa_exempt:
+            if plan != 'FREE' and is_premium:
+                start = _period(plan, paid_start, paid_end, operations[0], now)[0]
+                needs_topup = capacity.spent(conn, user_id, start, now) + predicted > capacity.allowance()
+            elif plan == 'FREE':
+                try:
+                    _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now)
+                except UsageLimit:
+                    needs_topup = True
         if needs_topup:
+            if plan == 'FREE':
+                raise UsageLimit('Aktifkan Kilas Pro untuk melanjutkan fitur premium. Finance tetap gratis.')
             from . import topups
             try:
-                topups.reserve(conn, user_id, key, operations[0], mode, now)
-            except topups.TopupError as error:
-                raise UsageLimit(str(error)) from None
+                topups.reserve(conn, user_id, key, operations[0], mode, now,
+                               forecast_micro=int(predicted * Decimal(1000000)))
+            except topups.TopupError:
+                raise UsageLimit('Kapasitas Premium belum cukup untuk permintaan ini. Tambah kapasitas atau lanjutkan Chat biasa.') from None
         for operation in operations:
-            _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,quota_source,created_at) "
-                   "VALUES (?,?,?,?,?,'PENDING',?,?)", (user_id, thread_id, key, operation, mode,
-                       "TOPUP" if needs_topup else "BASE", now.isoformat()))
+            _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,created_at) "
+                   "VALUES (?,?,?,?,?,'PENDING',?,?,?)", (user_id, thread_id, key, operation, mode,
+                       'TOPUP' if needs_topup else 'BASE', str(predicted), now.isoformat()))
         conn.commit()
         return plan, operations
     except Exception:
@@ -379,8 +354,11 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
                              operation, usage.get("web_search_calls", 1), cached_tokens) if model else None)
             if billable and usage.get('cost_components'):
                 components = [estimate(c['model'],c['input_tokens'],c['output_tokens'],c['operation'],
-                    cached_input_tokens=c.get('cached_input_tokens',0)) for c in usage['cost_components'][:6]]
+                    web_search_calls=c.get('web_search_calls',1), cached_input_tokens=c.get('cached_input_tokens',0)) for c in usage['cost_components'][:6]]
                 cost = str(sum((Decimal(c) for c in components),Decimal(0))) if all(c is not None for c in components) else None
+            if cost is None and model and (input_tokens or output_tokens or success):
+                pending_cost = _query(conn, "SELECT estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? AND operation_key=? AND operation_type=?", (user_id,key,operation), one=True)
+                cost = pending_cost[0] if pending_cost else None
             if billable:
                 first_cost = cost
             _query(conn, "UPDATE kilas_ai_usage SET status=?,provider=?,model=?,input_tokens=?,output_tokens=?,estimated_cost_usd=? "
@@ -394,7 +372,7 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
                    if operations else None)
         fallback_key = (pending[0] if pending and operations[0] == "CHAT" else operations[0]) if operations else None
         fallback = 1000 if fallback_key == "PDF" else topups.FORECAST_MICRO.get(fallback_key, 80000)
-        actual_micro = int(Decimal(first_cost) * Decimal(1000000)) if first_cost else fallback
+        actual_micro = int(Decimal(first_cost) * Decimal(1000000)) if first_cost is not None else (fallback if success else 0)
         topups.settle(conn, user_id, key, success, actual_micro)
         conn.commit()
     except Exception:

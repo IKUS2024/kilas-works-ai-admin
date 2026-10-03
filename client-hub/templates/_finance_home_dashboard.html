@@ -35,7 +35,6 @@
 <div class="finance-ai-copy"><div><h2>{{ ui_t('Aksi cepat') }}</h2><p>{{ ui_t('Bantu kelola keuanganmu lebih cepat.') }}</p></div></div>
 <div class="finance-quick-actions">
 {% if not branch_read_only and not finance_read_only %}
-<a href="{{ url_for('finance.receipt_new',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('scan') }}{{ ui_t('Scan Struk') }}</a>
 <a href="{{ url_for('finance.new_invoice',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('invoice') }}{{ ui_t('Buat Invoice') }}</a>
 {% endif %}
 {% if not branch_read_only and not finance_read_only %}<button type="button" data-dashboard-open="add-transaction-dialog">{{ icon('plus') }}{{ ui_t('Catat') }}</button>{% endif %}

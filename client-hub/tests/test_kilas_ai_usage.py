@@ -34,33 +34,19 @@ class UsageTests(unittest.TestCase):
             session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="usage-csrf")
         return client
 
-    def test_temporary_qa_exemption_is_exact_expiring_and_metered(self):
-        now = datetime(2026, 10, 1, 9, tzinfo=timezone.utc)
+    def test_email_qa_exemption_is_exact_server_owned_and_metered(self):
         owner = repo.create_user("temporary-qa@example.test", "hash")
-        grant = {owner: ("temporary-qa@example.test", now + timedelta(days=7))}
-        with patch.object(usage, "QA_QUOTA_EXEMPTIONS", grant), patch.object(usage, "_now", return_value=now), \
-             patch.object(usage, "_limit", return_value=0), \
-             patch.object(usage, "_cost_guard", side_effect=usage.UsageLimit("cost cap")) as guard:
+        with patch.dict(os.environ, {'KILAS_AI_INTERNAL_QA_EMAILS':'temporary-qa@example.test'}), patch.object(usage, "_limit", return_value=0), patch.object(usage, "_cost_guard", side_effect=usage.UsageLimit("cost cap")) as guard:
             plan, operations = usage.reserve(owner, None, "qa-exempt-request", "SMART", "CHAT")
             self.assertEqual(plan, "FREE")
             guard.assert_not_called()
-            usage.finish(owner, "qa-exempt-request", operations, success=True, provider="openai",
-                         model="gpt-6.1-sol", usage={"input_tokens": 100, "output_tokens": 20})
-            row = db.query_one("SELECT status,estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? "
-                               "AND operation_key=?", (owner, "qa-exempt-request"))
-            self.assertEqual(row["status"], "COMPLETE")
-            self.assertGreater(float(row["estimated_cost_usd"]), 0)
-            with self.assertRaises(usage.UsageLimit):
-                usage.reserve(self.other, None, "qa-other-denied", "SMART", "CHAT")
-            with patch.object(usage, "QA_QUOTA_EXEMPTIONS", {owner: ("different@example.test", grant[owner][1])}):
-                with self.assertRaises(usage.UsageLimit):
-                    usage.reserve(owner, None, "qa-identity-denied", "SMART", "CHAT")
-            with patch.object(usage, "_now", return_value=grant[owner][1]):
-                with self.assertRaises(usage.UsageLimit):
-                    usage.reserve(owner, None, "qa-expired-denied", "SMART", "CHAT")
-            with patch.dict(os.environ, {"KILAS_AI_BURST_PER_MINUTE": "1"}):
-                with self.assertRaises(usage.UsageLimit):
-                    usage.reserve(owner, None, "qa-burst-denied", "SMART", "CHAT")
+            usage.finish(owner, "qa-exempt-request", operations, success=True, provider="openai", model="gpt-6.1-sol", usage={"input_tokens":100,"output_tokens":20})
+            self.assertGreater(float(db.query_one("SELECT estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? AND operation_key=?",(owner,"qa-exempt-request"))["estimated_cost_usd"]),0)
+            with self.assertRaises(usage.UsageLimit):usage.reserve(self.other,None,"qa-other-denied","SMART","CHAT")
+            with patch.dict(os.environ,{'KILAS_AI_INTERNAL_QA_EMAILS':'different@example.test'}):
+                with self.assertRaises(usage.UsageLimit):usage.reserve(owner,None,"qa-identity-denied","SMART","CHAT")
+            with patch.dict(os.environ,{'KILAS_AI_BURST_PER_MINUTE':'1'}):
+                with self.assertRaises(usage.UsageLimit):usage.reserve(owner,None,"qa-burst-denied","SMART","CHAT")
 
     def test_free_chat_daily_and_period(self):
         owner = self.free
@@ -69,7 +55,7 @@ class UsageTests(unittest.TestCase):
             key = "freefast_" + str(index).zfill(16)
             plan, operations = usage.reserve(owner, thread_id, key, "FAST", "CHAT")
             self.assertEqual(plan, "FREE")
-            usage.finish(owner, key, operations, success=True, provider="openai", model="unknown-model",
+            usage.finish(owner, key, operations, success=True, provider="openai", model="gpt-6-luna",
                          usage={"input_tokens": 3, "output_tokens": 4})
         self.assertEqual(usage.snapshot(owner)["usage"]["Chat"]["used"], 10)
         with self.assertRaises(usage.UsageLimit):
@@ -79,7 +65,7 @@ class UsageTests(unittest.TestCase):
         usage.finish(owner, "freesearch_0123456789", operations, success=True)
         row = db.query_one("SELECT estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? AND operation_key=?",
                            (owner, "freefast_" + str(0).zfill(16)))
-        self.assertIsNone(row["estimated_cost_usd"])
+        self.assertGreater(float(row["estimated_cost_usd"]),0)
 
     def test_paid_limits_expiry_and_unknown_cost(self):
         now = datetime.now(timezone.utc)
@@ -118,9 +104,9 @@ class UsageTests(unittest.TestCase):
                    "VALUES (?,?,?,?,?,'COMPLETE',?,?)",
                    (self.other, store.create_thread(self.other), "prior_cost_0123456789", "CHAT", "SMART", "2.10", now.isoformat()))
         thread_id = store.create_thread(self.other)
-        for mode in ('SMART','FAST'):
-            with self.assertRaisesRegex(usage.UsageLimit,'Fair Use'):
-                usage.reserve(self.other, thread_id, 'guard_'+mode+'_0123456789', mode, 'CHAT')
+        with self.assertRaisesRegex(usage.UsageLimit,'Kapasitas Premium'):
+            usage.reserve(self.other,thread_id,'guard_SMART_0123456789','SMART','CHAT')
+        self.assertEqual(usage.reserve(self.other,thread_id,'guard_FAST_0123456789','FAST','CHAT')[0],'PLUS')
 
 
 if __name__ == "__main__":

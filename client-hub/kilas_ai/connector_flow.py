@@ -142,10 +142,12 @@ def _read_answer(user_id, text, source, timezone_name):
         answer, provider, model, metering = automation_runner._plain_ai(prompt)
         result = {"provider": provider, "model": model, "usage": metering}
         return answer[:1900]
-    except (ValueError, RuntimeError):
+    except (ValueError, RuntimeError) as error:
+        if getattr(error,'model',None):
+            result = {'model':error.model,'provider':getattr(error,'provider',None),'usage':getattr(error,'usage',{}),'_failed':True}
         return source
     finally:
-        usage.finish(user_id, key, operations, success=bool(result),
+        usage.finish(user_id, key, operations, success=bool(result) and not result.get("_failed"),
                      provider=result.get("provider"), model=result.get("model"), usage=result.get("usage"))
 
 

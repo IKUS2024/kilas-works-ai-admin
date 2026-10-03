@@ -89,8 +89,8 @@ def usage_summary(user_id):
                               (user_id, True if db.BACKEND == "postgres" else 1), one=True)[0]
         qa_exempt = usage._qa_quota_exempt(conn, user_id, at)
         conn.commit()
-        return {"plan": plan, "active": active, "active_limit": "tanpa batas (QA)" if qa_exempt else ACTIVE_LIMITS[plan],
-                "runs": runs, "run_limit": "tanpa batas (QA)" if qa_exempt else RUN_LIMITS[plan], "unread": unread,
+        return {"plan": plan, "active": active, "active_limit": "tanpa batas" if qa_exempt else ACTIVE_LIMITS[plan],
+                "runs": runs, "run_limit": "tanpa batas" if qa_exempt or plan != "FREE" else RUN_LIMITS[plan], "unread": unread,
                 "reset_at": end}
     finally:
         conn.close()
@@ -309,7 +309,7 @@ def claim_due(limit=10, now=None):
                                      "AND r.status NOT IN ('SKIPPED_QUOTA','SKIPPED_DUPLICATE') "
                                      "AND r.started_at>=? AND r.started_at<?",
                                      (user_id, _iso(start), _iso(end)), one=True)[0]
-                if count >= RUN_LIMITS[plan] and not usage._qa_quota_exempt(conn, user_id, now):
+                if plan == "FREE" and count >= RUN_LIMITS[plan] and not usage._qa_quota_exempt(conn, user_id, now):
                     usage._query(conn, "INSERT INTO kilas_automation_runs(automation_id,user_id,scheduled_for,status,"
                                  "completed_at,error_code) VALUES (?,?,?,'SKIPPED_QUOTA',?,'run_limit') "
                                  "ON CONFLICT(automation_id,scheduled_for) DO NOTHING",

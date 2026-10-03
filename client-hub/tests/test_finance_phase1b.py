@@ -43,10 +43,10 @@ class FinanceUITests(unittest.TestCase):
         for path in ('start', 'transactions', 'accounts', 'categories', 'transactions/1/void'):
             self.assertEqual(client.post(self.url+'/'+path).status_code, 302)
 
-    def test_beta_off_and_admin_override(self):
+    def test_free_access_without_beta_flag_preserves_admin_access(self):
         os.environ.pop('KILAS_FINANCE_BETA', None)
-        self.assertEqual(self.client.get(self.url).status_code, 404)
-        self.assertEqual(self.client.post(self.url+'/start').status_code, 404)
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+        self.assertEqual(self.client.post(self.url+'/start').status_code, 303)
         admin = repo.create_user('admin@example.test','unused',role='KILAS_ADMIN')
         with self.client.session_transaction() as session: session['user_id'] = admin
         self.assertEqual(self.client.get(self.url).status_code, 200)
@@ -151,8 +151,7 @@ class FinanceUITests(unittest.TestCase):
         before={table:db.query_all('SELECT * FROM '+table)
                 for table in ('finance_accounts','finance_categories','finance_transactions')}
         self.assertIn('Kilas Finance',self.client.get('/dashboard').get_data(as_text=True))
-        self.assertEqual(self.client.get(self.url).status_code,404)
-        self.assertEqual(self.client.post(self.url+'/start').status_code,404)
+        self.assertEqual(self.client.get(self.url).status_code,200)
         for table,rows in before.items():
             self.assertEqual(db.query_all('SELECT * FROM '+table),rows)
         os.environ['KILAS_FINANCE_BETA']='on'

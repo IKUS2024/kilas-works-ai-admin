@@ -33,7 +33,7 @@ def require_access():
 
 @ai_bp.get("")
 def home():
-    from . import autonomous_runner
+    from . import model_policy, autonomous_runner
     if automation_enabled() and autonomous_runner.enabled() and request.args.get('attachments') != '1' and not request.args.get('automation_result'):
         return redirect(url_for('kilas_ai.agent_home'), code=302)
     from . import attachments, store, usage
@@ -46,17 +46,26 @@ def home():
         if result and result["result_text"]:
             prefill = "Lanjutkan dari hasil Work berikut:\n\n" + result["result_text"][:4000]
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]), selected=None,
-                           messages=[], current_plan=current_plan, attachment_limits=attachments.limits(current_plan),
+                           messages=[], current_plan=current_plan, attachment_limits=attachments.limits(usage.attachment_plan(session["user_id"])),
                            automation_enabled=automation_enabled(), automation_unread=unread, prefill=prefill)
 
 
 @ai_bp.get("/usage")
 def usage_page():
-    from . import billing, topups, usage
-    return render_template("kilas_ai/usage.html", subscription=usage.effective_plan(session["user_id"]),
-                           capacity=topups.balance(session["user_id"]),
+    from . import billing, topups, usage, capacity
+    import db
+    previous = db.query_one('SELECT period_end FROM kilas_ai_subscriptions WHERE user_id=?', (session['user_id'],))
+    expired = bool(previous and previous['period_end'] and usage._as_utc(previous['period_end']) <= usage._now())
+    return render_template("kilas_ai/usage.html", subscription=usage.effective_plan(session["user_id"]), subscription_expired=expired,
+                           capacity=capacity.summary(session["user_id"]),
                            invoices=billing.owner_invoices(session["user_id"]),
                            topup_orders=topups.owner_orders(session["user_id"]))
+
+
+@ai_bp.get("/capacity")
+def capacity_state():
+    from . import capacity
+    return capacity.summary(session['user_id']), 200, {'Cache-Control': 'no-store'}
 
 
 @ai_bp.post("/threads")
@@ -90,7 +99,7 @@ def thread_page(thread_id):
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]),
                            selected=selected, messages=rows,
                            attachments=store.attachment_list(session["user_id"], thread_id),
-                           current_plan=current_plan, attachment_limits=attachments.limits(current_plan),
+                           current_plan=current_plan, attachment_limits=attachments.limits(usage.attachment_plan(session["user_id"])),
                            automation_enabled=automation_enabled(), automation_unread=unread)
 
 
@@ -169,7 +178,7 @@ def _sse(event, payload):
 
 @ai_bp.post("/threads/<int:thread_id>/regenerate")
 def regenerate(thread_id):
-    from . import providers, routing, store, chat_quality, usage as ai_usage
+    from . import model_policy, providers, routing, store, chat_quality, usage as ai_usage
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
@@ -187,7 +196,7 @@ def regenerate(thread_id):
     while context and context[-1]["role"] == "assistant":
         context.pop()
     try:
-        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, "CHAT")
+        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, "CHAT", profile=model_policy.chat_profile(context))
     except ai_usage.UsageLimit as error:
         return {"error": str(error)}, 429
     if plan is None:
@@ -223,7 +232,7 @@ def regenerate(thread_id):
                 elif event["type"] == "delta":
                     pieces.append(event["text"])
                     size += len(event["text"])
-                    if size > 30000:
+                    if size > 60000:
                         raise providers.ProviderError("response_too_long")
                     yield _sse("delta", {"text": event["text"]})
                 elif event["type"] == "reset":
@@ -257,7 +266,7 @@ def regenerate(thread_id):
 
 @ai_bp.post("/threads/<int:thread_id>/send")
 def send(thread_id):
-    from . import attachments, pdf as ai_pdf, providers, routing, store, chat_quality, usage as ai_usage
+    from . import model_policy, attachments, pdf as ai_pdf, providers, routing, store, chat_quality, usage as ai_usage
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
@@ -270,7 +279,7 @@ def send(thread_id):
     if not content or len(content) > 12000 or not re.fullmatch(r"[a-zA-Z0-9_-]{16,96}", key):
         abort(400)
     try:
-        prepared = attachments.prepare_many(files, plan=ai_usage.effective_plan(user_id)["plan"])
+        prepared = attachments.prepare_many(files, plan=ai_usage.attachment_plan(user_id))
     except attachments.AttachmentError as error:
         return {"error": str(error)}, 400
     mode = routing.mode_for(content, prepared)
@@ -306,7 +315,8 @@ def send(thread_id):
         return Response(_sse("busy", {"message": "Permintaan ini sedang diproses."}), status=409,
                         mimetype="text/event-stream")
     try:
-        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool)
+        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool, profile=model_policy.chat_profile(
+            store.context(user_id, thread_id) + [{'role':'user','content':attachments.prompt_content(content, prepared)}]) if tool == 'CHAT' else None)
     except ai_usage.UsageLimit as error:
         return {"error": str(error)}, 429
     if plan is None:
@@ -433,6 +443,9 @@ def send(thread_id):
                     yield _sse("done", {"finish_reason": "stop"})
                     return
                 except ai_tools.ToolUnavailable as error:
+                    if error.model:
+                        provider, model = 'openai', error.model
+                        usage.update(error.usage)
                     yield _sse("error", {"message": "Gambar belum dapat dibuat sekarang. Coba lagi sebentar." if tool in ("IMAGE_GENERATE", "IMAGE_EDIT") else str(error)})
                     return
             yield _sse("activity", {"label": "Menganalisis gambar…" if any(item["mime_type"].startswith("image/") for item in prepared)
@@ -445,7 +458,7 @@ def send(thread_id):
                 elif event["type"] == "delta":
                     pieces.append(event["text"])
                     size += len(event["text"])
-                    if size > 30000:
+                    if size > 60000:
                         raise providers.ProviderError("response_too_long")
                     if not routing.visual_result_requested(content):
                         yield _sse("delta", {"text": event["text"]})

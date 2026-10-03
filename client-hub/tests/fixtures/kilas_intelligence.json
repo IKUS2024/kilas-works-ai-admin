@@ -1,0 +1,162 @@
+[
+  {
+    "request": "halo",
+    "difficulty": "EASY",
+    "depth": "QUICK"
+  },
+  {
+    "request": "hi",
+    "difficulty": "EASY",
+    "depth": "QUICK"
+  },
+  {
+    "request": "apa itu fotosintesis",
+    "difficulty": "EASY",
+    "depth": "QUICK"
+  },
+  {
+    "request": "what is photosynthesis",
+    "difficulty": "EASY",
+    "depth": "QUICK"
+  },
+  {
+    "request": "translate this sentence to English",
+    "difficulty": "EASY",
+    "depth": "QUICK"
+  },
+  {
+    "request": "perbaiki typo di kalimat ini",
+    "difficulty": "EASY",
+    "depth": "QUICK"
+  },
+  {
+    "request": "terima kasih",
+    "difficulty": "EASY",
+    "depth": "QUICK"
+  },
+  {
+    "request": "Tulis ucapan ulang tahun untuk teman",
+    "difficulty": "NORMAL",
+    "depth": "STANDARD"
+  },
+  {
+    "request": "Jelaskan ide ini",
+    "difficulty": "NORMAL",
+    "depth": "STANDARD"
+  },
+  {
+    "request": "Write a warm introduction for my newsletter",
+    "difficulty": "NORMAL",
+    "depth": "STANDARD"
+  },
+  {
+    "request": "Buat daftar belanja sederhana",
+    "difficulty": "NORMAL",
+    "depth": "STANDARD"
+  },
+  {
+    "request": "Ringkas paragraf berikut",
+    "difficulty": "NORMAL",
+    "depth": "QUICK"
+  },
+  {
+    "request": "Jelaskan proses air hujan",
+    "difficulty": "NORMAL",
+    "depth": "STANDARD"
+  },
+  {
+    "request": "Saran judul artikel, singkat",
+    "difficulty": "NORMAL",
+    "depth": "QUICK"
+  },
+  {
+    "request": "Describe how the water cycle works",
+    "difficulty": "NORMAL",
+    "depth": "STANDARD"
+  },
+  {
+    "request": "Analisis strategi bisnis laundry",
+    "difficulty": "HARD",
+    "depth": "DEEP"
+  },
+  {
+    "request": "bantu analisis bisnis gue ada 3 cabang",
+    "difficulty": "HARD",
+    "depth": "DEEP"
+  },
+  {
+    "request": "jelasin kenapa query SQL ini error",
+    "difficulty": "HARD",
+    "depth": "DEEP"
+  },
+  {
+    "request": "menurut lu mending usaha laundry atau cafe dengan modal 200 juta",
+    "difficulty": "HARD",
+    "depth": "DEEP"
+  },
+  {
+    "request": "Debug code and compare architecture tradeoffs",
+    "difficulty": "HARD",
+    "depth": "DEEP"
+  },
+  {
+    "request": "Analyze SaaS pricing and unit economics",
+    "difficulty": "HARD",
+    "depth": "DEEP"
+  },
+  {
+    "request": "Bandingkan beberapa file laporan",
+    "difficulty": "HARD",
+    "depth": "DEEP"
+  },
+  {
+    "request": "Analisis query SQL, ringkas",
+    "difficulty": "HARD",
+    "depth": "QUICK"
+  },
+  {
+    "request": "Buat rencana riset mendalam",
+    "difficulty": "HARD",
+    "depth": "DEEP"
+  },
+  {
+    "request": "Analisis strategi bisnis secara komprehensif dengan budget kecil, harus profitable, jangan iklan, tanpa utang. Bandingkan beberapa langkah dan risiko.",
+    "difficulty": "EXPERT",
+    "depth": "EXPERT"
+  },
+  {
+    "request": "Analyze code architecture in depth across multi-file changes with security constraints and structured schema.",
+    "difficulty": "EXPERT",
+    "depth": "EXPERT"
+  },
+  {
+    "request": "Analisis strategi bisnis secara komprehensif dengan budget kecil, harus profitable, jangan iklan, tanpa utang. Bandingkan beberapa langkah dan risiko. Jawab singkat.",
+    "difficulty": "EXPERT",
+    "depth": "QUICK"
+  },
+  {
+    "request": "请帮我写一封感谢信",
+    "difficulty": "NORMAL",
+    "depth": "STANDARD"
+  },
+  {
+    "request": "Escribe un saludo para un cliente",
+    "difficulty": "NORMAL",
+    "depth": "STANDARD"
+  },
+  {
+    "request": "Explain this topic in Spanish",
+    "difficulty": "NORMAL",
+    "depth": "STANDARD"
+  },
+  {
+    "request": "Analiza la estrategia de precios del negocio con presupuesto limitado, sin deuda, debe ser rentable. Compara riesgos en profundidad.",
+    "difficulty": "EXPERT",
+    "depth": "EXPERT"
+  },
+  {
+    "request": "分析商业定价策略，预算有限，必须盈利，不要借贷，详细比较风险。",
+    "difficulty": "EXPERT",
+    "depth": "EXPERT"
+  }
+]

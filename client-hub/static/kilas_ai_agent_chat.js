@@ -155,6 +155,7 @@
       // Same key is retained after an uncertain outcome: retry cannot create duplicate work.
       if (accepted) { try { await refresh(); } catch (_) { /* Keep visible local messages. */ } }
     } finally {
+      document.dispatchEvent(new Event('kilas:request-finished'));
       if(stop) stop.hidden=true;controller=null;
       busy = false; send.disabled = false; input.readOnly = false;
       thinking.hidden = true; chat.removeAttribute('aria-busy');
