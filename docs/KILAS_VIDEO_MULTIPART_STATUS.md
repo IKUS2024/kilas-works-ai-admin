@@ -1,5 +1,7 @@
 # Kilas Video connected clips checkpoint
 
+Latest disposition: RELEASED / LIVE / AUTHENTICATED PRODUCTION QA PASSED. Final application SHA e020abe349e36a0439246a0003d6c15af4ffff44; deployment dep-db0g6jlg1s2s73dujhn0. See the final release and closed evidence sections below; earlier entries are historical.
+
 2026-10-03 — IN PROGRESS; not released. Baseline main b1f8e4be498061a57b1363da9e2888131e55308f; branch feature/kilas-video-multipart-20261003. Existing production application 4565db46a16df2a323bec1ca8e51762d8411741f / dep-db0deutg1s2s73djqp5g LIVE remains untouched.
 
 Video-only extension reuses canonical briefs, project leases, version checks, owner isolation and existing JSON snapshots. No schema migration, new infrastructure, video rendering, or changes to Finance/Assist/WhatsApp/payment logic. Pre-existing unrelated edits are preserved and excluded.
@@ -65,3 +67,38 @@ Single synthetic UGC product project13 v1 generated in42.4s: one white mug, one 
 Read-only controlled account Video metering confirms5 COMPLETE Sol operations, actual input/output tokens and estimated costs0.031564/0.030164/0.031152/0.050952/0.030550 USD. No paid resource/newmodel/globalpolicy change. PostLIVE error/critical and ERROR|Traceback|WORKER TIMEOUT|Video provider timeout|Video validation rejected queries through13:27:06Z:0 matches,hasMorefalse. Earlier three real timeouts are documented and not erased.
 
 Manual prompt review found duplicated shot/state/audio in compact exports: the derived master was appended after those same exported fields. Final narrowly scoped export correction recognizes the EXACT server-derived format and emits those instructions once; independently generated master content remains preserved, and existing saved compact plans improve on read without data rewrite. Regression37 connected/incumbent tests PASS including occurrence counts. Final export deployment/clipboard repeat pending; overall planning chain already passed above.
+
+## Final release production QA — 2026-10-03 13:35 UTC
+
+FINAL APPLICATION SHA e020abe349e36a0439246a0003d6c15af4ffff44; commit Avoid repeating derived shot instructions in connected Video exports. Only Client Hub deployed as dep-db0g6jlg1s2s73dujhn0, LIVE13:30:39.439874Z. No migration, data reset, extra service, resource upgrade or protected-product changes.
+
+The complete real-provider chain was repeated on this exact release: controlled synthetic project14 v1 mobil38.3s, v2 baju38.4s, v3 makanan35.8s, v4 premium/noVO26.4s; single UGC product15 v1 39.9s. All requested topic replacement/retired-reference/English Bible+prompt/exact adjacent handoff/patch identity+handoff/noVO checks PASS. Final food is nasi goreng with a clear serving->garnish->closing progression; prompts were manually read for timed action/camera/light/audio/finalstate and no unsupported claims. UGC white-mug direction is practical and conversational without testimonial claims. Copy output now contains each derived shot instruction once, confirmed for every part in all four revisions. Seven actual clipboard payload equality checks, history/reopen/reload/latestv4 persistence and eight-width nooverflow+copy checks PASS. No browser JavaScript errors. All data created by these checks is synthetic; no unrelated records were modified/deleted.
+
+Home/products/start, Kilas AI/kilas-ai, account/account, existing AI settings/kilas-ai/agent?view=settings and existing Finance entry opened successfully. Services target remains https://kilasworks.id; existing normal navigation excludes Assist/workspace. No live AI-chat transaction or Finance ledger/calculation behavior was retested in this focused Video task. Those code paths are unchanged and covered by release CI. Production layout evidence includes320/360/390/430/768/820/1024/1440 and manually reviewed390/1440 captures from the same UI implementation. Actual video render/external tool output and physical-device keyboard behavior are not claimed.
+
+Final LIVE error/critical and error/traceback/worker-timeout/Video timeout/validation queries through13:34:52Z returned0 matches,hasMorefalse. Earlier failed synthetic projects9/10/11 remain recoverable in history and were not deleted. The documented50/65s failures led to the compact provider contract; final requests succeeded within26.4–39.9s.
+
+Final Video CI37126373317 all3 jobs PASS; AI Focused37126373315, Chat37126373273 and Automation37126373287 PASS. Global37126373276 and Agent37126373288 still finishing. Agent initial failure was existing test_kilas_ai_browser.py:83, immediate heading visibility after clicking Chat baru; relevant Chat/Agent code is unchanged. Failed job rerun requested after inspecting logs; same-code rerun has already passed that step and is continuing downstream. No test skip/assertion weakening/unrelated source fix. Final dispositions will be appended before stopping.
+
+### Final changed-file inventory
+
+- client-hub/kilas_ai/video_director.py: scoped compact generation, two-stage metering/review and validation; multi-only bounded latency and sanitized diagnostics.
+- client-hub/kilas_ai/video_parts.py: deterministic split, continuity contract, legacy presentation derivation, complete nonduplicated clip exports.
+- client-hub/kilas_ai/video_brief.py: authoritative canonical topic/revision/timeline controls.
+- client-hub/kilas_ai/video_adapters.py: standalone English clip/platform/Bible/all/full exports.
+- client-hub/kilas_ai/video_routes.py: existing authenticated Video control/brief validation and save boundary.
+- client-hub/templates/kilas_video/home.html, _parts.html, _result.html: native mode controls and separate readable connected-clip documents/copy actions.
+- client-hub/static/kilas_video.css, kilas_video.js: scoped responsive layout, split preview, state/copy/revision behavior.
+- client-hub/locales/client.json, ui.json: additive Video labels only.
+- client-hub/tests/test_kilas_video_parts.py, test_kilas_video_parts_browser.py, test_kilas_video_postgres.py: focused compact/continuity/revision/clipboard/width/JSON-persistence regressions.
+- client-hub/tests/test_kilas_global_ui_browser.py: test-only language form navigation synchronization; application behavior unchanged.
+- .github/workflows/kilas-video-qa.yml: focused connected-clip checks.
+- .impeccable/surfaces/client-hub-templates-kilas-video-home-html.md, docs/KILAS_VIDEO_MULTIPART_DESIGN.md, docs/KILAS_VIDEO_MULTIPART_STATUS.md: scoped design/evidence records.
+
+Current unique Video unit contracts52 (22 incumbent +15V2 +15connected),8i18n PASS. Scoped Impeccable finish review ship; no full audit/global design rewrite. No Finance/Assist/WhatsApp/payment/schema/source/config changes; final diff check clean,20 files total. Pre-existing unrelated dirty edits remain preserved/excluded. Limitations:8detailed clips and existing75s synchronous budget; no video-rendering integration or guarantee of external-generation continuity. Control UI supports4languages; generated production instructions remain English. Initial Master CI's two untouched-main Assist failures remain independently reproduced baseline exceptions, not newly fixed by this Video release.
+
+## Closed release evidence — 2026-10-03 13:39 UTC
+
+All six final release workflows and18 jobs PASS on exact application SHA e020abe349e36a0439246a0003d6c15af4ffff44: Video37126373317(3), Global37126373276(2), Agent37126373288(4; diagnosed same-code rerun), AI Focused37126373315(3), Chat37126373273(2), Automation37126373287(4). The initial Agent navigation assertion failure remains documented above; rerun passed without code/assertion changes. Earlier unchanged-main Master Assist baseline exceptions remain historical and are not represented as fixed.
+
+All requested connected Video production scenarios were executed and passed on the final LIVE application. Final390/1440 current-project captures and the clean English clip1 export were inspected again. Health200/statusok/PostgreSQL confirmed. Complete final changed-file inventory and actual tests/production evidence/limitations are above. This final checkpoint is a documentation-only commit to main; production remains e020abe / dep-db0g6jlg1s2s73dujhn0 LIVE and no extra deploy is required. Stop this task; do not start another feature or audit.
