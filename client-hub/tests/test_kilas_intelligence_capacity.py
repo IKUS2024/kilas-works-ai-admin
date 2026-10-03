@@ -58,6 +58,13 @@ class IntelligenceTests(unittest.TestCase):
         self.assertNotIn('multiple_sources',profile['signals'])
         self.assertEqual(self.profile('Analisis bug kode Python ini dengan SQL')['model'],model_policy.SOL)
 
+    def test_two_actual_documents_with_same_filename_remain_multifile(self):
+        messages=[{'role':'user','content':'Previously uploaded documents:\nFile: report.pdf\nOrders 120\nFile: report.pdf\nOrders 150'},
+                  {'role':'user','content':"Bandingkan kedua lampiran.\n\nTeks berikut berhasil diekstrak dari lampiran 'report.pdf'.\nOrders 120\n\nTeks berikut berhasil diekstrak dari lampiran 'report.pdf'.\nOrders 150"}]
+        profile=model_policy.chat_profile(messages)
+        self.assertEqual(profile['difficulty'],'HARD')
+        self.assertIn('multiple_sources',profile['signals'])
+
     def test_no_usage_based_quality_degradation(self):
         request=[{'role':'user','content':'Analisis strategi bisnis secara komprehensif'}]
         profiles=[model_policy.chat_profile(model_policy.ChatContext(request,level)) for level in ('NORMAL','HEAVY','VERY_HEAVY','PROTECTION')]

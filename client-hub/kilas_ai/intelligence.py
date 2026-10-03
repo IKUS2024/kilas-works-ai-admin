@@ -1,5 +1,6 @@
 """Private deterministic difficulty and depth; no classifier/provider invocation."""
 import re
+from collections import Counter
 
 DOMAINS = {
     'business':r'\b(?:strategi|strategy|pricing|harga|unit economics|gtm|positioning|bisnis|business|usaha|monetisasi|saas|margin|profit|estrategia|negocio|precios)\b|商业|定价|策略',
@@ -36,13 +37,13 @@ def classify(messages, *, task=False):
     blocks=users[-1].get('content',[]) if users else []
     images=sum(1 for b in blocks if isinstance(b,dict) and b.get('type')=='image_url') if isinstance(blocks,list) else 0
     # The current upload also appears in the persistent source context. Count it once.
-    source_names=set()
+    source_counts={}
     for message in users[-5:]:
         content=message.get('content','')
         if isinstance(content,list):content='\n'.join(str(b.get('text','')) for b in content if isinstance(b,dict))
-        for extracted,stored in re.findall(r"Teks berikut berhasil diekstrak dari lampiran '([^']+)'|(?:^|\n)File: ([^\n]+)",str(content)):
-            source_names.add((extracted or stored).strip())
-    source_count=len(source_names)
+        names=[(extracted or stored).strip() for extracted,stored in re.findall(r"Teks berikut berhasil diekstrak dari lampiran '([^']+)'|(?:^|\n)File: ([^\n]+)",str(content))]
+        for name,count in Counter(names).items():source_counts[name]=max(source_counts.get(name,0),count)
+    source_count=sum(source_counts.values())
     if source_count>=2:add('multiple_sources',3)
     elif source_count or images:add('attachment',1)
     if images and analysis:add('visual_reasoning',1)
