@@ -49,6 +49,19 @@ def main():
             snapshots=db.query_all('SELECT version,spec_json FROM kilas_video_revisions WHERE project_id=? ORDER BY version',(project,))
             assert [s['version'] for s in snapshots]==[1,2,3]
             assert json.loads(snapshots[-1]['spec_json'])['brief']['subject']=='makanan'
+            assert video_store.claim(owner,project,3)
+            connected={'title':'Rencana makanan tersambung','continuity_bible':{'subject':'Food on the same plate'},
+                       'parts':[{'number':1,'start':0,'end':10,'duration':10,'master_prompt':'Create the first food shot.'},
+                                {'number':2,'start':10,'end':20,'duration':10,'master_prompt':'Continue the same food shot.'}]}
+            brief={'subject':'makanan','revision_number':4,'plan_mode':'multi','clip_timeline':[{'number':1,'start':0,'end':10,'duration':10},{'number':2,'start':10,'end':20,'duration':10}]}
+            controls={'plan_mode':'multi','total_duration':'20','clip_strategy':'10','_brief':brief}
+            video_store.save(owner,project,3,connected,controls,'Klip tersambung')
+            current=video_store.get(owner,project)
+            assert current['version']==4 and json.loads(current['spec_json'])==connected
+            assert json.loads(current['options_json'])==controls
+            latest=db.query_one('SELECT spec_json FROM kilas_video_revisions WHERE project_id=? AND version=4',(project,))
+            assert json.loads(latest['spec_json'])=={'plan':connected,'brief':brief}
+            assert video_schema.apply_release()==[]
             video_store.delete(owner,project);assert video_store.get(owner,project) is None
             assert db.query_one('SELECT id FROM kilas_video_projects WHERE id=?',(project,))
     finally:

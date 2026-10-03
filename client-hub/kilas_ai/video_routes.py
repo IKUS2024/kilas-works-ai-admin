@@ -52,7 +52,10 @@ def generate():
     row=None
     try:
         try:controls=director.options(request.form)
-        except ValueError:return {'error':'Pilihan rencana tidak valid. Pilih kembali lalu coba lagi.'},400
+        except ValueError as error:
+            message=('Maksimal 8 klip per rencana. Kurangi total durasi atau pilih klip lebih panjang.'
+                     if str(error)=='too_many_video_parts' else 'Pilihan rencana tidak valid. Pilih kembali lalu coba lagi.')
+            return {'error':message},400
         raw_project=request.form.get('project_id','')
         if raw_project:
             if not raw_project.isdigit():abort(400)
@@ -70,10 +73,16 @@ def generate():
             row=owned(project)
             if row['version']:return response(row)
             text=row['idea'];controls=json.loads(row['options_json'])
+        previous=json.loads(row['spec_json']) if row['version'] else None
+        try:brief=video_brief.build(text,controls,previous,row['version'],row['id'])
+        except ValueError as error:
+            message=('Maksimal 8 klip per rencana. Kurangi total durasi atau pilih klip lebih panjang.'
+                     if str(error)=='too_many_video_parts' else 'Pilihan rencana tidak valid. Pilih kembali lalu coba lagi.')
+            return failure(message,400,row)
         if not store.claim(owner(),row['id'],row['version']):return {'error':'Rencana sedang disusun. Tunggu, lalu buka ulang rencana.','url':url_for('kilas_ai.video_project',project=row['id'])},409
         try:
-            previous=json.loads(row['spec_json']) if row['version'] else None
-            brief=video_brief.build(text,controls,previous,row['version'],row['id'])
+            if brief.get('plan_mode')=='multi':
+                controls.update(total_duration=brief['total_duration'],duration='Custom storyboard')
             refs=store.references(owner(),row['id']) if brief.get('use_references',True) else []
             spec=director.generate(owner(),key,text,controls,previous,refs,brief=brief,deadline=deadline)
             controls['_brief']=video_brief.commit(brief,spec)

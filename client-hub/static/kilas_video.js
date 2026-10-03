@@ -4,6 +4,24 @@
 
   const root=document.querySelector('#video-studio');if(!root)return;
   const form=root.querySelector('#video-composer'),input=root.querySelector('#video-idea');
+  function splitPreview(){
+    const multi=form.elements.plan_mode.value==='multi',totalField=form.elements.total_duration;
+    root.querySelector('#video-multi-controls').hidden=!multi;
+    totalField.disabled=!multi;totalField.required=multi;form.elements.clip_strategy.disabled=!multi;
+    form.elements.duration.disabled=multi;
+    totalField.setCustomValidity('');
+    const total=Number(totalField.value),strategy=form.elements.clip_strategy.value;
+    const preview=root.querySelector('#video-split-preview');
+    if(!multi||!Number.isInteger(total)||total<5||total>180){preview.textContent='';return;}
+    const count=strategy==='auto'?Math.max(2,Math.ceil(total/10)):Math.ceil(total/Number(strategy));
+    if(count>8){const message=t('Maksimal 8 klip per rencana. Kurangi total durasi atau pilih klip lebih panjang.');totalField.setCustomValidity(message);preview.textContent=message;return;}
+    if(count<2){const message=t('Tambahkan durasi atau pilih klip lebih pendek agar ada minimal 2 klip.');totalField.setCustomValidity(message);preview.textContent=message;return;}
+    const base=Math.floor(total/count),extra=total%count;let start=0;const ranges=[];
+    for(let i=0;i<count;i++){const length=strategy==='auto'?base+(i<extra?1:0):Math.min(Number(strategy),total-start);ranges.push(`${start}–${start+length}s`);start+=length;}
+    preview.textContent=t('{count} klip · {timeline}',{count,timeline:ranges.join(' / ')});
+  }
+  form.addEventListener('change',splitPreview);
+  form.elements.total_duration.addEventListener('input',splitPreview);splitPreview();
   let pending=[];
   const picker=root.querySelector('#video-references'),previews=root.querySelector('#video-previews');
   function showPending(){
@@ -49,9 +67,11 @@
       root.querySelector('#video-active-version').textContent=t('Versi ')+result.version+t(' · Rencana aktif');
       root.querySelector('#video-revision-context').hidden=false;
       root.querySelector('#video-outline').hidden=false;
+      root.querySelectorAll('[data-video-multi-link]').forEach(link=>{link.hidden=!root.querySelector('#video-parts');});
       root.querySelector('#video-project-actions').innerHTML=result.manage_html;
       form.elements.project_id.value=result.id;form.elements.version.value=result.version;form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');
       for(const [key,value] of Object.entries(result.controls))if(form.elements[key])form.elements[key].value=value;
+      splitPreview();
       input.value='';input.placeholder=t('Contoh: lebih premium, tanpa voice-over, produknya tetap sama.');
       root.querySelector('#video-composer-label').textContent=t('Ubah atau sempurnakan rencana');
       root.querySelector('#video-reference-control').hidden=true;pending=[];showPending();button.textContent=t('Perbarui rencana');

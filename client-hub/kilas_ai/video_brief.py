@@ -1,6 +1,7 @@
 """Canonical Video state; explicit replacement discards old derived context."""
 import copy
 import re
+from . import video_parts
 
 FIELDS=('subject','product','brand','objective','video_type','audience','platform','duration','aspect_ratio',
         'tone','style','location','talent','product_requirements','reference_requirements','audio','voice_over',
@@ -29,7 +30,7 @@ def build(instruction,controls,previous=None,version=0,project_id=None):
     elif match:
         kind='PRESERVE_AND_REPLACE' if preserve else 'REPLACE_CORE'
         # Preserve neutral delivery constraints only. No old title/story/CTA/brand.
-        brief={k:copy.deepcopy(old[k]) for k in ('platform','duration','aspect_ratio','video_type') if old.get(k)}
+        brief={k:copy.deepcopy(old[k]) for k in ('platform','duration','aspect_ratio','video_type','plan_mode','clip_strategy','total_duration') if old.get(k)}
         explicit=[]
         if preserve:
             for pattern,field in [(r'orang(?:nya)?|talent|person|model','talent'),(r'lokasi|location|ruangan|room','location'),
@@ -53,6 +54,14 @@ def build(instruction,controls,previous=None,version=0,project_id=None):
     if re.search(r'(?i)\b(?:tanpa|no|without|jangan ada)\s+(?:voice[ -]?over|vo|narasi)\b',instruction):brief['voice_over']='disabled'
     elif re.search(r'(?i)\b(?:pakai|gunakan|add|with)\s+(?:voice[ -]?over|vo|narasi)\b',instruction):brief['voice_over']='requested'
     if re.search(r'(?i)\b(?:ugc)\b',instruction):brief['video_type']='UGC'
+    if brief.get('plan_mode')=='multi':
+        total=int(brief.get('total_duration') or (brief.get('duration') if str(brief.get('duration','')).isdigit() else 30))
+        # Latest explicit duration in the revision wins over remembered controls.
+        if seconds and 5<=int(seconds[1])<=180:total=int(seconds[1])
+        brief.update(duration=total,total_duration=str(total),clip_strategy=brief.get('clip_strategy','auto'))
+        brief['clip_timeline']=video_parts.timeline(total,brief['clip_strategy'])
+    else:
+        brief.pop('clip_timeline',None)
     return brief
 
 

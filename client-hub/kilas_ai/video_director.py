@@ -6,7 +6,7 @@ import os
 import re
 import time
 import requests
-from . import attachments, model_policy, usage, video_brief
+from . import attachments, model_policy, usage, video_brief, video_parts
 
 TEXT_FIELDS=('title','objective','video_type','target_platform','aspect_ratio','subject','product','setting',
              'visual_style','tone','story','hook','camera','movement','lighting','audio','voice_over','on_screen_text','cta')
@@ -44,10 +44,18 @@ def options(form):
     allowed={'video_type':('Product','UGC','Ads','Cinematic','Social Content','Education','Fashion','Food','Travel','Other'),
              'platform':('Reels','TikTok','YouTube Shorts','General'), 'tool':TOOLS,
              'duration':('5','10','15','20','Custom storyboard')}
+    allowed.update(plan_mode=('single','multi'),clip_strategy=('auto','5','10','15'))
     for field,choices in allowed.items():
         value=str(form.get(field,'')).strip()
         if value and value not in choices:raise ValueError('invalid_options')
         if value:result[field]=value
+    total=str(form.get('total_duration','')).strip()
+    if total:
+        if not total.isdigit() or not 5<=int(total)<=180:raise ValueError('invalid_options')
+        result['total_duration']=str(int(total))
+    # Validate at submission, before a project or provider operation is created.
+    if result.get('plan_mode')=='multi' and total:
+        video_parts.timeline(int(total),result.get('clip_strategy','auto'))
     return result
 
 
@@ -65,7 +73,8 @@ def validate(raw,controls=None):
     v2=isinstance(raw,dict) and 'master_prompt' in raw
     texts=TEXT_FIELDS+(V2_TEXT if v2 else ())
     scene_fields=SCENE_FIELDS+(V2_SCENE if v2 else ())
-    if not isinstance(raw,dict) or set(raw)!=set(texts+LIST_FIELDS+('duration','scenes')):raise ValueError('invalid_video_spec')
+    extra=('continuity_bible','parts') if isinstance(raw,dict) and 'parts' in raw else ()
+    if not isinstance(raw,dict) or set(raw)!=set(texts+LIST_FIELDS+('duration','scenes')+extra):raise ValueError('invalid_video_spec')
     for field in TEXT_FIELDS:
         if not isinstance(raw[field],str) or len(raw[field])>1200:raise ValueError('invalid_video_text')
     if not all(raw[k].strip() for k in ('title','objective','story','hook','subject')):raise ValueError('incomplete_video_spec')
@@ -85,7 +94,7 @@ def validate(raw,controls=None):
         if any(not isinstance(scene[k],str) or len(scene[k])>1600 for k in scene_fields) or not scene['visual'].strip() or not scene['action'].strip():raise ValueError('incomplete_scene')
         end=scene['end']
     if abs(end-duration)>.05:raise ValueError('invalid_timing')
-    if len(json.dumps(raw))>40000:raise ValueError('video_spec_too_large')
+    if len(json.dumps(raw))>(120000 if extra else 40000):raise ValueError('video_spec_too_large')
     return raw
 
 
@@ -98,10 +107,13 @@ def quality(spec,brief):
     if any(not s[k].strip() for s in spec['scenes'] for k in ('camera','lighting','environment','continuity','production_prompt')):raise ValueError('incomplete_production_scene')
     prompt=spec['master_prompt']
     english=re.compile(r'(?i)\b(?:the|with|same|shot|create|camera|subject|frame|lighting)\b')
-    for text in [prompt,*[s.get('production_prompt','') for s in spec['scenes']]]:
+    def english_check(text):
         # Quoted intended dialogue may be Indonesian; the directions may not.
         direction=re.sub(r'"[^"\n]*"|“[^”]*”', '',text)
         if len(direction)<40 or len(english.findall(direction))<2 or re.search(r'(?i)\b(?:detik|pertahankan|jangan|kamera|pencahayaan|adegan|kemudian|dengan|produk ini)\b',direction):raise ValueError('non_english_prompt')
+    for text in [prompt,*[s.get('production_prompt','') for s in spec['scenes']]]:english_check(text)
+    if brief.get('plan_mode')=='multi':video_parts.validate(spec,brief,english_check)
+    elif 'parts' in spec:raise ValueError('unexpected_video_parts')
     payload=json.dumps(spec,ensure_ascii=False).lower()
     preserved=[str(brief.get(k,'')).casefold() for k in brief.get('preserved_fields',[])]
     for old in brief.get('retired_subjects',[]):
@@ -121,7 +133,7 @@ def quality(spec,brief):
 
 def refinement(draft,changes):
     """Apply only reviewed schema fields; validate the complete merged result later."""
-    if not isinstance(changes,dict) or set(changes)-set(TEXT_FIELDS+V2_TEXT+LIST_FIELDS+('duration','scenes')):
+    if not isinstance(changes,dict) or set(changes)-set(TEXT_FIELDS+V2_TEXT+LIST_FIELDS+('duration','scenes','continuity_bible','parts')):
         raise ValueError('invalid_video_refinement')
     if not isinstance(draft,dict):return changes
     return {**copy.deepcopy(draft),**copy.deepcopy(changes)}
@@ -142,7 +154,7 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
         previous=video_brief.generation_context(brief,previous)
         text=json.dumps({'canonical_brief':brief,'controls':{k:v for k,v in controls.items() if not k.startswith('_')},'previous_spec':previous},ensure_ascii=False)
         content=([{'type':'text','text':text}]+attachments.prompt_content('',references)[1:]) if references else text
-        messages=[{'role':'system','content':STANDARD},{'role':'user','content':content}]
+        messages=[{'role':'system','content':STANDARD+(video_parts.STANDARD if brief.get('plan_mode')=='multi' else '')},{'role':'user','content':content}]
         spec=None;issue=''
         for stage in range(2):
             remaining=deadline-time.monotonic()-5
@@ -150,7 +162,7 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
             response=requests.post('https://api.openai.com/v1/chat/completions',
                 headers={'Authorization':'Bearer '+provider_key,'Content-Type':'application/json'},
                 json={'model':model,'messages':messages,'response_format':{'type':'json_object'},
-                      'max_completion_tokens':9000,'reasoning_effort':effort,'store':False},timeout=(5,min(50 if stage==0 else 20,remaining)))
+                      'max_completion_tokens':12000 if brief.get('plan_mode')=='multi' else 9000,'reasoning_effort':effort,'store':False},timeout=(5,min(50 if stage==0 else 20,remaining)))
             response.raise_for_status();data=response.json();used=data.get('usage') or {}
             inp=int(used.get('prompt_tokens',0));out=int(used.get('completion_tokens',0))
             recorded['input_tokens']+=inp;recorded['output_tokens']+=out
