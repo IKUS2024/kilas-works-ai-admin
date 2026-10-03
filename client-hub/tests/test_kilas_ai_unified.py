@@ -50,6 +50,22 @@ class UnifiedTests(unittest.TestCase):
         self.assertEqual(self.jobs.list_jobs(self.owner),[])
         self.assertIn('https://www.python.org/downloads/',agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['content'])
 
+    def test_attachment_reading_prohibition_is_not_artifact_creation(self):
+        prepared=[{'mime_type':'text/plain'}]
+        for prompt in ('Bandingkan dua file terlampir. Jangan buat dokumen baru.',
+                       'Baca PDF ini. Jangan buat file baru.',
+                       'Apa bentuk dan warna gambar ini? Jangan buat gambar baru.',
+                       "Read this PDF. Don't create a new file."):
+            with self.subTest(prompt=prompt):
+                self.assertEqual(unified_runtime.intent(prompt,prepared),'CHAT')
+        self.assertEqual(unified_runtime.intent('Bandingkan dua file dan buat dokumen PDF baru.',prepared),'DOCUMENT')
+        with patch.object(providers,'stream',side_effect=lambda *a,**k:answer('File A memuat 120 pesanan dan file B memuat 150 pesanan. Selisihnya adalah 30 pesanan.')) as called:
+            self.submit('Bandingkan dua file terlampir. Jangan buat dokumen baru.',
+                        source_files=[(io.BytesIO(b'Total orders: 120.'),'a.txt'),(io.BytesIO(b'Total orders: 150.'),'b.txt')])
+        self.assertEqual(called.call_count,1)
+        self.assertEqual(self.jobs.list_jobs(self.owner),[])
+        self.assertIn('30',agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['content'])
+
     def test_analysis_uses_luna_medium_without_job(self):
         with patch.object(providers,'stream',side_effect=lambda *a,**k:answer('Laundry lebih cocok bila ingin tim kecil. Uji permintaan dan hitung biaya sewa, mesin, air, listrik serta cadangan kas sebelum memilih.')) as called:
             self.submit('menurut lu modal 150 juta mending laundry atau cafe?')

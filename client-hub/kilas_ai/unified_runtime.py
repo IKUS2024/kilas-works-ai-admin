@@ -14,7 +14,9 @@ def intent(text, prepared=(), previous=None, previous_answer=''):
         return 'CHAT'
     if re.search(r'(?i)\b(?:storyboard|sketsa)\s+(?:teks|text)|\b(?:teks|text|ascii)\s+storyboard\b',text):
         return 'CHAT'
-    if prepared and re.search(r'(?i)\b(?:ringkas|ringkasin|summarize|analisis|analisa|analyze|analyse|bandingkan|compare)\b',text) and not re.search(r'(?i)\b(?:buat|bikin|bikinin|buatin|create|generate|jadikan|jadiin|ekspor|export|download|unduh)\b',text):
+    # A prohibition on creating a new artifact is not authorization to create one.
+    creation_text=re.sub(r"(?i)\b(?:jangan|tanpa|tidak perlu|do not|don't|without|no need to)\s+(?:buat(?:kan)?|bikin|bikinin|buatin|create|generate|make|jadikan|jadiin|ekspor|export|download|unduh)\b",'',text)
+    if prepared and re.search(r'(?i)\b(?:ringkas|ringkasin|summarize|analisis|analisa|analyze|analyse|bandingkan|compare|baca|read|deskripsikan|describe|apa|what)\b',text) and not re.search(r'(?i)\b(?:buat|bikin|bikinin|buatin|create|generate|make|jadikan|jadiin|ekspor|export|download|unduh)\b',creation_text):
         return 'CHAT'
     from .agent_intents import infer
     planned=infer(text)
@@ -54,7 +56,7 @@ def dispatch(owner,text,key,conversation):
     if selected=='WEB':return search(owner,key,conversation)
     if selected=='CHAT':
         transformation=re.search(r'(?i)\b(?:benerin typo|perbaiki typo|ubah kalimat|tulis ulang|rewrite|translate|terjemahkan)\b',text)
-        if not transformation and not routing.explicit_code(text) and not work_schedule.CAPABILITY.search(text) and agent_intents.infer(text):
+        if not prepared and not transformation and not routing.explicit_code(text) and not work_schedule.CAPABILITY.search(text) and agent_intents.infer(text):
             return work_runtime.handle(owner,text,key,conversation)
         return agent_chat.ordinary(owner,conversation,key) or redirect(url_for('kilas_ai.agent_home'),code=303)
     if selected=='IMAGE_EDIT' and previous and previous['media_type'].startswith('image/') and not any(p['mime_type'].startswith('image/') for p in prepared):
