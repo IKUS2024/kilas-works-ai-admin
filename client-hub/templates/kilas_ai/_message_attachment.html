@@ -2,5 +2,5 @@
 <a class="work-attachment-card work-sent-file" href="{{ file_url }}{{ '?inline=1' if attachment.mime_type.startswith('image/') or attachment.mime_type=='application/pdf' else '' }}" target="_blank" rel="noopener" aria-label="Buka lampiran {{ attachment.filename }}">
   {% if attachment.mime_type.startswith('image/') %}<img class="work-attachment-thumbnail" src="{{ file_url }}?inline=1" alt="{{ attachment.filename }}" loading="lazy" width="64" height="64">
   {% else %}<svg class="work-attachment-icon" viewBox="0 0 24 24" width="32" height="32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 3H6v18h12V7zM14 3v5h4M9 12h6M9 16h6"/></svg>{% endif %}
-  <span class="work-attachment-info"><span class="work-attachment-name" title="{{ attachment.filename }}">{{ attachment.filename }}</span><small>{{ attachment.filename.rsplit('.',1)[-1]|upper }} · {{ '%.0f'|format([1,attachment.byte_size/1024]|max) }} KB</small></span>
+  <span class="work-attachment-info"><span class="work-attachment-name" title="{{ attachment.filename }}">{{ attachment.filename }}</span><small>{{ attachment.filename.rsplit('.',1)[-1]|upper }} · {{ '%.0f'|format([1,attachment.byte_size/1024]|max) }} {{ ui_t('KB') }}</small></span>
 </a>

@@ -1,57 +1,58 @@
 <!doctype html>
-<html lang="id">
+<html lang="{{ ui_language() }}">
 <head>
   <meta charset="utf-8">
+  {% include '_ui_i18n_head.html' %}
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>{{ selected.title if selected else 'Chat baru' }} · Kilas AI</title>
+  <title>{{ selected.title if selected else ui_t('Chat baru') }} {{ ui_t('· Kilas AI') }}</title>
   <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='shell-1') }}">
   {% if automation_enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_automation.css',v='1') }}">{% endif %}
   <script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='1') }}" defer></script>
-  <script src="{{ url_for('static',filename='kilas_ai.js',v='focus-1') }}" defer></script>
+  <script src="{{ url_for('static',filename='kilas_ai.js',v='global-ui-20261003') }}" defer></script>
   <script src="{{ url_for('static',filename='kilas_ai_shell.js',v='1') }}" defer></script>
 {% include '_premium_styles.html' %}</head>
 <body class="kilas-light ">
 <div class="ai-shell" data-ai-shell data-thread-id="{{ selected.id if selected else '' }}" data-automation-enabled="{{ '1' if automation_enabled else '0' }}" data-max-files="{{ attachment_limits.max_files }}" data-max-file-bytes="{{ attachment_limits.max_file_bytes }}" data-max-image-bytes="{{ attachment_limits.max_image_bytes }}">
-  <aside class="ai-sidebar" id="ai-sidebar" data-ai-sidebar aria-label="Riwayat chat">
+  <aside class="ai-sidebar" id="ai-sidebar" data-ai-sidebar aria-label="{{ ui_t('Riwayat chat') }}">
     {% include 'kilas_ai/_sidebar_top.html' %}
     {% include '_premium_navigation.html' %}
-    <a class="ai-new" href="{{ url_for('kilas_ai.home',attachments='1') if automation_enabled else url_for('kilas_ai.home') }}">Chat baru</a>
-    <nav class="ai-history" aria-label="Chat tersimpan"><h2 class="ai-history-heading">Chats</h2>
+    <a class="ai-new" href="{{ url_for('kilas_ai.home',attachments='1') if automation_enabled else url_for('kilas_ai.home') }}">{{ ui_t('Chat baru') }}</a>
+    <nav class="ai-history" aria-label="{{ ui_t('Chat tersimpan') }}"><h2 class="ai-history-heading">{{ ui_t('Chats') }}</h2>
       {% if threads %}{% for item in threads %}<a href="{{ url_for('kilas_ai.thread_page',thread_id=item.id) }}" class="ai-history-item {{ 'is-current' if selected and item.id == selected.id else '' }}" {% if selected and item.id == selected.id %}aria-current="page"{% endif %}>{{ item.title }}</a>{% endfor %}
-      {% else %}<p class="ai-sidebar-empty">Percakapanmu akan tersimpan di sini.</p>{% endif %}
+      {% else %}<p class="ai-sidebar-empty">{{ ui_t('Percakapanmu akan tersimpan di sini.') }}</p>{% endif %}
     </nav>
-    <div class="ai-sidebar-bottom">{% if automation_enabled %}<a href="{{ url_for('kilas_ai.agent_home') }}">Kilas AI</a>{% endif %}<span class="ai-sidebar-plan">Kilas AI {{ 'aktif' if current_plan != 'FREE' else '' }}</span><a href="{{ url_for('kilas_ai.usage_page') }}">Langganan & tagihan</a><a href="{{ url_for('products.product_start') }}">Ganti Layanan</a></div>
+    <div class="ai-sidebar-bottom">{% if automation_enabled %}<a href="{{ url_for('kilas_ai.agent_home') }}">Kilas AI</a>{% endif %}<span class="ai-sidebar-plan">Kilas AI {{ 'aktif' if current_plan != 'FREE' else '' }}</span><a href="{{ url_for('kilas_ai.usage_page') }}">{{ ui_t('Langganan') }} & {{ ui_t('tagihan') }}</a><a href="{{ url_for('products.product_start') }}">{{ ui_t('Ganti Layanan') }}</a></div>
   </aside>
-  <button type="button" class="ai-backdrop" id="ai-backdrop" data-ai-backdrop aria-label="Tutup riwayat"></button>
+  <button type="button" class="ai-backdrop" id="ai-backdrop" data-ai-backdrop aria-label="{{ ui_t('Tutup riwayat') }}"></button>
   <main class="ai-main {{ 'is-empty' if not messages else '' }}">
     {% set ai_mode = 'chat' %}
     {% set ai_header_actions %}
-      <details class="ai-thread-menu" {% if not selected %}hidden{% endif %}><summary>Opsi</summary><div class="ai-menu-content">
-        <form method="post" data-action="rename" action="{{ url_for('kilas_ai.rename',thread_id=selected.id) if selected else '' }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="ai-title">Nama chat</label><input id="ai-title" name="title" maxlength="100" value="{{ selected.title if selected else '' }}" required><button type="submit">Simpan nama</button></form>
-        <form method="post" data-action="share" action="{{ url_for('kilas_ai.share',thread_id=selected.id) if selected else '' }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Bagikan chat</button></form>
-        {% if selected and selected.share_token_hash %}<form method="post" action="{{ url_for('kilas_ai.revoke',thread_id=selected.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Cabut akses berbagi</button></form>{% endif %}
-        <form method="post" data-action="delete" action="{{ url_for('kilas_ai.delete',thread_id=selected.id) if selected else '' }}" onsubmit="return confirm('Hapus chat ini?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-danger" type="submit">Hapus chat</button></form>
+      <details class="ai-thread-menu" {% if not selected %}hidden{% endif %}><summary>{{ ui_t('Opsi') }}</summary><div class="ai-menu-content">
+        <form method="post" data-action="rename" action="{{ url_for('kilas_ai.rename',thread_id=selected.id) if selected else '' }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="ai-title">{{ ui_t('Nama chat') }}</label><input id="ai-title" name="title" maxlength="100" value="{{ selected.title if selected else '' }}" required><button type="submit">{{ ui_t('Simpan nama') }}</button></form>
+        <form method="post" data-action="share" action="{{ url_for('kilas_ai.share',thread_id=selected.id) if selected else '' }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">{{ ui_t('Bagikan chat') }}</button></form>
+        {% if selected and selected.share_token_hash %}<form method="post" action="{{ url_for('kilas_ai.revoke',thread_id=selected.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">{{ ui_t('Cabut akses berbagi') }}</button></form>{% endif %}
+        <form method="post" data-action="delete" action="{{ url_for('kilas_ai.delete',thread_id=selected.id) if selected else '' }}" onsubmit="return confirm('Hapus chat ini?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-danger" type="submit">{{ ui_t('Hapus chat') }}</button></form>
       </div></details>
     {% endset %}
     {% include 'kilas_ai/_app_header.html' %}
     <div class="ai-conversation-title" {% if not messages %}hidden{% endif %}>{{ selected.title if selected else '' }}</div>
-    <section class="ai-empty" {% if messages %}hidden{% endif %}><h1>Apa yang ingin kamu kerjakan?</h1><p>Tanya sesuatu, cari informasi, atau bahas lampiranmu.</p></section>
+    <section class="ai-empty" {% if messages %}hidden{% endif %}><h1>{{ ui_t('Apa yang ingin kamu kerjakan?') }}</h1><p>{{ ui_t('Tanya sesuatu, cari informasi, atau bahas lampiranmu.') }}</p></section>
     <div class="ai-messages" id="ai-messages" aria-live="polite" {% if not messages %}hidden{% endif %}>
-      {% for message in messages %}<article class="ai-message ai-{{ message.role }}"><div class="ai-message-name">{{ 'Kamu' if message.role == 'user' else 'Kilas AI' }}</div><div class="ai-message-text {{ 'ai-markdown' if message.role == 'assistant' else '' }}">{{ message.content }}</div>
+      {% for message in messages %}<article class="ai-message ai-{{ message.role }}"><div class="ai-message-name">{{ ui_t('Kamu') if message.role == 'user' else ui_t('Kilas AI') }}</div><div class="ai-message-text {{ 'ai-markdown' if message.role == 'assistant' else '' }}">{{ message.content }}</div>
         {% for item in attachments if item.message_id == message.id %}
-          {% if item.mime_type.startswith('image/') %}<div class="ai-image-result"><a href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id,inline=1) }}" target="_blank" rel="noopener"><img class="ai-message-image" src="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id,inline=1) }}" alt="Gambar dalam chat"></a><a class="ai-sent-file" href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id) }}">Download gambar</a></div>
-          {% elif item.mime_type == 'application/pdf' and message.role == 'assistant' %}<div class="ai-file-card"><span class="ai-file-kind" aria-hidden="true">PDF</span><span class="ai-file-details"><strong>{{ item.filename }}</strong><small>PDF · {{ '%.1f'|format(item.byte_size / 1024) }} KB</small></span><span class="ai-file-actions"><a href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id,inline=1) }}" target="_blank" rel="noopener">Buka</a><a href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id) }}">Download</a></span></div>
+          {% if item.mime_type.startswith('image/') %}<div class="ai-image-result"><a href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id,inline=1) }}" target="_blank" rel="noopener"><img class="ai-message-image" src="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id,inline=1) }}" alt="{{ ui_t('Gambar dalam chat') }}"></a><a class="ai-sent-file" href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id) }}">{{ ui_t('Download gambar') }}</a></div>
+          {% elif item.mime_type == 'application/pdf' and message.role == 'assistant' %}<div class="ai-file-card"><span class="ai-file-kind" aria-hidden="true">PDF</span><span class="ai-file-details"><strong>{{ item.filename }}</strong><small>{{ ui_t('PDF ·') }} {{ '%.1f'|format(item.byte_size / 1024) }} {{ ui_t('KB') }}</small></span><span class="ai-file-actions"><a href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id,inline=1) }}" target="_blank" rel="noopener">{{ ui_t('Buka') }}</a><a href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id) }}">{{ ui_t('Download') }}</a></span></div>
           {% else %}<a class="ai-sent-file" href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id) }}">{{ item.filename }}</a>{% endif %}
         {% endfor %}
-        {% if message.metadata.citations %}<div class="ai-sources"><strong>Sumber</strong>{% for citation in message.metadata.citations %}<a href="{{ citation.url }}" target="_blank" rel="noopener noreferrer nofollow">{{ citation.title }}</a>{% endfor %}</div>{% endif %}
-        {% if message.role == 'assistant' %}<button type="button" class="ai-copy">Salin</button>{% endif %}{% if loop.last %}<button type="button" class="ai-regenerate">Buat ulang jawaban</button>{% endif %}</article>{% endfor %}
+        {% if message.metadata.citations %}<div class="ai-sources"><strong>{{ ui_t('Sumber') }}</strong>{% for citation in message.metadata.citations %}<a href="{{ citation.url }}" target="_blank" rel="noopener noreferrer nofollow">{{ citation.title }}</a>{% endfor %}</div>{% endif %}
+        {% if message.role == 'assistant' %}<button type="button" class="ai-copy">{{ ui_t('Salin') }}</button>{% endif %}{% if loop.last %}<button type="button" class="ai-regenerate">{{ ui_t('Buat ulang jawaban') }}</button>{% endif %}</article>{% endfor %}
     </div>
     <div class="ai-composer-area"><p class="ai-notice" id="ai-notice" role="status"></p><form id="ai-composer" class="ai-composer">
-      <label class="ai-visually-hidden" for="ai-input">Tulis pesan</label><textarea id="ai-input" maxlength="12000" rows="2" placeholder="Tulis pesan untuk Kilas AI...">{{ prefill|default('') }}</textarea>
+      <label class="ai-visually-hidden" for="ai-input">{{ ui_t('Tulis pesan') }}</label><textarea id="ai-input" maxlength="12000" rows="2" placeholder="{{ ui_t('Tulis pesan untuk Kilas AI...') }}">{{ prefill|default('') }}</textarea>
       <div class="ai-pending" id="ai-pending" aria-live="polite"></div>
-      <div class="ai-composer-actions"><label class="ai-attach" for="ai-files">+ Lampiran</label><input id="ai-files" type="file" multiple accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,.webp" aria-label="Pilih lampiran"><label class="ai-search-toggle" for="ai-search"><input id="ai-search" type="checkbox" name="search"><span>Search</span></label><button class="ai-send" type="submit" id="ai-send">Kirim</button><button class="ai-stop" type="button" id="ai-stop" hidden>Stop</button></div>
-      <p class="ai-inline-hint" id="ai-edit-hint" hidden>Upload gambar terlebih dahulu untuk diedit.</p>
-    </form><p class="ai-hint">Jawaban AI dapat keliru. Periksa informasi penting.</p></div>
+      <div class="ai-composer-actions"><label class="ai-attach" for="ai-files">{{ ui_t('+ Lampiran') }}</label><input id="ai-files" type="file" multiple accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,.webp" aria-label="{{ ui_t('Pilih lampiran') }}"><label class="ai-search-toggle" for="ai-search"><input id="ai-search" type="checkbox" name="search"><span>{{ ui_t('Search') }}</span></label><button class="ai-send" type="submit" id="ai-send">{{ ui_t('Kirim') }}</button><button class="ai-stop" type="button" id="ai-stop" hidden>{{ ui_t('Stop') }}</button></div>
+      <p class="ai-inline-hint" id="ai-edit-hint" hidden>{{ ui_t('Upload gambar terlebih dahulu untuk diedit.') }}</p>
+    </form><p class="ai-hint">{{ ui_t('Jawaban AI dapat keliru. Periksa informasi penting.') }}</p></div>
   </main>
 </div></body></html>

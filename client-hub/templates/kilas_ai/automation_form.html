@@ -1,59 +1,59 @@
 <!doctype html>
-<html lang="id">
-<head>{% include 'kilas_ai/_automation_head.html' %}{% include '_premium_styles.html' %}</head>
+<html lang="{{ ui_language() }}">
+<head>{% include '_ui_i18n_head.html' %}{% include 'kilas_ai/_automation_head.html' %}{% include '_premium_styles.html' %}</head>
 <body class="premium-workspace kilas-light ">{% include '_premium_workspace.html' %}
 {% include 'kilas_ai/_automation_nav.html' %}
 <main id="kw-main" class="auto-page auto-narrow">
-  <p><a class="auto-back" href="{{ url_for('kilas_ai.automation_home') }}">Pengingat &amp; jadwal</a></p>
-  <h1>{{ 'Edit tugas' if item else 'Beri tugas' }}</h1>
-  <p class="auto-subtitle">Tulis tugasnya, lalu pilih kapan Kilas menjalankannya.</p>
+  <p><a class="auto-back" href="{{ url_for('kilas_ai.automation_home') }}">{{ ui_t('Pengingat') }} &amp; {{ ui_t('jadwal') }}</a></p>
+  <h1>{{ ui_t('Edit tugas') if item else ui_t('Beri tugas') }}</h1>
+  <p class="auto-subtitle">{{ ui_t('Tulis tugasnya, lalu pilih kapan Kilas menjalankannya.') }}</p>
   {% if error %}<p class="auto-error" role="alert">{{ error }}</p>{% endif %}
   {% if preview %}
   <section class="auto-preview" aria-labelledby="preview-heading">
-    <h2 id="preview-heading">Periksa sebelum aktif</h2>
+    <h2 id="preview-heading">{{ ui_t('Periksa sebelum aktif') }}</h2>
     <p class="auto-preview-title">{{ preview.title }}</p>
     <p>{{ preview.schedule }}</p>
     <dl class="auto-meta">
-      <div><dt>Jenis</dt><dd>{{ {'REMINDER':'Pengingat','AI_TASK':'Tugas AI','SEARCH':'Search','WATCH':'Pantau kondisi'}[preview.kind] }}</dd></div>
-      <div><dt>Zona waktu</dt><dd>{{ preview.timezone }}</dd></div>
-      <div><dt>Berikutnya</dt><dd>{{ preview.next_run.strftime('%d/%m/%Y %H.%M') }}</dd></div>
-      <div><dt>Hasil</dt><dd>Disimpan di Kilas AI</dd></div>
+      <div><dt>{{ ui_t('Jenis') }}</dt><dd>{{ {'REMINDER':ui_t('Pengingat'),'AI_TASK':ui_t('Tugas AI'),'SEARCH':ui_t('Search'),'WATCH':ui_t('Pantau kondisi')}[preview.kind] }}</dd></div>
+      <div><dt>{{ ui_t('Zona waktu') }}</dt><dd>{{ preview.timezone }}</dd></div>
+      <div><dt>{{ ui_t('Berikutnya') }}</dt><dd>{{ preview.next_run.strftime('%d/%m/%Y %H.%M') }}</dd></div>
+      <div><dt>{{ ui_t('Hasil') }}</dt><dd>{{ ui_t('Disimpan di Kilas AI') }}</dd></div>
     </dl>
-    <p class="auto-small">Reminder tidak memakai kuota AI/Search. Tugas AI dan Search menggunakan kuota paketmu.</p>
+    <p class="auto-small">{{ ui_t('Reminder tidak memakai kuota AI/Search. Tugas AI dan Search menggunakan kuota paketmu.') }}</p>
     <form method="post" action="{{ url_for('kilas_ai.automation_activate') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="automation_id" value="{{ item.id if item else '' }}">
-      <button class="auto-primary" type="submit">{{ 'Simpan perubahan' if item else 'Aktifkan tugas' }}</button>
-      <a class="auto-back" href="{{ url_for('kilas_ai.automation_edit',automation_id=item.id) if item else url_for('kilas_ai.automation_new') }}">Ubah</a>
+      <button class="auto-primary" type="submit">{{ ui_t('Simpan perubahan') if item else ui_t('Aktifkan tugas') }}</button>
+      <a class="auto-back" href="{{ url_for('kilas_ai.automation_edit',automation_id=item.id) if item else url_for('kilas_ai.automation_new') }}">{{ ui_t('Ubah') }}</a>
     </form>
   </section>
   {% else %}
   <form class="auto-form" method="post" action="{{ url_for('kilas_ai.automation_preview') }}" id="auto-schedule-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="automation_id" value="{{ item.id if item else '' }}">
-    <label for="auto-instruction">Apa yang perlu Kilas lakukan?</label>
-    <textarea id="auto-instruction" name="instruction" maxlength="1200" rows="4" required placeholder="Bikinin itinerary Bali 5 hari yang santai.">{{ instruction }}</textarea>
-    <p class="auto-small auto-field-hint">Tulis tugasnya saja. Waktu dan pengulangan dipilih di bawah.</p>
-    <label for="auto-title">Judul (opsional)</label>
-    <input id="auto-title" name="title" value="{{ title }}" maxlength="90" placeholder="Contoh: Rencana liburan Bali">
-    <label for="auto-schedule-mode">Kapan dijalankan?</label>
+    <label for="auto-instruction">{{ ui_t('Apa yang perlu Kilas lakukan?') }}</label>
+    <textarea id="auto-instruction" name="instruction" maxlength="1200" rows="4" required placeholder="{{ ui_t('Bikinin itinerary Bali 5 hari yang santai.') }}">{{ instruction }}</textarea>
+    <p class="auto-small auto-field-hint">{{ ui_t('Tulis tugasnya saja. Waktu dan pengulangan dipilih di bawah.') }}</p>
+    <label for="auto-title">{{ ui_t('Judul (opsional)') }}</label>
+    <input id="auto-title" name="title" value="{{ title }}" maxlength="90" placeholder="{{ ui_t('Contoh: Rencana liburan Bali') }}">
+    <label for="auto-schedule-mode">{{ ui_t('Kapan dijalankan?') }}</label>
     <select id="auto-schedule-mode" name="schedule_mode" required>
-      <option value="once" {% if fields.schedule_mode == 'once' %}selected{% endif %}>Sekali</option>
-      <option value="daily" {% if fields.schedule_mode == 'daily' %}selected{% endif %}>Setiap hari</option>
-      <option value="weekly" {% if fields.schedule_mode == 'weekly' %}selected{% endif %}>Setiap minggu</option>
-      <option value="monthly" {% if fields.schedule_mode == 'monthly' %}selected{% endif %}>Setiap bulan</option>
-      <option value="natural" {% if fields.schedule_mode == 'natural' %}selected{% endif %}>Dari instruksi (jadwal lama)</option>
+      <option value="once" {% if fields.schedule_mode == 'once' %}selected{% endif %}>{{ ui_t('Sekali') }}</option>
+      <option value="daily" {% if fields.schedule_mode == 'daily' %}selected{% endif %}>{{ ui_t('Setiap hari') }}</option>
+      <option value="weekly" {% if fields.schedule_mode == 'weekly' %}selected{% endif %}>{{ ui_t('Setiap minggu') }}</option>
+      <option value="monthly" {% if fields.schedule_mode == 'monthly' %}selected{% endif %}>{{ ui_t('Setiap bulan') }}</option>
+      <option value="natural" {% if fields.schedule_mode == 'natural' %}selected{% endif %}>{{ ui_t('Dari instruksi (jadwal lama)') }}</option>
     </select>
-    <div class="auto-schedule-fields" data-for="once"><label for="auto-run-date">Tanggal</label><input id="auto-run-date" type="date" name="run_date" value="{{ fields.run_date }}"></div>
-    <div class="auto-schedule-fields" data-for="weekly"><label for="auto-weekday">Hari</label><select id="auto-weekday" name="weekday">{% for name in ('Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu') %}<option value="{{ loop.index0 }}" {% if fields.weekday == loop.index0|string %}selected{% endif %}>{{ name }}</option>{% endfor %}</select></div>
-    <div class="auto-schedule-fields" data-for="monthly"><label for="auto-month-day">Tanggal setiap bulan</label><select id="auto-month-day" name="month_day">{% for day in range(1,32) %}<option value="{{ day }}" {% if fields.month_day == day|string %}selected{% endif %}>{{ day }}</option>{% endfor %}</select><p class="auto-small">Bulan tanpa tanggal ini akan dilewati.</p></div>
-    <div class="auto-schedule-fields" data-for="clock"><label for="auto-run-time">Jam</label><input id="auto-run-time" type="time" name="run_time" value="{{ fields.run_time }}"></div>
-    <div class="auto-schedule-fields" data-for="natural"><p class="auto-small">Jadwal dibaca dari instruksi seperti sebelumnya. Gunakan ini untuk tugas lama atau interval setiap beberapa jam.</p></div>
-    <label for="auto-timezone">Zona waktu</label>
+    <div class="auto-schedule-fields" data-for="once"><label for="auto-run-date">{{ ui_t('Tanggal') }}</label><input id="auto-run-date" type="date" name="run_date" value="{{ fields.run_date }}"></div>
+    <div class="auto-schedule-fields" data-for="weekly"><label for="auto-weekday">{{ ui_t('Hari') }}</label><select id="auto-weekday" name="weekday">{% for name in ('Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu') %}<option value="{{ loop.index0 }}" {% if fields.weekday == loop.index0|string %}selected{% endif %}>{{ name }}</option>{% endfor %}</select></div>
+    <div class="auto-schedule-fields" data-for="monthly"><label for="auto-month-day">{{ ui_t('Tanggal setiap bulan') }}</label><select id="auto-month-day" name="month_day">{% for day in range(1,32) %}<option value="{{ day }}" {% if fields.month_day == day|string %}selected{% endif %}>{{ day }}</option>{% endfor %}</select><p class="auto-small">{{ ui_t('Bulan tanpa tanggal ini akan dilewati.') }}</p></div>
+    <div class="auto-schedule-fields" data-for="clock"><label for="auto-run-time">{{ ui_t('Jam') }}</label><input id="auto-run-time" type="time" name="run_time" value="{{ fields.run_time }}"></div>
+    <div class="auto-schedule-fields" data-for="natural"><p class="auto-small">{{ ui_t('Jadwal dibaca dari instruksi seperti sebelumnya. Gunakan ini untuk tugas lama atau interval setiap beberapa jam.') }}</p></div>
+    <label for="auto-timezone">{{ ui_t('Zona waktu') }}</label>
     <input id="auto-timezone" data-detect="{{ 1 if detect_timezone else 0 }}" name="timezone" value="{{ timezone_name }}" list="auto-form-zones" maxlength="80" autocomplete="off" required>
     <datalist id="auto-form-zones"><option value="Asia/Jakarta"><option value="Asia/Bangkok"><option value="Asia/Makassar"><option value="Asia/Jayapura"><option value="Asia/Singapore"><option value="Asia/Tokyo"><option value="Europe/London"><option value="America/New_York"><option value="America/Los_Angeles"></datalist>
-    <p class="auto-small auto-field-hint">Zona waktu IANA lain juga bisa dipakai. Jam berikutnya akan ditampilkan sebelum aktif.</p>
-    <button class="auto-primary" type="submit">Lihat pratinjau</button>
+    <p class="auto-small auto-field-hint">{{ ui_t('Zona waktu IANA lain juga bisa dipakai. Jam berikutnya akan ditampilkan sebelum aktif.') }}</p>
+    <button class="auto-primary" type="submit">{{ ui_t('Lihat pratinjau') }}</button>
   </form>
   {% endif %}
 </main>

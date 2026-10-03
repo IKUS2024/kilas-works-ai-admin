@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Tagihan · Kilas Finance{% endblock %}
+{% block title %}{{ ui_t('Tagihan · Kilas Finance') }}{% endblock %}
 {% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-bills-payment-5') }}">
@@ -51,49 +51,49 @@
 
 {% if section == 'projects' %}
 <header class="finance-bills-project-head">
-  <div><span class="finance-eyebrow">KILAS FINANCE</span><h1>Arus Kas Proyek</h1><p>{{ business.business_name }} · {{ month_label }}</p></div>
-  <a class="finance-mini-action" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month) }}">← Tagihan</a>
+  <div><span class="finance-eyebrow">{{ ui_t('KILAS FINANCE') }}</span><h1>{{ ui_t('Arus Kas Proyek') }}</h1><p>{{ business.business_name }} · {{ month_label|ui_period }}</p></div>
+  <a class="finance-mini-action" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month) }}">{{ ui_t('← Tagihan') }}</a>
 </header>
 <section class="card">
   <form method="get" class="finance-bills-project-filter">
     <input type="hidden" name="section" value="projects">
     <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
-    <label>Bulan<input name="month" type="month" value="{{ month }}" required></label>
-    <button class="btn secondary">Tampilkan</button>
+    <label>{{ ui_t('Bulan') }}<input name="month" type="month" value="{{ month }}" required></label>
+    <button class="btn secondary">{{ ui_t('Tampilkan') }}</button>
   </form>
   {% for p in contributions %}
-  <article class="fin-entry"><h3>{{ p.title }} · {{ p.currency }}</h3><div class="fin-grid compact"><p>Pemasukan<br><strong>{{ p.income_minor|finance_money(p.currency) }}</strong></p><p>Pengeluaran<br><strong>{{ p.expense_minor|finance_money(p.currency) }}</strong></p><p>Selisih<br><strong>{{ p.net_cash_contribution_minor|finance_money(p.currency) }}</strong></p></div><p class="muted">{{ p.transaction_count }} transaksi</p></article>
-  {% else %}<div class="fin-empty">Belum ada transaksi proyek pada bulan ini.</div>{% endfor %}
+  <article class="fin-entry"><h3>{{ p.title }} · {{ p.currency }}</h3><div class="fin-grid compact"><p>{{ ui_t('Pemasukan') }}<br><strong>{{ p.income_minor|finance_money(p.currency) }}</strong></p><p>{{ ui_t('Pengeluaran') }}<br><strong>{{ p.expense_minor|finance_money(p.currency) }}</strong></p><p>{{ ui_t('Selisih') }}<br><strong>{{ p.net_cash_contribution_minor|finance_money(p.currency) }}</strong></p></div><p class="muted">{{ p.transaction_count }} {{ ui_t('transaksi') }}</p></article>
+  {% else %}<div class="fin-empty">{{ ui_t('Belum ada transaksi proyek pada bulan ini.') }}</div>{% endfor %}
 </section>
 
 {% else %}
 <header class="finance-bills-header">
   <div class="finance-bills-title-line">
-    <h1>Tagihan</h1>
+    <h1>{{ ui_t('Tagihan') }}</h1>
     <strong>{{ total_bills_display }}</strong>
   </div>
   <div class="finance-bills-header-actions">
-    <button type="button" class="finance-bills-add" data-finance-open="bill-add-dialog" aria-label="Tambah tagihan">＋</button>
+    <button type="button" class="finance-bills-add" data-finance-open="bill-add-dialog" aria-label="{{ ui_t('Tambah tagihan') }}">＋</button>
   </div>
 </header>
 
-<nav class="finance-month-nav finance-bills-month-nav" aria-label="Navigasi bulan tagihan">
-  <a aria-label="Bulan sebelumnya" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=previous_month,view=view,display_currency=display_currency,payment_status=payment_status) }}">‹</a>
-  <span class="finance-bills-month-label">{{ month_label }}</span>
-  <a aria-label="Bulan berikutnya" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=next_month,view=view,display_currency=display_currency,payment_status=payment_status) }}">›</a>
+<nav class="finance-month-nav finance-bills-month-nav" aria-label="{{ ui_t('Navigasi bulan tagihan') }}">
+  <a aria-label="{{ ui_t('Bulan sebelumnya') }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=previous_month,view=view,display_currency=display_currency,payment_status=payment_status) }}">‹</a>
+  <span class="finance-bills-month-label">{{ month_label|ui_period }}</span>
+  <a aria-label="{{ ui_t('Bulan berikutnya') }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=next_month,view=view,display_currency=display_currency,payment_status=payment_status) }}">›</a>
 </nav>
 
 {% if view in ('calendar','list') %}
-<nav class="finance-bill-status-tabs" aria-label="Status pembayaran tagihan">
-  <a class="{{ 'active' if payment_status=='unpaid' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view=view,payment_status='unpaid',display_currency=display_currency) }}">Belum Dibayar <span>{{ unpaid_count }}</span></a>
-  <a class="{{ 'active' if payment_status=='paid' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view=view,payment_status='paid',display_currency=display_currency) }}">Dibayar <span>{{ paid_count }}</span></a>
-  <a class="{{ 'active' if payment_status=='all' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view=view,payment_status='all',display_currency=display_currency) }}">Semua <span>{{ all_count }}</span></a>
+<nav class="finance-bill-status-tabs" aria-label="{{ ui_t('Status pembayaran tagihan') }}">
+  <a class="{{ 'active' if payment_status=='unpaid' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view=view,payment_status='unpaid',display_currency=display_currency) }}">{{ ui_t('Belum Dibayar') }} <span>{{ unpaid_count }}</span></a>
+  <a class="{{ 'active' if payment_status=='paid' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view=view,payment_status='paid',display_currency=display_currency) }}">{{ ui_t('Dibayar') }} <span>{{ paid_count }}</span></a>
+  <a class="{{ 'active' if payment_status=='all' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view=view,payment_status='all',display_currency=display_currency) }}">{{ ui_t('Semua') }} <span>{{ all_count }}</span></a>
 </nav>
 {% endif %}
 
 {% if view == 'calendar' %}
-<section class="card finance-bills-calendar" aria-label="Kalender tagihan {{ month_label }}">
-  <div class="finance-bills-weekdays">{% for label in weekday_labels %}<span>{{ label }}</span>{% endfor %}</div>
+<section class="card finance-bills-calendar" aria-label="Kalender tagihan {{ month_label|ui_period }}">
+  <div class="finance-bills-weekdays">{% for label in weekday_labels %}<span>{{ label|ui_text }}</span>{% endfor %}</div>
   <div class="finance-bills-calendar-grid">
   {% for week in calendar_weeks %}
     {% for day in week %}
@@ -112,38 +112,38 @@
 </section>
 
 <section class="card finance-bills-list">
-  <div class="finance-bills-list-head"><strong>{{ selected_day_label }}</strong><span>{{ selected_occurrences|length }} tagihan</span></div>
+  <div class="finance-bills-list-head"><strong>{{ selected_day_label }}</strong><span>{{ selected_occurrences|length }} {{ ui_t('tagihan') }}</span></div>
   {% set bill_rows = selected_occurrences %}
   {% for r in bill_rows %}
   <article class="finance-bill-row {{ r.status }}">
     <span class="finance-bill-status-dot" aria-hidden="true"></span>
     <div class="finance-bill-main">
       <strong>{{ r.name }}</strong>
-      <small>{{ r.counterparty_name or 'Tagihan' }}{% if r.category_name %} · {{ r.category_name }}{% endif %}{% if r.status=='paid' and r.account_name %} · {{ r.account_name }}{% endif %}</small>
+      <small>{{ r.counterparty_name or ui_t('Tagihan') }}{% if r.category_name %} · {{ r.category_name }}{% endif %}{% if r.status=='paid' and r.account_name %} · {{ r.account_name }}{% endif %}</small>
     </div>
     <div class="finance-bill-money">
       <strong>{{ r.display_amount }}</strong>
-      {% if r.show_native %}<small>Asli {{ r.native_amount }}</small>{% endif %}
-      <span class="finance-bill-status-label">{% if r.status=='paid' %}Sudah dibayar{% if r.paid_on %} · {{ r.paid_on }}{% endif %}{% elif r.status=='void' %}Dibatalkan{% else %}Belum dibayar · {{ r.status_label }}{% endif %}</span>
+      {% if r.show_native %}<small>{{ ui_t('Asli') }} {{ r.native_amount }}</small>{% endif %}
+      <span class="finance-bill-status-label">{% if r.status=='paid' %}{{ ui_t('Sudah dibayar') }}{% if r.paid_on %} · {{ r.paid_on }}{% endif %}{% elif r.status=='void' %}{{ ui_t('Dibatalkan') }}{% else %}{{ ui_t('Belum dibayar ·') }} {{ r.status_label }}{% endif %}</span>
     </div>
     {% if r.can_mark_paid %}
     <div class="finance-bill-row-actions">
       {% if r.can_edit %}
-      <button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.rule_id }}">Edit</button>
-      <form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.rule_id) }}" onsubmit="return confirm('Hapus tagihan {{ r.name }} dari daftar aktif? Riwayat pembayaran lama tetap tersimpan.');">
+      <button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.rule_id }}">{{ ui_t('Edit') }}</button>
+      <form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.rule_id) }}" onsubmit='return confirm({{ ui_t('Hapus tagihan {name} dari daftar aktif? Riwayat pembayaran lama tetap tersimpan.', name=r.name)|tojson }});'>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="day" value="{{ selected_day }}"><input type="hidden" name="view" value="calendar"><input type="hidden" name="payment_status" value="{{ payment_status }}"><input type="hidden" name="display_currency" value="{{ display_currency }}">
-        <button class="finance-mini-action finance-danger" type="submit">Hapus</button>
+        <button class="finance-mini-action finance-danger" type="submit">{{ ui_t('Hapus') }}</button>
       </form>
       {% endif %}
-      <button class="finance-mini-action finance-bill-pay-action" type="button" data-finance-open="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}">Bayar</button>
+      <button class="finance-mini-action finance-bill-pay-action" type="button" data-finance-open="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}">{{ ui_t('Bayar') }}</button>
     </div>
     <dialog id="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}" class="finance-sheet finance-bill-pay-sheet">
       <div class="finance-sheet-head">
-        <div><small>Tagihan</small><h2>Catat Pembayaran</h2></div>
-        <button type="button" class="finance-sheet-close" data-finance-close="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}" aria-label="Tutup">×</button>
+        <div><small>{{ ui_t('Tagihan') }}</small><h2>{{ ui_t('Catat Pembayaran') }}</h2></div>
+        <button type="button" class="finance-sheet-close" data-finance-close="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}" aria-label="{{ ui_t('Tutup') }}">×</button>
       </div>
       <div class="finance-sheet-body">
-        <p class="muted"><strong>{{ r.name }}</strong> · {{ r.display_amount }}<br>Jatuh tempo {{ r.scheduled_on }}</p>
+        <p class="muted"><strong>{{ r.name }}</strong> · {{ r.display_amount }}<br>{{ ui_t('Jatuh tempo') }} {{ r.scheduled_on }}</p>
         <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
@@ -153,51 +153,51 @@
           <input type="hidden" name="payment_status" value="{{ payment_status }}">
           <input type="hidden" name="display_currency" value="{{ display_currency }}">
           <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
-          <label>Metode / akun pembayaran<select name="account_id" required><option value="" selected disabled>Pilih BCA, SeaBank, Kas, atau akun lain</option>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
-          <label>Tanggal pembayaran<input type="date" name="paid_on" value="{{ today }}" max="{{ today }}" required></label>
-          <p class="finance-bill-payment-note">Tagihan tetap <strong>Belum dibayar</strong> sampai tombol Catat Dibayar berhasil. Setelah berhasil, tanggal ini masuk ke Pengeluaran dan saldo akun yang dipilih berkurang.</p>
-          <button class="btn" type="submit">Catat Dibayar</button>
+          <label>{{ ui_t('Metode / akun pembayaran') }}<select name="account_id" required><option value="" selected disabled>{{ ui_t('Pilih BCA, SeaBank, Kas, atau akun lain') }}</option>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
+          <label>{{ ui_t('Tanggal pembayaran') }}<input type="date" name="paid_on" value="{{ today }}" max="{{ today }}" required></label>
+          <p class="finance-bill-payment-note">{{ ui_t('Tagihan tetap') }} <strong>{{ ui_t('Belum dibayar') }}</strong> {{ ui_t('sampai tombol Catat Dibayar berhasil. Setelah berhasil, tanggal ini masuk ke Pengeluaran dan saldo akun yang dipilih berkurang.') }}</p>
+          <button class="btn" type="submit">{{ ui_t('Catat Dibayar') }}</button>
         </form>
       </div>
     </dialog>
     {% endif %}
   </article>
-  {% else %}<div class="fin-empty finance-bills-empty">Tidak ada tagihan pada tanggal ini.</div>{% endfor %}
+  {% else %}<div class="fin-empty finance-bills-empty">{{ ui_t('Tidak ada tagihan pada tanggal ini.') }}</div>{% endfor %}
 </section>
 
 {% elif view == 'list' %}
 <section class="card finance-bills-list finance-bills-all-list">
-  <div class="finance-bills-list-head"><strong>{{ month_label }}</strong><span>{{ occurrences|length }} tagihan</span></div>
+  <div class="finance-bills-list-head"><strong>{{ month_label|ui_period }}</strong><span>{{ occurrences|length }} {{ ui_t('tagihan') }}</span></div>
   {% for r in occurrences %}
   <article class="finance-bill-row {{ r.status }}">
     <span class="finance-bill-status-dot" aria-hidden="true"></span>
     <div class="finance-bill-main">
       <strong>{{ r.name }}</strong>
-      <small>{{ r.scheduled_on }} · {{ r.counterparty_name or 'Tagihan' }}{% if r.category_name %} · {{ r.category_name }}{% endif %}{% if r.status=='paid' and r.account_name %} · {{ r.account_name }}{% endif %}</small>
+      <small>{{ r.scheduled_on }} · {{ r.counterparty_name or ui_t('Tagihan') }}{% if r.category_name %} · {{ r.category_name }}{% endif %}{% if r.status=='paid' and r.account_name %} · {{ r.account_name }}{% endif %}</small>
     </div>
     <div class="finance-bill-money">
       <strong>{{ r.display_amount }}</strong>
-      {% if r.show_native %}<small>Asli {{ r.native_amount }}</small>{% endif %}
-      <span class="finance-bill-status-label">{% if r.status=='paid' %}Sudah dibayar{% if r.paid_on %} · {{ r.paid_on }}{% endif %}{% elif r.status=='void' %}Dibatalkan{% else %}Belum dibayar · {{ r.status_label }}{% endif %}</span>
+      {% if r.show_native %}<small>{{ ui_t('Asli') }} {{ r.native_amount }}</small>{% endif %}
+      <span class="finance-bill-status-label">{% if r.status=='paid' %}{{ ui_t('Sudah dibayar') }}{% if r.paid_on %} · {{ r.paid_on }}{% endif %}{% elif r.status=='void' %}{{ ui_t('Dibatalkan') }}{% else %}{{ ui_t('Belum dibayar ·') }} {{ r.status_label }}{% endif %}</span>
     </div>
     {% if r.can_mark_paid %}
     <div class="finance-bill-row-actions">
       {% if r.can_edit %}
-      <button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.rule_id }}">Edit</button>
-      <form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.rule_id) }}" onsubmit="return confirm('Hapus tagihan {{ r.name }} dari daftar aktif? Riwayat pembayaran lama tetap tersimpan.');">
+      <button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.rule_id }}">{{ ui_t('Edit') }}</button>
+      <form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.rule_id) }}" onsubmit='return confirm({{ ui_t('Hapus tagihan {name} dari daftar aktif? Riwayat pembayaran lama tetap tersimpan.', name=r.name)|tojson }});'>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="day" value="{{ r.scheduled_on }}"><input type="hidden" name="view" value="list"><input type="hidden" name="payment_status" value="{{ payment_status }}"><input type="hidden" name="display_currency" value="{{ display_currency }}">
-        <button class="finance-mini-action finance-danger" type="submit">Hapus</button>
+        <button class="finance-mini-action finance-danger" type="submit">{{ ui_t('Hapus') }}</button>
       </form>
       {% endif %}
-      <button class="finance-mini-action finance-bill-pay-action" type="button" data-finance-open="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}">Bayar</button>
+      <button class="finance-mini-action finance-bill-pay-action" type="button" data-finance-open="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}">{{ ui_t('Bayar') }}</button>
     </div>
     <dialog id="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}" class="finance-sheet finance-bill-pay-sheet">
       <div class="finance-sheet-head">
-        <div><small>Tagihan</small><h2>Catat Pembayaran</h2></div>
-        <button type="button" class="finance-sheet-close" data-finance-close="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}" aria-label="Tutup">×</button>
+        <div><small>{{ ui_t('Tagihan') }}</small><h2>{{ ui_t('Catat Pembayaran') }}</h2></div>
+        <button type="button" class="finance-sheet-close" data-finance-close="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}" aria-label="{{ ui_t('Tutup') }}">×</button>
       </div>
       <div class="finance-sheet-body">
-        <p class="muted"><strong>{{ r.name }}</strong> · {{ r.display_amount }}<br>Jatuh tempo {{ r.scheduled_on }}</p>
+        <p class="muted"><strong>{{ r.name }}</strong> · {{ r.display_amount }}<br>{{ ui_t('Jatuh tempo') }} {{ r.scheduled_on }}</p>
         <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
@@ -207,46 +207,46 @@
           <input type="hidden" name="payment_status" value="{{ payment_status }}">
           <input type="hidden" name="display_currency" value="{{ display_currency }}">
           <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
-          <label>Metode / akun pembayaran<select name="account_id" required><option value="" selected disabled>Pilih BCA, SeaBank, Kas, atau akun lain</option>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
-          <label>Tanggal pembayaran<input type="date" name="paid_on" value="{{ today }}" max="{{ today }}" required></label>
-          <p class="finance-bill-payment-note">Tagihan tetap <strong>Belum dibayar</strong> sampai tombol Catat Dibayar berhasil. Setelah berhasil, tanggal ini masuk ke Pengeluaran dan saldo akun yang dipilih berkurang.</p>
-          <button class="btn" type="submit">Catat Dibayar</button>
+          <label>{{ ui_t('Metode / akun pembayaran') }}<select name="account_id" required><option value="" selected disabled>{{ ui_t('Pilih BCA, SeaBank, Kas, atau akun lain') }}</option>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
+          <label>{{ ui_t('Tanggal pembayaran') }}<input type="date" name="paid_on" value="{{ today }}" max="{{ today }}" required></label>
+          <p class="finance-bill-payment-note">{{ ui_t('Tagihan tetap') }} <strong>{{ ui_t('Belum dibayar') }}</strong> {{ ui_t('sampai tombol Catat Dibayar berhasil. Setelah berhasil, tanggal ini masuk ke Pengeluaran dan saldo akun yang dipilih berkurang.') }}</p>
+          <button class="btn" type="submit">{{ ui_t('Catat Dibayar') }}</button>
         </form>
       </div>
     </dialog>
     {% endif %}
   </article>
-  {% else %}<div class="fin-empty finance-bills-empty">Belum ada tagihan pada bulan ini.</div>{% endfor %}
+  {% else %}<div class="fin-empty finance-bills-empty">{{ ui_t('Belum ada tagihan pada bulan ini.') }}</div>{% endfor %}
 </section>
 
 {% else %}
 <section class="card finance-bills-rules">
-  <div class="finance-bills-list-head"><strong>Tagihan Rutin</strong><span>{{ rules_count }} aktif</span></div>
+  <div class="finance-bills-list-head"><strong>{{ ui_t('Tagihan Rutin') }}</strong><span>{{ rules_count }} {{ ui_t('aktif') }}</span></div>
   {% for r in rules %}
   <article class="finance-bill-rule {{ 'inactive' if not r.is_active else '' }}">
     <div>
       <strong>{{ r.name }}</strong>
-      <small>{{ 'Sekali' if r.input_cadence=='ONCE' else ('Mingguan' if r.cadence=='WEEKLY' else 'Bulanan') }} · berikutnya {{ r.next_due_on }}</small>
+      <small>{{ ui_t('Sekali') if r.input_cadence=='ONCE' else (ui_t('Mingguan') if r.cadence=='WEEKLY' else ui_t('Bulanan')) }} {{ ui_t('· berikutnya') }} {{ r.next_due_on }}</small>
       {% if r.counterparty_name %}<small>{{ r.counterparty_name }}</small>{% endif %}
     </div>
     <div class="finance-bill-rule-right">
       <strong>{{ r.amount_minor|finance_money(r.currency) }}</strong>
-      <span>{{ 'Aktif' if r.is_active else 'Nonaktif' }}</span>
+      <span>{{ ui_t('Aktif') if r.is_active else ui_t('Nonaktif') }}</span>
       {% if r.is_active %}
       <div class="finance-bill-rule-actions">
-        <button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.id }}">✏️ Edit</button>
-        <form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.id) }}" onsubmit="return confirm('Hapus jadwal {{ r.name }} dari daftar aktif? Riwayat pembayaran tetap tersimpan.');">
+        <button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.id }}">{{ ui_t('✏️ Edit') }}</button>
+        <form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.id) }}" onsubmit='return confirm({{ ui_t('Hapus jadwal {name} dari daftar aktif? Riwayat pembayaran tetap tersimpan.', name=r.name)|tojson }});'>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
           <input type="hidden" name="month" value="{{ month }}">
           <input type="hidden" name="display_currency" value="{{ display_currency }}">
-          <button class="finance-mini-action finance-danger" type="submit">🗑️ Hapus</button>
+          <button class="finance-mini-action finance-danger" type="submit">{{ ui_t('🗑️ Hapus') }}</button>
         </form>
       </div>
       {% endif %}
     </div>
   </article>
-  {% else %}<div class="fin-empty finance-bills-empty">Belum ada jadwal tagihan.</div>{% endfor %}
+  {% else %}<div class="fin-empty finance-bills-empty">{{ ui_t('Belum ada jadwal tagihan.') }}</div>{% endfor %}
 </section>
 
 {% endif %}
@@ -254,8 +254,8 @@
 {% for r in rules if r.is_active %}
 <dialog id="bill-edit-{{ r.id }}" class="finance-sheet finance-bill-add-sheet finance-bill-edit-sheet">
   <div class="finance-sheet-head">
-    <div><small>Tagihan</small><h2>Edit {{ r.name }}</h2></div>
-    <button type="button" class="finance-sheet-close" data-finance-close="bill-edit-{{ r.id }}" aria-label="Tutup">×</button>
+    <div><small>{{ ui_t('Tagihan') }}</small><h2>{{ ui_t('Edit') }} {{ r.name }}</h2></div>
+    <button type="button" class="finance-sheet-close" data-finance-close="bill-edit-{{ r.id }}" aria-label="{{ ui_t('Tutup') }}">×</button>
   </div>
   <div class="finance-sheet-body">
     <form method="post" action="{{ url_for('finance.update_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.id) }}" class="finance-bill-add-form">
@@ -266,73 +266,73 @@
       <input type="hidden" name="view" value="{{ view }}">
       <input type="hidden" name="day" value="{{ selected_day if view=='calendar' else '' }}">
       <input type="hidden" name="payment_status" value="{{ payment_status }}">
-      <label>Nama Tagihan<input name="name" value="{{ r.name }}" maxlength="160" required></label>
+      <label>{{ ui_t('Nama Tagihan') }}<input name="name" value="{{ r.name }}" maxlength="160" required></label>
       <div class="finance-bill-form-grid">
         <input type="hidden" name="account_id" value="{{ r.account_id }}">
-        <label>Nominal {{ r.currency }}<input name="amount" value="{{ r.input_amount }}" inputmode="decimal" maxlength="25" required></label>
+        <label>{{ ui_t('Nominal') }} {{ r.currency }}<input name="amount" value="{{ r.input_amount }}" inputmode="decimal" maxlength="25" required></label>
         <input type="hidden" name="direction" value="EXPENSE">
-        <label>Kategori
-          <select name="category_id" data-other-category data-bill-category-select hidden><option value="">Pilih kategori</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_parent_category_id }}>{{ c.name }}</option>{% endfor %}</select>
+        <label>{{ ui_t('Kategori') }}
+          <select name="category_id" data-other-category data-bill-category-select hidden><option value="">{{ ui_t('Pilih kategori') }}</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_parent_category_id }}>{{ c.name }}</option>{% endfor %}</select>
           <details class="finance-bill-category-picker" data-bill-category-picker>
-            <summary data-bill-category-summary>Pilih kategori</summary>
+            <summary data-bill-category-summary>{{ ui_t('Pilih kategori') }}</summary>
             <div class="finance-bill-category-menu">{% for c in categories if c.is_active and not c.parent_category_id %}<button type="button" data-bill-category-option data-category-value="{{ c.id }}">{{ c.name }}</button>{% endfor %}</div>
           </details>
         </label>
-        <label class="finance-subcategory-field" data-subcategory-field hidden>Subkategori<select name="subcategory_id" data-subcategory-select aria-label="Subkategori"><option value="" {{ 'selected' if not r.input_subcategory_id }} disabled>Pilih subkategori</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_subcategory_id }}>{{ c.name }}</option>{% endfor %}</select></label>
-        <label>Jatuh Tempo<input type="date" name="next_due_on" value="{{ r.next_due_on }}" required></label>
-        <label>Frekuensi<select name="cadence"><option value="ONCE" {{ 'selected' if r.input_cadence=='ONCE' }}>Sekali</option><option value="MONTHLY" {{ 'selected' if r.input_cadence=='MONTHLY' }}>Bulanan</option><option value="WEEKLY" {{ 'selected' if r.input_cadence=='WEEKLY' }}>Mingguan</option></select></label>
-        <label>Berakhir (opsional)<input type="date" name="end_on" value="{{ '' if r.input_cadence=='ONCE' else (r.end_on or '') }}"></label>
+        <label class="finance-subcategory-field" data-subcategory-field hidden>{{ ui_t('Subkategori') }}<select name="subcategory_id" data-subcategory-select aria-label="{{ ui_t('Subkategori') }}"><option value="" {{ 'selected' if not r.input_subcategory_id }} disabled>{{ ui_t('Pilih subkategori') }}</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_subcategory_id }}>{{ c.name }}</option>{% endfor %}</select></label>
+        <label>{{ ui_t('Jatuh Tempo') }}<input type="date" name="next_due_on" value="{{ r.next_due_on }}" required></label>
+        <label>{{ ui_t('Frekuensi') }}<select name="cadence"><option value="ONCE" {{ 'selected' if r.input_cadence=='ONCE' }}>{{ ui_t('Sekali') }}</option><option value="MONTHLY" {{ 'selected' if r.input_cadence=='MONTHLY' }}>{{ ui_t('Bulanan') }}</option><option value="WEEKLY" {{ 'selected' if r.input_cadence=='WEEKLY' }}>{{ ui_t('Mingguan') }}</option></select></label>
+        <label>{{ ui_t('Berakhir (opsional)') }}<input type="date" name="end_on" value="{{ '' if r.input_cadence=='ONCE' else (r.end_on or '') }}"></label>
       </div>
-      <label>Penerima / Vendor<input name="counterparty_name" value="{{ r.counterparty_name or '' }}" maxlength="160" placeholder="Opsional"></label>
-      <details class="finance-bill-more"><summary>Detail tambahan</summary>
-        {% if not finance_workspace_personal %}<label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}" {{ 'selected' if p.id==r.project_id }}>{{ p.title }}</option>{% endfor %}</select></label>{% endif %}
-        <label>Catatan<textarea name="description" maxlength="4000">{{ r.description or '' }}</textarea></label>
+      <label>{{ ui_t('Penerima / Vendor') }}<input name="counterparty_name" value="{{ r.counterparty_name or '' }}" maxlength="160" placeholder="{{ ui_t('Opsional') }}"></label>
+      <details class="finance-bill-more"><summary>{{ ui_t('Detail tambahan') }}</summary>
+        {% if not finance_workspace_personal %}<label>{{ ui_t('Proyek') }}<select name="project_id"><option value="">{{ ui_t('Tanpa proyek') }}</option>{% for p in projects %}<option value="{{ p.id }}" {{ 'selected' if p.id==r.project_id }}>{{ p.title }}</option>{% endfor %}</select></label>{% endif %}
+        <label>{{ ui_t('Catatan') }}<textarea name="description" maxlength="4000">{{ r.description or '' }}</textarea></label>
       </details>
-      <button class="btn" type="submit">Simpan Edit</button>
+      <button class="btn" type="submit">{{ ui_t('Simpan Edit') }}</button>
     </form>
   </div>
 </dialog>
 {% endfor %}
 
-<nav class="card finance-bills-toolbar" aria-label="Tampilan tagihan">
-  <a class="{{ 'active' if view=='recurring' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='recurring',display_currency=display_currency,payment_status=payment_status) }}"><span>↻</span><small>Rutin</small></a>
-  <a class="{{ 'active' if view=='calendar' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='calendar',display_currency=display_currency,payment_status=payment_status) }}"><span>▦</span><small>Kalender</small></a>
-  <a class="{{ 'active' if view=='list' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='list',display_currency=display_currency,payment_status=payment_status) }}"><span>☰</span><small>Daftar</small></a>
+<nav class="card finance-bills-toolbar" aria-label="{{ ui_t('Tampilan tagihan') }}">
+  <a class="{{ 'active' if view=='recurring' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='recurring',display_currency=display_currency,payment_status=payment_status) }}"><span>↻</span><small>{{ ui_t('Rutin') }}</small></a>
+  <a class="{{ 'active' if view=='calendar' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='calendar',display_currency=display_currency,payment_status=payment_status) }}"><span>▦</span><small>{{ ui_t('Kalender') }}</small></a>
+  <a class="{{ 'active' if view=='list' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='list',display_currency=display_currency,payment_status=payment_status) }}"><span>☰</span><small>{{ ui_t('Daftar') }}</small></a>
 </nav>
 
 <dialog id="bill-add-dialog" class="finance-sheet finance-bill-add-sheet">
   <div class="finance-sheet-head">
-    <div><small>Tagihan</small><h2>Tambah Tagihan</h2></div>
-    <button type="button" class="finance-sheet-close" data-finance-close="bill-add-dialog" aria-label="Tutup">×</button>
+    <div><small>{{ ui_t('Tagihan') }}</small><h2>{{ ui_t('Tambah Tagihan') }}</h2></div>
+    <button type="button" class="finance-sheet-close" data-finance-close="bill-add-dialog" aria-label="{{ ui_t('Tutup') }}">×</button>
   </div>
   <div class="finance-sheet-body">
     <form method="post" action="{{ url_for('finance.create_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
       <input type="hidden" name="month" value="{{ month }}">
-      <label>Nama Tagihan<input name="name" maxlength="160" placeholder="Contoh: Internet" required></label>
+      <label>{{ ui_t('Nama Tagihan') }}<input name="name" maxlength="160" placeholder="{{ ui_t('Contoh: Internet') }}" required></label>
       <div class="finance-bill-form-grid">
-        <label>Mata uang<select name="currency" required>{% for code in bill_currency_options %}<option value="{{ code }}" {{ 'selected' if code=='IDR' }}>{{ code }}</option>{% endfor %}</select></label>
-        <label>Nominal<input name="amount" inputmode="decimal" maxlength="25" required></label>
+        <label>{{ ui_t('Mata uang') }}<select name="currency" required>{% for code in bill_currency_options %}<option value="{{ code }}" {{ 'selected' if code=='IDR' }}>{{ code }}</option>{% endfor %}</select></label>
+        <label>{{ ui_t('Nominal') }}<input name="amount" inputmode="decimal" maxlength="25" required></label>
         <input type="hidden" name="direction" value="EXPENSE">
-        <label>Kategori
-          <select name="category_id" data-other-category data-bill-category-select hidden><option value="" selected>Pilih kategori</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE">{{ c.name }}</option>{% endfor %}</select>
+        <label>{{ ui_t('Kategori') }}
+          <select name="category_id" data-other-category data-bill-category-select hidden><option value="" selected>{{ ui_t('Pilih kategori') }}</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE">{{ c.name }}</option>{% endfor %}</select>
           <details class="finance-bill-category-picker" data-bill-category-picker>
-            <summary data-bill-category-summary>Pilih kategori</summary>
+            <summary data-bill-category-summary>{{ ui_t('Pilih kategori') }}</summary>
             <div class="finance-bill-category-menu">{% for c in categories if c.is_active and not c.parent_category_id %}<button type="button" data-bill-category-option data-category-value="{{ c.id }}">{{ c.name }}</button>{% endfor %}</div>
           </details>
         </label>
-        <label class="finance-subcategory-field" data-subcategory-field hidden>Subkategori<select name="subcategory_id" data-subcategory-select aria-label="Subkategori"><option value="" selected disabled>Pilih subkategori</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE">{{ c.name }}</option>{% endfor %}</select></label>
-        <label>Jatuh Tempo<input type="date" name="next_due_on" value="{{ today }}" required></label>
-        <label>Frekuensi<select name="cadence"><option value="ONCE">Sekali</option><option value="MONTHLY">Bulanan</option><option value="WEEKLY">Mingguan</option></select></label>
-        <label>Berakhir (opsional)<input type="date" name="end_on"></label>
+        <label class="finance-subcategory-field" data-subcategory-field hidden>{{ ui_t('Subkategori') }}<select name="subcategory_id" data-subcategory-select aria-label="{{ ui_t('Subkategori') }}"><option value="" selected disabled>{{ ui_t('Pilih subkategori') }}</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE">{{ c.name }}</option>{% endfor %}</select></label>
+        <label>{{ ui_t('Jatuh Tempo') }}<input type="date" name="next_due_on" value="{{ today }}" required></label>
+        <label>{{ ui_t('Frekuensi') }}<select name="cadence"><option value="ONCE">{{ ui_t('Sekali') }}</option><option value="MONTHLY">{{ ui_t('Bulanan') }}</option><option value="WEEKLY">{{ ui_t('Mingguan') }}</option></select></label>
+        <label>{{ ui_t('Berakhir (opsional)') }}<input type="date" name="end_on"></label>
       </div>
-      <label>Penerima / Vendor<input name="counterparty_name" maxlength="160" placeholder="Opsional"></label>
-      <details class="finance-bill-more"><summary>Detail tambahan</summary>
-        {% if not finance_workspace_personal %}<label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label>{% endif %}
-        <label>Catatan<textarea name="description" maxlength="4000"></textarea></label>
+      <label>{{ ui_t('Penerima / Vendor') }}<input name="counterparty_name" maxlength="160" placeholder="{{ ui_t('Opsional') }}"></label>
+      <details class="finance-bill-more"><summary>{{ ui_t('Detail tambahan') }}</summary>
+        {% if not finance_workspace_personal %}<label>{{ ui_t('Proyek') }}<select name="project_id"><option value="">{{ ui_t('Tanpa proyek') }}</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label>{% endif %}
+        <label>{{ ui_t('Catatan') }}<textarea name="description" maxlength="4000"></textarea></label>
       </details>
-      <button class="btn" type="submit">Simpan Tagihan</button>
+      <button class="btn" type="submit">{{ ui_t('Simpan Tagihan') }}</button>
     </form>
   </div>
 </dialog>

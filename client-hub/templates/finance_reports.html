@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Laporan Finance · Kilas Finance{% endblock %}
+{% block title %}{{ ui_t('Laporan Finance · Kilas Finance') }}{% endblock %}
 {% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
 <style>
@@ -129,10 +129,10 @@
 
 {% macro report_table(rows,columns) %}
   {% if rows %}
-  <div class="report-table-wrap"><table class="report-table"><thead><tr>{% for label,key,kind in columns %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>
-  {% for row in rows %}<tr>{% for label,key,kind in columns %}<td data-label="{{ label }}">{% if kind=='money' %}{{ row[key]|finance_money(row.get('currency','IDR')) }}{% elif kind=='percent' %}{{ row[key] }}%{% elif kind=='direction' %}{{ directions[row[key]] }}{% elif kind=='account_type' %}{{ row.get('account_type_label') or account_types.get(row[key],row[key]) }}{% elif kind=='active' %}{{ 'Aktif' if row[key] else 'Nonaktif' }}{% else %}{{ (row[key] or '—') if kind=='text' else row[key] }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+  <div class="report-table-wrap"><table class="report-table"><thead><tr>{% for label,key,kind in columns %}<th>{{ label|ui_text }}</th>{% endfor %}</tr></thead><tbody>
+  {% for row in rows %}<tr>{% for label,key,kind in columns %}<td data-label="{{ label|ui_text }}">{% if kind=='money' %}{{ row[key]|finance_money(row.get('currency','IDR')) }}{% elif kind=='percent' %}{{ row[key] }}%{% elif kind=='direction' %}{{ directions[row[key]] }}{% elif kind=='account_type' %}{{ row.get('account_type_label') or account_types.get(row[key],row[key]) }}{% elif kind=='active' %}{{ ui_t('Aktif') if row[key] else ui_t('Nonaktif') }}{% else %}{{ (row[key] or '—') if kind=='text' else row[key] }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
   </tbody></table></div>
-  {% else %}<div class="report-empty">Belum ada data pada periode ini.</div>{% endif %}
+  {% else %}<div class="report-empty">{{ ui_t('Belum ada data pada periode ini.') }}</div>{% endif %}
 {% endmacro %}
 
 {% macro section_head(title,description) %}
@@ -143,18 +143,18 @@
 {% set active_finance_area='reports' %}{% include '_finance_area_nav.html' %}
 
 {% if error %}
-  <div class="report-hero"><div class="report-hero-copy"><span class="report-eyebrow">Kilas Finance</span><h1>Laporan Finance</h1><p>Data laporan belum dapat ditampilkan.</p></div></div>
-  <div class="card"><p>{{ error }}</p><a class="btn" href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id,section='summary') }}">Kembali ke laporan</a></div>
+  <div class="report-hero"><div class="report-hero-copy"><span class="report-eyebrow">Kilas Finance</span><h1>{{ ui_t('Laporan Finance') }}</h1><p>{{ ui_t('Data laporan belum dapat ditampilkan.') }}</p></div></div>
+  <div class="card"><p>{{ error }}</p><a class="btn" href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id,section='summary') }}">{{ ui_t('Kembali ke laporan') }}</a></div>
 {% else %}
 {% set report_scope = selected_branch_id %}
 
 <header class="report-hero">
   <div class="report-hero-copy">
-    <span class="report-eyebrow">Kilas Finance · Laporan</span>
-    <h1>Laporan Finance</h1>
-    <p>{% if finance_workspace_personal %}Pribadi · seluruh ringkasan keuangan dalam satu laporan.{% else %}{{ business.business_name }} · seluruh ringkasan keuangan bisnis dalam satu laporan.{% endif %}</p>
+    <span class="report-eyebrow">{{ ui_t('Kilas Finance · Laporan') }}</span>
+    <h1>{{ ui_t('Laporan Finance') }}</h1>
+    <p>{% if finance_workspace_personal %}{{ ui_t('Pribadi · seluruh ringkasan keuangan dalam satu laporan.') }}{% else %}{{ business.business_name }} {{ ui_t('· seluruh ringkasan keuangan bisnis dalam satu laporan.') }}{% endif %}</p>
   </div>
-  <span class="report-scope-badge">{{ 'Pribadi' if finance_workspace_personal else selected_branch.name }}</span>
+  <span class="report-scope-badge">{{ ui_t('Pribadi') if finance_workspace_personal else selected_branch.name }}</span>
 </header>
 
 {% set preset_names = {
@@ -163,78 +163,78 @@
   'all':'Semua waktu','custom':'Tanggal khusus'
 } %}
 <div class="report-meta">
-  <span class="report-chip">📅 <strong>{{ preset_names.get(filters.preset,'Tanggal khusus') }}</strong> · {{ filters.start }} – {{ filters.end }}</span>
+  <span class="report-chip">📅 <strong>{{ preset_names.get(filters.preset,ui_t('Tanggal khusus')) }}</strong> · {{ filters.start }} – {{ filters.end }}</span>
   {% if finance_workspace_personal %}
-  <span class="report-chip">👤 <strong>Pribadi</strong></span>
+  <span class="report-chip">👤 <strong>{{ ui_t('Pribadi') }}</strong></span>
   {% else %}
   <span class="report-chip">🏪 <strong>{{ selected_branch.name }}</strong></span>
   {% endif %}
 </div>
 
-<section class="card report-shell no-print" aria-label="Kontrol laporan">
+<section class="card report-shell no-print" aria-label="{{ ui_t('Kontrol laporan') }}">
   <div class="report-toolbar">
     <div class="report-toolbar-left">
-      <button type="button" class="report-tool-btn primary" data-report-filter-open>⚙️ Pilih Periode</button>
-      <span class="report-chip">{{ preset_names.get(filters.preset,'Tanggal khusus') }} · {{ filters.start }} – {{ filters.end }}</span>
+      <button type="button" class="report-tool-btn primary" data-report-filter-open>{{ ui_t('⚙️ Pilih Periode') }}</button>
+      <span class="report-chip">{{ preset_names.get(filters.preset,ui_t('Tanggal khusus')) }} · {{ filters.start }} – {{ filters.end }}</span>
     </div>
     <div class="report-toolbar-right">
-      <a class="report-tool-btn primary" href="{{ url_for('finance.report_pdf',business_id=business.id,branch_id=report_scope,**filters) }}">⬇️ Unduh PDF</a>
+      <a class="report-tool-btn primary" href="{{ url_for('finance.report_pdf',business_id=business.id,branch_id=report_scope,**filters) }}">{{ ui_t('⬇️ Unduh PDF') }}</a>
     </div>
   </div>
 </section>
 
 <main class="report-content report-overall">
-  {{ section_head('Ringkasan','Gambaran utama seluruh pemasukan, pengeluaran, dan selisih pada periode yang dipilih.') }}
+  {{ section_head(ui_t('Ringkasan'),ui_t('Gambaran utama seluruh pemasukan, pengeluaran, dan selisih pada periode yang dipilih.')) }}
   <div class="report-kpi-grid">
     {% for s in summary %}
     <article class="card report-kpi-card">
-      <div class="report-kpi-top"><strong>{{ s.currency }}</strong><span>{{ s.transaction_count }} transaksi</span></div>
+      <div class="report-kpi-top"><strong>{{ s.currency }}</strong><span>{{ s.transaction_count }} {{ ui_t('transaksi') }}</span></div>
       <div class="report-kpi-row">
-        <div class="report-kpi-stat income"><span>↑ Pemasukan</span><strong>{{ s.total_income_minor|finance_money(s.currency) }}</strong></div>
-        <div class="report-kpi-stat expense"><span>↓ Pengeluaran</span><strong>{{ s.total_expense_minor|finance_money(s.currency) }}</strong></div>
-        <div class="report-kpi-stat net"><span>= Selisih</span><strong>{{ s.net_cashflow_minor|finance_money(s.currency) }}</strong></div>
+        <div class="report-kpi-stat income"><span>{{ ui_t('↑ Pemasukan') }}</span><strong>{{ s.total_income_minor|finance_money(s.currency) }}</strong></div>
+        <div class="report-kpi-stat expense"><span>{{ ui_t('↓ Pengeluaran') }}</span><strong>{{ s.total_expense_minor|finance_money(s.currency) }}</strong></div>
+        <div class="report-kpi-stat net"><span>{{ ui_t('= Selisih') }}</span><strong>{{ s.net_cashflow_minor|finance_money(s.currency) }}</strong></div>
       </div>
     </article>
     {% endfor %}
   </div>
 
-  {{ section_head('Pemasukan','Rincian pemasukan berdasarkan kategori pada periode laporan.') }}
+  {{ section_head(ui_t('Pemasukan'),ui_t('Rincian pemasukan berdasarkan kategori pada periode laporan.')) }}
   <section class="card report-data-card">
-    {{ report_table(data.income_categories,[('Kategori','name','text'),('Mata uang','currency','text'),('Nominal','amount_minor','money'),('Transaksi','transaction_count','number'),('Persentase','percentage','percent')]) }}
+    {{ report_table(data.income_categories,[(ui_t('Kategori'),'name','text'),(ui_t('Mata uang'),'currency','text'),(ui_t('Nominal'),'amount_minor','money'),(ui_t('Transaksi'),'transaction_count','number'),(ui_t('Persentase'),'percentage','percent')]) }}
   </section>
 
-  {{ section_head('Pengeluaran','Rincian pengeluaran berdasarkan kategori pada periode laporan.') }}
+  {{ section_head(ui_t('Pengeluaran'),ui_t('Rincian pengeluaran berdasarkan kategori pada periode laporan.')) }}
   <section class="card report-data-card">
-    {{ report_table(data.expense_categories,[('Kategori','name','text'),('Mata uang','currency','text'),('Nominal','amount_minor','money'),('Transaksi','transaction_count','number'),('Persentase','percentage','percent')]) }}
+    {{ report_table(data.expense_categories,[(ui_t('Kategori'),'name','text'),(ui_t('Mata uang'),'currency','text'),(ui_t('Nominal'),'amount_minor','money'),(ui_t('Transaksi'),'transaction_count','number'),(ui_t('Persentase'),'percentage','percent')]) }}
   </section>
 
-  {{ section_head('Anggaran','Anggaran bulanan yang tersimpan dan masuk ke rentang periode laporan.') }}
+  {{ section_head(ui_t('Anggaran'),ui_t('Anggaran bulanan yang tersimpan dan masuk ke rentang periode laporan.')) }}
   <section class="card report-data-card">
-    {{ report_table(data.budgets,[('Bulan','month','text'),('Kategori','category_name','text'),('Mata uang','currency','text'),('Anggaran','amount_minor','money')]) }}
+    {{ report_table(data.budgets,[(ui_t('Bulan'),'month','text'),(ui_t('Kategori'),'category_name','text'),(ui_t('Mata uang'),'currency','text'),(ui_t('Anggaran'),'amount_minor','money')]) }}
   </section>
 
-  {{ section_head('Tagihan','Tagihan rutin aktif yang sedang dijadwalkan di Finance.') }}
+  {{ section_head(ui_t('Tagihan'),ui_t('Tagihan rutin aktif yang sedang dijadwalkan di Finance.')) }}
   <section class="card report-data-card">
-    {{ report_table(data.recurring_rules,[('Nama','name','text'),('Jadwal berikutnya','next_due_on','text'),('Frekuensi','cadence_label','text'),('Mata uang','currency','text'),('Nominal','amount_minor','money'),('Akun','account_name','text'),('Kategori','category_name','text')]) }}
+    {{ report_table(data.recurring_rules,[(ui_t('Nama'),'name','text'),(ui_t('Jadwal berikutnya'),'next_due_on','text'),(ui_t('Frekuensi'),'cadence_label','text'),(ui_t('Mata uang'),'currency','text'),(ui_t('Nominal'),'amount_minor','money'),(ui_t('Akun'),'account_name','text'),(ui_t('Kategori'),'category_name','text')]) }}
   </section>
 
-  {{ section_head('Akun','Posisi saldo akun aktif per akhir periode laporan.') }}
+  {{ section_head(ui_t('Akun'),ui_t('Posisi saldo akun aktif per akhir periode laporan.')) }}
   <section class="card report-data-card">
-    {{ report_table(data.accounts,[('Nama','name','text'),('Mata uang','currency','text'),('Jenis','account_type','account_type'),('Saldo awal','opening_balance_minor','money'),('Saldo akhir periode','balance_minor','money')]) }}
+    {{ report_table(data.accounts,[(ui_t('Nama'),'name','text'),(ui_t('Mata uang'),'currency','text'),(ui_t('Jenis'),'account_type','account_type'),(ui_t('Saldo awal'),'opening_balance_minor','money'),(ui_t('Saldo akhir periode'),'balance_minor','money')]) }}
   </section>
 
-  {{ section_head('Penerima','Orang, toko, atau vendor yang menerima pembayaran pada periode laporan.') }}
+  {{ section_head(ui_t('Penerima'),ui_t('Orang, toko, atau vendor yang menerima pembayaran pada periode laporan.')) }}
   <section class="card report-data-card">
-    {{ report_table(data.payees,[('Penerima','name','text'),('Mata uang','currency','text'),('Total dibayar','total_minor','money'),('Transaksi','transaction_count','number'),('Terakhir dibayar','last_paid_on','text')]) }}
+    {{ report_table(data.payees,[(ui_t('Penerima'),'name','text'),(ui_t('Mata uang'),'currency','text'),(ui_t('Total dibayar'),'total_minor','money'),(ui_t('Transaksi'),'transaction_count','number'),(ui_t('Terakhir dibayar'),'last_paid_on','text')]) }}
   </section>
 </main>
 
 <aside class="report-note">
-  <strong>Catatan laporan:</strong> laporan ini menyatukan ringkasan Pemasukan, Pengeluaran, Anggaran, Tagihan, Akun, dan Penerima dari data Finance yang sama. {% if not finance_workspace_personal %}Laporan ini berbasis kas, bukan laporan laba rugi akrual.{% endif %} Mata uang tetap disajikan sesuai pencatatannya.
+  <strong>{{ ui_t('Catatan laporan:') }}</strong> {{ ui_t('laporan ini menyatukan ringkasan Pemasukan, Pengeluaran, Anggaran, Tagihan, Akun, dan Penerima dari data Finance yang sama.') }} {% if not finance_workspace_personal %}{{ ui_t('Laporan ini berbasis kas, bukan laporan laba rugi akrual.') }}{% endif %} {{ ui_t('Mata uang tetap disajikan sesuai pencatatannya.') }}
 </aside>
 
 <dialog id="report-filter-dialog" class="report-dialog no-print">
-  <div class="report-dialog-head"><h2>⚙️ Filter Laporan</h2><button type="button" class="report-dialog-close" data-report-filter-close aria-label="Tutup">×</button></div>
+  <div class="report-dialog-head"><h2>{{ ui_t('⚙️ Filter Laporan') }}</h2><button type="button" class="report-dialog-close" data-report-filter-close aria-label="{{ ui_t('Tutup') }}">×</button></div>
   <div class="report-dialog-body">
     <div class="report-presets">
       {% for value,label in [
@@ -242,18 +242,18 @@
         ('three','3 bulan'),('six','6 bulan'),('year','Tahun ini'),
         ('all','Semua waktu')
       ] %}
-      <a class="{{ 'active' if filters.preset==value }}" href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,preset=value,) }}">{{ label }}</a>
+      <a class="{{ 'active' if filters.preset==value }}" href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,preset=value,) }}">{{ label|ui_text }}</a>
       {% endfor %}
     </div>
-    <div class="report-custom-title">Tanggal khusus</div>
+    <div class="report-custom-title">{{ ui_t('Tanggal khusus') }}</div>
     <form method="get">
       <input type="hidden" name="branch_id" value="{{ report_scope }}"><input type="hidden" name="preset" value="custom">
       <div class="report-controls">
-        <label>Dari tanggal<input type="date" name="start" value="{{ filters.start }}" max="{{ today }}" required></label>
-        <label>Sampai tanggal<input type="date" name="end" value="{{ filters.end }}" max="{{ today }}" required></label>
+        <label>{{ ui_t('Dari tanggal') }}<input type="date" name="start" value="{{ filters.start }}" max="{{ today }}" required></label>
+        <label>{{ ui_t('Sampai tanggal') }}<input type="date" name="end" value="{{ filters.end }}" max="{{ today }}" required></label>
       </div>
-      <p class="report-filter-help">Pilih preset cepat, Semua waktu, atau tentukan tanggal mulai dan tanggal akhir sendiri.</p>
-      <div class="report-dialog-actions"><button type="button" class="btn secondary" data-report-filter-close>Batal</button><button class="btn">Terapkan</button></div>
+      <p class="report-filter-help">{{ ui_t('Pilih preset cepat, Semua waktu, atau tentukan tanggal mulai dan tanggal akhir sendiri.') }}</p>
+      <div class="report-dialog-actions"><button type="button" class="btn secondary" data-report-filter-close>{{ ui_t('Batal') }}</button><button class="btn">{{ ui_t('Terapkan') }}</button></div>
     </form>
   </div>
 </dialog>

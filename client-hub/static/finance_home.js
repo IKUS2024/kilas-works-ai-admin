@@ -1,5 +1,7 @@
 (() => {
   'use strict';
+  const t=(message, values)=>window.KilasUI ? window.KilasUI.t(message, values) : message;
+
 
   const homeSelector = '.finance-metric-grid';
   let controller = null;
@@ -36,8 +38,8 @@
     });
     items.forEach((row,index) => {
       const x = left + step*(index+.5);
-      [{key:'income_minor',label:'Pemasukan',color:'var(--green)'},
-       {key:'expense_minor',label:'Pengeluaran',color:'var(--red)'}].forEach((series,j) => {
+      [{key:'income_minor',label:t('Pemasukan'),color:'var(--green)'},
+       {key:'expense_minor',label:t('Pengeluaran'),color:'var(--red)'}].forEach((series,j) => {
         const value = row[series.key], h = value/max*height;
         const rect = svgNode('rect',{x:x+(j-1)*(barWidth+3),y:bottom-h,width:barWidth,height:h,rx:1,fill:series.color});
         rect.append(svgNode('title',{},`${row.month} ${series.label}: ${format(value)} ${currency}`));

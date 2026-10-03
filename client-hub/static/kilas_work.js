@@ -1,5 +1,6 @@
 /* Work-only preferences and explicit contextual browser permissions. */
 (() => {
+  const t=(message, values)=>window.KilasUI ? window.KilasUI.t(message, values) : message;
   const csrf = document.querySelector('input[name="csrf_token"]')?.value;
   const headers = {'Content-Type':'application/json', 'X-CSRF-Token':csrf || ''};
   const composer = document.querySelector('#agent-chat-form');
@@ -18,8 +19,8 @@
       const status=settings.querySelector('[data-preference-status]');
       try {
         const response=await fetch('/kilas-ai/work/preferences',{method:'POST',headers,body:JSON.stringify({timezone:settings.elements.timezone.value,manual:true})});
-        status.textContent=response.ok?'Zona waktu tersimpan.':'Pilih zona waktu IANA yang valid.';
-      } catch (_) { status.textContent='Zona waktu belum tersimpan. Coba lagi.'; }
+        status.textContent=response.ok?t('Zona waktu tersimpan.'):t('Pilih zona waktu IANA yang valid.');
+      } catch (_) { status.textContent=t('Zona waktu belum tersimpan. Coba lagi.'); }
     });
   }
   document.querySelector('[data-enable-push]')?.addEventListener('click',async () => {
@@ -27,17 +28,17 @@
     try {
       preferences ||= await load();
       if (!preferences.push_available || !preferences.public_key || !window.isSecureContext || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-        status.textContent='Notifikasi perangkat belum tersedia. Pengingat tetap tersimpan di Kilas AI.';return;
+        status.textContent=t('Notifikasi perangkat belum tersedia. Pengingat tetap tersimpan di Kilas AI.');return;
       }
-      if (await Notification.requestPermission() !== 'granted') { status.textContent='Izin belum diberikan. Pengingat tetap muncul di Kilas AI.';return; }
+      if (await Notification.requestPermission() !== 'granted') { status.textContent=t('Izin belum diberikan. Pengingat tetap muncul di Kilas AI.');return; }
       const registration=await navigator.serviceWorker.register('/kilas-ai/work/service-worker.js',{scope:'/kilas-ai/'});
       await navigator.serviceWorker.ready;
       const encoded=preferences.public_key.replace(/-/g,'+').replace(/_/g,'/');
       const key=Uint8Array.from(atob(encoded+'='.repeat((4-encoded.length%4)%4)),c=>c.charCodeAt(0));
       const subscription=await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
       const response=await fetch('/kilas-ai/work/push',{method:'POST',headers,body:JSON.stringify(subscription.toJSON())});
-      status.textContent=response.ok?'Notifikasi perangkat aktif.':'Notifikasi belum tersimpan. Coba lagi.';
-    } catch (_) { status.textContent='Notifikasi belum aktif. Pengingat tetap tersimpan di Kilas AI.'; }
+      status.textContent=response.ok?t('Notifikasi perangkat aktif.'):t('Notifikasi belum tersimpan. Coba lagi.');
+    } catch (_) { status.textContent=t('Notifikasi belum aktif. Pengingat tetap tersimpan di Kilas AI.'); }
   });
   document.querySelector('[data-notifications-read]')?.addEventListener('click',async () => {
     const response=await fetch('/kilas-ai/work/notifications/read',{method:'POST',headers});
@@ -54,7 +55,7 @@
       locationButton.disabled=false;composer.requestSubmit();
     },() => {
       locationButton.disabled=false;
-      locationButton.parentElement.querySelector('p').textContent='Lokasi tidak dibagikan. Ketik nama daerah yang ingin dicari.';
+      locationButton.parentElement.querySelector('p').textContent=t('Lokasi tidak dibagikan. Ketik nama daerah yang ingin dicari.');
     },{maximumAge:0,timeout:10000,enableHighAccuracy:false});
   });
   const picker=composer?.querySelector('#work-source-files');
@@ -81,7 +82,7 @@
   }
   // The optimistic card lasts only until the server renders the stored upload.
   window.KilasAttachmentPreview = selected => {
-    const group=document.createElement('div');group.className='work-sent-files';group.setAttribute('aria-label','Lampiran terkirim');
+    const group=document.createElement('div');group.className='work-sent-files';group.setAttribute('aria-label',t('Lampiran terkirim'));
     selected.forEach(file=>{
       const url=file.type.startsWith('image/')?URL.createObjectURL(file):null;
       if(url) sentPreviews.add(url);
@@ -97,7 +98,7 @@
     files.forEach((file,index) => {
       transfer.items.add(file);
       const row=card(file);row.classList.add('work-pending-file');
-      const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label',`Hapus lampiran ${file.name}`);
+      const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label',t('Hapus lampiran {name}',{name:file.name}));
       remove.addEventListener('click',() => { if(previews.has(file)) {URL.revokeObjectURL(previews.get(file));previews.delete(file);} files.splice(index,1);render(); });
       row.append(remove);pending.append(row);
     });

@@ -1,5 +1,5 @@
 <header class="ai-toolbar ai-app-header">
-  {% if ai_show_menu|default(true) %}<button class="ai-icon ai-menu" data-ai-menu type="button" aria-controls="{{ 'agent-sidebar' if ai_mode == 'agent' else 'ai-sidebar' }}" aria-expanded="false" aria-label="Buka riwayat"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>{% endif %}
-  <a class="ai-brand" href="{{ url_for('kilas_ai.home') }}">Kilas <span>AI</span></a>
+  {% if ai_show_menu|default(true) %}<button class="ai-icon ai-menu" data-ai-menu type="button" aria-controls="{{ 'agent-sidebar' if ai_mode == 'agent' else 'ai-sidebar' }}" aria-expanded="false" aria-label="{{ ui_t('Buka riwayat') }}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>{% endif %}
+  <a class="ai-brand" href="{{ url_for('kilas_ai.home') }}">Kilas <span>{{ ui_t('AI') }}</span></a>
   {{ ai_header_actions|default('') }}
 </header>

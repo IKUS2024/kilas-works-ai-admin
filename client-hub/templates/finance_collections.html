@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Penagihan · Kilas Finance{% endblock %}
+{% block title %}{{ ui_t('Penagihan · Kilas Finance') }}{% endblock %}
 {% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
 {% endblock %}
@@ -9,39 +9,39 @@
 {% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}
 <header class="invoice-page-head">
   <div class="invoice-page-head-copy">
-    <h1>Penagihan</h1>
-    <p>Fokus ke invoice yang masih memiliki sisa tagihan · per {{ data.as_of }}.</p>
+    <h1>{{ ui_t('Penagihan') }}</h1>
+    <p>{{ ui_t('Fokus ke invoice yang masih memiliki sisa tagihan · per') }} {{ data.as_of }}.</p>
   </div>
-  <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">Invoice</a>
+  <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">{{ ui_t('Invoice') }}</a>
 </header>
 {% set invoice_tab='collections' %}{% include '_finance_invoice_hub_nav.html' %}
 <div class="invoice-hub-actions">
-  <a class="btn {{ 'secondary' if section!='queue' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue',sort=sort,view=view) }}">Antrean {{ queue.count }}</a>
-  <a class="btn {{ 'secondary' if section!='summary' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">Umur Piutang</a>
+  <a class="btn {{ 'secondary' if section!='queue' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue',sort=sort,view=view) }}">{{ ui_t('Antrean') }} {{ queue.count }}</a>
+  <a class="btn {{ 'secondary' if section!='summary' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">{{ ui_t('Umur Piutang') }}</a>
 </div>
 
 {% if section=='summary' %}
 <div class="card fin-receivable-explainer">
-  <strong>Penagihan tidak menghitung invoice lunas</strong>
-  <p>Yang tampil di sini hanya sisa invoice berstatus Belum dibayar atau Dibayar sebagian. Begitu sisa menjadi Rp0, invoice keluar dari antrean penagihan dan pembayarannya tetap berada di Pemasukan.</p>
+  <strong>{{ ui_t('Penagihan tidak menghitung invoice lunas') }}</strong>
+  <p>{{ ui_t('Yang tampil di sini hanya sisa invoice berstatus Belum dibayar atau Dibayar sebagian. Begitu sisa menjadi Rp0, invoice keluar dari antrean penagihan dan pembayarannya tetap berada di Pemasukan.') }}</p>
 </div>
 
 <div class="fin-summary-grid">
-  <div class="card fin-summary-card"><span class="fin-summary-label">Invoice terbuka</span><strong>{{ data.aging.open_invoice_count }}</strong><small>Masih memiliki sisa</small></div>
-  <div class="card fin-summary-card"><span class="fin-summary-label">Terlambat</span><strong>{{ data.aging.overdue_invoice_count }}</strong><small>Sudah lewat jatuh tempo</small></div>
+  <div class="card fin-summary-card"><span class="fin-summary-label">{{ ui_t('Invoice terbuka') }}</span><strong>{{ data.aging.open_invoice_count }}</strong><small>{{ ui_t('Masih memiliki sisa') }}</small></div>
+  <div class="card fin-summary-card"><span class="fin-summary-label">{{ ui_t('Terlambat') }}</span><strong>{{ data.aging.overdue_invoice_count }}</strong><small>{{ ui_t('Sudah lewat jatuh tempo') }}</small></div>
   {% for g in data.aging.by_currency %}
-  <div class="card fin-summary-card fin-summary-money"><span class="fin-summary-label">Sisa piutang · {{ g.currency }}</span><strong>{{ g.total_outstanding_minor|finance_money(g.currency) }}</strong><small>Terlambat {{ g.total_overdue_minor|finance_money(g.currency) }}</small></div>
+  <div class="card fin-summary-card fin-summary-money"><span class="fin-summary-label">{{ ui_t('Sisa piutang ·') }} {{ g.currency }}</span><strong>{{ g.total_outstanding_minor|finance_money(g.currency) }}</strong><small>{{ ui_t('Terlambat') }} {{ g.total_overdue_minor|finance_money(g.currency) }}</small></div>
   {% else %}
-  <div class="card fin-summary-card fin-summary-money"><span class="fin-summary-label">Sisa piutang · IDR</span><strong>{{ 0|finance_idr }}</strong><small>Tidak ada invoice yang perlu ditagih</small></div>
+  <div class="card fin-summary-card fin-summary-money"><span class="fin-summary-label">{{ ui_t('Sisa piutang · IDR') }}</span><strong>{{ 0|finance_idr }}</strong><small>{{ ui_t('Tidak ada invoice yang perlu ditagih') }}</small></div>
   {% endfor %}
 </div>
 
 {% for g in data.aging.by_currency %}
 <details class="card fin-aging-card">
-  <summary><strong>Umur piutang · {{ g.currency }}</strong><span class="muted">Lihat rincian ▾</span></summary>
+  <summary><strong>{{ ui_t('Umur piutang ·') }} {{ g.currency }}</strong><span class="muted">{{ ui_t('Lihat rincian ▾') }}</span></summary>
   <div class="fin-aging-list">
     {% for b in g.buckets %}
-    <div class="fin-aging-row"><span>{{ b.label }}</span><strong>{{ b.amount_minor|finance_money(g.currency) }}</strong><small>{{ b.invoice_count }} invoice</small></div>
+    <div class="fin-aging-row"><span>{{ b.label }}</span><strong>{{ b.amount_minor|finance_money(g.currency) }}</strong><small>{{ b.invoice_count }} {{ ui_t('invoice') }}</small></div>
     {% endfor %}
   </div>
 </details>
@@ -52,34 +52,34 @@
   <input type="hidden" name="section" value="queue">
   {% if finance_branch_business_id %}<input type="hidden" name="branch_id" value="{{ selected_branch_id or 'all' }}">{% endif %}
   <div class="fin-form-grid">
-    <label>Tampilkan<select name="view">{% for value,label in [('all','Semua belum lunas'),('overdue','Terlambat'),('soon','Jatuh tempo 0–7 hari')] %}<option value="{{ value }}" {{ 'selected' if view==value }}>{{ label }}</option>{% endfor %}</select></label>
-    <label>Urutkan<select name="sort">{% for value,label in [('overdue','Paling lama terlambat'),('balance','Sisa terbesar'),('due','Tanggal jatuh tempo'),('customer','Nama pelanggan')] %}<option value="{{ value }}" {{ 'selected' if sort==value }}>{{ label }}</option>{% endfor %}</select></label>
+    <label>{{ ui_t('Tampilkan') }}<select name="view">{% for value,label in [('all','Semua belum lunas'),('overdue','Terlambat'),('soon','Jatuh tempo 0–7 hari')] %}<option value="{{ value }}" {{ 'selected' if view==value }}>{{ label|ui_text }}</option>{% endfor %}</select></label>
+    <label>{{ ui_t('Urutkan') }}<select name="sort">{% for value,label in [('overdue','Paling lama terlambat'),('balance','Sisa terbesar'),('due','Tanggal jatuh tempo'),('customer','Nama pelanggan')] %}<option value="{{ value }}" {{ 'selected' if sort==value }}>{{ label|ui_text }}</option>{% endfor %}</select></label>
   </div>
-  <button class="btn secondary">Terapkan</button>
+  <button class="btn secondary">{{ ui_t('Terapkan') }}</button>
 </form>
 
 <div class="card">
-  <div class="fin-section-head"><div><h2>Antrean penagihan</h2><p class="muted">{{ queue.count }} invoice · 10 per halaman</p></div></div>
+  <div class="fin-section-head"><div><h2>{{ ui_t('Antrean penagihan') }}</h2><p class="muted">{{ queue.count }} {{ ui_t('invoice · 10 per halaman') }}</p></div></div>
   {% for i in queue.rows %}
   <article class="fin-entry fin-collection-row">
     <div class="fin-invoice-head">
-      <div><strong>{{ i.customer_name }}</strong><div class="fin-invoice-meta"><span>{{ i.invoice_number }}</span><span>{{ i.branch_name }}</span><span>Jatuh tempo {{ i.due_date }}</span></div></div>
-      <span class="fin-status {{ 'fin-status-partial' if i.status=='PARTIALLY_PAID' else 'fin-status-issued' }}">{{ labels[i.status] }}</span>
+      <div><strong>{{ i.customer_name }}</strong><div class="fin-invoice-meta"><span>{{ i.invoice_number }}</span><span>{{ i.branch_name }}</span><span>{{ ui_t('Jatuh tempo') }} {{ i.due_date }}</span></div></div>
+      <span class="fin-status {{ 'fin-status-partial' if i.status=='PARTIALLY_PAID' else 'fin-status-issued' }}">{{(labels[i.status])|ui_text}}</span>
     </div>
-    {% if i.overdue %}<p class="fin-accounting-note fin-overdue">{{ i.days_late }} hari terlambat</p>{% endif %}
-    <div class="fin-compact-money"><span>Total <b>{{ i.total_minor|finance_money(i.currency) }}</b></span><span>Dibayar <b>{{ i.paid_minor|finance_money(i.currency) }}</b></span><span>Sisa <b>{{ i.outstanding_minor|finance_money(i.currency) }}</b></span></div>
+    {% if i.overdue %}<p class="fin-accounting-note fin-overdue">{{ i.days_late }} {{ ui_t('hari terlambat') }}</p>{% endif %}
+    <div class="fin-compact-money"><span>{{ ui_t('Total') }} <b>{{ i.total_minor|finance_money(i.currency) }}</b></span><span>{{ ui_t('Dibayar') }} <b>{{ i.paid_minor|finance_money(i.currency) }}</b></span><span>{{ ui_t('Sisa') }} <b>{{ i.outstanding_minor|finance_money(i.currency) }}</b></span></div>
     <div class="fin-toolbar">
-      <a class="btn secondary small" href="{{ url_for('finance.invoice_detail',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=i.id) }}">Invoice / Bayar</a>
-      <a class="btn secondary small" href="{{ url_for('finance.customer_statement',business_id=business.id,branch_id=g.finance_branch_id,customer_id=i.customer_id) }}">Statement</a>
-      {% if i.overdue %}<a class="btn secondary small" href="{{ url_for('finance.collection_reminder',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=i.id) }}">Reminder</a>{% endif %}
+      <a class="btn secondary small" href="{{ url_for('finance.invoice_detail',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=i.id) }}">{{ ui_t('Invoice / Bayar') }}</a>
+      <a class="btn secondary small" href="{{ url_for('finance.customer_statement',business_id=business.id,branch_id=g.finance_branch_id,customer_id=i.customer_id) }}">{{ ui_t('Statement') }}</a>
+      {% if i.overdue %}<a class="btn secondary small" href="{{ url_for('finance.collection_reminder',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=i.id) }}">{{ ui_t('Reminder') }}</a>{% endif %}
     </div>
   </article>
-  {% else %}<div class="fin-empty">Tidak ada invoice untuk pilihan ini.</div>{% endfor %}
+  {% else %}<div class="fin-empty">{{ ui_t('Tidak ada invoice untuk pilihan ini.') }}</div>{% endfor %}
 
   {% if queue.pages>1 %}
   <nav class="fin-pagination">
     {% if queue.page>1 %}<a class="btn small secondary" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue',sort=sort,view=view,page=queue.page-1) }}">‹</a>{% endif %}
-    <span>Halaman {{ queue.page }} / {{ queue.pages }}</span>
+    <span>{{ ui_t('Halaman') }} {{ queue.page }} / {{ queue.pages }}</span>
     {% if queue.page<queue.pages %}<a class="btn small secondary" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue',sort=sort,view=view,page=queue.page+1) }}">›</a>{% endif %}
   </nav>
   {% endif %}

@@ -1,74 +1,74 @@
 <!doctype html>
-<html lang="id">
-<head>{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='chat-cleanup-1') }}">{% include '_premium_styles.html' %}</head>
+<html lang="{{ ui_language() }}">
+<head>{% include '_ui_i18n_head.html' %}{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='chat-cleanup-1') }}">{% include '_premium_styles.html' %}</head>
 <body class="kilas-light agent-body">
 <div class="ai-shell agent-shell" data-ai-shell data-view="{{ view }}">
-<button class="ai-backdrop" data-ai-backdrop type="button" aria-label="Tutup riwayat"></button>
-  <aside class="ai-sidebar agent-rail" id="agent-sidebar" data-ai-sidebar aria-label="Navigasi Kilas AI">
+<button class="ai-backdrop" data-ai-backdrop type="button" aria-label="{{ ui_t('Tutup riwayat') }}"></button>
+  <aside class="ai-sidebar agent-rail" id="agent-sidebar" data-ai-sidebar aria-label="{{ ui_t('Navigasi Kilas AI') }}">
     {% include 'kilas_ai/_sidebar_top.html' %}
     {% include '_premium_navigation.html' %}
-    <form method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" class="agent-new-chat"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">Chat baru</button></form>
-    <nav class="ai-history agent-chats" aria-label="Chat terbaru"><h2 class="ai-history-heading">Terbaru</h2>{% for chat in recent_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}" {% if view=='chat' and chat.id==conversation.id %}aria-current="page"{% endif %}>{{ chat.title }}</a>{% endfor %}<a href="{{ url_for('kilas_ai.agent_home',view='history') }}">Riwayat</a></nav>
-    <nav class="agent-sections" aria-label="Bagian Kilas AI">
-      <a href="{{ url_for('kilas_ai.agent_home',view='settings') }}" {% if view=='settings' %}aria-current="page"{% endif %}>Pengaturan AI</a>
+    <form method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" class="agent-new-chat"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">{{ ui_t('Chat baru') }}</button></form>
+    <nav class="ai-history agent-chats" aria-label="{{ ui_t('Chat terbaru') }}"><h2 class="ai-history-heading">{{ ui_t('Terbaru') }}</h2>{% for chat in recent_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}" {% if view=='chat' and chat.id==conversation.id %}aria-current="page"{% endif %}>{{ chat.title }}</a>{% endfor %}<a href="{{ url_for('kilas_ai.agent_home',view='history') }}">{{ ui_t('Riwayat') }}</a></nav>
+    <nav class="agent-sections" aria-label="{{ ui_t('Bagian Kilas AI') }}">
+      <a href="{{ url_for('kilas_ai.agent_home',view='settings') }}" {% if view=='settings' %}aria-current="page"{% endif %}>{{ ui_t('Pengaturan AI') }}</a>
     </nav>
-    <div class="premium-sidebar-account"><a href="{{ url_for('auth.logout_page') }}">Keluar</a></div>
+    <div class="premium-sidebar-account"><a href="{{ url_for('auth.logout_page') }}">{{ ui_t('Keluar') }}</a></div>
   </aside>
 
-  <main class="ai-main agent-main" aria-label="{{ {'chat':'Percakapan Kilas AI','tasks':'Pekerjaan Kilas AI','activity':'Aktivitas Kilas AI','connections':'Koneksi Kilas AI','history':'Riwayat','settings':'Pengaturan Kilas AI','notifications':'Notifikasi Kilas AI'}[view] }}">
+  <main class="ai-main agent-main" aria-label="{{ {'chat':ui_t('Percakapan Kilas AI'),'tasks':ui_t('Pekerjaan Kilas AI'),'activity':ui_t('Aktivitas Kilas AI'),'connections':ui_t('Koneksi Kilas AI'),'history':ui_t('Riwayat'),'settings':ui_t('Pengaturan Kilas AI'),'notifications':ui_t('Notifikasi Kilas AI')}[view] }}">
     {% set ai_mode = 'agent' %}
     {% include 'kilas_ai/_app_header.html' %}
     <section class="agent-content">
-    {% if error %}<p class="auto-error" role="alert">{{ {'message':'Tulis pesan hingga 1.200 karakter.','expired':'Konfirmasi sudah kedaluwarsa. Minta lagi lewat chat.','action':'Tugas belum bisa diubah. Periksa statusnya lalu coba lagi.','approval_expired':'Persetujuan sudah kedaluwarsa. Siapkan tindakan lagi.','approval_already_used':'Tindakan ini sudah pernah dikonfirmasi atau dibatalkan.','reauth_required':'Akses akun eksternal belum tersedia di Kilas AI.','permission_missing':'Tindakan ini belum tersedia di Kilas AI.','provider_unavailable':'Layanan belum merespons. Hasil tindakan belum dapat dipastikan.','provider_outcome_uncertain':'Hasil dari layanan belum pasti. Periksa layanan terkait sebelum mencoba lagi.','rate_limited':'Layanan sedang membatasi permintaan. Coba lagi nanti.','invalid_target':'Tujuan tindakan tidak ditemukan.'}.get(error,'Permintaan belum bisa diproses.') }}</p>{% endif %}
+    {% if error %}<p class="auto-error" role="alert">{{ {'message':ui_t('Tulis pesan hingga 1.200 karakter.'),'expired':ui_t('Konfirmasi sudah kedaluwarsa. Minta lagi lewat chat.'),'action':ui_t('Tugas belum bisa diubah. Periksa statusnya lalu coba lagi.'),'approval_expired':ui_t('Persetujuan sudah kedaluwarsa. Siapkan tindakan lagi.'),'approval_already_used':ui_t('Tindakan ini sudah pernah dikonfirmasi atau dibatalkan.'),'reauth_required':ui_t('Akses akun eksternal belum tersedia di Kilas AI.'),'permission_missing':ui_t('Tindakan ini belum tersedia di Kilas AI.'),'provider_unavailable':ui_t('Layanan belum merespons. Hasil tindakan belum dapat dipastikan.'),'provider_outcome_uncertain':ui_t('Hasil dari layanan belum pasti. Periksa layanan terkait sebelum mencoba lagi.'),'rate_limited':ui_t('Layanan sedang membatasi permintaan. Coba lagi nanti.'),'invalid_target':ui_t('Tujuan tindakan tidak ditemukan.')}.get(error,ui_t('Permintaan belum bisa diproses.')) }}</p>{% endif %}
     {% if view == 'chat' %}
-      <header class="agent-section-head"><div><h2>{{ conversation.title if messages else 'Chat baru' }}</h2></div><details class="agent-rename"><summary aria-label="Ubah nama chat"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></summary><form method="post" action="{{ url_for('kilas_ai.agent_rename_chat',conversation_id=conversation.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="chat-title">Nama chat</label><input id="chat-title" name="title" value="{{ conversation.title }}" maxlength="60" required><button type="submit">Simpan</button></form></details></header>
+      <header class="agent-section-head"><div><h2>{{ conversation.title if messages else ui_t('Chat baru') }}</h2></div><details class="agent-rename"><summary aria-label="{{ ui_t('Ubah nama chat') }}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></summary><form method="post" action="{{ url_for('kilas_ai.agent_rename_chat',conversation_id=conversation.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="chat-title">{{ ui_t('Nama chat') }}</label><input id="chat-title" name="title" value="{{ conversation.title }}" maxlength="60" required><button type="submit">{{ ui_t('Simpan') }}</button></form></details></header>
       <div class="agent-conversation" id="agent-conversation" aria-live="polite">
-        {% if older %}<a class="agent-older" href="{{ url_for('kilas_ai.agent_home',conversation=conversation.id,before=messages[0].id) }}">Lihat pesan sebelumnya</a>{% endif %}
+        {% if older %}<a class="agent-older" href="{{ url_for('kilas_ai.agent_home',conversation=conversation.id,before=messages[0].id) }}">{{ ui_t('Lihat pesan sebelumnya') }}</a>{% endif %}
         {% if messages %}
           {% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}
-          {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}" data-message-id="{{ message.id }}"><div class="agent-speaker">{{ 'Kamu' if message.role == 'user' else 'Kilas' }}</div><div class="agent-message-text {{ 'ai-markdown' if message.role=='assistant' else '' }}" {% if message.role=='assistant' %}data-kilas-markdown{% endif %}>{{ message.content }}</div>{% if message_attachments.get(message.id) %}<div class="work-sent-files" aria-label="Lampiran terkirim">{% for attachment in message_attachments[message.id] %}{% include 'kilas_ai/_message_attachment.html' %}{% endfor %}</div>{% endif %}</article>{% for job in inline_jobs.get(message.id,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endfor %}
+          {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}" data-message-id="{{ message.id }}"><div class="agent-speaker">{{ ui_t('Kamu') if message.role == 'user' else ui_t('Kilas') }}</div><div class="agent-message-text {{ 'ai-markdown' if message.role=='assistant' else '' }}" {% if message.role=='assistant' %}data-kilas-markdown{% endif %}>{{ message.content }}</div>{% if message_attachments.get(message.id) %}<div class="work-sent-files" aria-label="{{ ui_t('Lampiran terkirim') }}">{% for attachment in message_attachments[message.id] %}{% include 'kilas_ai/_message_attachment.html' %}{% endfor %}</div>{% endif %}</article>{% for job in inline_jobs.get(message.id,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endfor %}
         {% else %}
-          <div class="agent-welcome"><h3>Apa yang ingin kamu kerjakan?</h3><p>Dari ide hingga selesai. Tanya Kilas, cari informasi, atau mulai dari file kamu.</p></div>
+          <div class="agent-welcome"><h3>{{ ui_t('Apa yang ingin kamu kerjakan?') }}</h3><p>{{ ui_t('Dari ide hingga selesai. Tanya Kilas, cari informasi, atau mulai dari file kamu.') }}</p></div>
         {% endif %}
         {% if not messages %}{% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endif %}
       </div>
-      <div id="agent-thinking" class="agent-thinking" role="status" aria-live="polite" hidden><span class="agent-thinking-dot" aria-hidden="true"></span><span>Menyiapkan jawaban…</span></div>
+      <div id="agent-thinking" class="agent-thinking" role="status" aria-live="polite" hidden><span class="agent-thinking-dot" aria-hidden="true"></span><span>{{ ui_t('Menyiapkan jawaban…') }}</span></div>
       <p id="agent-chat-error" class="auto-error" role="alert" hidden></p>
-      <form class="agent-composer ai-composer-area" method="post" enctype="multipart/form-data" action="{{ url_for('kilas_ai.agent_chat') }}" id="agent-chat-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="conversation_id" value="{{ conversation.id }}"><input type="hidden" name="operation_key" value="{{ operation_key }}"><label class="ai-visually-hidden" for="agent-message">Pesan untuk Kilas</label>
+      <form class="agent-composer ai-composer-area" method="post" enctype="multipart/form-data" action="{{ url_for('kilas_ai.agent_chat') }}" id="agent-chat-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="conversation_id" value="{{ conversation.id }}"><input type="hidden" name="operation_key" value="{{ operation_key }}"><label class="ai-visually-hidden" for="agent-message">{{ ui_t('Pesan untuk Kilas') }}</label>
         <input type="hidden" name="browser_timezone"><input type="hidden" name="work_location">
-        <div class="work-attachment-bar"><button type="button" class="work-add-file" data-work-attach aria-label="Tambah lampiran"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></button><input id="work-source-files" name="source_files" type="file" accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp" multiple class="ai-visually-hidden"><span>Dokumen atau gambar</span></div>
+        <div class="work-attachment-bar"><button type="button" class="work-add-file" data-work-attach aria-label="{{ ui_t('Tambah lampiran') }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></button><input id="work-source-files" name="source_files" type="file" accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp" multiple class="ai-visually-hidden"><span>{{ ui_t('Dokumen atau gambar') }}</span></div>
         <div id="work-pending-files" class="work-pending-files" aria-live="polite"></div>
-        {% if location_request %}<div class="work-context-permission"><p>Lokasi hanya digunakan untuk pekerjaan ini.</p><button type="button" data-work-location data-request="{{ location_request.text }}">Izinkan lokasi</button><span>Atau ketik nama daerah.</span></div>{% endif %}
-        <div class="ai-composer"><textarea id="agent-message" name="message" rows="2" maxlength="1200" required placeholder="Tulis pesan untuk Kilas AI…">{{ prefill }}</textarea><div class="ai-composer-actions"><button class="ai-send" type="submit">Kirim</button><button class="ai-stop" data-unified-stop type="button" hidden>Stop</button></div></div>
-        <p>Enter untuk kirim &middot; Shift+Enter untuk baris baru.</p>
+        {% if location_request %}<div class="work-context-permission"><p>{{ ui_t('Lokasi hanya digunakan untuk pekerjaan ini.') }}</p><button type="button" data-work-location data-request="{{ location_request.text }}">{{ ui_t('Izinkan lokasi') }}</button><span>{{ ui_t('Atau ketik nama daerah.') }}</span></div>{% endif %}
+        <div class="ai-composer"><textarea id="agent-message" name="message" rows="2" maxlength="1200" required placeholder="{{ ui_t('Tulis pesan untuk Kilas AI…') }}">{{ prefill }}</textarea><div class="ai-composer-actions"><button class="ai-send" type="submit">{{ ui_t('Kirim') }}</button><button class="ai-stop" data-unified-stop type="button" hidden>{{ ui_t('Stop') }}</button></div></div>
+        <p>{{ ui_t('Enter untuk kirim') }} &middot; {{ ui_t('Shift+Enter untuk baris baru.') }}</p>
 
       </form>
     {% elif view == 'tasks' %}
-      <header class="agent-section-head"><h2>Pekerjaan aktif</h2></header>
+      <header class="agent-section-head"><h2>{{ ui_t('Pekerjaan aktif') }}</h2></header>
       {% include 'kilas_ai/_autonomous_tasks.html' %}
-      {% if not autonomous_jobs %}<div class="agent-empty"><h3>Belum ada pekerjaan aktif</h3><p>Berikan pekerjaan dari percakapan Kilas AI.</p><a href="{{ url_for('kilas_ai.agent_home') }}">Buka Kilas AI</a></div>{% endif %}
+      {% if not autonomous_jobs %}<div class="agent-empty"><h3>{{ ui_t('Belum ada pekerjaan aktif') }}</h3><p>{{ ui_t('Berikan pekerjaan dari percakapan Kilas AI.') }}</p><a href="{{ url_for('kilas_ai.agent_home') }}">{{ ui_t('Buka Kilas AI') }}</a></div>{% endif %}
     {% elif view == 'notifications' %}
-      <header class="agent-section-head"><h2>Notifikasi</h2></header>
-      <ol class="agent-activity">{% for item in notifications %}<li><div><p>{{ item.label }}</p><small>{{ item.time_label }}</small><a href="{{ url_for('kilas_ai.agent_home',conversation=item.origin_conversation_id) }}">Buka percakapan</a></div></li>{% else %}<li>Semua notifikasi sudah dibaca.</li>{% endfor %}</ol>
-      {% if notifications %}<button type="button" data-notifications-read>Tandai sudah dibaca</button>{% endif %}
+      <header class="agent-section-head"><h2>{{ ui_t('Notifikasi') }}</h2></header>
+      <ol class="agent-activity">{% for item in notifications %}<li><div><p>{{(item.label)|ui_text}}</p><small>{{ item.time_label }}</small><a href="{{ url_for('kilas_ai.agent_home',conversation=item.origin_conversation_id) }}">{{ ui_t('Buka percakapan') }}</a></div></li>{% else %}<li>{{ ui_t('Semua notifikasi sudah dibaca.') }}</li>{% endfor %}</ol>
+      {% if notifications %}<button type="button" data-notifications-read>{{ ui_t('Tandai sudah dibaca') }}</button>{% endif %}
     {% elif view == 'history' %}
-      <header class="agent-section-head"><h2>Riwayat</h2></header>
+      <header class="agent-section-head"><h2>{{ ui_t('Riwayat') }}</h2></header>
       {% include 'kilas_ai/_autonomous_tasks.html' %}
-      <nav class="agent-chats" aria-label="Riwayat percakapan">{% for chat in history_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}">{{ chat.title }}</a>{% endfor %}</nav>
-      {% if legacy_chats %}<nav class="agent-chats" aria-label="Percakapan sebelumnya"><h3>Percakapan sebelumnya</h3>{% for chat in legacy_chats %}<a href="{{ url_for('kilas_ai.thread_page',thread_id=chat.id) }}">{{ chat.title }}</a>{% endfor %}</nav>{% endif %}
-      <nav class="auto-actions" aria-label="Halaman riwayat">{% if history_page > 1 %}<a class="autonomous-back" href="{{ url_for('kilas_ai.agent_home',view='history',page=history_page-1) }}">Sebelumnya</a>{% endif %}{% if more_chats %}<a class="autonomous-back" href="{{ url_for('kilas_ai.agent_home',view='history',page=history_page+1) }}">Berikutnya</a>{% endif %}</nav>
+      <nav class="agent-chats" aria-label="{{ ui_t('Riwayat percakapan') }}">{% for chat in history_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}">{{ chat.title }}</a>{% endfor %}</nav>
+      {% if legacy_chats %}<nav class="agent-chats" aria-label="{{ ui_t('Percakapan sebelumnya') }}"><h3>{{ ui_t('Percakapan sebelumnya') }}</h3>{% for chat in legacy_chats %}<a href="{{ url_for('kilas_ai.thread_page',thread_id=chat.id) }}">{{ chat.title }}</a>{% endfor %}</nav>{% endif %}
+      <nav class="auto-actions" aria-label="{{ ui_t('Halaman riwayat') }}">{% if history_page > 1 %}<a class="autonomous-back" href="{{ url_for('kilas_ai.agent_home',view='history',page=history_page-1) }}">{{ ui_t('Sebelumnya') }}</a>{% endif %}{% if more_chats %}<a class="autonomous-back" href="{{ url_for('kilas_ai.agent_home',view='history',page=history_page+1) }}">{{ ui_t('Berikutnya') }}</a>{% endif %}</nav>
     {% elif view=='settings' %}
-      <header class="agent-section-head"><h2>Pengaturan Kilas AI</h2></header>
-      <form class="work-preferences" data-work-preferences><label for="work-timezone">Zona waktu</label><input id="work-timezone" name="timezone" value="{{ timezone }}" required maxlength="80" placeholder="Asia/Jakarta"><p>Jadwal menggunakan zona waktu ini. Contoh: Asia/Jakarta, Asia/Makassar, Asia/Jayapura.</p><button type="submit">Simpan zona waktu</button><p role="status" data-preference-status></p></form>
-      <section class="autonomous-section"><h3>Notifikasi perangkat</h3><p>{{ 'Aktifkan untuk menerima pengingat meski tab Kilas ditutup. Izin berlaku untuk perangkat ini.' if push_available else 'Notifikasi perangkat belum tersedia. Pengingat tetap muncul di percakapan Kilas AI.' }}</p>{% if push_available %}<button type="button" data-enable-push>Aktifkan notifikasi</button>{% endif %}<p role="status" data-push-status></p></section>
-      <a href="{{ url_for('kilas_ai.usage_page') }}">Penggunaan akun</a>
-      <p><a href="{{ url_for('kilas_ai.automation_home') }}">Pengingat &amp; jadwal</a></p>
+      <header class="agent-section-head"><h2>{{ ui_t('Pengaturan Kilas AI') }}</h2></header>
+      <form class="work-preferences" data-work-preferences><label for="work-timezone">{{ ui_t('Zona waktu') }}</label><input id="work-timezone" name="timezone" value="{{ timezone }}" required maxlength="80" placeholder="{{ ui_t('Asia/Jakarta') }}"><p>{{ ui_t('Jadwal menggunakan zona waktu ini. Contoh: Asia/Jakarta, Asia/Makassar, Asia/Jayapura.') }}</p><button type="submit">{{ ui_t('Simpan zona waktu') }}</button><p role="status" data-preference-status></p></form>
+      <section class="autonomous-section"><h3>{{ ui_t('Notifikasi perangkat') }}</h3><p>{{ ui_t('Aktifkan untuk menerima pengingat meski tab Kilas ditutup. Izin berlaku untuk perangkat ini.') if push_available else ui_t('Notifikasi perangkat belum tersedia. Pengingat tetap muncul di percakapan Kilas AI.') }}</p>{% if push_available %}<button type="button" data-enable-push>{{ ui_t('Aktifkan notifikasi') }}</button>{% endif %}<p role="status" data-push-status></p></section>
+      <a href="{{ url_for('kilas_ai.usage_page') }}">{{ ui_t('Penggunaan akun') }}</a>
+      <p><a href="{{ url_for('kilas_ai.automation_home') }}">{{ ui_t('Pengingat') }} &amp; {{ ui_t('jadwal') }}</a></p>
     {% endif %}
     </section>
   </main>
 </div>
-<script src="{{ url_for('static',filename='kilas_work.js',v='chat-cleanup-1') }}" defer></script>
-<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='chat-cleanup-1') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_work.js',v='global-ui-20261003') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='global-ui-20261003') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_ai_shell.js',v='1') }}" defer></script>
 </body>
 </html>

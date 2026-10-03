@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Pilih Finance · Kilas Works{% endblock %}
+{% block title %}{{ ui_t('Pilih Finance · Kilas Works') }}{% endblock %}
 {% block content %}
 <style>
 .finance-workspace-page{max-width:760px;margin:0 auto;padding:4px 0 24px}
@@ -16,37 +16,37 @@
 </style>
 <div class="finance-workspace-page">
     <header class="finance-workspace-head">
-    <span>KILAS FINANCE</span>
-    <h1>Pilih ruang Finance</h1>
-    <p>Pilih Finance Bisnis atau Pribadi. Saldo dan transaksi tidak dicampur; Finance Pribadi dibuat lebih sederhana untuk pencatatan manual.</p>
+    <span>{{ ui_t('KILAS FINANCE') }}</span>
+    <h1>{{ ui_t('Pilih ruang Finance') }}</h1>
+    <p>{{ ui_t('Pilih Finance Bisnis atau Pribadi. Saldo dan transaksi tidak dicampur; Finance Pribadi dibuat lebih sederhana untuk pencatatan manual.') }}</p>
   </header>
 
   <div class="finance-workspace-grid">
     <section class="finance-workspace-card business">
       <div class="finance-workspace-icon">🏢</div>
-      <h2>Bisnis</h2>
-      <p>Keuangan usaha, pemasukan, pengeluaran, akun, anggaran, tagihan, invoice, dan laporan bisnis.</p>
-      <div class="finance-workspace-note"><strong>Data lama aman di sini.</strong> Semua data Finance yang sudah ada sebelum pemisahan ini tetap masuk ke Bisnis.</div>
-      <span class="finance-workspace-status {{ 'ready' if business_ready else '' }}">{{ 'Siap digunakan' if business_ready else 'Belum ada data' }}</span>
+      <h2>{{ ui_t('Bisnis') }}</h2>
+      <p>{{ ui_t('Keuangan usaha, pemasukan, pengeluaran, akun, anggaran, tagihan, invoice, dan laporan bisnis.') }}</p>
+      <div class="finance-workspace-note"><strong>{{ ui_t('Data lama aman di sini.') }}</strong> {{ ui_t('Semua data Finance yang sudah ada sebelum pemisahan ini tetap masuk ke Bisnis.') }}</div>
+      <span class="finance-workspace-status {{ 'ready' if business_ready else '' }}">{{ ui_t('Siap digunakan') if business_ready else ui_t('Belum ada data') }}</span>
       <form method="post" action="{{ url_for('finance.enter_workspace',business_id=business.id,workspace_type='BUSINESS') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn" type="submit">Buka Finance Bisnis</button>
+        <button class="btn" type="submit">{{ ui_t('Buka Finance Bisnis') }}</button>
       </form>
     </section>
 
     <section class="finance-workspace-card">
       <div class="finance-workspace-icon">👤</div>
-      <h2>Pribadi</h2>
-      <p>Pencatatan pribadi manual untuk pemasukan, pengeluaran, akun, anggaran, tagihan rutin, dan laporan.</p>
-      <div class="finance-workspace-note"><strong>Lebih sederhana.</strong> Tidak ada pilihan bisnis/cabang, AI Finance, customer, atau invoice. Kategori default dibuat khusus kebutuhan pribadi.</div>
-      <span class="finance-workspace-status {{ 'ready' if personal_ready else '' }}">{{ 'Siap digunakan' if personal_ready else 'Belum dibuat' }}</span>
+      <h2>{{ ui_t('Pribadi') }}</h2>
+      <p>{{ ui_t('Pencatatan pribadi manual untuk pemasukan, pengeluaran, akun, anggaran, tagihan rutin, dan laporan.') }}</p>
+      <div class="finance-workspace-note"><strong>{{ ui_t('Lebih sederhana.') }}</strong> {{ ui_t('Tidak ada pilihan bisnis/cabang, AI Finance, customer, atau invoice. Kategori default dibuat khusus kebutuhan pribadi.') }}</div>
+      <span class="finance-workspace-status {{ 'ready' if personal_ready else '' }}">{{ ui_t('Siap digunakan') if personal_ready else ui_t('Belum dibuat') }}</span>
       <form method="post" action="{{ url_for('finance.enter_workspace',business_id=business.id,workspace_type='PERSONAL') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn secondary" type="submit">Buka Finance Pribadi</button>
+        <button class="btn secondary" type="submit">{{ ui_t('Buka Finance Pribadi') }}</button>
       </form>
     </section>
   </div>
 
-  <div class="finance-workspace-foot">Langganan / trial Finance tetap satu. Data Finance lama tetap di Bisnis; ruang Pribadi mulai terpisah dan hanya memakai data pribadi pemilik akun.</div>
+  <div class="finance-workspace-foot">{{ ui_t('Langganan / trial Finance tetap satu. Data Finance lama tetap di Bisnis; ruang Pribadi mulai terpisah dan hanya memakai data pribadi pemilik akun.') }}</div>
 </div>
 {% endblock %}

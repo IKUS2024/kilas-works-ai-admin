@@ -1,5 +1,5 @@
-<div class="work-file" aria-label="File hasil pekerjaan">
+<div class="work-file" aria-label="{{ ui_t('File hasil pekerjaan') }}">
   {% if artifact.media_type in ('image/png','image/jpeg','image/webp') %}<a class="work-image-preview" href="{{ url_for('kilas_ai.autonomous_artifact',job_id=artifact.job_id if artifact.job_id else job.id,artifact_id=artifact.id) }}" target="_blank" rel="noopener"><img src="{{ url_for('kilas_ai.autonomous_artifact',job_id=artifact.job_id if artifact.job_id else job.id,artifact_id=artifact.id) }}" alt="{{ artifact.name }}" loading="lazy"></a>{% endif %}
-  <div class="work-file-info"><strong>{{ artifact.name }}</strong><span>{{ artifact.name.rsplit('.',1)[-1]|upper }} · {{ (artifact.byte_size / 1024)|round(1) }} KB</span></div>
-  <div class="work-file-actions"><a href="{{ url_for('kilas_ai.autonomous_artifact',job_id=artifact.job_id if artifact.job_id else job.id,artifact_id=artifact.id) }}" target="_blank" rel="noopener">Buka</a><a href="{{ url_for('kilas_ai.autonomous_artifact',job_id=artifact.job_id if artifact.job_id else job.id,artifact_id=artifact.id,download='1') }}">Download</a></div>
+  <div class="work-file-info"><strong>{{ artifact.name }}</strong><span>{{ artifact.name.rsplit('.',1)[-1]|upper }} · {{ (artifact.byte_size / 1024)|round(1) }} {{ ui_t('KB') }}</span></div>
+  <div class="work-file-actions"><a href="{{ url_for('kilas_ai.autonomous_artifact',job_id=artifact.job_id if artifact.job_id else job.id,artifact_id=artifact.id) }}" target="_blank" rel="noopener">{{ ui_t('Buka') }}</a><a href="{{ url_for('kilas_ai.autonomous_artifact',job_id=artifact.job_id if artifact.job_id else job.id,artifact_id=artifact.id,download='1') }}">{{ ui_t('Download') }}</a></div>
 </div>

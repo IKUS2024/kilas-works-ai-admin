@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Kilas Finance · Mulai{% endblock %}
+{% block title %}{{ ui_t('Kilas Finance · Mulai') }}{% endblock %}
 {% block content %}
 <style>
 body.customer-ui{background:#0b0d10;color:#f5f6f8}
@@ -127,42 +127,42 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         <img class="finance-entry-logo" src="{{ url_for('static', filename='kilas-logo-login.jpg') }}" alt="Kilas Works">
         <div><strong>Kilas<span>Works</span></strong><small>Kilas Finance</small></div>
       </div>
-      <a class="finance-entry-back" href="{{ url_for('auth.logout_page') }}" aria-label="Keluar dari Kilas Finance">
+      <a class="finance-entry-back" href="{{ url_for('auth.logout_page') }}" aria-label="{{ ui_t('Keluar dari Kilas Finance') }}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M13 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></svg>
-        <span>Keluar</span>
+        <span>{{ ui_t('Keluar') }}</span>
       </a>
     </div>
 
     {% if show_business_form %}
       <header class="finance-entry-hero">
-        <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Langkah berikutnya</span>
-        <h1>Buat bisnis Finance</h1>
-        <p>Tambahkan nama bisnis untuk mulai menggunakan Kilas Finance.</p>
+        <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>{{ ui_t('Langkah berikutnya') }}</span>
+        <h1>{{ ui_t('Buat bisnis Finance') }}</h1>
+        <p>{{ ui_t('Tambahkan nama bisnis untuk mulai menggunakan Kilas Finance.') }}</p>
       </header>
 
       <section class="finance-entry-card accent">
         <div class="finance-entry-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M4 10h16"/><path d="M5 10v10h14V10"/><path d="M3 10 5 4h14l2 6"/><path d="M8 20v-6h4v6"/></svg>
         </div>
-        <h2>Nama bisnis</h2>
-        <p class="finance-entry-copy">Nama ini akan menjadi ruang Finance utama kamu. Cabang dan detail lainnya bisa ditambahkan setelah masuk.</p>
+        <h2>{{ ui_t('Nama bisnis') }}</h2>
+        <p class="finance-entry-copy">{{ ui_t('Nama ini akan menjadi ruang Finance utama kamu. Cabang dan detail lainnya bisa ditambahkan setelah masuk.') }}</p>
 
         <form method="post" class="finance-business-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="create_trial">
           <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
-          <label for="finance-business-name">Nama bisnis</label>
-          <input id="finance-business-name" name="business_name" maxlength="160" autocomplete="organization" placeholder="Contoh: Kopi Maju" required autofocus>
-          <button class="btn finance-entry-btn" type="submit">Buat Bisnis &amp; Masuk Finance <span aria-hidden="true">→</span></button>
+          <label for="finance-business-name">{{ ui_t('Nama bisnis') }}</label>
+          <input id="finance-business-name" name="business_name" maxlength="160" autocomplete="organization" placeholder="{{ ui_t('Contoh: Kopi Maju') }}" required autofocus>
+          <button class="btn finance-entry-btn" type="submit">{{ ui_t('Buat Bisnis') }} &amp; {{ ui_t('Masuk Finance') }} <span aria-hidden="true">→</span></button>
         </form>
-        <p class="finance-entry-mini-note">Tidak perlu kartu pembayaran untuk mulai.</p>
+        <p class="finance-entry-mini-note">{{ ui_t('Tidak perlu kartu pembayaran untuk mulai.') }}</p>
       </section>
 
     {% elif businesses %}
       <header class="finance-entry-hero">
         <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Kilas Finance</span>
-        <h1>Finance kamu</h1>
-        <p>Pilih bisnis yang mau kamu buka di Kilas Finance.</p>
+        <h1>{{ ui_t('Finance kamu') }}</h1>
+        <p>{{ ui_t('Pilih bisnis yang mau kamu buka di Kilas Finance.') }}</p>
       </header>
 
       <div class="finance-existing-list">
@@ -176,17 +176,17 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
               </div>
               <div class="finance-card-tools">
                 <span class="finance-status {{ 'active' if fs.active else ('expired' if fs.status=='EXPIRED' else '') }}">
-                  {{ 'Aktif' if fs.status in ('TRIAL_ACTIVE','PAID_ACTIVE') else ('Tidak aktif' if fs.status=='EXPIRED' else 'Belum aktif') }}
+                  {{ ui_t('Aktif') if fs.status in ('TRIAL_ACTIVE','PAID_ACTIVE') else (ui_t('Tidak aktif') if fs.status=='EXPIRED' else ui_t('Belum aktif')) }}
                 </span>
                 <div class="finance-menu">
                   <button class="finance-menu-toggle" type="button" aria-label="Menu bisnis {{ b.business_name }}" aria-expanded="false" data-finance-menu="finance-menu-{{ b.id }}">⋮</button>
                   <div class="finance-menu-panel" id="finance-menu-{{ b.id }}" hidden>
-                    <button class="finance-menu-item" type="button" data-edit-toggle="finance-edit-{{ b.id }}">Edit</button>
-                    <form method="post" onsubmit="return confirm('Hapus bisnis Finance {{ b.business_name|e }} dari daftar Finance? Data Finance lama tetap disimpan aman.');">
+                    <button class="finance-menu-item" type="button" data-edit-toggle="finance-edit-{{ b.id }}">{{ ui_t('Edit') }}</button>
+                    <form method="post" onsubmit='return confirm({{ ui_t('Hapus bisnis Finance {name} dari daftar Finance? Data Finance lama tetap disimpan aman.', name=b.business_name)|tojson }});'>
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <input type="hidden" name="action" value="archive">
                       <input type="hidden" name="business_id" value="{{ b.id }}">
-                      <button class="finance-menu-item danger" type="submit">Hapus</button>
+                      <button class="finance-menu-item danger" type="submit">{{ ui_t('Hapus') }}</button>
                     </form>
                   </div>
                 </div>
@@ -196,15 +196,15 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
             {% if fs.status!='TRIAL_ACTIVE' %}
             <div class="finance-expiry-box">
               {% if fs.status=='PAID_ACTIVE' %}
-                <span class="finance-expiry-label">Langganan aktif sampai</span>
+                <span class="finance-expiry-label">{{ ui_t('Langganan aktif sampai') }}</span>
                 <strong class="finance-expiry-value">{{ fs.until_local }}</strong>
-                {% if b.remaining_days is not none %}<span class="finance-expiry-remaining">{{ b.remaining_days }} hari tersisa</span>{% endif %}
+                {% if b.remaining_days is not none %}<span class="finance-expiry-remaining">{{ b.remaining_days }} {{ ui_t('hari tersisa') }}</span>{% endif %}
               {% elif fs.status=='EXPIRED' %}
-                <span class="finance-expiry-label">Masa aktif terakhir</span>
-                <strong class="finance-expiry-value">{{ fs.until_local or 'Sudah berakhir' }}</strong>
+                <span class="finance-expiry-label">{{ ui_t('Masa aktif terakhir') }}</span>
+                <strong class="finance-expiry-value">{{ fs.until_local or ui_t('Sudah berakhir') }}</strong>
               {% else %}
-                <span class="finance-expiry-label">Status Finance</span>
-                <strong class="finance-expiry-value">Belum diaktifkan</strong>
+                <span class="finance-expiry-label">{{ ui_t('Status Finance') }}</span>
+                <strong class="finance-expiry-value">{{ ui_t('Belum diaktifkan') }}</strong>
               {% endif %}
             </div>
             {% endif %}
@@ -215,7 +215,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
                 <input type="hidden" name="action" value="open">
                 <input type="hidden" name="business_id" value="{{ b.id }}">
                 <button class="btn finance-entry-btn" type="submit">
-                  {{ 'Buka Finance' if fs.active else 'Aktifkan Finance' }} <span aria-hidden="true">→</span>
+                  {{ ui_t('Buka Finance') if fs.active else ui_t('Aktifkan Finance') }} <span aria-hidden="true">→</span>
                 </button>
               </form>
             </div>
@@ -226,22 +226,22 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="action" value="rename">
                   <input type="hidden" name="business_id" value="{{ b.id }}">
-                  <label for="rename-business-{{ b.id }}">Nama bisnis</label>
+                  <label for="rename-business-{{ b.id }}">{{ ui_t('Nama bisnis') }}</label>
                   <input id="rename-business-{{ b.id }}" name="business_name" maxlength="160" value="{{ b.business_name }}" required>
-                  <button class="finance-edit-save" type="submit">Simpan Nama</button>
+                  <button class="finance-edit-save" type="submit">{{ ui_t('Simpan Nama') }}</button>
                 </form>
               </div>
             </div>
           </article>
         {% endfor %}
       </div>
-      <a class="finance-add-business" href="{{ url_for('products.finance_entry',step='business') }}">＋ Tambah Bisnis Finance</a>
+      <a class="finance-add-business" href="{{ url_for('products.finance_entry',step='business') }}">{{ ui_t('＋ Tambah Bisnis Finance') }}</a>
 
     {% else %}
       <header class="finance-entry-hero">
         <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Kilas Finance</span>
-        <h1>Mulai Kilas Finance</h1>
-        <p>Satu tempat untuk mengelola transaksi, invoice, akun, cabang, dan laporan bisnismu.</p>
+        <h1>{{ ui_t('Mulai Kilas Finance') }}</h1>
+        <p>{{ ui_t('Satu tempat untuk mengelola transaksi, invoice, akun, cabang, dan laporan bisnismu.') }}</p>
       </header>
 
       <section class="finance-entry-card accent">
@@ -249,23 +249,23 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
           <svg viewBox="0 0 24 24"><path d="M5 20v-6M10 20V9M15 20V4M20 20v-9"/></svg>
         </div>
         <h2>Kilas Finance</h2>
-        <p class="finance-entry-copy">Kelola keuangan bisnis lengkap dari satu tempat.</p>
+        <p class="finance-entry-copy">{{ ui_t('Kelola keuangan bisnis lengkap dari satu tempat.') }}</p>
 
         <ul class="finance-entry-list">
-          <li><span class="finance-entry-check">✓</span><span>Pemasukan &amp; pengeluaran</span></li>
-          <li><span class="finance-entry-check">✓</span><span>Akun, cabang &amp; multi-mata uang</span></li>
-          <li><span class="finance-entry-check">✓</span><span>Invoice, piutang &amp; pelanggan</span></li>
-          <li><span class="finance-entry-check">✓</span><span>Anggaran, tagihan rutin &amp; arus kas</span></li>
-          <li><span class="finance-entry-check">✓</span><span>Laporan &amp; AI Assistant Finance</span></li>
+          <li><span class="finance-entry-check">✓</span><span>{{ ui_t('Pemasukan') }} &amp; {{ ui_t('pengeluaran') }}</span></li>
+          <li><span class="finance-entry-check">✓</span><span>{{ ui_t('Akun, cabang') }} &amp; {{ ui_t('multi-mata uang') }}</span></li>
+          <li><span class="finance-entry-check">✓</span><span>{{ ui_t('Invoice, piutang') }} &amp; {{ ui_t('pelanggan') }}</span></li>
+          <li><span class="finance-entry-check">✓</span><span>{{ ui_t('Anggaran, tagihan rutin') }} &amp; {{ ui_t('arus kas') }}</span></li>
+          <li><span class="finance-entry-check">✓</span><span>{{ ui_t('Laporan') }} &amp; {{ ui_t('AI Assistant Finance') }}</span></li>
         </ul>
 
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="begin_trial">
           <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
-          <button class="btn finance-entry-btn" type="submit">Mulai Sekarang <span aria-hidden="true">→</span></button>
+          <button class="btn finance-entry-btn" type="submit">{{ ui_t('Mulai Sekarang') }} <span aria-hidden="true">→</span></button>
         </form>
-        <p class="finance-entry-note">Semua fitur Finance bisa langsung dipakai setelah masuk.</p>
+        <p class="finance-entry-note">{{ ui_t('Semua fitur Finance bisa langsung dipakai setelah masuk.') }}</p>
       </section>
     {% endif %}
   </div>

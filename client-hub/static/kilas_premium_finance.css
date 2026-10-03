@@ -1,4 +1,4 @@
-/* Finance color compatibility only. Existing geometry and behavior are unchanged. */
+/* Finance presentation layer. Ledger, forms, route parameters and calculations are unchanged. */
 body.finance-app.kilas-light :is(.assistant-brandmark,.assistant-avatar){border:1px solid var(--border);background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.assistant-ready){border:1px solid var(--border);background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.assistant-bubble){box-shadow:0 8px 22px var(--bg-soft)}
@@ -14,7 +14,7 @@ body.finance-app.kilas-light :is(.finance-assistant #assistant-text){background:
 body.finance-app.kilas-light :is(.assistant-options-body){background:var(--bg-soft)}
 
 
-body.finance-app.kilas-light :is(.finance-dashboard-sidebar){background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-dashboard-sidebar){background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-dashboard-sidebar nav a:hover,.finance-dashboard-sidebar nav button:hover){background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-dashboard-sidebar nav .active){background:#fff0e5;border-color:#edc9ae}
 body.finance-app.kilas-light :is(.finance-dashboard-avatar){background:var(--bg-soft)}
@@ -25,16 +25,16 @@ body.finance-app.kilas-light :is(.finance-dashboard-page .finance-metric-label){
 body.finance-app.kilas-light :is(.finance-budget-progress progress){background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-budget-progress progress::-webkit-progress-bar){background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-ai-strip){background:var(--bg-soft)}
-body.finance-app.kilas-light :is(.finance-quick-actions a,.finance-quick-actions button){background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-quick-actions a,.finance-quick-actions button){background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-detail-link){border:1px solid #edc9ae;background:#fff0e5}
-body.finance-app.kilas-light :is(.finance-flow-summary>div){background:#f0f4f8}
-body.finance-app.kilas-light :is(.finance-flow-table th){background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-flow-summary>div){background:#f7f7f6}
+body.finance-app.kilas-light :is(.finance-flow-table th){background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-flow-table th,.finance-flow-table td){border-bottom:1px solid var(--border)}
 body.finance-app.kilas-light :is(.finance-flow-table tbody tr.selected){background:#fff0e5}
 body.finance-app.kilas-light :is(.finance-mini-bars i){background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-mini-bars i+i){background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-bill-icon){background:#fff0e5}
-body.finance-app.kilas-light :is(.finance-pay-link){border:1px solid var(--border);background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-pay-link){border:1px solid var(--border);background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-budget-ring){background:var(--bg-soft);box-shadow:inset 0 0 0 1px var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-budget-ring::before){box-shadow:0 0 0 1px var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-budget-ring.over){background:var(--bg-soft)}
@@ -86,38 +86,82 @@ body.finance-app.kilas-light :is(.invoice-standalone button,.invoice-toolbar a){
 body.finance-app.kilas-light :is(.invoice-editor summary){color:var(--orange)}
 body.finance-app.kilas-light :is(.invoice-item){border-bottom:1px solid var(--border)}
 body.finance-app.kilas-light :is(.invoice-counts span){border:1px solid var(--border)}
-body.finance-app.kilas-light :is(.finance-app-sidebar){background:#f0f4f8}
-body.finance-app.kilas-light :is(.finance-app-sidebar nav :is(a,button):hover){background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-app-sidebar){background:#f7f7f6}
+body.finance-app.kilas-light :is(.finance-app-sidebar nav :is(a,button):hover){background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-app-sidebar nav a.active){background:#fff0e5;border-color:#edc9ae}
-body.finance-app.kilas-light :is(.finance-app-avatar){background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-app-avatar){background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-app-mode .active){color:var(--orange)}
 body.finance-app.kilas-light :is(.finance-app-context-filter input[type=month]){color-scheme:light}
 body.finance-app.kilas-light :is(.finance-app .card){box-shadow:0 3px 10px #20232912}
-body.finance-app.kilas-light :is(.finance-app .finance-account-hb-group-head){background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-app .finance-account-hb-group-head){background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-app .finance-account-hb-row){border-bottom:1px solid var(--border)}
 body.finance-app.kilas-light :is(.finance-app .finance-ledger-category-row.active){background:#fff0e5}
 body.finance-app.kilas-light :is(.finance-app .finance-tx-row){border-bottom:1px solid var(--border)}
 body.finance-app.kilas-light :is(.finance-app .btn){color:var(--orange)}
-body.finance-app.kilas-light :is(.finance-app .btn.secondary,.finance-app .finance-mini-action,.finance-app .report-tool-btn){background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-app .btn.secondary,.finance-app .finance-mini-action,.finance-app .report-tool-btn){background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-app .btn.danger){border-color:var(--border);background:var(--bg-soft)}
-body.finance-app.kilas-light :is(.finance-app :is(input,select,textarea)){background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-app :is(input,select,textarea)){background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-app input[type=date],.finance-app input[type=month]){color-scheme:light}
-body.finance-app.kilas-light :is(.finance-app th){background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-app th){background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-app td){border-bottom:1px solid var(--border)}
 body.finance-app.kilas-light :is(.finance-app tr:hover td){background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-app :is(.fin-tabs,.finance-history-tabs,.finance-bills-tabs,.report-tabs)>a.active){background:#fff0e5;border-color:#edc9ae}
 body.finance-app.kilas-light :is(.finance-app dialog){border:1px solid var(--border);box-shadow:0 24px 80px #20232912}
 body.finance-app.kilas-light :is(.finance-app dialog::backdrop){background:var(--bg-soft)}
-body.finance-app.kilas-light :is(.finance-app :is(.finance-sheet-head,.fin-payee-dialog-head,.finance-ui-dialog-head)){background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-app :is(.finance-sheet-head,.fin-payee-dialog-head,.finance-ui-dialog-head)){background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-app .finance-bill-payment-note){background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-app .finance-budget-row.over-budget){border-color:var(--border);background:var(--bg-soft)}
-body.finance-app.kilas-light :is(.finance-app .invoice-item){background:#f0f4f8}
+body.finance-app.kilas-light :is(.finance-app .invoice-item){background:#f7f7f6}
 body.finance-app.kilas-light :is(.finance-app .invoice-live-total){background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-app .assistant-ready){background:#f1f5f2;border:1px solid var(--border)}
-body.finance-app.kilas-light :is(.finance-app .assistant-composer-shell){background:#f0f4f8;border:1px solid var(--border)}
+body.finance-app.kilas-light :is(.finance-app .assistant-composer-shell){background:#f7f7f6;border:1px solid var(--border)}
 @media  print{body.finance-app.kilas-light :is(.finance-app){background:var(--bg-soft);color:var(--text)}}
 body.finance-app.kilas-light :is(.finance-app .finance-budget-progress){background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-app .finance-budget-category-row.over){background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.finance-app .report-scope-badge){background:var(--bg-soft);color:var(--orange)}
 body.finance-app.kilas-light :is(.finance-app :is(input,select,textarea)::placeholder){color:var(--muted)}
 body.finance-app.kilas-light .btn:not(.secondary){background:#e96817;color:#22150c}
+
+/* White workbench and readable controls across the existing Finance pages. */
+html:has(>body.finance-app.kilas-light){color-scheme:light}
+body.finance-app.kilas-light{font-family:Manrope,system-ui,sans-serif;font-size:14px;line-height:1.55;--bg-soft:#f7f7f6}
+body.finance-app.kilas-light :is(.finance-app-sidebar,.finance-dashboard-sidebar){background:var(--bg-soft);border-color:#e4e5e7}
+body.finance-app.kilas-light :is(.finance-app-brand,.finance-dashboard-brand){display:block;color:#202329;font-size:20px;letter-spacing:-.025em;padding:0 12px 18px;line-height:1.4;text-decoration:none}
+body.finance-app.kilas-light :is(.finance-app-brand,.finance-dashboard-brand) span{display:inline;color:#a43c00;font-size:inherit;letter-spacing:inherit}
+body.finance-app.kilas-light .finance-home-return{padding:0 12px;flex-shrink:0}
+body.finance-app.kilas-light :is(.finance-app-sidebar,.finance-dashboard-sidebar) nav :is(a,button){min-height:44px;font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+body.finance-app.kilas-light .card{padding:20px;margin-bottom:16px;border-radius:12px!important;box-shadow:0 2px 8px #20232908}
+body.finance-app.kilas-light :is(input,select,textarea){font-size:14px;min-height:44px}
+body.finance-app.kilas-light :is(.finance-context-toolbar,.finance-dashboard-context) :is(input,select,button){min-height:44px!important;height:auto;font-size:13px}
+body.finance-app.kilas-light :is(.fin-kpi,.finance-metric,.finance-flow-summary>div){border-color:#e4e5e7;background:#fff;box-shadow:0 2px 8px #20232908}
+body.finance-app.kilas-light :is(.finance-account-hb-group-head,.finance-ledger-category-card,.fin-kpi,.finance-flow-table th){background:#f7f7f6}
+body.finance-app.kilas-light :is(.fin-page,.fin-invoice-list,.fin-invoice-filters,.fin-list-head,.fin-page-header){min-width:0;max-width:100%}
+body.finance-app.kilas-light :is(.finance-metric strong,.fin-kpi-value,.fin-row strong,.invoice-grand strong){font-variant-numeric:tabular-nums;overflow-wrap:anywhere;min-width:0}
+body.finance-app.kilas-light .language-selector{flex-shrink:0;margin-top:16px}
+body.finance-app.kilas-light .language-selector :is(select,button){font-size:12px;padding:8px;min-width:0;width:auto}
+body.finance-app.kilas-light :is(.finance-panel-heading,.fin-list-head,.fin-page-header){flex-wrap:wrap}
+body.finance-app.kilas-light .fin-invoice-filters{flex-wrap:wrap}
+body.finance-app.kilas-light .fin-invoice-filters>*{min-width:0;max-width:100%}
+body.finance-app.kilas-light .fin-filter-bar{min-width:0;width:100%}
+body.finance-app.kilas-light .fin-filter-bar label{min-width:0;max-width:100%;flex:1 1 140px}
+body.finance-app.kilas-light .fin-filter-bar .fin-grow{flex-basis:220px}
+body.finance-app.kilas-light .fin-filter-bar :is(input,select){min-width:0;width:100%;max-width:100%}
+body.finance-app.kilas-light :is(.finance-app-sidebar,.finance-dashboard-sidebar) .language-selector{grid-template-columns:minmax(0,1fr)}
+body.finance-app.kilas-light :is(.finance-app-sidebar,.finance-dashboard-sidebar) .language-selector :is(select,button){width:100%;font-size:13px}
+body.finance-app.kilas-light .finance-metric-label{font-size:14px}
+@media(max-width:760px){
+ body.finance-app.kilas-light .card{padding:16px}
+ body.finance-app.kilas-light :is(input,select,textarea){font-size:16px}
+ body.finance-app.kilas-light :is(.finance-app-sidebar,.finance-dashboard-sidebar) .language-selector{display:none}
+ body.finance-app.kilas-light .finance-mobile-home .language-selector{margin:0 0 0 auto}
+ body.finance-app.kilas-light .finance-home-return{display:none}
+ body.finance-app.kilas-light [data-finance-metric="account"]{grid-column:1/-1}
+ body.finance-app.kilas-light .fin-filter-bar{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.finance-app.kilas-light .finance-account-hb-title-row{flex-direction:column;align-items:stretch;gap:12px}
+ body.finance-app.kilas-light .finance-account-hb-title-row h1{min-width:0;max-width:100%;overflow-wrap:anywhere}
+ body.finance-app.kilas-light .finance-account-hb-total{grid-template-columns:minmax(0,1fr) 44px;text-align:left}
+ body.finance-app.kilas-light .finance-account-hb-total>strong{font-size:16px;line-height:1.4;white-space:nowrap;letter-spacing:-.025em}
+ body.finance-app.kilas-light .finance-account-hb-total>span{font-size:12px}
+ body.finance-app.kilas-light .finance-account-hb-add{width:44px;height:44px}
+ body.finance-app.kilas-light :is(.fin-page-header,.finance-panel-heading) h1{max-width:100%;overflow-wrap:anywhere}
+}

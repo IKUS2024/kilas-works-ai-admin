@@ -1,5 +1,6 @@
 /* Chat owns only conversation UI. Tasks continue independently on the existing runner. */
 (() => {
+  const t=(message, values)=>window.KilasUI ? window.KilasUI.t(message, values) : message;
   function refreshCounts(doc) {
     for (const selector of ['[data-active-count]','[data-notification-count]']) {
       const incoming=doc.querySelector(selector), current=document.querySelector(selector);
@@ -7,7 +8,7 @@
     }
   }
   document.addEventListener('submit', event => {
-    if (event.target.matches('[data-confirm-delete]') && !window.confirm('Hapus tugas ini? Riwayat hasilnya tetap tersimpan.')) event.preventDefault();
+    if (event.target.matches('[data-confirm-delete]') && !window.confirm(t('Hapus tugas ini? Riwayat hasilnya tetap tersimpan.'))) event.preventDefault();
   });
   window.KilasMarkdown.hydrate();
   const form = document.querySelector('#agent-chat-form');
@@ -65,7 +66,7 @@
     const article = document.createElement('article');
     article.className = `agent-message agent-message-${role}`;
     const speaker = document.createElement('div'); speaker.className = 'agent-speaker';
-    speaker.textContent = role === 'user' ? 'Kamu' : 'Kilas';
+    speaker.textContent = role === 'user' ? t('Kamu') : t('Kilas');
     const content = document.createElement('div'); content.className = 'agent-message-text'; content.textContent = text;
     article.append(speaker, content); chat.append(article);
     chat.scrollTop = chat.scrollHeight;
@@ -109,7 +110,7 @@
     const selected=data.getAll('source_files').filter(file=>file instanceof File && file.name);
     if(selected.length && window.KilasAttachmentPreview) userMessage.parentElement.append(window.KilasAttachmentPreview(selected));
     thinking.hidden = false;
-    thinking.lastElementChild.textContent = /\b(riset|research)\b/i.test(input.value) ? 'Menyiapkan riset…' : /\b(kerjain|kerjakan|pantau|perbaiki|setiap|besok)\b/i.test(input.value) ? 'Menyiapkan pekerjaan…' : 'Menyiapkan jawaban…';
+    thinking.lastElementChild.textContent = /\b(riset|research)\b/i.test(input.value) ? t('Menyiapkan riset…') : /\b(kerjain|kerjakan|pantau|perbaiki|setiap|besok)\b/i.test(input.value) ? t('Menyiapkan pekerjaan…') : t('Menyiapkan jawaban…');
     chat.setAttribute('aria-busy', 'true');
     let accepted = false;
     try {
@@ -149,7 +150,7 @@
       const sources=form.querySelector('#work-source-files'); if(sources) sources.value='';
       form.elements.operation_key.value = crypto.randomUUID();
     } catch (failure) {
-      error.textContent = failure.publicMessage || 'Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.';
+      error.textContent = failure.publicMessage || t('Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.');
       error.hidden = false;
       // Same key is retained after an uncertain outcome: retry cannot create duplicate work.
       if (accepted) { try { await refresh(); } catch (_) { /* Keep visible local messages. */ } }

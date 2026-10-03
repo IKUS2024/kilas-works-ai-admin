@@ -46,28 +46,28 @@
 }
 </style>
 
-<section class="card cash-flow-card cash-overview-card" aria-label="Ringkasan kas" data-cashflow-card>
+<section class="card cash-flow-card cash-overview-card" aria-label="{{ ui_t('Ringkasan kas') }}" data-cashflow-card>
   <div class="cash-overview-head">
     <div>
-      <h2>Ringkasan Kas</h2>
-      <p>{{ period_label }} · saldo tersedia dan arus kas periode</p>
+      <h2>{{ ui_t('Ringkasan Kas') }}</h2>
+      <p>{{ period_label|ui_period }} {{ ui_t('· saldo tersedia dan arus kas periode') }}</p>
     </div>
   </div>
 
-  <section class="cash-balance-section" aria-label="Saldo tersedia">
-    <span class="cash-section-label">💰 Saldo Tersedia Sekarang</span>
+  <section class="cash-balance-section" aria-label="{{ ui_t('Saldo tersedia') }}">
+    <span class="cash-section-label">{{ ui_t('💰 Saldo Tersedia Sekarang') }}</span>
     <strong class="cash-total">{{ balance_total_display }}</strong>
-    <p class="cash-balance-note">{{ fx_status_label }} · seluruh rekening otomatis dikonversi ke {{ display_currency }} untuk tampilan. Nilai asli tetap tersimpan di ledger.</p>
+    <p class="cash-balance-note">{{ fx_status_label }} {{ ui_t('· seluruh rekening otomatis dikonversi ke') }} {{ display_currency }} {{ ui_t('untuk tampilan. Nilai asli tetap tersimpan di ledger.') }}</p>
   </section>
 
-  <section class="cash-period-section" aria-label="Arus kas periode">
+  <section class="cash-period-section" aria-label="{{ ui_t('Arus kas periode') }}">
     <div class="cash-period-top">
       <div class="cash-period-title">
-        <strong>Arus Kas Periode</strong>
-        <span>{{ period_label }} · berdasarkan tanggal transaksi</span>
+        <strong>{{ ui_t('Arus Kas Periode') }}</strong>
+        <span>{{ period_label|ui_period }} {{ ui_t('· berdasarkan tanggal transaksi') }}</span>
       </div>
       {% if summaries|length > 1 %}
-      <div class="cash-currency-tabs" role="tablist" aria-label="Mata uang arus kas">
+      <div class="cash-currency-tabs" role="tablist" aria-label="{{ ui_t('Mata uang arus kas') }}">
         {% for row in summaries %}
         <button type="button" class="cash-currency-tab {{ 'active' if row.currency == cash_selected_currency }}" data-cashflow-currency="{{ row.currency }}" role="tab" aria-selected="{{ 'true' if row.currency == cash_selected_currency else 'false' }}">{{ row.currency }}</button>
         {% endfor %}
@@ -78,20 +78,20 @@
     </div>
 
     <section class="cash-period-block" data-cashflow-block="{{ display_currency }}" aria-label="Arus kas {{ display_currency }}">
-      <div class="cash-period-block-head"><strong>{{ display_currency }}</strong><span>kurs otomatis</span></div>
+      <div class="cash-period-block-head"><strong>{{ display_currency }}</strong><span>{{ ui_t('kurs otomatis') }}</span></div>
       <div class="cash-flow-row">
-        <div class="cash-flow-stat"><span>↑ Pemasukan</span><strong class="cash-money">{{ period_income_display }}</strong></div>
-        <div class="cash-flow-stat"><span>↓ Pengeluaran</span><strong class="cash-money">{{ period_expense_display }}</strong></div>
-        <div class="cash-flow-stat"><span>= Selisih arus kas</span><strong class="cash-money">{{ period_net_display }}</strong></div>
+        <div class="cash-flow-stat"><span>{{ ui_t('↑ Pemasukan') }}</span><strong class="cash-money">{{ period_income_display }}</strong></div>
+        <div class="cash-flow-stat"><span>{{ ui_t('↓ Pengeluaran') }}</span><strong class="cash-money">{{ period_expense_display }}</strong></div>
+        <div class="cash-flow-stat"><span>{{ ui_t('= Selisih arus kas') }}</span><strong class="cash-money">{{ period_net_display }}</strong></div>
       </div>
     </section>
   </section>
 
   <details class="cash-overview-details">
-    <summary>Rincian saldo &amp; cara hitung</summary>
+    <summary>{{ ui_t('Rincian saldo') }} &amp; {{ ui_t('cara hitung') }}</summary>
     <div class="cash-overview-details-body">
-      <p>Saldo Tersedia adalah posisi kas/rekening kumulatif sampai {{ today }}. Arus Kas hanya menghitung transaksi yang tanggal transaksinya masuk {{ period_label }}. Penukaran mata uang memindahkan saldo antar-mata-uang dan bukan pemasukan/pengeluaran.</p>
-      <div class="cash-overview-actions"><button type="button" class="finance-mini-action" data-finance-open="balance-dialog">Lihat rincian rekening</button></div>
+      <p>{{ ui_t('Saldo Tersedia adalah posisi kas/rekening kumulatif sampai') }} {{ today }}{{ ui_t('. Arus Kas hanya menghitung transaksi yang tanggal transaksinya masuk') }} {{ period_label|ui_period }}{{ ui_t('. Penukaran mata uang memindahkan saldo antar-mata-uang dan bukan pemasukan/pengeluaran.') }}</p>
+      <div class="cash-overview-actions"><button type="button" class="finance-mini-action" data-finance-open="balance-dialog">{{ ui_t('Lihat rincian rekening') }}</button></div>
     </div>
   </details>
 </section>

@@ -1,25 +1,25 @@
 {% extends 'base.html' %}
-{% block title %}Semua Bisnis · Kilas Finance{% endblock %}
+{% block title %}{{ ui_t('Semua Bisnis · Kilas Finance') }}{% endblock %}
 {% block content %}
 <style>
 .finance-page{overflow-wrap:anywhere}.finance-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px}.finance-grid>*{min-width:0}.finance-total{font-size:24px;font-weight:700}.finance-filter{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.finance-filter>div{flex:1 1 140px;min-width:0}.finance-filter select{width:100%;max-width:100%;min-width:0;box-sizing:border-box}.finance-page .btn{max-width:100%;white-space:normal}@media(max-width:480px){.finance-filter>div{flex-basis:100%}}
 </style>
 <div class="finance-page">
-<a href="{{ url_for('client.dashboard') }}">← Dashboard</a><h1>Kilas Finance</h1>
+<a href="{{ url_for('client.dashboard') }}">{{ ui_t('← Dashboard') }}</a><h1>Kilas Finance</h1>
 {% include '_finance_business_selector.html' %}
-<p>Mode Semua Bisnis hanya untuk melihat ringkasan. Pilih satu bisnis untuk mencatat atau mengubah data.</p>
-<form method="get" class="card finance-filter" action="{{ url_for('finance.overview') }}" aria-label="Periode">{% include '_finance_period_selector.html' %}<button class="btn">Tampilkan</button></form>
-<h2>Semua Bisnis · {{ month }}</h2>
-<div class="finance-grid"><section class="card"><h3>Invoice terbuka</h3><div class="finance-total">{{ open_invoice_count }}</div></section><section class="card"><h3>Invoice terlambat</h3><div class="finance-total">{{ overdue_invoice_count }}</div></section>
-{% for row in totals_by_currency %}<section class="card"><h3>{{ row.currency }}</h3><p>Masuk <strong>{{ row.total_income_minor|finance_money(row.currency) }}</strong></p><p>Keluar <strong>{{ row.total_expense_minor|finance_money(row.currency) }}</strong></p><p>Selisih <strong>{{ row.net_cashflow_minor|finance_money(row.currency) }}</strong></p><p>Piutang <strong>{{ row.total_outstanding_minor|finance_money(row.currency) }}</strong></p><p>Terlambat <strong>{{ row.total_overdue_minor|finance_money(row.currency) }}</strong></p></section>{% endfor %}
+<p>{{ ui_t('Mode Semua Bisnis hanya untuk melihat ringkasan. Pilih satu bisnis untuk mencatat atau mengubah data.') }}</p>
+<form method="get" class="card finance-filter" action="{{ url_for('finance.overview') }}" aria-label="{{ ui_t('Periode') }}">{% include '_finance_period_selector.html' %}<button class="btn">{{ ui_t('Tampilkan') }}</button></form>
+<h2>{{ ui_t('Semua Bisnis ·') }} {{ month }}</h2>
+<div class="finance-grid"><section class="card"><h3>{{ ui_t('Invoice terbuka') }}</h3><div class="finance-total">{{ open_invoice_count }}</div></section><section class="card"><h3>{{ ui_t('Invoice terlambat') }}</h3><div class="finance-total">{{ overdue_invoice_count }}</div></section>
+{% for row in totals_by_currency %}<section class="card"><h3>{{ row.currency }}</h3><p>{{ ui_t('Masuk') }} <strong>{{ row.total_income_minor|finance_money(row.currency) }}</strong></p><p>{{ ui_t('Keluar') }} <strong>{{ row.total_expense_minor|finance_money(row.currency) }}</strong></p><p>{{ ui_t('Selisih') }} <strong>{{ row.net_cashflow_minor|finance_money(row.currency) }}</strong></p><p>{{ ui_t('Piutang') }} <strong>{{ row.total_outstanding_minor|finance_money(row.currency) }}</strong></p><p>{{ ui_t('Terlambat') }} <strong>{{ row.total_overdue_minor|finance_money(row.currency) }}</strong></p></section>{% endfor %}
 </div>
-<p class="muted">Setiap mata uang dihitung terpisah. Tidak ada penjumlahan silang IDR, USD, SGD, atau mata uang lain. Arus kas bukan laba akuntansi. Piutang memakai status invoice saat ini dan pembayaran sampai {{ as_of }}.</p>
-<h2>Ringkasan per Bisnis</h2><div class="finance-grid">
+<p class="muted">{{ ui_t('Setiap mata uang dihitung terpisah. Tidak ada penjumlahan silang IDR, USD, SGD, atau mata uang lain. Arus kas bukan laba akuntansi. Piutang memakai status invoice saat ini dan pembayaran sampai') }} {{ as_of }}.</p>
+<h2>{{ ui_t('Ringkasan per Bisnis') }}</h2><div class="finance-grid">
 {% for item in breakdown %}<section class="card"><h3>{{ item.business.business_name }}</h3>
-{% for row in item.cash_summaries %}<p><strong>{{ row.currency }}</strong> · Masuk {{ row.total_income_minor|finance_money(row.currency) }} · Keluar {{ row.total_expense_minor|finance_money(row.currency) }} · Selisih {{ row.net_cashflow_minor|finance_money(row.currency) }}</p>{% endfor %}
-{% for row in item.receivables.by_currency %}<p>Piutang {{ row.currency }}: <strong>{{ row.total_outstanding_minor|finance_money(row.currency) }}</strong> · terlambat {{ row.total_overdue_minor|finance_money(row.currency) }}</p>{% endfor %}
-<p>{{ item.receivables.open_invoice_count }} invoice terbuka · {{ item.receivables.overdue_invoice_count }} terlambat</p>
-<a href="{{ url_for('finance.dashboard',business_id=item.business.id,month=month) }}">Pilih bisnis ini</a></section>
-{% else %}<p class="muted">Belum ada bisnis yang dapat diakses.</p>{% endfor %}
+{% for row in item.cash_summaries %}<p><strong>{{ row.currency }}</strong> {{ ui_t('· Masuk') }} {{ row.total_income_minor|finance_money(row.currency) }} {{ ui_t('· Keluar') }} {{ row.total_expense_minor|finance_money(row.currency) }} {{ ui_t('· Selisih') }} {{ row.net_cashflow_minor|finance_money(row.currency) }}</p>{% endfor %}
+{% for row in item.receivables.by_currency %}<p>{{ ui_t('Piutang') }} {{ row.currency }}: <strong>{{ row.total_outstanding_minor|finance_money(row.currency) }}</strong> {{ ui_t('· terlambat') }} {{ row.total_overdue_minor|finance_money(row.currency) }}</p>{% endfor %}
+<p>{{ item.receivables.open_invoice_count }} {{ ui_t('invoice terbuka ·') }} {{ item.receivables.overdue_invoice_count }} {{ ui_t('terlambat') }}</p>
+<a href="{{ url_for('finance.dashboard',business_id=item.business.id,month=month) }}">{{ ui_t('Pilih bisnis ini') }}</a></section>
+{% else %}<p class="muted">{{ ui_t('Belum ada bisnis yang dapat diakses.') }}</p>{% endfor %}
 </div></div>
 {% endblock %}
