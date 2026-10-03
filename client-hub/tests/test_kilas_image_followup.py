@@ -52,6 +52,15 @@ class ImageFollowupTests(unittest.TestCase):
         import base64
         self.assertIn(base64.b64encode(green['content']).decode(), content[1]['image_url']['url'])
 
+    def test_question_about_previous_upload_does_not_create_work(self):
+        from kilas_ai import providers, autonomous_store
+        agent_store.append(self.owner, 'user', 'photo', self.conversation, attachments=[self.image('red')])
+        text = 'Pada foto lampiran yang saya upload sebelumnya, apa bentuk dan warna objek di sebelah kanan?'
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'synthetic-image-context-only'}), patch.object(providers, 'stream', side_effect=lambda *a, **k: fixture.answer('Lingkaran biru.')) as called:
+            fixture.UnifiedTests.submit(self, text)
+        self.assertEqual(autonomous_store.list_jobs(self.owner, conversation_id=self.conversation), [])
+        self.assertIsInstance(called.call_args.args[1][-1]['content'], list)
+
 
 if __name__ == '__main__':
     unittest.main()

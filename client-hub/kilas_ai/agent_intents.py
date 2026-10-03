@@ -24,6 +24,10 @@ def research_instruction(text):
 def infer(text, now=None):
     if QUESTION.search(text):
         return None
+    # "Pada foto yang saya upload, apa ...?" refers to an existing attachment,
+    # not authorization to upload/publish or create a background job.
+    if re.search(r'(?i)^(?:pada|di|dalam|dari|tentang)\b.*\b(?:gambar|foto|image|photo|lampiran|dokumen|file)\b.*\b(?:apa|what|which|berapa|bagaimana|how)\b',text):
+        return None
     # Existing reminders and connectors retain their own engine/approval path.
     if re.search(r'(?i)\b(?:ingatkan|ingetin|remind|gmail|email|calendar|kalender|drive|contacts|kontak|whatsapp|finance)\b', text):
         return None
