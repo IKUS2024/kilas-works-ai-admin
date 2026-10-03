@@ -3,7 +3,7 @@
 ## Current checkpoint — 2026-10-03
 
 - Starting/latest fetched remote main: `fee850688e4914c2bfe136e9662082eb451aede1`.
-- Release QA branch: `feature/kilas-ai-product-hardening-v1-20261003`, created from exact latest main. Native PostgreSQL and browser CI must pass before advancing main. No production deployment yet.
+- Release QA branch: `feature/kilas-ai-product-hardening-v1-20261003`, created from exact latest main. All candidate and final main gates passed; production release `d9dfe8be8850e602fd3aa519cf7ca17d3036d5ef` is live.
 - Preserve pre-existing local changes to Chat UI Cleanup, Unified V1 and Premium UI V1 status documents. They belong to the previous completed release and are excluded from this patch's staging.
 - Implemented so far: modern root landing despite stale Assist selection; customer Connections navigation removal and legacy Connections view redirect; runtime capability contract for conversation providers; contextual image follow-up routing; deterministic bsk/pukul scheduling normalization and future Search precedence; structured DOCX/CSV/XLSX/PPTX extraction; bounded owner/conversation document continuity; isolated scanned-PDF rasterization using existing vision when configured; explicit labeled synthetic document examples.
 - Backend connectors, OAuth records/configuration, Assist, WhatsApp, Finance, billing/pricing/quotas and database schemas remain preserved. No migration is introduced.
@@ -24,4 +24,17 @@
 - Production activation next: check main CI, then manually deploy existing Client Hub and Automation Cron (auto-deploy OFF). Public production verification is possible; authenticated production acceptance requires the controlled login session requested above.
 - Dedicated production QA login requested. Do not fabricate authenticated acceptance if the owner does not sign in.
 
-Status: IN PROGRESS. Production remains at the previous white UI release.
+## Production release evidence — 2026-10-03
+
+- Main implementation commit: `d9dfe8be8850e602fd3aa519cf7ca17d3036d5ef` (`Harden Kilas AI runtime capabilities, files and scheduled work`). Application/test tree is identical to green QA candidate `99456e7`; only this status document differed at release.
+- Final main CI: 5 workflows / 14 jobs, all SUCCESS: Autonomous `37091632857`, Focused `37091632908`, Automation `37091632880`, Chat Quality `37091632957`, Client Session Timeout `37091632898`. No failed check ignored. This is focused product/boundary/browser coverage, not the full repository suite.
+- Client Hub: `dep-db071vqd0e5s73ac9no0`, LIVE at 03:06:19 UTC, exact implementation SHA above.
+- Existing Automation Cron: `dep-db07212d0e5s73ac9t1g`, LIVE at 03:06:09 UTC, exact implementation SHA above; subsequent successful runs at 03:06:15 and 03:07:15 UTC. Existing schedule/512 MB plan retained. No resource or environment changes, AI Admin deployment, migration or data reset.
+- Public production `https://app.kilasworks.id`: health 200/PostgreSQL OK; `/login`, `/register`, `/forgot-password` checked at 320/360/390/430/768/820/1024/1440, white layout, no horizontal overflow, CSRF fields and no browser errors. Logged-out `/` redirects to login. `/products/start`, `/kilas-ai`, legacy Connections, `/account`, `/finance` correctly require login. Premium CSS/JS/font hashes match; Finance CSS unchanged and matches production.
+- Render post-deploy error-level and Traceback/ERROR/Exception queries through 03:07:24 UTC returned no entries.
+- Authenticated production acceptance is BLOCKED by unavailable controlled login: dedicated CDP verification browser remains at `/login`, no owner reply/session. Do not claim live provider Search, image generation/edit/vision, uploaded files, downloadable artifacts, scheduled execution, reopening/history or authenticated Finance/Home/Settings acceptance. Those paths passed isolated functional/browser CI with synthetic accounts, provider transports and real file encoders; that is distinct from live production account testing.
+- Offline evaluation corpus contains 250 realistic conversations. Corpus/context/routing tests pass; 250 live model semantic answers were not evaluated. Existing live evaluator requires an explicitly configured API key and is capped at 20 representative cases; production credentials were not extracted.
+- Remaining bounded limits: 2 MB documents; existing plan attachment counts 2/3/4/5; existing image ingress 100 MB with pixel/normalization limits; native PDF first 15 pages / 12,000 chars, vision scan first 3 pages at 1.5M pixels/page and 3 MB combined raster output with isolated 15-second deadline; Office extraction 12,000 chars (XLSX first 5 sheets/200 rows/20 columns, PPTX first 30 slides), TXT UTF-8 or BOM UTF-16, CSV first 200 rows/20 columns. Formulas never execute. Recent document follow-up context is bounded to five owner/conversation-isolated sources; it does not promise full unbounded document recall.
+- Final source review: no Finance files/styles/calculations, WhatsApp/Meta, pricing, subscriptions, quota definitions, connector/OAuth storage or database schemas changed. Existing connector backend remains safely preserved, with customer Connections navigation/CTA removed and old presentation route redirected.
+
+Status: DEPLOYED. Public production verification passed; controlled authenticated production acceptance remains outstanding. Stop here; do not claim full authenticated acceptance or continue another feature.
