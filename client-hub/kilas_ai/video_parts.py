@@ -53,6 +53,11 @@ Do not omit or shorten concrete start/end handoffs. Do not add explanation or re
 '''
 
 
+def _derived_prompt(part):
+    return ('Opening frame: '+str(part.get('start_state',''))+'\n'+str(part.get('shot_direction',''))+
+            '\nFinal frame: '+str(part.get('end_state',''))+'\nAudio: '+str(part.get('audio','')))
+
+
 def expand_draft(raw,brief):
     """Build redundant legacy presentation from model-owned clips, without new facts.
 
@@ -65,9 +70,7 @@ def expand_draft(raw,brief):
     if not isinstance(bible,dict) or not isinstance(parts,list) or not parts:return value
     if any(not isinstance(p,dict) for p in parts):return value
     for p in parts:
-        p.setdefault('master_prompt',
-            'Opening frame: '+str(p.get('start_state',''))+'\n'+str(p.get('shot_direction',''))+
-            '\nFinal frame: '+str(p.get('end_state',''))+'\nAudio: '+str(p.get('audio','')))
+        p.setdefault('master_prompt',_derived_prompt(p))
     value.setdefault('duration',brief['duration'])
     value.setdefault('aspect_ratio',bible.get('aspect_ratio',''))
     for field,source in [('camera','camera'),('movement','movement'),('lighting','lighting')]:
@@ -154,6 +157,9 @@ def bible_text(spec):
 
 
 def prompt(spec,part):
+    # Derived master text repeats exactly the already exported states/direction/audio.
+    # Recognize that exact server format, including previously saved compact plans.
+    extra='' if part['master_prompt']==_derived_prompt(part) else part['master_prompt']
     scripts='\n'.join(label+': '+json.dumps(part[key],ensure_ascii=False) for key,label in
         [('on_screen_text','Intended on-screen text'),('voice_over','Intended voice-over')] if part[key])
     return (f"Part {part['number']} | {part['duration']:g} seconds | {spec['aspect_ratio']}\n\n"
@@ -162,5 +168,5 @@ def prompt(spec,part):
             'Exact final state: '+part['end_state']+'\n'
             'Shot direction: '+part['shot_direction']+'\n'
             'Audio: '+(part['audio'] or 'No additional music or sound is specified.')+'\n'
-            +('Voice-over: none.\n' if not part['voice_over'] else '')+scripts+'\n\n'+part['master_prompt']+'\n\n'
-            'Avoid: '+'; '.join(part['avoid']))
+            +('Voice-over: none.\n' if not part['voice_over'] else '')+scripts+'\n\n'+(extra+'\n\n' if extra else '')
+            +'Avoid: '+'; '.join(part['avoid']))
