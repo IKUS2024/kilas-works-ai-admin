@@ -46,6 +46,7 @@ def generate():
     text=str(request.form.get('idea','')).strip()
     key=str(request.form.get('operation_key',''))
     if not 3<=len(text)<=2400 or not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',key):return {'error':'Tulis ide atau revisi hingga 2.400 karakter, lalu coba lagi.'},400
+    row=None
     try:
         try:controls=director.options(request.form)
         except ValueError:return {'error':'Pilihan rencana tidak valid. Pilih kembali lalu coba lagi.'},400
@@ -74,10 +75,16 @@ def generate():
             store.fail(owner(),row['id'],row['version']);raise
         return response(owned(row['id']))
     except HTTPException:raise
-    except (usage.UsageLimit,attachments.AttachmentError) as error:return {'error':str(error)},400
+    except (usage.UsageLimit,attachments.AttachmentError) as error:return failure(str(error),400,row)
     except Exception:
         # No provider payload, secret, system instructions or user image enters logs/UI.
-        return {'error':'Rencana belum berhasil disusun. Ide dan rencana sebelumnya tetap tersimpan di riwayat. Coba lagi atau buka ulang rencana.'},503
+        return failure('Rencana belum berhasil disusun. Ide dan rencana sebelumnya tetap tersimpan di riwayat. Coba lagi atau buka ulang rencana.',503,row)
+
+
+def failure(message,status,row):
+    data={'error':message}
+    if row:data.update(id=row['id'],version=row['version'],url=url_for('kilas_ai.video_project',project=row['id']))
+    return data,status
 
 
 def response(row):

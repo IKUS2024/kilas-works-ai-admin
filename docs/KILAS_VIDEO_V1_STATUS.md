@@ -10,10 +10,12 @@ UI inherits DESIGN.md and the current white/charcoal/orange product. Four areas:
 
 Official URLs verified via primary pages 2026-10-03: labs.google/flow (redirects flow.google.com), seed.bytedance.com/en/seedance, higgsfield.ai, runwayml.com (redirects runway.com), capcut.com, adobe.com/products/premiere.html. Names and conservative descriptions only; no model/pricing claims.
 
-Focused Video tests: 21 PASS locally, including relevant voice-over/script payload and immediate AJAX management. Corpus: 200 realistic idea + correction scenarios across 25 subjects and 8 approaches; never runtime-injected. This is offline contract/context coverage, not 200 live semantic answers.
+Focused Video tests: 22 PASS locally, including relevant voice-over/script payload and immediate AJAX management. Corpus: 200 realistic idea + correction scenarios across 25 subjects and 8 approaches; never runtime-injected. This is offline contract/context coverage, not 200 live semantic answers.
 
 Actual Chromium browser QA: PASS at 320/360/390/430/768/820/1024/1440. Real image selection/removal, create/revise/history/rename/duplicate/delete confirmation, clipboard master/platform/storyboard/everything, immediate management after generation, localized provider error recovery, white theme, no overflow or page errors. Synthetic AI transport is explicitly mocked. Local AI Agent (9), Product Hardening (38), Work V2 (22) regressions also passed.
 
 Impeccable: one scoped detector run; Jinja-linked CSS and compact incumbent typography yielded advisories, rendered review is authoritative. Reviewer requested local copy feedback, fresh-plan management and SVG icons; all applied in one batch, final verdict: ship, all three listed fixes resolved. No global design/theme or Finance edits.
 
 Status: IN PROGRESS. Remaining: native PostgreSQL/CI gates, Impeccable verdict/documentation, clean release to main, Client Hub-only deployment and controlled production verification. The verification browser is open on login; authenticated production verification is not yet evidenced. Prior three release documents remain uncommitted and preserved, outside this patch.
+
+Final recovery fix: a failed provider/spec response returns only owner-authorized project/version metadata; the composer renews the consumed operation key and retries the same saved project with its retained references. No duplicate project, lost prior plan or bypass of metering. Focused regression passed. Candidate CI PostgreSQL release rehearsal passed; latest recovery candidate requires fresh CI.

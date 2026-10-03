@@ -142,6 +142,17 @@ class VideoTests(unittest.TestCase):
         fixture.db.execute("UPDATE users SET role='KILAS_ADMIN' WHERE id=?",(self.owner,))
         self.assertEqual(self.client.get('/kilas-ai/video').status_code,404)
 
+    def test_failed_generation_can_retry_same_saved_project(self):
+        data={'idea':'Rencana produk natural','operation_key':'video-failed-key-123456789','csrf_token':'video-test-csrf'}
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',return_value=provider_response({'invalid':'spec'})):
+            failed=self.client.post('/kilas-ai/video/plan',data=data)
+        self.assertEqual(failed.status_code,503)
+        project=failed.json['id'];self.assertEqual(failed.json['version'],0)
+        response,_=self.make(project_id=project,version='0',operation_key='video-retry-key-123456789')
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json['id'],project)
+        self.assertEqual(len(store.history(self.owner)),1)
+
     def test_script_copy_payload_and_rendering_when_relevant(self):
         raw=spec();raw['voice_over']='Lihat detail kemasan dan cara pemakaiannya.'
         with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',return_value=provider_response(raw)):

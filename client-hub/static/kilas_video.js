@@ -34,10 +34,14 @@
   form?.addEventListener('submit',async event=>{
     event.preventDefault();if(!form.reportValidity())return;
     const button=root.querySelector('#video-submit'),status=root.querySelector('#video-status'),error=root.querySelector('#video-error');
-    const data=new FormData(form);data.delete('references');pending.forEach(file=>data.append('references',file));
+    const data=new FormData(form);data.delete('references');if(!form.elements.project_id.value)pending.forEach(file=>data.append('references',file));
     input.blur();button.disabled=true;picker.disabled=true;form.setAttribute('aria-busy','true');error.hidden=true;status.textContent='Menyusun konsep, storyboard, dan arahan produksi…';
     try{const response=await fetch(form.action,{method:'POST',body:data,headers:{'Accept':'application/json'}});if(response.redirected){location.assign(response.url);return;}
-      const result=await response.json();if(!response.ok)throw new Error(result.error||'Rencana belum dapat disusun. Coba lagi.');
+      const result=await response.json();if(!response.ok){
+        form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');
+        if(result.id){form.elements.project_id.value=result.id;form.elements.version.value=result.version;history.replaceState(null,'',result.url);root.querySelector('#video-reference-control').hidden=true;pending=[];showPending();}
+        throw new Error(result.error||'Rencana belum dapat disusun. Coba lagi.');
+      }
       root.querySelector('#video-result').innerHTML=result.html;
       root.querySelector('#video-project-actions').innerHTML=result.manage_html;
       form.elements.project_id.value=result.id;form.elements.version.value=result.version;form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');
