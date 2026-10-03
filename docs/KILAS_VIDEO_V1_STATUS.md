@@ -19,3 +19,32 @@ Impeccable: one scoped detector run; Jinja-linked CSS and compact incumbent typo
 Status: IN PROGRESS. Remaining: native PostgreSQL/CI gates, Impeccable verdict/documentation, clean release to main, Client Hub-only deployment and controlled production verification. The verification browser is open on login; authenticated production verification is not yet evidenced. Prior three release documents remain uncommitted and preserved, outside this patch.
 
 Final recovery fix: a failed provider/spec response returns only owner-authorized project/version metadata; the composer renews the consumed operation key and retries the same saved project with its retained references. No duplicate project, lost prior plan or bypass of metering. Focused regression passed. Candidate CI PostgreSQL release rehearsal passed; latest recovery candidate requires fresh CI.
+
+## Production release ? 2026-10-03
+
+Status: LIVE; authenticated controlled-account production QA remains PENDING.
+
+Released main: `3a7ac31dd30a61549b1cca864f2ac3b43cca5162` (fast-forward of reviewed feature branch; direct-main release explicitly authorized). Implementation candidate `0951595` passed all three Video gates, and subsequent changes before release were scoped design documentation only.
+
+All 17 main CI jobs passed across six workflows:
+
+- Video QA: run 37095746347 ? focused, eight-width browser plus incumbent premium/unified regressions, PostgreSQL 0082.
+- AI Focused QA: run 37095746350 ? foundation, browser, PostgreSQL schema.
+- Autonomous Agent QA: run 37095746358 ? focused Work/Agent regressions, browser, code sandbox, PostgreSQL.
+- Automation QA: run 37095746357 ? focused, boundaries, browser, PostgreSQL.
+- Chat Quality V2 QA: run 37095746363 ? chat and browser.
+- Client Session Timeout QA: run 37095746333 ? session timeout.
+
+Only `kilas-works-client-hub` (`srv-da7ti2psrm7s73dh9i2g`) deployed. Render deployment `dep-db0846id0e5s73ag94a0` became LIVE at `2026-10-03T04:19:27Z`, exact released SHA above. No AI Admin or Automation Cron deployment; no paid resource, configuration, pricing or quota changes. The enabled Client Hub startup uses the rehearsed, checksum-idempotent additive 0082 release path; no historical/general migration or destructive operation was requested. No production records were reset or rewritten.
+
+Verified at https://app.kilasworks.id after deployment:
+
+- `/healthz`: HTTP 200, status ok, Client Hub, PostgreSQL.
+- `/static/kilas_video.js` and `/static/kilas_video.css`: exact normalized contents match released source.
+- `/login`: actual Chromium at 320/360/390/430/768/820/1024/1440; no horizontal overflow or page errors.
+- Protected Home, Video planning/Belajar/Workflow/Tools, Kilas AI and account routes redirect an unauthenticated request to Login.
+- Render error-level and Traceback/Exception/ERROR queries since deployment: empty at post-deploy check.
+
+LIMIT: the dedicated verification browser still shows `/login` and a protected Home request returned 302. Earlier Ready replies did not yield an inspectable authenticated session; browser closed and was reopened using the same persistent profile. No credentials were requested, extracted or substituted. Therefore real production plan creation/vision/revision/copy/history, authenticated Home/AI/Finance/Settings and Services navigation have NOT been claimed as verified. Their local/CI coverage above is distinct from production evidence.
+
+Next step only: finish controlled-account production QA after successful sign-in, using the already prepared `%TEMP%/kilas-video-production-qa.py` helper and open CDP 9333 verification window; do not rebuild, rerun a broad audit, change another feature or redeploy unchanged code. Inspect normal real-plan quality and reference preservation, and record results/errors honestly. Prior three unrelated modified release documents remain preserved and excluded from this release.
