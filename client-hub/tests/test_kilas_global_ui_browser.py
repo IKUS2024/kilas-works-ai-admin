@@ -60,7 +60,9 @@ def main():
                     # Exercise the real preference form; the cookie survives a reload and route changes.
                     if width == 390:
                         page.locator('.language-selector select').select_option(language)
-                        page.locator('.language-selector button').click()
+                        # Wait for POST/303 navigation before reloading the active document.
+                        with page.expect_navigation(wait_until='networkidle'):
+                            page.locator('.language-selector button').click()
                         page.reload()
                         assert page.locator('html').get_attribute('lang') == language
                     context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}])

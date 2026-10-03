@@ -7583,5 +7583,220 @@
     "en": "Hide",
     "es": "Ocultar",
     "zh": "隐藏"
+  },
+  "Mode rencana": {
+    "en": "Plan mode",
+    "es": "Modo del plan",
+    "zh": "计划模式"
+  },
+  "Single video": {
+    "en": "Single video",
+    "es": "Un solo vídeo",
+    "zh": "单段视频"
+  },
+  "Multi-part / klip tersambung": {
+    "en": "Multi-part / connected clips",
+    "es": "Varias partes / clips conectados",
+    "zh": "多段 / 连续片段"
+  },
+  "Total durasi (detik)": {
+    "en": "Total duration (seconds)",
+    "es": "Duración total (segundos)",
+    "zh": "总时长（秒）"
+  },
+  "Panjang klip": {
+    "en": "Clip length",
+    "es": "Duración del clip",
+    "zh": "片段长度"
+  },
+  "Bagi otomatis": {
+    "en": "Auto split",
+    "es": "División automática",
+    "zh": "自动分段"
+  },
+  "5 detik": {
+    "en": "5 seconds",
+    "es": "5 segundos",
+    "zh": "5 秒"
+  },
+  "10 detik": {
+    "en": "10 seconds",
+    "es": "10 segundos",
+    "zh": "10 秒"
+  },
+  "15 detik": {
+    "en": "15 seconds",
+    "es": "15 segundos",
+    "zh": "15 秒"
+  },
+  "Continuity Bible": {
+    "en": "Continuity Bible",
+    "es": "Guía de continuidad",
+    "zh": "连续性设定"
+  },
+  "Salin Continuity Bible": {
+    "en": "Copy Continuity Bible",
+    "es": "Copiar guía de continuidad",
+    "zh": "复制连续性设定"
+  },
+  "Klip tersambung": {
+    "en": "Connected clips",
+    "es": "Clips conectados",
+    "zh": "连续片段"
+  },
+  "Salin semua klip": {
+    "en": "Copy All Parts",
+    "es": "Copiar todas las partes",
+    "zh": "复制所有片段"
+  },
+  "Salin rencana lengkap": {
+    "en": "Copy Full Plan",
+    "es": "Copiar el plan completo",
+    "zh": "复制完整计划"
+  },
+  "Identitas kreatif yang sama di setiap klip. Sudah disertakan dalam setiap prompt.": {
+    "en": "The same creative identity in every clip. Included in every prompt.",
+    "es": "La misma identidad creativa en cada clip. Incluida en cada prompt.",
+    "zh": "每个片段保持同一创意设定，已包含在每个提示词中。"
+  },
+  "Buat klip berurutan, lalu sambung di editor. Akhir klip menjadi awal klip berikutnya.": {
+    "en": "Create clips in order, then join them in an editor. Each ending becomes the next opening.",
+    "es": "Crea los clips en orden y únelos en un editor. Cada final es el inicio del siguiente.",
+    "zh": "按顺序制作片段并在编辑器中拼接。每段结尾衔接下一段开头。"
+  },
+  "Alur klip": {
+    "en": "Clip sequence",
+    "es": "Secuencia de clips",
+    "zh": "片段顺序"
+  },
+  "Part": {
+    "en": "Part",
+    "es": "Parte",
+    "zh": "片段"
+  },
+  "klip": {
+    "en": "clips",
+    "es": "clips",
+    "zh": "片段"
+  },
+  "detik per klip": {
+    "en": "seconds per clip",
+    "es": "segundos por clip",
+    "zh": "秒 / 片段"
+  },
+  "Salin prompt Part {count}": {
+    "en": "Copy Part {count} prompt",
+    "es": "Copiar prompt de la parte {count}",
+    "zh": "复制片段 {count} 提示词"
+  },
+  "Salin prompt platform Part {count}": {
+    "en": "Copy Part {count} platform prompt",
+    "es": "Copiar prompt de plataforma de la parte {count}",
+    "zh": "复制片段 {count} 平台提示词"
+  },
+  "Mulai dari": {
+    "en": "Start state",
+    "es": "Estado inicial",
+    "zh": "起始状态"
+  },
+  "Berakhir pada": {
+    "en": "End state",
+    "es": "Estado final",
+    "zh": "结束状态"
+  },
+  "Arahan shot": {
+    "en": "Shot direction",
+    "es": "Dirección de toma",
+    "zh": "镜头指引"
+  },
+  "Musik / suara": {
+    "en": "Music / sound",
+    "es": "Música / sonido",
+    "zh": "音乐 / 声音"
+  },
+  "English Master Prompt": {
+    "en": "English Master Prompt",
+    "es": "Prompt maestro en inglés",
+    "zh": "英文主提示词"
+  },
+  "Arahan sesuai tool, tanpa sintaks proprietary.": {
+    "en": "Tool guidance without proprietary syntax.",
+    "es": "Instrucciones para la herramienta sin sintaxis propietaria.",
+    "zh": "适配工具的指引，不使用专有语法。"
+  },
+  "Gunakan referensi yang sama. Cocokkan frame akhir ke awal klip berikutnya; periksa mode dan durasi yang tersedia di tool. Teks, logo, dan audio dapat diselesaikan di editor.": {
+    "en": "Reuse the same reference. Match the final frame to the next opening; check modes and durations available in your tool. Finish text, logos and audio in an editor.",
+    "es": "Reutiliza la misma referencia. Conecta el fotograma final con el siguiente inicio; comprueba los modos y duraciones de la herramienta. Completa texto, logotipos y audio en un editor.",
+    "zh": "使用同一参考图。将结束帧衔接下一段起始帧，并检查工具支持的模式和时长。文字、标志和音频可在编辑器中完成。"
+  },
+  "Storyboard keseluruhan": {
+    "en": "Overall storyboard",
+    "es": "Storyboard completo",
+    "zh": "整体分镜"
+  },
+  "Paket prompt lengkap": {
+    "en": "Full prompt package",
+    "es": "Paquete completo de prompts",
+    "zh": "完整提示词包"
+  },
+  "Kesan usia / gender": {
+    "en": "Age / gender impression",
+    "es": "Apariencia de edad / género",
+    "zh": "年龄 / 性别呈现"
+  },
+  "Rambut": {
+    "en": "Hair",
+    "es": "Cabello",
+    "zh": "发型"
+  },
+  "Busana": {
+    "en": "Wardrobe",
+    "es": "Vestuario",
+    "zh": "服装"
+  },
+  "Kemasan / label": {
+    "en": "Packaging / label",
+    "es": "Envase / etiqueta",
+    "zh": "包装 / 标签"
+  },
+  "Warna / grade": {
+    "en": "Color / grade",
+    "es": "Color / gradación",
+    "zh": "色彩 / 调色"
+  },
+  "Bahasa kamera": {
+    "en": "Camera language",
+    "es": "Lenguaje de cámara",
+    "zh": "镜头语言"
+  },
+  "Rasio": {
+    "en": "Aspect ratio",
+    "es": "Relación de aspecto",
+    "zh": "画幅比例"
+  },
+  "Properti": {
+    "en": "Props",
+    "es": "Atrezzo",
+    "zh": "道具"
+  },
+  "Gaya CTA": {
+    "en": "CTA style",
+    "es": "Estilo de llamada a la acción",
+    "zh": "行动号召风格"
+  },
+  "Tambahkan durasi atau pilih klip lebih pendek agar ada minimal 2 klip.": {
+    "en": "Increase the duration or choose shorter clips to create at least 2 clips.",
+    "es": "Aumenta la duración o elige clips más cortos para crear al menos 2 clips.",
+    "zh": "增加总时长或缩短片段长度，至少创建 2 个片段。"
+  },
+  "{count} klip · {timeline}": {
+    "en": "{count} clips · {timeline}",
+    "es": "{count} clips · {timeline}",
+    "zh": "{count} 个片段 · {timeline}"
+  },
+  "Maksimal 8 klip per rencana. Kurangi total durasi atau pilih klip lebih panjang.": {
+    "en": "Maximum 8 clips per plan. Reduce the total duration or choose longer clips.",
+    "es": "Máximo 8 clips por plan. Reduce la duración total o elige clips más largos.",
+    "zh": "每个计划最多 8 个片段。请缩短总时长或选择更长的片段。"
   }
 }

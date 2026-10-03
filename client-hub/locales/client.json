@@ -27,6 +27,7 @@
   "Lampiran terkirim",
   "Lihat",
   "Lokasi tidak dibagikan. Ketik nama daerah yang ingin dicari.",
+  "Maksimal 8 klip per rencana. Kurangi total durasi atau pilih klip lebih panjang.",
   "Maksimal {count} lampiran per pesan.",
   "Mencari sumber terbaru…",
   "Menyiapkan jawaban…",
@@ -51,6 +52,7 @@
   "Setiap file maksimal {size} MiB.",
   "Setiap foto maksimal {size} MB.",
   "Sumber",
+  "Tambahkan durasi atau pilih klip lebih pendek agar ada minimal 2 klip.",
   "Tampilkan password",
   "Teks disalin. Belum dikirim ke customer.",
   "Tersalin",
@@ -59,5 +61,6 @@
   "Ubah atau sempurnakan rencana",
   "Versi ",
   "Zona waktu belum tersimpan. Coba lagi.",
-  "Zona waktu tersimpan."
+  "Zona waktu tersimpan.",
+  "{count} klip · {timeline}"
 ]

@@ -1,4 +1,5 @@
 """Deterministic, isolated prompt formatting. No proprietary claims or network calls."""
+from . import video_parts
 GUIDANCE={
  'Universal':('Arahan produksi','Pilih text-to-video atau image-to-video. Gunakan satu scene per klip bila perlu, lalu susun sesuai storyboard.'),
  'Google Flow':('Arahan scene untuk Google Flow','Buka Flow, pilih alur pembuatan klip yang tersedia. Gunakan referensi jika tersedia, buat setiap scene, lalu susun urutannya.'),
@@ -31,6 +32,13 @@ def seedance(spec):return 'Follow this chronological sequence. Match clip length
 def higgsfield(spec):return 'Choose available camera controls that support these shots. Use one primary camera movement per shot and keep restrained movement for natural UGC.\n\n'+shots(spec)+'\n\nVisual and continuity direction:\n'+master(spec)
 def runway(spec):return 'For image-to-video, preserve the approved source frame and describe the subject motion, camera motion and intended changes. Do not assume proprietary syntax.\n\n'+master(spec)+'\n\nGenerate shots individually when needed:\n'+shots(spec)
 ADAPTERS={'Universal':universal,'Google Flow':google_flow,'Seedance':seedance,'Higgsfield':higgsfield,'Runway':runway}
+PART_GUIDANCE={
+    'Universal':'Use this as a standalone clip prompt. Reuse the approved reference and assemble clips in timeline order.',
+    'Google Flow':'Use the available clip creation mode in Flow. Reuse the approved reference and match the opening and closing frames.',
+    'Seedance':'Use an official service offering Seedance. Check available modes and durations, then create this clip with the approved reference.',
+    'Higgsfield':'Choose available camera controls that support this clip. Keep one coherent movement and reuse the approved reference.',
+    'Runway':'For image-to-video, use the approved opening frame and preserve its identity while following the planned subject and camera motion.',
+}
 
 
 def package(spec,tool='Universal'):
@@ -38,4 +46,28 @@ def package(spec,tool='Universal'):
     result={'master':master(spec),'platform':ADAPTERS[tool](spec),'script':spec['voice_over'],
             'storyboard':storyboard(spec),'how_to':GUIDANCE[tool][1]+' Tambahkan teks/logo dan audio saat editing jika hasil generasi belum akurat. Tinjau setiap klip sebelum ekspor.'}
     result['everything']=spec['title']+'\n\n'+result['platform']+'\n\nCara menggunakan:\n'+result['how_to']
+    if spec.get('parts'):
+        result['bible']=video_parts.bible_text(spec)
+        for part in spec['parts']:
+            key='part_'+str(part['number'])
+            result[key]=video_parts.prompt(spec,part)
+            # One complete prompt per clip; do not duplicate it as both shot and master.
+            result[key+'_platform']=PART_GUIDANCE[tool]+'\n\n'+result[key]
+        result['all_parts']='\n\n'.join(result['part_'+str(p['number'])] for p in spec['parts'])
+        result['master']=result['all_parts']
+        result['platform']='\n\n'.join(result['part_'+str(p['number'])+'_platform'] for p in spec['parts'])
+        outlines=[]
+        for part in spec['parts']:
+            lines=[f"Part {part['number']} — {part['title']} | {part['start']:g}-{part['end']:g} seconds"]
+            for key in video_parts.PART_TEXT:
+                if key not in ('title','master_prompt') and part[key]:lines.append(key.replace('_',' ').title()+': '+part[key])
+            lines.append('Shot list: '+'; '.join(part['shot_list']))
+            outlines.append('\n'.join(lines))
+        overview='\n'.join(k.replace('_',' ').title()+': '+v for k,v in spec.items()
+            if isinstance(v,str) and v and k not in ('title','master_prompt'))
+        details='\n'.join(k.replace('_',' ').title()+': '+'; '.join(spec[k])
+            for k in ('shot_list','b_roll','continuity','must_preserve','avoid') if spec[k])
+        result['everything']=(spec['title']+'\n\n'+overview+'\n\n'+details+'\n\n'+storyboard(spec)+
+            '\n\nContinuity Bible:\n'+result['bible']+
+            '\n\n'+'\n\n'.join(outlines)+'\n\n'+result['platform']+'\n\nCara menggunakan:\n'+result['how_to'])
     return result
