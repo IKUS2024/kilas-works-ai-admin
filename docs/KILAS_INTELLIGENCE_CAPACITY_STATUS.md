@@ -1,3 +1,54 @@
+# Kilas Intelligence / Premium Capacity ? production release evidence
+
+Updated 2026-10-04 Asia/Bangkok. Implementation released and authenticated synthetic production QA passed. Earlier failed scenarios and their fixes remain in the history below.
+
+## Final production code and deployments
+
+- Production code SHA: `5f7e8bd860060544dc6aa494a6c579494bb2d8e9` on main. Commit: `Count distinct attachment occurrences across mirrored context`.
+- Client Hub: `kilas-works-client-hub`, `srv-da7ti2psrm7s73dh9i2g`, deploy `dep-db0ks8m0tbcc7389ocsg`, LIVE, finished 2026-10-03 18:50:11 UTC.
+- Existing Automation Cron: `kilas-ai-automation-runner`, `crn-dau073vlk1mc73d6ilc0`, deploy `dep-db0ksv3ncjis739ve3e0`, LIVE, finished 18:51:11 UTC, same code SHA.
+- This final evidence update is a documentation-only follow-up; it does not require another deployment. No new resources, plan upgrade, AI Admin deployment, new migration, schema change or data reset.
+
+## Automated release gates
+
+All five workflows on the production code SHA passed: Focused QA `37145214939`, Chat Quality `37145214941`, Automation `37145214950`, Autonomous Agent `37145214920`, Global UI `37145214965`.
+
+Coverage includes native disposable PostgreSQL concurrency/settlement/order reuse/retained expired credits, unit/security/account isolation/approval gates, code sandbox, streaming/tools/Work/keyboard capability browser checks, Finance/localization and 544 page/language/width browser combinations. Final targeted local reruns: 34 intelligence/capacity, 24 unified Chat and 35 cost/quality tests passed. Earlier 27-module focused matrix and the unchanged Video gate also passed. Impeccable scoped finish review: ship; detector Jinja/CSS limitations were distinguished from rendered evidence. No full design audit or automatic global rewrite.
+
+## Real authenticated production QA
+
+Controlled account: `irvankarnavi@gmail.com`, role CLIENT_OWNER, zero AI subscription rows. Only synthetic QA conversations, uploads, plans and a pending test capacity order were created; no proof submitted, payment approved, customer data reset or external message sent.
+
+| Scenario | Evidence |
+| --- | --- |
+| Home/navigation/Settings/Services | Actual customer pages loaded; Services targets https://kilasworks.id; no Assist in normal navigation. |
+| Short/normal/difficult Chat | Conversations18/19/20: 16/133/805 words. Usage records show Luna for ordinary requests and Sol for difficult analysis. Laundry correction and refresh persistence passed. |
+| Search | Exact previously failing date-of-check prompt passed after fix, conversation26, official python.org source and no Work job. |
+| Multi-file / PDF reading on FINAL SHA | Conversations31/32: verified difference30, PDF code KILAS-QA-527 and quantity42. Rows342/343 COMPLETE: multi-file Sol, single factual PDF Luna, no PDF repair. Zero JS errors. |
+| Image understanding | Conversation29 correctly identified synthetic orange shape. |
+| Image creation / reference edit | Conversation25: artifacts15/16 downloaded, distinct files, edit persisted after refresh. Visual inspection confirmed white mug becomes blue while shape/composition remains consistent. |
+| Work documents / revisions | Conversation30: jobs21/22 COMPLETE, artifacts17/18 downloaded and persisted. Downloaded PDFs each one page; revised title and fourth packaging-check step correct, original two-row synthetic table retained. Text and rendered PDF visually inspected. |
+| Video single / connected multi-part | Synthetic project18 mobil?baju?food?premium/no-voice-over PATCH, exact clip handoffs, no retired subject content, English prompt checks, seven clipboard actions, history/reopen/refresh. Single UGC mug project19 passed. Eight widths verified. |
+| Subscription / capacity / topup on FINAL SHA | Public Cukup, no private model/token/cost terminology. All three pack radios, native dialog Escape/close, pending Rp50k order4 reused. No activation before verified payment. |
+| Exhausted state on FINAL SHA | Safe browser interception of public capacity GET only; Habis notice rendered and real normal Chat33 succeeded. This was a UI fixture, not mutation of production quota. Actual backend exhaustion covered by SQLite/native PostgreSQL tests. |
+| Free Finance on FINAL SHA | Non-Pro CLIENT_OWNER opened owned business10/branch16: Home, accounts/balances, transactions, receivables/invoices, reports, operations/bills and budget. Retired assistant/analyst/operator/receipt/bank-import routes404. Finance provider ledger remained16 rows/maxid130 before and after QA. No finance entries or calculations changed. |
+| Responsive UI on FINAL SHA | 12 pages ?320/360/390/430/768/1024/1440 =84 combinations, plus pack dialog checks. No horizontal overflow or JS errors. Video also checked820px. Width simulations, not physical-device keyboard testing; capability/focus behavior covered by browser automation. |
+
+Final healthz returned200 with PostgreSQL backend. Reviewed22 unfiltered Hub/Cron application logs since final release: no ERROR/CRITICAL/Traceback/worker-timeout signature, no additional log page. Final closing error-level log query is recorded in the release report.
+
+## Behavior and remaining limitations
+
+- Private deterministic EASY/NORMAL use Luna low/medium; HARD/EXPERT use Sol low/medium. Output depth is independent; no model selector, classifier call or cost-dependent quality downgrade. Actual sources are counted without duplicating mirrored context; verification codes are not coding requests.
+- Shared expensive-operation capacity uses the configured conversion of the internal35k/30-day allowance. Public states Cukup/Menipis/Habis; normal paid Chat and free Finance remain available when premium capacity is exhausted. Atomic forecasts, actual returned usage, billed failures and separately metered repairs are retained.
+- Fixed capacity packs25k/50k/100k, verified90-day credits, renewal99k/30days kept separate. Legacy orders/credits remain intact; retained credits require active Pro for consumption.
+- Server email QA allowlist bypasses commercial limits without bypassing authentication, isolation, approvals, technical bounds or rate/concurrency protections. Real non-Pro QA used premium operations successfully.
+- Finance is free, with paid provider paths disabled and historical finance records unchanged. Deterministic ledger/business behavior is preserved.
+- Manual bank transfer and authorized proof review remain the active payment adapter. Automatic payment gateway remains configuration/approval-dependent; no fake gateway or successful payment was claimed.
+- Video had two initial503 attempts: draft validation rejected followed by bounded20-second repair timeout. The same project subsequently passed the complete multi-part/revision chain and single flow. These transient provider/repair limits remain possible; no Video Director/model/continuity redesign was introduced.
+- Production billing approval, actual fund transfer and physical-device virtual keyboard were not exercised. Their applicable safeguards have focused automated coverage.
+
+## Implementation and release history
+
 # Kilas Intelligence, Premium Capacity and Free Finance
 
 ## Current checkpoint ? 2026-10-04
@@ -45,3 +96,5 @@ OnLIVEc09526d exactSearchrerun#26 PASSofficialpython.org/noWorkjob/0JSerrors; mu
 Independent production#29 imageunderstanding PASSorange shape. Work#30 PDFcreate(job21/artifact17,42990bytes)→revision(job22/artifact18,43138bytes) PASScompleted/differentdownloads/reloadpersistence/0JSerrors. Downloadedbytes inspected withPdfReader: both1page; originalRencana QA Sintetis→Rencana QA Revisi, fourthcek kemasan stepadded, previoussynthetic2rowtable retained. No productionFinance data mutated.
 
 Source accounting refined before release: take maximum per-filename occurrence count across mirrored context blocks, so2real files sharing a basename still count as2. Regression34intelligence/capacity+24unified PASS; no guards disabled. Awaiting final CI and final single-PDF production rerun.
+
+Finalcode5f7e8bd860060544dc6aa494a6c579494bb2d8e9 pushedmain. All5requiredCI PASS: Focused37145214939,ChatQuality37145214941,Automation37145214950,Agent37145214920(nativePG/browser/sandbox),GlobalUI37145214965. Finaldeploys existingHubdep-db0ks8m0tbcc7389ocsg andCrondep-db0ksv3ncjis739ve3e0 started. ControlledQAconfirmedCLIENT_OWNER,0AI subscriptionrows. WaitingLIVE then exact file/PDF rerun and finalUI/logchecks.
