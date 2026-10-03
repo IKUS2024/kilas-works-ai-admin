@@ -49,6 +49,7 @@ jobs:
       - run: python client-hub/tests/test_kilas_work_documents.py
       - run: python client-hub/tests/test_kilas_ai_unified.py
       - run: python client-hub/tests/test_kilas_product_hardening.py
+      - run: python client-hub/tests/test_kilas_image_followup.py
       - run: python client-hub/tests/test_kilas_ai_chat_cleanup.py
       - run: python client-hub/tests/test_kilas_chat_quality_v2.py
       - run: python client-hub/tests/test_kilas_work_v2.py

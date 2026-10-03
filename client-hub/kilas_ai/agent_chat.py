@@ -29,6 +29,10 @@ def context(user_id, conversation_id):
                 prepared=[{'filename':scan['filename'],'mime_type':'application/pdf','vision_pages':render(bytes(scan['content']))}]
             except Exception:
                 context[-1]['content']+='\nScan PDF sebelumnya tidak dapat dirender ulang sekarang; jangan menebak isinya. Gunakan hanya fakta terverifikasi dalam riwayat.'
+    if not prepared and context and re.search(r'(?i)\b(?:gambar|foto|image|photo|picture)\b',model_policy.request_text(context[-1]['content'])):
+        from .capabilities import current
+        if current()['uploaded_image_understanding']:
+            prepared=agent_attachments.latest_images(user_id,conversation_id)
     if prepared and context:
         from .attachments import prompt_content
         context[-1]['content']=prompt_content(context[-1]['content'],prepared)

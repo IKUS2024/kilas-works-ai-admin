@@ -25,6 +25,18 @@ def sources(user_id, conversation_id, budget=12000):
     return list(reversed(result))
 
 
+def latest_images(user_id,conversation_id):
+    """Replay only the latest owned image turn for explicit visual follow-up."""
+    rows=db.query_all(
+        'SELECT m.id AS origin_message_id,a.filename,a.mime_type,a.content FROM kilas_ai_agent_messages m '
+        "JOIN kilas_ai_messages b ON b.operation_key=('agent-attachments:' || CAST(m.id AS TEXT)) "
+        'JOIN kilas_ai_threads t ON t.id=b.thread_id AND t.user_id=m.user_id '
+        'JOIN kilas_ai_attachments a ON a.message_id=b.id AND a.thread_id=t.id AND a.user_id=m.user_id '
+        "WHERE m.user_id=? AND m.conversation_id=? AND a.mime_type IN ('image/jpeg','image/png','image/webp') "
+        'ORDER BY m.id DESC,a.id DESC LIMIT 5',(user_id,conversation_id))
+    return [dict(row) for row in reversed(rows) if row['origin_message_id']==rows[0]['origin_message_id']]
+
+
 def latest_scan(user_id,conversation_id):
     """Only the latest owned scan; bounded rasterization repeats on explicit follow-up."""
     row=db.query_one(
