@@ -40,7 +40,7 @@ def create_order(user_id, pack):
     try:
         _lock_user(conn, user_id)
         existing = usage._query(conn, "SELECT id FROM kilas_ai_topup_orders WHERE user_id=? AND pack=? "
-            "AND amount_idr=? AND invoice_number LIKE 'KAI-P-%' AND status IN ('PAYMENT_PENDING','UNDER_REVIEW') ORDER BY id DESC LIMIT 1", (user_id, pack, PACKS[pack]), one=True)
+            "AND amount_idr=? AND invoice_number LIKE ? AND status IN ('PAYMENT_PENDING','UNDER_REVIEW') ORDER BY id DESC LIMIT 1", (user_id, pack, PACKS[pack], 'KAI-P-%'), one=True)
         if existing:
             conn.commit()
             return existing[0]
@@ -76,8 +76,8 @@ def create_custom_order(user_id, amount_idr):
     try:
         _lock_user(conn, user_id)
         existing = usage._query(conn, "SELECT id FROM kilas_ai_topup_orders WHERE user_id=? AND amount_idr=? "
-            "AND invoice_number LIKE 'KAI-C-%' AND status IN ('PAYMENT_PENDING','UNDER_REVIEW') "
-            "ORDER BY id DESC LIMIT 1", (user_id, amount), one=True)
+            "AND invoice_number LIKE ? AND status IN ('PAYMENT_PENDING','UNDER_REVIEW') "
+            "ORDER BY id DESC LIMIT 1", (user_id, amount, 'KAI-C-%'), one=True)
         if existing:
             conn.commit()
             return existing[0]
