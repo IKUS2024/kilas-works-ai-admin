@@ -35,6 +35,9 @@ On-screen text and voice_over are actual intended script, optional; empty voice_
 For UGC/review: conversational real actions, restrained camera, practical light, no invented
 testimonials, benefit claims or robotic sales delivery. Tutorial/demo shots show causal steps.
 Overall scenes and master_prompt must agree with parts, duration, latest subject and Bible.
+For STYLE_CHANGE with the same timeline, retain each opening/ending state VERBATIM
+and the supplied stable Bible identity fields. Improve only requested style/audio/script;
+do not restage the action, replace the product, wardrobe, packaging or location.
 No proprietary flags, unsupported tool limits, or promises of exact generated labels/text.
 '''
 
@@ -60,7 +63,7 @@ def timeline(total,strategy='auto'):
     return result
 
 
-def validate(spec,brief,english_check):
+def validate(spec,brief,english_check,previous=None):
     bible=spec.get('continuity_bible');parts=spec.get('parts')
     if not isinstance(bible,dict) or set(bible)!=set(BIBLE_FIELDS):raise ValueError('invalid_continuity_bible')
     if any(not isinstance(v,str) or len(v)>600 for v in bible.values()):raise ValueError('invalid_continuity_bible')
@@ -92,6 +95,12 @@ def validate(spec,brief,english_check):
         if brief.get('voice_over')=='disabled' and part['voice_over']:raise ValueError('voice_over_conflict')
         prior=part['end_state']
     if len(set(p['master_prompt'].strip().casefold() for p in parts))!=len(parts):raise ValueError('duplicate_part_prompts')
+    if (previous and previous.get('parts') and brief['revision_kind']=='STYLE_CHANGE'
+            and [(p['start'],p['end']) for p in previous['parts']]==[(p['start'],p['end']) for p in parts]):
+        for old,new in zip(previous['parts'],parts):
+            if any(old[k]!=new[k] for k in ('start_state','end_state')):raise ValueError('patch_changed_handoff')
+        for key in ('subject','talent','age_gender','hair','wardrobe','product','packaging_label','location','props','environment','aspect_ratio'):
+            if previous['continuity_bible'][key]!=bible[key]:raise ValueError('patch_changed_identity:'+key)
     return spec
 
 

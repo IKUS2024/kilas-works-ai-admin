@@ -98,7 +98,7 @@ def validate(raw,controls=None):
     return raw
 
 
-def quality(spec,brief):
+def quality(spec,brief,previous=None):
     """Fail closed on contamination, language, timing and unsafe/empty output."""
     validate(spec,{'duration':str(brief.get('duration',''))})
     if not all(isinstance(spec.get(k),str) for k in V2_TEXT):raise ValueError('incomplete_director_plan')
@@ -112,7 +112,7 @@ def quality(spec,brief):
         direction=re.sub(r'"[^"\n]*"|“[^”]*”', '',text)
         if len(direction)<40 or len(english.findall(direction))<2 or re.search(r'(?i)\b(?:detik|pertahankan|jangan|kamera|pencahayaan|adegan|kemudian|dengan|produk ini)\b',direction):raise ValueError('non_english_prompt')
     for text in [prompt,*[s.get('production_prompt','') for s in spec['scenes']]]:english_check(text)
-    if brief.get('plan_mode')=='multi':video_parts.validate(spec,brief,english_check)
+    if brief.get('plan_mode')=='multi':video_parts.validate(spec,brief,english_check,previous)
     elif 'parts' in spec:raise ValueError('unexpected_video_parts')
     payload=json.dumps(spec,ensure_ascii=False).lower()
     preserved=[str(brief.get(k,'')).casefold() for k in brief.get('preserved_fields',[])]
@@ -174,7 +174,7 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
             try:
                 parsed=json.loads(draft)
                 if stage:parsed=refinement(first_draft,parsed)
-                spec=quality(parsed,brief);issue=''
+                spec=quality(parsed,brief,previous);issue=''
             except ValueError as error:spec=None;issue='Fix deterministic validation failure: '+str(error)+'.'
             except (TypeError,KeyError):spec=None;issue='Fix the incomplete JSON schema.'
             if stage==0:

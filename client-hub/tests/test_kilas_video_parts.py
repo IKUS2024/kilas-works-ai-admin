@@ -164,5 +164,14 @@ class ConnectedVideoTests(unittest.TestCase):
         self.assertEqual(current['version'],1);self.assertEqual(current['status'],'READY')
         self.assertEqual(fixture.db.query_one('SELECT COUNT(*) AS count FROM kilas_ai_usage WHERE user_id=?',(self.owner,))['count'],count)
 
+    def test_style_patch_preserves_identity_and_handoffs_while_updating_style(self):
+        previous=multipart('makanan','food')
+        brief=briefs.build('lebih premium, tanpa voice-over',{'_brief':briefs.commit(briefs.build('video makanan 30 detik',{'plan_mode':'multi','total_duration':'30','clip_strategy':'10'}),previous)},previous,1)
+        changed=copy.deepcopy(previous);changed['continuity_bible']['lighting']='Use softer window lighting from the same camera left direction.'
+        director.quality(changed,brief,previous)
+        for mutate in (lambda s:s['parts'][-1].update(end_state='The same food is moved to a different table in a wide camera frame.'),lambda s:s['continuity_bible'].update(product='A different food product')):
+            value=copy.deepcopy(previous);mutate(value)
+            with self.assertRaises(ValueError):director.quality(value,brief,previous)
+
 
 if __name__=='__main__':unittest.main()
