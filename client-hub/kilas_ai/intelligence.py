@@ -22,7 +22,8 @@ def classify(messages, *, task=False):
     def add(name,points):
         nonlocal score
         score+=points;signals.append(name)
-    domain=next((k for k,p in DOMAINS.items() if re.search(p,lower)),'general')
+    domain_text=re.sub(r'\b(?:kode|code)\s+(?:verifikasi|verification|otp|voucher|kupon|coupon|promo|produk|product|pesanan|order|pos|postal)\b|\b(?:verification|postal|coupon|product|order)\s+code\b','',lower)
+    domain=next((k for k,p in DOMAINS.items() if re.search(p,domain_text)),'general')
     transform=bool(re.match(r'^(?:tolong )?(?:translate|terjemahkan|benerin typo|perbaiki typo|rewrite)\b',lower))
     definition=bool(re.match(r'^(?:apa itu|what is|define)\b',lower))
     analysis=bool(re.search(r'\b(?:analisis|analisa|analysis|analy[sz]e|bandingkan|bandingin|compare|trade.?offs?|kenapa|why|rencana|plan|strategi|strategy|pricing|positioning|gtm|pilih|mending|risiko|risk|rekomendasi|recommend|hitung|calculate|analiza|analizar|compara|comparar|riesgo|recomienda)\b|分析|比较|风险',lower))
@@ -34,8 +35,14 @@ def classify(messages, *, task=False):
     if re.search(r'\b(?:multi.?file|multi.?document|beberapa (?:file|dokumen)|cross.?file|lintas (?:file|dokumen)|beberapa langkah|multi.?step|varios documentos|varios archivos)\b|多个文件|跨文件',lower):add('synthesis',3)
     blocks=users[-1].get('content',[]) if users else []
     images=sum(1 for b in blocks if isinstance(b,dict) and b.get('type')=='image_url') if isinstance(blocks,list) else 0
-    source_count=sum(len(re.findall(r"Teks berikut berhasil diekstrak dari lampiran '|(?:^|\n)File: ",
-        str(m.get('content','')))) for m in users[-5:])
+    # The current upload also appears in the persistent source context. Count it once.
+    source_names=set()
+    for message in users[-5:]:
+        content=message.get('content','')
+        if isinstance(content,list):content='\n'.join(str(b.get('text','')) for b in content if isinstance(b,dict))
+        for extracted,stored in re.findall(r"Teks berikut berhasil diekstrak dari lampiran '([^']+)'|(?:^|\n)File: ([^\n]+)",str(content)):
+            source_names.add((extracted or stored).strip())
+    source_count=len(source_names)
     if source_count>=2:add('multiple_sources',3)
     elif source_count or images:add('attachment',1)
     if images and analysis:add('visual_reasoning',1)

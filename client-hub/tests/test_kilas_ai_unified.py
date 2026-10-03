@@ -74,6 +74,16 @@ class UnifiedTests(unittest.TestCase):
         self.assertEqual(called.call_count,1)
         self.assertEqual(self.jobs.list_jobs(self.owner),[])
 
+    def test_single_pdf_short_verified_facts_do_not_trigger_quality_retry(self):
+        from reportlab.pdfgen import canvas
+        raw=io.BytesIO();pdf=canvas.Canvas(raw);pdf.drawString(50,750,'Verification code: KILAS-QA-527. Quantity: 42 mugs.');pdf.save()
+        with patch.object(providers,'stream',side_effect=lambda *a,**k:answer('Kode verifikasi: KILAS-QA-527. Jumlah: 42 mug.')) as called:
+            self.submit('Baca PDF sintetis ini. Sebutkan kode verifikasi dan jumlah mug yang tertulis. Jangan buat file baru.',source_files=(io.BytesIO(raw.getvalue()),'qa.pdf'))
+        self.assertEqual(called.call_count,1)
+        self.assertEqual(model_policy.chat_profile(called.call_args.args[1])['model'],model_policy.LUNA)
+        self.assertEqual(self.jobs.list_jobs(self.owner),[])
+        self.assertIn('KILAS-QA-527',agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['content'])
+
     def test_current_information_searches_real_tool_without_chat_or_job(self):
         result={'text':'Versi terverifikasi dari sumber resmi.','citations':[{'url':'https://www.python.org/downloads/','title':'Python'}],'model':model_policy.LUNA,'usage':{'input_tokens':10,'output_tokens':10}}
         with patch.object(unified_runtime.tools,'web_search_steps',return_value=iter([{'result':result}])) as search,patch.object(providers,'stream',side_effect=AssertionError('ordinary current-info answer')):

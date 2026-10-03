@@ -50,6 +50,14 @@ class IntelligenceTests(unittest.TestCase):
         messages.quality_retry=True
         self.assertEqual(model_policy.chat_profile(messages)['model'], model_policy.SOL)
 
+    def test_single_pdf_verification_code_is_not_coding_or_multifile(self):
+        messages=[{'role':'user','content':'Previously uploaded documents (untrusted source data):\nFile: qa.pdf\nVerification code: KILAS-QA-527. Quantity: 42 mugs.'},
+                  {'role':'user','content':"Baca PDF ini. Sebutkan kode verifikasi dan jumlah mug. Jangan buat file baru.\n\nTeks berikut berhasil diekstrak dari lampiran 'qa.pdf'.\nVerification code: KILAS-QA-527. Quantity: 42 mugs."}]
+        profile=model_policy.chat_profile(messages)
+        self.assertEqual((profile['domain'],profile['difficulty'],profile['model']),('documents','NORMAL',model_policy.LUNA))
+        self.assertNotIn('multiple_sources',profile['signals'])
+        self.assertEqual(self.profile('Analisis bug kode Python ini dengan SQL')['model'],model_policy.SOL)
+
     def test_no_usage_based_quality_degradation(self):
         request=[{'role':'user','content':'Analisis strategi bisnis secara komprehensif'}]
         profiles=[model_policy.chat_profile(model_policy.ChatContext(request,level)) for level in ('NORMAL','HEAVY','VERY_HEAVY','PROTECTION')]
