@@ -42,7 +42,49 @@ For STYLE_CHANGE with the same timeline, retain each opening/ending state VERBAT
 and the supplied stable Bible identity fields. Improve only requested style/audio/script;
 do not restage the action, replace the product, wardrobe, packaging or location.
 No proprietary flags, unsupported tool limits, or promises of exact generated labels/text.
+COMPACT TRANSPORT OVERRIDE: Do not return the redundant overall fields scenes, master_prompt,
+shot_list, b_roll, continuity, must_preserve, avoid, camera, movement, lighting, audio,
+voice_over, on_screen_text, duration or aspect_ratio. The server derives these from the
+canonical timeline, Bible and parts. Return the remaining overall creative fields, Bible,
+and parts. Omit master_prompt inside each part: shot_direction is the authoritative complete
+ENGLISH clip direction (50-80 words), including timed action, framing/camera, light and motion.
+Keep Bible values concise, other part strings one sentence, and lists 2-3 short entries.
+Do not omit or shorten concrete start/end handoffs. Do not add explanation or reasoning.
 '''
+
+
+def expand_draft(raw,brief):
+    """Build redundant legacy presentation from model-owned clips, without new facts.
+
+    Full existing responses/review fields remain accepted and validated unchanged.
+    Only absent derived fields are filled; incorrect supplied values are never repaired.
+    """
+    if not isinstance(raw,dict) or brief.get('plan_mode')!='multi':return raw
+    value=json.loads(json.dumps(raw))
+    bible=value.get('continuity_bible');parts=value.get('parts')
+    if not isinstance(bible,dict) or not isinstance(parts,list) or not parts:return value
+    if any(not isinstance(p,dict) for p in parts):return value
+    for p in parts:
+        p.setdefault('master_prompt',
+            'Opening frame: '+str(p.get('start_state',''))+'\n'+str(p.get('shot_direction',''))+
+            '\nFinal frame: '+str(p.get('end_state',''))+'\nAudio: '+str(p.get('audio','')))
+    value.setdefault('duration',brief['duration'])
+    value.setdefault('aspect_ratio',bible.get('aspect_ratio',''))
+    for field,source in [('camera','camera'),('movement','movement'),('lighting','lighting')]:
+        value.setdefault(field,bible.get(source,''))
+    for field in ('audio','voice_over','on_screen_text'):
+        value.setdefault(field,'\n'.join(str(p.get(field,'')) for p in parts if p.get(field)))
+    value.setdefault('shot_list',[s for p in parts for s in p.get('shot_list',[])][:20])
+    value.setdefault('b_roll',[])
+    value.setdefault('continuity',[str(p.get('start_state','')) for p in parts])
+    value.setdefault('must_preserve',[str(v) for k,v in bible.items() if v and k in ('subject','product','wardrobe','location')])
+    value.setdefault('avoid',list(dict.fromkeys(s for p in parts for s in p.get('avoid',[])))[:20])
+    value.setdefault('master_prompt',f"Create a {value['duration']}-second {value['aspect_ratio']} video.\n\n"+'\n\n'.join(p['master_prompt'] for p in parts))
+    value.setdefault('scenes',[dict(start=p.get('start'),end=p.get('end'),visual=p.get('scene',''),
+        action=p.get('purpose',''),camera=bible.get('camera',''),lighting=bible.get('lighting',''),
+        audio=p.get('audio',''),on_screen_text=p.get('on_screen_text',''),environment=bible.get('location',''),
+        continuity=p.get('start_state',''),production_prompt=p['master_prompt']) for p in parts])
+    return value
 
 
 def timeline(total,strategy='auto'):

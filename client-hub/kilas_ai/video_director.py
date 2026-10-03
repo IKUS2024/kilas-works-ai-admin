@@ -183,6 +183,7 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
             try:
                 parsed=json.loads(draft)
                 if stage:parsed=refinement(first_draft,parsed)
+                parsed=video_parts.expand_draft(parsed,brief)
                 spec=quality(parsed,brief,previous);issue=''
             except ValueError as error:
                 spec=None;issue='Fix deterministic validation failure: '+str(error)+'.'

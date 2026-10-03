@@ -65,6 +65,28 @@ class ConnectedVideoTests(unittest.TestCase):
         value=spec();director.quality(value,briefs.build('video skincare 10 detik',{'plan_mode':'single'}))
         self.assertNotIn('parts',value);self.assertEqual(adapters.package(value)['master'],value['master_prompt'])
 
+    def test_compact_provider_draft_expands_without_new_facts(self):
+        value=multipart();brief=briefs.build('Video mobil 30 detik',{'plan_mode':'multi','total_duration':'30','clip_strategy':'10'})
+        full=copy.deepcopy(value)
+        self.assertEqual(parts.expand_draft(full,brief),full)
+        for field in ('scenes','master_prompt','shot_list','b_roll','continuity','must_preserve','avoid','camera','movement','lighting','audio','voice_over','on_screen_text','duration','aspect_ratio'):
+            value.pop(field)
+        for part in value['parts']:part.pop('master_prompt')
+        compact=copy.deepcopy(value)
+        expanded=parts.expand_draft(value,brief);director.quality(expanded,brief)
+        self.assertEqual(value,compact)
+        self.assertEqual(expanded['duration'],30)
+        for p,s in zip(expanded['parts'],expanded['scenes']):
+            self.assertIn(p['start_state'],s['production_prompt'])
+            self.assertIn(p['end_state'],s['production_prompt'])
+            self.assertIn(p['shot_direction'],s['production_prompt'])
+        result,calls=self.send(value)
+        self.assertEqual(result.status_code,200,result.text)
+        self.assertEqual(calls.call_count,2)
+        broken=copy.deepcopy(value);broken['parts'][1]['start_state']='The car is suddenly outside in a different street camera frame.'
+        with self.assertRaisesRegex(ValueError,'disconnected_part_handoff'):
+            director.quality(parts.expand_draft(broken,brief),brief)
+
     def test_exact_handoff_timing_and_complete_standalone_copies(self):
         value=multipart();brief=briefs.build('Video mobil 30 detik',{'plan_mode':'multi','total_duration':'30','clip_strategy':'10'})
         director.quality(value,brief);before=copy.deepcopy(value)
