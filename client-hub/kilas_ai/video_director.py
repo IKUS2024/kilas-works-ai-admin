@@ -168,7 +168,7 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
                 response=requests.post('https://api.openai.com/v1/chat/completions',
                 headers={'Authorization':'Bearer '+provider_key,'Content-Type':'application/json'},
                 json={'model':model,'messages':messages,'response_format':{'type':'json_object'},
-                      'max_completion_tokens':12000 if brief.get('plan_mode')=='multi' else 9000,'reasoning_effort':effort,'store':False},timeout=(5,min(50 if stage==0 else 20,remaining)))
+                      'max_completion_tokens':12000 if brief.get('plan_mode')=='multi' else 9000,'reasoning_effort':effort,'store':False},timeout=(5,min((65 if brief.get('plan_mode')=='multi' else 50) if stage==0 else 20,remaining)))
             except requests.Timeout:
                 logging.getLogger(__name__).warning('Video provider timeout stage=%s elapsed_seconds=%.1f',stage,time.monotonic()-started)
                 raise

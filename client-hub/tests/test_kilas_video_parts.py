@@ -58,7 +58,7 @@ class ConnectedVideoTests(unittest.TestCase):
         self.assertEqual(response.status_code,200,response.text)
         self.assertEqual(calls.call_count,2)
         self.assertTrue(all(c.kwargs['json']['reasoning_effort']=='low' for c in calls.call_args_list))
-        self.assertLessEqual(calls.call_args_list[0].kwargs['timeout'][1],50)
+        self.assertLessEqual(calls.call_args_list[0].kwargs['timeout'][1],65)
         self.assertLessEqual(calls.call_args_list[1].kwargs['timeout'][1],20)
 
     def test_single_legacy_contract_is_unchanged(self):
