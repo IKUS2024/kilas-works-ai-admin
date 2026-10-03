@@ -97,6 +97,8 @@ Users can copy everything, script, storyboard, master prompt or platform prompt.
 
 Generation errors appear beside the composer in a `role="alert"` region with error text; progress clears and controls become usable again. Existing rendered plan content is replaced only after a successful response, preserving the prior visible plan on failure. User guidance supports trying again; the connection fallback directs the user to check history before retrying. The supplied error captures demonstrate localized recovery copy with the entered idea retained.
 
+On a parsed server failure, the client renews the operation key for retry. When the response identifies an owned saved project, it retains that project's ID, version and URL, clears transient image previews and hides the upload control. Retrying uses the same project and its saved references rather than uploading them again. Provider-failure guidance explains that the idea and previous plan remain in history; transport failures still direct the user to check history before retrying. This recovery behavior changes no visual styling.
+
 ### Education and tool destinations
 
 Belajar contains 19 native lesson disclosures, with the first open, practical explanation, weak/better comparisons and the reason the better direction helps. Workflow presents product, UGC and cinematic steps as ordered lists, with a route back to start a plan. Tools groups the six official destinations into clip creation and final editing; each row contains a conservative description and an accessible official-site link opening in a new tab with `noopener noreferrer`. The text explicitly explains that Kilas is not connected to these tools and that their own access and feature conditions apply.
