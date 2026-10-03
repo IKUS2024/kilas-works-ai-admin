@@ -1,5 +1,6 @@
 """Pending drafts can be interrupted without changing or confirming their values."""
 import unittest
+from datetime import date,timedelta
 from unittest.mock import patch
 import requests
 import test_finance_semantic_agent as prior
@@ -91,7 +92,7 @@ class PendingIntentTests(unittest.TestCase):
         before=self.snapshot()
         answer=self.interrupt(draft,'cek pemasukan bulan ini')
         self.assertIn('600.000',str(answer['preview']))
-        continued=self.follow(draft,'jatuh tempo 30 september')
+        continued=self.follow(draft,'jatuh tempo '+(date.today()+timedelta(days=30)).isoformat())
         self.assertEqual(self.values(continued)['amount'],'2 juta')
         self.assertTrue(continued.json['ready'],continued.json)
         self.assertEqual(before,self.snapshot())

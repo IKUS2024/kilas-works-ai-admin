@@ -33,3 +33,20 @@
 - Additional five Finance/public-entry checks PASS; localization/workspace/Finance entry 19 checks PASS; Phase 9 real-route browser matrix 220 visits PASS. Phase 10 authenticated journeys rerun in progress. Removed one remaining static AI Finance promotion in the Finance entry list; direct backend Assistant access remains tested.
 - Known pre-existing release concern: `test_assist_continuous_training.ContinuousTrainingTests.test_latest_owner_language_correction_is_normalized` fails on BOTH unmodified main `95de017` (baseline CI log job 111174337198) and candidate: owner language correction returns None rather than forced English. The training implementation is unchanged and outside this UI brief. This is a real existing defect, not a Windows/environment issue; no test skip, weaker assertion or backend fix has been introduced.
 - Production authenticated verification is pending because the earlier dedicated browser session expired. User was asked to sign in again. No production verification success is claimed.
+
+## Current checkpoint — release held pending gates
+
+- Latest pushed code: `a9361b660f4a3a1bf8c333c9dffd61ebf95641ec` (Fix language return targets and align focused UI release checks), PR https://github.com/IKUS2024/kilas-works-ai-admin/pull/120.
+- Phase 10 real authenticated local journeys: 31 PASS, including invoice/ledger payment checks, customer-linked Jobs, chat and takeover. Phase 9: 220 responsive visits PASS.
+- Latest-commit CI: AI Focused, Connectors, Automation, Chat, Phase 6/8/9/10 and session timeout PASS; Finance/localization jobs PASS. Browser matrix, Video/Agent browser and complete Finance baseline still running at this checkpoint.
+- Master Assist regression fails only the existing owner-language normalization test (job 111178208345), identical to the unmodified-main baseline. No waiver has been assumed. Explicit release-exception decision requested from the user; held pending reply.
+- Production session check: `/account` resolves to `/login`. Authenticated production checks require renewed controlled QA login. No credentials or cookies were saved to disk/output.
+- Render read-only confirmation: Client Hub autodeploy OFF; existing deploy `dep-db0am6s9v7es73akj51g` remains LIVE on `2c5516c6ab2ea2d3ce33b8c12c92314a2f0faac1`. This patch is NOT merged/deployed; no migration/data reset/service change was performed.
+- Remaining: finish currently running CI, resolve/approve the documented existing-test exception, merge and deploy Client Hub only if authorized gates permit, then authenticated four-language production navigation/Finance QA and post-QA logs.
+
+## Finance baseline follow-up
+
+- On code commit `a9361b6`, 13/15 workflows completed successfully, including AI, Video, Agent, Connectors, Automation, Chat, both Global UI runs, Phase 6/8/9/10 and session timeout. Finance runtime and Master root-bot/PostgreSQL jobs also PASS.
+- Complete Linux Finance baseline ran 1,019 tests and exposed 13 stale expectations/expired-date cases in seven test modules. Updated expectations for hidden AI entry points, allowlisted global language/product preference forms (Finance write forms remain forbidden), and future invoice due dates. No backend/Finance logic changed.
+- All 13 corrected cases PASS locally: 12 in isolated processes plus the final multi-business form assertion PASS after explicitly distinguishing the existing product preference form. Financial exact totals, no-ledger-before-issue, concurrency/idempotency, issue replay and tenant checks remain asserted. A Windows aggregate run was interrupted after fixture SQLite handle contention; no database implementation was changed to accommodate it.
+- Test-only correction committed/pushed next; Linux baseline must be rerun. Existing training failure, pending release exception and expired production QA login remain unresolved. No release success is claimed.

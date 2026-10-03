@@ -209,7 +209,7 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertEqual(context['selected_branch_id'], self.ba)
         self.assertIn('id="add-transaction"', page.text)
-        self.assertIn('AI Finance', page.text)
+        self.assertNotIn('AI Finance', page.text)
         self.assertNotIn('Semua Cabang', page.text)
         self.http.assert_not_called()
 
@@ -497,7 +497,7 @@ class BranchTests(unittest.TestCase):
             self.assertGreaterEqual(len(f.list_categories(empty,'EXPENSE')),1)
         page=self.client.get(url+f'?branch_id={branch["id"]}')
         self.assertEqual(page.status_code,200)
-        for value in ('data-dashboard-open="add-transaction-dialog"','Penerima','Invoice','Tagihan','Laporan','AI Finance'):
+        for value in ('data-dashboard-open="add-transaction-dialog"','Penerima','Invoice','Tagihan','Laporan'):
             self.assertIn(value,page.text)
 
     def test_readding_hidden_branch_reactivates_same_record(self):
