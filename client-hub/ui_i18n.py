@@ -27,6 +27,12 @@ def translate(message, **values):
 def install(app):
     app.jinja_env.globals.update(ui_t=translate, ui_language=language, ui_languages=LANGUAGES)
     app.jinja_env.filters['ui_text'] = translate
+    def language_return_path():
+        from legacy_order_retirement import retired_endpoint
+        # Retired pages must not reflect historical request identifiers in a form.
+        return (url_for('products.product_start') if retired_endpoint(request.endpoint)
+                else request.full_path.rstrip('?'))
+    app.jinja_env.globals['ui_language_return_path'] = language_return_path
     # Only designated UI period labels use this filter; no transaction/customer text.
     app.jinja_env.filters['ui_period'] = lambda value: re.sub(
         r'\b(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\b',

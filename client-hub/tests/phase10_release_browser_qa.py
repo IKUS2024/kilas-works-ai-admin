@@ -34,7 +34,7 @@ def signup(page, name):
     page.locator('[name=password]').fill(PASSWORD)
     page.locator('button.auth-submit').click()
     expect(page.get_by_role('button', name='Pilih Kilas Assist', exact=False)).to_have_count(0)
-    expect(page.get_by_role('button', name='Pilih Kilas Finance', exact=False)).to_be_visible()
+    expect(page.get_by_role('button', name='Kilas Finance', exact=False)).to_be_visible()
     expect(page.get_by_role('button', name='Pilih Keduanya', exact=False)).to_have_count(0)
 
 
@@ -86,8 +86,9 @@ def main():
                 assert [s.strip() for s in page.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Inbox','Customers','Jobs','More']
                 shot(page, 'both-real-finance-activation')
         finance_only = new_page(); signup(finance_only, 'finance')
-        finance_only.get_by_role('button', name='Pilih Kilas Finance', exact=False).click()
-        finance_only.get_by_role('button', name='Mulai Sekarang', exact=False).click()
+        finance_only.get_by_role('button', name='Kilas Finance', exact=False).click()
+        finance_only.get_by_label('Nama bisnis', exact=True).fill('Release finance')
+        finance_only.get_by_role('button', name='Buat Bisnis', exact=False).click()
         expect(finance_only.get_by_role('heading', name='Release finance', exact=True)).to_be_visible()
         finance_bid = re.search(r'/business/(\d+)/finance', finance_only.url).group(1)
         finance_base = BASE + f'/business/{finance_bid}/finance'
@@ -204,20 +205,20 @@ def main():
             'stage': 'CUSTOMER'}, max_redirects=0)
         assert response.status == 302, response.text()
         owner.reload()
-        expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(0)
+        expect(owner.locator('[data-linked-jobs] .client-item')).to_have_count(0)
         send(visitor, 'Mau kirim 20 kg baju dari Guangzhou ke Tangerang')
         expect(visitor.locator('.web-bubble.assistant')).to_have_count(2, timeout=15000)
         owner.reload()
-        expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(1)
+        expect(owner.locator('[data-linked-jobs] .client-item')).to_have_count(1)
         owner.goto(BASE + f'/business/{bid}/inbox?channel=web')
         owner.locator('a.web-conversation').first.click()
-        expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(1)
-        job_url = BASE + owner.locator('[data-linked-jobs] a.client-item').get_attribute('href')
+        expect(owner.locator('[data-linked-jobs] .client-item')).to_have_count(1)
+        job_url = BASE + owner.locator('[data-linked-jobs] .job-heading a').first.get_attribute('href')
         inbox_url = owner.url
         send(visitor, 'Volumenya 0.2 m3')
         expect(visitor.locator('.web-bubble.assistant')).to_have_count(3, timeout=15000)
         owner.reload()
-        assert BASE + owner.locator('[data-linked-jobs] a.client-item').get_attribute('href') == job_url
+        assert BASE + owner.locator('[data-linked-jobs] .job-heading a').first.get_attribute('href') == job_url
         shot(owner, 'web-inbox-same-job-followup')
         owner.goto(job_url)
         customer_url = BASE + owner.locator('[data-job-customer]').get_attribute('href')

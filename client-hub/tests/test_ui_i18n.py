@@ -33,6 +33,13 @@ class LanguageTests(unittest.TestCase):
         with self.app.test_request_context(headers={'Cookie': 'kilas_language=invalid'}):
             self.assertEqual(ui_i18n.language(), 'id')
 
+    def test_retired_page_language_form_does_not_echo_request_identifier(self):
+        with self.app.test_request_context('/retired/private'):
+            from unittest.mock import patch
+            with patch('legacy_order_retirement.retired_endpoint', return_value=True):
+                rendered=render_template_string('{{ ui_language_return_path() }}')
+                self.assertEqual(rendered,'/products/start')
+
     def test_redirect_cannot_leave_application(self):
         for destination in ('https://example.test', '//example.test', '/\\example.test', '\\example.test', '/\nexample.test', '//[malformed'):
             with self.subTest(destination=destination):

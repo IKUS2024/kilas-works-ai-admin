@@ -24,3 +24,12 @@
 - Full source diff and whitespace checks reviewed. No financial/backend inference changes, schema migration, account/pricing/billing changes or production data reset. New backend code is limited to the UI language preference/helper plus its app registration.
 - Scoped detector advisories checked against actual rendered UI; Jinja/context and legacy design-resolution suggestions were not treated as verified defects. No full audit or automatic fixes.
 - Next: push candidate, required CI, merge current main, deploy only Client Hub, authenticated production language/navigation/Finance verification and post-QA logs.
+
+## CI follow-up — 2026-10-03
+
+- Candidate `2c8e89731ece59716e6e38e7788578bda1235586`, PR #120: Global UI jobs PASS; AI, Video, Agent, Automation, Chat, Connectors runtime, session timeout and Finance runtime jobs PASS. Release is not merged or deployed yet.
+- Fixed one new presentation regression: retired legacy pages no longer reflect URL identifiers through the language form return target. Added a focused regression test.
+- Updated obsolete Finance Home/hidden-AI assertions and active onboarding/Job card selectors without changing financial assertions. Two semantic invoice tests now use future due dates rather than expired September fixtures. Public product-entry expectation follows the existing login redirect.
+- Additional five Finance/public-entry checks PASS; localization/workspace/Finance entry 19 checks PASS; Phase 9 real-route browser matrix 220 visits PASS. Phase 10 authenticated journeys rerun in progress. Removed one remaining static AI Finance promotion in the Finance entry list; direct backend Assistant access remains tested.
+- Known pre-existing release concern: `test_assist_continuous_training.ContinuousTrainingTests.test_latest_owner_language_correction_is_normalized` fails on BOTH unmodified main `95de017` (baseline CI log job 111174337198) and candidate: owner language correction returns None rather than forced English. The training implementation is unchanged and outside this UI brief. This is a real existing defect, not a Windows/environment issue; no test skip, weaker assertion or backend fix has been introduced.
+- Production authenticated verification is pending because the earlier dedicated browser session expired. User was asked to sign in again. No production verification success is claimed.

@@ -215,14 +215,14 @@ class SemanticAgentTests(unittest.TestCase):
 
     def test_saved_invoice_reference_issue_is_separate(self):
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
-        draft=self.ask('buat invoice Wilson jasa foto 2 juta jatuh tempo 30 september')
+        draft=self.ask('buat invoice Wilson jasa foto 2 juta jatuh tempo '+(date.today()+timedelta(days=30)).isoformat())
         saved=self.save(draft);row=f.get_finance_invoice(self.b,saved['record_id']);self.assertEqual(row['status'],'DRAFT')
         issue=self.ask('terbitkan yang tadi',saved);self.assertEqual(issue['title'],'Terbitkan invoice')
         self.save(issue);self.assertEqual(f.get_finance_invoice(self.b,row['id'])['status'],'ISSUED')
 
     def test_multi_item_invoice_matches_manual_totals(self):
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
-        first=self.ask('buat invoice Wilson jasa foto 2 juta jatuh tempo 30 september')
+        first=self.ask('buat invoice Wilson jasa foto 2 juta jatuh tempo '+(date.today()+timedelta(days=30)).isoformat())
         second=self.follow(first,'tambah item video 500 ribu qty 2')
         self.assertIn('3.000.000',str(second.json['preview']))
         saved=self.save(second.json)

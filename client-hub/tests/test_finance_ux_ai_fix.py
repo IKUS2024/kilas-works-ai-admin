@@ -71,13 +71,18 @@ class FinanceUXTests(unittest.TestCase):
         self.trial()
         html = self.client.get(self.url).text
         links = [urlsplit(unescape(link)) for link in re.findall(r'href="([^"]+)"', html)]
-        self.assertEqual(sum(link.path == self.url + '/assistant' for link in links), 2)
+        self.assertEqual(sum(link.path == self.url + '/assistant' for link in links), 0)
         for text in ('AI Analyst', 'AI Operator', 'Upload File', 'Beta'):
             self.assertNotIn(text, html)
         self.assertIn('/settings', html)
         for suffix in ('reports', 'operations', 'receivables'):
             link = next(link for link in links if link.path == self.url + '/' + suffix)
             self.assertEqual(parse_qs(link.query)['branch_id'], [str(__import__('finance_branches').list_branches(self.b)[0]['id'])])
+
+    def test_finance_entry_does_not_promote_ai(self):
+        page = self.client.get('/products/finance')
+        self.assertEqual(page.status_code, 200)
+        self.assertNotIn('AI Assistant Finance', page.text)
 
     def test_assistant_keeps_existing_engines_and_routes(self):
         self.trial()

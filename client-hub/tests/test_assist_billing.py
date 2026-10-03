@@ -73,12 +73,14 @@ class BillingTests(unittest.TestCase):
         other=repo.create_user('other@test.invalid','hash')
         with self.assertRaisesRegex(ValueError,'not_found'):billing.purchase(self.bid,other,'ai_admin')
 
-    def test_signup_first_public_pricing(self):
+    def test_public_product_hub_enters_login_and_registration(self):
         page=fixture.fresh_client().get('/')
-        self.assertEqual(page.status_code,200)
-        for value in ('Starter','Pro','99.000','299.000','799.000','register'):
-            self.assertIn(value,page.text)
-        self.assertNotIn('Tidak ada trial',page.text)
+        self.assertEqual(page.status_code,302)
+        self.assertTrue(page.location.endswith('/login'))
+        login=fixture.fresh_client().get(page.location)
+        self.assertEqual(login.status_code,200)
+        self.assertIn('/register',login.text)
+        self.assertNotIn('Starter',login.text)
 
     def test_owner_checkout_post_creates_one_purchase_and_reuses_retry(self):
         repo.upsert_business_profile(self.bid,dict(category='Jasa',short_description='Foto produk',primary_language='id'))
