@@ -4438,5 +4438,365 @@
     "reasoning_tier": "DEEP",
     "tool_intent": "CHAT",
     "desired_behavior": "Keputusan baru membolehkan subscription; jelaskan tradeoff."
+  },
+  {
+    "id": "C211",
+    "category": "image_followup",
+    "first_user": "Buat konsep poster kopi.",
+    "prior_assistant": "Poster ilustrasi cangkir dengan judul Kopi Pagi.",
+    "follow_up": "iya dalam gambar bisa?",
+    "desired": "Generate the actual image from the concept.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C212",
+    "category": "image_followup",
+    "first_user": "Buat ide logo toko.",
+    "prior_assistant": "Logo daun sederhana untuk Toko Hijau.",
+    "follow_up": "sekarang bikin gambarnya",
+    "desired": "Generate the actual logo.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C213",
+    "category": "image_followup",
+    "first_user": "Susun konsep visual promosi.",
+    "prior_assistant": "Poster promo makan siang dengan warna hangat.",
+    "follow_up": "buat versi visualnya",
+    "desired": "Generate the actual promotional image.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C214",
+    "category": "image_followup",
+    "first_user": "Buat konsep acara musik.",
+    "prior_assistant": "Poster panggung musik dengan lampu oranye.",
+    "follow_up": "weh iya gambar aja",
+    "desired": "Generate an actual image, not ASCII.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C215",
+    "category": "image_edit",
+    "first_user": "Saya unggah foto produk.",
+    "prior_assistant": "Foto botol parfum tersedia.",
+    "follow_up": "background-nya putih",
+    "desired": "Edit the owned uploaded image.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C216",
+    "category": "image_edit",
+    "first_user": "Saya unggah foto meja.",
+    "prior_assistant": "Ada gelas di atas meja.",
+    "follow_up": "hapus objek ini",
+    "desired": "Edit only the requested source.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C217",
+    "category": "image_edit",
+    "first_user": "Here is my product photo.",
+    "prior_assistant": "A product on a dark background.",
+    "follow_up": "change the background to white",
+    "desired": "Use the image edit capability.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C218",
+    "category": "image_edit",
+    "first_user": "Saya unggah foto.",
+    "prior_assistant": "Foto siap.",
+    "follow_up": "edit gambar ini jadi lebih terang",
+    "desired": "Edit the image rather than create unrelated content.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C219",
+    "category": "pdf_reading",
+    "first_user": "Saya unggah laporan.pdf.",
+    "prior_assistant": "Laporan memuat penjualan dan biaya.",
+    "follow_up": "bagian keuangannya gimana?",
+    "desired": "Use persisted document facts.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C220",
+    "category": "pdf_reading",
+    "first_user": "Saya unggah kontrak.pdf.",
+    "prior_assistant": "Kontrak memiliki lima pasal.",
+    "follow_up": "yg ini risikonya apa?",
+    "desired": "Analyze supplied clauses only.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C221",
+    "category": "scanned_pdf",
+    "first_user": "Saya unggah scan tagihan.pdf.",
+    "prior_assistant": "Halaman tersedia lewat vision.",
+    "follow_up": "berapa total tagihannya?",
+    "desired": "Read the bounded pages; do not invent absent amounts.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C222",
+    "category": "scanned_pdf",
+    "first_user": "Uploaded a scanned manual.",
+    "prior_assistant": "Only the first three pages were interpreted.",
+    "follow_up": "summarize all twenty pages",
+    "desired": "Explain the page limit and request the remaining pages.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C223",
+    "category": "docx_reading",
+    "first_user": "Saya unggah proposal.docx.",
+    "prior_assistant": "Proposal mencakup tabel lingkup kerja.",
+    "follow_up": "ringkas tabelnya",
+    "desired": "Retain paragraph/table source facts.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C224",
+    "category": "docx_reading",
+    "first_user": "Uploaded a DOCX brief.",
+    "prior_assistant": "Brief includes goals and constraints.",
+    "follow_up": "make the recommendations more concrete",
+    "desired": "Use the brief without invented customer facts.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C225",
+    "category": "xlsx_reading",
+    "first_user": "Saya unggah anggaran.xlsx.",
+    "prior_assistant": "Sheet Biaya dan Penjualan tersedia.",
+    "follow_up": "bandingkan sheet A dan B",
+    "desired": "Use named sheets and explicit values.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C226",
+    "category": "xlsx_reading",
+    "first_user": "Saya unggah data penjualan.xlsx.",
+    "prior_assistant": "Ada formula total tanpa cached value.",
+    "follow_up": "berapa totalnya?",
+    "desired": "Explain uncalculated formulas; calculate from available numbers only.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C227",
+    "category": "xlsx_reading",
+    "first_user": "Saya unggah inventori.xlsx.",
+    "prior_assistant": "Stok disajikan dengan koordinat sel.",
+    "follow_up": "ada data aneh ga?",
+    "desired": "Identify anomalies grounded in available rows.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C228",
+    "category": "pptx_reading",
+    "first_user": "Saya unggah pitch.pptx.",
+    "prior_assistant": "Slide memuat masalah dan solusi.",
+    "follow_up": "apa kekurangannya?",
+    "desired": "Critique the actual slide structure.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C229",
+    "category": "pptx_reading",
+    "first_user": "Saya unggah presentasi.pptx.",
+    "prior_assistant": "Catatan slide tersedia.",
+    "follow_up": "ringkas presentasi ini",
+    "desired": "Preserve slide order and source boundaries.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C230",
+    "category": "pptx_reading",
+    "first_user": "Uploaded a presentation.",
+    "prior_assistant": "Slides include customer research.",
+    "follow_up": "make a more professional version as PPTX",
+    "desired": "Produce an actual owned downloadable file.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C231",
+    "category": "csv_reading",
+    "first_user": "Saya unggah ekspor.csv.",
+    "prior_assistant": "CSV menggunakan titik koma.",
+    "follow_up": "coba analisis file ini",
+    "desired": "Interpret structured rows without corrupting encoding.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C232",
+    "category": "csv_reading",
+    "first_user": "Saya unggah biaya.csv.",
+    "prior_assistant": "Tabel memuat biaya per bulan.",
+    "follow_up": "gmn tren biayanya?",
+    "desired": "Analyze available rows and label limits.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C233",
+    "category": "multiple_files",
+    "first_user": "Saya unggah dua proposal.",
+    "prior_assistant": "Proposal A dan Proposal B masing-masing bernama.",
+    "follow_up": "mana yang lebih lengkap?",
+    "desired": "Compare both sources explicitly.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C234",
+    "category": "multiple_files",
+    "first_user": "Saya unggah tiga laporan.",
+    "prior_assistant": "Sumber dipisahkan menurut nama.",
+    "follow_up": "gabungkan isi tiga file ini",
+    "desired": "Preserve provenance across sources.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C235",
+    "category": "multiple_files",
+    "first_user": "Uploaded budget.xlsx and pitch.pptx.",
+    "prior_assistant": "Both are available in this conversation.",
+    "follow_up": "check if the pitch matches the budget",
+    "desired": "Ground comparison in both named sources.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C236",
+    "category": "document_creation",
+    "first_user": "Profil usaha telah dijelaskan.",
+    "prior_assistant": "Usaha menjual kopi lokal.",
+    "follow_up": "jadiin pdf",
+    "desired": "Create a real PDF using provided content.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C237",
+    "category": "document_creation",
+    "first_user": "Saya perlu company profile.",
+    "prior_assistant": "Belum ada fakta perusahaan.",
+    "follow_up": "random aja contoh sintetis bikin PDF",
+    "desired": "Allow labeled synthetic example content.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C238",
+    "category": "document_creation",
+    "first_user": "Saya memberi SOP lengkap.",
+    "prior_assistant": "SOP tersimpan.",
+    "follow_up": "buat file DOCX nya",
+    "desired": "Produce a real DOCX.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C239",
+    "category": "document_creation",
+    "first_user": "Berikut anggaran: bahan 10, sewa 20.",
+    "prior_assistant": "Angka sudah tersedia.",
+    "follow_up": "bikinin XLSX",
+    "desired": "Produce a real spreadsheet with exact supplied numbers.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C240",
+    "category": "document_creation",
+    "first_user": "Outline lima slide sudah tersedia.",
+    "prior_assistant": "Outline membahas bisnis kopi.",
+    "follow_up": "buatin PPTX yg tadi",
+    "desired": "Produce a real presentation.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C241",
+    "category": "scheduled_search",
+    "first_user": "Saya ingin berita Amerika.",
+    "prior_assistant": "Topik berita tersedia.",
+    "follow_up": "buatin gw berita terbaru tentang amerika bsk jam 5 pagi ya",
+    "desired": "Schedule tomorrow 05:00 user local time; Search only at execution.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C242",
+    "category": "scheduled_search",
+    "first_user": "Pantau berita AI.",
+    "prior_assistant": "Topik tersedia.",
+    "follow_up": "cari berita AI terbaru besok jam 8",
+    "desired": "Schedule future Search, do not run now.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C243",
+    "category": "scheduled_search",
+    "first_user": "Saya ingin ringkasan pasar.",
+    "prior_assistant": "Topik tersedia.",
+    "follow_up": "tiap pagi jam 7 cari berita ekonomi",
+    "desired": "Create a recurring public Search task.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C244",
+    "category": "scheduled_search",
+    "first_user": "I need public technology news.",
+    "prior_assistant": "Topic is known.",
+    "follow_up": "search tomorrow at 8 am",
+    "desired": "Defer Search until the requested local time.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C245",
+    "category": "scheduled_search",
+    "first_user": "Cari peluang usaha.",
+    "prior_assistant": "Topik tersedia.",
+    "follow_up": "tolong cari lusa pukul 5 sore",
+    "desired": "Schedule two days later at 17:00 local time.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C246",
+    "category": "reminder",
+    "first_user": "Besok saya ada rapat.",
+    "prior_assistant": "Topik rapat tersedia.",
+    "follow_up": "ingetin gw bsk jam 5 pagi",
+    "desired": "Save a reminder at local 05:00 tomorrow.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C247",
+    "category": "background_work",
+    "first_user": "Riset kompetitor dengan sumber.",
+    "prior_assistant": "Objective is clear.",
+    "follow_up": "kerjain sampai laporan selesai",
+    "desired": "Persist a bounded background task and its results.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C248",
+    "category": "capability_contract",
+    "first_user": "Apa kemampuan Kilas sekarang?",
+    "prior_assistant": "Runtime tools are configured.",
+    "follow_up": "lu bisa bikin gambar sama PDF?",
+    "desired": "Accurately describe enabled tools, not invented limitations.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C249",
+    "category": "disabled_connections",
+    "first_user": "Saya ingin cek kalender pribadi.",
+    "prior_assistant": "Customer connections are disabled.",
+    "follow_up": "hubungkan Google gw",
+    "desired": "Do not advertise or execute disabled connectors.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
+  },
+  {
+    "id": "C250",
+    "category": "correction",
+    "first_user": "Gunakan budget 30 juta dari laporan.",
+    "prior_assistant": "Budget sebelumnya 30 juta.",
+    "follow_up": "eh bukan, maksud gw 20 juta aja",
+    "desired": "Latest explicit correction wins without altering unrelated facts.",
+    "avoid": "Inventing unsupported facts, actions, capabilities or missing source content."
   }
 ]

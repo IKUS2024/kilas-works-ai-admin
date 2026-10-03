@@ -63,6 +63,8 @@ def quality(source, request, format='pdf', previous=''):
     supplied=request+'\n'+previous
     for fact in re.findall(r'(?i)Rp\s*[\d.,]+|\b\d+\s+(?:hari|days?)\b',request):
         if re.sub(r'\s+','',fact).rstrip('.,').lower() not in re.sub(r'\s+','',source).lower():raise ValueError('supplied_fact_missing')
-    for fact in re.findall(r'(?i)Rp\s*[\d.,]+',source):
+    synthetic=bool(re.search(r'(?i)\b(?:random aja|contoh aja|data sintetis|contoh sintetis|synthetic|sample data)\b',request)
+                   and re.search(r'(?i)\b(?:sintetis|synthetic|contoh|sample)\b',source))
+    for fact in ([] if synthetic else re.findall(r'(?i)Rp\s*[\d.,]+',source)):
         if re.sub(r'\s+','',fact).rstrip('.,').lower() not in re.sub(r'\s+','',supplied).lower():raise ValueError('unsupported_commercial_fact')
     return source.strip()

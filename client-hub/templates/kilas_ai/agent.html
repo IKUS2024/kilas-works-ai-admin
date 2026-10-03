@@ -10,7 +10,7 @@
     <form method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" class="agent-new-chat"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">Chat baru</button></form>
     <nav class="ai-history agent-chats" aria-label="Chat terbaru"><h2 class="ai-history-heading">Terbaru</h2>{% for chat in recent_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}" {% if view=='chat' and chat.id==conversation.id %}aria-current="page"{% endif %}>{{ chat.title }}</a>{% endfor %}<a href="{{ url_for('kilas_ai.agent_home',view='history') }}">Riwayat</a></nav>
     <nav class="agent-sections" aria-label="Bagian Kilas AI">
-      <a href="{{ url_for('kilas_ai.agent_home',view='settings') }}" {% if view=='settings' %}aria-current="page"{% endif %}>Preferensi AI</a>
+      <a href="{{ url_for('kilas_ai.agent_home',view='settings') }}" {% if view=='settings' %}aria-current="page"{% endif %}>Pengaturan AI</a>
     </nav>
     <div class="premium-sidebar-account"><a href="{{ url_for('auth.logout_page') }}">Keluar</a></div>
   </aside>
@@ -19,7 +19,7 @@
     {% set ai_mode = 'agent' %}
     {% include 'kilas_ai/_app_header.html' %}
     <section class="agent-content">
-    {% if error %}<p class="auto-error" role="alert">{{ {'message':'Tulis pesan hingga 1.200 karakter.','expired':'Konfirmasi sudah kedaluwarsa. Minta lagi lewat chat.','action':'Tugas belum bisa diubah. Periksa statusnya lalu coba lagi.','approval_expired':'Persetujuan sudah kedaluwarsa. Siapkan tindakan lagi.','approval_already_used':'Tindakan ini sudah pernah dikonfirmasi atau dibatalkan.','reauth_required':'Izin Google berakhir. Hubungkan ulang lewat Koneksi.','permission_missing':'Izin untuk tindakan ini belum tersedia. Kelola izin di Koneksi.','provider_unavailable':'Layanan belum merespons. Hasil tindakan belum dapat dipastikan.','provider_outcome_uncertain':'Hasil dari layanan belum pasti. Periksa layanan terkait sebelum mencoba lagi.','rate_limited':'Layanan sedang membatasi permintaan. Coba lagi nanti.','invalid_target':'Tujuan tindakan tidak ditemukan.'}.get(error,'Permintaan belum bisa diproses.') }}</p>{% endif %}
+    {% if error %}<p class="auto-error" role="alert">{{ {'message':'Tulis pesan hingga 1.200 karakter.','expired':'Konfirmasi sudah kedaluwarsa. Minta lagi lewat chat.','action':'Tugas belum bisa diubah. Periksa statusnya lalu coba lagi.','approval_expired':'Persetujuan sudah kedaluwarsa. Siapkan tindakan lagi.','approval_already_used':'Tindakan ini sudah pernah dikonfirmasi atau dibatalkan.','reauth_required':'Akses akun eksternal belum tersedia di Kilas AI.','permission_missing':'Tindakan ini belum tersedia di Kilas AI.','provider_unavailable':'Layanan belum merespons. Hasil tindakan belum dapat dipastikan.','provider_outcome_uncertain':'Hasil dari layanan belum pasti. Periksa layanan terkait sebelum mencoba lagi.','rate_limited':'Layanan sedang membatasi permintaan. Coba lagi nanti.','invalid_target':'Tujuan tindakan tidak ditemukan.'}.get(error,'Permintaan belum bisa diproses.') }}</p>{% endif %}
     {% if view == 'chat' %}
       <header class="agent-section-head"><div><h2>{{ conversation.title if messages else 'Chat baru' }}</h2></div><details class="agent-rename"><summary aria-label="Ubah nama chat"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></summary><form method="post" action="{{ url_for('kilas_ai.agent_rename_chat',conversation_id=conversation.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="chat-title">Nama chat</label><input id="chat-title" name="title" value="{{ conversation.title }}" maxlength="60" required><button type="submit">Simpan</button></form></details></header>
       <div class="agent-conversation" id="agent-conversation" aria-live="polite">
@@ -57,22 +57,6 @@
       <nav class="agent-chats" aria-label="Riwayat percakapan">{% for chat in history_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}">{{ chat.title }}</a>{% endfor %}</nav>
       {% if legacy_chats %}<nav class="agent-chats" aria-label="Percakapan sebelumnya"><h3>Percakapan sebelumnya</h3>{% for chat in legacy_chats %}<a href="{{ url_for('kilas_ai.thread_page',thread_id=chat.id) }}">{{ chat.title }}</a>{% endfor %}</nav>{% endif %}
       <nav class="auto-actions" aria-label="Halaman riwayat">{% if history_page > 1 %}<a class="autonomous-back" href="{{ url_for('kilas_ai.agent_home',view='history',page=history_page-1) }}">Sebelumnya</a>{% endif %}{% if more_chats %}<a class="autonomous-back" href="{{ url_for('kilas_ai.agent_home',view='history',page=history_page+1) }}">Berikutnya</a>{% endif %}</nav>
-    {% elif view=='connections' %}
-      <section class="premium-connections">
-        <header class="agent-section-head"><h2>Connections</h2></header>
-        <p>Hubungkan akun untuk menyelesaikan pekerjaan lewat Kilas. Setiap pengiriman email tetap memerlukan persetujuan kamu.</p>
-        <section class="premium-connection" aria-labelledby="google-connection-title">
-          <div class="premium-connection-head"><h3 id="google-connection-title">Google</h3><span class="premium-connection-status {{ 'connected' if google_status and google_status.status=='CONNECTED' }}">{{ 'Terhubung' if google_status and google_status.status=='CONNECTED' else 'Belum terhubung' }}</span></div>
-          <p>Kirim email melalui Gmail, setelah kamu memeriksa dan menyetujui isinya.</p>
-          {% if google_status and google_status.status=='CONNECTED' %}
-            <p>{{ google_status.display_identity }}</p>
-            <form method="post" action="{{ url_for('kilas_ai.connector_google_disconnect') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary" type="submit">Putuskan koneksi Google</button></form>
-          {% else %}
-            <form method="post" action="{{ url_for('kilas_ai.connector_google_begin',service='gmail') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit" {{ 'disabled' if not google_ready }}>Hubungkan Google</button></form>
-            {% if not google_ready %}<p>Koneksi Google belum tersedia. Coba lagi nanti.</p>{% endif %}
-          {% endif %}
-        </section>
-      </section>
     {% elif view=='settings' %}
       <header class="agent-section-head"><h2>Pengaturan Kilas AI</h2></header>
       <form class="work-preferences" data-work-preferences><label for="work-timezone">Zona waktu</label><input id="work-timezone" name="timezone" value="{{ timezone }}" required maxlength="80" placeholder="Asia/Jakarta"><p>Jadwal menggunakan zona waktu ini. Contoh: Asia/Jakarta, Asia/Makassar, Asia/Jayapura.</p><button type="submit">Simpan zona waktu</button><p role="status" data-preference-status></p></form>

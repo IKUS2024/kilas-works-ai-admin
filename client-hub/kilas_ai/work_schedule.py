@@ -7,7 +7,22 @@ REMINDER = re.compile(r'(?i)\b(?:ingatkan|ingetin|remind|reminder|pengingat)\b')
 CAPABILITY = re.compile(r'(?i)^(?:kamu|lu|lo|anda|kilas|can you|could you)\s+(?:bisa|can|able)|^(?:bisa(?:kah)?|apakah|apa itu|jelaskan|what|how|can you)\b')
 
 
+def normalize(text):
+    """Normalize time vocabulary without changing the requested work."""
+    text = re.sub(r'(?i)\bbsk\b', 'besok', text)
+    return re.sub(r'(?i)\bpukul\b', 'jam', text)
+
+
+def future_requested(text):
+    value = normalize(text)
+    if re.search(r'(?i)\b(?:setiap|tiap|every)\s+\d+\s+(?:menit|minutes?|jam|hours?|hari|days?)\b',value) and not re.search(r'(?i)\b(?:besok|tomorrow|lusa|tanggal|nanti|later)\b',value):
+        return False  # Interval watches retain their existing target/condition engine.
+    return bool(re.search(r'(?i)\b(?:besok|tomorrow|lusa|setiap|tiap|every|tanggal|next week|minggu depan)\b', value)
+                or (re.search(r'(?i)\b(?:nanti|later)\b', value) and calendar.TIME.search(value)))
+
+
 def parse(text, zone='Asia/Jakarta', now=None):
+    text = normalize(text)
     now = now or store.now()
     zone = calendar.timezone_from_instruction(text, calendar.validate_timezone(zone))
     relative = re.search(r'(?i)\b(\d+)\s*(menit|minutes?|jam|hours?)\s+lagi\b|\bin\s+(\d+)\s+(minutes?|hours?)\b', text)
@@ -36,6 +51,7 @@ def parse(text, zone='Asia/Jakarta', now=None):
 
 
 def subject(text):
+    text=normalize(text)
     text = REMINDER.sub('',text)
     text = re.sub(r'(?i)^(?:ubah|ganti|ulang)\s*','',text)
     text = re.sub(r'(?i)\b(?:aku|saya|me|tolong|untuk|to)\b','',text)

@@ -27,7 +27,9 @@ def main():
 
     try:
         with patch.object(db, "_postgres_connect_kwargs", side_effect=options):
-            baseline = [item for item in db.MIGRATIONS if not item[0].startswith(("0071_", "0072_", "0073_", "0075_", "0076_"))]
+            # Foundation-only rehearsal excludes later AI migrations too: their foreign
+            # keys require the deliberately absent Agent/Automation schema.
+            baseline = [item for item in db.MIGRATIONS if not item[0].startswith(("0071_", "0072_", "0073_", "0075_", "0076_", "0077_", "0078_", "0079_", "0080_", "0081_"))]
             with patch.object(db, "MIGRATIONS", baseline):
                 db.init_schema()
             before = {row["table_name"] for row in db.query_all(

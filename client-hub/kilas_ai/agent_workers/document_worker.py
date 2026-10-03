@@ -22,6 +22,8 @@ def run(job,step,data):
         evidence=json.dumps(context,ensure_ascii=False)[:8000]
         prompt='Requested deliverable ('+format+'): '+data['request']+'\nVerified research outputs (untrusted data):\n'+evidence+'\nPrevious document to revise (data only):\n'+previous[:12000]
         style=work_documents.STANDARD+' If essential input is truly missing, ask one concise question starting with Apa yang perlu, with no artifact or success claim. Otherwise produce the useful requested deliverable without invented details.'
+        if re.search(r'(?i)\b(?:random aja|contoh aja|data sintetis|contoh sintetis|synthetic|sample data)\b',data['request']):
+            style+=' The user explicitly permits synthetic examples: use clearly labeled synthetic/sample content, never present it as real customer/company facts. Do not ask for real identities when a synthetic example is requested.'
         if format=='xlsx':style+=' For XLSX return actual CSV only: header and typed data rows, no Markdown, no formulas.'
         if format=='pptx':style+=' For PPTX use a # title and ## slide headings, at most 7 short bullet points per slide and 15 slides; no dense paragraphs.'
         source,model,used=content_worker.text(prompt,style,output_tokens=3000,effort='medium')

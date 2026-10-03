@@ -90,7 +90,7 @@ class WorkV2Tests(unittest.TestCase):
         self.assertNotIn('Pekerjaan aktif',html)
         self.assertNotIn('view=notifications',html)
         self.assertIn(f'data-job-id="{active}"',html)
-        self.assertIn('Connections',html)
+        self.assertNotIn('>Connections</a>',html)
         self.assertNotIn('Advanced settings',html)
         self.assertNotIn('autonomous_mode',html)
         self.assertIn('Kondisi terpantau terpenuhi.',self.client().get('/kilas-ai/agent?view=notifications').text)
@@ -281,7 +281,7 @@ class WorkV2Tests(unittest.TestCase):
         sheet=work_office.render('Jumlah,Harga\n0,0','xlsx')
         self.submit('Buat proposal PDF dari dokumen ini',source_files=(io.BytesIO(sheet['content']),'source.xlsx',sheet['mime_type']))
         sheet_job=f.fixture.store.list_jobs(self.owner)[0]
-        self.assertIn('0, 0',json.loads(sheet_job['checkpoint_json'])['source_materials'][0]['text'])
+        self.assertIn('A2=0 | B2=0',json.loads(sheet_job['checkpoint_json'])['source_materials'][0]['text'])
         f.fixture.store.control(self.owner,sheet_job['id'],'stop')
         file=work_office.render('# Source\n\n## Facts\nVerified facts about Kilas Works.','docx')
         self.submit('Buat proposal PDF dari dokumen ini',source_files=(io.BytesIO(file['content']),'source.docx',file['mime_type']))

@@ -38,6 +38,13 @@ def main():
             new=chats.new_conversation(owner)
             assert chats.messages(owner,conversation_id=new)==[]
             chats.append(owner,'user','New conversation message',new)
+            from kilas_ai import agent_attachments
+            chats.append(owner,'user','Analyze synthetic document',new,attachments=[{
+                'filename':'qa.txt','mime_type':'text/plain','byte_size':14,
+                'content':b'synthetic fact','extracted_text':'synthetic fact'}])
+            assert agent_attachments.sources(owner,new)==[{'filename':'qa.txt','text':'synthetic fact'}]
+            assert agent_attachments.sources(owner+100000,new)==[]
+            assert agent_attachments.sources(owner,historical)==[]
             assert chats.claim_request(owner,new,'operation-12345678')
             assert not chats.claim_request(owner,new,'operation-12345678')
             linked=jobs.create(owner,'New linked task',conversation_id=new)

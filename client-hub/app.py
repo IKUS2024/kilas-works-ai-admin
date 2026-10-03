@@ -397,7 +397,8 @@ def create_app():
         if session.get("user_id"):
             if session.get("role") == "KILAS_ADMIN":
                 return redirect(url_for("admin.dashboard"))
-            return redirect(url_for("workspace.home"))
+            session['active_product'] = 'kilas_ai'
+            return redirect(url_for("products.product_start"))
         # app.kilasworks.id is the authenticated product hub, not a Kilas Assist
         # marketing surface. The existing login page already exposes the Login/Daftar
         # tabs and Google sign-in, so unauthenticated visitors should enter there.

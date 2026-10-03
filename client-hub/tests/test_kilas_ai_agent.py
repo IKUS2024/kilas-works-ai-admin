@@ -41,9 +41,11 @@ class AgentTests(unittest.TestCase):
         client=self.client_for(self.owner)
         body=client.get('/kilas-ai/agent').text
         self.assertIn('Chat baru',body)
-        self.assertIn('Connections',body)
+        self.assertNotIn('Connections',body)
         self.assertNotIn('Advanced settings',body)
-        self.assertEqual(client.get('/kilas-ai/agent?view=connections').status_code,200)
+        response=client.get('/kilas-ai/agent?view=connections')
+        self.assertEqual(response.status_code,303)
+        self.assertTrue(response.location.endswith('/kilas-ai/agent'))
         self.assertIn('Kilas Finance',client.get('/products/start').text)
         self.assertNotIn('Pilih Kilas Assist',client.get('/products/start').text)
         self.assertNotEqual(client.get('/products/assist').status_code,404)

@@ -27,20 +27,41 @@ def prepare_many(files, plan):
             if extension=='xlsx':
                 from openpyxl import load_workbook
                 book=load_workbook(io.BytesIO(raw),read_only=True,data_only=False,keep_links=False)
+                cached=load_workbook(io.BytesIO(raw),read_only=True,data_only=True,keep_links=False)
                 try:
                     parts=[]
                     for sheet in book.worksheets[:5]:
-                        for row in sheet.iter_rows(max_row=200,max_col=20):
-                            if any(c.data_type=='f' for c in row):raise ValueError('formula_input')
-                            parts.append(', '.join(str(c.value if c.value is not None else '')[:200] for c in row))
+                        parts.append('Sheet: '+sheet.title+' (first 200 rows / 20 columns)')
+                        values=cached[sheet.title].iter_rows(max_row=200,max_col=20)
+                        for number,(row,calculated) in enumerate(zip(sheet.iter_rows(max_row=200,max_col=20),values),1):
+                            cells=[]
+                            for cell,value in zip(row,calculated):
+                                if cell.value is None:continue
+                                content=str(cell.value)[:200]
+                                if cell.data_type=='f':
+                                    content+=' [cached value: '+str(value.value)[:200]+ '; not recalculated]'
+                                cells.append(cell.coordinate+'='+content)
+                            if cells:parts.append('Row '+str(number)+': '+' | '.join(cells))
                     text='\n'.join(parts)
-                finally:book.close()
+                finally:
+                    book.close()
+                    cached.close()
             else:
                 from pptx import Presentation
                 deck=Presentation(io.BytesIO(raw))
-                text='\n'.join(shape.text for slide in list(deck.slides)[:30] for shape in slide.shapes if shape.has_text_frame)
+                parts=[]
+                for number,slide in enumerate(list(deck.slides)[:30],1):
+                    parts.append('Slide '+str(number))
+                    for shape in slide.shapes:
+                        if shape.has_text_frame:parts.append(shape.text)
+                        if shape.has_table:
+                            parts.extend(' | '.join(cell.text[:200] for cell in row.cells[:20]) for row in list(shape.table.rows)[:100])
+                    if slide.has_notes_slide:
+                        notes=slide.notes_slide.notes_text_frame
+                        if notes and notes.text.strip():parts.append('Notes: '+notes.text)
+                text='\n'.join(parts)
             file.update(byte_size=len(raw),extracted_text=text[:12000])
             result.append(file)
         except Exception:
-            raise attachments.AttachmentError('File Office tidak dapat dibaca dengan aman. Gunakan file tanpa macro, formula atau tautan eksternal.') from None
+            raise attachments.AttachmentError('File Office tidak dapat dibaca dengan aman. Gunakan file tanpa macro atau tautan eksternal.') from None
     return result

@@ -238,7 +238,7 @@ class CostQualityTests(unittest.TestCase):
 
     def test_runtime_standard_and_offline_corpus_are_separate(self):
         cases=json.loads((Path(__file__).parent/'fixtures/kilas_conversation_standard.json').read_text(encoding='utf-8'))
-        self.assertGreaterEqual(len(cases),200)
+        self.assertGreaterEqual(len(cases),250)
         self.assertEqual(len({c['id'] for c in cases}),len(cases))
         self.assertLess(len(conversation_standard.SYSTEM),4000)
         for c in cases:

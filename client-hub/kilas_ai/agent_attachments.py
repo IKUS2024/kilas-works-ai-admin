@@ -8,6 +8,37 @@ import db
 from . import usage
 
 
+def sources(user_id, conversation_id):
+    """Bounded document context from this owner's conversation, never binary replay."""
+    rows=db.query_all(
+        'SELECT a.filename,a.extracted_text FROM kilas_ai_agent_messages m '
+        "JOIN kilas_ai_messages b ON b.operation_key=('agent-attachments:' || CAST(m.id AS TEXT)) "
+        'JOIN kilas_ai_threads t ON t.id=b.thread_id AND t.user_id=m.user_id '
+        'JOIN kilas_ai_attachments a ON a.message_id=b.id AND a.thread_id=t.id AND a.user_id=m.user_id '
+        'WHERE m.user_id=? AND m.conversation_id=? AND a.extracted_text IS NOT NULL '
+        'ORDER BY m.id DESC,a.id DESC LIMIT 5', (user_id,conversation_id))
+    budget=12000
+    result=[]
+    for row in rows:
+        value=row['extracted_text'][:min(4000,budget)]
+        if value:result.append({'filename':row['filename'],'text':value})
+        budget-=len(value)
+        if budget<=0:break
+    return list(reversed(result))
+
+
+def latest_scan(user_id,conversation_id):
+    """Only the latest owned scan; bounded rasterization repeats on explicit follow-up."""
+    row=db.query_one(
+        'SELECT a.filename,a.content FROM kilas_ai_agent_messages m '
+        "JOIN kilas_ai_messages b ON b.operation_key=('agent-attachments:' || CAST(m.id AS TEXT)) "
+        'JOIN kilas_ai_threads t ON t.id=b.thread_id AND t.user_id=m.user_id '
+        'JOIN kilas_ai_attachments a ON a.message_id=b.id AND a.thread_id=t.id AND a.user_id=m.user_id '
+        "WHERE m.user_id=? AND m.conversation_id=? AND a.mime_type='application/pdf' "
+        "AND a.extracted_text LIKE '%PDF scan:%' ORDER BY m.id DESC,a.id DESC LIMIT 1",(user_id,conversation_id))
+    return dict(row) if row else None
+
+
 def save(conn, user_id, message_id, prepared):
     if not prepared:
         return
