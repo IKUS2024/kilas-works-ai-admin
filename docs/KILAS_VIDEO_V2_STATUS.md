@@ -1,4 +1,4 @@
-﻿# Kilas Video Director V2 status
+# Kilas Video Director V2 status
 
 Starting remote main: bb751ceee6637e807be0dc93adf4ec5cbd08fca2. Work branch: feature/kilas-video-director-v2-20261003.
 
@@ -10,3 +10,15 @@ Eight-width browser replacement chain and all incumbent Video journeys PASS. A f
 
 Release gates: feature CI run 37103148124 completed successfully (focused existing regressions, eight-width browser journeys, native PostgreSQL). Independent Impeccable finish disposition: ship, after corrected copy-feedback captures at all eight widths. Scoped V2 design documentation updated; no global design repair. Final diff reviewed: Video source/templates/styles/tests/workflow and scoped documentation only; Finance, Assist, global model policy, schema/migrations and service configuration unchanged. Remote main remains the starting SHA. Production generation and deployment are still pending.
 
+
+## Production release checkpoint ? 2026-10-03
+
+Status: DEPLOYED; AUTHENTICATED PRODUCTION QA PENDING. This checkpoint supersedes earlier pending deployment notes.
+
+Direct fast-forward merge to main (authorized; no PR): b06796b7cf06639d43a6de4e67ec0b32626a478c. All 16 triggered main jobs passed: Video QA 37103645454 (3), Autonomous Agent QA 37103645458 (4), Automation QA 37103645446 (4), AI Focused QA 37103645456 (3), Chat Quality V2 QA 37103645457 (2). The earlier feature Video QA 37103148124 also passed all 3 jobs. Local coverage is 22 incumbent Video tests + 13 new V2 tests and 320 deterministic offline evaluations; no claim of 320 live-provider results.
+
+Only kilas-works-client-hub / srv-da7ti2psrm7s73dh9i2g was deployed. Render deploy dep-db0a82ad0e5s73aola7g is LIVE at 2026-10-03T06:43:58.442547Z with the exact main SHA above. No AI Admin/Cron deployment, new resource, migration or production reset. /healthz returned HTTP 200 with PostgreSQL/status ok; V2 CSS and JS returned HTTP 200 and were checked for current implementation markers. Error-level and Traceback/Exception/ERROR log queries from LIVE through 06:44:55Z were empty. /health is not the application's health route and returns 404; /healthz is the verified endpoint.
+
+Authenticated QA cannot yet run: the dedicated existing CDP 9333 verification browser currently redirects to login. Its authorized window was brought to the front and the owner was asked to sign in with the controlled QA account. No authentication bypass, password change or stored credential disclosure was attempted. Actual production mobil -> baju -> makanan, provider creative quality, English prompts/copy, UGC revision, persistence, eight-width layout and post-release AI/Finance verification remain PENDING. The existing gpt-6.1-sol complex planner is selected only for Video; production provider availability for this new two-call Video path is not yet demonstrated.
+
+Resume after controlled sign-in using %TEMP%/kilas-video-v2-production-qa.py. It creates one synthetic project/reference and four revisions through real UI/provider requests; it does not modify unrelated customer data. Then inspect actual public prompts/directions, run a synthetic AI chat check and read-only Finance page checks, recheck Render logs, and update this checkpoint. No redeployment is needed unless a real regression is found. Previous V1 Finance invoices overflow (21px at 320px, 9px at 768px) remains a known unrelated limitation; it has not yet been retested on V2. Existing unrelated dirty release documents remain excluded.
