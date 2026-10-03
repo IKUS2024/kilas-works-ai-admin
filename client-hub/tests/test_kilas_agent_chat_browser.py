@@ -13,7 +13,7 @@ os.environ.pop('DATABASE_URL',None)
 import app
 import repo
 import db
-from kilas_ai import autonomous_store as jobs, providers, autonomous_planner
+from kilas_ai import autonomous_store as jobs, providers, autonomous_planner, autonomous_runner
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 
@@ -27,7 +27,9 @@ def main():
     threading.Thread(target=server.serve_forever,daemon=True).start()
     origin=f'http://127.0.0.1:{server.server_port}'
     try:
-        with patch.object(providers,'stream',side_effect=reply),sync_playwright() as pw:
+        # This interaction test checks the persisted planning card; worker execution
+        # is covered separately and must not race the browser's start request.
+        with patch.object(providers,'stream',side_effect=reply),patch.object(autonomous_runner,'execute'),sync_playwright() as pw:
             browser=pw.chromium.launch(headless=True)
             for width,height in [(1440,900),(820,900),(390,844),(320,700)]:
                 owner=repo.create_user(f'chat-browser-{width}@example.test','hash')
