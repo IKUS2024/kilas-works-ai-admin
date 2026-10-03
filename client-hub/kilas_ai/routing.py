@@ -26,6 +26,8 @@ def _normalize(content):
     text = re.sub(r"\b(?:gambarinn|gambarin)\b", "buat gambar", text)
     text = re.sub(r"\b(?:gambarkan|gambarin|gamabar|gmbar|gmbaar|gambarr)\b", "gambar", text)
     text = re.sub(r"\bgambarnya\b", "gambar", text)
+    text = re.sub(r"\bvisualnya\b", "visual", text)
+    text = re.sub(r"\bbackground-nya\b", "background", text)
     text = re.sub(r"\bpdf(?:-?nya)\b", "pdf", text)
     return text
 
@@ -104,7 +106,7 @@ def tool_for(content, attachments=(), *, search=False, pdf_request=False,
         return "IMAGE_GENERATE"
     if not has_image and re.match(r"^gambar\s+(?!ini\b|itu\b|apa\b|yang\b|tersebut\b)\S+", text):
         return "IMAGE_GENERATE"
-    if previous_answer and re.search(r'\b(?:logo|poster|banner|ilustrasi|gambar|visual)\b',previous_answer,re.I) and re.search(r'\b(?:buat|gambar|lebih premium|lebih simple|warna orange)\b',text) and len(text)<120:
+    if previous_answer and re.search(r'\b(?:logo|poster|banner|ilustrasi|gambar|visual)\b',previous_answer,re.I) and re.search(r'\b(?:buat|gambar|visual|lebih premium|lebih simple|warna orange)\b',text) and len(text)<120:
         return "IMAGE_GENERATE"
     if not previous_answer and re.fullmatch(r'(?:buat|tolong buat|buat dong|ubah ini)[.!?]*',text):
         return "CLARIFY"
@@ -116,7 +118,7 @@ def image_prompt(content, previous_answer=""):
     if (previous_answer and len(content) <= 120 and
             re.search(r"\b(?:gambarnya|visualnya|sekarang|tadi|dari konsep|konsep itu|dari ide)\b", content.lower()) and
             re.search(r"\b(?:logo|wordmark|poster|banner|gambar|ilustrasi|desain|visual|image|foto)\b", previous_answer.lower())):
-        return "Konsep sebelumnya:\n" + previous_answer[:1800] + "\n\nBuat gambar sesuai permintaan terbaru: " + content
+        return "Konsep sebelumnya:\n" + previous_answer[:800] + "\n\nBuat gambar sesuai permintaan terbaru: " + content
     return content
 
 

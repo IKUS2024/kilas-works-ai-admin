@@ -34,7 +34,7 @@ def main():
         with patch.dict(os.environ, {'KILAS_FINANCE_BETA': 'on'}), sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             cookie = case.client().get_cookie('session')
-            for width in (320, 360, 390, 768, 820, 1024, 1440):
+            for width in (320, 360, 390, 430, 768, 820, 1024, 1440):
                 context = browser.new_context(viewport={'width': width, 'height': 1000}, has_touch=width < 761, reduced_motion='reduce')
                 page = context.new_page()
                 errors = []
@@ -90,9 +90,8 @@ def main():
                     page.keyboard.press('Escape')
                     assert page.locator('.premium-sidebar').evaluate('e=>e.inert')
                 capture('connections', '/kilas-ai/agent?view=connections')
-                expect(page.get_by_role('heading', name='Google', exact=True)).to_be_visible()
-                expect(page.get_by_role('button', name='Hubungkan Google', exact=True)).to_be_visible()
-                assert page.locator('.premium-connections').get_by_text('Calendar').count() == 0
+                expect(page.get_by_role('button', name='Hubungkan Google', exact=True)).to_have_count(0)
+                expect(page.get_by_role('link', name='Connections', exact=True)).to_have_count(0)
                 capture('preferences', '/kilas-ai/agent?view=settings')
                 capture('schedules', '/kilas-ai/automation')
                 capture('schedule-form', '/kilas-ai/automation/new')
@@ -119,7 +118,7 @@ def main():
     finally:
         server.shutdown()
         case.doCleanups()
-    print(f'PASS: auth/Home/AI/Connections/preferences/account/dialogs/subscription/Finance; white canvas and no overflow at seven widths; screenshots {output}')
+    print(f'PASS: auth/Home/AI/no Connections/preferences/account/dialogs/subscription/Finance; white canvas and no overflow at eight widths; screenshots {output}')
 
 
 if __name__ == '__main__':

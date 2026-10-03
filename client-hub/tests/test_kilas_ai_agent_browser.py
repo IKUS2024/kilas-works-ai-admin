@@ -52,7 +52,7 @@ def main():
                 assert page.get_by_text("Rangkuman Pasar",exact=False).count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long task overflow")
                 if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
-                page.get_by_role('link',name='Preferensi AI',exact=True).click()
+                page.get_by_role('link',name='Pengaturan AI',exact=True).click()
                 assert page.get_by_role('heading',name='Pengaturan Kilas AI').is_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 if width<=760:page.get_by_role('button',name='Buka riwayat').click()
@@ -76,7 +76,9 @@ def main():
                     {"to": "wilson@example.test", "subject": "Pertemuan",
                      "body": "Besok jam 2 bisa."})
                 page.goto(origin + "/kilas-ai/agent?view=connections", wait_until="networkidle")
-                assert page.get_by_text(long_email).count()==1
+                assert page.get_by_text(long_email).count()==0
+                assert page.get_by_role("button", name="Hubungkan Google").count()==0
+                assert page.locator('.premium-navigation').get_by_text("Connections", exact=True).count()==0
                 assert connectors.google_connection(owner)["status"]=="CONNECTED"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long identity overflow")
                 page.goto(origin + "/kilas-ai/agent?view=chat", wait_until="networkidle")

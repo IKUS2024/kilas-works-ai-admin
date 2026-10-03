@@ -77,7 +77,7 @@ class AttachmentTests(unittest.TestCase):
         cases = [(sample_pdf(), "info.pdf", "application/pdf", "Invoice"),
                  (sample_docx(), "info.docx", attachments.MIMES["docx"], "Document fact"),
                  (b"hello text", "info.txt", "text/plain", "hello text"),
-                 (b"a,b\n1,2", "info.csv", "text/csv", "a,b")]
+                 (b"a,b\n1,2", "info.csv", "text/csv", "Row 1: a | b")]
         for raw, name, mime, expected in cases:
             with self.subTest(name=name):
                 result = attachments.prepare(upload(raw, name, mime))
@@ -157,7 +157,7 @@ class AttachmentTests(unittest.TestCase):
             self.assertIn("Invoice", response.get_data(as_text=True))
         prompt = captured[-1]["content"]
         self.assertIn("Teks berikut berhasil diekstrak", prompt)
-        self.assertIn("<isi_lampiran>\nInvoice for document analysis\n</isi_lampiran>", prompt)
+        self.assertIn("<isi_lampiran>\nPage 1:\nInvoice for document analysis\n</isi_lampiran>", prompt)
 
 
 if __name__ == "__main__":

@@ -134,6 +134,8 @@ def _anthropic(model, key, messages, mode, system=SYSTEM):
 
 def stream(mode, messages, system=None):
     """One Luna candidate; failure never promotes ordinary Chat to another model."""
+    from .capabilities import instruction
+    system=(SYSTEM if system is None else system)+'\n'+instruction()
     attempted = False
     for provider, model, key in candidates(mode):
         attempted = True
@@ -141,7 +143,7 @@ def stream(mode, messages, system=None):
         finished = False
         try:
             adapter = _openai if provider == "openai" else _anthropic
-            source = adapter(model, key, messages, mode) if system is None else adapter(model, key, messages, mode, system)
+            source = adapter(model, key, messages, mode, system)
             yield {"type": "provider", "provider": provider, "model": model}
             for event in source:
                 if event["type"] == "delta":

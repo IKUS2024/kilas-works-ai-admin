@@ -117,10 +117,12 @@ class ResultTests(unittest.TestCase):
             adapter=providers._openai if provider=='openai' else providers._anthropic
             with patch.object(providers,'candidates',return_value=iter([(provider,'model','key')])),patch.object(providers,adapter.__name__,return_value=iter(events)) as called:
                 list(providers.stream('SMART',[],style.CHAT))
-                self.assertEqual(called.call_args.args[-1],style.CHAT)
+                self.assertTrue(called.call_args.args[-1].startswith(style.CHAT))
+                self.assertIn('Current runtime capabilities',called.call_args.args[-1])
         with patch.object(providers,'candidates',return_value=iter([('openai','model','key')])),patch.object(providers,'_openai',return_value=iter(events)) as called:
             list(providers.stream('FAST',[]))
-            self.assertEqual(len(called.call_args.args),4)
+            self.assertTrue(called.call_args.args[-1].startswith(providers.SYSTEM))
+            self.assertIn('Current runtime capabilities',called.call_args.args[-1])
 
     def test_web_worker_keeps_query_and_source_gate(self):
         job_id=fixture.jobs.create(self.owner,'Riset kompetitor')

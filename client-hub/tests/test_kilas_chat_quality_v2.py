@@ -166,7 +166,7 @@ class QualityTests(unittest.TestCase):
         self.assertEqual(policy.chat_profile(messages)['effort'],'medium')
 
     def test_corpus_traits_and_multiturn_counts(self):
-        cases=json.loads((Path(__file__).parent/'fixtures/kilas_conversation_standard.json').read_text())
+        cases=json.loads((Path(__file__).parent/'fixtures/kilas_conversation_standard.json').read_text(encoding='utf-8'))
         self.assertGreaterEqual(len(cases),200)
         self.assertGreaterEqual(sum(bool(c.get('first_user') and c.get('follow_up')) for c in cases),60)
         for c in cases:

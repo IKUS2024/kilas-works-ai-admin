@@ -5,10 +5,16 @@ from flask import Response, request, session, redirect, stream_with_context, url
 from . import agent_chat, agent_store, routing, usage, tools, work_runtime, work_schedule, work_documents, work_artifacts, model_policy
 
 
-def intent(text, prepared=(), previous=None):
+def intent(text, prepared=(), previous=None, previous_answer=''):
+    if work_schedule.future_requested(text) and not work_schedule.REMINDER.search(text) and not re.match(r'(?i)^(?:setiap|tiap|every)\b',text):
+        return 'WORK'
     if work_schedule.REMINDER.search(text) or re.match(r'(?i)^(?:setiap|tiap|every)\b',text):
         return 'SCHEDULE'
     if work_schedule.CAPABILITY.search(text) and not routing.fresh_information(routing._normalize(text)):
+        return 'CHAT'
+    if re.search(r'(?i)\b(?:storyboard|sketsa)\s+(?:teks|text)|\b(?:teks|text|ascii)\s+storyboard\b',text):
+        return 'CHAT'
+    if prepared and re.search(r'(?i)\b(?:ringkas|ringkasin|summarize|analisis|analisa|analyze|analyse|bandingkan|compare)\b',text) and not re.search(r'(?i)\b(?:buat|bikin|bikinin|buatin|create|generate|jadikan|jadiin|ekspor|export|download|unduh)\b',text):
         return 'CHAT'
     from .agent_intents import infer
     planned=infer(text)
@@ -17,7 +23,7 @@ def intent(text, prepared=(), previous=None):
     images=list(prepared)
     if previous and previous['media_type'].startswith('image/') and routing.may_edit_image(text):
         images.append({'mime_type':previous['media_type']})
-    tool=routing.tool_for(text,images,has_previous_content=bool(previous))
+    tool=routing.tool_for(text,images,has_previous_content=bool(previous),previous_answer=previous_answer)
     if tool in ('WEB','IMAGE_GENERATE','IMAGE_EDIT'):
         return tool
     if routing.explicit_code(text):return 'CHAT'
@@ -28,7 +34,16 @@ def intent(text, prepared=(), previous=None):
 def dispatch(owner,text,key,conversation):
     prepared=getattr(request,'work_attachments',[])
     previous=next(iter(work_artifacts.listing(owner,conversation_id=conversation)),None)
-    selected=intent(text,prepared,previous)
+    recent=agent_store.messages(owner,conversation_id=conversation)
+    previous_answer=next((m['content'] for m in reversed(recent) if m['role']=='assistant'),'')
+    selected=intent(text,prepared,previous,previous_answer)
+    if selected=='IMAGE_GENERATE':
+        text=routing.image_prompt(text,previous_answer)[:1200]
+        if not work_documents.image_request(text):
+            text=('Buat gambar dari konsep sebelumnya:\n'+previous_answer[:800]+'\nInstruksi terbaru: '+text)[:1200]
+    if not prepared:
+        from . import agent_attachments
+        request.work_source_materials=agent_attachments.sources(owner,conversation)
     from . import agent_intents, autonomous_store
     pending=any(session.get(k) for k in ('work_document_pending','work_reminder_pending','work_location_request','agent_work_clarification'))
     waiting=any(j['last_error']=='waiting_input' for j in autonomous_store.list_jobs(owner,conversation_id=conversation,active_only=True))
@@ -44,7 +59,7 @@ def dispatch(owner,text,key,conversation):
         return agent_chat.ordinary(owner,conversation,key) or redirect(url_for('kilas_ai.agent_home'),code=303)
     if selected=='IMAGE_EDIT' and previous and previous['media_type'].startswith('image/') and not any(p['mime_type'].startswith('image/') for p in prepared):
         text=('Edit gambar sebelumnya: '+text)[:1200]
-    if selected=='SCHEDULE' and not work_schedule.REMINDER.search(text) and re.match(r'(?i)^(?:setiap|tiap|every)\b',text) and not re.search(r'(?i)\b(?:buat|riset|research|pantau|monitor|kerjakan)\b',text):
+    if selected=='SCHEDULE' and not work_schedule.REMINDER.search(text) and re.match(r'(?i)^(?:setiap|tiap|every)\b',text) and not routing.fresh_information(routing._normalize(text)) and not re.search(r'(?i)\b(?:buat|riset|research|pantau|monitor|kerjakan)\b',text):
         text='ingatkan '+text
     return work_runtime.handle(owner,text,key,conversation)
 

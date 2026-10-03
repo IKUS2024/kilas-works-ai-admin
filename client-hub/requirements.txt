@@ -4,6 +4,7 @@ flask>=3.1
 requests
 cryptography>=43,<47
 pypdf
+pypdfium2>=4.30,<5  # bounded isolated scanned-PDF page rendering, no OCR engine
 pikepdf>=10.13.0.post1,<11  # QPDF recovery wheels; isolated bounded PDF worker only
 Pillow
 gunicorn

@@ -98,11 +98,12 @@ def handle(owner,text,key,conversation):
         session.pop('work_reminder_pending',None)
     reminder=bool(work_schedule.REMINDER.search(text))
     from .agent_workers import market_request
-    if not reminder and market_request(text):
+    if not reminder and not work_schedule.future_requested(text) and market_request(text):
         if autonomous_routes.chat(owner,text):return redirect(url_for('kilas_ai.agent_home',conversation=conversation),code=303)
     from .agent_planner import required_connection
-    if not reminder and required_connection(text):return reply(owner,'Kilas AI tidak mengakses koneksi akun. Saya bisa menyiapkan dokumen atau isi draf dari informasi yang kamu berikan.',conversation)
-    scheduled=reminder or bool(re.search(r'(?i)\b(?:setiap|tiap|every|besok|tomorrow|tanggal|next monday)\b',text))
+    if not reminder and required_connection(text) not in (None,'Kilas Finance'):
+        return reply(owner,'Kilas AI tidak mengakses koneksi akun. Saya bisa menyiapkan dokumen atau isi draf dari informasi yang kamu berikan.',conversation)
+    scheduled=reminder or work_schedule.future_requested(text)
     editing=bool(re.match(r'(?i)^(?:ubah|ganti|ulang|jangan tiap hari)',text)) and bool(active)
     if scheduled or editing:
         try:

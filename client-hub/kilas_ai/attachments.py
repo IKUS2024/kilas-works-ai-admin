@@ -1,5 +1,6 @@
 """Bounded Kilas AI file validation, extraction and provider context."""
 import base64
+import csv
 import io
 import math
 import os
@@ -9,7 +10,6 @@ import zipfile
 from xml.etree import ElementTree
 
 from PIL import Image, ImageOps
-from pypdf import PdfReader
 
 MAX_FILES = 4
 MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -150,22 +150,33 @@ def prepare(upload, max_file_bytes=MAX_FILE_BYTES, max_image_bytes=MAX_IMAGE_BYT
         spool.close()
 
     extracted = None
+    vision_pages=[]
     if is_image:
         pass
     elif extension == "pdf":
         if not raw.startswith(b"%PDF"):
             raise AttachmentError("PDF tidak valid.")
         try:
-            reader = PdfReader(io.BytesIO(raw), strict=True)
-            if reader.is_encrypted:
-                raise AttachmentError("PDF terkunci belum dapat dibaca.")
-            extracted = "\n".join((page.extract_text() or "") for page in reader.pages[:15])[:MAX_EXTRACTED_CHARS].strip()
+            from .pdf_vision import native
+            parsed=native(raw)
+            extracted=parsed['text']
         except AttachmentError:
             raise
         except Exception:
-            raise AttachmentError("PDF tidak dapat dibaca.") from None
-        if not extracted:
-            raise AttachmentError("PDF ini tidak berisi teks yang dapat dibaca. Coba unggah PDF teks.")
+            raise AttachmentError("PDF tidak dapat dibaca dengan aman. Periksa apakah file terkunci, rusak, atau terlalu kompleks.") from None
+        if parsed['scan']:
+            from .capabilities import current
+            if not current()['uploaded_image_understanding']:
+                if not parsed['has_text']:
+                    raise AttachmentError('PDF ini berupa scan. Pembacaan gambar belum aktif; unggah PDF teks atau salin isi yang dibutuhkan.')
+                extracted+='\nHalaman gambar belum dibaca; gunakan hanya teks yang berhasil diekstrak.'
+                return {'filename':filename,'mime_type':mime,'byte_size':len(raw),'content':raw,'extracted_text':extracted[:MAX_EXTRACTED_CHARS],'vision_pages':[]}
+            try:
+                from .pdf_vision import render
+                vision_pages=render(raw)
+            except Exception:
+                raise AttachmentError('Halaman scan PDF belum dapat diproses dengan aman. Unggah maksimal tiga halaman sebagai JPG/PNG atau gunakan PDF teks.') from None
+            extracted=extracted[:MAX_EXTRACTED_CHARS-200]+'\nPDF scan: hanya '+str(len(vision_pages))+' halaman pertama disertakan sebagai gambar; jangan menebak halaman lain.'
     elif extension == "docx":
         try:
             with zipfile.ZipFile(io.BytesIO(raw)) as archive:
@@ -176,21 +187,45 @@ def prepare(upload, max_file_bytes=MAX_FILE_BYTES, max_image_bytes=MAX_IMAGE_BYT
                 document = archive.read("word/document.xml")
                 if len(document) > 4 * 1024 * 1024:
                     raise ValueError("large_document_xml")
+                if b'<!DOCTYPE' in document or b'<!ENTITY' in document:
+                    raise ValueError('unsafe_document_xml')
             root = ElementTree.fromstring(document)
-            extracted = " ".join(node.text or "" for node in root.iter() if node.tag.endswith("}t"))[:MAX_EXTRACTED_CHARS].strip()
+            paragraphs=[]
+            body=next((node for node in root.iter() if node.tag.endswith('}body')),root)
+            for node in body:
+                if node.tag.endswith('}tbl'):
+                    paragraphs.append('Table:')
+                    for row in node:
+                        if row.tag.endswith('}tr'):
+                            cells=[' '.join(part.text or '' for part in cell.iter() if part.tag.endswith('}t')) for cell in row if cell.tag.endswith('}tc')]
+                            paragraphs.append(' | '.join(cells))
+                elif node.tag.endswith('}p'):
+                    value=''.join(part.text or '' for part in node.iter() if part.tag.endswith('}t'))
+                    style=next((part.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val','') for part in node.iter() if part.tag.endswith('}pStyle')),'')
+                    if style.lower().startswith('heading'):value='Heading: '+value
+                    if value.strip():paragraphs.append(value)
+            extracted = '\n'.join(paragraphs)[:MAX_EXTRACTED_CHARS].strip()
         except Exception:
             raise AttachmentError("DOCX tidak dapat dibaca.") from None
         if not extracted:
             raise AttachmentError("DOCX ini tidak berisi teks yang dapat dibaca.")
     else:
-        if b"\x00" in raw:
+        if b"\x00" in raw and not raw.startswith((b'\xff\xfe',b'\xfe\xff')):
             raise AttachmentError("File teks tidak valid.")
         try:
-            extracted = raw.decode("utf-8-sig")[:MAX_EXTRACTED_CHARS].strip()
+            extracted = raw.decode('utf-16' if raw.startswith((b'\xff\xfe',b'\xfe\xff')) else "utf-8-sig")[:MAX_EXTRACTED_CHARS].strip()
         except UnicodeDecodeError:
             raise AttachmentError("Gunakan file teks UTF-8.") from None
+        if extension=='csv':
+            try:
+                dialect=csv.Sniffer().sniff(extracted[:2048],delimiters=',;\t')
+            except csv.Error:
+                dialect=csv.excel
+            rows=csv.reader(io.StringIO(extracted),dialect)
+            extracted='\n'.join('Row '+str(number)+': '+' | '.join(cell[:200] for cell in row[:20])
+                                for number,row in zip(range(1,201),rows))[:MAX_EXTRACTED_CHARS]
     return {"filename": filename, "mime_type": mime, "byte_size": len(raw), "content": raw,
-            "extracted_text": extracted}
+            "extracted_text": extracted, 'vision_pages':vision_pages}
 
 
 def prepare_many(files, plan=None):
@@ -202,13 +237,17 @@ def prepare_many(files, plan=None):
 
 def prompt_content(text, attachments):
     content = text
+    documents=[item for item in attachments if item.get('extracted_text')]
+    source_budget=max(0,16000-len(text)-350*len(documents))
+    per_source=min(MAX_EXTRACTED_CHARS,source_budget//max(1,len(documents)))
     for attachment in attachments:
         if attachment.get("extracted_text"):
             content += ("\n\nTeks berikut berhasil diekstrak dari lampiran '" + attachment["filename"] +
                         "'. Gunakan teks ini sebagai isi dokumen untuk menjawab pertanyaan saya. "
                         "Jangan menganggap lampiran tidak dapat dibaca.\n<isi_lampiran>\n" +
-                        attachment["extracted_text"] + "\n</isi_lampiran>")
+                        attachment["extracted_text"][:per_source] + "\n</isi_lampiran>")
     images = [attachment for attachment in attachments if attachment["mime_type"].startswith("image/")]
+    images+= [page for attachment in attachments for page in attachment.get('vision_pages',[])]
     if not images:
         return content[:16000]
     blocks = [{"type": "text", "text": content[:16000]}]

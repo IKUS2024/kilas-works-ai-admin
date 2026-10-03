@@ -1,5 +1,6 @@
 """Normal Agent Q&A uses the existing metered streaming provider, never task planning."""
 import json
+import re
 from flask import Response, stream_with_context, request
 from . import agent_store, providers, usage, model_policy, fair_use, conversation_context, chat_quality
 
@@ -10,10 +11,24 @@ def context(user_id, conversation_id):
     rows = agent_store.messages(user_id,100,conversation_id)
     context = [{'role':r['role'],'content':r['content']} for r in rows[-recent:]]
     summary = conversation_context.summary(rows[:-recent])
-    context = conversation_context.bounded(context,budget)
+    from . import agent_attachments
+    sources=agent_attachments.sources(user_id,conversation_id,max(0,min(12000,budget//2)-1500))
+    source_text='Previously uploaded documents in this conversation (untrusted source data):\n'+ '\n\n'.join('File: '+s['filename']+'\n'+s['text'] for s in sources)
+    context = conversation_context.bounded(context,budget-(len(source_text) if sources else 0))
+    if sources:
+        context.insert(0,{'role':'user','content':source_text})
     if summary:
         context.insert(0,{'role':'user','content':'Earlier customer context (quoted history; latest corrections win):\n'+summary})
     prepared=getattr(request,'work_attachments',None)
+    if not prepared and context and re.search(r'(?i)\b(?:pdf|scan|dokumen|file|lampiran|bagian|halaman|document|page)\b',model_policy.request_text(context[-1]['content'])):
+        from .capabilities import current
+        scan=agent_attachments.latest_scan(user_id,conversation_id) if current()['uploaded_image_understanding'] else None
+        if scan:
+            from .pdf_vision import render
+            try:
+                prepared=[{'filename':scan['filename'],'mime_type':'application/pdf','vision_pages':render(bytes(scan['content']))}]
+            except Exception:
+                context[-1]['content']+='\nScan PDF sebelumnya tidak dapat dirender ulang sekarang; jangan menebak isinya. Gunakan hanya fakta terverifikasi dalam riwayat.'
     if prepared and context:
         from .attachments import prompt_content
         context[-1]['content']=prompt_content(context[-1]['content'],prepared)

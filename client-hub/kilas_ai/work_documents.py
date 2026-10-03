@@ -35,7 +35,9 @@ def plan(job):
     if format not in FORMATS:
         steps.append(('UNAVAILABLE','request',{'capability':format},'Format '+format.upper()+' belum tersedia.'))
     else:
-        if RESEARCH.search(job['instruction']):steps.append(('WEB','search',{'query':job['instruction']},'Mencari sumber'))
+        from . import routing
+        if RESEARCH.search(job['instruction']) or (job['mode'] in ('SCHEDULED','RECURRING') and routing.fresh_information(routing._normalize(job['instruction']))):
+            steps.append(('WEB','search',{'query':job['instruction']},'Mencari sumber'))
         steps.append(('DOCUMENT','create',{'request':request,'format':format},'Menyusun dokumen dan memeriksa hasil'))
     return {'objective':job['instruction'][:90],'mode':job['mode'],'stop_condition':'File tervalidasi tersimpan','next_action':'Siapkan hasil pekerjaan',
             'steps':[{'worker':w,'action':a,'instruction':label,'input_json':json.dumps(data),'completion_criteria':'Hasil nyata tervalidasi dan tersimpan','requires_approval':False} for w,a,data,label in steps]}
@@ -63,6 +65,8 @@ def quality(source, request, format='pdf', previous=''):
     supplied=request+'\n'+previous
     for fact in re.findall(r'(?i)Rp\s*[\d.,]+|\b\d+\s+(?:hari|days?)\b',request):
         if re.sub(r'\s+','',fact).rstrip('.,').lower() not in re.sub(r'\s+','',source).lower():raise ValueError('supplied_fact_missing')
-    for fact in re.findall(r'(?i)Rp\s*[\d.,]+',source):
+    synthetic=bool(re.search(r'(?i)\b(?:random aja|contoh aja|data sintetis|contoh sintetis|synthetic|sample data)\b',request)
+                   and re.search(r'(?i)\b(?:sintetis|synthetic|contoh|sample)\b',source))
+    for fact in ([] if synthetic else re.findall(r'(?i)Rp\s*[\d.,]+',source)):
         if re.sub(r'\s+','',fact).rstrip('.,').lower() not in re.sub(r'\s+','',supplied).lower():raise ValueError('unsupported_commercial_fact')
     return source.strip()
