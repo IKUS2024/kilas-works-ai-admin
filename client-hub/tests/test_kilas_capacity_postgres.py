@@ -35,7 +35,7 @@ def main():
                 try:return bool(usage.reserve(owner,None,key,'FAST','WEB')[1])
                 except usage.UsageLimit:return False
             with ThreadPoolExecutor(2) as pool:assert sum(pool.map(reserve,['pg-race-a','pg-race-b']))==1
-            usage.reserve(owner,None,'pg-normal-chat','FAST','CHAT')
+            usage.reserve(owner,None,'agent-chat-pg-normal-chat','FAST','CHAT')
             order=topups.create_order(owner,'MINI')
             db.execute('INSERT INTO kilas_ai_topup_credits(order_id,user_id,total_micro,expires_at) VALUES(?,?,?,?)',(order,owner,1000000,now+timedelta(days=90)))
             _,ops=usage.reserve(owner,None,'pg-topup','SMART','CHAT')

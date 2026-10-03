@@ -183,11 +183,12 @@ def main():
                 assert page.get_by_text("Paket Free").count() == 0
                 assert page.get_by_text("Penggunaan periode ini").count() == 0
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "plans")
-                page.get_by_label("Nominal").fill("20000")
                 page.get_by_role("button", name="Tambah kapasitas").click()
+                page.get_by_role("radio", name="Rp25.000").check()
+                page.get_by_role("button", name="Lanjut ke pembayaran").click()
                 page.wait_for_url("**/kilas-ai/topups/*")
                 assert page.get_by_role("heading", name="Kapasitas Tambahan").is_visible()
-                assert page.get_by_text("Rp20.000").is_visible()
+                assert page.get_by_text("Rp25.000", exact=True).is_visible()
                 assert page.get_by_label("Bukti transfer (gambar atau PDF, maksimal 5 MB)").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "topup invoice")
                 page.get_by_role("link", name="Langganan & tagihan").click()
