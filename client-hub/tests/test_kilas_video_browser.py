@@ -83,6 +83,15 @@ def main():
                 assert 'mobil' not in text and 'baju' not in text
                 page.locator('[data-video-copy=master]').click();assert 'food' in page.evaluate('navigator.clipboard.readText()')
                 page.reload(wait_until='networkidle');expect(page.locator('#video-active-title')).to_have_text('Arahan makanan');check('replacement-chain')
+                old_key=page.locator('input[name=operation_key]').input_value()
+                page.route('**/video/plan',lambda route:route.fulfill(status=500,content_type='text/html',body='<html>Gateway error</html>'))
+                page.fill('#video-idea','lebih premium, tanpa voice-over');page.click('#video-submit')
+                expect(page.locator('#video-error')).to_contain_text('Buka riwayat')
+                expect(page.locator('input[name=version]')).to_have_value('3')
+                expect(page.locator('#video-active-title')).to_have_text('Arahan makanan')
+                expect(page.locator('#video-submit')).to_be_enabled()
+                assert page.locator('input[name=operation_key]').input_value()!=old_key
+                page.unroute('**/video/plan')
                 page.goto(origin+'/kilas-ai/video',wait_until='networkidle');page.fill('#video-idea','x'*2400);check('long-idea')
                 page.route('**/video/plan',lambda route:route.fulfill(status=503,json={'error':'Rencana belum berhasil disusun. Coba lagi.'}))
                 with page.expect_response(lambda r:r.url.endswith('/video/plan')):page.click('#video-submit')

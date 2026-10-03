@@ -103,6 +103,25 @@ class DirectorV2Tests(unittest.TestCase):
         self.assertEqual(usage['input_tokens'],500);self.assertEqual(usage['output_tokens'],1200)
         self.assertEqual(usage['model'],'gpt-6.1-sol');self.assertGreater(float(usage['estimated_cost_usd']),0)
 
+    def test_compact_review_merges_only_changes_and_meters_both_calls(self):
+        response=provider_response({'title':'Arahan yang ditinjau'})
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',side_effect=[provider_response(),response]) as calls:
+            value=director.generate(self.owner,'compact-review-123456','video skincare',{})
+        self.assertEqual(value['title'],'Arahan yang ditinjau')
+        self.assertEqual(value['scenes'],spec()['scenes'])
+        self.assertEqual(calls.call_count,2)
+        self.assertLessEqual(calls.call_args_list[0].kwargs['timeout'][1],50)
+        self.assertLessEqual(calls.call_args_list[1].kwargs['timeout'][1],20)
+        with self.assertRaises(ValueError):director.refinement(spec(),{'internal_reasoning':'not allowed'})
+
+    def test_empty_review_keeps_valid_plan_and_failed_review_keeps_previous(self):
+        response=provider_response();data=response.json();data['choices'][0]['message']['content']='{}';response.json=lambda:data
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',side_effect=[provider_response(),response]):
+            self.assertEqual(director.generate(self.owner,'empty-review-123456','video skincare',{}),spec())
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post') as calls:
+            with self.assertRaises(ValueError):director.generate(self.owner,'budget-review-123456','video skincare',{},deadline=0.001)
+            calls.assert_not_called()
+
     def test_two_failed_reviews_never_store_contaminated_plan(self):
         first,_=self.submit('mobil','car','video mobil');project=first.json['id']
         with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',return_value=provider_response(plan('mobil','car'))) as calls:

@@ -45,7 +45,7 @@ def home(project=None):
 
 @ai_bp.post('/video/plan',endpoint='video_generate')
 def generate():
-    deadline=time.monotonic()+145  # Below incumbent 180s worker timeout, including uploads.
+    deadline=time.monotonic()+75  # Leave headroom below the observed 90s production worker limit.
     text=str(request.form.get('idea','')).strip()
     key=str(request.form.get('operation_key',''))
     if not 3<=len(text)<=2400 or not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',key):return {'error':'Tulis ide atau revisi hingga 2.400 karakter, lalu coba lagi.'},400

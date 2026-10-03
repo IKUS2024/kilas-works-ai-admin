@@ -1,5 +1,6 @@
 """Metered idea/reference -> universal spec. No video generation APIs or tools."""
 import json
+import copy
 import math
 import os
 import re
@@ -118,6 +119,14 @@ def quality(spec,brief):
     return spec
 
 
+def refinement(draft,changes):
+    """Apply only reviewed schema fields; validate the complete merged result later."""
+    if not isinstance(changes,dict) or set(changes)-set(TEXT_FIELDS+V2_TEXT+LIST_FIELDS+('duration','scenes')):
+        raise ValueError('invalid_video_refinement')
+    if not isinstance(draft,dict):return changes
+    return {**copy.deepcopy(draft),**copy.deepcopy(changes)}
+
+
 def generate(owner,key,idea,controls,previous=None,references=(),brief=None,deadline=None):
     provider_key=os.environ.get('OPENAI_API_KEY','').strip()
     if not provider_key:raise ValueError('video_provider_unavailable')
@@ -128,7 +137,7 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
     success=False;recorded={'input_tokens':0,'output_tokens':0,'cost_components':[]}
     # Reuse the configured, already supported complex Sol planner policy only here.
     brief=brief or video_brief.build(idea,controls,previous,1 if previous else 0)
-    deadline=deadline or time.monotonic()+145
+    deadline=deadline or time.monotonic()+75
     try:
         previous=video_brief.generation_context(brief,previous)
         text=json.dumps({'canonical_brief':brief,'controls':{k:v for k,v in controls.items() if not k.startswith('_')},'previous_spec':previous},ensure_ascii=False)
@@ -141,7 +150,7 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
             response=requests.post('https://api.openai.com/v1/chat/completions',
                 headers={'Authorization':'Bearer '+provider_key,'Content-Type':'application/json'},
                 json={'model':model,'messages':messages,'response_format':{'type':'json_object'},
-                      'max_completion_tokens':9000,'reasoning_effort':effort,'store':False},timeout=(5,min(65,remaining)))
+                      'max_completion_tokens':9000,'reasoning_effort':effort,'store':False},timeout=(5,min(50 if stage==0 else 20,remaining)))
             response.raise_for_status();data=response.json();used=data.get('usage') or {}
             inp=int(used.get('prompt_tokens',0));out=int(used.get('completion_tokens',0))
             recorded['input_tokens']+=inp;recorded['output_tokens']+=out
@@ -150,12 +159,17 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
             choice=data['choices'][0]
             if choice.get('finish_reason')!='stop' or choice['message'].get('refusal'):raise ValueError('video_incomplete_response')
             draft=choice['message']['content']
-            try:spec=quality(json.loads(draft),brief);issue=''
+            try:
+                parsed=json.loads(draft)
+                if stage:parsed=refinement(first_draft,parsed)
+                spec=quality(parsed,brief);issue=''
             except ValueError as error:spec=None;issue='Fix deterministic validation failure: '+str(error)+'.'
             except (TypeError,KeyError):spec=None;issue='Fix the incomplete JSON schema.'
             if stage==0:
+                try:first_draft=json.loads(draft)
+                except ValueError:first_draft=None
                 messages.extend([{'role':'assistant','content':draft},{'role':'user','content':
-                    'Refine this draft into the final production-ready plan. '+issue+' Check canonical subject, latest correction, factual claims, opening action, timing, continuity, camera logic and English prompts. Return only the complete final JSON. No scores or reasoning.'}])
+                    'Review this draft for canonical subject, latest correction, factual claims, opening action, timing, continuity, camera logic and English prompts. '+issue+' Return a compact JSON object containing ONLY fields that need correction; omit unchanged fields. Return {} if no correction is needed. If changing scenes, return the complete scenes array. If the draft schema is invalid, return the complete corrected plan. No scores or reasoning.'}])
         if spec is None:raise ValueError('video_quality_failed')
         success=True
         return spec

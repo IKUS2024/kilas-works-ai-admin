@@ -37,7 +37,7 @@
     const data=new FormData(form);data.delete('references');if(!form.elements.project_id.value)pending.forEach(file=>data.append('references',file));
     input.blur();button.disabled=true;picker.disabled=true;form.setAttribute('aria-busy','true');error.hidden=true;status.textContent='Menyusun dan meninjau arahan kreatif, storyboard, dan prompt produksi…';
     try{const response=await fetch(form.action,{method:'POST',body:data,headers:{'Accept':'application/json'}});if(response.redirected){location.assign(response.url);return;}
-      const result=await response.json();if(!response.ok){
+      const result=await response.json().catch(()=>{throw new Error('Rencana belum berhasil disusun. Buka riwayat untuk melihat versi terakhir, lalu coba lagi.');});if(!response.ok){
         form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');
         if(result.id){form.elements.project_id.value=result.id;form.elements.version.value=result.version;history.replaceState(null,'',result.url);root.querySelector('#video-reference-control').hidden=true;pending=[];showPending();}
         throw new Error(result.error||'Rencana belum dapat disusun. Coba lagi.');
@@ -58,7 +58,7 @@
       list.querySelectorAll('a').forEach(a=>{a.removeAttribute('aria-current');if(a.getAttribute('href')===result.url)a.parentElement.remove();});const item=document.createElement('li');item.append(link);list.prepend(item);
       if(!list.parentElement){root.querySelector('.video-history>p')?.remove();root.querySelector('.video-history>h2').after(list);}
       // No automatic composer focus: completing a plan must not reopen a mobile keyboard.
-    }catch(problem){error.textContent=problem.message||'Koneksi terputus. Buka riwayat sebelum mencoba ulang.';error.hidden=false;status.textContent='';}
+    }catch(problem){if(form.elements.project_id.value)form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');error.textContent=problem.message||'Koneksi terputus. Buka riwayat sebelum mencoba ulang.';error.hidden=false;status.textContent='';}
     finally{button.disabled=false;picker.disabled=false;form.removeAttribute('aria-busy');}
   });
 })();
