@@ -17,7 +17,7 @@ def future_requested(text):
     value = normalize(text)
     if re.search(r'(?i)\b(?:setiap|tiap|every)\s+\d+\s+(?:menit|minutes?|jam|hours?|hari|days?)\b',value) and not re.search(r'(?i)\b(?:besok|tomorrow|lusa|tanggal|nanti|later)\b',value):
         return False  # Interval watches retain their existing target/condition engine.
-    return bool(re.search(r'(?i)\b(?:besok|tomorrow|lusa|setiap|tiap|every|tanggal|next week|minggu depan)\b', value)
+    return bool(re.search(r'(?i)\b(?:besok|tomorrow|lusa|setiap|tiap|every|next week|minggu depan)\b|\btanggal\s+\d', value)
                 or (re.search(r'(?i)\b(?:nanti|later)\b', value) and calendar.TIME.search(value)))
 
 

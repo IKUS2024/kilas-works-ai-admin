@@ -38,6 +38,18 @@ class UnifiedTests(unittest.TestCase):
         self.assertEqual(called.call_count,2)
         self.assertEqual(self.jobs.list_jobs(self.owner),[])
 
+    def test_search_check_date_is_not_a_future_schedule(self):
+        prompt='Cari versi stabil Python terbaru dari situs resmi python.org. Sertakan sumber resmi dan jelaskan tanggal pemeriksaan.'
+        self.assertEqual(unified_runtime.intent(prompt),'WEB')
+        self.assertEqual(unified_runtime.intent('Jelaskan tanggal penerbitan dokumen ini'),'CHAT')
+        self.assertEqual(unified_runtime.intent('Cari versi Python terbaru tanggal 10 Oktober jam 9'),'WORK')
+        result={'text':'Versi terverifikasi dari sumber resmi.','citations':[{'url':'https://www.python.org/downloads/','title':'Python'}],'model':model_policy.LUNA,'usage':{'input_tokens':10,'output_tokens':10}}
+        with patch.object(unified_runtime.tools,'web_search_steps',return_value=iter([{'result':result}])) as search:
+            self.submit(prompt)
+        self.assertEqual(search.call_count,1)
+        self.assertEqual(self.jobs.list_jobs(self.owner),[])
+        self.assertIn('https://www.python.org/downloads/',agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['content'])
+
     def test_analysis_uses_luna_medium_without_job(self):
         with patch.object(providers,'stream',side_effect=lambda *a,**k:answer('Laundry lebih cocok bila ingin tim kecil. Uji permintaan dan hitung biaya sewa, mesin, air, listrik serta cadangan kas sebelum memilih.')) as called:
             self.submit('menurut lu modal 150 juta mending laundry atau cafe?')
