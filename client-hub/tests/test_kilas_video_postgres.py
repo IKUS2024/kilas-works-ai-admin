@@ -51,8 +51,12 @@ def main():
             assert json.loads(snapshots[-1]['spec_json'])['brief']['subject']=='makanan'
             assert video_store.claim(owner,project,3)
             connected={'title':'Rencana makanan tersambung','continuity_bible':{'subject':'Food on the same plate'},
-                       'parts':[{'number':1,'start':0,'end':10,'duration':10,'master_prompt':'Create the first food shot.'},
-                                {'number':2,'start':10,'end':20,'duration':10,'master_prompt':'Continue the same food shot.'}]}
+                       'scenes':[{'title':'Pembuka','purpose':'Tunjukkan makanan','image_prompt':'A still food frame on the same white plate.',
+                                  'production_prompt':'Create the first food shot with the same plate.'}],
+                       'parts':[{'number':1,'start':0,'end':10,'duration':10,'master_prompt':'Create the first food shot.',
+                                 'image_prompt':'A still opening frame of the same food on a white plate.'},
+                                {'number':2,'start':10,'end':20,'duration':10,'master_prompt':'Continue the same food shot.',
+                                 'image_prompt':'A still close-up frame of the same food on the white plate.'}]}
             brief={'subject':'makanan','revision_number':4,'plan_mode':'multi','clip_timeline':[{'number':1,'start':0,'end':10,'duration':10},{'number':2,'start':10,'end':20,'duration':10}]}
             controls={'plan_mode':'multi','total_duration':'20','clip_strategy':'10','_brief':brief}
             video_store.save(owner,project,3,connected,controls,'Klip tersambung')

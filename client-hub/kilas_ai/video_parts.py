@@ -86,7 +86,8 @@ def expand_draft(raw,brief):
     value.setdefault('scenes',[dict(start=p.get('start'),end=p.get('end'),visual=p.get('scene',''),
         action=p.get('purpose',''),camera=bible.get('camera',''),lighting=bible.get('lighting',''),
         audio=p.get('audio',''),on_screen_text=p.get('on_screen_text',''),environment=bible.get('location',''),
-        continuity=p.get('start_state',''),production_prompt=p['master_prompt']) for p in parts])
+        continuity=p.get('start_state',''),production_prompt=p['master_prompt'],
+        **({'title':p.get('title',''),'purpose':p.get('purpose',''),'image_prompt':p['image_prompt']} if 'image_prompt' in p else {})) for p in parts])
     return value
 
 
@@ -123,10 +124,11 @@ def validate(spec,brief,english_check,previous=None):
     if not isinstance(parts,list) or len(parts)!=len(expected):raise ValueError('invalid_parts_count')
     prior=None
     for part,timing in zip(parts,expected):
-        if not isinstance(part,dict) or set(part)!=set(PART_TEXT+PART_LIST+('number','start','end','duration')):
+        fields=PART_TEXT+(('image_prompt',) if isinstance(part,dict) and 'image_prompt' in part else ())
+        if not isinstance(part,dict) or set(part)!=set(fields+PART_LIST+('number','start','end','duration')):
             raise ValueError('invalid_video_part')
         if any(type(part[k]) not in (int,float) or part[k]!=v for k,v in timing.items()):raise ValueError('invalid_part_timing')
-        if any(not isinstance(part[k],str) or len(part[k])>(3200 if k=='master_prompt' else 900) for k in PART_TEXT):
+        if any(not isinstance(part[k],str) or len(part[k])>(3200 if k=='master_prompt' else 1600 if k=='image_prompt' else 900) for k in fields):
             raise ValueError('invalid_part_text')
         if not all(part[k].strip() for k in ('title','purpose','scene','start_state','end_state','shot_direction','master_prompt')):
             raise ValueError('incomplete_video_part')
@@ -164,6 +166,7 @@ def prompt(spec,part):
         [('on_screen_text','Intended on-screen text'),('voice_over','Intended voice-over')] if part[key])
     return (f"Part {part['number']} | {part['duration']:g} seconds | {spec['aspect_ratio']}\n\n"
             'Continuity Bible — retain throughout this clip:\n'+bible_text(spec)+'\n\n'
+            +('Storyboard opening frame: '+part['image_prompt']+'\n\n' if part.get('image_prompt') else '')+
             'Exact opening state: '+part['start_state']+'\n'
             'Exact final state: '+part['end_state']+'\n'
             'Shot direction: '+part['shot_direction']+'\n'

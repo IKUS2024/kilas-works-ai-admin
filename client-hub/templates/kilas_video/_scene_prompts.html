@@ -1,0 +1,5 @@
+<section class="video-scene-prompts video-prompt" aria-label="Scene {{ loop.index }} prompts">
+<div class="video-section-head"><div><h5>Storyboard image prompt</h5><p>{{ ui_t('Buat frame gambar terlebih dahulu') }} · English</p></div><button type="button" data-video-copy="image_{{ loop.index }}">{{ ui_t('Salin prompt gambar') }}</button></div>
+<pre>{{ scene.image_prompt }}</pre>
+<details><summary>Video prompt · {{ controls.get('tool','Universal') }}</summary><div class="video-section-head"><p>{{ ui_t('Gunakan frame scene ini sebagai referensi video') }} · English</p><button type="button" data-video-copy="video_{{ loop.index }}">{{ ui_t('Salin prompt video') }}</button></div><pre>{{ package['video_'~loop.index] }}</pre></details>
+</section>

@@ -24,11 +24,13 @@ def multipart(subject='mobil',english='car',total=30,strategy='10'):
         number=timing['number'];end=f'The same {english} stays on the white table with detail {number} facing the static camera.'
         value['parts'].append({**timing,'title':f'Detail {subject} {number}','purpose':f'Tunjukkan bagian {number}',
             'scene':f'Tampilkan detail {subject} {number}','start_state':state,'end_state':end,
+            'image_prompt':f'A still frame of the same {english} centered on the white studio table with detail {number} facing the static camera. Soft window lighting from camera left, warm neutral mood, identical packaging and props. Vertical 9:16 composition; keep the approved identity and exact opening pose.',
             'shot_direction':'Use one static close-up shot with soft window lighting.',
             'on_screen_text':'','voice_over':'','audio':'Keep the same quiet studio ambience throughout the shot.',
             'shot_list':[f'Detail {number} pada {subject}'],'avoid':['Avoid identity changes and invented labels.'],
             'master_prompt':f'Create this {timing["duration"]}-second shot of the same {english}. Show detail {number} in a static close-up camera frame with soft window light. Finish with detail {number} facing the camera.'})
         state=end
+    value.pop('scenes');value=parts.expand_draft(value,{'plan_mode':'multi','duration':total})
     return value
 
 
@@ -39,8 +41,8 @@ class ConnectedVideoTests(unittest.TestCase):
         data={'csrf_token':'video-test-csrf','operation_key':'multipart-controlled-'+str(version),
               'idea':idea,'plan_mode':'multi','total_duration':'30','clip_strategy':'10',**controls}
         if project:data.update(project_id=str(project),version=str(version))
-        empty=provider_response();raw=empty.json();raw['choices'][0]['message']['content']='{}';empty.json=lambda:raw
-        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',side_effect=[provider_response(value),empty]) as calls:
+        expanded=parts.expand_draft(value,{'plan_mode':'multi','duration':int(data['total_duration'])})
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',side_effect=[provider_response(value),provider_response(expanded)]) as calls:
             response=self.client.post('/kilas-ai/video/plan',data=data)
         return response,calls
 
@@ -59,7 +61,7 @@ class ConnectedVideoTests(unittest.TestCase):
         self.assertEqual(calls.call_count,2)
         self.assertTrue(all(c.kwargs['json']['reasoning_effort']=='low' for c in calls.call_args_list))
         self.assertLessEqual(calls.call_args_list[0].kwargs['timeout'][1],65)
-        self.assertLessEqual(calls.call_args_list[1].kwargs['timeout'][1],20)
+        self.assertLessEqual(calls.call_args_list[1].kwargs['timeout'][1],65)
 
     def test_single_legacy_contract_is_unchanged(self):
         value=spec();director.quality(value,briefs.build('video skincare 10 detik',{'plan_mode':'single'}))

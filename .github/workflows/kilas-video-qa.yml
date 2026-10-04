@@ -29,6 +29,7 @@ jobs:
       - run: cd client-hub && python tests/test_kilas_video.py
       - run: cd client-hub && python tests/test_kilas_video_v2.py
       - run: cd client-hub && python tests/test_kilas_video_parts.py
+      - run: cd client-hub && python tests/test_kilas_video_storyboard.py
       - run: cd client-hub && python tests/test_kilas_product_hardening.py
       - run: cd client-hub && python tests/test_kilas_work_v2.py && python tests/test_kilas_work_documents.py
       - run: cd client-hub && python tests/test_kilas_ai_tools.py && python tests/test_kilas_ai_usage.py
@@ -44,6 +45,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python client-hub/tests/test_kilas_video_browser.py
       - run: python client-hub/tests/test_kilas_video_parts_browser.py
+      - run: python client-hub/tests/test_kilas_video_storyboard_browser.py
       - run: python client-hub/tests/test_kilas_premium_ui_browser.py
       - run: python client-hub/tests/test_kilas_ai_unified_browser.py
       - uses: actions/upload-artifact@v4

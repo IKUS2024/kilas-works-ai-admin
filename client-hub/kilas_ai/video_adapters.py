@@ -25,8 +25,12 @@ def master(spec):
 
 
 def universal(spec):return master(spec)
+def scene_prompt(scene):
+    frame=('Approved storyboard opening frame:\n'+scene['image_prompt']+'\n\nMotion direction:\n') if scene.get('image_prompt') else ''
+    return frame+scene.get('production_prompt',scene['visual'])
+
 def shots(spec):
-    return '\n\n'.join(f"Scene {i} | {s['start']:g}-{s['end']:g} seconds\n"+s.get('production_prompt',s['visual']) for i,s in enumerate(spec['scenes'],1))
+    return '\n\n'.join(f"Scene {i} | {s['start']:g}-{s['end']:g} seconds\n"+scene_prompt(s) for i,s in enumerate(spec['scenes'],1))
 def google_flow(spec):return 'Plan separate clips, then assemble them in this order. Reuse the same approved reference frame for visual continuity.\n\n'+shots(spec)+'\n\nOverall direction:\n'+master(spec)
 def seedance(spec):return 'Follow this chronological sequence. Match clip lengths to the available generation mode; assemble the clips to the planned total duration.\n\n'+master(spec)+'\n\nTimed shot instructions:\n'+shots(spec)
 def higgsfield(spec):return 'Choose available camera controls that support these shots. Use one primary camera movement per shot and keep restrained movement for natural UGC.\n\n'+shots(spec)+'\n\nVisual and continuity direction:\n'+master(spec)
@@ -70,4 +74,19 @@ def package(spec,tool='Universal'):
         result['everything']=(spec['title']+'\n\n'+overview+'\n\n'+details+'\n\n'+storyboard(spec)+
             '\n\nContinuity Bible:\n'+result['bible']+
             '\n\n'+'\n\n'.join(outlines)+'\n\n'+result['platform']+'\n\nCara menggunakan:\n'+result['how_to'])
+    images=[];videos=[]
+    for number,scene in enumerate(spec['scenes'],1):
+        if scene.get('image_prompt'):
+            result[f'image_{number}']=scene['image_prompt']
+            images.append(f'Scene {number}\n'+scene['image_prompt'])
+        prompt=(result.get(f'part_{number}_platform') if spec.get('parts') else
+                PART_GUIDANCE[tool]+'\n\n'+scene_prompt(scene))
+        result[f'video_{number}']=prompt
+        videos.append(f'Scene {number}\n'+prompt)
+    result['all_images']='\n\n'.join(images)
+    result['all_videos']='\n\n'.join(videos)
+    if images:
+        result['everything']=(spec['title']+'\n\nConcept:\n'+spec['story']+'\n\nStoryboard:\n'+storyboard(spec)+
+                              '\n\nStoryboard image prompts:\n'+result['all_images']+'\n\n'+result['everything'])
+        result['how_to']='Buat gambar storyboard dari prompt gambar terlebih dahulu. Tinjau konsistensi, lalu gunakan gambar scene sebagai frame referensi untuk prompt video yang sesuai. '+result['how_to']
     return result

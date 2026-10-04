@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ ui_t('Kilas Video · Kilas Works') }}{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_video.css',v='multipart-20261003') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_video.css',v='storyboard-20261004') }}">
 <section class="video-studio" id="video-studio">
 <header class="video-heading"><div><h1>Kilas Video</h1><p>{{ ui_t('Ubah ide sederhana menjadi rencana video yang siap diproduksi.') }}</p></div><a href="{{ url_for('kilas_ai.video_home') }}" class="btn secondary">{{ ui_t('Rencana baru') }}</a></header>
 <div class="video-workbench">
@@ -35,5 +35,5 @@
 <aside class="video-history" aria-label="{{ ui_t('Riwayat Video Plan') }}"><nav id="video-outline" aria-label="{{ ui_t('Bagian rencana') }}" {{ '' if spec else 'hidden' }}><h2>{{ ui_t('Dalam rencana ini') }}</h2><a href="#video-direction">{{ ui_t('Arahan kreatif') }}</a><a href="#video-storyboard">{{ ui_t('Storyboard') }}</a><a href="#video-production">{{ ui_t('Arahan produksi') }}</a><a href="#video-bible" data-video-multi-link {{ '' if spec and spec.parts else 'hidden' }}>{{ ui_t('Continuity Bible') }}</a><a href="#video-parts" data-video-multi-link {{ '' if spec and spec.parts else 'hidden' }}>{{ ui_t('Klip tersambung') }}</a><a href="#video-master">{{ ui_t('Master Prompt') }}</a></nav><h2>{{ ui_t('Rencana kamu') }}</h2>{% if history %}<ul>{% for item in history %}<li><a href="{{ url_for('kilas_ai.video_project',project=item.id) }}" {% if project and project.id==item.id %}aria-current="page"{% endif %}>{{ item.title }}{% if not item.version %}<span>{{ ui_t('Belum selesai') }}</span>{% endif %}</a></li>{% endfor %}</ul>{% else %}<p>{{ ui_t('Rencana tersimpan di sini setelah kamu mulai.') }}</p>{% endif %}<nav aria-label="{{ ui_t('Halaman riwayat') }}">{% if page>1 %}<a href="{{ url_for('kilas_ai.video_home',page=page-1) }}">{{ ui_t('Sebelumnya') }}</a>{% endif %}{% if more %}<a href="{{ url_for('kilas_ai.video_home',page=page+1) }}">{{ ui_t('Berikutnya') }}</a>{% endif %}</nav>
 <div id="video-project-actions">{% include "kilas_video/_manage.html" %}</div>
 </aside></div>
-</section><script src="{{ url_for('static',filename='kilas_video.js',v='multipart-20261003') }}" defer></script>
+</section><script src="{{ url_for('static',filename='kilas_video.js',v='storyboard-20261004') }}" defer></script>
 {% endblock %}

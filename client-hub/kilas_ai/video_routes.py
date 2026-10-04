@@ -48,6 +48,8 @@ def generate():
     deadline=time.monotonic()+75  # Leave headroom below the observed 90s production worker limit.
     text=str(request.form.get('idea','')).strip()
     key=str(request.form.get('operation_key',''))
+    generation=request.form.get('generation','all')
+    if generation not in ('all','storyboard','video'):abort(400)
     if not 3<=len(text)<=2400 or not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',key):return {'error':'Tulis ide atau revisi hingga 2.400 karakter, lalu coba lagi.'},400
     row=None
     try:
@@ -61,6 +63,10 @@ def generate():
             if not raw_project.isdigit():abort(400)
             row=owned(int(raw_project))
             controls={**json.loads(row['options_json']),**controls}
+            if generation=='video':
+                tool=controls.get('tool','Universal')
+                controls={**json.loads(row['options_json']),'tool':tool}
+                text='Buat ulang prompt video berdasarkan storyboard aktif. Pertahankan semua scene, subjek, identitas, dan durasi.'
             controls=director.resolve(text,controls)
             if request.form.get('version')!=str(row['version']):return {'error':'Rencana berubah di tab lain. Buka ulang rencana sebelum merevisi.'},409
             if request.files.getlist('references'):return {'error':'Referensi awal dipertahankan saat revisi. Buat rencana baru untuk referensi lain.'},400
@@ -74,6 +80,9 @@ def generate():
             if row['version']:return response(row)
             text=row['idea'];controls=json.loads(row['options_json'])
         previous=json.loads(row['spec_json']) if row['version'] else None
+        if generation!='all' and not previous:return failure('Buat rencana terlebih dahulu.',400,row)
+        if generation=='video' and any(not s.get('image_prompt') for s in previous['scenes']):
+            return failure('Perbarui storyboard terlebih dahulu untuk membuat prompt gambar.',400,row)
         try:brief=video_brief.build(text,controls,previous,row['version'],row['id'])
         except ValueError as error:
             message=('Maksimal 8 klip per rencana. Kurangi total durasi atau pilih klip lebih panjang.'
@@ -84,7 +93,7 @@ def generate():
             if brief.get('plan_mode')=='multi':
                 controls.update(total_duration=brief['total_duration'],duration='Custom storyboard')
             refs=store.references(owner(),row['id']) if brief.get('use_references',True) else []
-            spec=director.generate(owner(),key,text,controls,previous,refs,brief=brief,deadline=deadline)
+            spec=director.generate(owner(),key,text,controls,previous,refs,brief=brief,deadline=deadline,generation=generation)
             controls['_brief']=video_brief.commit(brief,spec)
             store.save(owner(),row['id'],row['version'],spec,controls,text)
         except Exception:

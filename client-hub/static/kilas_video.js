@@ -35,6 +35,8 @@
   picker?.addEventListener('change',()=>{pending.push(...picker.files);picker.value='';showPending();});
   root.addEventListener('click',async event=>{
     const dialog=root.querySelector('#video-delete-dialog');
+    const regenerate=event.target.closest('[data-video-regenerate]');
+    if(regenerate){if(form.getAttribute('aria-busy')==='true')return;form.dataset.generation=regenerate.dataset.videoRegenerate;form.noValidate=true;form.requestSubmit();form.noValidate=false;return;}
     if(event.target.closest('[data-video-delete]')){dialog?.showModal();return;}
     if(event.target.closest('[data-video-cancel]')){dialog?.close();return;}
     const example=event.target.closest('[data-video-example]');if(example){input.value=example.dataset.videoExample;input.focus();return;}
@@ -52,10 +54,15 @@
     }
   });
   form?.addEventListener('submit',async event=>{
-    event.preventDefault();if(!form.reportValidity())return;
+    event.preventDefault();const generation=form.dataset.generation||'all';delete form.dataset.generation;
+    if(form.getAttribute('aria-busy')==='true')return;
+    if(generation==='all'&&!form.reportValidity())return;
     const button=root.querySelector('#video-submit'),status=root.querySelector('#video-status'),error=root.querySelector('#video-error');
     const data=new FormData(form);data.delete('references');if(!form.elements.project_id.value)pending.forEach(file=>data.append('references',file));
-    input.blur();button.disabled=true;picker.disabled=true;form.setAttribute('aria-busy','true');error.hidden=true;status.textContent=t('Menyusun dan meninjau arahan kreatif, storyboard, dan prompt produksi…');
+    data.set('generation',generation);
+    if(generation!=='all')data.set('idea',generation==='video'?'Buat ulang prompt video berdasarkan storyboard aktif. Pertahankan semua scene, subjek, identitas, dan durasi.':'Susun ulang storyboard dan prompt gambar untuk konsep aktif, lalu buat prompt video yang sesuai.');
+    const regenerators=[...root.querySelectorAll('[data-video-regenerate]')].map(b=>[b,b.disabled]);regenerators.forEach(([b])=>b.disabled=true);
+    input.blur();button.disabled=true;picker.disabled=true;form.setAttribute('aria-busy','true');error.hidden=true;status.textContent=t(generation==='video'?'Menyusun prompt video dari storyboard aktif…':'Menyusun storyboard dan prompt gambar, lalu prompt video…');
     try{const response=await fetch(form.action,{method:'POST',body:data,headers:{'Accept':'application/json'}});if(response.redirected){location.assign(response.url);return;}
       const result=await response.json().catch(()=>{throw new Error(t('Rencana belum berhasil disusun. Buka riwayat untuk melihat versi terakhir, lalu coba lagi.'));});if(!response.ok){
         form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');
@@ -72,7 +79,7 @@
       form.elements.project_id.value=result.id;form.elements.version.value=result.version;form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');
       for(const [key,value] of Object.entries(result.controls))if(form.elements[key])form.elements[key].value=value;
       splitPreview();
-      input.value='';input.placeholder=t('Contoh: lebih premium, tanpa voice-over, produknya tetap sama.');
+      if(generation==='all')input.value='';input.placeholder=t('Contoh: lebih premium, tanpa voice-over, produknya tetap sama.');
       root.querySelector('#video-composer-label').textContent=t('Ubah atau sempurnakan rencana');
       root.querySelector('#video-reference-control').hidden=true;pending=[];showPending();button.textContent=t('Perbarui rencana');
       history.replaceState(null,'',result.url);status.textContent=t('Rencana tersimpan. Kamu bisa menyalin prompt atau meminta revisi.');
@@ -81,6 +88,6 @@
       if(!list.parentElement){root.querySelector('.video-history>p')?.remove();root.querySelector('.video-history>h2').after(list);}
       // No automatic composer focus: completing a plan must not reopen a mobile keyboard.
     }catch(problem){if(form.elements.project_id.value)form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');error.textContent=problem.message||t('Koneksi terputus. Buka riwayat sebelum mencoba ulang.');error.hidden=false;status.textContent='';}
-    finally{document.dispatchEvent(new Event('kilas:request-finished'));button.disabled=false;picker.disabled=false;form.removeAttribute('aria-busy');}
+    finally{document.dispatchEvent(new Event('kilas:request-finished'));button.disabled=false;picker.disabled=false;regenerators.forEach(([b,disabled])=>b.disabled=disabled);form.removeAttribute('aria-busy');}
   });
 })();

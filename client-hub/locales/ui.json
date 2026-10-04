@@ -1,4 +1,15 @@
 {
+  "Susun ulang storyboard": {"en":"Regenerate storyboard","es":"Regenerar storyboard","zh":"重新生成故事板"},
+  "Buat ulang prompt video dari storyboard ini": {"en":"Generate video prompts from this storyboard","es":"Generar prompts de video desde este storyboard","zh":"根据此故事板生成视频提示词"},
+  "Rencana lama tetap tersedia. Susun ulang storyboard untuk menambahkan prompt gambar per scene.": {"en":"Your saved plan remains available. Regenerate the storyboard to add image prompts for each scene.","es":"Tu plan guardado sigue disponible. Regenera el storyboard para añadir prompts de imagen a cada escena.","zh":"已保存的方案仍然可用。重新生成故事板，为每个场景添加图片提示词。"},
+  "Salin semua prompt gambar": {"en":"Copy all image prompts","es":"Copiar todos los prompts de imagen","zh":"复制所有图片提示词"},
+  "Salin semua prompt video": {"en":"Copy all video prompts","es":"Copiar todos los prompts de video","zh":"复制所有视频提示词"},
+  "Buat frame gambar terlebih dahulu": {"en":"Create the still frame first","es":"Crea primero el fotograma","zh":"先创建静态画面"},
+  "Salin prompt gambar": {"en":"Copy image prompt","es":"Copiar prompt de imagen","zh":"复制图片提示词"},
+  "Gunakan frame scene ini sebagai referensi video": {"en":"Use this scene frame as the video reference","es":"Usa este fotograma como referencia del video","zh":"使用此场景画面作为视频参考"},
+  "Salin prompt video": {"en":"Copy video prompt","es":"Copiar prompt de video","zh":"复制视频提示词"},
+  "Menyusun storyboard dan prompt gambar, lalu prompt video…": {"en":"Planning the storyboard and image prompts, then video prompts…","es":"Preparando el storyboard y los prompts de imagen, luego los prompts de video…","zh":"正在规划故事板和图片提示词，然后生成视频提示词…"},
+  "Menyusun prompt video dari storyboard aktif…": {"en":"Generating video prompts from the current storyboard…","es":"Generando prompts de video desde el storyboard actual…","zh":"正在根据当前故事板生成视频提示词…"},
   "Home · Kilas Works": {
     "en": "Home · Kilas Works",
     "es": "Inicio · Kilas Works",

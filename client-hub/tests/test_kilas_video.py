@@ -23,8 +23,10 @@ def spec():
     data.update(audience='Pengguna skincare',talent_direction='Talent menunjukkan kemasan tanpa mengubah posisi label.',
         product_direction='Kemasan menghadap kamera.',subject_en='skincare product',
         master_prompt='Create a 10-second vertical 9:16 skincare commercial. Open with a static close-up of the same reference product in soft window light. At 4 seconds, use a medium shot of the same talent demonstrating the product. Keep the same packaging and label, without invented benefit claims. End with a clear hero frame and quiet ambient sound.')
-    for scene in data['scenes']:
+    for number,scene in enumerate(data['scenes'],1):
         scene.update(environment='Kamar mandi yang sama',continuity='Kemasan dan cahaya tetap sama',
+                     title=f'Frame produk {number}',purpose='Tunjukkan detail produk',
+                     image_prompt=f'A still reference frame of the same skincare product in a modern bathroom, soft window lighting, warm neutral mood. The packaging faces the static camera in a '+('close-up' if number==1 else 'medium')+' shot. Preserve the supplied wardrobe and hairstyle of the same talent, with no invented label text. Vertical 9:16 composition.',
                      production_prompt='Use a static camera shot with the same skincare packaging in soft window light. Show the hand taking the product, keeping the label and shape unchanged.')
     return data
 

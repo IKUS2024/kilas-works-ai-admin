@@ -17,6 +17,8 @@ def plan(subject,english):
                   master_prompt='Create a 10-second vertical video of the '+english+'. Use the same subject with a static close-up camera shot in soft light. Finish on a clear hero frame with ambient audio.')
     for i,scene in enumerate(result['scenes']):
         scene.update(visual=('Detail ' if i==0 else 'Tampilan utuh ')+subject,action='Perlihatkan '+subject,
+                     title=('Detail ' if i==0 else 'Tampilan utuh ')+subject,purpose='Perlihatkan '+subject,
+                     image_prompt='A still frame of the same '+english+' in a '+('close-up' if i==0 else 'medium')+' camera shot. Keep the same studio environment and soft window lighting with a neutral mood, stable product shape and packaging. Vertical 9:16 composition with no invented labels.',
                      production_prompt='Use a '+('close-up' if i==0 else 'medium')+' camera shot of the same '+english+' in soft light. Keep the identity and shape stable.')
     for key in director.LIST_FIELDS:result[key]=['Pertahankan '+subject]
     return result
@@ -103,21 +105,21 @@ class DirectorV2Tests(unittest.TestCase):
         self.assertEqual(usage['input_tokens'],500);self.assertEqual(usage['output_tokens'],1200)
         self.assertEqual(usage['model'],'gpt-6.1-sol');self.assertGreater(float(usage['estimated_cost_usd']),0)
 
-    def test_compact_review_merges_only_changes_and_meters_both_calls(self):
-        response=provider_response({'title':'Arahan yang ditinjau'})
+    def test_compact_video_phase_keeps_storyboard_and_meters_both_calls(self):
+        response=provider_response({'master_prompt':spec()['master_prompt'],'scenes':[{'production_prompt':s['production_prompt']} for s in spec()['scenes']]})
         with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',side_effect=[provider_response(),response]) as calls:
             value=director.generate(self.owner,'compact-review-123456','video skincare',{})
-        self.assertEqual(value['title'],'Arahan yang ditinjau')
+        self.assertEqual(value['title'],spec()['title'])
         self.assertEqual(value['scenes'],spec()['scenes'])
         self.assertEqual(calls.call_count,2)
         self.assertLessEqual(calls.call_args_list[0].kwargs['timeout'][1],50)
-        self.assertLessEqual(calls.call_args_list[1].kwargs['timeout'][1],20)
+        self.assertLessEqual(calls.call_args_list[1].kwargs['timeout'][1],65)
         with self.assertRaises(ValueError):director.refinement(spec(),{'internal_reasoning':'not allowed'})
 
-    def test_empty_review_keeps_valid_plan_and_failed_review_keeps_previous(self):
+    def test_empty_video_phase_fails_closed_and_budget_never_calls_provider(self):
         response=provider_response();data=response.json();data['choices'][0]['message']['content']='{}';response.json=lambda:data
         with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',side_effect=[provider_response(),response]):
-            self.assertEqual(director.generate(self.owner,'empty-review-123456','video skincare',{}),spec())
+            with self.assertRaises(ValueError):director.generate(self.owner,'empty-review-123456','video skincare',{})
         with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post') as calls:
             with self.assertRaises(ValueError):director.generate(self.owner,'budget-review-123456','video skincare',{},deadline=0.001)
             calls.assert_not_called()
