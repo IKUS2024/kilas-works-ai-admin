@@ -42,6 +42,8 @@ class AudioTests(unittest.TestCase):
         with self.client.session_transaction() as s:s.update(user_id=self.user,role='CLIENT_OWNER',_csrf_token='audio-csrf')
         self.voices=[{'id':'actualVoice123','name':'QA Calm','style':'Female · Calm'}]
         self.env=patch.dict(os.environ,{'ELEVENLABS_API_KEY':'synthetic-only'});self.env.start();self.addCleanup(self.env.stop)
+        self.transport=patch.object(provider.requests,'request',side_effect=provider.requests.ConnectionError('offline provider mock'))
+        self.transport.start();self.addCleanup(self.transport.stop)
 
     def credit(self,seconds=60):
         f.db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,?)',(self.user,seconds))
@@ -69,8 +71,8 @@ class AudioTests(unittest.TestCase):
 
     def test_translator_large_upload_cap_is_scoped_and_enforced(self):
         self.credit()
-        # Valid short WAV padded above the old 12 MiB multipart cap, below 25 MiB.
-        raw=wav(3)+b'\0'*(13*1024*1024)
+        # Valid short WAV above the old cap; duration remains the only charge basis.
+        raw=wav(3)+b'\0'*(26*1024*1024)
         with patch.object(provider,'dub',return_value='large-dubbing') as dub:
             inspected=self.client.post('/kilas-translator/inspect',data={'csrf_token':'audio-csrf','file':(io.BytesIO(raw),'large.wav','audio/wav')})
             self.assertEqual(inspected.status_code,200,inspected.text)
@@ -79,9 +81,9 @@ class AudioTests(unittest.TestCase):
             r,_,submitted=self.create('translate',file=(io.BytesIO(raw),'large.wav','audio/wav'))
             self.assertEqual(r.status_code,201,r.text);submitted.assert_called_once()
         # Per-file cap still applies, and unrelated endpoints keep their original cap.
-        oversized=wav()+b'\0'*(25*1024*1024)
+        oversized=wav()+b'\0'*(100*1024*1024)
         r=self.client.post('/kilas-translator/inspect',data={'csrf_token':'audio-csrf','file':(io.BytesIO(oversized),'large.wav','audio/wav')})
-        self.assertEqual(r.status_code,400);self.assertIn('25 MB',r.json['error'])
+        self.assertEqual(r.status_code,400);self.assertIn('100 MB',r.json['error'])
         r=self.client.post('/register',data={'csrf_token':'audio-csrf','file':(io.BytesIO(raw),'large.wav','audio/wav')})
         self.assertEqual(r.status_code,413)
         self.assertEqual(f.app.app.config['MAX_CONTENT_LENGTH'],12*1024*1024)
@@ -142,6 +144,16 @@ class AudioTests(unittest.TestCase):
         with patch.dict(os.environ,{'KILAS_AI_INTERNAL_QA_EMAILS':'qa-internal-audio@example.test'}):
             r,_,_=self.create();self.assertEqual(r.status_code,201,r.text);self.assertEqual(store.get(self.user,r.json['id'])['seconds_charged'],0);self.assertTrue(video_entitlement.state(self.user)['allowed'])
 
+    def test_internal_qa_translate_completion_without_balance(self):
+        f.db.execute('UPDATE users SET email=? WHERE id=?',('qa-internal-translate@example.test',self.user))
+        with patch.dict(os.environ,{'KILAS_AI_INTERNAL_QA_EMAILS':'qa-internal-translate@example.test'}):
+            r,_,_=self.create('translate',source_language='id',file=(io.BytesIO(wav()),'qa.wav','audio/wav'))
+            self.assertEqual(r.status_code,201,r.text)
+            with patch.object(provider,'dub_status',return_value={'status':'dubbed'}),patch.object(provider,'dub_result',return_value=self.audio):service.refresh(self.user,r.json['id'])
+            self.assertEqual(store.get(self.user,r.json['id'])['status'],'COMPLETED')
+            self.assertEqual(store.get(self.user,r.json['id'])['seconds_charged'],0)
+            self.assertEqual(store.balance(self.user)['reserved'],0)
+
     def test_private_job_result_and_history(self):
         self.credit();r,_,_=self.create();ident=r.json['id']
         self.assertEqual(self.client.get(r.json['url']).status_code,200)
@@ -176,9 +188,9 @@ class AudioTests(unittest.TestCase):
             r,speech,_=self.create(**data);self.assertGreaterEqual(r.status_code,400);speech.assert_not_called()
 
     def test_provider_payload_no_retry_and_audio_only(self):
-        with patch.object(provider,'request',return_value={'dubbing_id':'verified123'}) as call:
-            self.assertEqual(provider.dub(wav(),'auto','en',1),'verified123')
-            args=call.call_args;self.assertEqual(args.args,('POST','/dubbing'));self.assertEqual(args.kwargs['data']['target_lang'],'en');self.assertEqual(args.kwargs['files']['file'][0],'audio.wav')
+        with patch.object(provider,'request',return_value={'dubbing_id':'verified123'}) as call, patch.object(provider,'dubbing_watermark',return_value=True):
+            self.assertEqual(provider.dub(wav(),'id','en',1),'verified123')
+            args=call.call_args;self.assertEqual(args.args,('POST','/dubbing'));self.assertEqual(args.kwargs['data']['target_lang'],'en');self.assertEqual(args.kwargs['files']['file'][0],'audio.wav');self.assertEqual(args.kwargs['data']['source_lang'],'id');self.assertEqual(args.kwargs['data']['watermark'],'true')
         with patch.object(provider,'request',return_value=(self.audio,'req')) as call:
             provider.speech('Hello','actualVoice123','en');self.assertEqual(call.call_args.kwargs['params']['output_format'],'mp3_44100_128')
 
@@ -190,6 +202,112 @@ class AudioTests(unittest.TestCase):
             with self.assertRaises(provider.ProviderError) as error:provider.request('POST','/dubbing')
         self.assertEqual(error.exception.code,'provider_http_400');self.assertEqual(call.call_count,1)
         self.assertIn('watermark_required',logs.output[0]);self.assertNotIn('sk_secret',logs.output[0]);self.assertNotIn('user@example.test',logs.output[0])
+
+    def test_watermark_matches_free_and_paid_account_without_paid_probe(self):
+        for tier,expected in [('free',True),('starter',False)]:
+            with patch.object(provider,'_subscription',None),patch.object(provider,'request',return_value={'tier':tier}) as call:
+                self.assertEqual(provider.dubbing_watermark(),expected)
+                self.assertEqual(provider.dubbing_watermark(),expected)
+                call.assert_called_once_with('GET','/user/subscription')
+        with patch.object(provider,'_subscription',None),patch.object(provider,'request',return_value={}):
+            with self.assertRaises(provider.ProviderError):provider.dubbing_watermark()
+
+    def test_account_read_failure_never_submits_paid_dub(self):
+        with patch.object(provider,'_subscription',None),patch.object(provider,'request',side_effect=provider.ProviderError('provider_http_403')) as call:
+            with self.assertRaises(provider.ProviderError):provider.dub(wav(),'id','en',1)
+            call.assert_called_once_with('GET','/user/subscription')
+
+    def test_multipart_translator_files_are_disk_backed(self):
+        from flask import request
+        with f.app.app.test_request_context('/kilas-translator/inspect',method='POST',data={'file':(io.BytesIO(wav()),'qa.wav','audio/wav')}):
+            uploaded=request.files['file']
+            self.assertNotIsInstance(uploaded.stream,io.BytesIO)
+            self.assertGreaterEqual(uploaded.stream.fileno(),0)
+
+    def test_ambiguous_translate_never_posts_again_and_releases_balance(self):
+        self.credit()
+        with patch.object(provider,'dub',side_effect=provider.ProviderError('provider_transport')) as paid:
+            data={'csrf_token':'audio-csrf','operation_key':'ambiguous-translate-key-123','mode':'translate','source_language':'id','language':'en'}
+            r=self.client.post('/kilas-translator/jobs',data={**data,'file':(io.BytesIO(wav()),'qa.wav','audio/wav')})
+            ident=r.json['id']
+            repeat=self.client.post('/kilas-translator/jobs',data={**data,'file':(io.BytesIO(wav()),'qa.wav','audio/wav')})
+            self.assertEqual(repeat.json['id'],ident)
+            self.client.get(f'/kilas-translator/jobs/{ident}/status');paid.assert_called_once()
+        job=store.get(self.user,ident);self.assertEqual(job['seconds_charged'],0)
+        self.assertEqual(store.balance(self.user)['reserved'],0);self.assertEqual(store.balance(self.user)['seconds'],60)
+
+    def test_translate_persists_same_project_and_completed_download_after_refresh(self):
+        self.credit()
+        r,_,_=self.create('translate',source_language='id',file=(io.BytesIO(wav()),'qa.wav','audio/wav'))
+        ident=r.json['id'];job=store.get(self.user,ident)
+        self.assertEqual(job['provider_id'],'dubbing123');self.assertIsNone(store.payload(self.user,ident)['source_content'])
+        with patch.object(provider,'dub_status',return_value={'status':'dubbed','source_language':'id'}) as poll,patch.object(provider,'dub_result',return_value=wav()) as result,patch.object(provider,'dub') as paid:
+            self.client.get(f'/kilas-translator/jobs/{ident}/status')
+            poll.assert_called_once_with('dubbing123');result.assert_called_once_with('dubbing123','en');paid.assert_not_called()
+        self.assertEqual(store.get(self.user,ident)['source_language'],'id')
+        self.assertIn('Translation complete',self.client.get(r.json['url']).text)
+        output=self.client.get(f'/kilas-translator/jobs/{ident}/result?download=1')
+        self.assertEqual(output.mimetype,'audio/mpeg');self.assertIn('attachment',output.headers['Content-Disposition'])
+        self.assertGreater(media.mp3_duration(output.data),0)
+
+    def test_streamed_mp4_above_25mb_cleanup_and_bounded_db_audio(self):
+        import imageio_ffmpeg
+        from werkzeug.datastructures import FileStorage
+        class BoundedReader:
+            def __init__(self,stream):self.stream=stream
+            def read(self,n):
+                self.assert_size(n)
+                return self.stream.read(n)
+            def assert_size(self,n):
+                if not 0<n<=65536:raise AssertionError('unbounded source read')
+        directories=[];original=media.tempfile.TemporaryDirectory
+        def tracked(**kwargs):
+            context=original(**kwargs);directories.append(Path(context.name));return context
+        self.credit()
+        with tempfile.TemporaryDirectory() as folder:
+            p=Path(folder);(p/'audio.wav').write_bytes(wav())
+            subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(),'-v','error','-f','lavfi','-i','color=c=white:s=32x32:d=2','-i',str(p/'audio.wav'),'-shortest','-c:a','aac','-y',str(p/'video.mp4')],capture_output=True,check=True,timeout=20)
+            with (p/'video.mp4').open('ab') as output:
+                for _ in range(26):output.write(b'\0'*(1024*1024))
+            with (p/'video.mp4').open('rb') as source,patch.object(media.tempfile,'TemporaryDirectory',side_effect=tracked):
+                name,ms,pcm=media.upload(FileStorage(BoundedReader(source),filename='../../outside/video.mp4',content_type='video/mp4'))
+            self.assertFalse(any(path.exists() for path in directories));self.assertNotIn('/',name)
+            self.assertLess(len(pcm),100000);self.assertLessEqual(ms,2100)
+            ident,_=store.create(self.user,'bounded-source-key-12345','translate','QA','id','en','','name','',ms,pcm,3,3)
+            self.assertLess(len(store.payload(self.user,ident)['source_content']),100000)
+
+    def test_size_limits_streamed_cleanup_on_rejection(self):
+        from werkzeug.datastructures import FileStorage
+        class SizedSource:
+            def __init__(self,size,head):self.left=size;self.head=head
+            def read(self,n):
+                if not 0<n<=65536:raise AssertionError('unbounded upload read')
+                take=min(n,self.left);self.left-=take
+                if not take:return b''
+                head=self.head;self.head=b''
+                return head+b'\0'*(take-len(head))
+        for ext,mime,limit,head in [('mp4','video/mp4',250,b'\0\0\0\x18ftypisom'),('wav','audio/wav',100,b'RIFF0000WAVE')]:
+            self.assertEqual(media.file_limit(ext),limit*1024*1024)
+            for extra in [0,1]:
+                with patch.object(media,'_decode_source',return_value=(2000,wav())) as decoded:
+                    item=FileStorage(SizedSource(limit*1024*1024+extra,head),filename='limit.'+ext,content_type=mime)
+                    if extra:
+                        with self.assertRaises(media.MediaError):media.upload(item)
+                        decoded.assert_not_called()
+                    else:media.upload(item);decoded.assert_called_once()
+        self.assertEqual(media.duration_limit(),600)
+
+    def test_m4a_supported_and_ten_minute_duration_enforced(self):
+        import imageio_ffmpeg
+        from werkzeug.datastructures import FileStorage
+        with tempfile.TemporaryDirectory() as folder:
+            p=Path(folder);(p/'audio.wav').write_bytes(wav())
+            subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(),'-v','error','-i',str(p/'audio.wav'),'-c:a','aac','-y',str(p/'audio.m4a')],capture_output=True,check=True,timeout=20)
+            with (p/'audio.m4a').open('rb') as source:
+                _,ms,_=media.upload(FileStorage(source,filename='audio.m4a',content_type='audio/mp4'));self.assertGreater(ms,1900)
+        with self.assertRaises(media.MediaError):media.decode(wav(601),'wav')
+        self.assertEqual(media.decode(wav(600),'wav')[0],600000)
+        with self.assertRaises(media.MediaError):media.decode(wav(),'../../arbitrary')
 
     def test_curated_actual_available_voice_ids_stable(self):
         raw={'voices':[{'voice_id':'valid'+str(i),'name':'Voice '+str(i),'labels':{'gender':'female','description':'calm'}} for i in range(8)]}

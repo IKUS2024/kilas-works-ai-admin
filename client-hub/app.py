@@ -49,6 +49,9 @@ class ClientHubRequest(Request):
         # Werkzeug's default spools files larger than 500 KB to a temporary disk file.
         if self.endpoint in ('finance.bank_analyze', 'finance.receipt_analyze', 'finance.assistant_recognize', 'finance.assistant_document'):
             return io.BytesIO()
+        if self.endpoint in ('kilas_audio.inspect', 'kilas_audio.create'):
+            import tempfile
+            return tempfile.TemporaryFile(mode='w+b')
         return super()._get_file_stream(total_content_length, content_type, filename, content_length)
 
 

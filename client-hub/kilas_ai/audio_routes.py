@@ -50,7 +50,7 @@ def home(ident=None):
     return render_template('kilas_translator/home.html',balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
                            voices=provider.voices() if state['exempt'] or state['available'] else [],
                            provider_ready=provider.configured(),languages=provider.LANGUAGES,packs=store.PACKS,
-                           seconds=seconds,operation_key=secrets.token_hex(16),max_mb=media.file_limit()//1024//1024,max_seconds=media.duration_limit())
+                           seconds=seconds,operation_key=secrets.token_hex(16),max_mb=media.file_limit()//1024//1024,audio_max_mb=media.file_limit('wav')//1024//1024,max_seconds=media.duration_limit())
 
 
 @audio_bp.post('/inspect')

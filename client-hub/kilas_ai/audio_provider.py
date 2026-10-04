@@ -13,6 +13,8 @@ LANGUAGES = {'id':'Indonesian','en':'English','ja':'Japanese','ko':'Korean','zh'
              'pt':'Portuguese','it':'Italian','hi':'Hindi','ms':'Malay','nl':'Dutch','ru':'Russian','tr':'Turkish'}
 _voices = None
 _voices_at = 0
+_subscription = None
+_subscription_at = 0
 
 
 class ProviderError(ValueError):
@@ -45,8 +47,11 @@ def request(method, path, *, binary=False, **kwargs):
                     if isinstance(detail, dict):
                         category = str(detail.get('status', detail.get('type', 'unknown')))
                         message = str(detail.get('message', ''))
+                    elif isinstance(detail, list):
+                        category = 'validation'
+                        message = '; '.join(str(v.get('loc', []))+': '+str(v.get('msg', '')) for v in detail if isinstance(v, dict))
                     else:
-                        category, message = 'validation', str(detail)
+                        category, message = 'provider_error', str(detail)
                     safe = (category + ': ' + message).replace(key, '[redacted]')
                     safe = re.sub(r'https?://\S+|[\w.+-]+@[\w.-]+|(?:sk_|Bearer\s+)[\w.-]+', '[redacted]', safe)
                     safe = re.sub(r'[\r\n\x00-\x1f]', ' ', safe)[:600]
@@ -101,10 +106,22 @@ def voices():
         return []
 
 
+def dubbing_watermark():
+    """Free accounts require watermarking; paid accounts use their supported behavior."""
+    global _subscription, _subscription_at
+    if _subscription is None or time.monotonic()-_subscription_at >= 300:
+        tier = request('GET', '/user/subscription').get('tier')
+        if not isinstance(tier, str) or not tier:
+            raise ProviderError('provider_account_unknown')
+        _subscription, _subscription_at = tier, time.monotonic()
+    return _subscription.lower() == 'free'
+
+
 def dub(pcm, source, target, job_id):
     data = request('POST','/dubbing', files={'file':('audio.wav', pcm,'audio/wav')},
                    data={'source_lang':source,'target_lang':target,'name':'Kilas audio '+str(job_id),
-                         'dubbing_studio':'false','mode':'automatic'})
+                         'dubbing_studio':'false','mode':'automatic',
+                         'watermark':'true' if dubbing_watermark() else 'false'})
     ident = str(data.get('dubbing_id',''))
     if not ident or not all(c.isalnum() or c in '_-' for c in ident) or len(ident)>120:
         raise ProviderError('invalid_provider_job')
