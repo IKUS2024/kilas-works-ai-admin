@@ -191,7 +191,8 @@ def main():
                 assert page.get_by_text("Rp25.000", exact=True).is_visible()
                 assert page.get_by_label("Bukti transfer (gambar atau PDF, maksimal 5 MB)").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "topup invoice")
-                page.get_by_role("link", name="Langganan & tagihan").click()
+                with page.expect_navigation(wait_until="networkidle"):
+                    page.get_by_role("link", name="Langganan & tagihan").click()
                 assert page.get_by_role("heading", name="Kilas Pro").is_visible()
                 assert page.get_by_text("Unlimited AI Chat*", exact=True).is_visible()
                 page.get_by_role("button", name="Mulai berlangganan").click()
