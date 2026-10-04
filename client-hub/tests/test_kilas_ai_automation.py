@@ -138,6 +138,11 @@ class AutomationFlowTests(unittest.TestCase):
             user_session.update(user_id=user_id, role="CLIENT_OWNER", _csrf_token="automation-csrf")
         return client
 
+    def setUp(self):
+        # claim_due is global: schedules left by another test must not become due
+        # as this case advances its clock. This database contains synthetic fixtures only.
+        db.execute("UPDATE kilas_automations SET status='PAUSED' WHERE status='ACTIVE'")
+
     def test_server_email_allowlist_covers_commercial_quotas_without_expiry(self):
         from kilas_ai import usage
         owner = repo.create_user("automation-qa-window@example.test", "hash")
