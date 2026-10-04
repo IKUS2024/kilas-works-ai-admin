@@ -1,0 +1,49 @@
+name: Kilas Audio QA
+on:
+  push:
+    branches: [main]
+    paths: ['client-hub/kilas_ai/audio_*.py', 'client-hub/kilas_ai/video_entitlement.py', 'client-hub/templates/kilas_translator/**', 'client-hub/static/kilas_audio.*', 'client-hub/migrations/0083_*', 'client-hub/tests/test_kilas_audio*.py', 'client-hub/app.py', 'client-hub/db.py', 'client-hub/requirements.txt', '.github/workflows/kilas-audio-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python client-hub/tests/test_kilas_audio.py
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python client-hub/tests/test_kilas_audio_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: kilas-audio-responsive, path: /tmp/kilas-audio-browser/}
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: audio_qa}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d audio_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python client-hub/tests/test_kilas_audio_postgres.py
+        env: {DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/audio_qa', KILAS_AI_POSTGRES_QA: '1'}

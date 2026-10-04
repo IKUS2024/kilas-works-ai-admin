@@ -4,6 +4,8 @@
 
   const root=document.querySelector('#video-studio');if(!root)return;
   const form=root.querySelector('#video-composer'),input=root.querySelector('#video-idea');
+  const quotaBlocked=root.dataset.quotaBlocked==='true';
+  if(quotaBlocked)root.querySelectorAll('[data-video-regenerate]').forEach(b=>b.disabled=true);
   function splitPreview(){
     const multi=form.elements.plan_mode.value==='multi',totalField=form.elements.total_duration;
     root.querySelector('#video-multi-controls').hidden=!multi;
@@ -55,6 +57,7 @@
   });
   form?.addEventListener('submit',async event=>{
     event.preventDefault();const generation=form.dataset.generation||'all';delete form.dataset.generation;
+    if(quotaBlocked)return;
     if(form.getAttribute('aria-busy')==='true')return;
     if(generation==='all'&&!form.reportValidity())return;
     const button=root.querySelector('#video-submit'),status=root.querySelector('#video-status'),error=root.querySelector('#video-error');

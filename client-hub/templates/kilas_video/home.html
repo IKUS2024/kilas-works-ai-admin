@@ -2,11 +2,12 @@
 {% block title %}{{ ui_t('Kilas Video · Kilas Works') }}{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_video.css',v='storyboard-20261004') }}">
-<section class="video-studio" id="video-studio">
+<section class="video-studio" id="video-studio" data-quota-blocked="{{ 'true' if not video_entitlement.allowed else 'false' }}">
 <header class="video-heading"><div><h1>Kilas Video</h1><p>{{ ui_t('Ubah ide sederhana menjadi rencana video yang siap diproduksi.') }}</p></div><a href="{{ url_for('kilas_ai.video_home') }}" class="btn secondary">{{ ui_t('Rencana baru') }}</a></header>
 <div class="video-workbench">
 <main class="video-primary">
 <header class="video-project-header"><h2 id="video-active-title">{{ project.title if spec else ui_t('Video Plan') }}</h2><p id="video-active-version">{{ ui_t('Versi ')+project.version|string+ui_t(' · Rencana aktif') if spec else ui_t('Dari ide ke arahan produksi') }}</p></header>
+{% if not video_entitlement.allowed %}<section class="video-empty"><h2>{{ video_entitlement.message }}</h2><p>Pilih paket untuk mulai membuat storyboard dan prompt video.</p><a class="btn" href="{{ url_for('kilas_ai.usage_page') }}">{{ video_entitlement.cta }}</a></section>{% endif %}
 <form action="{{ url_for('kilas_ai.video_generate') }}" method="post" enctype="multipart/form-data" id="video-composer">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}"><input type="hidden" name="project_id" value="{{ project.id if project else '' }}"><input type="hidden" name="version" value="{{ project.version if project else 0 }}">
 <p class="video-revision-context" id="video-revision-context" {{ '' if spec else 'hidden' }}>{{ ui_t('Revisi rencana aktif') }}</p>
@@ -27,7 +28,7 @@
 <label for="video-tool">{{ ui_t('Tool tujuan') }}<select id="video-tool" name="tool"><option value="">{{ ui_t('Ikuti ide saya') }}</option>{% for item in target_tools %}<option {{ 'selected' if controls.get('tool')==item }}>{{ item }}</option>{% endfor %}</select></label>
 </div></details>
 <div id="video-reference-control" {{ 'hidden' if project }}><label for="video-references" class="video-upload">{{ ui_t('Tambahkan foto referensi') }} <span>{{ ui_t('JPG, PNG, WebP · opsional') }}</span></label><input id="video-references" type="file" name="references" accept="image/jpeg,image/png,image/webp" multiple><div class="video-previews" id="video-previews" aria-label="{{ ui_t('Foto yang dipilih') }}"></div></div>
-<div class="video-submit-row"><p>{{ ui_t('Kilas menyusun arahan kreatif dan prompt. Video akhir dibuat di tool pilihanmu.') }}</p><button type="submit" class="btn" id="video-submit">{{ ui_t('Perbarui rencana') if spec else ui_t('Susun Video Plan') }}</button></div>
+<div class="video-submit-row"><p>{{ ui_t('Kilas menyusun arahan kreatif dan prompt. Video akhir dibuat di tool pilihanmu.') }}</p><button type="submit" class="btn" id="video-submit" {{ 'disabled' if not video_entitlement.allowed }}>{{ ui_t('Perbarui rencana') if spec else ui_t('Susun Video Plan') }}</button></div>
 <p id="video-status" role="status" aria-live="polite"></p><p id="video-error" role="alert" hidden></p>
 </form>
 <div id="video-result" tabindex="-1">{% if spec %}{% include 'kilas_video/_result.html' %}{% else %}<section class="video-empty"><h2>{{ ui_t('Mulai dari idenya saja.') }}</h2><p>{{ ui_t('Kilas menyusun pembuka, alur adegan, arahan kamera, dan prompt berbahasa Inggris. Tambahkan referensi untuk menjaga bentuk dan detail produk.') }}</p><button type="button" class="video-example" data-video-example="Bikin video skincare buat reels, cewek Indonesia, clean, natural, produknya jangan berubah.">{{ ui_t('Coba ide skincare untuk Reels') }} <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button><button type="button" class="video-example" data-video-example="Bikin iklan kopi 15 detik, hangat dan natural, tanpa voice-over.">{{ ui_t('Coba iklan kopi tanpa narasi') }} <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button></section>{% endif %}</div>

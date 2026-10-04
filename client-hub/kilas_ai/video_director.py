@@ -145,6 +145,9 @@ def refinement(draft,changes):
 
 
 def generate(owner,key,idea,controls,previous=None,references=(),brief=None,deadline=None,generation='all'):
+    from . import video_entitlement
+    gate=video_entitlement.state(owner)
+    if not gate['allowed']:raise usage.UsageLimit(gate['message'])
     provider_key=os.environ.get('OPENAI_API_KEY','').strip()
     if not provider_key:raise ValueError('video_provider_unavailable')
     model,effort,_=model_policy.agent_planner({'instruction':'multi-stage planning'})

@@ -40,6 +40,9 @@ class VideoTests(unittest.TestCase):
     def setUp(self):
         fixture.app.app.config.update(TESTING=True,CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)
         self.owner=fixture.repo.create_user(self.id()+'@example.test','hash')
+        from datetime import timedelta
+        now=usage._now()
+        fixture.db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?)",(self.owner,now.isoformat(),(now+timedelta(days=30)).isoformat()))
         self.other=fixture.repo.create_user(self.id()+'-other@example.test','hash')
         self.client=fixture.app.app.test_client()
         with self.client.session_transaction() as state:state.update(user_id=self.owner,role='CLIENT_OWNER',_csrf_token='video-test-csrf')

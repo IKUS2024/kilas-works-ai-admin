@@ -82,9 +82,9 @@ def topup_proof_upload(order_id):
 
 @admin_bp.get("/payments")
 def payments():
-    from . import economics
+    from . import economics, audio_billing
     return render_template("kilas_ai/admin_payments.html", payments=billing.pending_payments(),
-                           topup_payments=topups.pending_orders(), economics=economics.admin_snapshot())
+                           topup_payments=topups.pending_orders(), audio_payments=audio_billing.pending(), economics=economics.admin_snapshot())
 
 
 @admin_bp.get("/topups/<int:order_id>/proof")

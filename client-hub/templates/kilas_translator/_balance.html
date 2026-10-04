@@ -1,0 +1,1 @@
+<span>Saldo Audio</span><strong>{{ 'Tersedia' if balance.exempt else seconds(balance.available)+' tersisa' }}</strong><a href="#audio-packs">{{ 'Beli Saldo' if not balance.available else 'Tambah Saldo' }}</a>{% if balance.reserved %}<small>{{ seconds(balance.reserved) }} sedang dicadangkan</small>{% endif %}

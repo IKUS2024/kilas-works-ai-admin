@@ -7,7 +7,7 @@ import time
 from werkzeug.exceptions import HTTPException
 from flask import abort, redirect, render_template, request, session, send_file, url_for
 from .routes import ai_bp
-from . import attachments, usage, video_store as store, video_director as director, video_adapters as adapters, video_brief
+from . import attachments, usage, video_store as store, video_director as director, video_adapters as adapters, video_brief, video_entitlement
 
 
 def owner():return session['user_id']
@@ -37,7 +37,7 @@ def home(project=None):
     except ValueError:abort(400)
     row=owned(project) if project else None
     rows=store.history(owner(),page)
-    return render_template('kilas_video/home.html',area=area,history=rows[:20],more=len(rows)>20,page=page,
+    return render_template('kilas_video/home.html',video_entitlement=video_entitlement.state(owner()),area=area,history=rows[:20],more=len(rows)>20,page=page,
         plan_types=('Product','UGC','Ads','Cinematic','Social Content','Education','Fashion','Food','Travel','Other'),
         target_tools=director.TOOLS,operation_key=secrets.token_hex(16),
         project=row,controls=json.loads(row['options_json']) if row else {},**({k:v for k,v in output(row).items() if k not in ('project','controls')} if row else {'spec':None,'package':None,'references':[]}))
@@ -45,6 +45,13 @@ def home(project=None):
 
 @ai_bp.post('/video/plan',endpoint='video_generate')
 def generate():
+    requested_project=request.form.get('project_id','')
+    if requested_project:
+        if not requested_project.isdigit():abort(400)
+        owned(int(requested_project))  # Ownership still wins over a quota response.
+    gate=video_entitlement.state(owner())
+    if not gate['allowed']:
+        return {'error':gate['message'],'code':'video_quota_'+gate['reason'],'purchase_url':url_for('kilas_ai.usage_page')},402
     deadline=time.monotonic()+75  # Leave headroom below the observed 90s production worker limit.
     text=str(request.form.get('idea','')).strip()
     key=str(request.form.get('operation_key',''))

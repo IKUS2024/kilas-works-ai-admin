@@ -19,3 +19,6 @@ pywebpush>=2.0,<3
 # extra dependencies (DATABASE_URL unset locally). Left uncommented from here on so Render's build
 # step actually installs it — see db.py's BACKEND selection logic.
 psycopg2-binary
+
+# Bounded local audio-track extraction; wheel includes FFmpeg, no system install.
+imageio-ffmpeg>=0.6,<0.7
