@@ -67,6 +67,25 @@ class AudioTests(unittest.TestCase):
     def test_insufficient_does_not_submit(self):
         self.credit(1);r,speech,_=self.create();self.assertEqual(r.status_code,402);speech.assert_not_called()
 
+    def test_translator_large_upload_cap_is_scoped_and_enforced(self):
+        self.credit()
+        # Valid short WAV padded above the old 12 MiB multipart cap, below 25 MiB.
+        raw=wav(3)+b'\0'*(13*1024*1024)
+        with patch.object(provider,'dub',return_value='large-dubbing') as dub:
+            inspected=self.client.post('/kilas-translator/inspect',data={'csrf_token':'audio-csrf','file':(io.BytesIO(raw),'large.wav','audio/wav')})
+            self.assertEqual(inspected.status_code,200,inspected.text)
+            self.assertEqual(inspected.json['required_seconds'],3)
+            dub.assert_not_called()
+            r,_,submitted=self.create('translate',file=(io.BytesIO(raw),'large.wav','audio/wav'))
+            self.assertEqual(r.status_code,201,r.text);submitted.assert_called_once()
+        # Per-file cap still applies, and unrelated endpoints keep their original cap.
+        oversized=wav()+b'\0'*(25*1024*1024)
+        r=self.client.post('/kilas-translator/inspect',data={'csrf_token':'audio-csrf','file':(io.BytesIO(oversized),'large.wav','audio/wav')})
+        self.assertEqual(r.status_code,400);self.assertIn('25 MB',r.json['error'])
+        r=self.client.post('/register',data={'csrf_token':'audio-csrf','file':(io.BytesIO(raw),'large.wav','audio/wav')})
+        self.assertEqual(r.status_code,413)
+        self.assertEqual(f.app.app.config['MAX_CONTENT_LENGTH'],12*1024*1024)
+
     def test_estimate_fits_but_headroom_does_not_blocks_provider(self):
         self.credit(10);r,speech,_=self.create(script='Hello world')
         self.assertEqual(r.status_code,402);speech.assert_not_called()

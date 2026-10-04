@@ -552,6 +552,9 @@
     var files = Array.from(input.files || []), total = 0, error = '';
     var financeDocument = !!input.closest('[data-finance-document-upload]');
     var perFile = financeDocument ? 20 : 10, aggregate = financeDocument ? 25 : 11;
+    if (input.id === 'audio-file' && input.closest('#audio-studio [data-audio-form]')) {
+      perFile = aggregate = Number(input.dataset.maxFileMb);
+    }
     files.forEach(function (file) { total += file.size; if (file.size > perFile * 1024 * 1024) error = uiCopy('Setiap file maksimal {size} MiB.', {size:perFile}); });
     if (total > aggregate * 1024 * 1024) error = uiCopy('Total file maksimal {size} MiB per unggahan.', {size:aggregate});
     input.setCustomValidity(error);

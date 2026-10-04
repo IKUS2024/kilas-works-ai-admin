@@ -14,7 +14,7 @@
 <form action="{{ url_for('kilas_audio.create') }}" method="post" enctype="multipart/form-data" data-audio-form>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}-t"><input type="hidden" name="mode" value="translate">
 <label class="audio-upload" for="audio-file"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg><strong>Pilih audio atau video</strong><span>MP4, MP3, WAV, M4A · maks. {{ max_mb }} MB / {{ max_seconds }} detik</span></label>
-<input type="file" id="audio-file" name="file" accept=".mp4,.mp3,.wav,.m4a" required aria-describedby="audio-duration"><p id="audio-duration" role="status">Durasi dibaca sebelum Translate.</p>
+<input type="file" id="audio-file" name="file" accept=".mp4,.mp3,.wav,.m4a" data-max-file-mb="{{ max_mb }}" required aria-describedby="audio-duration"><p id="audio-duration" role="status">Durasi dibaca sebelum Translate.</p>
 <div class="audio-fields"><label>Bahasa sumber<select name="source_language"><option value="auto">Auto Detect</option>{% for code,label in languages.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></label><label>Bahasa tujuan<select name="language">{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }}>{{ label }}</option>{% endfor %}</select></label></div>
 <button class="btn" type="submit" {{ 'disabled' if not provider_ready or (not balance.exempt and not balance.available) }}>Translate</button>
 </form></section>

@@ -303,6 +303,14 @@ def create_app():
             request.max_content_length = 16 * 1024
 
     @app.before_request
+    def _translator_upload_limit():
+        # Translator advertises its own media cap; allow multipart overhead before CSRF.
+        # Keep all other products' request limits unchanged.
+        if request.endpoint in ('kilas_audio.inspect', 'kilas_audio.create'):
+            from kilas_ai.audio_media import file_limit
+            request.max_content_length = file_limit() + 1024 * 1024
+
+    @app.before_request
     def _expire_idle_customer_session():
         # CLIENT_OWNER sessions are browser-session cookies, but mobile browsers may restore
         # those cookies after the app/browser is reopened. Enforce inactivity on the server too.

@@ -35,8 +35,11 @@ def main():
                         assert page.locator('#audio-script').evaluate('el=>getComputedStyle(el).backgroundColor')=='rgb(255, 255, 255)'
                     page.screenshot(path=str(output/f'{name}-{width}.png'),full_page=True)
                 page.goto(origin+'/products/start',wait_until='networkidle');page.get_by_role('link',name='Buka Kilas Translator').click();expect(page.get_by_role('heading',name='Kilas Translator',exact=True)).to_be_visible();check('translate')
-                page.locator('#audio-file').set_input_files({'name':'synthetic.wav','mimeType':'audio/wav','buffer':wav(3)})
+                # Exercise the actual global file validator and server multipart cap together.
+                raw=wav(3)+(b'\0'*(13*1024*1024) if width==1440 else b'')
+                page.locator('#audio-file').set_input_files({'name':'synthetic.wav','mimeType':'audio/wav','buffer':raw})
                 expect(page.locator('#audio-duration')).to_contain_text('memakai 3s',timeout=20000)
+                assert page.locator('#audio-file').evaluate('el=>el.validity.valid')
                 page.select_option('#translate-panel select[name=language]','en');page.locator('#translate-panel button[type=submit]').click()
                 expect(page).to_have_url(__import__('re').compile(r'/kilas-translator/jobs/\d+'),timeout=20000)
                 expect(page.locator('#audio-result audio')).to_be_visible(timeout=20000);expect(page.locator('.audio-balance')).not_to_contain_text('sedang dicadangkan');expect(page.locator('[data-audio-history-status]')).to_have_text('Selesai');check('result')
