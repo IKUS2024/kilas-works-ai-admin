@@ -1,6 +1,6 @@
 # Kilas Translator v1 checkpoint — 2026-10-04
 
-**Implemented locally; release, CI and real-provider QA pending.** This checkpoint records the Audio implementation and supplied local evidence, not a production release. All task edits remain uncommitted on main at this checkpoint. Production baseline supplied by the release owner: `64913babbbe66349736b3886a2296f38763ea72a`, LIVE deployment `dep-db10746gekts73bj1vng`; Client Hub service `srv-da7ti2psrm7s73dh9i2g`.
+**Client Hub release LIVE; authenticated production UI/preservation QA passed. ElevenLabs activation and real audio generation remain blocked by missing server configuration.** The source release is `3060290d825d5515401014f472d0a996f20b1e3f`, with all eight CI workflows green. This record preserves initial-checkpoint limitations below and appends completed release evidence. The final documentation-only commit will contain the identical application tree and must be deployed to keep main and production aligned.
 
 ## Product and implementation
 
@@ -58,3 +58,36 @@ Audio uses existing authentication, CSRF, account-lock and payment-review author
 The ordinary-extension record is `.impeccable/surfaces/client-hub-templates-kilas-translator-home-html.md`. Documentation checked PRODUCT.md, the newest master-status entries, DESIGN.md, Impeccable document/new-work guidance, Audio templates/CSS/JS, provider/service/routes/store/media/schema, migration and focused/browser/PostgreSQL test sources. Root system files were preserved. Historical PRODUCT audit-only language is disclosed as pre-existing drift and has not been repaired or promoted into the current Audio direction.
 
 Before a release is claimed complete, append the exact reviewed source commit/tree, clean required Linux CI and native PostgreSQL results, final capture locations, provider configuration/live QA outcome, approved deployment IDs and production verification evidence. The release owner will append that evidence; this checkpoint does not imply those steps occurred.
+
+## Release progression ? 2026-10-04
+
+Implementation committed and pushed directly to main: `3060290d825d5515401014f472d0a996f20b1e3f` ? `Release Kilas Translator with shared Audio Balance and Video quota gates`. All eight workflows passed on this exact commit: Audio QA 37189842596; Video QA 37189842656; Global UI QA 37189842630; AI Focused QA 37189842624; Chat Quality V2 QA 37189842567; Autonomous Agent QA 37189842598; AI Automation QA 37189842612; Client Session Timeout QA 37189842574. Native PostgreSQL Audio and Video jobs passed. Finance/Assist Linux regression checks passed, resolving the release concern from Windows temporary-file locks.
+
+Only existing Client Hub `srv-da7ti2psrm7s73dh9i2g` was triggered: `dep-db116rnavr4c739pdrcg`, at 2026-10-04T08:50:54Z, exact implementation SHA above. Deployment was still building when this entry was written. No AI Admin, Cron, new resource, plan upgrade or environment modification was made. Only targeted additive Audio migration 0083 is added to production boot; no data reset or existing Finance/Google/Assist logic change. Unrelated pre-existing dirty worktree documents and line-ending-only files remain excluded from the release.
+
+Last configuration/session probe: ElevenLabs key absent; production QA login expired. The owner was asked to configure the key directly in Render (no key in chat) and sign in again in the existing verification window. Real provider QA and authenticated internal-account production QA remain pending. Normal zero-balance production QA is prepared with one isolated synthetic account and will run only after LIVE.
+
+## Production verification ? completed 2026-10-04
+
+Source deployment `dep-db116rnavr4c739pdrcg` became LIVE at 2026-10-04T08:51:56Z on `3060290d825d5515401014f472d0a996f20b1e3f`. `/healthz` returned 200, status ok, PostgreSQL backend. Authenticated Translator renders demonstrate additive Audio tables are available. The isolated native PostgreSQL CI rehearsal passed before deployment; no historical migration replay or data reset was requested.
+
+Executed against https://app.kilasworks.id:
+
+- One isolated synthetic normal account registered via the normal flow. Translator exposes zero-balance paywall, both processing buttons disabled; direct job POST returns 402/zero_balance. Video missing-quota paywall disables generation; direct plan POST returns 402/video_quota_missing. No provider job was generated for that account.
+- Translator Translate/Voice Over layouts and pricing passed no-horizontal-overflow at 320, 360, 390, 430, 768, 1024 and 1440px. Home links to Translator, official Services https://kilasworks.id, and no normal Assist/workspace navigation.
+- Existing controlled internal account has no zero-balance paywall. A direct synthetic submit reaches 503/not_configured instead of a balance denial, proving the server-side exemption without creating a provider job or debit.
+- Authenticated Home, Kilas AI, Google connections, Kilas Video, Settings, Finance Home, Finance balances, Finance transactions, Finance invoices and Finance reports loaded successfully and had no overflow at all seven widths. Finance/Google screens were only read.
+- Existing controlled Video project reopened with storyboard image and final video prompts; copied all image prompts, all video prompts and the complete package to the clipboard and checked exact content. Refresh preserved the active revision; the project fit all seven widths. No new Video generation was invoked.
+- One short synthetic AI Chat arithmetic test received its real streaming answer, remained persisted after refresh, and did not refocus the coarse-pointer mobile composer at completion.
+- Production finance_ui.js, finance_ui.css, kilas_video.css and kilas_ai.js matched normalized pre-release baseline assets. No Finance calculation, ledger, route, Google connector, WhatsApp or hidden Assist source was modified by this release.
+- Render app error/critical log query from 2026-10-04T08:51:56Z through the post-QA check returned no entries (hasMore false). This describes that log filter/time window, not an unrestricted error-free claim.
+
+Production evidence is `%TEMP%/kilas-audio-production-qa/report.json`, plus seven zero-balance screenshots in that folder. It contains no credentials or provider key. The only new production QA data were the isolated synthetic account and a controlled synthetic Chat conversation; unrelated customer data and existing payment/Finance records were untouched.
+
+### Remaining activation requirement
+
+Final read-only Render configuration probe still reports **ELEVENLABS_API_KEY absent**. Actual ElevenLabs voices, real Dubbing output and real TTS output were **not tested**. Translate/Voice Over provider code and MP3/accounting flows passed mocked CI; they are intentionally unavailable in production until the owner adds the key directly to Client Hub Environment. No secret should be sent in chat. After configuration, run exactly one very short controlled Voice Over and one Translate with the internal account; do not repeat paid submissions automatically. Missing-key internal submit safely returns 503 and normal zero-balance returns 402 first. No provider charge was consumed in this QA.
+
+### Final alignment procedure
+
+This checkpoint is a documentation-only follow-up to the fully green and production-verified source commit. Confirm application tree equality to that commit, push this document to main, wait for checks triggered by the document commit, and deploy only existing Client Hub again. Report the resulting final HEAD SHA and LIVE deployment ID directly in the final release response; no additional paid QA generation is needed for the identical application tree.
