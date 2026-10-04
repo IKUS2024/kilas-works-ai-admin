@@ -1,5 +1,19 @@
 # Kilas AI drawer release — 2026-10-04
 
+## Final production evidence — 2026-10-04
+
+Released code: `4ff30f39edd934eca89f86b217ca8b126007fa78` (`Wait for invoice return navigation in browser QA`). Drawer implementation commit: `f4f2e2303b9ad0b4df251795b45700ed82d466a4`. All five release workflows passed on the released SHA: Focused `37176433886`, Global UI `37176433873`, Autonomous Agent `37176433904`, Chat Quality `37176433901`, Automation `37176433883`.
+
+Only existing `kilas-works-client-hub` was deployed: `dep-db0t9dc9v7es73cu8f80`, **LIVE** at `2026-10-04T04:24:11Z`, exact released SHA confirmed by Render. `/healthz` returned 200. AI Admin and Automation Cron were not deployed. No resources, environment settings, migrations or data resets.
+
+Authenticated actual-production Chromium QA passed at `https://app.kilasworks.id`, using the authorized controlled account and one new synthetic chat. Indonesian and English at **320, 360, 390, 430, 768 and 1024 px** all passed: 20 existing history rows, 44px rows, ellipsis, icons, selected language readability, independent history scroll, accessible lower utilities, page/drawer without horizontal overflow. Mobile explicit close, Escape with restored trigger focus and backdrop close passed. Production screenshots at 360 and 768 were visually inspected and matched the approved scoped design.
+
+Existing synthetic chats reopened and retained messages after refresh. A new synthetic chat sent successfully, received an actual production response, appeared in recent history and persisted after refresh. Native language Apply and reload persistence passed. Actual drawer links to Home, Video, Settings, AI settings, full history and Finance passed; Services href remains exactly `https://kilasworks.id`. Finance Home loaded, no drawer stylesheet was included there, and all **eight Finance stylesheet hashes matched the pre-release production baseline**. The production drawer CSS matched the local release byte-for-byte (SHA256 `de7aca54fc52c4e77fd827f9b62dd9e8ad7d990d591c0f846e403ed2b0581814`). Browser JavaScript errors: zero.
+
+Render application error/critical logs and Traceback/Exception/WORKER TIMEOUT searches from LIVE through `2026-10-04T04:26:01Z` returned no entries. Final diff review and whitespace check passed: only AI drawer assets/templates, focused tests/workflow and scope/checkpoint documentation changed; existing backend, Finance, schema, payments and unrelated dirty edits were excluded.
+
+Limitations: responsive production QA uses Chromium viewport/touch emulation, not physical devices. Logout and empty/one-chat states were tested locally with synthetic fixtures; production logout was intentionally not exercised to retain the authorized verification session. No observed drawer regression remains. This checkpoint-only follow-up does not require another deploy. Earlier pending-release notes below are historical.
+
 Scope: existing main, AI Chat and Agent drawer presentation only. The existing white/Manrope/orange identity, backend, conversation storage, localization POST, navigation destinations and Finance are preserved. No migrations, configuration/payment changes, new dependencies or resources.
 
 Implemented: aligned stroke-icon product navigation with restrained selection; compact outlined New chat; Recent chats library with fixed 44px rows, one-line ellipsis/full title and independent scroll; visible History link; lower AI settings, native language/Apply utility and quiet sign out. Short-height viewports have an outer scroll fallback. Focus trap now includes the native language select and excludes hidden fields; opening uses preventScroll.
