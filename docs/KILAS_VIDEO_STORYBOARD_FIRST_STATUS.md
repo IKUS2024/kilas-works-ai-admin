@@ -1,6 +1,20 @@
 # Kilas Video storyboard-first extension
 
-Checkpoint: 2026-10-04. Scoped implementation and local verification complete; production, CI, push and deployment verification pending. The independent Impeccable finish reviewer returned **ship** with no material fixes. That disposition approves the reviewed local build; it does not establish a production release.
+Checkpoint: 2026-10-04. Scoped implementation, local verification, CI and initial Client Hub deployment complete. **Authenticated live-model production QA remains pending reauthentication.** The independent Impeccable finish reviewer returned **ship** with no material fixes; that verdict covers the reviewed local UI, not unexecuted production scenarios.
+
+## Release evidence and resume point
+
+Application commit on main: `b2a0d4f7846a9a9058f0e89883e93a391b8beec4`, `Generate storyboard image prompts before Video directions`. All six workflows passed on this exact SHA: Video `37185361676` (focused, browser and native PostgreSQL), AI Focused `37185361703`, Global UI `37185361706`, Autonomous Agent `37185361699`, Chat Quality `37185361689`, Automation `37185361741`. CI confirms clean browser process exits, including both incumbent Video browser matrices and the new storyboard browser; the earlier Windows shell redirect distinction below is historical local-harness evidence.
+
+Only existing `kilas-works-client-hub` (`srv-da7ti2psrm7s73dh9i2g`) was deployed, `dep-db0vv3gu01pc73c6md40`, **LIVE** at `2026-10-04T07:26:57Z`, exact application SHA confirmed by Render. `/healthz` returned 200. Publicly served Video CSS and JS matched the committed Git blobs exactly (CSS SHA256 `c162bdbfaa0f4c9cc26b80aec99a3424880539c287a5628a4b02f0c4a7784d74`; JS `dfeae701ee72e86dd3f70b43344634a52254d92e65bbea1e7657a8b0858b897e`). Initial comparison with Windows working-copy bytes differed only by CRLF; no application code mismatch. Render error/critical application logs through `2026-10-04T07:27:50Z` returned no entries. No AI Admin/Cron deploy, migration, resource/config change or data reset.
+
+Final release diff reviewed: 21 scoped files, including Video generation/JSON boundaries, templates/assets, additive Video labels, focused tests/workflow and scoped documentation. No Finance, Assist, Chat runtime, WhatsApp, billing or schema code changes. Pre-existing unrelated dirty files remain preserved and excluded.
+
+The controlled verification session expired. The existing dedicated browser is alive at loopback CDP port 9333 and its login page was brought forward. An asynchronous sign-in request is pending; the session still redirected `/kilas-ai/video` to `/login` at the last check. Do not fabricate credentials, bypass authentication or call authenticated production QA passed. No new synthetic production project has yet been created by this task.
+
+Prepared resume harness: `%TEMP%/kilas-storyboard-production-qa.py` (not yet executed). It uses the authorized browser session in memory, never saves credentials, and creates only two safe synthetic Video projects: a coffee single plan and two-part skincare UGC with an artificial green-bottle reference. Pending scenarios: actual model Indonesian-to-English prompt quality, per-scene/bulk clipboard, locked video regeneration, storyboard regeneration, multipart identity/exact handoff, style patch, history/reload, 320/360/390/430/768/1024/1440 responsive UI, existing Home/Settings/AI chat, Finance stylesheet-baseline comparison, and Render logs afterward. Results go to `%TEMP%/kilas-storyboard-production-qa/`. Continue those checks after the user signs in; fix and retest a real regression before claiming complete QA.
+
+This checkpoint follow-up contains documentation only. If deployed to align main and production, application code is identical to the six-workflow-tested release above; no new model call is implied by that deployment. The latest deployment ID/SHA must be confirmed with Render before reporting final release alignment.
 
 ## Resulting workflow
 
@@ -34,4 +48,4 @@ This documentation pass writes only the scoped surface brief and this new status
 
 Pre-existing context drift remains reported without repair: `PRODUCT.md` and the latest master entries still describe an older Assist audit-only period, while root `DESIGN.md` records the owner's later pinned white customer-workspace brief. This authorized Video extension follows the incumbent customer implementation and the current task; its scene workflow is a surface expression, not a global prohibition or replacement identity.
 
-Required release evidence still to append: candidate/merge commit, applicable CI results, approved release action, live service commit/status and production read-only verification. No deployment, successful CI or live verification is claimed at this checkpoint.
+Remaining evidence: authenticated real-model production scenarios above, resulting output quality, and post-QA log review. Current successful deployment and public asset/health verification are recorded separately from those pending checks.
