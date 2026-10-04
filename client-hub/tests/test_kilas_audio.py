@@ -203,19 +203,19 @@ class AudioTests(unittest.TestCase):
         self.assertEqual(error.exception.code,'provider_http_400');self.assertEqual(call.call_count,1)
         self.assertIn('watermark_required',logs.output[0]);self.assertNotIn('sk_secret',logs.output[0]);self.assertNotIn('user@example.test',logs.output[0])
 
-    def test_watermark_matches_free_and_paid_account_without_paid_probe(self):
-        for tier,expected in [('free',True),('starter',False)]:
-            with patch.object(provider,'_subscription',None),patch.object(provider,'request',return_value={'tier':tier}) as call:
-                self.assertEqual(provider.dubbing_watermark(),expected)
-                self.assertEqual(provider.dubbing_watermark(),expected)
-                call.assert_called_once_with('GET','/user/subscription')
-        with patch.object(provider,'_subscription',None),patch.object(provider,'request',return_value={}):
+    def test_watermark_free_default_and_paid_configuration_without_account_read(self):
+        for value,expected in [('true',True),('false',False)]:
+            with patch.dict(os.environ,{'ELEVENLABS_DUBBING_WATERMARK':value}),patch.object(provider,'request') as call:
+                self.assertEqual(provider.dubbing_watermark(),expected);call.assert_not_called()
+        with patch.dict(os.environ,{'ELEVENLABS_DUBBING_WATERMARK':'invalid'}):
             with self.assertRaises(provider.ProviderError):provider.dubbing_watermark()
 
-    def test_account_read_failure_never_submits_paid_dub(self):
-        with patch.object(provider,'_subscription',None),patch.object(provider,'request',side_effect=provider.ProviderError('provider_http_403')) as call:
-            with self.assertRaises(provider.ProviderError):provider.dub(wav(),'id','en',1)
-            call.assert_called_once_with('GET','/user/subscription')
+    def test_restricted_key_dubbing_does_not_require_user_read(self):
+        with patch.dict(os.environ,{'ELEVENLABS_DUBBING_WATERMARK':'true'}),patch.object(provider,'request',return_value={'dubbing_id':'restricted123'}) as call:
+            self.assertEqual(provider.dub(wav(),'id','en',1),'restricted123')
+            self.assertEqual(call.call_count,1)
+            self.assertEqual(call.call_args.args,('POST','/dubbing'))
+            self.assertEqual(call.call_args.kwargs['data']['watermark'],'true')
 
     def test_multipart_translator_files_are_disk_backed(self):
         from flask import request

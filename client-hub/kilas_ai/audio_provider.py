@@ -13,8 +13,6 @@ LANGUAGES = {'id':'Indonesian','en':'English','ja':'Japanese','ko':'Korean','zh'
              'pt':'Portuguese','it':'Italian','hi':'Hindi','ms':'Malay','nl':'Dutch','ru':'Russian','tr':'Turkish'}
 _voices = None
 _voices_at = 0
-_subscription = None
-_subscription_at = 0
 
 
 class ProviderError(ValueError):
@@ -107,14 +105,15 @@ def voices():
 
 
 def dubbing_watermark():
-    """Free accounts require watermarking; paid accounts use their supported behavior."""
-    global _subscription, _subscription_at
-    if _subscription is None or time.monotonic()-_subscription_at >= 300:
-        tier = request('GET', '/user/subscription').get('tier')
-        if not isinstance(tier, str) or not tier:
-            raise ProviderError('provider_account_unknown')
-        _subscription, _subscription_at = tier, time.monotonic()
-    return _subscription.lower() == 'free'
+    """Free-compatible launch default; paid provider accounts can configure false.
+
+    Reading subscription metadata requires user_read on restricted API keys and
+    is not required for Dubbing. Never broaden key permissions just to select this.
+    """
+    value = os.environ.get('ELEVENLABS_DUBBING_WATERMARK', 'true').strip().lower()
+    if value not in ('true', 'false'):
+        raise ProviderError('provider_watermark_config')
+    return value == 'true'
 
 
 def dub(pcm, source, target, job_id):

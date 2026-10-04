@@ -1,6 +1,5 @@
 """Bounded local media decoding; no user URLs, paths, or paid transport."""
 import io
-import logging
 import math
 import os
 import subprocess
@@ -90,7 +89,7 @@ def upload(item):
             raise MediaError('Audio pada file ini tidak dapat dibaca.')
         ms, pcm = _decode_source(source, directory)
     # Context cleanup has deleted both the large source and extracted temp audio.
-    logging.getLogger(__name__).info('KILAS_AUDIO_MEDIA bytes=%s duration_ms=%s source_cleanup=true', total, ms)
+    print(f'KILAS_AUDIO_MEDIA bytes={total} duration_ms={ms} source_cleanup=true', flush=True)
     return name, ms, pcm
 
 
