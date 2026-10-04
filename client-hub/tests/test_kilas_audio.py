@@ -182,6 +182,15 @@ class AudioTests(unittest.TestCase):
         with patch.object(provider,'request',return_value=(self.audio,'req')) as call:
             provider.speech('Hello','actualVoice123','en');self.assertEqual(call.call_args.kwargs['params']['output_format'],'mp3_44100_128')
 
+    def test_provider_400_safe_diagnostics_and_no_retry(self):
+        response=Mock(status_code=400)
+        response.iter_content.return_value=[b'{"detail":{"status":"watermark_required","message":"Use watermark. sk_secret user@example.test"}}']
+        transport=Mock();transport.__enter__=Mock(return_value=response);transport.__exit__=Mock(return_value=False)
+        with patch.object(provider.requests,'request',return_value=transport) as call, self.assertLogs(provider.__name__,level='WARNING') as logs:
+            with self.assertRaises(provider.ProviderError) as error:provider.request('POST','/dubbing')
+        self.assertEqual(error.exception.code,'provider_http_400');self.assertEqual(call.call_count,1)
+        self.assertIn('watermark_required',logs.output[0]);self.assertNotIn('sk_secret',logs.output[0]);self.assertNotIn('user@example.test',logs.output[0])
+
     def test_curated_actual_available_voice_ids_stable(self):
         raw={'voices':[{'voice_id':'valid'+str(i),'name':'Voice '+str(i),'labels':{'gender':'female','description':'calm'}} for i in range(8)]}
         with patch.object(provider,'_voices',None),patch.object(provider,'request',return_value=raw):

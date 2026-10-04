@@ -1,6 +1,9 @@
 """ElevenLabs legacy Dubbing v1 and TTS adapters; secrets never leave the server."""
 import os
 import time
+import json
+import logging
+import re
 import requests
 
 BASE = 'https://api.elevenlabs.io/v1'
@@ -31,6 +34,25 @@ def request(method, path, *, binary=False, **kwargs):
         with requests.request(method, BASE+path, headers={'xi-api-key':key},
                               timeout=(5,55 if method=='POST' else 25), stream=True, **kwargs) as response:
             if response.status_code >= 400:
+                # Read only a bounded error body. Never log headers, input, or raw JSON.
+                body = bytearray()
+                for chunk in response.iter_content(1024):
+                    body.extend(chunk[:8192-len(body)])
+                    if len(body) >= 8192:
+                        break
+                try:
+                    detail = json.loads(body).get('detail', {})
+                    if isinstance(detail, dict):
+                        category = str(detail.get('status', detail.get('type', 'unknown')))
+                        message = str(detail.get('message', ''))
+                    else:
+                        category, message = 'validation', str(detail)
+                    safe = (category + ': ' + message).replace(key, '[redacted]')
+                    safe = re.sub(r'https?://\S+|[\w.+-]+@[\w.-]+|(?:sk_|Bearer\s+)[\w.-]+', '[redacted]', safe)
+                    safe = re.sub(r'[\r\n\x00-\x1f]', ' ', safe)[:600]
+                except (ValueError, AttributeError):
+                    safe = 'unparseable_provider_error'
+                logging.getLogger(__name__).warning('KILAS_AUDIO_PROVIDER status=%s detail=%s', response.status_code, safe)
                 raise ProviderError('provider_http_'+str(response.status_code))
             deadline=time.monotonic()+60
             raw = bytearray()
@@ -41,7 +63,6 @@ def request(method, path, *, binary=False, **kwargs):
                     raise ProviderError('provider_output_limit')
             if binary:
                 return bytes(raw), response.headers.get('request-id','')[:120]
-            import json
             return json.loads(raw)
     except (requests.RequestException, ValueError) as error:
         if isinstance(error, ProviderError):
