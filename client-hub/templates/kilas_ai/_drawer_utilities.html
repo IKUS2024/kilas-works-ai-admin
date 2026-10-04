@@ -1,0 +1,7 @@
+{% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
+<footer class="ai-drawer-utilities">
+  {% if automation_enabled|default(true) %}<a class="ai-drawer-utility" href="{{ url_for('kilas_ai.agent_home',view='settings') }}" {% if view|default('chat')=='settings' %}aria-current="page"{% endif %}>{{ drawer_icon('settings') }}<span>{{ ui_t('Pengaturan AI') }}</span></a>{% endif %}
+  {% if not recent_chats is defined %}<a class="ai-drawer-utility" href="{{ url_for('kilas_ai.usage_page') }}">{{ ui_t('Langganan & Pembayaran') }}</a>{% endif %}
+  {% set language_location = 'ai-drawer' %}{% include '_language_selector.html' %}
+  <a class="ai-drawer-utility ai-drawer-signout" href="{{ url_for('auth.logout_page') }}">{{ drawer_icon('logout') }}<span>{{ ui_t('Keluar') }}</span></a>
+</footer>

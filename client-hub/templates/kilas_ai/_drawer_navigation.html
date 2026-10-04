@@ -1,0 +1,10 @@
+{% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
+{% set premium_endpoint = request.endpoint or '' %}
+<nav class="ai-drawer-navigation" aria-label="{{ ui_t('Navigasi Kilas Works') }}">
+  <a href="{{ url_for('products.product_start') }}">{{ drawer_icon('home') }}<span>{{ ui_t('Home') }}</span></a>
+  <a href="{{ url_for('kilas_ai.home') }}" {% if view|default('chat') not in ['connections', 'settings'] %}aria-current="page"{% endif %}>{{ drawer_icon('chat') }}<span>Kilas AI</span></a>
+  {% if kilas_video_enabled() %}<a href="{{ url_for('kilas_ai.video_home') }}">{{ drawer_icon('video') }}<span>{{ ui_t('Video') }}</span></a>{% endif %}
+  <form method="post" action="{{ url_for('products.product_start') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance"><button type="submit">{{ drawer_icon('finance') }}<span>Kilas Finance</span></button></form>
+  <a href="{{ url_for('auth.account_page') }}">{{ drawer_icon('settings') }}<span>{{ ui_t('Settings') }}</span></a>
+  <a href="https://kilasworks.id" target="_blank" rel="noopener noreferrer">{{ drawer_icon('external') }}<span>Kilas Services</span></a>
+</nav>

@@ -1,18 +1,18 @@
 <!doctype html>
 <html lang="{{ ui_language() }}">
-<head>{% include '_ui_i18n_head.html' %}{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='chat-cleanup-1') }}">{% include '_premium_styles.html' %}</head>
+<head>{% include '_ui_i18n_head.html' %}{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='chat-cleanup-1') }}">{% include '_premium_styles.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_drawer.css',v='drawer-20261004') }}"></head>
 <body class="kilas-light agent-body">
 <div class="ai-shell agent-shell" data-ai-shell data-view="{{ view }}">
 <button class="ai-backdrop" data-ai-backdrop type="button" aria-label="{{ ui_t('Tutup riwayat') }}"></button>
-  <aside class="ai-sidebar agent-rail" id="agent-sidebar" data-ai-sidebar aria-label="{{ ui_t('Navigasi Kilas AI') }}">
+  <aside class="ai-sidebar agent-rail ai-drawer" id="agent-sidebar" data-ai-sidebar aria-label="{{ ui_t('Navigasi Kilas AI') }}">
     {% include 'kilas_ai/_sidebar_top.html' %}
-    {% include '_premium_navigation.html' %}
-    <form method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" class="agent-new-chat"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">{{ ui_t('Chat baru') }}</button></form>
-    <nav class="ai-history agent-chats" aria-label="{{ ui_t('Chat terbaru') }}"><h2 class="ai-history-heading">{{ ui_t('Terbaru') }}</h2>{% for chat in recent_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}" {% if view=='chat' and chat.id==conversation.id %}aria-current="page"{% endif %}>{{ chat.title }}</a>{% endfor %}<a href="{{ url_for('kilas_ai.agent_home',view='history') }}">{{ ui_t('Riwayat') }}</a></nav>
-    <nav class="agent-sections" aria-label="{{ ui_t('Bagian Kilas AI') }}">
-      <a href="{{ url_for('kilas_ai.agent_home',view='settings') }}" {% if view=='settings' %}aria-current="page"{% endif %}>{{ ui_t('Pengaturan AI') }}</a>
-    </nav>
-    <div class="premium-sidebar-account"><a href="{{ url_for('auth.logout_page') }}">{{ ui_t('Keluar') }}</a></div>
+    {% include 'kilas_ai/_drawer_navigation.html' %}
+    {% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
+    <form method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" class="agent-new-chat"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">{{ drawer_icon('plus') }}<span>{{ ui_t('Chat baru') }}</span></button></form>
+    <section class="ai-drawer-history"><div class="ai-drawer-history-header"><h2 class="ai-history-heading">{{ ui_t('Chat terbaru') }}</h2><a class="ai-drawer-history-link" href="{{ url_for('kilas_ai.agent_home',view='history') }}">{{ ui_t('Riwayat') }}</a></div>
+      <nav class="ai-history agent-chats" aria-label="{{ ui_t('Chat terbaru') }}">{% for chat in recent_chats %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}" title="{{ chat.title }}" {% if view=='chat' and chat.id==conversation.id %}aria-current="page"{% endif %}>{{ chat.title }}</a>{% else %}<p class="ai-sidebar-empty">{{ ui_t('Percakapanmu akan tersimpan di sini.') }}</p>{% endfor %}</nav>
+    </section>
+    {% include 'kilas_ai/_drawer_utilities.html' %}
   </aside>
 
   <main class="ai-main agent-main" aria-label="{{ {'chat':ui_t('Percakapan Kilas AI'),'tasks':ui_t('Pekerjaan Kilas AI'),'activity':ui_t('Aktivitas Kilas AI'),'connections':ui_t('Koneksi Kilas AI'),'history':ui_t('Riwayat'),'settings':ui_t('Pengaturan Kilas AI'),'notifications':ui_t('Notifikasi Kilas AI')}[view] }}">
@@ -69,6 +69,6 @@
 </div>
 <script src="{{ url_for('static',filename='kilas_work.js',v='global-ui-20261003') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='global-ui-20261003') }}" defer></script>
-<script src="{{ url_for('static',filename='kilas_ai_shell.js',v='1') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_shell.js',v='drawer-20261004') }}" defer></script>
 </body>
 </html>

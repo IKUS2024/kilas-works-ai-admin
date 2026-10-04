@@ -28,6 +28,7 @@ jobs:
       - run: pip install -r client-hub/requirements.txt playwright
       - run: python -m playwright install --with-deps chromium
       - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_global_ui_browser.py
+      - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_drawer_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

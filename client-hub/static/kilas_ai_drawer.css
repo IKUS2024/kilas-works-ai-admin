@@ -1,0 +1,69 @@
+/* AI drawer only. Other product shells and Finance retain their existing styles. */
+.kilas-light .ai-shell:has(>.ai-drawer) {grid-template-columns:270px minmax(0,1fr)}
+.kilas-light .ai-sidebar.ai-drawer {
+  --drawer-surface:#fff;
+  --drawer-hover:#f5f5f4;
+  --drawer-selected:#fff5ed;
+  background:var(--drawer-surface);
+  padding:16px 12px 12px;
+  gap:0;
+  overflow:hidden;
+  min-height:0;
+}
+.kilas-light .ai-drawer .ai-sidebar-top {margin:0 8px 16px;min-height:36px;flex:none}
+.kilas-light .ai-drawer .ai-brand {font-size:21px;line-height:1.3;text-decoration:none}
+.kilas-light .ai-drawer .ai-close {width:44px;height:44px;padding:10px;color:var(--muted);border-radius:8px}
+.ai-drawer-navigation {display:grid;gap:2px;flex:none;margin-bottom:12px}
+.ai-drawer-navigation form {margin:0}
+.kilas-light .ai-drawer :is(.ai-drawer-navigation a,.ai-drawer-navigation button,.ai-drawer-utility) {
+  display:flex;align-items:center;gap:12px;width:100%;min-height:44px;
+  padding:10px 12px;border:0;border-radius:8px;background:transparent;
+  color:#545963;font:500 14px/1.5 Manrope,system-ui,sans-serif;
+  text-align:left;text-decoration:none;cursor:pointer;
+}
+.ai-drawer svg {flex:none}
+.kilas-light .ai-drawer :is(.ai-drawer-navigation a,.ai-drawer-navigation button,.ai-drawer-utility):hover {background:var(--drawer-hover);color:var(--text)}
+.kilas-light .ai-drawer :is(.ai-drawer-navigation a,.ai-drawer-utility)[aria-current=page] {background:var(--drawer-selected);color:var(--accent);font-weight:600}
+.kilas-light .ai-drawer :is(a,button):active {background:#efefed}
+.kilas-light .ai-drawer .ai-new {
+  display:flex;align-items:center;gap:12px;min-height:44px;padding:10px 12px;
+  margin:0;width:100%;background:#fff;border:1px solid var(--line);
+  border-radius:8px;color:var(--text);font-size:14px;line-height:1.5;font-weight:600;
+  text-align:left;text-decoration:none;flex:none;
+}
+.kilas-light .ai-drawer .ai-new:hover {background:var(--drawer-hover);border-color:#c7c9cd}
+.ai-drawer .agent-new-chat {margin:0;flex:none}
+.ai-drawer-history {display:flex;flex-direction:column;flex:1;min-height:88px;margin-top:12px;overflow:hidden}
+.ai-drawer-history-header {display:flex;align-items:center;justify-content:space-between;min-height:44px;flex:none}
+.kilas-light .ai-drawer .ai-drawer-history-header .ai-history-heading {padding-bottom:0}
+.kilas-light .ai-drawer .ai-history-heading {font-size:12px;font-weight:600;line-height:1.5;letter-spacing:0;color:var(--muted);margin:0;padding:0 12px 8px;flex:none}
+.kilas-light .ai-drawer .ai-history {margin:0;display:flex;flex-direction:column;gap:2px;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-color:#c7c9cd transparent}
+.kilas-light .ai-drawer .ai-history a {
+  display:block;flex:none;width:100%;min-width:0;max-width:100%;height:44px;min-height:44px;
+  padding:11px 12px;font-size:14px;line-height:22px;font-weight:400;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:8px;
+  color:#545963;background:transparent;text-decoration:none;box-shadow:none;
+}
+.kilas-light .ai-drawer .ai-history a:hover {background:var(--drawer-hover);color:var(--text)}
+.kilas-light .ai-drawer .ai-history :is(.is-current,[aria-current=page]) {background:#f3f3f1;color:var(--text);font-weight:500;box-shadow:none}
+.kilas-light .ai-drawer .ai-sidebar-empty {margin:0;padding:4px 12px;font-size:13px;line-height:1.6;color:var(--muted)}
+.kilas-light .ai-drawer .ai-drawer-history-link {flex:none;color:var(--muted);font-size:13px;min-height:44px;padding:10px 12px;line-height:24px;text-decoration:none}
+.ai-drawer-utilities {border-top:1px solid var(--line);margin-top:12px;padding-top:8px;flex:none}
+.kilas-light .ai-drawer .language-selector {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 8px;margin:8px 0;padding:0;min-width:0}
+.ai-drawer .language-selector label {grid-column:1/-1;font-size:12px;line-height:1.5;font-weight:500;margin:0;padding:0 12px;color:var(--muted)}
+.kilas-light .ai-drawer .language-selector :is(select,button) {min-width:0;width:auto;min-height:44px;padding:8px 10px;font-size:13px;line-height:1.5;background:#fff;color:var(--text);border:1px solid var(--line);border-radius:8px}
+.kilas-light .ai-drawer .language-selector select {padding-inline:8px}
+.kilas-light .ai-drawer .language-selector button {min-width:44px}
+.kilas-light .ai-drawer .language-selector button:hover {background:var(--drawer-hover)}
+.kilas-light .ai-drawer .ai-drawer-signout {color:var(--muted)}
+.kilas-light .ai-drawer :is(a,button,select):focus-visible {outline:2px solid var(--accent);outline-offset:-2px}
+@media(max-width:760px) {
+  .kilas-light .ai-sidebar.ai-drawer {width:min(88vw,320px);padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(8px,env(safe-area-inset-bottom));height:100dvh}
+  .kilas-light .ai-drawer .ai-sidebar-top {margin-bottom:12px}
+}
+@media(max-height:720px) {
+  .kilas-light .ai-sidebar.ai-drawer {overflow-y:auto}
+  .ai-drawer-history {flex:none;height:132px;min-height:88px}
+  .ai-drawer-navigation {margin-bottom:12px}
+  .ai-drawer-utilities {margin-top:8px}
+}
