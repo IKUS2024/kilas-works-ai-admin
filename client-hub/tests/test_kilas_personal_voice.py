@@ -101,6 +101,9 @@ class PersonalVoiceTests(unittest.TestCase):
         self.assertTrue(media.voice_sample(FileStorage(io.BytesIO(wav(.5)),filename='recording',content_type='audio/wav')).startswith(b'RIFF'))
         for mime,raw in [('text/html',b'<html>'),('audio/webm',b'invalid')]:
             with self.assertRaises(media.MediaError):media.voice_sample(FileStorage(io.BytesIO(raw),filename='recording',content_type=mime))
+        with patch.object(media,'_decode_source') as decode:
+            with self.assertRaises(media.MediaError):media.voice_sample(FileStorage(io.BytesIO(b'#EXTM3U\nfile:///private.wav'),filename='recording',content_type='audio/webm'))
+            decode.assert_not_called()
 
 
 if __name__=='__main__':unittest.main()

@@ -106,6 +106,10 @@ def voice_sample(item):
     if not item or item.mimetype not in allowed:raise MediaError('Rekaman belum dapat dibaca. Rekam ulang lalu coba lagi.')
     raw=item.stream.read(10*1024*1024+1)
     if not raw or len(raw)>10*1024*1024:raise MediaError('Rekaman terlalu besar. Gunakan rekaman maksimal 3 menit.')
+    headers={'audio/webm':raw[:4]==b'\x1aE\xdf\xa3','video/webm':raw[:4]==b'\x1aE\xdf\xa3',
+             'audio/ogg':raw[:4]==b'OggS','audio/mp4':raw[4:8]==b'ftyp','video/mp4':raw[4:8]==b'ftyp',
+             'audio/wav':raw[:4]==b'RIFF' and raw[8:12]==b'WAVE','audio/x-wav':raw[:4]==b'RIFF' and raw[8:12]==b'WAVE'}
+    if not headers[item.mimetype]:raise MediaError('Rekaman belum dapat dibaca. Rekam ulang lalu coba lagi.')
     with tempfile.TemporaryDirectory(prefix='kilas-voice-') as folder:
         source=Path(folder)/'recording';source.write_bytes(raw)
         ms,pcm=_decode_source(source,folder,sample_rate=44100,max_seconds=180)
