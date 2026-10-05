@@ -58,7 +58,25 @@ def main():
             assert sum(x is not None for x in results)==1
             ident=next(x for x in results if x is not None);assert store.start(user,ident)
             assert bytes(store.payload(user,ident)['source_content'])==b'synthetic-pcm'
-            store.submitted(user,ident,'provider123');store.finish(user,ident,b'synthetic-mp3',36500)
+            store.submitted(user,ident,'provider123')
+            large=b'synthetic-video'*(1024*1024)
+            original_query=usage._query
+            def bounded_query(conn,sql,params=(),one=False):
+                assert all(len(v)<=512*1024 for v in params if isinstance(v,bytes))
+                return original_query(conn,sql,params,one)
+            def interrupted_query(conn,sql,params=(),one=False):
+                if 'result_content || ?' in sql:raise RuntimeError('synthetic interrupted save')
+                return bounded_query(conn,sql,params,one)
+            with patch.object(usage,'_query',side_effect=interrupted_query):
+                try:store.finish(user,ident,large,36500)
+                except RuntimeError:pass
+                else:raise AssertionError('interrupted save did not fail')
+            assert store.balance(user)['seconds']==60
+            row=db.query_one('SELECT status,result_content,seconds_charged FROM kilas_audio_jobs WHERE id=?',(ident,))
+            assert row['status']=='PROCESSING' and row['result_content'] is None and row['seconds_charged']==0
+            with patch.object(usage,'_query',side_effect=bounded_query):
+                assert store.finish(user,ident,large,36500)
+            assert bytes(db.query_one('SELECT result_content FROM kilas_audio_jobs WHERE id=?',(ident,))['result_content'])==large
             assert store.balance(user)['seconds']==23
             assert store.finish(user,ident,b'duplicate',36500) is False
             assert store.get(user+999,ident) is None

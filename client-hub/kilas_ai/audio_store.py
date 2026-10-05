@@ -133,8 +133,18 @@ def finish(user,ident,raw,actual_ms,provider_id=''):
             if not exempt:raise AudioError('Durasi hasil melebihi saldo yang dapat dicadangkan. Saldo tidak dipotong. Gunakan naskah lebih pendek.','output_exceeds_reservation',402)
         if charge:
             usage._query(conn,'UPDATE kilas_audio_balances SET seconds=seconds-? WHERE user_id=? AND seconds>=?',(charge,user,charge))
-        usage._query(conn,"UPDATE kilas_audio_jobs SET status='COMPLETED',actual_ms=?,seconds_charged=?,reserved_seconds=0,result_content=?,source_content=NULL,script=NULL,provider_id=CASE WHEN provider_id='' THEN ? ELSE provider_id END,updated_at=? WHERE id=? AND user_id=?",
-                     (actual_ms,charge,raw,provider_id,usage._now().isoformat(),ident,user))
+        # psycopg2 expands BYTEA parameters into SQL literals. Keep each statement
+        # small on the production database; all chunks and settlement stay atomic.
+        if db.BACKEND=='postgres' and len(raw)>512*1024:
+            for offset in range(0,len(raw),512*1024):
+                expression='?' if offset==0 else 'result_content || ?'
+                usage._query(conn,'UPDATE kilas_audio_jobs SET result_content='+expression+' WHERE id=? AND user_id=? AND status=\'PROCESSING\'',
+                             (raw[offset:offset+512*1024],ident,user))
+            usage._query(conn,"UPDATE kilas_audio_jobs SET status='COMPLETED',actual_ms=?,seconds_charged=?,reserved_seconds=0,source_content=NULL,script=NULL,provider_id=CASE WHEN provider_id='' THEN ? ELSE provider_id END,updated_at=? WHERE id=? AND user_id=?",
+                         (actual_ms,charge,provider_id,usage._now().isoformat(),ident,user))
+        else:
+            usage._query(conn,"UPDATE kilas_audio_jobs SET status='COMPLETED',actual_ms=?,seconds_charged=?,reserved_seconds=0,result_content=?,source_content=NULL,script=NULL,provider_id=CASE WHEN provider_id='' THEN ? ELSE provider_id END,updated_at=? WHERE id=? AND user_id=?",
+                         (actual_ms,charge,raw,provider_id,usage._now().isoformat(),ident,user))
     log.info('KILAS_AUDIO job=%s user=%s status=COMPLETED duration_ms=%s seconds_charged=%s',ident,user,actual_ms,charge)
     return True
 
