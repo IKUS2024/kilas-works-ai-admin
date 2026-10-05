@@ -178,7 +178,7 @@ def main():
                 assert page.locator("#ai-composer").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "legacy empty")
                 page.goto(origin + "/kilas-ai/usage", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Langganan").is_visible()
+                assert page.get_by_role("heading", name="Settings").is_visible()
                 assert page.get_by_text("Rp99.000").is_visible()
                 assert page.get_by_text("Paket Free").count() == 0
                 assert page.get_by_text("Penggunaan periode ini").count() == 0

@@ -80,7 +80,7 @@ def main():
                 assert page.get_by_text("Belum ada hasil.", exact=False).is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "results overflow")
                 page.goto(origin + "/kilas-ai/usage", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Langganan").is_visible()
+                assert page.get_by_role("heading", name="Settings").is_visible()
                 assert page.get_by_text("Penggunaan periode ini").count() == 0
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "usage overflow")
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")

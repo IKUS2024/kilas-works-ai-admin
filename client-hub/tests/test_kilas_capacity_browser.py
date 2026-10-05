@@ -39,7 +39,7 @@ def main():
                 page=context.new_page();errors=[]
                 page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto(origin+'/kilas-ai/usage',wait_until='networkidle')
-                expect(page.get_by_role('heading',name='Langganan & Pembayaran')).to_be_visible()
+                expect(page.get_by_role('heading',name='Settings')).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
                 page.screenshot(path=str(captures/f'capacity-{width}.png'),full_page=True)
                 opener=page.locator('[data-capacity-open]');opener.click()
