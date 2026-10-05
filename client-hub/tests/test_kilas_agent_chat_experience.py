@@ -52,11 +52,30 @@ class ChatTests(unittest.TestCase):
 
     def test_primary_entry_chat_first_attachments_preserved(self):
         response=self.client.get('/kilas-ai')
-        self.assertEqual(response.status_code,302)
+        self.assertEqual(response.status_code,303)
         self.assertIn('/kilas-ai/agent',response.location)
         response=self.client.get('/kilas-ai?attachments=1')
         self.assertEqual(response.status_code,200)
         self.assertIn('id="ai-files"',response.get_data(as_text=True))
+
+    def test_primary_entry_opens_fresh_chat_history_still_available(self):
+        chats.append(self.owner,'user','Percakapan lama tetap tersimpan',self.conv)
+        with self.client.session_transaction() as state:
+            state['agent_work_clarification'] = {'old': 'context'}
+        response=self.client.get('/kilas-ai',follow_redirects=True)
+        self.assertEqual(response.status_code,200)
+        with self.client.session_transaction() as state:
+            first=state['agent_conversation_id']
+            self.assertNotIn('agent_work_clarification',state)
+        self.assertNotEqual(first,self.conv)
+        self.assertEqual(chats.messages(self.owner,conversation_id=first),[])
+        # Refresh keeps the new chat; clicking the product entry starts another.
+        self.client.get(f'/kilas-ai/agent?conversation={first}')
+        with self.client.session_transaction() as state:self.assertEqual(state['agent_conversation_id'],first)
+        self.client.get('/kilas-ai',follow_redirects=True)
+        with self.client.session_transaction() as state:self.assertNotEqual(state['agent_conversation_id'],first)
+        old=self.client.get(f'/kilas-ai/agent?conversation={self.conv}')
+        self.assertIn('Percakapan lama tetap tersimpan',old.get_data(as_text=True))
 
     def test_new_chat_preserves_job_and_lease(self):
         job=jobs.create(self.owner,'Riset sampai selesai',conversation_id=self.conv)
