@@ -87,7 +87,10 @@ class AudioTests(unittest.TestCase):
     def test_translator_large_upload_cap_is_scoped_and_enforced(self):
         self.credit()
         # Valid short WAV above the old cap; duration remains the only charge basis.
-        raw=wav(3)+b'\0'*(26*1024*1024)
+        # A valid RIFF padding chunk, rather than trailing zeros interpreted as audio.
+        import struct
+        raw=wav(3)+b'JUNK'+struct.pack('<I',26*1024*1024)+b'\0'*(26*1024*1024)
+        raw=raw[:4]+struct.pack('<I',len(raw)-8)+raw[8:]
         with patch.object(provider,'dub',return_value='large-dubbing') as dub:
             inspected=self.client.post('/kilas-translator/inspect',data={'csrf_token':'audio-csrf','file':(io.BytesIO(raw),'large.wav','audio/wav')})
             self.assertEqual(inspected.status_code,200,inspected.text)
@@ -202,12 +205,21 @@ class AudioTests(unittest.TestCase):
         for data in ({'script':' '},{'voice':'randomInvalid'},{'language':'xx'}):
             r,speech,_=self.create(**data);self.assertGreaterEqual(r.status_code,400);speech.assert_not_called()
 
-    def test_provider_payload_no_retry_and_audio_only(self):
-        with patch.object(provider,'request',return_value={'dubbing_id':'verified123'}) as call, patch.object(provider,'dubbing_watermark',return_value=True):
-            self.assertEqual(provider.dub(wav(),'id','en',1),'verified123')
-            args=call.call_args;self.assertEqual(args.args,('POST','/dubbing'));self.assertEqual(args.kwargs['data']['target_lang'],'en');self.assertEqual(args.kwargs['files']['file'][0],'audio.wav');self.assertEqual(args.kwargs['data']['source_lang'],'id');self.assertEqual(args.kwargs['data']['watermark'],'true')
+    def test_provider_v2_payload_and_personal_v4_no_fallback(self):
+        with patch.object(provider,'request',return_value={'project_id':'proj_verified123'}) as call:
+            self.assertEqual(provider.dub(wav(),'id','en',1),'proj_verified123')
+            args=call.call_args;self.assertEqual(args.args,('POST','/dubbing/project'))
+            self.assertEqual(args.kwargs['data'],{'target_language':'en','source_language':'id','reference':'Kilas audio 1','model_id':'dubbing_v2'})
+            self.assertEqual(args.kwargs['files']['file'][0],'audio.wav');self.assertEqual(call.call_count,1)
         with patch.object(provider,'request',return_value=(self.audio,'req')) as call:
-            provider.speech('Hello','actualVoice123','en');self.assertEqual(call.call_args.kwargs['params']['output_format'],'mp3_44100_128')
+            provider.speech('Hello','actualVoice123','en');self.assertEqual(call.call_args.kwargs['json']['model_id'],'eleven_multilingual_v2')
+            for language in ('id','en'):
+                provider.speech('Safe script','ownPrivateVoice123',language,personal=True)
+                self.assertEqual(call.call_args.args,('POST','/text-to-speech/ownPrivateVoice123'))
+                self.assertEqual(call.call_args.kwargs['json'],{'text':'Safe script','model_id':'eleven_v4','language_code':language,'voice_settings':{'stability':0.5,'similarity_boost':0.75}})
+        with patch.object(provider,'request',side_effect=provider.ProviderError()) as call:
+            with self.assertRaises(provider.ProviderError):provider.speech('Safe','ownPrivateVoice123','id',personal=True)
+            self.assertEqual(call.call_count,1)
 
     def test_provider_400_safe_diagnostics_and_no_retry(self):
         response=Mock(status_code=400)
@@ -218,19 +230,72 @@ class AudioTests(unittest.TestCase):
         self.assertEqual(error.exception.code,'provider_http_400');self.assertEqual(call.call_count,1)
         self.assertIn('watermark_required',logs.output[0]);self.assertNotIn('sk_secret',logs.output[0]);self.assertNotIn('user@example.test',logs.output[0])
 
-    def test_watermark_free_default_and_paid_configuration_without_account_read(self):
-        for value,expected in [('true',True),('false',False)]:
-            with patch.dict(os.environ,{'ELEVENLABS_DUBBING_WATERMARK':value}),patch.object(provider,'request') as call:
-                self.assertEqual(provider.dubbing_watermark(),expected);call.assert_not_called()
-        with patch.dict(os.environ,{'ELEVENLABS_DUBBING_WATERMARK':'invalid'}):
-            with self.assertRaises(provider.ProviderError):provider.dubbing_watermark()
-
-    def test_restricted_key_dubbing_does_not_require_user_read(self):
-        with patch.dict(os.environ,{'ELEVENLABS_DUBBING_WATERMARK':'true'}),patch.object(provider,'request',return_value={'dubbing_id':'restricted123'}) as call:
-            self.assertEqual(provider.dub(wav(),'id','en',1),'restricted123')
+    def test_v2_ignores_obsolete_watermark_and_detects_language(self):
+        with patch.dict(os.environ,{'ELEVENLABS_DUBBING_WATERMARK':'true'}),patch.object(provider,'request',return_value={'project_id':'proj_auto'}) as call:
+            provider.dub(wav(),'auto','en',1)
+            self.assertNotIn('watermark',call.call_args.kwargs['data']);self.assertNotIn('source_language',call.call_args.kwargs['data'])
             self.assertEqual(call.call_count,1)
-            self.assertEqual(call.call_args.args,('POST','/dubbing'))
-            self.assertEqual(call.call_args.kwargs['data']['watermark'],'true')
+
+    def test_v2_async_and_voice_substitution_warning(self):
+        with patch.object(provider,'request',return_value={'status':'preparing'}) as call:
+            self.assertEqual(provider.dub_status('proj_test','en')['status'],'preparing');self.assertEqual(call.call_count,1)
+        for status in ('queued','processing','failed','completed'):
+            with patch.object(provider,'request',side_effect=[{'status':'ready','source_language':'id'},{'languages':[{'target_language':'en','status':status,'outputs':{'lossless_audio':'https://storage.googleapis.com/test'}}]}]):
+                self.assertEqual(provider.dub_status('proj_test','en')['status'],status)
+        with patch.object(provider,'request',side_effect=[{'status':'ready'},{'languages':[{'target_language':'en','status':'completed','warnings':[{'type':'voices_not_permitted'}]}]}]):
+            with self.assertRaises(provider.ProviderError) as caught:provider.dub_status('proj_test','en')
+            self.assertEqual(caught.exception.code,'voice_preservation_unavailable')
+        with patch.object(provider.requests,'get') as transport:
+            for url in ('http://storage.googleapis.com/test','https://evil.example/test','https://storage.googleapis.com@evil.example/test'):
+                with self.assertRaises(provider.ProviderError):provider.dub_result('proj_test','en',{'lossless_audio':url})
+            transport.assert_not_called()
+
+    def test_v2_warning_keeps_source_history_and_releases_reservation(self):
+        self.credit();source=b'\x00\x00\x00\x18ftyp'+b'synthetic'
+        ident,_=store.create(self.user,'warning-dub-key-123456','translate','safe.mp4','id','en','','','',2000,source,2,2)
+        with patch.object(provider,'dub',return_value='proj_warning'):service.submit(self.user,ident)
+        with patch.object(provider,'dub_status',side_effect=provider.ProviderError('voice_preservation_unavailable')),patch.object(provider,'dub_result') as download:
+            service.refresh(self.user,ident);download.assert_not_called()
+        self.assertEqual(store.get(self.user,ident)['status'],'FAILED')
+        self.assertEqual(bytes(store.payload(self.user,ident)['source_content']),source)
+        self.assertEqual(store.balance(self.user)['seconds'],60);self.assertEqual(store.balance(self.user)['reserved'],0)
+        self.assertEqual(store.history(self.user)[0]['id'],ident)
+
+    def test_v2_flac_audio_and_signed_download_without_credentials(self):
+        import imageio_ffmpeg
+        with tempfile.TemporaryDirectory() as folder:
+            p=Path(folder);(p/'a.wav').write_bytes(wav())
+            subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(),'-v','error','-i',str(p/'a.wav'),'-y',str(p/'a.flac')],check=True,capture_output=True,timeout=20)
+            flac=(p/'a.flac').read_bytes()
+        output,ms=media.ensure_mp3(flac);self.assertGreater(ms,1900);self.assertGreater(media.mp3_duration(output),1900)
+        response=Mock(status_code=200);response.iter_content.return_value=[flac]
+        response.__enter__=Mock(return_value=response);response.__exit__=Mock(return_value=False)
+        with patch.object(provider.requests,'get',return_value=response) as get:
+            self.assertEqual(provider.dub_result('proj_safe','en',{'lossless_audio':'https://storage.googleapis.com/safe?signature=synthetic'}),flac)
+            self.assertNotIn('headers',get.call_args.kwargs);self.assertFalse(get.call_args.kwargs['allow_redirects']);self.assertEqual(get.call_count,1)
+
+    def test_v2_video_persists_until_mux_then_private_mp4_and_idempotence(self):
+        import imageio_ffmpeg
+        self.credit()
+        with tempfile.TemporaryDirectory() as folder:
+            p=Path(folder);(p/'a.wav').write_bytes(wav())
+            subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(),'-v','error','-f','lavfi','-i','color=c=white:s=32x32:d=2','-i',str(p/'a.wav'),'-shortest','-c:a','aac','-y',str(p/'v.mp4')],check=True,capture_output=True,timeout=20)
+            original=(p/'v.mp4').read_bytes()
+        with patch.object(provider,'dub',return_value='proj_video') as paid:
+            r=self.client.post('/kilas-translator/jobs',data={'csrf_token':'audio-csrf','operation_key':'video-dub-key-123456','mode':'translate','source_language':'id','language':'en','file':(io.BytesIO(original),'qa.mp4','video/mp4')})
+            self.assertEqual(r.status_code,201,r.text);paid.assert_called_once()
+        ident=r.json['id'];self.assertEqual(bytes(store.payload(self.user,ident)['source_content']),original)
+        with patch.object(provider,'dub_status',return_value={'status':'completed','source_language':'id','outputs':{'lossless_audio':'safe'}}),patch.object(provider,'dub_result',return_value=wav()) as result,patch.object(provider,'dub') as paid:
+            service.refresh(self.user,ident);service.refresh(self.user,ident);paid.assert_not_called();result.assert_called_once()
+        job=store.get(self.user,ident);self.assertEqual(job['status'],'COMPLETED');self.assertTrue(job['result_is_video'])
+        self.assertIsNone(store.payload(self.user,ident)['source_content'])
+        self.assertEqual(job['seconds_charged'],math.ceil(job['source_ms']/1000))
+        page=self.client.get(f'/kilas-translator/jobs/{ident}');self.assertIn('<video controls',page.text);self.assertIn('Download MP4',page.text)
+        downloaded=self.client.get(f'/kilas-translator/jobs/{ident}/result?download=1')
+        self.assertEqual(downloaded.mimetype,'video/mp4');self.assertEqual(downloaded.data[4:8],b'ftyp')
+        self.assertIn('.mp4',downloaded.headers['Content-Disposition'])
+        with self.client.session_transaction() as state:state['user_id']=self.other
+        self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/result').status_code,404)
 
     def test_multipart_translator_files_are_disk_backed(self):
         from flask import request

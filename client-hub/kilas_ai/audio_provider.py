@@ -1,10 +1,11 @@
-"""ElevenLabs legacy Dubbing v1 and TTS adapters; secrets never leave the server."""
+"""ElevenLabs Dubbing v2 and TTS adapters; secrets never leave the server."""
 import os
 import time
 import json
 import logging
 import re
 import requests
+from urllib.parse import urlsplit
 
 BASE = 'https://api.elevenlabs.io/v1'
 # Base tags verified against the Dubbing v1 language table, 2026-10-04.
@@ -108,44 +109,71 @@ def voices():
         return []
 
 
-def dubbing_watermark():
-    """Free-compatible launch default; paid provider accounts can configure false.
-
-    Reading subscription metadata requires user_read on restricted API keys and
-    is not required for Dubbing. Never broaden key permissions just to select this.
-    """
-    value = os.environ.get('ELEVENLABS_DUBBING_WATERMARK', 'true').strip().lower()
-    if value not in ('true', 'false'):
-        raise ProviderError('provider_watermark_config')
-    return value == 'true'
-
-
 def dub(pcm, source, target, job_id):
-    data = request('POST','/dubbing', files={'file':('audio.wav', pcm,'audio/wav')},
-                   data={'source_lang':source,'target_lang':target,'name':'Kilas audio '+str(job_id),
-                         'dubbing_studio':'false','mode':'automatic',
-                         'watermark':'true' if dubbing_watermark() else 'false'})
-    ident = str(data.get('dubbing_id',''))
-    if not ident or not all(c.isalnum() or c in '_-' for c in ident) or len(ident)>120:
+    video = pcm[4:8] == b'ftyp'
+    fields = {'target_language':target,'reference':'Kilas audio '+str(job_id),'model_id':'dubbing_v2'}
+    if source != 'auto':fields['source_language'] = source
+    data = request('POST','/dubbing/project',
+                   files={'file':('source.mp4' if video else 'audio.wav',pcm,'video/mp4' if video else 'audio/wav')},
+                   data=fields)
+    ident = str(data.get('project_id',''))
+    if not re.fullmatch(r'proj_[A-Za-z0-9_-]{1,110}',ident):
         raise ProviderError('invalid_provider_job')
+    logging.getLogger(__name__).info('KILAS_AUDIO_DUB model=dubbing_v2 job=%s',job_id)
     return ident
 
 
-def dub_status(ident):
+def dub_status(ident, language=None):
+    if ident.startswith('proj_'):
+        project = request('GET','/dubbing/project/'+ident)
+        if any(v.get('type')=='voices_not_permitted' for v in project.get('warnings') or []):
+            raise ProviderError('voice_preservation_unavailable')
+        if project.get('status') != 'ready':return {'status':project.get('status')}
+        targets = request('GET','/dubbing/project/'+ident+'/language').get('languages',[])
+        target = next((v for v in targets if v.get('target_language')==language),None)
+        if not target:return {'status':'queued'}
+        if any(v.get('type')=='voices_not_permitted' for v in target.get('warnings') or []):
+            raise ProviderError('voice_preservation_unavailable')
+        detected = project.get('source_language')
+        if not detected and target.get('status')=='completed':
+            detected = request('GET','/dubbing/project/'+ident+'/transcript').get('language')
+        return {'status':target.get('status'),'source_language':detected,'outputs':target.get('outputs') or {}}
+    # Read-only compatibility for jobs already submitted before the v2 release.
     data = request('GET','/dubbing/'+ident)
     return {'status':data.get('status'), 'source_language':data.get('source_language')}
 
 
-def dub_result(ident, language):
+def dub_result(ident, language, outputs=None):
+    if ident.startswith('proj_'):
+        url = (outputs or {}).get('lossless_audio','')
+        parsed = urlsplit(url)
+        if parsed.scheme!='https' or parsed.hostname!='storage.googleapis.com' or parsed.username or parsed.port not in (None,443):
+            raise ProviderError('invalid_provider_output')
+        try:
+            # Signed output only: no API key, no redirects, bounded media bytes.
+            with requests.get(url,stream=True,timeout=(5,55),allow_redirects=False) as response:
+                if response.status_code!=200:raise ProviderError('provider_output_unavailable')
+                raw=bytearray();deadline=time.monotonic()+60
+                for chunk in response.iter_content(65536):
+                    raw.extend(chunk)
+                    if len(raw)>100*1024*1024 or time.monotonic()>deadline:raise ProviderError('provider_output_limit')
+                return bytes(raw)
+        except requests.RequestException:raise ProviderError('provider_transport') from None
     return request('GET','/dubbing/'+ident+'/audio/'+language, binary=True)[0]
 
 
-def speech(script, voice, language):
+def speech(script, voice, language, *, personal=False):
     # Multilingual v2 is the current documented default. It detects script language;
     # language_code is explicitly unsupported by that model, so do not pretend to enforce it.
+    payload={'text':script,'model_id':'eleven_v4' if personal else 'eleven_multilingual_v2'}
+    if personal:
+        # Documented voice defaults; v4 supports Stability/Similarity, not style/speaker boost.
+        payload['voice_settings']={'stability':0.5,'similarity_boost':0.75}
+        if language!='auto':payload['language_code']=language
+        logging.getLogger(__name__).info('KILAS_AUDIO_TTS model=eleven_v4 personal=true language=%s',language)
     return request('POST','/text-to-speech/'+voice, binary=True,
                    params={'output_format':'mp3_44100_128'},
-                   json={'text':script,'model_id':'eleven_multilingual_v2'})
+                   json=payload)
 
 
 def clone_voice(pcm):

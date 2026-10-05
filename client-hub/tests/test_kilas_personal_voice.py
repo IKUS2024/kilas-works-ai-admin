@@ -43,7 +43,7 @@ class PersonalVoiceTests(unittest.TestCase):
         for i,text in enumerate(('Selamat datang di Kilas Works.','Welcome to Kilas Works. Today we are building something new.')):
             r,speech,_=self.create(key='personal-generation-'+str(i),voice='personal',language='auto',script=text)
             self.assertEqual(r.status_code,201,r.text)
-            speech.assert_called_once_with(text,'ownPrivateVoice123','auto')
+            speech.assert_called_once_with(text,'ownPrivateVoice123','auto',personal=True)
             self.assertEqual(store.get(self.user,r.json['id'])['status'],'COMPLETED')
             self.assertEqual(self.client.get(r.json['url']).status_code,200)
             result=self.client.get('/kilas-translator/jobs/'+str(r.json['id'])+'/result?download=1')

@@ -1,5 +1,6 @@
 """Real upload/audio/download/paywall DOM across all seven launch widths; mock provider only."""
 import os
+import struct
 import tempfile
 import threading
 from pathlib import Path
@@ -36,7 +37,10 @@ def main():
                     page.screenshot(path=str(output/f'{name}-{width}.png'),full_page=True)
                 page.goto(origin+'/products/start',wait_until='networkidle');page.get_by_role('link',name='Buka Kilas Translator').click();expect(page.get_by_role('heading',name='Kilas Translator',exact=True)).to_be_visible();check('translate')
                 # Exercise the actual global file validator and server multipart cap together.
-                raw=wav(3)+(b'\0'*(26*1024*1024) if width==1440 else b'')
+                raw=wav(3)
+                if width==1440:
+                    raw+=b'JUNK'+struct.pack('<I',26*1024*1024)+b'\0'*(26*1024*1024)
+                    raw=raw[:4]+struct.pack('<I',len(raw)-8)+raw[8:]
                 page.locator('#audio-file').set_input_files({'name':'synthetic.wav','mimeType':'audio/wav','buffer':raw})
                 expect(page.locator('#audio-duration')).to_contain_text('memakai 3s',timeout=20000)
                 assert page.locator('#audio-file').evaluate('el=>el.validity.valid')

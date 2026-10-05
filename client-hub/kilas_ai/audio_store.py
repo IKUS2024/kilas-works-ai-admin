@@ -63,7 +63,7 @@ def require_balance(user, required=1):
 
 
 def get(user,ident):
-    return db.query_one('SELECT id,user_id,mode,title,source_language,target_language,voice_id,voice_name,estimated_seconds,source_ms,actual_ms,seconds_charged,status,provider_id,error_code,created_at,updated_at FROM kilas_audio_jobs WHERE id=? AND user_id=?',(ident,user))
+    return db.query_one("SELECT id,user_id,mode,title,source_language,target_language,voice_id,voice_name,estimated_seconds,source_ms,actual_ms,seconds_charged,status,provider_id,error_code,created_at,updated_at, CASE WHEN substr(result_content,5,4)=? THEN 1 ELSE 0 END AS result_is_video FROM kilas_audio_jobs WHERE id=? AND user_id=?",(b'ftyp',ident,user))
 
 
 def history(user,page=1):
@@ -113,9 +113,9 @@ def payload(user,ident):
     return db.query_one('SELECT script,source_content FROM kilas_audio_jobs WHERE id=? AND user_id=?',(ident,user))
 
 
-def submitted(user,ident,provider_id):
+def submitted(user,ident,provider_id, *, retain_video=False):
     with locked(user) as conn:
-        usage._query(conn,"UPDATE kilas_audio_jobs SET provider_id=?,source_content=NULL,script=NULL,updated_at=? WHERE id=? AND user_id=? AND status='PROCESSING'",(provider_id,usage._now().isoformat(),ident,user))
+        usage._query(conn,"UPDATE kilas_audio_jobs SET provider_id=?,source_content=CASE WHEN ? THEN source_content ELSE NULL END,script=NULL,updated_at=? WHERE id=? AND user_id=? AND status='PROCESSING'",(provider_id,retain_video,usage._now().isoformat(),ident,user))
 
 
 def detected_source(user,ident,language):
@@ -141,7 +141,7 @@ def finish(user,ident,raw,actual_ms,provider_id=''):
 
 def fail(user,ident,code):
     with locked(user) as conn:
-        usage._query(conn,"UPDATE kilas_audio_jobs SET status='FAILED',reserved_seconds=0,error_code=?,source_content=NULL,script=NULL,updated_at=? WHERE id=? AND user_id=? AND status IN ('QUEUED','PROCESSING')",(code[:80],usage._now().isoformat(),ident,user))
+        usage._query(conn,"UPDATE kilas_audio_jobs SET status='FAILED',reserved_seconds=0,error_code=?,source_content=CASE WHEN mode='translate' AND substr(source_content,5,4)=? THEN source_content ELSE NULL END,script=NULL,updated_at=? WHERE id=? AND user_id=? AND status IN ('QUEUED','PROCESSING')",(code[:80],b'ftyp',usage._now().isoformat(),ident,user))
     log.warning('KILAS_AUDIO job=%s user=%s status=FAILED category=%s',ident,user,code[:80])
 
 

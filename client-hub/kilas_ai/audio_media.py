@@ -60,7 +60,7 @@ def decode(raw, suffix, *, mp3=False):
         return _decode_source(source, directory)
 
 
-def upload(item):
+def upload(item, *, preserve_video=False):
     if not item or not item.filename:
         raise MediaError('Pilih audio atau video terlebih dahulu.')
     name = secure_filename(item.filename)[:160] or 'audio'
@@ -89,6 +89,7 @@ def upload(item):
         if not total or not valid[suffix]:
             raise MediaError('Audio pada file ini tidak dapat dibaca.')
         ms, pcm = _decode_source(source, directory)
+        if preserve_video and suffix=='mp4':pcm=source.read_bytes()
     # Context cleanup has deleted both the large source and extracted temp audio.
     print(f'KILAS_AUDIO_MEDIA bytes={total} duration_ms={ms} source_cleanup=true', flush=True)
     return name, ms, pcm
@@ -119,9 +120,9 @@ def voice_sample(item):
 
 def ensure_mp3(raw):
     """Dubbing can return source-format audio; normalize WAV to an actual MP3."""
-    if raw[:4]!=b'RIFF':
+    if raw[:4] not in (b'RIFF',b'fLaC'):
         return raw,mp3_duration(raw)
-    if len(raw)>20*1024*1024 or raw[8:12]!=b'WAVE':raise MediaError('Hasil audio tidak valid.')
+    if len(raw)>100*1024*1024 or (raw[:4]==b'RIFF' and raw[8:12]!=b'WAVE'):raise MediaError('Hasil audio tidak valid.')
     with tempfile.TemporaryDirectory(prefix='kilas-audio-result-') as folder:
         source=Path(folder)/'input.wav';target=Path(folder)/'result.mp3';source.write_bytes(raw)
         try:
@@ -131,3 +132,23 @@ def ensure_mp3(raw):
             result=target.read_bytes();return result,mp3_duration(result)
         except subprocess.TimeoutExpired:
             raise MediaError('Hasil audio belum dapat dikonversi dalam batas waktu.') from None
+
+
+def mux_video(original, audio):
+    """Keep the original video stream, replacing only its audio with the v2 output."""
+    if original[4:8]!=b'ftyp' or len(original)>file_limit() or audio[:4] not in (b'fLaC',b'RIFF') or len(audio)>100*1024*1024:
+        raise MediaError('Hasil video tidak valid.')
+    with tempfile.TemporaryDirectory(prefix='kilas-dub-video-') as folder:
+        source=Path(folder)/'source.mp4';track=Path(folder)/'dubbed.flac';target=Path(folder)/'result.mp4'
+        source.write_bytes(original);track.write_bytes(audio)
+        try:
+            result=subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(),'-nostdin','-v','error','-protocol_whitelist','file,pipe',
+                '-threads','1','-i',str(source),'-i',str(track),'-map','0:v:0','-map','1:a:0','-c:v','copy',
+                '-c:a','aac','-b:a','192k','-t',str(duration_limit()),'-movflags','+faststart','-y',str(target)],capture_output=True,timeout=55)
+            if result.returncode or not target.exists() or target.stat().st_size>file_limit():
+                raise MediaError('Video hasil belum dapat disiapkan.')
+            raw=target.read_bytes()
+            if raw[4:8]!=b'ftyp':raise MediaError('Hasil video tidak valid.')
+            return raw
+        except subprocess.TimeoutExpired:
+            raise MediaError('Video hasil belum dapat disiapkan dalam batas waktu.') from None

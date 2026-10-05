@@ -74,7 +74,7 @@ def create():
     if (target not in provider.LANGUAGES and not (mode=='voiceover' and target=='auto')) or (source!='auto' and source not in provider.LANGUAGES):abort(400)
     voice=voice_name=script='';ms=0;pcm=None
     if mode=='translate':
-        title,ms,pcm=media.upload(request.files.get('file'))
+        title,ms,pcm=media.upload(request.files.get('file'),preserve_video=True)
         estimated=reserve=math.ceil(ms/1000)
     elif mode=='voiceover':
         script=request.form.get('script','').strip()
@@ -126,8 +126,9 @@ def result(ident):
     raw=bytes(item['result_content'])
     # Ignore user paths; only the sanitized display stem and fixed provider language name.
     from werkzeug.utils import secure_filename
-    name=(secure_filename(job['title']).rsplit('.',1)[0][:80] or 'audio')+'-'+provider.LANGUAGES.get(job['target_language'],'Voice Over').split(' / ')[0]+'.mp3'
-    response=send_file(io.BytesIO(raw),mimetype='audio/mpeg',download_name=name,as_attachment=request.args.get('download')=='1')
+    video=raw[4:8]==b'ftyp'
+    name=(secure_filename(job['title']).rsplit('.',1)[0][:80] or 'audio')+'-'+provider.LANGUAGES.get(job['target_language'],'Voice Over').split(' / ')[0]+('.mp4' if video else '.mp3')
+    response=send_file(io.BytesIO(raw),mimetype='video/mp4' if video else 'audio/mpeg',download_name=name,as_attachment=request.args.get('download')=='1')
     response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
     return response
 
