@@ -26,7 +26,8 @@ body.kilas-light{--bg:#fff;--bg-soft:#f7f7f6;--card:#fff;--panel:#f7f7f6;--borde
 .premium-brand{font-size:21px;font-weight:800;letter-spacing:-.035em;white-space:nowrap;color:var(--text)!important;text-decoration:none!important}.premium-brand span{color:var(--accent);margin-left:3px}
 .premium-sidebar-head{display:flex;align-items:center;justify-content:space-between;padding:0 10px 26px}.premium-sidebar-head button{display:none}
 .premium-navigation{display:grid;gap:3px;margin-bottom:24px;flex:none}.premium-navigation form{margin:0}
-.kilas-light .premium-navigation :is(a,button){width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:10px 12px;border:0;border-radius:7px;background:transparent;color:#545963;font:600 14px/1.4 Manrope,system-ui,sans-serif;text-align:left;text-decoration:none}
+.kilas-light .premium-navigation :is(a,button){width:100%;display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:44px;padding:10px 12px;border:0;border-radius:7px;background:transparent;color:#545963;font:600 14px/1.4 Manrope,system-ui,sans-serif;text-align:left;text-decoration:none}
+.premium-navigation :is(a,button)>svg{flex:0 0 18px;width:18px;height:18px}.premium-navigation :is(a,button)>span{min-width:0}
 .kilas-light .premium-navigation :is(a,button):hover{background:#ececeb;color:var(--text)}
 .kilas-light .premium-navigation [aria-current=page]{background:var(--premium-selected);color:var(--accent)}
 .premium-sidebar-account{margin-top:auto;display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding:14px 10px 0}.premium-sidebar-account a{display:inline-flex;align-items:center;min-height:44px;font-size:13px;color:var(--muted)}
