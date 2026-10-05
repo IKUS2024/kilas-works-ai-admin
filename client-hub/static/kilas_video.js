@@ -66,10 +66,12 @@
     data.set('generation',generation);
     if(generation!=='all')data.set('idea',generation==='video'?'Buat ulang prompt video berdasarkan storyboard aktif. Pertahankan semua scene, subjek, identitas, dan durasi.':'Susun ulang storyboard dan prompt gambar untuk konsep aktif, lalu buat prompt video yang sesuai.');
     const regenerators=[...root.querySelectorAll('[data-video-regenerate]')].map(b=>[b,b.disabled]);regenerators.forEach(([b])=>b.disabled=true);
-    input.blur();button.disabled=true;picker.disabled=true;form.setAttribute('aria-busy','true');error.hidden=true;status.textContent=t('Sedang menyusun Video Plan...');
+    const originalLabel=button.textContent;
+    input.blur();button.disabled=true;button.textContent=t('Sedang memproses…');picker.disabled=true;form.setAttribute('aria-busy','true');error.hidden=true;status.textContent=t('Sedang menyusun dan menyimpan Video Plan…');
+    window.KilasGenerationFeedback?.show('busy','Menyusun Video Plan','Kilas sedang membuat dan menyimpan rencana. Tidak perlu klik Generate lagi.');
     try{const response=await fetch(form.action,{method:'POST',body:data,headers:{'Accept':'application/json'}});if(response.redirected){location.assign(response.url);return;}
       const result=await response.json().catch(()=>{throw new Error(t('Video Plan belum berhasil dibuat.'));});if(!response.ok){
-        if(result.processing){status.textContent=t(result.error);return;}
+        if(result.processing){status.textContent=t(result.error);window.KilasGenerationFeedback?.show('info','Proses masih berjalan',result.error);return;}
         form.dataset.retryGeneration=generation;
         form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');
         if(result.id){form.elements.project_id.value=result.id;form.elements.version.value=result.version;history.replaceState(null,'',result.url);root.querySelector('#video-reference-control').hidden=true;pending=[];showPending();}
@@ -89,11 +91,12 @@
       root.querySelector('#video-composer-label').textContent=t('Ubah atau sempurnakan rencana');
       root.querySelector('#video-reference-control').hidden=true;pending=[];showPending();button.textContent=t('Perbarui rencana');
       history.replaceState(null,'',result.url);status.textContent=t('Rencana tersimpan. Kamu bisa menyalin prompt atau meminta revisi.');
+      window.KilasGenerationFeedback?.show('success','Video Plan tersimpan','Rencana siap dilihat. Kamu bisa menyalin prompt atau meminta revisi.');
       const list=root.querySelector('.video-history>ul')||document.createElement('ul');const link=document.createElement('a');link.href=result.url;link.textContent=result.title;link.setAttribute('aria-current','page');
       list.querySelectorAll('a').forEach(a=>{a.removeAttribute('aria-current');if(a.getAttribute('href')===result.url)a.parentElement.remove();});const item=document.createElement('li');item.append(link);list.prepend(item);
       if(!list.parentElement){root.querySelector('.video-history>p')?.remove();root.querySelector('.video-history>h2').after(list);}
       // No automatic composer focus: completing a plan must not reopen a mobile keyboard.
-    }catch(problem){form.dataset.retryGeneration=generation;if(form.elements.project_id.value)form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');root.querySelector('#video-error-title').textContent=t('Video Plan belum berhasil dibuat.');root.querySelector('#video-error-detail').textContent=t(problem.detail||(problem.message!=='Video Plan belum berhasil dibuat.'?problem.message:'Ide dan pengaturanmu tetap tersimpan. Coba lagi.'));error.hidden=false;status.textContent='';}
-    finally{document.dispatchEvent(new Event('kilas:request-finished'));button.disabled=false;picker.disabled=false;regenerators.forEach(([b,disabled])=>b.disabled=disabled);form.removeAttribute('aria-busy');}
+    }catch(problem){form.dataset.retryGeneration=generation;if(form.elements.project_id.value)form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');root.querySelector('#video-error-title').textContent=t('Video Plan belum berhasil dibuat.');root.querySelector('#video-error-detail').textContent=t(problem.detail||(problem.message!=='Video Plan belum berhasil dibuat.'?problem.message:'Ide dan pengaturanmu tetap tersimpan. Coba lagi.'));error.hidden=false;status.textContent='';window.KilasGenerationFeedback?.show('error','Video Plan belum berhasil',root.querySelector('#video-error-detail').textContent);}
+    finally{document.dispatchEvent(new Event('kilas:request-finished'));if(button.textContent===t('Sedang memproses…'))button.textContent=originalLabel;button.disabled=false;picker.disabled=false;regenerators.forEach(([b,disabled])=>b.disabled=disabled);form.removeAttribute('aria-busy');}
   });
 })();
