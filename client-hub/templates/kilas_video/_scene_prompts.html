@@ -1,5 +1,4 @@
-<section class="video-scene-prompts video-prompt" aria-label="Scene {{ loop.index }} prompts">
-<div class="video-section-head"><div><h5>Storyboard image prompt</h5><p>{{ ui_t('Buat frame gambar terlebih dahulu') }} · English</p></div><button type="button" data-video-copy="image_{{ loop.index }}">{{ ui_t('Salin prompt gambar') }}</button></div>
-<pre>{{ scene.image_prompt }}</pre>
-<details><summary>Video prompt · {{ controls.get('tool','Universal') }}</summary><div class="video-section-head"><p>{{ ui_t('Gunakan frame scene ini sebagai referensi video') }} · English</p><button type="button" data-video-copy="video_{{ loop.index }}">{{ ui_t('Salin prompt video') }}</button></div><pre>{{ package['video_'~loop.index] }}</pre></details>
+<section class="video-scene-prompts video-prompt" aria-label="Clip {{ loop.index }} prompts">
+<section class="video-clip-step"><h5>{{ ui_t('1. Buat gambar referensi') }}</h5><p>{{ ui_t('Salin prompt gambar di bawah, lalu buat gambar referensi di tool AI gambar pilihanmu.') }}</p><pre data-video-prompt="image_{{ loop.index }}">{{ scene.image_prompt }}</pre><button type="button" class="btn secondary" data-video-copy="image_{{ loop.index }}">{{ ui_t('Salin Prompt Gambar') }}</button></section>
+<section class="video-clip-step"><h5>{{ ui_t('2. Buat video') }}</h5><p>{{ ui_t('Setelah gambar referensi siap, gunakan gambar tersebut sebagai reference lalu salin prompt video di bawah.') }}</p><pre data-video-prompt="video_{{ loop.index }}">{{ package['video_'~loop.index] }}</pre><button type="button" class="btn secondary" data-video-copy="video_{{ loop.index }}">{{ ui_t('Salin Prompt Video') }}</button></section>
 </section>

@@ -47,7 +47,13 @@ def save(owner,project,version,spec,options,instruction):
         usage._query(conn,'INSERT INTO kilas_video_revisions(project_id,version,instruction,spec_json,created_at) VALUES (?,?,?,?,?)',(project,version+1,instruction,snapshot,stamp()))
 
 
-def fail(owner,project,version):
+def fail(owner,project,version,instruction=None,controls=None,generation='all'):
+    if instruction is not None:
+        with transaction() as conn:
+            row=usage._query(conn,'SELECT options_json FROM kilas_video_projects WHERE id=? AND user_id=? AND version=?',(project,owner,version),one=True)
+            if row:
+                options=json.loads(row[0]);options['_retry']={'idea':instruction,'generation':generation,'controls':{k:v for k,v in (controls or {}).items() if not k.startswith('_')}}
+                usage._query(conn,"UPDATE kilas_video_projects SET options_json=? WHERE id=? AND user_id=? AND version=? AND status='GENERATING'",(json.dumps(options),project,owner,version))
     db.execute("UPDATE kilas_video_projects SET status='ERROR',updated_at=? WHERE id=? AND user_id=? AND version=? AND status='GENERATING'",(stamp(),project,owner,version))
 
 

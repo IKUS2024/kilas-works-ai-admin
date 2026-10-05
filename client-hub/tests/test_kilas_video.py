@@ -67,7 +67,7 @@ class VideoTests(unittest.TestCase):
         self.assertEqual(call.call_args.args[0],'https://api.openai.com/v1/chat/completions')
         self.assertFalse(call.call_args.kwargs['json']['store'])
         row=fixture.db.query_one('SELECT status,input_tokens FROM kilas_ai_usage WHERE user_id=?',(self.owner,))
-        self.assertEqual(row['status'],'COMPLETE');self.assertEqual(row['input_tokens'],500)
+        self.assertEqual(row['status'],'COMPLETE');self.assertEqual(row['input_tokens'],250)
 
     def test_owner_isolation_every_action(self):
         response,_=self.make();project=response.json['id']
@@ -169,7 +169,7 @@ class VideoTests(unittest.TestCase):
         with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',return_value=provider_response(raw)):
             result=self.client.post('/kilas-ai/video/plan',data={'idea':'Bikin demonstrasi produk dengan narasi singkat','operation_key':'video-vo-key-123456789','csrf_token':'video-test-csrf'})
         self.assertEqual(result.status_code,200)
-        self.assertIn('Salin script',result.json['html'])
+        self.assertNotIn('Salin script',result.json['html'])
         self.assertEqual(adapters.package(raw)['script'],raw['voice_over'])
         self.assertIn('video-manage',result.json['manage_html'])
 

@@ -26,7 +26,7 @@ def master(spec):
 
 def universal(spec):return master(spec)
 def scene_prompt(scene):
-    frame=('Approved storyboard opening frame:\n'+scene['image_prompt']+'\n\nMotion direction:\n') if scene.get('image_prompt') else ''
+    frame=('Animate the supplied reference image, preserving its subject, product, wardrobe, environment and lighting.\n\n') if scene.get('image_prompt') else ''
     return frame+scene.get('production_prompt',scene['visual'])
 
 def shots(spec):
@@ -79,8 +79,15 @@ def package(spec,tool='Universal'):
         if scene.get('image_prompt'):
             result[f'image_{number}']=scene['image_prompt']
             images.append(f'Scene {number}\n'+scene['image_prompt'])
-        prompt=(result.get(f'part_{number}_platform') if spec.get('parts') else
-                PART_GUIDANCE[tool]+'\n\n'+scene_prompt(scene))
+        prompt=scene_prompt(scene)
+        if spec.get('parts'):
+            part=spec['parts'][number-1]
+            prompt=('Animate the supplied reference image. Preserve the same identity, wardrobe, product, location and lighting. '
+                    +f"Create a {part['duration']:g}-second clip. Begin from {part['start_state']}\n\n"
+                    +part['shot_direction']+'\n\nEnd at '+part['end_state']
+                    +('\n\n'+part['audio'] if part['audio'] else '')
+                    +('\n\nVoice-over: '+part['voice_over'] if part['voice_over'] else '\n\nNo voice-over.'))
+        if tool!='Universal':prompt=PART_GUIDANCE[tool]+'\n\n'+prompt
         result[f'video_{number}']=prompt
         videos.append(f'Scene {number}\n'+prompt)
     result['all_images']='\n\n'.join(images)

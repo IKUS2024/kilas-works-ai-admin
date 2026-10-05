@@ -55,6 +55,7 @@
       }catch{copy.textContent=copy.dataset.copyLabel+' · '+t('Belum tersalin');status.textContent=t('Belum bisa menyalin. Pilih teks prompt lalu salin secara manual.');}
     }
   });
+  root.querySelector('#video-retry').addEventListener('click',()=>{form.dataset.generation=form.dataset.retryGeneration||'all';form.noValidate=form.dataset.generation!=='all';form.requestSubmit();form.noValidate=false;});
   form?.addEventListener('submit',async event=>{
     event.preventDefault();const generation=form.dataset.generation||'all';delete form.dataset.generation;
     if(quotaBlocked)return;
@@ -65,12 +66,14 @@
     data.set('generation',generation);
     if(generation!=='all')data.set('idea',generation==='video'?'Buat ulang prompt video berdasarkan storyboard aktif. Pertahankan semua scene, subjek, identitas, dan durasi.':'Susun ulang storyboard dan prompt gambar untuk konsep aktif, lalu buat prompt video yang sesuai.');
     const regenerators=[...root.querySelectorAll('[data-video-regenerate]')].map(b=>[b,b.disabled]);regenerators.forEach(([b])=>b.disabled=true);
-    input.blur();button.disabled=true;picker.disabled=true;form.setAttribute('aria-busy','true');error.hidden=true;status.textContent=t(generation==='video'?'Menyusun prompt video dari storyboard aktif…':'Menyusun storyboard dan prompt gambar, lalu prompt video…');
+    input.blur();button.disabled=true;picker.disabled=true;form.setAttribute('aria-busy','true');error.hidden=true;status.textContent=t('Sedang menyusun Video Plan...');
     try{const response=await fetch(form.action,{method:'POST',body:data,headers:{'Accept':'application/json'}});if(response.redirected){location.assign(response.url);return;}
-      const result=await response.json().catch(()=>{throw new Error(t('Rencana belum berhasil disusun. Buka riwayat untuk melihat versi terakhir, lalu coba lagi.'));});if(!response.ok){
+      const result=await response.json().catch(()=>{throw new Error(t('Video Plan belum berhasil dibuat.'));});if(!response.ok){
+        if(result.processing){status.textContent=t(result.error);return;}
+        form.dataset.retryGeneration=generation;
         form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');
         if(result.id){form.elements.project_id.value=result.id;form.elements.version.value=result.version;history.replaceState(null,'',result.url);root.querySelector('#video-reference-control').hidden=true;pending=[];showPending();}
-        throw new Error(t(result.error||'Rencana belum dapat disusun. Coba lagi.'));
+        const problem=new Error(t(result.error||'Video Plan belum berhasil dibuat.'));problem.detail=result.detail;throw problem;
       }
       root.querySelector('#video-result').innerHTML=result.html;
       root.querySelector('#video-active-title').textContent=result.title;
@@ -90,7 +93,7 @@
       list.querySelectorAll('a').forEach(a=>{a.removeAttribute('aria-current');if(a.getAttribute('href')===result.url)a.parentElement.remove();});const item=document.createElement('li');item.append(link);list.prepend(item);
       if(!list.parentElement){root.querySelector('.video-history>p')?.remove();root.querySelector('.video-history>h2').after(list);}
       // No automatic composer focus: completing a plan must not reopen a mobile keyboard.
-    }catch(problem){if(form.elements.project_id.value)form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');error.textContent=problem.message||t('Koneksi terputus. Buka riwayat sebelum mencoba ulang.');error.hidden=false;status.textContent='';}
+    }catch(problem){form.dataset.retryGeneration=generation;if(form.elements.project_id.value)form.elements.operation_key.value=crypto.randomUUID().replaceAll('-','');root.querySelector('#video-error-title').textContent=t('Video Plan belum berhasil dibuat.');root.querySelector('#video-error-detail').textContent=t(problem.detail||(problem.message!=='Video Plan belum berhasil dibuat.'?problem.message:'Ide dan pengaturanmu tetap tersimpan. Coba lagi.'));error.hidden=false;status.textContent='';}
     finally{document.dispatchEvent(new Event('kilas:request-finished'));button.disabled=false;picker.disabled=false;regenerators.forEach(([b,disabled])=>b.disabled=disabled);form.removeAttribute('aria-busy');}
   });
 })();

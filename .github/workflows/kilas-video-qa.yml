@@ -30,6 +30,7 @@ jobs:
       - run: cd client-hub && python tests/test_kilas_video_v2.py
       - run: cd client-hub && python tests/test_kilas_video_parts.py
       - run: cd client-hub && python tests/test_kilas_video_storyboard.py
+      - run: cd client-hub && python tests/test_kilas_video_plan_recovery.py
       - run: cd client-hub && python tests/test_kilas_product_hardening.py
       - run: cd client-hub && python tests/test_kilas_work_v2.py && python tests/test_kilas_work_documents.py
       - run: cd client-hub && python tests/test_kilas_ai_tools.py && python tests/test_kilas_ai_usage.py

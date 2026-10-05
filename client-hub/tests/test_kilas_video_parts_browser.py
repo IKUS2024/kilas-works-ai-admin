@@ -43,29 +43,27 @@ def main():
                     active[0]=multipart(subject,english)
                     page.fill('#video-idea',instruction);page.click('#video-submit')
                     expect(page.locator('input[name=version]')).to_have_value(str(version),timeout=15000)
-                    expect(page.locator('.video-part')).to_have_count(3)
+                    expect(page.locator('.video-scenes>li')).to_have_count(3)
                     expect(page.locator('#video-active-title')).to_have_text('Arahan '+subject)
                     assert page.evaluate("document.activeElement.id!=='video-idea'")
                 package=json.loads(page.locator('#video-copy-data').text_content())
-                for key in ('part_1','part_2','part_3','bible','all_parts','everything','part_2_platform'):
-                    if key.endswith('_platform'):page.locator('#video-part-2 .video-part-prompt').last.locator('summary').click()
+                for key in ('image_1','video_1','image_2','video_2','image_3','video_3'):
                     page.locator('[data-video-copy='+key+']').click()
                     expect(page.locator('[data-video-copy='+key+']')).to_contain_text('Tersalin')
-                    clipboard=page.evaluate('navigator.clipboard.readText()')
-                    assert clipboard.replace('\r\n','\n')==package[key].replace('\r\n','\n'),(width,key)
-                page.locator('#video-part-1 .video-part-prompt').first.locator('summary').click()
+                    assert page.evaluate('navigator.clipboard.readText()').replace('\r\n','\n')==package[key].replace('\r\n','\n'),(width,key)
+                assert page.locator('[data-video-copy]').count()==6
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
                 page.evaluate('window.scrollTo(0,0)')
                 page.screenshot(path=str(output/f'multipart-{width}.png'),full_page=True)
                 page.screenshot(path=str(output/f'multipart-viewport-{width}.png'))
-                page.locator('#video-part-1').evaluate('e=>window.scrollTo(0,e.getBoundingClientRect().top+scrollY)')
+                page.locator('#video-clip-1').evaluate('e=>window.scrollTo(0,e.getBoundingClientRect().top+scrollY)')
                 page.screenshot(path=str(output/f'part-copy-{width}.png'))
                 url=page.url;page.reload(wait_until='networkidle')
                 expect(page.locator('input[name=version]')).to_have_value('4')
                 assert json.loads(page.locator('#video-copy-data').text_content())==package
                 page.goto(origin+'/kilas-ai/video');page.locator('.video-history>ul a').first.click()
                 assert page.url==url
-                expect(page.locator('.video-part')).to_have_count(3)
+                expect(page.locator('.video-scenes>li')).to_have_count(3)
                 # Revision changes total duration, and the refreshed form agrees after reopen.
                 active[0]=multipart('makanan','food',25)
                 page.fill('#video-idea','sekarang 25 detik');page.click('#video-submit')
@@ -81,7 +79,7 @@ def main():
                 assert not errors,(width,errors)
                 context.close()
             browser.close()
-        print('PASS: connected clips, 7 clipboard actions, revision chain, history, reload and latest duration at 8 widths')
+        print('PASS: connected clips, 6 image/video clipboard actions, revision chain, history, reload and latest duration at 8 widths')
     finally:server.shutdown()
 
 

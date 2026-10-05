@@ -1,5 +1,6 @@
 """Actual Video UI at all release widths; isolated owners, real images, mocked AI transport."""
 import io
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -51,12 +52,12 @@ def main():
                 assert page.locator('#video-outline ul').count()==0
                 assert page.evaluate("document.activeElement.id!=='video-idea'")
                 expect(page.locator('.video-manage summary')).to_be_visible()
-                page.get_by_role('button',name='Salin master prompt',exact=True).click();expect(page.locator('[data-video-copy-status]')).to_contain_text('Tersalin')
-                assert 'reference product' in page.evaluate('navigator.clipboard.readText()')
-                expect(page.get_by_role('button',name='Salin master prompt · Tersalin',exact=True)).to_be_visible()
-                page.locator('[data-video-copy=platform]').click();assert 'Scene 1' in page.evaluate('navigator.clipboard.readText()')
-                page.get_by_role('button',name='Salin storyboard',exact=True).click();assert 'Scene 1' in page.evaluate('navigator.clipboard.readText()')
-                page.get_by_role('button',name='Salin semuanya',exact=True).click();assert 'Cara menggunakan' in page.evaluate('navigator.clipboard.readText()');check('copy-feedback')
+                package=json.loads(page.locator('#video-copy-data').text_content())
+                for key in ('image_1','video_1'):
+                    page.locator('[data-video-copy='+key+']').click()
+                    expect(page.locator('[data-video-copy-status]')).to_contain_text('Tersalin')
+                    assert page.evaluate('navigator.clipboard.readText()').replace('\r\n','\n')==package[key].replace('\r\n','\n')
+                check('copy-feedback')
                 page.fill('#video-idea','scene 2 lebih premium, sekarang versi Runway, orangnya dan produknya sama');page.click('#video-submit')
                 expect(page.locator('.video-plan-heading')).to_contain_text('Runway',timeout=15000)
                 expect(page.locator('input[name=version]')).to_have_value('2');page.reload(wait_until='networkidle');expect(page.locator('.video-plan-heading')).to_contain_text('Runway')
@@ -81,16 +82,26 @@ def main():
                     expect(page.locator('.video-plan-heading h2')).to_have_text('Arahan '+subject)
                 text=page.locator('.video-plan').inner_text().lower()
                 assert 'mobil' not in text and 'baju' not in text
-                page.locator('[data-video-copy=master]').click();assert 'food' in page.evaluate('navigator.clipboard.readText()')
+                page.locator('[data-video-copy=video_1]').click();assert 'food' in page.evaluate('navigator.clipboard.readText()')
                 page.reload(wait_until='networkidle');expect(page.locator('#video-active-title')).to_have_text('Arahan makanan');check('replacement-chain')
                 old_key=page.locator('input[name=operation_key]').input_value()
                 page.route('**/video/plan',lambda route:route.fulfill(status=500,content_type='text/html',body='<html>Gateway error</html>'))
                 page.fill('#video-idea','lebih premium, tanpa voice-over');page.click('#video-submit')
-                expect(page.locator('#video-error')).to_contain_text('Buka riwayat')
+                expect(page.locator('#video-error')).to_contain_text('Coba Lagi')
                 expect(page.locator('input[name=version]')).to_have_value('3')
                 expect(page.locator('#video-active-title')).to_have_text('Arahan makanan')
                 expect(page.locator('#video-submit')).to_be_enabled()
                 assert page.locator('input[name=operation_key]').input_value()!=old_key
+                page.unroute('**/video/plan')
+                # Retry the preserved revision on the same active project.
+                page.click('#video-retry')
+                expect(page.locator('input[name=version]')).to_have_value('4')
+                expect(page.locator('#video-error')).to_be_hidden()
+                page.route('**/video/plan',lambda route:route.fulfill(status=409,json={'processing':True,'error':'Sedang menyusun Video Plan...'}))
+                page.fill('#video-idea','lebih premium');page.click('#video-submit')
+                expect(page.locator('#video-status')).to_have_text('Sedang menyusun Video Plan...')
+                expect(page.locator('#video-error')).to_be_hidden()
+                expect(page.locator('input[name=version]')).to_have_value('4')
                 page.unroute('**/video/plan')
                 page.goto(origin+'/kilas-ai/video',wait_until='networkidle');page.fill('#video-idea','x'*2400);check('long-idea')
                 page.route('**/video/plan',lambda route:route.fulfill(status=503,json={'error':'Rencana belum berhasil disusun. Coba lagi.'}))

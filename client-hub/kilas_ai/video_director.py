@@ -70,6 +70,35 @@ def resolve(idea,controls):
     return result
 
 
+def normalize(raw,brief):
+    """Fill absent presentation fields only; preserve wrong types/required data for validation."""
+    if not isinstance(raw,dict):raise ValueError('invalid_video_spec')
+    value=copy.deepcopy(raw)
+    if brief.get('plan_mode')=='multi':
+        bible=value.get('continuity_bible')
+        if isinstance(bible,dict):
+            for k in video_parts.BIBLE_FIELDS:bible.setdefault(k,'')
+        for part in value.get('parts',[]) if isinstance(value.get('parts'),list) else []:
+            if not isinstance(part,dict):continue
+            for k in ('voice_over','on_screen_text','audio'):part.setdefault(k,'')
+            for k in video_parts.PART_LIST:part.setdefault(k,[])
+        value=video_parts.expand_draft(value,brief)
+    for k in TEXT_FIELDS+V2_TEXT:
+        if k not in ('title','objective','story','subject'):value.setdefault(k,'')
+    for k in LIST_FIELDS:value.setdefault(k,[])
+    scenes=value.get('scenes',[])
+    if isinstance(scenes,list):
+        for number,scene in enumerate(scenes,1):
+            if not isinstance(scene,dict):continue
+            for k in SCENE_FIELDS+V2_SCENE:
+                if k not in ('visual','action','production_prompt'):scene.setdefault(k,'')
+            scene.setdefault('title',f'Clip {number}')
+            scene.setdefault('purpose',scene.get('action',''))
+        if value.get('master_prompt')=='' and all(isinstance(s,dict) and isinstance(s.get('production_prompt'),str) for s in scenes):
+            value['master_prompt']='\n\n'.join(s['production_prompt'] for s in scenes)
+    return value
+
+
 def validate(raw,controls=None):
     v2=isinstance(raw,dict) and 'master_prompt' in raw
     texts=TEXT_FIELDS+(V2_TEXT if v2 else ())
@@ -78,7 +107,7 @@ def validate(raw,controls=None):
     if not isinstance(raw,dict) or set(raw)!=set(texts+LIST_FIELDS+('duration','scenes')+extra):raise ValueError('invalid_video_spec')
     for field in TEXT_FIELDS:
         if not isinstance(raw[field],str) or len(raw[field])>1200:raise ValueError('invalid_video_text')
-    if not all(raw[k].strip() for k in ('title','objective','story','hook','subject')):raise ValueError('incomplete_video_spec')
+    if not all(raw[k].strip() for k in ('title','objective','story','subject')):raise ValueError('incomplete_video_spec')
     if raw['aspect_ratio'] not in ('9:16','16:9','1:1','4:5'):raise ValueError('invalid_aspect_ratio')
     duration=raw['duration']
     if type(duration) not in (int,float) or not math.isfinite(duration) or not 5<=duration<=180:raise ValueError('invalid_duration')
@@ -111,8 +140,7 @@ def quality(spec,brief,previous=None,require_storyboard=False):
     validate(spec,{'duration':str(brief.get('duration',''))})
     if not all(isinstance(spec.get(k),str) for k in V2_TEXT):raise ValueError('incomplete_director_plan')
     if any(len(spec[k])>(16000 if k=='master_prompt' else 1600) for k in V2_TEXT):raise ValueError('video_spec_too_large')
-    if not spec['audience'].strip() or not spec['subject_en'].strip() or not spec['shot_list']:raise ValueError('incomplete_director_plan')
-    if any(not s[k].strip() for s in spec['scenes'] for k in ('camera','lighting','environment','continuity','production_prompt')):raise ValueError('incomplete_production_scene')
+    if any(not s['production_prompt'].strip() for s in spec['scenes']):raise ValueError('incomplete_production_scene')
     prompt=spec['master_prompt']
     for text in [prompt,*[s.get('production_prompt','') for s in spec['scenes']]]:english_check(text)
     if require_storyboard or any('image_prompt' in s for s in spec['scenes']):
@@ -166,57 +194,37 @@ def generate(owner,key,idea,controls,previous=None,references=(),brief=None,dead
         text=json.dumps({'canonical_brief':brief,'controls':{k:v for k,v in controls.items() if not k.startswith('_')},'previous_spec':previous},ensure_ascii=False)
         content=([{'type':'text','text':text}]+attachments.prompt_content('',references)[1:]) if references else text
         standard=STANDARD+(video_parts.STANDARD if brief.get('plan_mode')=='multi' else '')
-        messages=[{'role':'system','content':standard+video_storyboard.STILL_STAGE},{'role':'user','content':content}]
+        messages=[{'role':'system','content':standard+video_storyboard.COMPLETE_STAGE},{'role':'user','content':content}]
         if generation=='video':
             video_storyboard.require_images(previous or {},english_check)
             locked=video_storyboard.frames(previous)
             messages=[{'role':'system','content':standard+video_storyboard.VIDEO_STAGE},{'role':'user','content':content},
                       {'role':'user','content':json.dumps({'storyboard_frames':locked},ensure_ascii=False)}]
-        spec=None;issue=''
-        for stage in ([1] if generation=='video' else range(2)):
-            remaining=deadline-time.monotonic()-5
-            if remaining<=0:raise ValueError('video_time_budget')
-            started=time.monotonic()
-            try:
-                response=requests.post('https://api.openai.com/v1/chat/completions',
+        remaining=deadline-time.monotonic()-5
+        if remaining<=0:raise ValueError('video_time_budget')
+        started=time.monotonic()
+        try:
+            response=requests.post('https://api.openai.com/v1/chat/completions',
                 headers={'Authorization':'Bearer '+provider_key,'Content-Type':'application/json'},
-                json={'model':model,'messages':copy.deepcopy(messages),'response_format':{'type':'json_object'},
-                      'max_completion_tokens':12000 if brief.get('plan_mode')=='multi' else 9000,'reasoning_effort':effort,'store':False},timeout=(5,min(40 if stage==0 else 65,remaining)))
-            except requests.Timeout:
-                logging.getLogger(__name__).warning('Video provider timeout stage=%s elapsed_seconds=%.1f',stage,time.monotonic()-started)
-                raise
+                json={'model':model,'messages':messages,'response_format':{'type':'json_object'},
+                      'max_completion_tokens':10000 if brief.get('plan_mode')=='multi' else 6000,
+                      'reasoning_effort':effort,'store':False},timeout=(5,min(65,remaining)))
             response.raise_for_status();data=response.json();used=data.get('usage') or {}
             inp=int(used.get('prompt_tokens',0));out=int(used.get('completion_tokens',0))
-            recorded['input_tokens']+=inp;recorded['output_tokens']+=out
+            recorded['input_tokens']=inp;recorded['output_tokens']=out
             recorded['cost_components'].append({'model':model,'input_tokens':inp,'output_tokens':out,'operation':'CHAT',
                 'cached_input_tokens':(used.get('prompt_tokens_details') or {}).get('cached_tokens',0)})
             choice=data['choices'][0]
             if choice.get('finish_reason')!='stop' or choice['message'].get('refusal'):raise ValueError('video_incomplete_response')
-            draft=choice['message']['content']
-            try:
-                parsed=json.loads(draft)
-                if stage:
-                    parsed=video_storyboard.complete(locked,parsed)
-                    spec=quality(parsed,brief,previous,require_storyboard=True)
-                else:
-                    parsed=video_parts.expand_draft(parsed,brief)
-                    validate(parsed)
-                    video_storyboard.require_images(parsed,english_check)
-                    locked=video_storyboard.frames(parsed)
-                issue=''
-            except ValueError as error:
-                spec=None;issue='Fix deterministic validation failure: '+str(error)+'.'
-                # Validation codes are server-defined; never log the returned plan.
-                code=str(error)
-                if re.fullmatch(r'[a-z_]+(?::[a-z_]+)?',code):
-                    logging.getLogger(__name__).warning('Video validation rejected stage=%s code=%s',stage,code)
-            except (TypeError,KeyError):spec=None;issue='Fix the incomplete JSON schema.'
-            if stage==0:
-                if issue:raise ValueError('video_quality_failed')
-                messages[0]={'role':'system','content':standard+video_storyboard.VIDEO_STAGE}
-                messages.extend([{'role':'assistant','content':json.dumps({'storyboard_frames':locked},ensure_ascii=False)},
-                                 {'role':'user','content':'Generate and review English video prompts from these locked storyboard frames. Return only the phase-two fields.'}])
-        if spec is None:raise ValueError('video_quality_failed')
+            parsed=json.loads(choice['message']['content'])
+            if generation=='video':parsed=video_storyboard.complete(locked,parsed)
+            else:parsed=normalize(parsed,brief)
+            spec=quality(parsed,brief,previous,require_storyboard=True)
+        except Exception as error:
+            code='timeout' if isinstance(error,requests.Timeout) else 'transport' if isinstance(error,requests.RequestException) else str(error)
+            if not re.fullmatch(r'[a-z_]+(?::[a-z_]+)?',code):code='invalid_response'
+            logging.getLogger(__name__).warning('Video generation failed category=%s elapsed_seconds=%.1f',code,time.monotonic()-started)
+            raise
         success=True
         return spec
     finally:

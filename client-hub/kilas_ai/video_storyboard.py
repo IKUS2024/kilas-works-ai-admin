@@ -35,6 +35,23 @@ Review continuity, current canonical subject, English and safety before returnin
 Do not return scores, explanations, new fields or edits to the locked storyboard.
 '''
 
+COMPLETE_STAGE='''
+COMPLETE STORYBOARD-FIRST PLAN in one compact JSON response.
+First establish the still/reference frame, then write its video motion direction.
+Every scene (and every connected part) has title, purpose and image_prompt.
+image_prompt MUST be professional English: one frozen reference frame, subject/product,
+wardrobe when known, environment, composition, light, lens/look and aspect ratio.
+production_prompt (or each part shot_direction/master_prompt) MUST be professional English:
+assume the approved reference image is supplied; describe action, camera movement, timing,
+audio, continuity and final state. Do not paste the entire image prompt into it.
+Return final video prompts now; no second inference phase is required.
+For single mode use one scene spanning the requested duration, with shot_list for its beats.
+For multi mode use exactly the canonical clip timeline and exact adjacent start/end handoffs.
+Keep each image/video prompt concise (normally 60-100 words); supporting values one sentence.
+Optional/irrelevant presentation fields may be empty or omitted. Required concept, subject,
+timing, visual action, image prompt and video prompt must be complete. No invented claims.
+'''
+
 
 def require_images(spec,english_check):
     scenes=spec.get('scenes',[])

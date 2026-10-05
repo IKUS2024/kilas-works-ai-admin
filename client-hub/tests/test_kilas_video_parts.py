@@ -55,13 +55,12 @@ class ConnectedVideoTests(unittest.TestCase):
         for total,strategy in [(0,'auto'),(181,'auto'),(30,'7'),(10,'15'),(True,'auto'),(180,'5')]:
             with self.assertRaises(ValueError):parts.timeline(total,strategy)
 
-    def test_connected_plan_bounds_reasoning_and_keeps_both_review_calls(self):
+    def test_connected_plan_bounds_reasoning_and_uses_one_complete_call(self):
         response,calls=self.send(multipart())
         self.assertEqual(response.status_code,200,response.text)
-        self.assertEqual(calls.call_count,2)
+        self.assertEqual(calls.call_count,1)
         self.assertTrue(all(c.kwargs['json']['reasoning_effort']=='low' for c in calls.call_args_list))
         self.assertLessEqual(calls.call_args_list[0].kwargs['timeout'][1],65)
-        self.assertLessEqual(calls.call_args_list[1].kwargs['timeout'][1],65)
 
     def test_single_legacy_contract_is_unchanged(self):
         value=spec();director.quality(value,briefs.build('video skincare 10 detik',{'plan_mode':'single'}))
@@ -88,7 +87,7 @@ class ConnectedVideoTests(unittest.TestCase):
             self.assertEqual(exported.count(p['end_state']),1)
         result,calls=self.send(value)
         self.assertEqual(result.status_code,200,result.text)
-        self.assertEqual(calls.call_count,2)
+        self.assertEqual(calls.call_count,1)
         broken=copy.deepcopy(value);broken['parts'][1]['start_state']='The car is suddenly outside in a different street camera frame.'
         with self.assertRaisesRegex(ValueError,'disconnected_part_handoff'):
             director.quality(parts.expand_draft(broken,brief),brief)
@@ -144,7 +143,7 @@ class ConnectedVideoTests(unittest.TestCase):
             sent=json.loads(calls.call_args.kwargs['json']['messages'][1]['content'])
             if version in (1,2):self.assertIsNone(sent['previous_spec'])
             if version==3:self.assertIsNotNone(sent['previous_spec'])
-            self.assertEqual(calls.call_count,2)
+            self.assertEqual(calls.call_count,1)
             self.assertEqual(len(json.loads(row['spec_json'])['parts']),3)
         reopen=self.client.get(response.json['url']);self.assertEqual(reopen.status_code,200)
         self.assertIn('Arahan makanan',reopen.text)

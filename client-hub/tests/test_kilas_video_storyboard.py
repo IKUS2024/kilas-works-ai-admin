@@ -1,4 +1,4 @@
-"""Two real inference stages, image exports and locked storyboard regeneration."""
+"""Complete generation, image exports and locked storyboard regeneration."""
 import copy
 import json
 import os
@@ -19,20 +19,17 @@ def motion(value):
 class StoryboardTests(unittest.TestCase):
     setUp=VideoTests.setUp
 
-    def test_two_phases_still_frame_then_video_with_metering(self):
-        target=spec();first=storyboard.frames(target)
-        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',side_effect=[provider_response(first),provider_response(motion(target))]) as calls:
-            result=director.generate(self.owner,'storyboard-two-phase-123','Bikin video skincare dengan storyboard dulu',{})
+    def test_complete_storyboard_and_motion_one_call_with_metering(self):
+        target=spec()
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',return_value=provider_response(target)) as calls:
+            result=director.generate(self.owner,'storyboard-complete-123','Bikin video skincare dengan storyboard dulu',{})
         self.assertEqual(result,target)
-        self.assertEqual(calls.call_count,2)
-        initial,final=[c.kwargs['json'] for c in calls.call_args_list]
-        self.assertIn('PHASE 1',initial['messages'][0]['content'])
-        self.assertIn('PHASE 2',final['messages'][0]['content'])
-        frames=json.loads(final['messages'][2]['content'])['storyboard_frames']
-        self.assertTrue(all(s['image_prompt'] and not s['production_prompt'] for s in frames['scenes']))
-        self.assertEqual(frames['scenes'][0]['image_prompt'],first['scenes'][0]['image_prompt'])
+        self.assertEqual(calls.call_count,1)
+        self.assertIn('STORYBOARD-FIRST',calls.call_args.kwargs['json']['messages'][0]['content'])
+        self.assertGreater(calls.call_args.kwargs['timeout'][1],40)
+        self.assertLessEqual(calls.call_args.kwargs['timeout'][1],65)
         used=fixture.db.query_one('SELECT input_tokens FROM kilas_ai_usage WHERE user_id=?',(self.owner,))
-        self.assertEqual(used['input_tokens'],500)
+        self.assertEqual(used['input_tokens'],250)
 
     def test_video_phase_cannot_replace_frozen_image_or_scene(self):
         first=storyboard.frames(spec())

@@ -33,13 +33,13 @@ def main():
                 page.fill('#video-idea','Bikin storyboard dulu untuk produk, orang dan tempat sama, prompt English')
                 page.click('#video-submit');expect(page.locator('.video-scene-prompts')).to_have_count(len(active[0]['scenes']),timeout=15000)
                 payload=json.loads(page.locator('#video-copy-data').text_content())
-                page.locator('.video-scene-prompts details').first.evaluate('el=>el.open=true')
-                for key in ('image_1','video_1','all_images','all_videos','everything'):
+                for key in ('image_1','video_1'):
                     button=page.locator(f'[data-video-copy="{key}"]');button.click()
                     expect(button).to_contain_text('Tersalin')
                     assert page.evaluate('navigator.clipboard.readText()').replace('\r\n','\n')==payload[key].replace('\r\n','\n'),(width,key)
+                assert page.locator('[data-video-copy]').count()==2*len(active[0]['scenes'])
                 assert payload['image_1']!=payload['video_1']
-                page.locator('.video-scene-prompts details').first.evaluate('el=>el.open=true')
+                assert payload['image_1'] not in payload['video_1']
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
                 page.locator('.video-scene-prompts').first.evaluate('el=>scrollTo(0,el.getBoundingClientRect().top+scrollY-16)')
                 page.screenshot(path=str(output/f'scene-{width}.png'))
@@ -51,11 +51,11 @@ def main():
                 assert calls.call_count==before+1
                 expect(page.locator('#video-idea')).to_have_value('Draft revisi yang belum dikirim')
                 page.locator('[data-video-regenerate=storyboard]').click();expect(page.locator('input[name=version]')).to_have_value('3')
-                assert calls.call_count==before+3
+                assert calls.call_count==before+2
                 page.reload(wait_until='networkidle');expect(page.locator('input[name=version]')).to_have_value('3')
                 assert json.loads(page.locator('#video-copy-data').text_content())['all_images']==payload['all_images']
                 context.add_cookies([{'name':'kilas_language','value':'en','url':origin}]);page.reload(wait_until='networkidle')
-                expect(page.locator('[data-video-copy=all_images]')).to_have_text('Copy all image prompts')
+                expect(page.locator('[data-video-copy=image_1]').first).to_have_text('Copy Image Prompt')
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 assert not errors,errors
                 context.close()

@@ -44,7 +44,7 @@ class DirectorV2Tests(unittest.TestCase):
             self.assertEqual(row['title'],'Arahan '+subject);self.assertEqual(row['version'],version+1)
             self.assertEqual(opts['_brief']['subject'],subject)
             self.assertNotIn('_brief',response.json['controls'])
-            self.assertEqual(calls.call_count,2)
+            self.assertEqual(calls.call_count,1)
             sent=json.loads(calls.call_args.kwargs['json']['messages'][1]['content'])
             if version:self.assertIsNone(sent['previous_spec'])
             if version==2:
@@ -96,29 +96,26 @@ class DirectorV2Tests(unittest.TestCase):
             value=spec();mutate(value)
             with self.assertRaises(ValueError):director.quality(value,brief)
 
-    def test_bounded_refinement_and_total_usage(self):
+    def test_invalid_complete_response_fails_closed_without_extra_call(self):
         bad=spec();bad['master_prompt']='Arahan dengan kamera statis.'
-        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',side_effect=[provider_response(bad),provider_response()]) as calls:
-            value=director.generate(self.owner,'bounded-repair-123456','video skincare',{})
-        self.assertEqual(value,spec());self.assertEqual(calls.call_count,2)
-        usage=fixture.db.query_one('SELECT input_tokens,output_tokens,estimated_cost_usd,model FROM kilas_ai_usage WHERE user_id=?',(self.owner,))
-        self.assertEqual(usage['input_tokens'],500);self.assertEqual(usage['output_tokens'],1200)
-        self.assertEqual(usage['model'],'gpt-6.1-sol');self.assertGreater(float(usage['estimated_cost_usd']),0)
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',return_value=provider_response(bad)) as calls:
+            with self.assertRaises(ValueError):director.generate(self.owner,'bounded-repair-123456','video skincare',{})
+        self.assertEqual(calls.call_count,1)
+        recorded=fixture.db.query_one('SELECT input_tokens,output_tokens,estimated_cost_usd,model FROM kilas_ai_usage WHERE user_id=?',(self.owner,))
+        self.assertEqual(recorded['input_tokens'],250);self.assertEqual(recorded['output_tokens'],600)
+        self.assertEqual(recorded['model'],'gpt-6.1-sol');self.assertGreater(float(recorded['estimated_cost_usd']),0)
 
-    def test_compact_video_phase_keeps_storyboard_and_meters_both_calls(self):
-        response=provider_response({'master_prompt':spec()['master_prompt'],'scenes':[{'production_prompt':s['production_prompt']} for s in spec()['scenes']]})
-        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',side_effect=[provider_response(),response]) as calls:
+    def test_complete_call_keeps_storyboard_with_bounded_timeout(self):
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',return_value=provider_response()) as calls:
             value=director.generate(self.owner,'compact-review-123456','video skincare',{})
-        self.assertEqual(value['title'],spec()['title'])
         self.assertEqual(value['scenes'],spec()['scenes'])
-        self.assertEqual(calls.call_count,2)
-        self.assertLessEqual(calls.call_args_list[0].kwargs['timeout'][1],50)
-        self.assertLessEqual(calls.call_args_list[1].kwargs['timeout'][1],65)
+        self.assertEqual(calls.call_count,1)
+        self.assertLessEqual(calls.call_args.kwargs['timeout'][1],65)
         with self.assertRaises(ValueError):director.refinement(spec(),{'internal_reasoning':'not allowed'})
 
-    def test_empty_video_phase_fails_closed_and_budget_never_calls_provider(self):
+    def test_empty_complete_response_fails_closed_and_budget_skips_provider(self):
         response=provider_response();data=response.json();data['choices'][0]['message']['content']='{}';response.json=lambda:data
-        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',side_effect=[provider_response(),response]):
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',return_value=response):
             with self.assertRaises(ValueError):director.generate(self.owner,'empty-review-123456','video skincare',{})
         with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post') as calls:
             with self.assertRaises(ValueError):director.generate(self.owner,'budget-review-123456','video skincare',{},deadline=0.001)
@@ -128,7 +125,7 @@ class DirectorV2Tests(unittest.TestCase):
         first,_=self.submit('mobil','car','video mobil');project=first.json['id']
         with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}),patch.object(director.requests,'post',return_value=provider_response(plan('mobil','car'))) as calls:
             failed=self.client.post('/kilas-ai/video/plan',data={'csrf_token':'video-test-csrf','idea':'ganti jadi makanan','project_id':project,'version':1,'operation_key':'bad-replacement-key-123456'})
-        self.assertEqual(failed.status_code,503);self.assertEqual(calls.call_count,2)
+        self.assertEqual(failed.status_code,503);self.assertEqual(calls.call_count,1)
         self.assertEqual(store.get(self.owner,project)['title'],'Arahan mobil')
         self.assertEqual(store.get(self.owner,project)['version'],1)
 

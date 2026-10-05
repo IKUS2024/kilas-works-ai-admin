@@ -4,6 +4,8 @@ import json
 import re
 import secrets
 import time
+import logging
+import requests
 from werkzeug.exceptions import HTTPException
 from flask import abort, redirect, render_template, request, session, send_file, url_for
 from .routes import ai_bp
@@ -37,10 +39,13 @@ def home(project=None):
     except ValueError:abort(400)
     row=owned(project) if project else None
     rows=store.history(owner(),page)
-    return render_template('kilas_video/home.html',video_entitlement=video_entitlement.state(owner()),area=area,history=rows[:20],more=len(rows)>20,page=page,
+    controls=json.loads(row['options_json']) if row else {}
+    retry=controls.pop('_retry',None) if row and row['status']=='ERROR' else None
+    if retry:controls.update(retry['controls'])
+    return render_template('kilas_video/home.html',retry=retry,video_entitlement=video_entitlement.state(owner()),area=area,history=rows[:20],more=len(rows)>20,page=page,
         plan_types=('Product','UGC','Ads','Cinematic','Social Content','Education','Fashion','Food','Travel','Other'),
         target_tools=director.TOOLS,operation_key=secrets.token_hex(16),
-        project=row,controls=json.loads(row['options_json']) if row else {},**({k:v for k,v in output(row).items() if k not in ('project','controls')} if row else {'spec':None,'package':None,'references':[]}))
+        project=row,controls=controls,**({k:v for k,v in output(row).items() if k not in ('project','controls')} if row else {'spec':None,'package':None,'references':[]}))
 
 
 @ai_bp.post('/video/plan',endpoint='video_generate')
@@ -95,22 +100,27 @@ def generate():
             message=('Maksimal 8 klip per rencana. Kurangi total durasi atau pilih klip lebih panjang.'
                      if str(error)=='too_many_video_parts' else 'Pilihan rencana tidak valid. Pilih kembali lalu coba lagi.')
             return failure(message,400,row)
-        if not store.claim(owner(),row['id'],row['version']):return {'error':'Rencana sedang disusun. Tunggu, lalu buka ulang rencana.','url':url_for('kilas_ai.video_project',project=row['id'])},409
+        if not store.claim(owner(),row['id'],row['version']):return {'error':'Sedang menyusun Video Plan...','processing':True,'url':url_for('kilas_ai.video_project',project=row['id'])},409
         try:
             if brief.get('plan_mode')=='multi':
                 controls.update(total_duration=brief['total_duration'],duration='Custom storyboard')
             refs=store.references(owner(),row['id']) if brief.get('use_references',True) else []
             spec=director.generate(owner(),key,text,controls,previous,refs,brief=brief,deadline=deadline,generation=generation)
             controls['_brief']=video_brief.commit(brief,spec)
+            controls.pop('_retry',None)
             store.save(owner(),row['id'],row['version'],spec,controls,text)
         except Exception:
-            store.fail(owner(),row['id'],row['version']);raise
+            store.fail(owner(),row['id'],row['version'],text,controls,generation);raise
         return response(owned(row['id']))
     except HTTPException:raise
     except (usage.UsageLimit,attachments.AttachmentError) as error:return failure(str(error),400,row)
-    except Exception:
+    except Exception as error:
         # No provider payload, secret, system instructions or user image enters logs/UI.
-        return failure('Rencana belum berhasil disusun. Ide dan rencana sebelumnya tetap tersimpan di riwayat. Coba lagi atau buka ulang rencana.',503,row)
+        category='timeout' if isinstance(error,requests.Timeout) else 'provider' if isinstance(error,requests.RequestException) else 'invalid_response' if isinstance(error,(ValueError,KeyError,TypeError)) else 'persistence_or_render'
+        logging.getLogger(__name__).warning('Video request failed category=%s project=%s',category,row['id'] if row else None)
+        data,status=failure('Video Plan belum berhasil dibuat.',503,row)
+        data.update(detail='Ide dan pengaturanmu tetap tersimpan. Coba lagi.',code='video_'+category)
+        return data,status
 
 
 def failure(message,status,row):

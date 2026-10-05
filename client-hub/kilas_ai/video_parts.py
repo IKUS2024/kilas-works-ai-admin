@@ -133,14 +133,14 @@ def validate(spec,brief,english_check,previous=None):
         if not all(part[k].strip() for k in ('title','purpose','scene','start_state','end_state','shot_direction','master_prompt')):
             raise ValueError('incomplete_video_part')
         for key in PART_LIST:
-            if not isinstance(part[key],list) or not 1<=len(part[key])<=8 or any(not isinstance(v,str) or not v.strip() or len(v)>400 for v in part[key]):
+            if not isinstance(part[key],list) or not 0<=len(part[key])<=8 or any(not isinstance(v,str) or not v.strip() or len(v)>400 for v in part[key]):
                 raise ValueError('invalid_part_list')
         english_check(part['master_prompt'])
         english_check('Keep the same subject with these constraints. '+' '.join(part['avoid']))
         if any(len(part[k].split())<6 or len(part[k])<35 for k in ('start_state','end_state')):
             raise ValueError('vague_part_handoff')
         for key in ('start_state','end_state','shot_direction','audio'):
-            english_check('Use the same subject with this shot. '+part[key])
+            if part[key]:english_check('Use the same subject with this shot. '+part[key])
         if prior is not None and part['start_state']!=prior:raise ValueError('disconnected_part_handoff')
         if brief.get('voice_over')=='disabled' and part['voice_over']:raise ValueError('voice_over_conflict')
         prior=part['end_state']
