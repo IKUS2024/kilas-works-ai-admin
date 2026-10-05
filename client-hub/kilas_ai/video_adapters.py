@@ -83,10 +83,12 @@ def package(spec,tool='Universal'):
         if spec.get('parts'):
             part=spec['parts'][number-1]
             prompt=('Animate the supplied reference image. Preserve the same identity, wardrobe, product, location and lighting. '
-                    +f"Create a {part['duration']:g}-second clip. Begin from {part['start_state']}\n\n"
-                    +part['shot_direction']+'\n\nEnd at '+part['end_state']
-                    +('\n\n'+part['audio'] if part['audio'] else '')
-                    +('\n\nVoice-over: '+part['voice_over'] if part['voice_over'] else '\n\nNo voice-over.'))
+                    +f"Create a {part['duration']:g}-second {spec['aspect_ratio']} clip.\n\n"+part['master_prompt'])
+            for key,label in [('start_state','Opening frame'),('end_state','Closing frame'),('audio','Audio')]:
+                if part[key] and part[key] not in prompt:prompt+='\n\n'+label+': '+part[key]
+            prompt+=('\n\nVoice-over: '+part['voice_over'] if part['voice_over'] else '\n\nNo voice-over.')
+            if part['on_screen_text']:prompt+='\n\nIntended on-screen text: '+part['on_screen_text']
+            if part['avoid']:prompt+='\n\nAvoid: '+'; '.join(part['avoid'])
         if tool!='Universal':prompt=PART_GUIDANCE[tool]+'\n\n'+prompt
         result[f'video_{number}']=prompt
         videos.append(f'Scene {number}\n'+prompt)

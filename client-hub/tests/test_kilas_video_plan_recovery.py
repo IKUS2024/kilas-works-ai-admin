@@ -90,6 +90,11 @@ class PlanRecoveryTests(unittest.TestCase):
         from kilas_ai import video_adapters
         exported=video_adapters.package(package)
         self.assertNotIn(exported['image_1'],exported['video_1'])
+        connected=multipart()
+        exported=video_adapters.package(connected)
+        self.assertIn(connected['parts'][0]['master_prompt'],exported['video_1'])
+        self.assertIn(connected['parts'][0]['avoid'][0],exported['video_1'])
+        self.assertNotIn(exported['image_1'],exported['video_1'])
 
 
 if __name__=='__main__':unittest.main()
