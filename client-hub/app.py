@@ -254,6 +254,7 @@ def create_app():
         video_schema.apply_release()  # Only additive 0082; checksum-idempotent.
         from kilas_ai import audio_schema
         audio_schema.apply_release()  # Only additive 0083; prepaid audio release.
+        audio_schema.apply_release('0084_kilas_personal_voice')  # Owner-only voice association; no audio retained.
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)

@@ -74,6 +74,10 @@ def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,p
     fingerprint = hashlib.sha256(json.dumps([mode,title,source,target,voice,script,source_ms],ensure_ascii=False).encode()+(pcm or b'')).hexdigest()
     with locked(user) as conn:
         _expire(conn,user)
+        if mode=='voiceover' and voice_name=='Suara Saya':
+            personal=usage._query(conn,'SELECT voice_id,claim_until FROM kilas_audio_personal_voices WHERE user_id=?',(user,),one=True)
+            if not personal or personal[0]!=voice or (personal[1] and usage._as_utc(personal[1])>usage._now()):
+                raise AudioError('Suara Saya sedang diperbarui. Muat ulang lalu coba lagi.','voice_unavailable',409)
         existing = usage._query(conn,'SELECT id,fingerprint FROM kilas_audio_jobs WHERE user_id=? AND operation_key=?',(user,key),one=True)
         if existing:
             if existing[1]!=fingerprint:raise AudioError('Permintaan berubah. Mulai audio baru.','idempotency_conflict',409)

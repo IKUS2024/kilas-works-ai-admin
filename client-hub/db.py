@@ -301,6 +301,7 @@ MIGRATIONS = [
     ("0081_kilas_work_push_sqlite.sql", "0081_kilas_work_push_postgres.sql"),
     ("0082_kilas_video_sqlite.sql", "0082_kilas_video_postgres.sql"),
     ("0083_kilas_audio_sqlite.sql", "0083_kilas_audio_postgres.sql"),
+    ("0084_kilas_personal_voice_sqlite.sql", "0084_kilas_personal_voice_postgres.sql"),
 ]
 
 

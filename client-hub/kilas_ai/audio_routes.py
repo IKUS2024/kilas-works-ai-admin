@@ -10,6 +10,7 @@ import payment_service
 from .routes import enabled
 from .billing_routes import admin_bp
 from . import audio_store as store, audio_provider as provider, audio_service as service, audio_media as media, audio_billing as billing
+from . import audio_personal_voice as personal
 
 audio_bp=Blueprint('kilas_audio',__name__,url_prefix='/kilas-translator')
 
@@ -49,6 +50,7 @@ def home(ident=None):
     rows=store.history(user,page)
     return render_template('kilas_translator/home.html',balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
                            voices=provider.voices() if state['exempt'] or state['available'] else [],
+                           personal_voice=bool(personal.get(user)),voice_operation_key=secrets.token_hex(16),
                            provider_ready=provider.configured(),languages=provider.LANGUAGES,packs=store.PACKS,
                            seconds=seconds,operation_key=secrets.token_hex(16),max_mb=media.file_limit()//1024//1024,audio_max_mb=media.file_limit('wav')//1024//1024,max_seconds=media.duration_limit())
 
@@ -69,7 +71,7 @@ def create():
     store.require_balance(user)
     if not provider.configured():raise store.AudioError('Audio sedang belum tersedia. Saldo kamu tetap aman.','not_configured',503)
     mode=request.form.get('mode');source=request.form.get('source_language','auto');target=request.form.get('language','en')
-    if target not in provider.LANGUAGES or (source!='auto' and source not in provider.LANGUAGES):abort(400)
+    if (target not in provider.LANGUAGES and not (mode=='voiceover' and target=='auto')) or (source!='auto' and source not in provider.LANGUAGES):abort(400)
     voice=voice_name=script='';ms=0;pcm=None
     if mode=='translate':
         title,ms,pcm=media.upload(request.files.get('file'))
@@ -78,15 +80,33 @@ def create():
         script=request.form.get('script','').strip()
         if not 1<=len(script)<=4000 or not re.search(r'\w',script):raise store.AudioError('Tulis naskah 1–4.000 karakter dalam bahasa yang dipilih.')
         voice=request.form.get('voice','')
-        choice=next((v for v in provider.voices() if v['id']==voice),None)
+        if voice=='personal':
+            saved=personal.get(user)
+            choice={'id':saved,'name':'Suara Saya'} if saved else None
+        else:
+            choices=provider.voices()
+            choice=next((v for i,v in enumerate(choices) if voice in (v['id'],'kilas-'+str(i))),None)
         if not choice:raise store.AudioError('Suara belum tersedia. Pilih kembali atau coba lagi nanti.','voice_unavailable',503)
-        voice_name=choice['name'];title=' '.join(script.split())[:100];source=target
+        voice=choice['id'];voice_name=choice['name'];title=' '.join(script.split())[:100];source=target
         estimated,reserve=service.estimate(script)
         if estimated>media.duration_limit():raise store.AudioError('Naskah terlalu panjang. Pendekkan naskah sebelum membuat audio.')
     else:abort(400)
     ident,new=store.create(user,key,mode,title,source,target,voice,voice_name,script,ms,pcm,estimated,reserve)
     if new:service.submit(user,ident)
     return {'url':url_for('kilas_audio.home',ident=ident),'id':ident},201 if new else 200
+
+
+@audio_bp.post('/personal-voice')
+def create_personal_voice():
+    if request.form.get('consent')!='yes':raise store.AudioError('Setujui izin penggunaan suara sebelum melanjutkan.','consent_required')
+    key=request.form.get('operation_key','')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',key):abort(400)
+    store.require_balance(session['user_id'])
+    try:
+        personal.create(session['user_id'],key,request.files.get('recording'),request.form.get('replace')=='yes')
+    except provider.ProviderError:
+        return {'error':'Suara belum berhasil dibuat. Rekamanmu tetap aman untuk dicoba kembali.'},503
+    return {'ready':True},200,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.get('/jobs/<int:ident>/status')
@@ -106,7 +126,7 @@ def result(ident):
     raw=bytes(item['result_content'])
     # Ignore user paths; only the sanitized display stem and fixed provider language name.
     from werkzeug.utils import secure_filename
-    name=(secure_filename(job['title']).rsplit('.',1)[0][:80] or 'audio')+'-'+provider.LANGUAGES[job['target_language']].split(' / ')[0]+'.mp3'
+    name=(secure_filename(job['title']).rsplit('.',1)[0][:80] or 'audio')+'-'+provider.LANGUAGES.get(job['target_language'],'Voice Over').split(' / ')[0]+'.mp3'
     response=send_file(io.BytesIO(raw),mimetype='audio/mpeg',download_name=name,as_attachment=request.args.get('download')=='1')
     response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
     return response

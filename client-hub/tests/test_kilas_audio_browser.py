@@ -51,7 +51,7 @@ def main():
                 page.reload(wait_until='networkidle');expect(page.locator('#audio-result audio')).to_be_visible()
                 page.get_by_role('link',name='Translate another').click();page.locator('#voiceover-tab').click();expect(page.locator('#voiceover-panel')).to_be_visible()
                 page.fill('#audio-script','Safe synthetic voice over.');expect(page.locator('#voice-estimate')).to_contain_text('reservasi')
-                page.locator('[name=voice][value=available456]').check();check('voiceover')
+                page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-1');check('voiceover')
                 page.get_by_role('button',name='Generate Voice Over').click();expect(page.locator('#audio-result audio')).to_be_visible(timeout=20000)
                 expect(page.locator('#voiceover-tab')).to_have_attribute('aria-selected','true');page.reload(wait_until='networkidle');expect(page.locator('#audio-result audio')).to_be_visible();check('voice-result')
                 expect(page.locator('.audio-history li')).to_have_count(2)

@@ -25,7 +25,7 @@ def configured():
     return bool(os.environ.get('ELEVENLABS_API_KEY', '').strip())
 
 
-def request(method, path, *, binary=False, **kwargs):
+def request(method, path, *, binary=False, private=False, **kwargs):
     key = os.environ.get('ELEVENLABS_API_KEY', '').strip()
     if not key:
         raise ProviderError('not_configured')
@@ -55,7 +55,7 @@ def request(method, path, *, binary=False, **kwargs):
                     safe = re.sub(r'[\r\n\x00-\x1f]', ' ', safe)[:600]
                 except (ValueError, AttributeError):
                     safe = 'unparseable_provider_error'
-                logging.getLogger(__name__).warning('KILAS_AUDIO_PROVIDER status=%s detail=%s', response.status_code, safe)
+                logging.getLogger(__name__).warning('KILAS_AUDIO_PROVIDER status=%s detail=%s', response.status_code, 'personal_voice_request_failed' if private else safe)
                 raise ProviderError('provider_http_'+str(response.status_code))
             deadline=time.monotonic()+60
             raw = bytearray()
@@ -66,6 +66,7 @@ def request(method, path, *, binary=False, **kwargs):
                     raise ProviderError('provider_output_limit')
             if binary:
                 return bytes(raw), response.headers.get('request-id','')[:120]
+            if not raw:return {}
             return json.loads(raw)
     except (requests.RequestException, ValueError) as error:
         if isinstance(error, ProviderError):
@@ -91,6 +92,9 @@ def voices():
 
         counts = {'male':0,'female':0}
         for v in sorted(available, key=priority):
+            # Shared choices must never include another customer's cloned voice.
+            if v.get('category') in ('cloned','professional') or (v.get('labels') or {}).get('kilas_personal')=='true':
+                continue
             labels = v.get('labels') or {}; gender = labels.get('gender','').lower()
             ident = str(v.get('voice_id',''))
             if gender not in counts or counts[gender]>=4 or not ident.isalnum() or len(ident)>80:
@@ -142,3 +146,20 @@ def speech(script, voice, language):
     return request('POST','/text-to-speech/'+voice, binary=True,
                    params={'output_format':'mp3_44100_128'},
                    json={'text':script,'model_id':'eleven_multilingual_v2'})
+
+
+def clone_voice(pcm):
+    data=request('POST','/voices/add',private=True,
+                 files=[('files',('voice.wav',pcm,'audio/wav'))],
+                 data={'name':'Kilas personal voice','labels':json.dumps({'kilas_personal':'true'}),'remove_background_noise':'false'})
+    ident=str(data.get('voice_id',''))
+    if not re.fullmatch(r'[A-Za-z0-9]{1,80}',ident):raise ProviderError('invalid_voice')
+    if data.get('requires_verification'):
+        delete_voice(ident)
+        raise ProviderError('voice_verification_required')
+    return ident
+
+
+def delete_voice(ident):
+    try:request('DELETE','/voices/'+ident,private=True)
+    except ProviderError:logging.getLogger(__name__).warning('KILAS_AUDIO personal_voice_cleanup_failed')

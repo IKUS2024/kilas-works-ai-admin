@@ -24,13 +24,14 @@ def file_limit(suffix='mp4'):
     return (250 if suffix == 'mp4' else 100) * 1024 * 1024
 
 
-def _decode_source(source, directory):
+def _decode_source(source, directory, *, sample_rate=16000, max_seconds=None):
     # Both paths are generated privately by this module, never accepted from a form.
     target = Path(directory) / 'audio.wav'
+    limit=duration_limit() if max_seconds is None else max_seconds
     command = [imageio_ffmpeg.get_ffmpeg_exe(), '-nostdin', '-v', 'error',
                '-protocol_whitelist', 'file,pipe', '-threads', '1', '-i', str(source),
-               '-map', '0:a:0', '-vn', '-t', str(duration_limit()+1), '-ac', '1',
-               '-ar', '16000', '-c:a', 'pcm_s16le', '-y', str(target)]
+               '-map', '0:a:0', '-vn', '-t', str(limit+1), '-ac', '1',
+               '-ar', str(sample_rate), '-c:a', 'pcm_s16le', '-y', str(target)]
     try:
         result = subprocess.run(command, capture_output=True, timeout=15)
         if result.returncode or not target.exists():
@@ -42,8 +43,8 @@ def _decode_source(source, directory):
             raise MediaError('Audio pada file ini tidak dapat dibaca.')
         with wave.open(io.BytesIO(pcm)) as audio:
             seconds = audio.getnframes() / audio.getframerate()
-        if not 0 < seconds <= duration_limit():
-            raise MediaError(f'Durasi audio maksimal {duration_limit()} detik.')
+        if not 0 < seconds <= limit:
+            raise MediaError(f'Durasi audio maksimal {limit} detik.')
         return math.ceil(seconds * 1000), pcm
     except (subprocess.TimeoutExpired, wave.Error, EOFError):
         raise MediaError('Audio pada file ini tidak dapat dibaca dalam batas waktu.') from None
@@ -97,6 +98,19 @@ def mp3_duration(raw):
     if not raw or len(raw)>20*1024*1024 or not (raw[:3]==b'ID3' or (raw[0]==255 and len(raw)>1 and raw[1]&224==224)):
         raise MediaError('Provider belum menghasilkan MP3 yang valid.')
     return decode(raw, 'mp3')[0]
+
+
+def voice_sample(item):
+    """Decode browser WebM/MP4 microphone audio in a private, short-lived directory."""
+    allowed={'audio/webm','video/webm','audio/ogg','audio/mp4','video/mp4','audio/wav','audio/x-wav'}
+    if not item or item.mimetype not in allowed:raise MediaError('Rekaman belum dapat dibaca. Rekam ulang lalu coba lagi.')
+    raw=item.stream.read(10*1024*1024+1)
+    if not raw or len(raw)>10*1024*1024:raise MediaError('Rekaman terlalu besar. Gunakan rekaman maksimal 3 menit.')
+    with tempfile.TemporaryDirectory(prefix='kilas-voice-') as folder:
+        source=Path(folder)/'recording';source.write_bytes(raw)
+        ms,pcm=_decode_source(source,folder,sample_rate=44100,max_seconds=180)
+    if ms>180000:raise MediaError('Gunakan rekaman maksimal 3 menit.')
+    return pcm
 
 
 def ensure_mp3(raw):
