@@ -20,3 +20,8 @@
 .audio-studio .voice-translation-toggle input{width:20px;min-height:20px;accent-color:#bd4700}
 #voice-translation-options,#voice-translated-result{display:grid;gap:12px}
 #voice-translation-error,#voice-preview-error{color:#b42330}
+#saved-voice-rename{display:grid;gap:12px;margin-top:8px}
+#saved-voice-error{color:#b42330}
+.personal-voice-setup .voice-preview-actions .btn{min-height:44px;white-space:normal}
+#saved-voice-choice{max-width:100%;min-width:0;text-overflow:ellipsis}
+@media(max-width:600px){.personal-voice-setup .voice-preview-actions{gap:8px}.personal-voice-setup .voice-preview-actions .btn{flex:1 1 auto}}

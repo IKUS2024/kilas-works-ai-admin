@@ -1,0 +1,9 @@
+# Saved personal voices — 2026-10-05
+
+Scope: Voice Over / Suara Saya only. Owner can add a consented recording with a name, select a saved voice, play its private original sample, rename, safely re-record, and delete after confirmation. Existing MP3 history remains available after voice deletion. Maximum ten saved personal voices per owner; provider voice capacity remains authoritative.
+
+Additive migration 0086 introduces only kilas_audio_saved_voices. Existing single personal voice is preserved and copied lazily for its owner without a provider call. Existing table retains the per-owner operation claim and legacy endpoint compatibility. Private provider IDs never reach UI; opaque local row IDs map to owner-scoped records. Saved named voices use the same eleven_v4 personal TTS adapter. Consent/CSRF/balance gates remain in place. Active generation blocks replacement/deletion. Failed clone replacement or provider deletion retains the old voice and preview. No Dubbing, Finance, pricing, navigation, integration changes.
+
+Focused local personal voice tests: 17 PASS. Existing focused Audio tests: 40 PASS. Browser microphone/consent/preview/persistence/translation/Voice Over/download checks PASS at 320/360/390/430/768/1024/1440. Added real browser named second voice, rename, selection persistence, deletion preserving first voice at 390. Provider calls are mocked; zero paid test generations. PowerShell stderr redirection reports wrapper exit 1 while all seven browser PASS markers are present; Linux CI will verify native process exit. Scoped Impeccable review uses existing visual identity; desktop/mobile screenshots inspected, labels/44px controls/wrapping/overflow checked. No full audit.
+
+Pending: final focused PostgreSQL/browser CI, targeted 0086 apply, Client Hub-only release, read-only authenticated production verification of preserved voice/preview and controls. Do not delete the real owner voice for QA or create a paid test clone.

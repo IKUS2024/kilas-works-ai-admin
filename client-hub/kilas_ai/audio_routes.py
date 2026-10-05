@@ -49,9 +49,11 @@ def home(ident=None):
     try:page=max(1,min(10000,int(request.args.get('page',1))))
     except ValueError:abort(400)
     rows=store.history(user,page)
+    saved_voices=personal.saved_voices(user)
     return render_template('kilas_translator/home.html',balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
                            voices=provider.voices() if state['exempt'] or state['available'] else [],
                            personal_voice=bool(personal.get(user)),personal_preview=personal.has_preview(user),voice_operation_key=secrets.token_hex(16),
+                           saved_voices=saved_voices,
                            provider_ready=provider.configured(),languages=provider.LANGUAGES,packs=store.PACKS,
                            seconds=seconds,operation_key=secrets.token_hex(16),max_mb=media.file_limit()//1024//1024,audio_max_mb=media.file_limit('wav')//1024//1024,max_seconds=media.duration_limit())
 
@@ -82,7 +84,11 @@ def create():
         script=request.form.get('translated_script' if translated else 'script','').strip()
         if not 1<=len(script)<=4000 or not re.search(r'\w',script):raise store.AudioError('Tulis naskah 1–4.000 karakter dalam bahasa yang dipilih.')
         voice=request.form.get('voice','')
-        if voice=='personal':
+        if voice.startswith('personal:'):
+            try:choice=personal.saved(user,int(voice.split(':',1)[1]))
+            except ValueError:abort(400)
+            if choice:choice={'id':choice['voice_id'],'name':choice['name']}
+        elif voice=='personal':
             saved=personal.get(user)
             choice={'id':saved,'name':'Suara Saya'} if saved else None
         else:
@@ -97,7 +103,7 @@ def create():
         estimated,reserve=service.estimate(script)
         if estimated>media.duration_limit():raise store.AudioError('Naskah terlalu panjang. Pendekkan naskah sebelum membuat audio.')
     else:abort(400)
-    ident,new=store.create(user,key,mode,title,source,target,voice,voice_name,script,ms,pcm,estimated,reserve)
+    ident,new=store.create(user,key,mode,title,source,target,voice,voice_name,script,ms,pcm,estimated,reserve,personal_required=mode=='voiceover' and request.form.get('voice','').startswith('personal:'))
     if new:service.submit(user,ident)
     return {'url':url_for('kilas_audio.home',ident=ident),'id':ident},201 if new else 200
 
@@ -109,6 +115,11 @@ def create_personal_voice():
     if not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',key):abort(400)
     store.require_balance(session['user_id'])
     try:
+        if 'name' in request.form:
+            ident=request.form.get('saved_voice_id','')
+            if ident and not ident.isdigit():abort(400)
+            result=personal.save_named(session['user_id'],key,request.files.get('recording'),request.form['name'],int(ident) if ident else None)
+            return {'ready':True,**result},200,{'Cache-Control':'private, no-store'}
         personal.create(session['user_id'],key,request.files.get('recording'),request.form.get('replace')=='yes')
     except provider.ProviderError:
         return {'error':'Suara belum berhasil dibuat. Rekamanmu tetap aman untuk dicoba kembali.'},503
@@ -122,6 +133,29 @@ def personal_voice_preview():
     response=send_file(io.BytesIO(raw),mimetype='audio/mpeg')
     response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
     return response
+
+
+@audio_bp.get('/personal-voices/<int:ident>/preview')
+def saved_voice_preview(ident):
+    raw=personal.saved_preview(session['user_id'],ident)
+    if not raw:abort(404)
+    response=send_file(io.BytesIO(raw),mimetype='audio/mpeg')
+    response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
+    return response
+
+
+@audio_bp.post('/personal-voices/<int:ident>/rename')
+def rename_saved_voice(ident):
+    personal.rename_saved(session['user_id'],ident,request.form.get('name',''))
+    return {'ready':True},200,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.post('/personal-voices/<int:ident>/delete')
+def delete_saved_voice(ident):
+    try:personal.delete_saved(session['user_id'],ident)
+    except provider.ProviderError:
+        return {'error':'Suara belum berhasil dihapus. Suara tersimpan tetap tersedia. Coba lagi nanti.'},503
+    return {'ready':True},200,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/voice-script/translate')

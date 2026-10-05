@@ -70,13 +70,15 @@ def history(user,page=1):
     return db.query_all('SELECT id,mode,title,source_language,target_language,voice_name,source_ms,actual_ms,status,created_at FROM kilas_audio_jobs WHERE user_id=? ORDER BY id DESC LIMIT 21 OFFSET ?',(user,(page-1)*20))
 
 
-def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,pcm,estimated,reserve):
+def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,pcm,estimated,reserve,*,personal_required=False):
     fingerprint = hashlib.sha256(json.dumps([mode,title,source,target,voice,script,source_ms],ensure_ascii=False).encode()+(pcm or b'')).hexdigest()
     with locked(user) as conn:
         _expire(conn,user)
-        if mode=='voiceover' and voice_name=='Suara Saya':
+        saved_voice=usage._query(conn,'SELECT 1 FROM kilas_audio_saved_voices WHERE user_id=? AND voice_id=?',(user,voice),one=True) if mode=='voiceover' else None
+        if personal_required and not saved_voice:raise AudioError('Suara tidak lagi tersedia. Pilih kembali.','voice_unavailable',409)
+        if mode=='voiceover' and (voice_name=='Suara Saya' or saved_voice):
             personal=usage._query(conn,'SELECT voice_id,claim_until FROM kilas_audio_personal_voices WHERE user_id=?',(user,),one=True)
-            if not personal or personal[0]!=voice or (personal[1] and usage._as_utc(personal[1])>usage._now()):
+            if not personal or (personal[0]!=voice and not saved_voice) or (personal[1] and usage._as_utc(personal[1])>usage._now()):
                 raise AudioError('Suara Saya sedang diperbarui. Muat ulang lalu coba lagi.','voice_unavailable',409)
         existing = usage._query(conn,'SELECT id,fingerprint FROM kilas_audio_jobs WHERE user_id=? AND operation_key=?',(user,key),one=True)
         if existing:

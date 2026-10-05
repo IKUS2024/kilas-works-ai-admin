@@ -18,6 +18,67 @@ class PersonalVoiceTests(unittest.TestCase):
         data={'csrf_token':'audio-csrf','operation_key':key,'consent':'yes','recording':(io.BytesIO(wav()),'recording','audio/wav'),**values}
         return self.client.post('/kilas-translator/personal-voice',data=data,content_type='multipart/form-data')
 
+    def test_named_library_add_select_rename_and_delete(self):
+        self.credit(300)
+        with patch.object(provider,'clone_voice',side_effect=['privateNamedA','privateNamedB']) as clone:
+            first=self.clone(name='Suara Irvan').json
+            self.assertEqual(self.clone(name='Suara Irvan').json,first)
+            second=self.clone(key='named-second-key-1234',name='Suara Presentasi').json
+            self.assertEqual(clone.call_count,2)
+        self.assertEqual(len(personal.saved_voices(self.user)),2)
+        self.assertNotIn('privateNamedA',self.client.get('/kilas-translator').text)
+        r,tts,_=self.create(voice='personal:'+str(second['id']))
+        self.assertEqual(r.status_code,201);self.assertEqual(tts.call_args.args[1],'privateNamedB');self.assertTrue(tts.call_args.kwargs['personal'])
+        job=r.json['id']
+        url='/kilas-translator/personal-voices/'+str(second['id'])
+        self.assertEqual(self.client.post(url+'/rename',data={'csrf_token':'audio-csrf','name':'Narasi Inggris'}).status_code,200)
+        self.assertEqual(personal.saved(self.user,second['id'])['name'],'Narasi Inggris')
+        self.assertEqual(self.client.get(url+'/preview').status_code,200)
+        with patch.object(provider,'request',return_value={}) as delete:
+            self.assertEqual(self.client.post(url+'/delete',data={'csrf_token':'audio-csrf'}).status_code,200)
+            delete.assert_called_once_with('DELETE','/voices/privateNamedB',private=True)
+        self.assertIsNone(personal.saved(self.user,second['id']))
+        self.assertEqual(self.client.get('/kilas-translator/jobs/'+str(job)+'/result').status_code,200)
+        self.assertEqual(len(personal.saved_voices(self.user)),1)
+
+    def test_named_library_preserves_legacy_and_owner_isolation(self):
+        self.credit()
+        f.db.execute('INSERT INTO kilas_audio_personal_voices(user_id,voice_id) VALUES (?,?)',(self.user,'legacySavedPrivate'))
+        rows=personal.saved_voices(self.user);ident=rows[0]['id']
+        self.assertEqual(len(personal.saved_voices(self.user)),1)
+        self.assertEqual(personal.saved(self.user,ident)['voice_id'],'legacySavedPrivate')
+        self.assertIsNone(personal.saved(self.other,ident))
+        with self.client.session_transaction() as session:session['user_id']=self.other
+        for action in ('rename','delete'):
+            with patch.object(provider,'request') as call:
+                self.assertEqual(self.client.post('/kilas-translator/personal-voices/'+str(ident)+'/'+action,data={'csrf_token':'audio-csrf','name':'Other'}).status_code,404)
+                call.assert_not_called()
+        self.assertEqual(self.client.get('/kilas-translator/personal-voices/'+str(ident)+'/preview').status_code,404)
+
+    def test_named_library_failed_replace_or_delete_keeps_voice(self):
+        self.credit()
+        with patch.object(provider,'clone_voice',return_value='savedBeforeFailure'):
+            first=self.clone(name='Asli').json
+        before=personal.saved_preview(self.user,first['id'])
+        with patch.object(provider,'clone_voice',side_effect=provider.ProviderError()):
+            self.assertEqual(self.clone(key='named-failed-key-1234',name='Baru',saved_voice_id=str(first['id'])).status_code,503)
+        self.assertEqual(personal.saved(self.user,first['id'])['name'],'Asli')
+        self.assertEqual(personal.saved_preview(self.user,first['id']),before)
+        with patch.object(provider,'request',side_effect=provider.ProviderError()):
+            self.assertEqual(self.client.post('/kilas-translator/personal-voices/'+str(first['id'])+'/delete',data={'csrf_token':'audio-csrf'}).status_code,503)
+        self.assertIsNotNone(personal.saved(self.user,first['id']))
+
+    def test_named_library_validation_and_csrf(self):
+        self.credit()
+        with patch.object(provider,'clone_voice') as call:
+            self.assertEqual(self.clone(name=' ').status_code,400)
+            self.assertEqual(self.clone(name='x'*61).status_code,400)
+            self.assertEqual(self.clone(name='Valid',saved_voice_id='999999').status_code,404)
+            call.assert_not_called()
+        with patch.object(provider,'clone_voice',return_value='csrfSavedPrivate'):
+            first=self.clone(name='CSRF').json
+        self.assertEqual(self.client.post('/kilas-translator/personal-voices/'+str(first['id'])+'/delete',data={'csrf_token':'bad'}).status_code,400)
+
     def test_consent_csrf_and_balance_before_provider(self):
         with patch.object(provider,'clone_voice') as clone:
             self.assertEqual(self.clone(consent='no').status_code,400)

@@ -20,7 +20,8 @@ def submit(user,ident):
             ident_provider=provider.dub(bytes(payload['source_content']),job['source_language'],job['target_language'],ident)
             store.submitted(user,ident,ident_provider,retain_video=bytes(payload['source_content'])[4:8]==b'ftyp')
         else:
-            options={'personal':True} if job['voice_name']=='Suara Saya' else {}
+            from . import audio_personal_voice as personal
+            options={'personal':True} if job['voice_name']=='Suara Saya' or personal.owns(user,job['voice_id']) else {}
             raw,request_id=provider.speech(payload['script'],job['voice_id'],job['target_language'],**options)
             store.finish(user,ident,raw,media.mp3_duration(raw),request_id)
     except (provider.ProviderError,media.MediaError,store.AudioError) as error:

@@ -25,8 +25,8 @@ def main():
                 c=browser.new_context(viewport={'width':width,'height':950},has_touch=width<761,permissions=['microphone'],reduced_motion='reduce')
                 cookie=case.client.get_cookie('session');c.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);page=c.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(origin+'/kilas-translator',wait_until='networkidle');page.locator('#voiceover-tab').click()
-                expect(page.get_by_role('heading',name='Gunakan suara kamu sendiri')).to_be_visible();expect(page.locator('#voice-generate')).to_be_disabled()
-                page.locator('#open-recorder').click();page.locator('#record-start').click();expect(page.locator('#record-state')).to_contain_text('Mikrofon aktif')
+                expect(page.locator('#saved-voice-choice')).to_have_value('');expect(page.locator('#voice-generate')).to_be_disabled()
+                page.locator('#add-saved-voice').click();page.locator('#record-voice-name').fill('Suara Saya');page.locator('#record-start').click();expect(page.locator('#record-state')).to_contain_text('Mikrofon aktif')
                 expect(page.locator('#record-timer')).not_to_have_text('0:00');page.locator('#record-stop').click()
                 expect(page.locator('#record-playback')).to_be_visible();page.locator('#record-playback').evaluate('el=>el.play()');assert not page.locator('#record-playback').evaluate('el=>el.paused');page.locator('#record-playback').evaluate('el=>el.pause()')
                 expect(page.locator('#save-personal-voice')).to_be_disabled();page.locator('#voice-consent').check();expect(page.locator('#save-personal-voice')).to_be_enabled()
@@ -59,6 +59,19 @@ def main():
                     with patch.object(provider,'clone_voice',side_effect=provider.ProviderError()):
                         page.locator('#save-personal-voice').click();expect(page.locator('#record-error')).to_contain_text('belum berhasil');assert personal.get(case.user)=='personalPrivate123'
                     page.locator('#save-personal-voice').click();expect(page.locator('#voice-recorder')).to_be_hidden()
+                    page.locator('#add-saved-voice').click();page.locator('#record-voice-name').fill('Suara Presentasi');page.locator('#record-start').click();expect(page.locator('#record-timer')).not_to_have_text('0:00');page.locator('#record-stop').click();expect(page.locator('#record-playback')).to_be_visible();page.locator('#voice-consent').check()
+                    with patch.object(provider,'clone_voice',return_value='secondPersonalPrivate456'):
+                        page.locator('#save-personal-voice').click();expect(page.locator('#voice-recorder')).to_be_hidden()
+                    assert page.locator('#saved-voice-choice option').count()==2
+                    second=page.locator('#saved-voice-choice').input_value()
+                    page.locator('#rename-saved-voice').click();page.locator('#saved-voice-new-name').fill('Narasi Presentasi Indonesia');page.locator('#save-voice-name').click();expect(page.locator('#saved-voice-rename')).to_be_hidden()
+                    expect(page.locator('#saved-voice-choice option:checked')).to_have_text('Narasi Presentasi Indonesia')
+                    page.screenshot(path=str(output/'library-390.png'),full_page=True)
+                    page.reload(wait_until='networkidle');page.locator('#voiceover-tab').click();page.select_option('#saved-voice-choice',second)
+                    expect(page.locator('#selected-voice')).to_have_value('personal:'+second)
+                    with patch.object(provider,'request',return_value={}):
+                        page.once('dialog',lambda d:d.accept());page.locator('#delete-saved-voice').click();expect(page.locator('#saved-voice-choice option')).to_have_count(1)
+                    assert personal.get(case.user)=='personalPrivate123'
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth');assert not errors,errors
                 page.screenshot(path=str(output/f'voiceover-{width}.png'),full_page=True)
                 print('PASS personal voice microphone/playback/consent/persistence/ID+EN/generation/download/overflow '+str(width),flush=True)
