@@ -32,3 +32,21 @@ Pending deployment and real v4 Indonesian/English generations using one saved cl
 - https://elevenlabs.io/docs/api-reference/dubbing/create-project.md
 - https://elevenlabs.io/docs/api-reference/dubbing/language-targets/list-language-targets.md
 - https://elevenlabs.io/docs/overview/capabilities/dubbing
+
+## Production checkpoint ? 2026-10-05 12:47 UTC
+- Initial audio code SHA: d2db89ef4ff26f3ef31511e133ee0bedad5a7842. Commit: Upgrade personal voice to Eleven v4 and Translator to Dubbing v2.
+- Client Hub deploy dep-db1pki49v7es738lqh70 is LIVE on that SHA. Only Client Hub deployed; no migration or data reset.
+- Audio CI run 37310921955: focused, browser, PostgreSQL all SUCCESS.
+- Real production Indonesian job 10: completed; MP3 playback/download/refresh pass (5.44 seconds).
+- Real production English job 11: completed; MP3 playback/download/refresh pass (4.16 seconds).
+- Read-only PostgreSQL verification: both jobs use the same actual owner-saved personal voice. Private identifiers never displayed. No fallback exists in the v4 request path. Provider history-read is not authorized (401); no permission expansion was made for it.
+- Real production Translator job 12: provider metadata confirms dubbing_v2, ready project and no speaker-substitution warnings. Target English result completed; MP4 playback/download/history/reopen/refresh PASS (6.76 seconds). Source Indonesian was explicitly selected.
+- Actual output MP4 has exactly the same 169 decoded video-frame hashes as the source, confirming no added visible watermark or visual alteration. Audible watermark absence and subjective speaker similarity still require owner listening feedback. Creator paid no-watermark path used; no watermark removal/filtering.
+- Production widths 320/360/390/430 PASS on completed voice and MP4 results; no overflow.
+- ElevenLabs observed usage 35 -> 1153 = 1118 credits for these controlled generations. Internal QA account Audio balance charge is exempt (zero); provider usage is real, not a free fallback. Exactly two voice jobs and one dubbing project were submitted; read-only polling/reopens create no new paid jobs.
+- Render error-level logs after deployment/QA: no matching errors.
+- Automatic unrelated Autonomous Agent CI browser job failed in test_kilas_ai_unified_browser.py. Its product files are untouched; scoped Audio CI is entirely green. No out-of-scope fix made.
+- Owner clean re-record is pending; existing saved clone is preserved. Three production result tabs (jobs 10,11,12) opened for owner listening. Final subjective similarity/improvement and audible-watermark assessment remain UNVERIFIED. Do not call task fully complete until this feedback and any needed clean recording QA are done.
+- Verification artifacts: temporary kilas-audio-v4-v2-production/report.json, id.mp3, en.mp3, safe-speech.mp4, dubbed.mp4 and mobile screenshots; no secrets or private IDs in report.
+
+Final scoped visual inspection found obsolete MP3-only Translator explanatory copy. Corrected it to distinguish video MP4 from audio MP3; the focused MP4 route/persistence regression test passes again. No extra paid generation is needed. Final copy-only Client Hub deployment pending.

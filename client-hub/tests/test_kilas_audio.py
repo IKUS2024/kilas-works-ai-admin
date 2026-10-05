@@ -291,6 +291,7 @@ class AudioTests(unittest.TestCase):
         self.assertIsNone(store.payload(self.user,ident)['source_content'])
         self.assertEqual(job['seconds_charged'],math.ceil(job['source_ms']/1000))
         page=self.client.get(f'/kilas-translator/jobs/{ident}');self.assertIn('<video controls',page.text);self.assertIn('Download MP4',page.text)
+        self.assertIn('Video tetap berupa MP4',page.text);self.assertNotIn('video hanya diproses track audionya',page.text)
         downloaded=self.client.get(f'/kilas-translator/jobs/{ident}/result?download=1')
         self.assertEqual(downloaded.mimetype,'video/mp4');self.assertEqual(downloaded.data[4:8],b'ftyp')
         self.assertIn('.mp4',downloaded.headers['Content-Disposition'])

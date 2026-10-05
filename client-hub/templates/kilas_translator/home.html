@@ -11,7 +11,7 @@
 <div id="audio-result" data-status-url="{{ url_for('kilas_audio.status',ident=job.id) if job else '' }}" data-job-status="{{ job.status if job else '' }}">{% if job %}{% include 'kilas_translator/_result.html' %}{% endif %}</div>
 <div class="audio-tabs" role="tablist" aria-label="Mode Kilas Translator"><button type="button" id="translate-tab" role="tab" aria-selected="true" aria-controls="translate-panel">Translate</button><button type="button" id="voiceover-tab" role="tab" aria-selected="false" aria-controls="voiceover-panel" tabindex="-1">Voice Over</button></div>
 <section id="translate-panel" role="tabpanel" aria-labelledby="translate-tab">
-<h2>Suara yang sama. Bahasa baru.</h2><p>Ubah audio atau video ke bahasa lain tanpa perlu rekam ulang. Hasil berupa MP3; video hanya diproses track audionya.</p>
+<h2>Suara yang sama. Bahasa baru.</h2><p>Ubah audio atau video ke bahasa lain tanpa perlu rekam ulang. Video tetap berupa MP4 dengan suara terjemahan; file audio menghasilkan MP3.</p>
 <form action="{{ url_for('kilas_audio.create') }}" method="post" enctype="multipart/form-data" data-audio-form>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}-t"><input type="hidden" name="mode" value="translate">
 <label class="audio-upload" for="audio-file"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg><strong>Pilih audio atau video</strong><span>MP4 maks. {{ max_mb }} MB · MP3, WAV, M4A maks. {{ audio_max_mb }} MB · {{ max_seconds//60 }} menit</span></label>
