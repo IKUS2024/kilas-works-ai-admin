@@ -1,9 +1,14 @@
 <!doctype html>
-<html lang="{{ ui_language() }}"><head>{% include '_ui_i18n_head.html' %}<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ ui_t('Langganan & Pembayaran') }}</title>
+<html lang="{{ ui_language() }}"><head>{% include '_ui_i18n_head.html' %}<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ ui_t('Settings') }} ? Kilas Works</title>
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='7') }}"><link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_subscription.css',v='2') }}">{% include '_premium_styles.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_capacity.css',v='1') }}"></head>
 <body class="premium-workspace kilas-light ">{% include '_premium_workspace.html' %}<main id="kw-main" class="subscription-page">
   <a class="subscription-back" href="{{ url_for('kilas_ai.home') }}">{{ ui_t('Kembali ke chat') }}</a>
-  <header class="subscription-header"><h1>{{ ui_t('Langganan & Pembayaran') }}</h1><p>{{ ui_t('Semua yang kamu perlukan untuk berpikir, membuat, dan menyelesaikan pekerjaan.') }}</p></header>
+  <header class="subscription-header"><h1>{{ ui_t('Settings') }}</h1><p>{{ ui_t('Akun, pembelian, dan penggunaan Kilas AI, Video, serta Translator.') }}</p></header>
+  <section class="subscription-section" aria-labelledby="settings-account-title">
+    <h2 id="settings-account-title">{{ ui_t('Akun & keamanan') }}</h2>
+    <p><a href="{{ url_for('auth.account_page') }}#security">{{ ui_t('Kelola profil & keamanan akun') }}</a> ? <a href="{{ url_for('auth.account_page') }}">{{ ui_t('Pengaturan Finance') }}</a></p>
+    <p class="subscription-fine">{{ ui_t('Data bisnis, invoice, dan metode pembayaran Finance dikelola terpisah di pengaturan Finance.') }}</p>
+  </section>
   <div class="subscription-layout">
     <section class="subscription-offer" aria-labelledby="offer-title">
       <div class="subscription-offer-head"><div><h2 id="offer-title">{{ ui_t('Kilas Pro') }}</h2></div><span class="subscription-status">{{ ui_t('Aktif') if subscription.status == 'ACTIVE' else ui_t('Belum aktif') }}</span></div>
@@ -21,6 +26,16 @@
         <button class="subscription-secondary" type="button" data-capacity-open>{{ ui_t('Tambah kapasitas') }}</button>
         <p class="subscription-fine">{{ ui_t('Pilih paket tetap. Berlaku 90 hari setelah pembayaran terverifikasi.') }}</p>
       </section>
+      {% if kilas_video_enabled() %}<section class="subscription-section" aria-labelledby="audio-settings-title">
+        <h2 id="audio-settings-title">Translator & Voice Over</h2>
+        <p>{{ ui_t('Saldo tersedia') }}: <strong>{{ audio_balance.available // 60 }} {{ ui_t('menit') }} {{ audio_balance.available % 60 }} {{ ui_t('detik') }}</strong></p>
+        <p class="subscription-fine">{{ ui_t('Saldo Audio digunakan bersama untuk Translate dan Voice Over, terpisah dari Kapasitas Premium.') }}</p>
+        {% for code,values in audio_packs.items() %}<form method="post" action="{{ url_for('kilas_audio.checkout') }}" style="margin-bottom:12px">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="pack" value="{{ code }}">
+          <button class="subscription-secondary" type="submit">{{ ui_t('Beli') }} {{ values[0] // 60 }} {{ ui_t('menit') }} ? Rp{{ '{:,.0f}'.format(values[1]).replace(',', '.') }}</button>
+        </form>{% endfor %}
+        <a href="{{ url_for('kilas_audio.home') }}">{{ ui_t('Lihat riwayat penggunaan Audio') }}</a>
+      </section>{% endif %}
       <section class="subscription-section" aria-labelledby="billing-title"><h2 id="billing-title">{{ ui_t('Tagihan') }} & {{ ui_t('pembayaran') }}</h2>
         {% if invoices or topup_orders %}<div class="subscription-invoices">{% for invoice in topup_orders %}<a href="{{ url_for('kilas_ai.topup_invoice',order_id=invoice.id) }}"><span><strong>{{ ui_t('Kapasitas Tambahan') }}</strong><small>{{ invoice.invoice_number }}</small></span><span>Rp{{ '{:,.0f}'.format(invoice.amount_idr).replace(',', '.') }}<small>{{ invoice.status.replace('_',' ').title() }}</small></span></a>{% endfor %}{% for invoice in invoices %}<a href="{{ url_for('kilas_ai.invoice_page',invoice_id=invoice.id) }}"><span><strong>Kilas AI</strong><small>{{ invoice.invoice_number }}</small></span><span>Rp{{ '{:,.0f}'.format(invoice.amount_idr).replace(',', '.') }}<small>{{ invoice.status.replace('_',' ').title() }}</small></span></a>{% endfor %}</div>{% else %}<p>{{ ui_t('Belum ada tagihan.') }}</p>{% endif %}
       </section>
