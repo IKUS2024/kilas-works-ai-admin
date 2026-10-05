@@ -1,4 +1,4 @@
-"""Server-only, owner-scoped clone association. Microphone samples are never persisted."""
+"""Owner-scoped clone association with a short private original-recording preview."""
 import secrets
 from datetime import timedelta
 import db
@@ -8,6 +8,16 @@ from . import audio_store as store, audio_provider as provider, audio_media as m
 def get(user):
     row=db.query_one('SELECT voice_id FROM kilas_audio_personal_voices WHERE user_id=?',(user,))
     return row['voice_id'] if row else ''
+
+
+def preview(user):
+    row=db.query_one("SELECT preview_content FROM kilas_audio_personal_voices WHERE user_id=? AND voice_id<>''",(user,))
+    return bytes(row['preview_content']) if row and row['preview_content'] else None
+
+
+def has_preview(user):
+    row=db.query_one("SELECT preview_content IS NOT NULL AS ready FROM kilas_audio_personal_voices WHERE user_id=? AND voice_id<>''",(user,))
+    return bool(row and row['ready'])
 
 
 def create(user,key,item,replace=False):
@@ -24,11 +34,12 @@ def create(user,key,item,replace=False):
     new=''
     try:
         pcm=media.voice_sample(item)
+        sample=media.personal_preview(pcm)
         new=provider.clone_voice(pcm)
         with store.locked(user) as conn:
             current=usage._query(conn,'SELECT claim_token FROM kilas_audio_personal_voices WHERE user_id=?',(user,),one=True)
             if not current or current[0]!=token:raise store.AudioError('Rekaman berubah. Coba kembali.','conflict',409)
-            usage._query(conn,"UPDATE kilas_audio_personal_voices SET voice_id=?,operation_key=?,consent_at=?,updated_at=?,claim_token='',claim_until='' WHERE user_id=?",(new,key,now.isoformat(),usage._now().isoformat(),user))
+            usage._query(conn,"UPDATE kilas_audio_personal_voices SET voice_id=?,preview_content=?,operation_key=?,consent_at=?,updated_at=?,claim_token='',claim_until='' WHERE user_id=?",(new,sample,key,now.isoformat(),usage._now().isoformat(),user))
     except Exception:
         if new:provider.delete_voice(new)
         with store.locked(user) as conn:

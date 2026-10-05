@@ -11,6 +11,7 @@ from .routes import enabled
 from .billing_routes import admin_bp
 from . import audio_store as store, audio_provider as provider, audio_service as service, audio_media as media, audio_billing as billing
 from . import audio_personal_voice as personal
+from . import audio_voice_script as voice_script
 
 audio_bp=Blueprint('kilas_audio',__name__,url_prefix='/kilas-translator')
 
@@ -50,7 +51,7 @@ def home(ident=None):
     rows=store.history(user,page)
     return render_template('kilas_translator/home.html',balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
                            voices=provider.voices() if state['exempt'] or state['available'] else [],
-                           personal_voice=bool(personal.get(user)),voice_operation_key=secrets.token_hex(16),
+                           personal_voice=bool(personal.get(user)),personal_preview=personal.has_preview(user),voice_operation_key=secrets.token_hex(16),
                            provider_ready=provider.configured(),languages=provider.LANGUAGES,packs=store.PACKS,
                            seconds=seconds,operation_key=secrets.token_hex(16),max_mb=media.file_limit()//1024//1024,audio_max_mb=media.file_limit('wav')//1024//1024,max_seconds=media.duration_limit())
 
@@ -77,7 +78,8 @@ def create():
         title,ms,pcm=media.upload(request.files.get('file'),preserve_video=True)
         estimated=reserve=math.ceil(ms/1000)
     elif mode=='voiceover':
-        script=request.form.get('script','').strip()
+        translated=request.form.get('translate_script')=='yes'
+        script=request.form.get('translated_script' if translated else 'script','').strip()
         if not 1<=len(script)<=4000 or not re.search(r'\w',script):raise store.AudioError('Tulis naskah 1–4.000 karakter dalam bahasa yang dipilih.')
         voice=request.form.get('voice','')
         if voice=='personal':
@@ -88,6 +90,10 @@ def create():
             choice=next((v for i,v in enumerate(choices) if voice in (v['id'],'kilas-'+str(i))),None)
         if not choice:raise store.AudioError('Suara belum tersedia. Pilih kembali atau coba lagi nanti.','voice_unavailable',503)
         voice=choice['id'];voice_name=choice['name'];title=' '.join(script.split())[:100];source=target
+        if translated:
+            if target not in provider.LANGUAGES:abort(400)
+            source=request.form.get('translation_source','auto')
+            if source!='auto' and source not in provider.LANGUAGES:abort(400)
         estimated,reserve=service.estimate(script)
         if estimated>media.duration_limit():raise store.AudioError('Naskah terlalu panjang. Pendekkan naskah sebelum membuat audio.')
     else:abort(400)
@@ -107,6 +113,27 @@ def create_personal_voice():
     except provider.ProviderError:
         return {'error':'Suara belum berhasil dibuat. Rekamanmu tetap aman untuk dicoba kembali.'},503
     return {'ready':True},200,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.get('/personal-voice/preview')
+def personal_voice_preview():
+    raw=personal.preview(session['user_id'])
+    if not raw:abort(404)
+    response=send_file(io.BytesIO(raw),mimetype='audio/mpeg')
+    response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
+    return response
+
+
+@audio_bp.post('/voice-script/translate')
+def translate_voice_script():
+    import time
+    store.require_balance(session['user_id'])
+    text=request.form.get('script','').strip();target=request.form.get('language','')
+    if not 1<=len(text)<=4000 or target not in provider.LANGUAGES:abort(400)
+    now=time.time();recent=[v for v in session.get('voice_translation_times',[]) if now-v<60]
+    if len(recent)>=6:raise store.AudioError('Terlalu banyak terjemahan. Coba lagi sebentar.','translation_rate_limit',429)
+    session['voice_translation_times']=recent+[now]
+    return voice_script.translate(text,target),200,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.get('/jobs/<int:ident>/status')

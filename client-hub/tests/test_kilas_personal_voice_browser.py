@@ -9,6 +9,7 @@ from playwright.sync_api import sync_playwright,expect
 from werkzeug.serving import make_server
 from test_kilas_personal_voice import PersonalVoiceTests,personal
 from test_kilas_audio import f,provider
+from kilas_ai import audio_voice_script
 
 
 def main():
@@ -34,6 +35,17 @@ def main():
                 assert response.value.ok,response.value.text()
                 expect(page.locator('#personal-voice-state')).to_have_text('Siap digunakan');assert personal.get(case.user)=='personalPrivate123'
                 page.reload(wait_until='networkidle');page.locator('#voiceover-tab').click();expect(page.locator('#personal-voice-state')).to_have_text('Siap digunakan');assert 'personalPrivate123' not in page.content() and 'stockPrivate123' not in page.content()
+                page.locator('#play-personal-preview').click();expect(page.locator('#personal-preview')).to_be_visible();assert not page.locator('#personal-preview').evaluate('el=>el.paused');page.locator('#personal-preview').evaluate('el=>el.pause()')
+                page.locator('#audio-script').fill('Halo, saya di Bali.');page.locator('#voice-translate-toggle').check();expect(page.locator('#voice-generate')).to_be_disabled()
+                before=speech.call_count
+                with patch.object(audio_voice_script,'translate',return_value={'text':'Hello, I am in Bali.','source_language':'id'}):
+                    page.locator('#voice-translate-preview').click();expect(page.locator('#voice-translated-script')).to_have_value('Hello, I am in Bali.')
+                assert speech.call_count==before;expect(page.locator('#audio-script')).to_have_value('Halo, saya di Bali.')
+                page.locator('#voice-translated-script').fill('Hello, today I am enjoying Bali.')
+                assert page.evaluate('document.documentElement.scrollWidth<=innerWidth');page.screenshot(path=str(output/f'translation-{width}.png'),full_page=True)
+                page.locator('#voice-generate').click();expect(page).to_have_url(re.compile(r'/kilas-translator/jobs/\d+'),timeout=20000)
+                assert speech.call_args.args[0]=='Hello, today I am enjoying Bali.' and speech.call_args.args[1]=='personalPrivate123' and speech.call_args.kwargs['personal']
+                page.goto(origin+'/kilas-translator',wait_until='networkidle');page.locator('#voiceover-tab').click()
                 for text,language in [('Selamat datang di Kilas Works.','Indonesian'),('Welcome to Kilas Works. Today we are building something new.','English')]:
                     page.locator('#audio-script').fill(text);expect(page.locator('#voice-language-status')).to_contain_text(language)
                     page.locator('#voice-generate').click();expect(page).to_have_url(re.compile(r'/kilas-translator/jobs/\d+'),timeout=20000)

@@ -118,6 +118,18 @@ def voice_sample(item):
     return pcm
 
 
+def personal_preview(pcm):
+    """Keep at most 15 seconds of the actual decoded recording, without paid TTS."""
+    with tempfile.TemporaryDirectory(prefix='kilas-voice-preview-') as folder:
+        source=Path(folder)/'sample.wav';target=Path(folder)/'preview.mp3';source.write_bytes(pcm)
+        try:
+            result=subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(),'-nostdin','-v','error','-protocol_whitelist','file,pipe',
+                '-threads','1','-i',str(source),'-t','15','-ac','1','-c:a','libmp3lame','-b:a','128k','-y',str(target)],capture_output=True,timeout=15)
+            if result.returncode or not target.exists() or target.stat().st_size>300000:raise MediaError('Contoh rekaman belum dapat disiapkan.')
+            return target.read_bytes()
+        except subprocess.TimeoutExpired:raise MediaError('Contoh rekaman belum dapat disiapkan.') from None
+
+
 def ensure_mp3(raw):
     """Dubbing can return source-format audio; normalize WAV to an actual MP3."""
     if raw[:4] not in (b'RIFF',b'fLaC'):

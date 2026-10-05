@@ -37,6 +37,63 @@ class PersonalVoiceTests(unittest.TestCase):
         self.assertTrue(row['consent_at']);self.assertEqual(row['claim_token'],'')
         self.assertNotIn('recording',row)
 
+    def test_private_original_preview_and_legacy_clone(self):
+        self.credit()
+        f.db.execute("INSERT INTO kilas_audio_personal_voices(user_id,voice_id) VALUES (?,?)",(self.user,'legacyPrivate123'))
+        page=self.client.get('/kilas-translator').text
+        self.assertIn('Contoh rekaman belum tersedia',page);self.assertEqual(self.client.get('/kilas-translator/personal-voice/preview').status_code,404)
+        with patch.object(provider,'clone_voice',return_value='newPrivate123'),patch.object(provider,'delete_voice'):
+            self.assertEqual(self.clone(replace='yes').status_code,200)
+        preview=self.client.get('/kilas-translator/personal-voice/preview')
+        self.assertEqual(preview.status_code,200);self.assertEqual(preview.mimetype,'audio/mpeg')
+        self.assertEqual(preview.headers['Cache-Control'],'private, no-store');self.assertLess(media.mp3_duration(preview.data),16000)
+        self.assertEqual(preview.data,personal.preview(self.user));self.assertNotIn('newPrivate123',self.client.get('/kilas-translator').text)
+        with self.client.session_transaction() as state:state['user_id']=self.other
+        self.assertEqual(self.client.get('/kilas-translator/personal-voice/preview').status_code,404)
+        self.assertEqual(f.app.app.test_client().get('/kilas-translator/personal-voice/preview').status_code,302)
+
+    def test_failed_replacement_preserves_private_preview(self):
+        self.credit()
+        with patch.object(provider,'clone_voice',return_value='oldPrivate123'):self.clone()
+        before=personal.preview(self.user)
+        with patch.object(provider,'clone_voice',side_effect=provider.ProviderError()),patch.object(provider,'delete_voice') as delete:
+            self.assertEqual(self.clone(key='failed-replacement-123',replace='yes').status_code,503)
+            delete.assert_not_called()
+        self.assertEqual(personal.preview(self.user),before);self.assertEqual(personal.get(self.user),'oldPrivate123')
+
+    def test_voice_translation_preview_never_tts_and_edited_text_wins(self):
+        from kilas_ai import audio_voice_script as script
+        self.credit(300)
+        with patch.object(provider,'clone_voice',return_value='ownPrivateVoice123'):self.clone()
+        with patch.object(script,'translate',return_value={'text':'Hello, today I am in Bali.','source_language':'id'}) as translate,patch.object(provider,'speech') as tts,patch.object(provider,'dub') as dub:
+            r=self.client.post('/kilas-translator/voice-script/translate',data={'csrf_token':'audio-csrf','script':'Halo, hari ini saya berada di Bali.','language':'en'})
+            self.assertEqual(r.status_code,200);self.assertEqual(r.json['source_language'],'id');translate.assert_called_once()
+            tts.assert_not_called();dub.assert_not_called()
+        edited='Hello, today I am enjoying Bali.'
+        r,tts,_=self.create(voice='personal',script='Halo, hari ini saya berada di Bali.',translated_script=edited,translate_script='yes',translation_source='id',language='en')
+        self.assertEqual(r.status_code,201,r.text);tts.assert_called_once_with(edited,'ownPrivateVoice123','en',personal=True)
+        job=store.get(self.user,r.json['id']);self.assertEqual(job['source_language'],'id');self.assertEqual(job['target_language'],'en')
+        repeat,tts,_=self.create(voice='personal',script='original',translated_script=edited,translate_script='yes',translation_source='id',language='en')
+        self.assertEqual(repeat.json['id'],r.json['id']);tts.assert_not_called()
+        off,tts,_=self.create(key='translation-off-key-123',voice='personal',script='Selamat pagi.',translated_script='Ignored translation',language='auto')
+        self.assertEqual(off.status_code,201);tts.assert_called_once_with('Selamat pagi.','ownPrivateVoice123','auto',personal=True)
+
+    def test_translation_validation_csrf_balance_and_safe_failure(self):
+        from kilas_ai import audio_voice_script as script
+        with patch.object(script,'translate') as translate:
+            self.assertEqual(self.client.post('/kilas-translator/voice-script/translate',data={'csrf_token':'wrong'}).status_code,400)
+            self.assertEqual(self.client.post('/kilas-translator/voice-script/translate',data={'csrf_token':'audio-csrf'}).status_code,402)
+            self.credit()
+            for text,language in [('', 'en'),('test','bad'),('a'*4001,'en')]:
+                self.assertEqual(self.client.post('/kilas-translator/voice-script/translate',data={'csrf_token':'audio-csrf','script':text,'language':language}).status_code,400)
+            translate.assert_not_called()
+        events=[{'type':'delta','text':'{"text":"Hello.","source_language":"id"}'},{'type':'finish','reason':'stop'}]
+        with patch.dict(__import__('os').environ,{'OPENAI_API_KEY':'synthetic'}),patch.object(script.providers,'_openai',return_value=iter(events)) as ai:
+            self.assertEqual(script.translate('Halo.','en'),{'text':'Hello.','source_language':'id'})
+            self.assertEqual(ai.call_args.args[2],[{'role':'user','content':'Halo.'}])
+        with patch.dict(__import__('os').environ,{'OPENAI_API_KEY':'synthetic'}),patch.object(script.providers,'_openai',side_effect=script.providers.ProviderError()):
+            with self.assertRaises(store.AudioError):script.translate('Halo.','en')
+
     def test_same_voice_indonesian_english_original_text(self):
         self.credit(300)
         with patch.object(provider,'clone_voice',return_value='ownPrivateVoice123'):self.clone()

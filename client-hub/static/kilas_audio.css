@@ -14,3 +14,9 @@
 @media(min-width:601px) and (max-width:900px){.audio-packs{grid-template-columns:1fr}.audio-pack{grid-template-columns:1fr 1fr;align-items:center}.audio-pack p{grid-column:1}.audio-pack strong{grid-row:1;grid-column:2;text-align:right}.audio-pack .btn{grid-column:1/-1;width:100%}}
 
 .audio-result-section video{display:block;width:100%;max-width:100%;max-height:480px;object-fit:contain;margin:18px 0}
+.voice-preview-actions{display:flex;flex-wrap:wrap;gap:12px}
+#personal-preview{display:block;width:100%;max-width:100%;margin:12px 0}
+.audio-studio .voice-translation-toggle{display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer}
+.audio-studio .voice-translation-toggle input{width:20px;min-height:20px;accent-color:#bd4700}
+#voice-translation-options,#voice-translated-result{display:grid;gap:12px}
+#voice-translation-error,#voice-preview-error{color:#b42330}
