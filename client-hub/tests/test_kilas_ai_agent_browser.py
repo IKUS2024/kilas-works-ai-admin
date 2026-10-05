@@ -52,7 +52,8 @@ def main():
                 assert page.get_by_text("Rangkuman Pasar",exact=False).count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long task overflow")
                 if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
-                page.get_by_role('link',name='Pengaturan AI',exact=True).click()
+                assert page.get_by_role('link',name='Pengaturan AI',exact=True).count() == 0
+                page.goto(origin + '/kilas-ai/agent?view=settings', wait_until='networkidle')
                 assert page.get_by_role('heading',name='Pengaturan Kilas AI').is_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 if width<=760:page.get_by_role('button',name='Buka riwayat').click()
