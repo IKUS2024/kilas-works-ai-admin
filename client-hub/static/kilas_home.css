@@ -1,0 +1,24 @@
+/* Home only; product workspaces and Finance retain their own styles. */
+.premium-home .premium-page-heading{margin-bottom:24px}
+.premium-home .premium-page-heading h1{font-size:32px;line-height:1.2;margin-bottom:8px}
+.premium-home .premium-page-heading p{font-size:16px;margin:0;color:var(--muted)}
+.premium-home .premium-home-ai{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;padding:28px;background:var(--bg-soft,#f7f7f6);border:1px solid var(--line);border-radius:12px}
+.premium-home .home-ai-intro{min-width:0;display:flex;flex-direction:column;align-items:flex-start}
+.premium-home .premium-home-ai h2{font-size:28px;line-height:1.25;margin:0 0 12px}
+.premium-home .home-ai-intro>p{font-size:16px;line-height:1.65;color:var(--muted);margin:0 0 24px;max-width:32ch}
+.premium-home .home-ai-intro form{margin-top:auto}
+.premium-home .premium-home-capabilities{display:grid;gap:16px;margin:0;font-size:15px}
+.premium-home .premium-home-capabilities>div{padding-bottom:16px;border-bottom:1px solid var(--line)}
+.premium-home .premium-home-capabilities>div:last-child{padding-bottom:0;border-bottom:0}
+.premium-home .premium-home-capabilities dt{font-weight:600;color:var(--text);margin:0 0 4px}
+.premium-home .premium-home-capabilities dd{font-size:14px;line-height:1.6;color:var(--muted);margin:0}
+.premium-home .premium-home-secondary{display:block;padding:12px 0 0}
+.premium-home .premium-home-secondary section{display:grid;grid-template-columns:180px minmax(0,1fr) 220px;gap:24px;align-items:center;padding:24px 0;border-bottom:1px solid var(--line)}
+.premium-home .premium-home-secondary h2{font-size:20px;line-height:1.4;margin:0;overflow-wrap:anywhere}
+.premium-home .premium-home-secondary h2 .subscription-status{display:inline-block;font-size:12px;line-height:1.5;padding:3px 7px;vertical-align:middle;margin-top:4px}
+.premium-home .premium-home-secondary p{font-size:15px;line-height:1.65;margin:0;max-width:none}
+.premium-home .premium-home-secondary form{margin:0}
+.premium-home .premium-home-secondary .btn{display:flex;min-height:44px;width:100%;margin:0;justify-content:center;text-align:center;white-space:normal}
+.premium-home .premium-home-note{border:0;padding-top:18px;font-size:13px;line-height:1.6}
+@media(max-width:1100px){.premium-home .premium-home-secondary section{grid-template-columns:150px minmax(0,1fr);gap:12px 24px}.premium-home .premium-home-secondary section>.btn,.premium-home .premium-home-secondary section>form{grid-column:2;justify-self:start}.premium-home .premium-home-secondary .btn{width:auto}}
+@media(max-width:600px){.premium-home .premium-page-heading h1{font-size:28px}.premium-home .premium-home-ai{grid-template-columns:minmax(0,1fr);padding:20px;gap:24px}.premium-home .premium-home-ai h2{font-size:26px}.premium-home .home-ai-intro>p{max-width:none}.premium-home .premium-home-secondary section{grid-template-columns:minmax(0,1fr);gap:10px;padding:22px 0}.premium-home .premium-home-secondary section>.btn,.premium-home .premium-home-secondary section>form{grid-column:1;justify-self:stretch}.premium-home .premium-home-secondary .btn{width:100%;margin-top:6px}}
