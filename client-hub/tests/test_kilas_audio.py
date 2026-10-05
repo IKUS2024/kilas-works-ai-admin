@@ -66,6 +66,21 @@ class AudioTests(unittest.TestCase):
             r,call,dub=self.create();self.assertEqual(r.status_code,402);call.assert_not_called();dub.assert_not_called()
             self.client.get('/kilas-translator');paid.assert_not_called();decode.assert_not_called()
 
+    def test_finance_session_can_open_translator_without_bypassing_gates(self):
+        with self.client.session_transaction() as state:
+            state['active_product'] = 'finance'
+        page = self.client.get('/kilas-translator')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn('id="voiceover-tab"', page.text)
+        self.assertEqual(self.client.get('/products/finance').status_code, 200)
+        with self.client.session_transaction() as state:
+            self.assertEqual(state['active_product'], 'finance')
+        response, speech, dub = self.create()
+        self.assertEqual(response.status_code, 402)
+        speech.assert_not_called(); dub.assert_not_called()
+        self.assertEqual(self.client.post('/kilas-translator/personal-voice',
+            data={'consent':'yes','operation_key':'navigation-operation-1234','csrf_token':'wrong'}).status_code, 400)
+
     def test_insufficient_does_not_submit(self):
         self.credit(1);r,speech,_=self.create();self.assertEqual(r.status_code,402);speech.assert_not_called()
 

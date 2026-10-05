@@ -366,6 +366,7 @@ def create_app():
             or endpoint.startswith("finance.")
             or endpoint.startswith("workspace.")
             or endpoint.startswith("kilas_ai.")
+            or endpoint.startswith("kilas_audio.")
             # Authorized direct AI links must leave the Finance workspace too.
             # Each destination still enforces its own membership/product/CSRF gates.
             or endpoint.startswith(("client.", "assist.", "core_customers.", "core_jobs.",
