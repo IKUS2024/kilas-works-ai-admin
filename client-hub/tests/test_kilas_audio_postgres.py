@@ -24,26 +24,30 @@ def main():
         values=original();return dict(values,options=values['options']+' -c search_path='+isolated)
     try:
         with patch.object(db,'_postgres_connect_kwargs',side_effect=options):
-            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_'))]):db.init_schema()
+            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_'))]):db.init_schema()
             before={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert schema.apply_release()==[schema.NAME];assert schema.apply_release()==[]
             after={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert after-before=={'kilas_audio_balances','kilas_audio_orders','kilas_audio_jobs','kilas_audio_releases'}
             assert schema.apply_release('0084_kilas_personal_voice')==['0084_kilas_personal_voice']
             assert schema.apply_release('0084_kilas_personal_voice')==[]
+            assert schema.apply_release('0085_kilas_voice_preview')==['0085_kilas_voice_preview']
+            assert schema.apply_release('0085_kilas_voice_preview')==[]
             with store.locked(0) as conn:
                 user=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
                 admin=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio-admin@example.test','hash','KILAS_ADMIN') RETURNING id",one=True)[0]
-            with patch.object(media,'voice_sample',return_value=b'synthetic-voice'),patch.object(provider,'clone_voice',return_value='privatePostgres123') as clone:
+            with patch.object(media,'voice_sample',return_value=b'synthetic-voice'),patch.object(media,'personal_preview',return_value=b'private-preview'),patch.object(provider,'clone_voice',return_value='privatePostgres123') as clone:
                 personal.create(user,'postgres-personal-key-1234',None)
                 personal.create(user,'postgres-personal-key-1234',None)
                 clone.assert_called_once()
                 assert personal.get(user)=='privatePostgres123' and personal.get(admin)==''
-            with patch.object(media,'voice_sample',return_value=b'synthetic-voice'),patch.object(provider,'clone_voice',side_effect=provider.ProviderError()):
+                assert personal.preview(user)==b'private-preview' and personal.preview(admin) is None
+            with patch.object(media,'voice_sample',return_value=b'synthetic-voice'),patch.object(media,'personal_preview',return_value=b'replacement-preview'),patch.object(provider,'clone_voice',side_effect=provider.ProviderError()):
                 try:personal.create(user,'postgres-replace-key-1234',None,True)
                 except provider.ProviderError:pass
                 else:raise AssertionError('replacement failure was not surfaced')
                 assert personal.get(user)=='privatePostgres123'
+                assert personal.preview(user)==b'private-preview'
             order=billing.create(user,'MINUTE');db.execute("UPDATE kilas_audio_orders SET status='UNDER_REVIEW' WHERE id=?",(order,))
             with ThreadPoolExecutor(max_workers=2) as pool:list(pool.map(lambda _:billing.review(order,admin,'VERIFIED'),range(2)))
             assert store.balance(user)['seconds']==60

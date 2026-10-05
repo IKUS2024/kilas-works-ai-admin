@@ -7,7 +7,7 @@ NAME = '0083_kilas_audio'
 
 
 def apply_release(name=NAME):
-    if name not in (NAME, '0084_kilas_personal_voice'):raise ValueError('invalid_audio_release')
+    if name not in (NAME, '0084_kilas_personal_voice', '0085_kilas_voice_preview'):raise ValueError('invalid_audio_release')
     if db.BACKEND!='postgres':return []
     script=(Path(__file__).resolve().parent.parent/'migrations'/(name+'_postgres.sql')).read_text(encoding='utf-8')
     digest=hashlib.sha256(script.encode()).hexdigest()
