@@ -153,7 +153,7 @@ def agent_chat():
         return {'error': 'Pesan ini sudah diterima. Buka kembali chat untuk melihat hasilnya.'}, 409
     from . import work_runtime, work_routes
     zone=request.form.get('browser_timezone')
-    if zone and not store.has_setting(owner):
+    if zone and zone != store.setting(owner):
         try:store.set_timezone(owner,zone)
         except ValueError:pass
     try:request.work_location=work_routes.location_payload(request.form.get('work_location'))

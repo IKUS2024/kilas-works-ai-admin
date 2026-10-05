@@ -169,16 +169,20 @@ class WorkV2Tests(unittest.TestCase):
             self.assertNotIn('Instruksi pelaksanaan',html)
         self.assertIn('Menulis isi',self.client().get('/kilas-ai/agent').text)
 
-    def test_timezone_browser_capture_manual_change_and_authoritative_clock(self):
+    def test_timezone_browser_updates_existing_setting_and_authoritative_clock(self):
         with patch('kilas_ai.agent_chat.ordinary',return_value=None):self.submit('Halo',browser_timezone='Asia/Bangkok')
         self.assertEqual(automation_store.setting(self.owner),'Asia/Bangkok')
         path='/kilas-ai/work/preferences'
         response=self.client().post(path,json={'timezone':'Asia/Jayapura','manual':True},headers={'X-CSRF-Token':'work-csrf'})
         self.assertEqual(response.status_code,200)
         self.client().post(path,json={'timezone':'Europe/London'},headers={'X-CSRF-Token':'work-csrf'})
-        self.assertEqual(automation_store.setting(self.owner),'Asia/Jayapura')
+        self.assertEqual(automation_store.setting(self.owner),'Europe/London')
         with patch.object(f.fixture.store,'now',return_value=NOW):self.submit('jam berapa sekarang')
-        self.assertIn('11.00 WIT',agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['content'])
+        self.assertIn('03.00',agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['content'])
+        invalid=self.client().post(path,json={'timezone':'Invalid/Place'},headers={'X-CSRF-Token':'work-csrf'})
+        self.assertEqual(invalid.status_code,400)
+        self.assertEqual(automation_store.setting(self.owner),'Europe/London')
+        self.assertNotIn('id="work-timezone"',self.client().get('/kilas-ai/agent?view=settings').text)
 
     def test_location_required_only_for_relevant_request_and_bounded_fresh_payload(self):
         self.submit('Cari restoran dekat sini')

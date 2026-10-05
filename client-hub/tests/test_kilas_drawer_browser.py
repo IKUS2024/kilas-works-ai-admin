@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import test_kilas_autonomous_agent as fixture
-from kilas_ai import agent_store, store
+from kilas_ai import agent_store, store, automation_store
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 
@@ -144,6 +144,15 @@ def main():
             # Logout confirmation/redirect is the existing authentication route.
             assert not page.locator('.ai-drawer').count()
             context.close()
+            for zone in ('Asia/Bangkok', 'Europe/London'):
+                context = browser.new_context(timezone_id=zone)
+                context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}])
+                page = context.new_page()
+                page.goto(f'{origin}/kilas-ai/agent', wait_until='networkidle')
+                assert automation_store.setting(owner) == zone
+                assert page.locator('[name=browser_timezone]').input_value() == zone
+                assert not page.locator('.ai-drawer-utilities a[href*="view=settings"]').count()
+                context.close()
             browser.close()
         print('PASS drawer: 12 language/width combinations; empty/one/many/long title; history/open/reload/new chat; language; focus/Escape/backdrop; scroll/no overflow')
     finally:

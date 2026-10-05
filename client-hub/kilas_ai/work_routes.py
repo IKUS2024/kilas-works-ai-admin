@@ -20,8 +20,9 @@ def work_preferences():
     data=request.get_json(silent=True) or {}
     if not isinstance(data,dict):abort(400)
     try:
-        zone=data.get('timezone','Asia/Jakarta')
-        if data.get('manual') is True or not automation_store.has_setting(session['user_id']):automation_store.set_timezone(session['user_id'],zone)
+        zone=data.get('timezone')
+        if zone and zone != automation_store.setting(session['user_id']):
+            automation_store.set_timezone(session['user_id'],zone)
     except ValueError:return {'error':'Pilih zona waktu yang valid.'},400
     return {'timezone':automation_store.setting(session['user_id']),'push_available':work_push.configured(),'public_key':db_key()}
 

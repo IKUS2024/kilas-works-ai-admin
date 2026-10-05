@@ -11,7 +11,7 @@
   <script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='1') }}" defer></script>
   <script src="{{ url_for('static',filename='kilas_ai.js',v='drawer-20261004') }}" defer></script>
   <script src="{{ url_for('static',filename='kilas_ai_shell.js',v='drawer-20261004') }}" defer></script>
-{% include '_premium_styles.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_drawer.css',v='drawer-20261004') }}"></head>
+{% include '_premium_styles.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_drawer.css',v='sidebar-alignment-20261005') }}"></head>
 <body class="kilas-light ">
 <div class="ai-shell" data-ai-shell data-thread-id="{{ selected.id if selected else '' }}" data-automation-enabled="{{ '1' if automation_enabled else '0' }}" data-max-files="{{ attachment_limits.max_files }}" data-max-file-bytes="{{ attachment_limits.max_file_bytes }}" data-max-image-bytes="{{ attachment_limits.max_image_bytes }}">
   <aside class="ai-sidebar ai-drawer" id="ai-sidebar" data-ai-sidebar aria-label="{{ ui_t('Riwayat chat') }}">

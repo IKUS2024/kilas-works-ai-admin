@@ -4,7 +4,7 @@
   const csrf = document.querySelector('input[name="csrf_token"]')?.value;
   const headers = {'Content-Type':'application/json', 'X-CSRF-Token':csrf || ''};
   const composer = document.querySelector('#agent-chat-form');
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  let zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   if (composer) composer.elements.browser_timezone.value = zone;
   let preferences;
   const load = async () => {
@@ -12,17 +12,17 @@
     if (!response.ok) throw new Error('preferences');
     return response.json();
   };
-  const settings = document.querySelector('[data-work-preferences]');
-  if (settings) {
-    settings.addEventListener('submit', async event => {
-      event.preventDefault();
-      const status=settings.querySelector('[data-preference-status]');
-      try {
-        const response=await fetch('/kilas-ai/work/preferences',{method:'POST',headers,body:JSON.stringify({timezone:settings.elements.timezone.value,manual:true})});
-        status.textContent=response.ok?t('Zona waktu tersimpan.'):t('Pilih zona waktu IANA yang valid.');
-      } catch (_) { status.textContent=t('Zona waktu belum tersimpan. Coba lagi.'); }
-    });
-  }
+  let syncedZone = '';
+  const syncTimezone = async () => {
+    if (document.hidden) return;
+    zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (composer) composer.elements.browser_timezone.value = zone;
+    if (!zone || zone === syncedZone) return;
+    try { preferences = await load(); syncedZone = zone; } catch (_) { /* Retry on focus or next submit. */ }
+  };
+  syncTimezone();
+  window.addEventListener('focus', syncTimezone);
+  document.addEventListener('visibilitychange', syncTimezone);
   document.querySelector('[data-enable-push]')?.addEventListener('click',async () => {
     const status=document.querySelector('[data-push-status]');
     try {
