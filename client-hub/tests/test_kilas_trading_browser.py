@@ -28,6 +28,12 @@ def main():
             page.locator('.premium-home-secondary a[href="/products/services"]').click()
             page.get_by_role('link',name='Buka Kilas Trading',exact=True).click()
             page.wait_for_url('**/products/services/trading')
+            assert 'XAUUSD' in page.locator('.trading').inner_text()
+            assert 'Jumlah troy oz sintetis' in page.locator('.trading').inner_text()
+            page.get_by_text('Asumsi kontrak XAUUSD simulasi dan candle terakhir',exact=True).click()
+            assert 'troy ounce' in page.locator('.trading').inner_text()
+            assert 'belum diverifikasi' in page.locator('.trading').inner_text()
+            page.get_by_text('Asumsi kontrak XAUUSD simulasi dan candle terakhir',exact=True).click()
             for width in (1440,768,390,320):
                 page.set_viewport_size({'width':width,'height':1100})
                 page.locator('#trading-title').wait_for()

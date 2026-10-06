@@ -46,13 +46,55 @@ class TradingTests(unittest.TestCase):
         return c
 
     def act(self, action, **data):
-        body = dict(operation_key=uuid.uuid4().hex, tick=str(store.snapshot(self.user)['account']['tick']), **data)
+        body = dict(instrument=engine.INSTRUMENT,operation_key=uuid.uuid4().hex, tick=str(store.snapshot(self.user)['account']['tick']), **data)
         return store.act(self.user, action, body)
 
     def order(self, side='BUY', **data):
         price = store.snapshot(self.user)['price_cents']/100
         sign = 1 if side=='BUY' else -1
-        return self.act('order', **dict(side=side, quantity='0.01', stop=str(price-sign*300), target=str(price+sign*600), **data))
+        return self.act('order', **dict(side=side, quantity='0.1', stop=str(price-sign*10), target=str(price+sign*20), **data))
+
+    def test_xauusd_contract_and_units(self):
+        state=store.snapshot(self.user)
+        self.assertEqual(state['strategy']['market'],engine.INSTRUMENT)
+        self.assertEqual(state['contract']['quantity_unit'],'synthetic troy ounce')
+        self.assertFalse(state['contract']['broker_specs_verified'])
+        self.assertFalse(state['candles'][-1]['broker_connected'])
+        self.assertLess(abs(state['price_cents']-250000),10000)
+        p={'side':'BUY','entry_cents':250000,'quantity_units':100000,'entry_fee_cents':0,'fee_bps':0}
+        self.assertEqual(engine.pnl(p,251000),100) # $10/oz move * 0.1 oz = $1
+
+    def test_unused_legacy_transition_retains_balance_and_audit(self):
+        import json
+        store.snapshot(self.user)
+        db.execute('UPDATE kilas_trading_accounts SET strategy_json=?,realized_cents=123,paused=1 WHERE user_id=?',(json.dumps(engine.LEGACY_STRATEGY),self.user))
+        state=store.snapshot(self.user)
+        self.assertEqual(state['account']['realized_cents'],123)
+        self.assertEqual(state['account']['paused'],1)
+        self.assertEqual(state['events'][0]['inputs']['previous_config'],engine.LEGACY_STRATEGY)
+        self.assertEqual(len(store.snapshot(self.user)['events']),1)
+
+    def test_legacy_activity_or_custom_config_not_reinterpreted(self):
+        import json
+        self.order()
+        db.execute('UPDATE kilas_trading_accounts SET strategy_json=? WHERE user_id=?',(json.dumps(engine.LEGACY_STRATEGY),self.user))
+        before=db.query_all('SELECT * FROM kilas_trading_positions')
+        with self.assertRaises(engine.TradingError):store.snapshot(self.user)
+        self.assertEqual(db.query_all('SELECT * FROM kilas_trading_positions'),before)
+        self.assertEqual(json.loads(db.query_one('SELECT strategy_json FROM kilas_trading_accounts')['strategy_json']),engine.LEGACY_STRATEGY)
+        self.assertEqual(self.client.get('/products/services/trading').status_code,503)
+        db.execute('DELETE FROM kilas_trading_events');db.execute('DELETE FROM kilas_trading_positions')
+        config=dict(engine.LEGACY_STRATEGY,quantity='0.02')
+        db.execute('UPDATE kilas_trading_accounts SET strategy_json=? WHERE user_id=?',(json.dumps(config),self.user))
+        with self.assertRaises(engine.TradingError):store.snapshot(self.user)
+        self.assertEqual(json.loads(db.query_one('SELECT strategy_json FROM kilas_trading_accounts')['strategy_json']),config)
+
+    def test_old_instrument_form_rejected(self):
+        state=store.snapshot(self.user)
+        body=dict(operation_key=uuid.uuid4().hex,tick=str(state['account']['tick']),side='BUY',quantity='0.1',stop='2490',target='2520',instrument='BTC-replay-v1')
+        result=store.act(self.user,'order',body)
+        self.assertEqual(result['outcome'],'REJECTED')
+        self.assertEqual(store.snapshot(self.user)['positions'],[])
 
     def test_exact_pilot_server_gate(self):
         self.assertEqual(app.app.test_client().get('/products/services/trading').status_code,302)
@@ -60,7 +102,7 @@ class TradingTests(unittest.TestCase):
         for user in (self.other,self.admin):
             c=self.login(user)
             self.assertEqual(c.get('/products/services/trading').status_code,404)
-            self.assertEqual(c.post('/products/services/trading/order',json={'operation_key':uuid.uuid4().hex},headers={'X-CSRF-Token':'paper-csrf'}).status_code,404)
+            self.assertEqual(c.post('/products/services/trading/order',json={'instrument':engine.INSTRUMENT,'operation_key':uuid.uuid4().hex},headers={'X-CSRF-Token':'paper-csrf'}).status_code,404)
             with self.assertRaises(PermissionError):store.snapshot(user)
         self.assertEqual(db.query_one('SELECT count(*) AS n FROM kilas_trading_accounts')['n'],1)
 
@@ -72,7 +114,7 @@ class TradingTests(unittest.TestCase):
         self.assertEqual(self.client.get('/products/services/trading').status_code,404)
 
     def test_csrf_and_disabled_flag(self):
-        self.assertEqual(self.client.post('/products/services/trading/pause',json={'operation_key':uuid.uuid4().hex}).status_code,400)
+        self.assertEqual(self.client.post('/products/services/trading/pause',json={'instrument':engine.INSTRUMENT,'operation_key':uuid.uuid4().hex}).status_code,400)
         with patch.dict(os.environ,{'KILAS_TRADING_ENABLED':'false'}):
             self.assertEqual(self.client.get('/products/services/trading').status_code,404)
             with self.assertRaises(PermissionError):store.snapshot(self.user)
@@ -111,8 +153,8 @@ class TradingTests(unittest.TestCase):
 
     def test_sell_and_protect_tighten_only(self):
         self.order('SELL');s=store.snapshot(self.user);p=s['positions'][0];price=s['price_cents']/100
-        self.assertEqual(self.act('protect',position_id=str(p['id']),stop=str(price+400),target=str(price-700))['outcome'],'REJECTED')
-        self.assertEqual(self.act('protect',position_id=str(p['id']),stop=str(price+200),target=str(price-700))['outcome'],'OK')
+        self.assertEqual(self.act('protect',position_id=str(p['id']),stop=str(price+20),target=str(price-30))['outcome'],'REJECTED')
+        self.assertEqual(self.act('protect',position_id=str(p['id']),stop=str(price+5),target=str(price-30))['outcome'],'OK')
 
     def test_invalid_sizing_and_wrong_sides(self):
         for value in ('NaN','Infinity','-1','0.0000001','2'):
@@ -124,8 +166,8 @@ class TradingTests(unittest.TestCase):
 
     def test_risk_and_exposure_limits(self):
         p=store.snapshot(self.user)['price_cents']/100
-        self.assertEqual(self.act('order',side='BUY',quantity='0.03',stop=str(p-5000),target=str(p+600))['outcome'],'REJECTED')
-        self.assertEqual(self.act('order',side='BUY',quantity='0.04',stop=str(p-300),target=str(p+600))['outcome'],'REJECTED')
+        self.assertEqual(self.act('order',side='BUY',quantity='0.5',stop=str(p-300),target=str(p+600))['outcome'],'REJECTED')
+        self.assertEqual(self.act('order',side='BUY',quantity='1',stop=str(p-10),target=str(p+600))['outcome'],'REJECTED')
         for _ in range(3):self.assertEqual(self.order()['outcome'],'OK')
         self.assertEqual(self.order()['outcome'],'REJECTED')
 
@@ -139,7 +181,7 @@ class TradingTests(unittest.TestCase):
         db.execute('UPDATE kilas_trading_accounts SET generated_at=? WHERE user_id=?',((store.now()-timedelta(minutes=3)).isoformat(),self.user))
         self.assertEqual(self.order()['outcome'],'REJECTED')
         self.assertEqual(self.act('refresh')['outcome'],'OK');self.assertEqual(self.order()['outcome'],'OK')
-        self.assertEqual(store.act(self.user,'step',{'tick':'59','operation_key':uuid.uuid4().hex})['outcome'],'REJECTED')
+        self.assertEqual(store.act(self.user,'step',{'instrument':engine.INSTRUMENT,'tick':'59','operation_key':uuid.uuid4().hex})['outcome'],'REJECTED')
 
     def test_pause_resume_kill_and_close(self):
         self.order();p=store.snapshot(self.user)['positions'][0]
@@ -151,21 +193,21 @@ class TradingTests(unittest.TestCase):
 
     def test_order_dedup_and_fingerprint(self):
         p=store.snapshot(self.user)['price_cents']/100
-        data={'operation_key':uuid.uuid4().hex,'tick':'60','side':'BUY','quantity':'0.01','stop':str(p-300),'target':str(p+600)}
+        data={'instrument':engine.INSTRUMENT,'operation_key':uuid.uuid4().hex,'tick':'60','side':'BUY','quantity':'0.01','stop':str(p-300),'target':str(p+600)}
         store.act(self.user,'order',data);store.act(self.user,'order',data)
         self.assertEqual(len(store.snapshot(self.user)['positions']),1)
         with self.assertRaises(engine.TradingError):store.act(self.user,'order',dict(data,quantity='0.02'))
 
     def test_concurrent_dedup(self):
         p=store.snapshot(self.user)['price_cents']/100
-        data={'operation_key':uuid.uuid4().hex,'tick':'60','side':'BUY','quantity':'0.01','stop':str(p-300),'target':str(p+600)}
+        data={'instrument':engine.INSTRUMENT,'operation_key':uuid.uuid4().hex,'tick':'60','side':'BUY','quantity':'0.01','stop':str(p-300),'target':str(p+600)}
         with ThreadPoolExecutor(4) as pool:results=list(pool.map(lambda _:store.act(self.user,'order',data),range(4)))
         self.assertEqual(sum(not r['duplicate'] for r in results),1)
         self.assertEqual(len(store.snapshot(self.user)['positions']),1)
 
     def test_concurrent_exposure_serialized(self):
         p=store.snapshot(self.user)['price_cents']/100
-        def create(_):return store.act(self.user,'order',{'operation_key':uuid.uuid4().hex,'tick':'60','side':'BUY','quantity':'0.02','stop':str(p-300),'target':str(p+600)})
+        def create(_):return store.act(self.user,'order',{'instrument':engine.INSTRUMENT,'operation_key':uuid.uuid4().hex,'tick':'60','side':'BUY','quantity':'0.5','stop':str(p-10),'target':str(p+600)})
         with ThreadPoolExecutor(2) as pool:results=list(pool.map(create,range(2)))
         self.assertEqual(sum(r['outcome']=='OK' for r in results),1)
 
@@ -196,7 +238,7 @@ class TradingTests(unittest.TestCase):
     def test_atomic_replay_duplicate_and_stop_settlement(self):
         self.order();p=store.snapshot(self.user)['positions'][0];bar=engine.candle(61)
         db.execute('UPDATE kilas_trading_positions SET stop_cents=? WHERE id=?',(bar['low']+1,p['id']))
-        data={'operation_key':uuid.uuid4().hex,'tick':'60'}
+        data={'instrument':engine.INSTRUMENT,'operation_key':uuid.uuid4().hex,'tick':'60'}
         store.act(self.user,'step',data);store.act(self.user,'step',data)
         s=store.snapshot(self.user);self.assertEqual(s['account']['tick'],61);self.assertEqual(s['positions'],[])
         self.assertEqual(len(s['events']),2);self.assertEqual(s['events'][0]['inputs']['closed_positions'][0]['reason'],'SL')
@@ -236,7 +278,7 @@ class TradingTests(unittest.TestCase):
 
     def test_aggregate_stop_risk(self):
         import json
-        self.order();risk=store.snapshot(self.user)['risk'];risk['aggregate_risk_bps']=3
+        self.order();risk=store.snapshot(self.user)['risk'];risk['aggregate_risk_bps']=1
         db.execute('UPDATE kilas_trading_accounts SET risk_json=? WHERE user_id=?',(json.dumps(risk),self.user))
         r=self.order();self.assertEqual(r['outcome'],'REJECTED');self.assertIn('agregat',r['message'])
 
@@ -265,11 +307,11 @@ class TradingTests(unittest.TestCase):
         import json
         store.snapshot(self.user)
         crossing=next(t for t in range(61,150) if engine.decision(engine.STRATEGY,engine.candles(t))[0])
-        cfg=dict(engine.STRATEGY,quantity='1',stop_distance='5000')
+        cfg=dict(engine.STRATEGY,quantity='1',stop_distance='500')
         db.execute('UPDATE kilas_trading_accounts SET tick=?,strategy_json=? WHERE user_id=?',(crossing,json.dumps(cfg),self.user))
         self.assertEqual(self.act('agent')['outcome'],'OK')
         e=store.snapshot(self.user)['events'][0]['inputs'];p=store.snapshot(self.user)['positions'][0]
-        self.assertLess(p['quantity_units'],20000);self.assertLessEqual(e['result']['risk_cents'],e['sizing']['risk_budget_cents'])
+        self.assertLess(p['quantity_units'],200000);self.assertLessEqual(e['result']['risk_cents'],e['sizing']['risk_budget_cents'])
         size=p['quantity_units'];self.act('close',position_id=str(p['id']))
         next_cross=next(t for t in range(crossing+1,200) if engine.decision(cfg,engine.candles(t))[0])
         db.execute('UPDATE kilas_trading_accounts SET tick=? WHERE user_id=?',(next_cross,self.user))
@@ -278,7 +320,7 @@ class TradingTests(unittest.TestCase):
         self.assertLessEqual(new['result']['risk_cents'],new['sizing']['risk_budget_cents'])
 
     def test_bounded_run_decisions_dedup_and_protection(self):
-        data={'operation_key':uuid.uuid4().hex,'tick':'60','steps':'20'}
+        data={'instrument':engine.INSTRUMENT,'operation_key':uuid.uuid4().hex,'tick':'60','steps':'20'}
         self.assertEqual(store.act(self.user,'run',data)['outcome'],'OK')
         state=store.snapshot(self.user);self.assertEqual(state['account']['tick'],80)
         decisions=[e for e in state['events'] if e['action']=='agent']

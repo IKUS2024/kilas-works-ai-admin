@@ -22,6 +22,8 @@ def home():
         state = store.snapshot(security.current_user()['id'])
     except PermissionError:
         abort(404)
+    except engine.TradingError as exc:
+        return render_template('kilas_trading.html', state=None, unavailable_reason=str(exc)), 503
     except Exception:
         return render_template('kilas_trading.html', state=None), 503
     bars = state['candles']

@@ -15,8 +15,8 @@
   freshness(); setInterval(freshness, 1000); // Local clock only; no polling or background orders.
   document.querySelector('#trading-side').addEventListener('change', event => {
     const sign = event.target.value === 'BUY' ? 1 : -1;
-    document.querySelector('#trading-stop').value = (config.price_cents/100 - sign*300).toFixed(2);
-    document.querySelector('#trading-target').value = (config.price_cents/100 + sign*600).toFixed(2);
+    document.querySelector('#trading-stop').value = (config.price_cents/100 - sign*10).toFixed(2);
+    document.querySelector('#trading-target').value = (config.price_cents/100 + sign*20).toFixed(2);
   });
   root.querySelectorAll('form').forEach(form => form.addEventListener('submit', async event => {
     event.preventDefault();

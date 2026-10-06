@@ -45,6 +45,16 @@ def locked(user):
         timestamp = stamp()
         query(conn, 'INSERT INTO kilas_trading_accounts(user_id,generated_at,updated_at,risk_json,strategy_json) VALUES (?,?,?,?,?) ON CONFLICT(user_id) DO NOTHING', (user, timestamp, timestamp, json.dumps(engine.RISK), json.dumps(engine.STRATEGY)))
         query(conn, 'UPDATE kilas_trading_accounts SET user_id=user_id WHERE user_id=?', (user,))
+        current=account(conn,user)
+        config=json.loads(current['strategy_json'])
+        if config.get('market')!=engine.INSTRUMENT:
+            activity=query(conn,'SELECT (SELECT count(*) FROM kilas_trading_positions WHERE user_id=?) + (SELECT count(*) FROM kilas_trading_events WHERE user_id=?) AS n',(user,user),one=True)['n']
+            if activity or config!=engine.LEGACY_STRATEGY:
+                raise engine.TradingError('Replay BTC sebelumnya memiliki aktivitas atau konfigurasi khusus. Perpindahan XAUUSD ditahan untuk menjaga data lama; perlu peninjauan operator.')
+            # An unused account may adopt the clarified instrument. Retain prior config in audit.
+            query(conn,'UPDATE kilas_trading_accounts SET strategy_json=?,generated_at=?,updated_at=? WHERE user_id=?',(json.dumps(engine.STRATEGY),timestamp,timestamp,user))
+            evidence={'previous_instrument':'BTC/USD synthetic v1','previous_config':config,'instrument':engine.INSTRUMENT,'quantity_unit':'synthetic troy ounce','reason':'Owner clarified XAUUSD; unused paper account only; balances and history not reset.'}
+            query(conn,'INSERT INTO kilas_trading_events(user_id,operation_key,fingerprint,action,outcome,message,inputs_json,created_at) VALUES (?,?,?,?,?,?,?,?)',(user,'instrument-xauusd-v1',hashlib.sha256(json.dumps(evidence).encode()).hexdigest(),'INSTRUMENT','OK','Workspace simulasi beralih ke XAUUSD; konfigurasi lama disimpan, tanpa trade lama yang ditafsir ulang.',json.dumps(evidence),timestamp))
         yield conn
         conn.commit()
     except Exception:
@@ -80,7 +90,7 @@ def snapshot(user):
         for event in events:
             event['inputs'] = json.loads(event['inputs_json'])
         return {'account': a, 'positions': opened, 'events': events, 'candles': bars, 'price_cents': price,
-                'fresh': fresh(a), 'source': engine.SOURCE, 'source_time': bars[-1]['source_time'],
+                'fresh': fresh(a), 'source': engine.SOURCE, 'contract':engine.CONTRACT,'source_time': bars[-1]['source_time'],
                 'equity_cents': a['initial_cents'] + a['realized_cents'] + sum(p['unrealized_cents'] for p in opened),
                 'exposure_cents': sum(price * p['quantity_units'] // engine.UNITS for p in opened),
                 'today_pnl_cents': realized_today, 'risk': json.loads(a['risk_json']), 'strategy': json.loads(a['strategy_json'])}
@@ -163,7 +173,7 @@ def _configure(data):
             'cooldown_minutes':engine.scaled(data.get('cooldown_minutes','5'),1,60)}
     if any(v <= 0 for v in risk.values()):
         raise engine.TradingError('Semua batas risiko harus positif.')
-    cfg = {'fast': engine.scaled(data.get('fast'), 1, 10), 'slow': engine.scaled(data.get('slow'), 1, 30),
+    cfg = {'market':engine.INSTRUMENT,'fast': engine.scaled(data.get('fast'), 1, 10), 'slow': engine.scaled(data.get('slow'), 1, 30),
            'threshold_bps': engine.scaled(data.get('threshold_bps'), 1, 100)}
     if not 2 <= cfg['fast'] < cfg['slow']:
         raise engine.TradingError('SMA cepat minimal 2 dan harus lebih kecil dari SMA lambat (maksimal 30).')
@@ -223,9 +233,9 @@ def _evaluate(conn,user,a,evidence):
     remaining=max(0,min(risk['max_exposure_cents'],equity*20//100)-price*sum(p['quantity_units'] for p in opened)//engine.UNITS)
     quantity=min(engine.scaled(cfg['quantity'],engine.UNITS,engine.UNITS),
                  max(0,budget-2)*engine.UNITS//max(1,per_unit),remaining*engine.UNITS//max(1,entry))
-    evidence['sizing']={'method':'stop distance plus modeled costs; floor to micro-BTC, capped by configured quantity/exposure',
+    evidence['sizing']={'method':'stop distance plus modeled costs; floor to micro-ounce, capped by configured quantity/exposure',
                         'risk_budget_cents':budget,'stop_distance_cents':abs(price-stop),
-                        'modeled_per_btc_risk_cents':per_unit,'quantity_units':quantity,'no_martingale':True}
+                        'modeled_per_ounce_risk_cents':per_unit,'quantity_units':quantity,'no_martingale':True}
     order=dict(cfg,side=side,quantity=str(Decimal(quantity)/engine.UNITS),
                stop=str(Decimal(stop)/100),target=str(Decimal(price+sign*engine.scaled(cfg['target_distance'],100))/100))
     evidence['result']=_order(conn,user,a,order)
@@ -254,9 +264,11 @@ def act(user, action, data):
         if action not in ('close','protect','pause','kill') and recent >= 30:
             raise engine.TradingError('Maksimal 30 aksi per menit. Tunggu sebentar.')
         price = engine.candle(a['tick'])['close']
-        inputs = {'source': engine.SOURCE, 'source_time': engine.candle(a['tick'])['source_time'], 'generated_at': a['generated_at'], 'tick': a['tick'], 'quote_cents': price, 'request': payload}
+        inputs = {'source': engine.SOURCE, 'contract':engine.CONTRACT,'source_time': engine.candle(a['tick'])['source_time'], 'generated_at': a['generated_at'], 'tick': a['tick'], 'quote_cents': price, 'request': payload}
         outcome, message = 'OK', 'Aksi simulasi selesai.'
         try:
+            if action in ('order','close','protect','step','refresh','agent','run') and data.get('instrument')!=engine.INSTRUMENT:
+                raise engine.TradingError('Instrumen replay berubah ke XAUUSD. Muat ulang halaman; order dari tampilan BTC lama diblokir.')
             if action in ('order', 'close', 'protect', 'step', 'refresh', 'agent','run') and str(data.get('tick')) != str(a['tick']):
                 raise engine.TradingError('Replay sudah berubah di tab lain. Muat ulang dahulu.')
             if action in ('order', 'close', 'protect', 'agent','run') and not fresh(a):

@@ -4,10 +4,15 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 UNITS = 1000000
-SOURCE = 'Kilas synthetic BTC/USD replay v1 (no market feed)'
+INSTRUMENT = 'XAUUSD-replay-v1'
+SOURCE = 'Kilas synthetic XAUUSD replay v1 (no market feed; no verified broker specifications)'
+CONTRACT = {'instrument':'XAUUSD','price_unit':'USD per synthetic troy ounce','quantity_unit':'synthetic troy ounce',
+            'illustrative_lot_ounces':100,'quote_increment_usd':'0.01','synthetic_base_price_usd':'2500',
+            'broker_specs_verified':False,'broker_connected':False,'leverage_model':'none; capped paper notional only'}
+LEGACY_STRATEGY = {'fast': 3, 'slow': 8, 'threshold_bps': 5, 'quantity': '0.01', 'stop_distance': '300', 'target_distance': '600', 'trailing_distance': '100', 'trailing_activation': '300', 'breakeven_activation': '300'}
 RISK = {'risk_bps': 100, 'max_positions': 3, 'max_exposure_cents': 200000, 'daily_loss_cents': 50000,
         'aggregate_risk_bps': 200, 'max_spread_bps': 20, 'max_loss_streak': 3, 'cooldown_minutes': 5}
-STRATEGY = {'fast': 3, 'slow': 8, 'threshold_bps': 5, 'quantity': '0.01', 'stop_distance': '300', 'target_distance': '600', 'trailing_distance': '100', 'trailing_activation': '300', 'breakeven_activation': '300'}
+STRATEGY = {'market': INSTRUMENT, 'fast': 3, 'slow': 8, 'threshold_bps': 5, 'quantity': '0.1', 'stop_distance': '10', 'target_distance': '20', 'trailing_distance': '4', 'trailing_activation': '10', 'breakeven_activation': '10'}
 FEE_BPS = 2
 SLIPPAGE_BPS = 1
 
@@ -28,11 +33,12 @@ def scaled(value, scale, maximum=100000000):
 
 def candle(tick):
     def price(t):
-        return 6000000 + round(85000 * math.sin(t / 7) + 45000 * math.sin(t / 3))
+        return 250000 + round(3500 * math.sin(t / 7) + 1800 * math.sin(t / 3))
     opened, closed = price(tick - 1), price(tick)
     return {'tick': tick, 'open': opened, 'close': closed,
-            'high': max(opened, closed) + 9000, 'low': min(opened, closed) - 9000,
+            'high': max(opened, closed) + 300, 'low': min(opened, closed) - 300,
             'spread_bps': 4, 'connected': True,
+            'connection_kind':'local_synthetic_generator','broker_connected':False,'instrument':INSTRUMENT,
             'source_time': (datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(minutes=tick)).isoformat()}
 
 
@@ -101,7 +107,7 @@ def decision(config, bars):
     prev_f, prev_s = sum(closes[-fast-1:-1]) // fast, sum(closes[-slow-1:-1]) // slow
     spread = (f - s) * 10000 // s
     side = 'BUY' if prev_f <= prev_s and spread >= config['threshold_bps'] else 'SELL' if prev_f >= prev_s and spread <= -config['threshold_bps'] else None
-    return side, {'strategy': 'SMA crossover v1', 'config': config, 'closes_cents': closes[-slow-1:],
+    return side, {'strategy': 'SMA crossover v1', 'instrument':INSTRUMENT, 'quantity_unit':'synthetic troy ounce', 'config': config, 'closes_cents': closes[-slow-1:],
                   'fast_cents': f, 'slow_cents': s, 'previous_fast_cents': prev_f,
                   'previous_slow_cents': prev_s, 'spread_bps': spread,
                   'explanation': 'Persilangan SMA memenuhi ambang.' if side else 'Tidak ada persilangan SMA yang memenuhi ambang; tidak membuat posisi.'}
