@@ -56,7 +56,7 @@
       "run": 37455222741,
       "result": "all three jobs PASS"
     },
-    "other_ci": "Chat Quality and AI Automation PASS; Autonomous focused/PostgreSQL/sandbox PASS, browser still running at release check; Global UI pending. Historical unified-history assertion remains separately documented; whole repository CI not claimed green.",
+    "other_ci": "Chat Quality and AI Automation PASS. Global UI finance/localization and languages/responsive both PASS (run37455222876). Autonomous focused/PostgreSQL/sandbox PASS; browser fails the exact previously reproduced baseline unified-history row/ellipsis assertion at test_kilas_ai_unified_browser.py:109 (run37455222836, job112241055510). No related UI/history implementation changed; whole repository CI remains qualified by this unrelated baseline failure.",
     "render": "LIVE exact commit + checkout/build-success logs confirmed",
     "app_errors": "none in deployment window through 11:19:58 UTC",
     "production_counts": {
@@ -385,5 +385,23 @@
     "Future market analysis should consider verified news/economic calendar alongside price/trend/spread: source URLs, publication/event timestamps, freshness, known scheduled risk; distinguish fact/inference; missing/conflicting data -> WAIT. No exhaustive-news/profit claims.",
     "Daily evaluation requested at22:00 WIB; scheduling handled separately by parent, no schedule created here.",
     "No source offset normalization until authoritative encoding/DST evidence; verify GOLD mapping, secure connection and project model access/budget before analysis. Existing USD5 manual Sol budget preserved; no feed/search paid API/automatic inference/order execution activated."
-  ]
+  ],
+  "final_ci": {
+    "global_ui": {
+      "run": 37455222876,
+      "jobs": {
+        "finance_and_localization": "PASS",
+        "languages_and_responsive": "PASS"
+      }
+    },
+    "autonomous": {
+      "run": 37455222836,
+      "focused": "PASS",
+      "postgres": "PASS",
+      "code_sandbox": "PASS",
+      "browser": "FAIL — known baseline history-row/ellipsis assertion line109"
+    },
+    "production_acceptance": "Owner Windows PC may be powered off. No PC/localhost work or actual upload initiated. Existing pilot browser upload acceptance waits owner/PC return.",
+    "production_deployment": "Unchanged LIVE 7ce8d09 / dep-db2dhp6i0phs73e9rh3g; this update is documentation only."
+  }
 }
