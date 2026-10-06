@@ -1,0 +1,312 @@
+{
+  "baseline": "7ea4ac552e19e4b961bf6341993fcfa72b18b5ca",
+  "released_code": "605907cfcb5858733fe7da0326080f4475d0ecad",
+  "deploy": "dep-db29ptu7bikc73d0o50g",
+  "final_deploy": "dep-db29qsgae00c739iofg0",
+  "final_comparison": "Repeated after final schema-flag-off deployment: all 30 counts and fingerprints still exactly unchanged.",
+  "comparison": "All 30 Finance row counts and complete-row fingerprints exactly unchanged; read-only queries only.",
+  "before": [
+    {
+      "fingerprint": "3fde11ce8e117f4b97188734eda69931",
+      "row_count": 6,
+      "table_name": "finance_account_type_assignments"
+    },
+    {
+      "fingerprint": "9a74f2bcc791c6daec4901611b239527",
+      "row_count": 12,
+      "table_name": "finance_account_type_options"
+    },
+    {
+      "fingerprint": "3d309088b5c634d2f289418fef22d349",
+      "row_count": 38,
+      "table_name": "finance_accounts"
+    },
+    {
+      "fingerprint": "65a5ab65e22ce64aa4c7f4b9c924eb1f",
+      "row_count": 12,
+      "table_name": "finance_bank_extraction_reviews"
+    },
+    {
+      "fingerprint": "9dbfda1494d42f2383b881f576bff4b9",
+      "row_count": 11,
+      "table_name": "finance_bank_imports"
+    },
+    {
+      "fingerprint": "4da95eeb6581e49b0bb3d647d5712cc4",
+      "row_count": 39,
+      "table_name": "finance_bank_rows"
+    },
+    {
+      "fingerprint": "2790551ed86ea3a7dfff8ce6583d917c",
+      "row_count": 4,
+      "table_name": "finance_bill_requests"
+    },
+    {
+      "fingerprint": "d4b4fee8715def3ad57d6a96973520ed",
+      "row_count": 22,
+      "table_name": "finance_branch_workspaces"
+    },
+    {
+      "fingerprint": "5cc766abf57720cb7f040e992bd7bec0",
+      "row_count": 22,
+      "table_name": "finance_branches"
+    },
+    {
+      "fingerprint": "70514a025a8080d28596211f37228516",
+      "row_count": 2,
+      "table_name": "finance_budgets"
+    },
+    {
+      "fingerprint": "fba06b3429bf08277d4b49a1b607dddc",
+      "row_count": 1199,
+      "table_name": "finance_categories"
+    },
+    {
+      "fingerprint": "1916286b9680e1eb5c25be9fcdf80e13",
+      "row_count": 796,
+      "table_name": "finance_category_hierarchy"
+    },
+    {
+      "fingerprint": "a9114b717f44d7681c8f8fc44294d483",
+      "row_count": 1309,
+      "table_name": "finance_category_workspace_settings"
+    },
+    {
+      "fingerprint": "61e3c4ad8473e048291f004f86cdfcb0",
+      "row_count": 9,
+      "table_name": "finance_customers"
+    },
+    {
+      "fingerprint": "cca46c41e5eaf022514382f495b26568",
+      "row_count": 10,
+      "table_name": "finance_entitlements"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_fx_exchanges"
+    },
+    {
+      "fingerprint": "fdae7d6b2c0690a77c39b73a776b6f51",
+      "row_count": 21,
+      "table_name": "finance_invoice_items"
+    },
+    {
+      "fingerprint": "687b78996ea07916b3cd0cd900e983df",
+      "row_count": 4,
+      "table_name": "finance_invoice_payments"
+    },
+    {
+      "fingerprint": "379c2f7a1b415b9712d957bc9a296d72",
+      "row_count": 1,
+      "table_name": "finance_invoice_revisions"
+    },
+    {
+      "fingerprint": "63637f77e4e321a8e96bdff049c88dc1",
+      "row_count": 1,
+      "table_name": "finance_invoice_settings"
+    },
+    {
+      "fingerprint": "21f9721683f886a302dd8ebfd67214c6",
+      "row_count": 10,
+      "table_name": "finance_invoices"
+    },
+    {
+      "fingerprint": "e97ffba2cc77d08f0f46f56546512a6e",
+      "row_count": 1,
+      "table_name": "finance_money_scale_state"
+    },
+    {
+      "fingerprint": "619c3d9fd7ee0c1a966cb42b9c29083a",
+      "row_count": 4,
+      "table_name": "finance_payees"
+    },
+    {
+      "fingerprint": "549b8df651ff12b2f0f3bd7341f194b6",
+      "row_count": 2,
+      "table_name": "finance_recurring_expenses"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_recurring_postings"
+    },
+    {
+      "fingerprint": "b68684bb0f6a4e46305b031d32ea192a",
+      "row_count": 1,
+      "table_name": "finance_subscription_bills"
+    },
+    {
+      "fingerprint": "1be9c974b98d9eb043e69ce4182b8d37",
+      "row_count": 1,
+      "table_name": "finance_transaction_revisions"
+    },
+    {
+      "fingerprint": "2ca4fad3fae11dd8693caa5aa1fa0a9a",
+      "row_count": 68,
+      "table_name": "finance_transactions"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_workspace_corrections"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_workspace_opening_history"
+    }
+  ],
+  "after": [
+    {
+      "fingerprint": "3fde11ce8e117f4b97188734eda69931",
+      "row_count": 6,
+      "table_name": "finance_account_type_assignments"
+    },
+    {
+      "fingerprint": "9a74f2bcc791c6daec4901611b239527",
+      "row_count": 12,
+      "table_name": "finance_account_type_options"
+    },
+    {
+      "fingerprint": "3d309088b5c634d2f289418fef22d349",
+      "row_count": 38,
+      "table_name": "finance_accounts"
+    },
+    {
+      "fingerprint": "65a5ab65e22ce64aa4c7f4b9c924eb1f",
+      "row_count": 12,
+      "table_name": "finance_bank_extraction_reviews"
+    },
+    {
+      "fingerprint": "9dbfda1494d42f2383b881f576bff4b9",
+      "row_count": 11,
+      "table_name": "finance_bank_imports"
+    },
+    {
+      "fingerprint": "4da95eeb6581e49b0bb3d647d5712cc4",
+      "row_count": 39,
+      "table_name": "finance_bank_rows"
+    },
+    {
+      "fingerprint": "2790551ed86ea3a7dfff8ce6583d917c",
+      "row_count": 4,
+      "table_name": "finance_bill_requests"
+    },
+    {
+      "fingerprint": "d4b4fee8715def3ad57d6a96973520ed",
+      "row_count": 22,
+      "table_name": "finance_branch_workspaces"
+    },
+    {
+      "fingerprint": "5cc766abf57720cb7f040e992bd7bec0",
+      "row_count": 22,
+      "table_name": "finance_branches"
+    },
+    {
+      "fingerprint": "70514a025a8080d28596211f37228516",
+      "row_count": 2,
+      "table_name": "finance_budgets"
+    },
+    {
+      "fingerprint": "fba06b3429bf08277d4b49a1b607dddc",
+      "row_count": 1199,
+      "table_name": "finance_categories"
+    },
+    {
+      "fingerprint": "1916286b9680e1eb5c25be9fcdf80e13",
+      "row_count": 796,
+      "table_name": "finance_category_hierarchy"
+    },
+    {
+      "fingerprint": "a9114b717f44d7681c8f8fc44294d483",
+      "row_count": 1309,
+      "table_name": "finance_category_workspace_settings"
+    },
+    {
+      "fingerprint": "61e3c4ad8473e048291f004f86cdfcb0",
+      "row_count": 9,
+      "table_name": "finance_customers"
+    },
+    {
+      "fingerprint": "cca46c41e5eaf022514382f495b26568",
+      "row_count": 10,
+      "table_name": "finance_entitlements"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_fx_exchanges"
+    },
+    {
+      "fingerprint": "fdae7d6b2c0690a77c39b73a776b6f51",
+      "row_count": 21,
+      "table_name": "finance_invoice_items"
+    },
+    {
+      "fingerprint": "687b78996ea07916b3cd0cd900e983df",
+      "row_count": 4,
+      "table_name": "finance_invoice_payments"
+    },
+    {
+      "fingerprint": "379c2f7a1b415b9712d957bc9a296d72",
+      "row_count": 1,
+      "table_name": "finance_invoice_revisions"
+    },
+    {
+      "fingerprint": "63637f77e4e321a8e96bdff049c88dc1",
+      "row_count": 1,
+      "table_name": "finance_invoice_settings"
+    },
+    {
+      "fingerprint": "21f9721683f886a302dd8ebfd67214c6",
+      "row_count": 10,
+      "table_name": "finance_invoices"
+    },
+    {
+      "fingerprint": "e97ffba2cc77d08f0f46f56546512a6e",
+      "row_count": 1,
+      "table_name": "finance_money_scale_state"
+    },
+    {
+      "fingerprint": "619c3d9fd7ee0c1a966cb42b9c29083a",
+      "row_count": 4,
+      "table_name": "finance_payees"
+    },
+    {
+      "fingerprint": "549b8df651ff12b2f0f3bd7341f194b6",
+      "row_count": 2,
+      "table_name": "finance_recurring_expenses"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_recurring_postings"
+    },
+    {
+      "fingerprint": "b68684bb0f6a4e46305b031d32ea192a",
+      "row_count": 1,
+      "table_name": "finance_subscription_bills"
+    },
+    {
+      "fingerprint": "1be9c974b98d9eb043e69ce4182b8d37",
+      "row_count": 1,
+      "table_name": "finance_transaction_revisions"
+    },
+    {
+      "fingerprint": "2ca4fad3fae11dd8693caa5aa1fa0a9a",
+      "row_count": 68,
+      "table_name": "finance_transactions"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_workspace_corrections"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_workspace_opening_history"
+    }
+  ]
+}

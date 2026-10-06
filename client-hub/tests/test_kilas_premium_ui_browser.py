@@ -79,8 +79,8 @@ def main():
                 assert page.locator('#auth-password').get_attribute('type') == 'text'
                 context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}])
                 capture('home', '/products/start')
-                expect(page.get_by_role('heading', name='Apa yang ingin kamu kerjakan?')).to_be_visible()
-                assert page.locator('a[href="https://kilasworks.id"]').count() >= 2
+                expect(page.get_by_role('heading', name='Home', exact=True)).to_be_visible()
+                assert page.locator('a[href="/products/services"]').count() >= 2
                 assert page.locator('.premium-navigation').get_by_text('Assist').count() == 0
                 if width < 761:
                     page.get_by_role('button', name='Buka navigasi', exact=True).click()

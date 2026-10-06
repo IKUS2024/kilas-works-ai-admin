@@ -77,7 +77,7 @@ def main():
                             assert page.locator('a[href="/products/start"]').count() >= 1
                             assert page.locator('a[href*="workspace/more"]').count() == 0
                             if name == 'home':
-                                assert page.locator('a[href="https://kilasworks.id"]').count() >= 2
+                                assert page.locator('a[href="/products/services"]').count() >= 2
                                 expect(page.get_by_role('heading', name={'id': 'Home', 'en': 'Home', 'es': 'Inicio', 'zh': '首页'}[language], exact=True)).to_be_visible()
                             if name == 'video':
                                 expect(page.locator('#video-submit')).to_have_text({'id': 'Susun Video Plan', 'en': 'Create Video Plan', 'es': 'Crear plan de vídeo', 'zh': '生成视频方案'}[language])
