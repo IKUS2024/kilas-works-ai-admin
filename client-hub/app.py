@@ -240,6 +240,13 @@ def create_app():
     app.jinja_env.globals['finance_bridge_panel'] = finance_bridge_panel
     from routes_products import products_bp, assist_customer_visible
     app.register_blueprint(products_bp)
+    from kilas_trading.routes import bp as trading_bp
+    from kilas_trading.access import is_pilot as trading_pilot
+    app.register_blueprint(trading_bp)
+    app.jinja_env.globals['kilas_trading_pilot'] = trading_pilot
+    if db.BACKEND != 'postgres' or os.environ.get('KILAS_TRADING_SCHEMA_APPLY', '').lower() == 'true':
+        from kilas_trading.schema import apply_release as apply_trading_schema
+        apply_trading_schema()
     app.jinja_env.globals['assist_customer_visible'] = assist_customer_visible
     from kilas_ai.routes import ai_bp, enabled as kilas_ai_enabled
     from kilas_ai import automation_routes  # Registers Automation on the existing Kilas AI blueprint.
@@ -367,6 +374,7 @@ def create_app():
             or endpoint.startswith("workspace.")
             or endpoint.startswith("kilas_ai.")
             or endpoint.startswith("kilas_audio.")
+            or endpoint.startswith("kilas_trading.")
             # Authorized direct AI links must leave the Finance workspace too.
             # Each destination still enforces its own membership/product/CSRF gates.
             or endpoint.startswith(("client.", "assist.", "core_customers.", "core_jobs.",

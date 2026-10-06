@@ -297,7 +297,7 @@
 {% set assist_refresh = not (finance_ui and finance_ui.enabled) and request.blueprint not in ['finance', 'auth'] and session.get('role') != 'KILAS_ADMIN' and ((workspace_ui and workspace_ui.enabled and workspace_ui.product == 'ai') or request.endpoint in ['products.assist_entry', 'index']) and 'finance' not in (request.endpoint or '') and request.endpoint != 'products.product_start' %}
 {% if assist_refresh %}<link rel="stylesheet" href="{{ url_for('static', filename='assist_ui.css', v='20260928') }}"><script src="{{ url_for('static', filename='assist_ui.js', v='20260928') }}" defer></script>{% endif %}
 {% block assist_entry_styles %}{% endblock %}
-{% set premium_ui = session.get('role') != 'KILAS_ADMIN' and (request.blueprint == 'auth' or request.blueprint in ['kilas_ai', 'kilas_audio'] or request.blueprint == 'finance' or request.endpoint == 'products.product_start' or (not assist_refresh and request.blueprint in ['products', 'projects', 'client'])) %}
+{% set premium_ui = session.get('role') != 'KILAS_ADMIN' and (request.blueprint == 'auth' or request.blueprint in ['kilas_ai', 'kilas_audio', 'kilas_trading'] or request.blueprint == 'finance' or request.endpoint == 'products.product_start' or (not assist_refresh and request.blueprint in ['products', 'projects', 'client'])) %}
 {% set premium_workspace = premium_ui and session.get('user_id') and not (finance_ui and finance_ui.enabled) %}
 {% if premium_ui %}{% include '_premium_styles.html' %}{% endif %}
 {% if premium_ui %}{% include '_ui_i18n_head.html' %}{% endif %}

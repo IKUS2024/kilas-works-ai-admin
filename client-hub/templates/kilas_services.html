@@ -13,6 +13,14 @@
   </header>
 
   <section class="services-grid" aria-label="Daftar Kilas Services">
+    {% if kilas_trading_pilot() %}
+    <article class="service-card">
+      <div class="service-card-head"><span>MOCK</span><h2>Kilas Trading</h2></div>
+      <p class="service-summary">Workspace paper trading pribadi: replay sintetis, posisi simulasi, kontrol risiko, dan jurnal keputusan.</p>
+      <p class="service-notice">Saldo dan harga simulasi. Tidak ada broker, order uang nyata, atau analisis model AI.</p>
+      <a class="btn service-cta" href="{{ url_for('kilas_trading.home') }}">Buka Kilas Trading</a>
+    </article>
+    {% endif %}
     {% for service in services %}
     <article class="service-card">
       <div class="service-card-head"><span>{{ service.number }}</span><h2>Kilas {{ service.title }}</h2></div>
