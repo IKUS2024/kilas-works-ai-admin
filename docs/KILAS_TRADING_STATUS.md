@@ -17,6 +17,16 @@ Old task source was NOT recovered: absent local files/Git objects, GitHub HTTP42
 
 Next stage: owner clarified bounded paper autonomy, modeled costs/spread, stop-derived sizing, aggregate stop risk and losing-streak cooldown, breakeven/profit protection. These are not yet claimed in this foundation checkpoint. No main push/deploy has occurred.
 
+## Bounded paper-agent candidate
+
+Foundation local checkpoint `39e7539`; subsequent candidate adds explicitly started 1–20 candle runs. Each run advances replay, settles protections, selects BUY/SELL/no-signal through SMA crossover, calculates quantity from stop distance plus modeled costs, and enforces deterministic risk before any simulated entry. Each candle has a unique durable decision record; whole-run retry uses the original fingerprint. No model proposals or fabricated AI output are present. No scheduler, worker, network/model call or continuous background operation exists. Processing is truthful pending-request state, then results appear in the journal.
+
+Additional controls: risk budget capped at initial/current equity (no loss chasing), aggregate stop risk ≤2%, synthetic modeled spread 4 bps with configurable maximum ≤20, fees 2 bps per side, slippage 1 bps per side, realized plus marked unrealized daily drawdown, configurable losing-streak cooldown, cost-aware breakeven, and monotonic trailing. Modeled costs are scenario assumptions, not brokerage facts. Gap/slippage can exceed stops and protected profit is not guaranteed. Default settings are simulation examples, not live recommendations. Kill is irreversible from the dashboard for this pilot. Safety controls/close are exempt from the action rate limit.
+
+Verification before publishing: 32 extended tests PASS on SQLite and native PostgreSQL 18, including concurrent dedup/exposure, schema isolation/idempotence, persistence, other-owner/admin/support denial, stale/invalid/spread rejection, daily unrealized loss, costs/cooldown/breakeven/stop-sizing/bounded-run audit. Added rate-limit safety-control coverage is included in final rerun. Chromium PASS at 1440/768/390/320 with real login/catalog entry/orders/protection/pause/resume/replay/no-signal/20-candle run/error journal. Scoped inputs were corrected against inherited Assist CSS and computed background assertions now pass.
+
+Relevant old-product checks PASS: Finance phase1b 16, production foundation 28, Assist connections 9, AI unified 24, Audio 40. Historical fast-product-services suite fails 3 of 6 on both untouched baseline and candidate (retired Home/header/catalog expectations); no tests/production behavior weakened to satisfy them. Full historical repository suite not claimed.
+
 ## Release and rollback plan
 
 Only existing Client Hub may deploy after relevant checks/CI. Recheck fresh main before publishing; no force push. `KILAS_TRADING_ENABLED=false` denies Trader routes and removes its pilot card, while preserving Service catalog/data. Apply ONLY 0087 via `KILAS_TRADING_SCHEMA_APPLY=true` for one release, then return it to false. Never enable historical migrations. Trader schema is additive and retained for old-code rollback; previous LIVE SHA above is the code rollback point. No separate DB/resource/site/DNS changes.

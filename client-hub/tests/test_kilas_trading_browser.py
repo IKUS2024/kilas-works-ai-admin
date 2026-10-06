@@ -33,6 +33,7 @@ def main():
                 page.locator('#trading-title').wait_for()
                 assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'),width
                 assert page.locator('.trading-chart').is_visible()
+                assert page.locator('#trading-stop').evaluate("el=>getComputedStyle(el).backgroundColor")=='rgb(255, 255, 255)'
                 page.screenshot(path=str(output/f'dashboard-{width}.png'),full_page=True)
             with page.expect_navigation():page.get_by_role('button',name='Buka posisi simulasi',exact=True).click()
             assert page.locator('.trading-position').count()==1
@@ -51,6 +52,11 @@ def main():
             page.wait_for_function("document.querySelector('#trading-status').textContent==='ERROR'")
             assert page.locator('#trading-error').is_visible()
             page.reload();assert 'REJECTED' in page.locator('.trading-event').first.inner_text()
+            page.locator('input[name=steps]').fill('20')
+            with page.expect_navigation():page.get_by_role('button',name='Jalankan paper agent',exact=True).click()
+            assert 'Run paper selesai: 20 candle' in page.locator('.trading-event').first.inner_text()
+            assert page.locator('.trading-event').count()>=20
+            assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
             page.screenshot(path=str(output/'journal-mobile.png'),full_page=True)
             assert not errors,errors
             browser.close()

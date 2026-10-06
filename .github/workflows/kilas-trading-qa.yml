@@ -1,0 +1,53 @@
+name: Kilas Trading QA
+on:
+  push:
+    branches: [main, feature/kilas-trading-paper-20261006]
+    paths: ['client-hub/kilas_trading/**', 'client-hub/templates/kilas_trading.html', 'client-hub/templates/kilas_services.html', 'client-hub/static/kilas_trading.*', 'client-hub/migrations/0087_*', 'client-hub/tests/test_kilas_trading*.py', 'client-hub/app.py', 'client-hub/templates/base.html', '.github/workflows/kilas-trading-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python client-hub/tests/test_kilas_trading.py
+      - run: python client-hub/tests/test_finance_phase1b.py
+      - run: python client-hub/tests/test_production_foundation.py
+      - run: python client-hub/tests/test_assist_connections.py
+      - run: python client-hub/tests/test_kilas_ai_unified.py
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python client-hub/tests/test_kilas_trading_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: kilas-trading-browser, path: /tmp/kilas-trading-browser/}
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: paper-test-only, POSTGRES_DB: trading_qa}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d trading_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python client-hub/tests/test_kilas_trading_postgres.py
+        env: {DATABASE_URL: 'postgresql://postgres:paper-test-only@127.0.0.1:5432/trading_qa', TRADING_POSTGRES_QA: '1'}

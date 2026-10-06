@@ -5,8 +5,11 @@ from decimal import Decimal, InvalidOperation
 
 UNITS = 1000000
 SOURCE = 'Kilas synthetic BTC/USD replay v1 (no market feed)'
-RISK = {'risk_bps': 100, 'max_positions': 3, 'max_exposure_cents': 200000, 'daily_loss_cents': 50000}
-STRATEGY = {'fast': 3, 'slow': 8, 'threshold_bps': 5, 'quantity': '0.01', 'stop_distance': '300', 'target_distance': '600', 'trailing_distance': '0', 'trailing_activation': '300'}
+RISK = {'risk_bps': 100, 'max_positions': 3, 'max_exposure_cents': 200000, 'daily_loss_cents': 50000,
+        'aggregate_risk_bps': 200, 'max_spread_bps': 20, 'max_loss_streak': 3, 'cooldown_minutes': 5}
+STRATEGY = {'fast': 3, 'slow': 8, 'threshold_bps': 5, 'quantity': '0.01', 'stop_distance': '300', 'target_distance': '600', 'trailing_distance': '100', 'trailing_activation': '300', 'breakeven_activation': '300'}
+FEE_BPS = 2
+SLIPPAGE_BPS = 1
 
 
 class TradingError(ValueError):
@@ -29,6 +32,7 @@ def candle(tick):
     opened, closed = price(tick - 1), price(tick)
     return {'tick': tick, 'open': opened, 'close': closed,
             'high': max(opened, closed) + 9000, 'low': min(opened, closed) - 9000,
+            'spread_bps': 4, 'connected': True,
             'source_time': (datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(minutes=tick)).isoformat()}
 
 
@@ -38,7 +42,28 @@ def candles(tick):
 
 def pnl(position, price):
     sign = 1 if position['side'] == 'BUY' else -1
-    return sign * (price - position['entry_cents']) * position['quantity_units'] // UNITS
+    fees = position.get('entry_fee_cents', 0) + fee(price, position['quantity_units'], position.get('fee_bps', 0))
+    return sign * (price - position['entry_cents']) * position['quantity_units'] // UNITS - fees
+
+
+def fee(price, quantity, bps=FEE_BPS):
+    return (price * quantity * bps + UNITS * 10000 - 1) // (UNITS * 10000)
+
+
+def fill(mid, side, spread_bps=4):
+    offset = (mid * (spread_bps + 2 * SLIPPAGE_BPS) + 19999) // 20000
+    return mid + offset if side == 'BUY' else mid - offset
+
+
+def mark_pnl(position, mid, spread_bps=4):
+    return pnl(position, fill(mid, 'SELL' if position['side'] == 'BUY' else 'BUY', spread_bps))
+
+
+def quote_valid(bar, maximum_spread):
+    if not bar or not bar.get('connected') or any(not isinstance(bar.get(k), int) or bar[k] <= 0 for k in ('open','close','high','low')):
+        raise TradingError('Snapshot replay tidak tersedia atau tidak terhubung. Posisi baru diblokir.')
+    if not isinstance(bar.get('spread_bps'), int) or not 0 <= bar['spread_bps'] <= maximum_spread:
+        raise TradingError('Spread simulasi abnormal; aksi trading diblokir.')
 
 
 def protect(position, bar):
@@ -55,6 +80,14 @@ def protect(position, bar):
         if bar['low'] <= target:
             return min(target, bar['open']), 'TP', stop
     sign = 1 if side == 'BUY' else -1
+    if position.get('breakeven_cents', 0) and sign * (bar['close'] - position['entry_cents']) >= position['breakeven_cents']:
+        quantity = position['quantity_units']
+        modeled_fees = position.get('entry_fee_cents',0) + fee(bar['close'],quantity,position.get('fee_bps',0))
+        cushion = (modeled_fees * UNITS + quantity - 1) // quantity + abs(fill(bar['close'],'BUY',bar.get('spread_bps',4))-bar['close'])
+        candidate = position['entry_cents'] + sign * cushion
+        # Protection may only tighten; do not set a stop beyond this candle's close.
+        if sign * (bar['close'] - candidate) > 0:
+            stop = max(stop,candidate) if side=='BUY' else min(stop,candidate)
     if position['trailing_cents'] and sign * (bar['close'] - position['entry_cents']) >= position['activation_cents']:
         candidate = bar['close'] - sign * position['trailing_cents']
         stop = max(stop, candidate) if side == 'BUY' else min(stop, candidate)

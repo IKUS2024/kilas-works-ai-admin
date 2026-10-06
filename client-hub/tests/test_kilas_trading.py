@@ -210,5 +210,98 @@ class TradingTests(unittest.TestCase):
     def test_schema_idempotence(self):
         self.assertEqual(schema.apply_release(),[])
 
+    def test_quote_connection_spread_and_price_validation(self):
+        bar=engine.candle(60)
+        for broken in (None,dict(bar,connected=False),dict(bar,spread_bps=21),dict(bar,spread_bps=-1),dict(bar,close=0)):
+            with self.assertRaises(engine.TradingError):engine.quote_valid(broken,20)
+        original=engine.candle
+        with patch.object(engine,'candle',side_effect=lambda t:dict(original(t),spread_bps=100)):
+            self.assertEqual(self.order()['outcome'],'REJECTED')
+        self.assertEqual(store.snapshot(self.user)['positions'],[])
+
+    def test_costs_reduce_equity_and_close_even_without_price_change(self):
+        self.order();s=store.snapshot(self.user);p=s['positions'][0]
+        self.assertGreater(p['entry_fee_cents'],0);self.assertLess(p['unrealized_cents'],0)
+        self.act('close',position_id=str(p['id']))
+        self.assertLess(store.snapshot(self.user)['account']['realized_cents'],0)
+        self.assertGreater(store.snapshot(self.user)['events'][0]['inputs']['result']['exit_fee_cents'],0)
+
+    def test_daily_loss_includes_unrealized(self):
+        self.order();p=store.snapshot(self.user)['positions'][0]
+        db.execute('UPDATE kilas_trading_positions SET entry_cents=entry_cents+20000 WHERE id=?',(p['id'],))
+        import json
+        risk=store.snapshot(self.user)['risk'];risk['daily_loss_cents']=100
+        db.execute('UPDATE kilas_trading_accounts SET risk_json=? WHERE user_id=?',(json.dumps(risk),self.user))
+        r=self.order();self.assertEqual(r['outcome'],'REJECTED');self.assertIn('harian',r['message'])
+
+    def test_aggregate_stop_risk(self):
+        import json
+        self.order();risk=store.snapshot(self.user)['risk'];risk['aggregate_risk_bps']=3
+        db.execute('UPDATE kilas_trading_accounts SET risk_json=? WHERE user_id=?',(json.dumps(risk),self.user))
+        r=self.order();self.assertEqual(r['outcome'],'REJECTED');self.assertIn('agregat',r['message'])
+
+    def test_losing_streak_cooldown_and_expiry(self):
+        for _ in range(3):
+            self.assertEqual(self.order()['outcome'],'OK')
+            self.act('close',position_id=str(store.snapshot(self.user)['positions'][0]['id']))
+        self.assertIsNotNone(store.snapshot(self.user)['account']['cooldown_until'])
+        self.assertIn('Cooldown',self.order()['message'])
+        future=store.now()+timedelta(minutes=6)
+        with patch.object(store,'now',return_value=future):
+            self.act('refresh');self.assertEqual(self.order()['outcome'],'OK')
+
+    def test_breakeven_covers_costs_and_never_loosens(self):
+        p={'side':'BUY','entry_cents':100000,'stop_cents':99000,'target_cents':105000,'quantity_units':10000,
+           'trailing_cents':0,'activation_cents':300,'breakeven_cents':300,'entry_fee_cents':1,'fee_bps':2}
+        bar={'open':100200,'low':100100,'high':100700,'close':100600,'spread_bps':4}
+        stop=engine.protect(p,bar)[2]
+        self.assertGreater(stop,p['entry_cents']);self.assertGreaterEqual(engine.mark_pnl(p,stop),0)
+        p['stop_cents']=stop;self.assertGreaterEqual(engine.protect(p,bar)[2],stop)
+        p.update(side='SELL',entry_cents=100000,stop_cents=101000,target_cents=95000)
+        stop=engine.protect(p,dict(bar,open=99800,low=99300,high=99900,close=99400))[2]
+        self.assertLess(stop,p['entry_cents']);self.assertGreaterEqual(engine.mark_pnl(p,stop),0)
+
+    def test_stop_derived_sizing_and_no_loss_chasing(self):
+        import json
+        store.snapshot(self.user)
+        crossing=next(t for t in range(61,150) if engine.decision(engine.STRATEGY,engine.candles(t))[0])
+        cfg=dict(engine.STRATEGY,quantity='1',stop_distance='5000')
+        db.execute('UPDATE kilas_trading_accounts SET tick=?,strategy_json=? WHERE user_id=?',(crossing,json.dumps(cfg),self.user))
+        self.assertEqual(self.act('agent')['outcome'],'OK')
+        e=store.snapshot(self.user)['events'][0]['inputs'];p=store.snapshot(self.user)['positions'][0]
+        self.assertLess(p['quantity_units'],20000);self.assertLessEqual(e['result']['risk_cents'],e['sizing']['risk_budget_cents'])
+        size=p['quantity_units'];self.act('close',position_id=str(p['id']))
+        next_cross=next(t for t in range(crossing+1,200) if engine.decision(cfg,engine.candles(t))[0])
+        db.execute('UPDATE kilas_trading_accounts SET tick=? WHERE user_id=?',(next_cross,self.user))
+        self.act('agent');new=store.snapshot(self.user)['events'][0]['inputs']
+        self.assertLessEqual(new['sizing']['risk_budget_cents'],e['sizing']['risk_budget_cents'])
+        self.assertLessEqual(new['result']['risk_cents'],new['sizing']['risk_budget_cents'])
+
+    def test_bounded_run_decisions_dedup_and_protection(self):
+        data={'operation_key':uuid.uuid4().hex,'tick':'60','steps':'20'}
+        self.assertEqual(store.act(self.user,'run',data)['outcome'],'OK')
+        state=store.snapshot(self.user);self.assertEqual(state['account']['tick'],80)
+        decisions=[e for e in state['events'] if e['action']=='agent']
+        self.assertEqual(len(decisions),20);self.assertTrue(any(e['outcome']=='NO_SIGNAL' for e in decisions))
+        self.assertTrue(any('result' in e['inputs'] for e in decisions))
+        self.assertTrue(store.act(self.user,'run',data)['duplicate']);self.assertEqual(store.snapshot(self.user)['account']['tick'],80)
+        for p in state['positions']:
+            self.assertGreater(p['stop_cents'],0);self.assertGreater(p['target_cents'],0)
+
+    def test_run_pause_kill_stale_and_maximum(self):
+        self.assertEqual(self.act('run',steps='21')['outcome'],'REJECTED')
+        self.act('pause');self.assertEqual(self.act('run',steps='10')['outcome'],'REJECTED')
+        self.assertEqual(store.snapshot(self.user)['account']['tick'],60)
+        self.act('resume');db.execute('UPDATE kilas_trading_accounts SET generated_at=? WHERE user_id=?',((store.now()-timedelta(minutes=3)).isoformat(),self.user))
+        self.assertEqual(self.act('run',steps='10')['outcome'],'REJECTED')
+        self.act('refresh');self.act('kill');self.assertEqual(self.act('run',steps='10')['outcome'],'REJECTED')
+
+    def test_rate_limit_cannot_block_emergency_controls_or_close(self):
+        self.order();p=store.snapshot(self.user)['positions'][0]
+        for _ in range(29):self.act('refresh')
+        self.assertEqual(self.act('pause')['outcome'],'OK')
+        self.assertEqual(self.act('kill')['outcome'],'OK')
+        self.assertEqual(self.act('close',position_id=str(p['id']))['outcome'],'OK')
+
 
 if __name__=='__main__':unittest.main(verbosity=2)

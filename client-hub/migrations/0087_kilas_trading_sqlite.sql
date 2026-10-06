@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS kilas_trading_accounts (
  updated_at TEXT NOT NULL,
  status TEXT NOT NULL DEFAULT 'IDLE',
  last_error TEXT NOT NULL DEFAULT '',
+ cooldown_until TEXT,
  risk_json TEXT NOT NULL,
  strategy_json TEXT NOT NULL
 );
@@ -22,6 +23,9 @@ CREATE TABLE IF NOT EXISTS kilas_trading_positions (
  target_cents BIGINT NOT NULL CHECK(target_cents>0),
  trailing_cents BIGINT NOT NULL DEFAULT 0 CHECK(trailing_cents>=0),
  activation_cents BIGINT NOT NULL DEFAULT 0 CHECK(activation_cents>=0),
+ breakeven_cents BIGINT NOT NULL DEFAULT 0 CHECK(breakeven_cents>=0),
+ entry_fee_cents BIGINT NOT NULL DEFAULT 0 CHECK(entry_fee_cents>=0),
+ fee_bps INTEGER NOT NULL DEFAULT 2 CHECK(fee_bps>=0),
  status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN','CLOSED')),
  exit_cents BIGINT,
  pnl_cents BIGINT NOT NULL DEFAULT 0,
