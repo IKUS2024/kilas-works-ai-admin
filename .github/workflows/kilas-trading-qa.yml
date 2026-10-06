@@ -16,6 +16,7 @@ jobs:
         with: {python-version: '3.12'}
       - run: pip install -r client-hub/requirements.txt
       - run: python client-hub/tests/test_kilas_trading.py
+      - run: python client-hub/tests/test_kilas_trading_analysis.py
       - run: python client-hub/tests/test_finance_phase1b.py
       - run: python client-hub/tests/test_production_foundation.py
       - run: python client-hub/tests/test_assist_connections.py

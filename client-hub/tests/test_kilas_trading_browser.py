@@ -31,6 +31,8 @@ def main():
             page.wait_for_url('**/products/services/trading')
             assert 'Kilas Services' not in page.locator('.trading').inner_text()
             assert page.locator('.trading-heading a').inner_text()=='Kilas Trading'
+            assert page.get_by_role('button',name='Analisis market demo',exact=True).is_disabled()
+            assert 'UNAVAILABLE' in page.locator('#ai-analysis-title').locator('..').inner_text()
             assert 'XAUUSD' in page.locator('.trading').inner_text()
             assert 'Jumlah troy oz sintetis' in page.locator('.trading').inner_text()
             page.get_by_text('Asumsi kontrak XAUUSD simulasi dan candle terakhir',exact=True).click()
@@ -60,6 +62,7 @@ def main():
             page.get_by_role('button',name='Buka posisi simulasi',exact=True).click()
             page.wait_for_function("document.querySelector('#trading-status').textContent==='ERROR'")
             assert page.locator('#trading-error').is_visible()
+            assert page.get_by_role('button',name='Analisis market demo',exact=True).is_disabled()
             page.reload();assert 'REJECTED' in page.locator('.trading-event').first.inner_text()
             page.locator('input[name=steps]').fill('20')
             with page.expect_navigation():page.get_by_role('button',name='Jalankan paper agent',exact=True).click()

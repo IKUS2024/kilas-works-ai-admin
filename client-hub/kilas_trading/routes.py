@@ -2,7 +2,7 @@
 import uuid
 from flask import Blueprint, abort, render_template, request, jsonify, redirect, url_for, flash
 import security
-from . import access, store, engine
+from . import access, store, engine, analysis
 
 bp = Blueprint('kilas_trading', __name__, url_prefix='/products/services/trading')
 
@@ -20,6 +20,7 @@ def authorize():
 def home():
     try:
         state = store.snapshot(security.current_user()['id'])
+        state['ai_analysis'] = analysis.availability()
     except PermissionError:
         abort(404)
     except engine.TradingError as exc:
@@ -40,7 +41,7 @@ def action(action):
     if not isinstance(data, dict) or any(not isinstance(v, (str, int)) for v in data.values()):
         abort(400)
     try:
-        result = store.act(security.current_user()['id'], action, data)
+        result = analysis.analyze(security.current_user()['id'], data) if action == 'analyze' else store.act(security.current_user()['id'], action, data)
     except PermissionError:
         abort(404)
     except engine.TradingError as exc:

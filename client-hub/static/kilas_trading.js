@@ -25,6 +25,7 @@
     const body = new FormData(form);
     pending = true;
     const buttons = [...root.querySelectorAll('button')];
+    const disabledBefore = new Map(buttons.map(button => [button, button.disabled]));
     buttons.forEach(button => { button.disabled = true; });
     status.textContent = 'PROCESSING';
     message.textContent = 'Memproses permintaan simulasi Anda…';
@@ -44,7 +45,7 @@
       error.hidden = false;
     }
     pending = false;
-    buttons.forEach(button => { button.disabled = false; });
+    buttons.forEach(button => { button.disabled = disabledBefore.get(button); });
     const control = root.querySelector('form[data-kill] button');
     if (config.killed) { control.disabled = true; root.querySelector('.trading-controls form:first-child button').disabled = true; }
     freshness();

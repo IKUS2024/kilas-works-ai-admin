@@ -27,7 +27,9 @@ def main():
         after={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
         assert after-before=={'kilas_trading_accounts','kilas_trading_positions','kilas_trading_events','kilas_trading_releases'}
         import test_kilas_trading as f
-        result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(f.TradingTests))
+        import test_kilas_trading_analysis as analyst
+        suite=unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(f.TradingTests),unittest.defaultTestLoader.loadTestsFromTestCase(analyst.AnalysisTests)])
+        result=unittest.TextTestRunner(verbosity=2).run(suite)
         if not result.wasSuccessful():raise SystemExit(1)
         # Old application can read its original tables after Trader installation.
         assert db.query_one('SELECT count(*) AS n FROM users')['n']==3
