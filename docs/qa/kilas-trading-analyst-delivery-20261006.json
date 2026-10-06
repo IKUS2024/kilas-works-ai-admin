@@ -1,0 +1,353 @@
+{
+  "released_code": "f5a40445c0ca9cb988b705c24b68aae75e213af4",
+  "deploy": "dep-db2bi34s728c73bs2bj0",
+  "live_at": "2026-10-06T09:02:49.195272Z",
+  "url": "https://app.kilasworks.id/products/services/trading",
+  "verification": "Render latest LIVE commit and checkout log verified; authenticated executor production UI unavailable. No credential or environment changes, production inference or broker orders.",
+  "finance_comparison": "All 30 counts and ordered complete-row hashes unchanged before/after this deploy; exact comparison true.",
+  "before": [
+    {
+      "fingerprint": "cdac352558288213c0b619a2d947944b",
+      "row_count": 38,
+      "table_name": "finance_accounts"
+    },
+    {
+      "fingerprint": "4efecdda2afb7da4e1f145bdbb577c3c",
+      "row_count": 6,
+      "table_name": "finance_account_type_assignments"
+    },
+    {
+      "fingerprint": "c7d7f093fa6f8363934584288185961c",
+      "row_count": 12,
+      "table_name": "finance_account_type_options"
+    },
+    {
+      "fingerprint": "0968a925021d088937f2ea0ecf894080",
+      "row_count": 12,
+      "table_name": "finance_bank_extraction_reviews"
+    },
+    {
+      "fingerprint": "696d5a35c7633b09ee6f379b7acb3af9",
+      "row_count": 11,
+      "table_name": "finance_bank_imports"
+    },
+    {
+      "fingerprint": "b957345038b07abc159ce896ce28ef0a",
+      "row_count": 39,
+      "table_name": "finance_bank_rows"
+    },
+    {
+      "fingerprint": "fe3c7792ada22defa48ddf661e57fb6d",
+      "row_count": 4,
+      "table_name": "finance_bill_requests"
+    },
+    {
+      "fingerprint": "854a7f733a033b1e5482bcb399d9b0fe",
+      "row_count": 22,
+      "table_name": "finance_branches"
+    },
+    {
+      "fingerprint": "23737620dc643549fdb5ed70827abe2d",
+      "row_count": 22,
+      "table_name": "finance_branch_workspaces"
+    },
+    {
+      "fingerprint": "d29eb88c1c31424fb5625b1b043a8316",
+      "row_count": 2,
+      "table_name": "finance_budgets"
+    },
+    {
+      "fingerprint": "b5d892c180cf761a0919ad4aee8af5c7",
+      "row_count": 1199,
+      "table_name": "finance_categories"
+    },
+    {
+      "fingerprint": "cedd4b23090b1e0ee3513d6ced2b74d2",
+      "row_count": 796,
+      "table_name": "finance_category_hierarchy"
+    },
+    {
+      "fingerprint": "3b84833bb106f30f4785f45bce0c0640",
+      "row_count": 1309,
+      "table_name": "finance_category_workspace_settings"
+    },
+    {
+      "fingerprint": "ea7511bfb5944d35a0dafef79ef3bd21",
+      "row_count": 9,
+      "table_name": "finance_customers"
+    },
+    {
+      "fingerprint": "52aeb7478eecb769e070114e1af24a90",
+      "row_count": 10,
+      "table_name": "finance_entitlements"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_fx_exchanges"
+    },
+    {
+      "fingerprint": "f1d712e9d488b105dde3d043931e23d0",
+      "row_count": 21,
+      "table_name": "finance_invoice_items"
+    },
+    {
+      "fingerprint": "d59b3a7d975cc84bd309ccf44c818e06",
+      "row_count": 4,
+      "table_name": "finance_invoice_payments"
+    },
+    {
+      "fingerprint": "d6a3c85760343a33710f5ffa40e7ef62",
+      "row_count": 1,
+      "table_name": "finance_invoice_revisions"
+    },
+    {
+      "fingerprint": "1eacd967cefcf3c16e2e13b54431a3d1",
+      "row_count": 10,
+      "table_name": "finance_invoices"
+    },
+    {
+      "fingerprint": "45d780d913391fda8272ecbd5bc35bf6",
+      "row_count": 1,
+      "table_name": "finance_invoice_settings"
+    },
+    {
+      "fingerprint": "2662ce4c4353341dcfd146ccac884a18",
+      "row_count": 1,
+      "table_name": "finance_money_scale_state"
+    },
+    {
+      "fingerprint": "2843e85eda172145da2f8f356e3bfa40",
+      "row_count": 4,
+      "table_name": "finance_payees"
+    },
+    {
+      "fingerprint": "e4dec040ad34e3931a76237bb65fba84",
+      "row_count": 2,
+      "table_name": "finance_recurring_expenses"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_recurring_postings"
+    },
+    {
+      "fingerprint": "34bf5f93e56fb7c9013d76787b1fe134",
+      "row_count": 1,
+      "table_name": "finance_subscription_bills"
+    },
+    {
+      "fingerprint": "12403eee7836fe052df9213e720f9f29",
+      "row_count": 1,
+      "table_name": "finance_transaction_revisions"
+    },
+    {
+      "fingerprint": "bb8c2b66e867666e69eafcfbfd93fdf0",
+      "row_count": 68,
+      "table_name": "finance_transactions"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_workspace_corrections"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_workspace_opening_history"
+    }
+  ],
+  "after": [
+    {
+      "fingerprint": "cdac352558288213c0b619a2d947944b",
+      "row_count": 38,
+      "table_name": "finance_accounts"
+    },
+    {
+      "fingerprint": "4efecdda2afb7da4e1f145bdbb577c3c",
+      "row_count": 6,
+      "table_name": "finance_account_type_assignments"
+    },
+    {
+      "fingerprint": "c7d7f093fa6f8363934584288185961c",
+      "row_count": 12,
+      "table_name": "finance_account_type_options"
+    },
+    {
+      "fingerprint": "0968a925021d088937f2ea0ecf894080",
+      "row_count": 12,
+      "table_name": "finance_bank_extraction_reviews"
+    },
+    {
+      "fingerprint": "696d5a35c7633b09ee6f379b7acb3af9",
+      "row_count": 11,
+      "table_name": "finance_bank_imports"
+    },
+    {
+      "fingerprint": "b957345038b07abc159ce896ce28ef0a",
+      "row_count": 39,
+      "table_name": "finance_bank_rows"
+    },
+    {
+      "fingerprint": "fe3c7792ada22defa48ddf661e57fb6d",
+      "row_count": 4,
+      "table_name": "finance_bill_requests"
+    },
+    {
+      "fingerprint": "854a7f733a033b1e5482bcb399d9b0fe",
+      "row_count": 22,
+      "table_name": "finance_branches"
+    },
+    {
+      "fingerprint": "23737620dc643549fdb5ed70827abe2d",
+      "row_count": 22,
+      "table_name": "finance_branch_workspaces"
+    },
+    {
+      "fingerprint": "d29eb88c1c31424fb5625b1b043a8316",
+      "row_count": 2,
+      "table_name": "finance_budgets"
+    },
+    {
+      "fingerprint": "b5d892c180cf761a0919ad4aee8af5c7",
+      "row_count": 1199,
+      "table_name": "finance_categories"
+    },
+    {
+      "fingerprint": "cedd4b23090b1e0ee3513d6ced2b74d2",
+      "row_count": 796,
+      "table_name": "finance_category_hierarchy"
+    },
+    {
+      "fingerprint": "3b84833bb106f30f4785f45bce0c0640",
+      "row_count": 1309,
+      "table_name": "finance_category_workspace_settings"
+    },
+    {
+      "fingerprint": "ea7511bfb5944d35a0dafef79ef3bd21",
+      "row_count": 9,
+      "table_name": "finance_customers"
+    },
+    {
+      "fingerprint": "52aeb7478eecb769e070114e1af24a90",
+      "row_count": 10,
+      "table_name": "finance_entitlements"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_fx_exchanges"
+    },
+    {
+      "fingerprint": "f1d712e9d488b105dde3d043931e23d0",
+      "row_count": 21,
+      "table_name": "finance_invoice_items"
+    },
+    {
+      "fingerprint": "d59b3a7d975cc84bd309ccf44c818e06",
+      "row_count": 4,
+      "table_name": "finance_invoice_payments"
+    },
+    {
+      "fingerprint": "d6a3c85760343a33710f5ffa40e7ef62",
+      "row_count": 1,
+      "table_name": "finance_invoice_revisions"
+    },
+    {
+      "fingerprint": "1eacd967cefcf3c16e2e13b54431a3d1",
+      "row_count": 10,
+      "table_name": "finance_invoices"
+    },
+    {
+      "fingerprint": "45d780d913391fda8272ecbd5bc35bf6",
+      "row_count": 1,
+      "table_name": "finance_invoice_settings"
+    },
+    {
+      "fingerprint": "2662ce4c4353341dcfd146ccac884a18",
+      "row_count": 1,
+      "table_name": "finance_money_scale_state"
+    },
+    {
+      "fingerprint": "2843e85eda172145da2f8f356e3bfa40",
+      "row_count": 4,
+      "table_name": "finance_payees"
+    },
+    {
+      "fingerprint": "e4dec040ad34e3931a76237bb65fba84",
+      "row_count": 2,
+      "table_name": "finance_recurring_expenses"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_recurring_postings"
+    },
+    {
+      "fingerprint": "34bf5f93e56fb7c9013d76787b1fe134",
+      "row_count": 1,
+      "table_name": "finance_subscription_bills"
+    },
+    {
+      "fingerprint": "12403eee7836fe052df9213e720f9f29",
+      "row_count": 1,
+      "table_name": "finance_transaction_revisions"
+    },
+    {
+      "fingerprint": "bb8c2b66e867666e69eafcfbfd93fdf0",
+      "row_count": 68,
+      "table_name": "finance_transactions"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_workspace_corrections"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_workspace_opening_history"
+    }
+  ],
+  "ci": {
+    "branch_trading": {
+      "run": 37439504592,
+      "result": "all three jobs PASS"
+    },
+    "main_trading": {
+      "run": 37439864552,
+      "result": "all three jobs PASS"
+    },
+    "automation": {
+      "run": 37439864510,
+      "result": "PASS"
+    },
+    "chat_quality": {
+      "run": 37439864493,
+      "result": "PASS"
+    },
+    "autonomous": {
+      "run": 37439864613,
+      "result": "focused/PostgreSQL/sandbox PASS; browser fails same baseline unified history-row ellipsis assertion line109"
+    },
+    "global_ui": {
+      "run": 37439864525,
+      "result": "finance/localization PASS; responsive job still running at checkpoint"
+    }
+  },
+  "production": {
+    "analyst_events": 0,
+    "paper_accounts": 1,
+    "position_records": 1,
+    "paper_events": 4,
+    "journal_evidence": "INSTRUMENT 08:07; step 08:30:56; order 08:31:05; close 08:31:29 UTC all OK. These predate analyst deploy, not created by executor. Position-record count does not imply an open position.",
+    "app_error_logs": "none 09:02:04–09:03:40 UTC",
+    "metadata_discrepancy": "ASSIST_CONFIG uses RENDER_GIT_COMMIT and still reports c863e683...; Render actual checkout/latest LIVE f5a40445... confirmed. No env rewrite attempted."
+  },
+  "blockers": [
+    "No approved DEMO source/MT5 setup; source None, AI UI UNAVAILABLE/default-off.",
+    "Fresh project model access not verified; no paid API call performed.",
+    "No production pilot browser session; owner screenshot and durable journal are separate evidence.",
+    "30-day device remember requires action-time confirmation of full pilot-account access scope; no auth/session changes made."
+  ]
+}
