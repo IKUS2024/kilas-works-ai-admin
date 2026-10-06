@@ -28,7 +28,8 @@ def main():
         assert after-before=={'kilas_trading_accounts','kilas_trading_positions','kilas_trading_events','kilas_trading_releases'}
         import test_kilas_trading as f
         import test_kilas_trading_analysis as analyst
-        suite=unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(f.TradingTests),unittest.defaultTestLoader.loadTestsFromTestCase(analyst.AnalysisTests)])
+        import test_kilas_trading_observation as observation
+        suite=unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(f.TradingTests),unittest.defaultTestLoader.loadTestsFromTestCase(analyst.AnalysisTests),unittest.defaultTestLoader.loadTestsFromTestCase(observation.ObservationTests)])
         result=unittest.TextTestRunner(verbosity=2).run(suite)
         if not result.wasSuccessful():raise SystemExit(1)
         # Old application can read its original tables after Trader installation.

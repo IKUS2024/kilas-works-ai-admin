@@ -86,6 +86,21 @@ def main():
                 page.screenshot(path=str(output/f'observation-fixture-{width}.png'),full_page=True)
             f.app.app.config.pop('KILAS_TRADING_OBSERVATION_FIXTURE')
             f.app.app.config['TESTING'] = False
+            from test_kilas_trading_observation import demo_upload
+            import json
+            page.reload()
+            page.locator('input[name=observation]').set_input_files({'name':'synthetic-local-acceptance.json','mimeType':'application/json','buffer':json.dumps(demo_upload()).encode()})
+            with page.expect_navigation(): page.get_by_role('button',name='Unggah observasi DEMO',exact=True).click()
+            panel = page.locator('#observation-title').locator('..')
+            assert 'sumber dinyatakan DEMO oleh pengunggah' in panel.inner_text()
+            assert 'freshness unknown' in panel.inner_text()
+            panel.get_by_text('Bukti waktu observasi',exact=True).click()
+            panel.get_by_text('3 candle mentah · M1 · waktu/closed belum diverifikasi',exact=True).click()
+            for width in (1440,320):
+                page.set_viewport_size({'width':width,'height':1100})
+                assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+                assert page.get_by_role('button',name='Analisis market demo',exact=True).is_disabled()
+                page.screenshot(path=str(output/f'observation-upload-{width}.png'),full_page=True)
             assert not errors,errors
             browser.close()
     finally:server.shutdown()

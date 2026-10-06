@@ -12,7 +12,7 @@ bp = Blueprint('kilas_trading', __name__, url_prefix='/products/services/trading
 def authorize():
     if not access.is_pilot():
         abort(404)
-    if request.content_length and request.content_length > 8192:
+    if request.content_length and request.content_length > (16384 if request.endpoint == 'kilas_trading.upload' else 8192):
         abort(413)
 
 
@@ -21,7 +21,7 @@ def home():
     try:
         state = store.snapshot(security.current_user()['id'])
         state['ai_analysis'] = analysis.availability()
-        state['observation'] = observation.view()
+        state['observation'] = observation.view(security.current_user()['id'])
     except PermissionError:
         abort(404)
     except engine.TradingError as exc:
@@ -34,6 +34,24 @@ def home():
                          yc=20+(high-b['close'])*180/(high-low),
                          yh=20+(high-b['high'])*180/(high-low), yl=20+(high-b['low'])*180/(high-low)) for i,b in enumerate(bars)]
     return render_template('kilas_trading.html', state=state, new_key=lambda: uuid.uuid4().hex)
+
+
+@bp.post('/observations/upload')
+def upload():
+    try:
+        if request.mimetype != 'multipart/form-data' or set(request.files) != {'observation'} or len(request.files.getlist('observation')) != 1 or set(request.form) - {'csrf_token'}:
+            raise engine.TradingError('Pilih satu file JSON market-only; field upload lain ditolak.')
+        result = observation.ingest(security.current_user()['id'], request.files['observation'].stream.read(observation.MAX_FILE_BYTES + 1))
+    except PermissionError:
+        abort(404)
+    except engine.TradingError as exc:
+        result = dict(outcome='REJECTED', message=str(exc))
+    except Exception:
+        result = dict(outcome='ERROR', message='Snapshot belum dapat disimpan. Periksa tampilan sebelum mengulang; tidak ada AI/order.')
+    if 'application/json' in request.headers.get('Accept', ''):
+        return jsonify(result), 200 if result['outcome'] == 'OK' else 409 if result['outcome'] == 'REJECTED' else 503
+    flash(result['message'], 'success' if result['outcome'] == 'OK' else 'error')
+    return redirect(url_for('kilas_trading.home'), code=303)
 
 
 @bp.post('/<action>')
