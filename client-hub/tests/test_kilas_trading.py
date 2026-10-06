@@ -129,20 +129,24 @@ class TradingTests(unittest.TestCase):
     def test_service_entry_direct_only_for_verified_pilot(self):
         import re,html
         def service_links(markup):
-            return [href for href,body in re.findall(r'<a\b[^>]*href="([^"]*)"[^>]*>(.*?)</a>',markup,re.S) if html.unescape(re.sub(r'<[^>]*>','',body)).strip() in ('Kilas Services','Kunjungi Kilas Services')]
+            return [href for href,body in re.findall(r'<a\b[^>]*href="([^"]*)"[^>]*>(.*?)</a>',markup,re.S) if html.unescape(re.sub(r'<[^>]*>','',body)).strip() in ('Kilas Services','Kunjungi Kilas Services','Kilas Trading','Buka Kilas Trading')]
         for route in ('/products/start','/products/services','/kilas-ai'):
             with patch.dict(os.environ,{'KILAS_AI_ENABLED':'true'}):
                 pilot=self.client.get(route,follow_redirects=True)
             self.assertEqual(pilot.status_code,200,route)
+            if route!='/products/services':self.assertNotIn('Kilas Services',pilot.text)
+            self.assertIn('Kilas Trading',pilot.text)
             links=service_links(pilot.text)
             self.assertTrue(links,route)
-            # Trading breadcrumb is deliberately a route back to the catalog.
             self.assertTrue(all(a=='/products/services/trading' for a in links),route)
         for c in (self.login(self.other),self.login(self.admin)):
             page=c.get('/products/start')
+            self.assertIn('Kilas Services',page.text)
+            self.assertNotIn('Kilas Trading',page.text)
             links=service_links(page.text)
             self.assertTrue(links)
             self.assertTrue(all(a=='/products/services' for a in links))
+        self.assertNotIn('Kilas Services',self.client.get('/products/services/trading').text)
         with patch.dict(os.environ,{'KILAS_TRADING_ENABLED':'false'}):
             self.assertNotIn('href="/products/services/trading"',self.client.get('/products/start').text)
 

@@ -25,8 +25,12 @@ def main():
             page.locator('input[name=email]').fill('irvankarnavi@gmail.com');page.locator('input[name=password]').fill('paper-test-only')
             page.get_by_role('button',name='Login',exact=True).click()
             page.wait_for_url('**/products/start')
+            assert page.locator('.premium-home-secondary h2').filter(has_text='Kilas Trading').count()==1
+            assert page.locator('.premium-home-secondary a[href="/products/services/trading"]').inner_text()=='Buka Kilas Trading'
             page.locator('.premium-home-secondary a[href="/products/services/trading"]').click()
             page.wait_for_url('**/products/services/trading')
+            assert 'Kilas Services' not in page.locator('.trading').inner_text()
+            assert page.locator('.trading-heading a').inner_text()=='Kilas Trading'
             assert 'XAUUSD' in page.locator('.trading').inner_text()
             assert 'Jumlah troy oz sintetis' in page.locator('.trading').inner_text()
             page.get_by_text('Asumsi kontrak XAUUSD simulasi dan candle terakhir',exact=True).click()

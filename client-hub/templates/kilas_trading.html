@@ -3,7 +3,7 @@
 {% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_trading.css', v='xau-20261006') }}">{% endblock %}
 {% block content %}
 <main class="trading" aria-labelledby="trading-title">
-<header class="trading-heading"><div><a href="{{ url_for('products.services') }}">Kilas Services</a><h1 id="trading-title">Kilas Trading <span class="trading-badge">MOCK / PAPER</span></h1><p>Berlatih dengan saldo dan harga sintetis. Tidak terhubung ke broker.</p></div></header>
+<header class="trading-heading"><div><a href="{{ url_for('kilas_trading.home') }}">Kilas Trading</a><h1 id="trading-title">Kilas Trading <span class="trading-badge">MOCK / PAPER</span></h1><p>Berlatih dengan saldo dan harga sintetis. Tidak terhubung ke broker.</p></div></header>
 {% if not state %}
 <section class="trading-section"><h2>Simulasi belum tersedia</h2><p role="alert">{{ unavailable_reason|default('Penyimpanan Trader belum siap. Tidak ada order yang dijalankan. Muat ulang setelah layanan siap.') }}</p><a class="btn secondary" href="{{ url_for('kilas_trading.home') }}">Muat ulang</a></section>
 {% else %}
