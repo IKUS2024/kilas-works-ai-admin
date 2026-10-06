@@ -2,7 +2,7 @@
 import uuid
 from flask import Blueprint, abort, render_template, request, jsonify, redirect, url_for, flash
 import security
-from . import access, store, engine, analysis
+from . import access, store, engine, analysis, observation
 
 bp = Blueprint('kilas_trading', __name__, url_prefix='/products/services/trading')
 
@@ -21,6 +21,7 @@ def home():
     try:
         state = store.snapshot(security.current_user()['id'])
         state['ai_analysis'] = analysis.availability()
+        state['observation'] = observation.view()
     except PermissionError:
         abort(404)
     except engine.TradingError as exc:
@@ -41,6 +42,8 @@ def action(action):
     if not isinstance(data, dict) or any(not isinstance(v, (str, int)) for v in data.values()):
         abort(400)
     try:
+        if observation.FIELDS.intersection(data):
+            raise engine.TradingError('Observasi market tidak boleh dipakai sebagai input AI/order paper.')
         result = analysis.analyze(security.current_user()['id'], data) if action == 'analyze' else store.act(security.current_user()['id'], action, data)
     except PermissionError:
         abort(404)

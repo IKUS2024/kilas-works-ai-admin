@@ -33,6 +33,7 @@ def main():
             assert page.locator('.trading-heading a').inner_text()=='Kilas Trading'
             assert page.get_by_role('button',name='Analisis market demo',exact=True).is_disabled()
             assert 'UNAVAILABLE' in page.locator('#ai-analysis-title').locator('..').inner_text()
+            assert 'UNAVAILABLE' in page.locator('#observation-title').locator('..').inner_text()
             assert 'XAUUSD' in page.locator('.trading').inner_text()
             assert 'Jumlah troy oz sintetis' in page.locator('.trading').inner_text()
             page.get_by_text('Asumsi kontrak XAUUSD simulasi dan candle terakhir',exact=True).click()
@@ -70,6 +71,21 @@ def main():
             assert page.locator('.trading-event').count()>=20
             assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
             page.screenshot(path=str(output/'journal-mobile.png'),full_page=True)
+            from test_kilas_trading_observation import observation_fixture
+            f.app.app.config.update(TESTING=True, KILAS_TRADING_OBSERVATION_FIXTURE=observation_fixture())
+            page.reload()
+            panel = page.locator('#observation-title').locator('..')
+            assert 'OBSERVATION_ONLY' in panel.inner_text() and 'freshness unknown' in panel.inner_text()
+            assert 'GOLD' in panel.inner_text() and 'unknown' in panel.inner_text()
+            panel.get_by_text('Bukti waktu fixture', exact=True).click()
+            assert 'null · belum diketahui' in panel.inner_text()
+            for width in (1440, 320):
+                page.set_viewport_size({'width':width,'height':1100})
+                assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+                assert page.get_by_role('button',name='Analisis market demo',exact=True).is_disabled()
+                page.screenshot(path=str(output/f'observation-fixture-{width}.png'),full_page=True)
+            f.app.app.config.pop('KILAS_TRADING_OBSERVATION_FIXTURE')
+            f.app.app.config['TESTING'] = False
             assert not errors,errors
             browser.close()
     finally:server.shutdown()
