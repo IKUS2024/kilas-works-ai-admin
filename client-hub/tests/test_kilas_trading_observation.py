@@ -94,7 +94,7 @@ class ObservationTests(unittest.TestCase):
         f.app.app.config['KILAS_TRADING_OBSERVATION_FIXTURE'] = observation_fixture()
         page = self.base.client.get('/products/services/trading')
         self.assertEqual(page.status_code, 200)
-        for text in ('OBSERVATION_ONLY', 'TEST FIXTURE SINTETIS', 'freshness unknown', 'GOLD', 'Raw time_msc', 'null · belum diketahui'):
+        for text in ('OBSERVATION_ONLY', 'TEST FIXTURE SINTETIS', 'usia data belum diketahui', 'GOLD', 'Raw time_msc', 'null · belum diketahui'):
             self.assertIn(text, page.text)
         self.assertEqual(self.base.login(self.base.other).get('/products/services/trading').status_code, 404)
         self.assertEqual(f.db.query_all('SELECT * FROM kilas_trading_events'), baseline)
