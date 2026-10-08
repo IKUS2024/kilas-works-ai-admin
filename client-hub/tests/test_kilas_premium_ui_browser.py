@@ -80,7 +80,7 @@ def main():
                 context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}])
                 capture('home', '/products/start')
                 expect(page.get_by_role('heading', name='Home', exact=True)).to_be_visible()
-                assert page.locator('a[href="/products/services"]').count() >= 2
+                assert page.locator('a[href="https://kilasworks.id"][target="_blank"][rel="noopener noreferrer"]').count() >= 2
                 assert page.locator('.premium-navigation').get_by_text('Assist').count() == 0
                 if width < 761:
                     page.get_by_role('button', name='Buka navigasi', exact=True).click()
