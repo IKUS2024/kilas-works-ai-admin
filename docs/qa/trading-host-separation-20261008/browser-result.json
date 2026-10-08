@@ -1,0 +1,26 @@
+{
+  "checks": [
+    {
+      "width": 1440,
+      "authenticated": true,
+      "reload": true,
+      "no_overflow": true,
+      "stop_visible": true,
+      "ai_disabled": true
+    },
+    {
+      "width": 390,
+      "authenticated": true,
+      "reload": true,
+      "no_overflow": true,
+      "stop_visible": true,
+      "ai_disabled": true
+    }
+  ],
+  "host_only_sessions": true,
+  "app_services_restored": true,
+  "logout_isolated": true,
+  "all_requests_intercepted_locally": true,
+  "orders": 0,
+  "paid_calls": 0
+}

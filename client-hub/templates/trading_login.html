@@ -1,0 +1,4 @@
+{% extends 'trading_shell.html' %}{% block title %}Login · Kilas Trading{% endblock %}{% block content %}
+<main class="trading-login"><h1>Masuk ke Kilas Trading</h1><p>Dashboard simulasi khusus akun pilot. Tidak terhubung ke broker.</p>
+<form method="post" action="{{ url_for('auth.login_page') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Email<input name="email" type="email" value="{{ email|default('') }}" autocomplete="email" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="btn" type="submit">Login</button></form>
+<p>Gunakan password akun yang sudah ada. Login Google dan pengaturan akun tetap di <a href="https://app.kilasworks.id/login">aplikasi Kilas</a>. Sesi aplikasi dan trading terpisah.</p></main>{% endblock %}

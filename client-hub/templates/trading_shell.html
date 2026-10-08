@@ -1,0 +1,4 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{% block title %}Kilas Trading{% endblock %}</title><link rel="stylesheet" href="{{ url_for('static',filename='trading_shell.css',v='host-20261008') }}">{% block assist_entry_styles %}{% endblock %}</head><body class="trading-shell">
+<header class="trading-shell-header"><a href="/">Kilas Trading</a>{% if session.get('user_id') %}<a href="{{ url_for('auth.logout_page') }}">Keluar</a>{% endif %}</header>
+{% with messages=get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<p class="trading-shell-flash" role="alert">{{ message }}</p>{% endfor %}{% endwith %}
+{% block content %}{% endblock %}</body></html>

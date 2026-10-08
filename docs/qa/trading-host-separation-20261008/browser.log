@@ -1,0 +1,9 @@
+Database backend: SQLite
+ASSIST_CONFIG {'commit': 'unavailable', 'whatsapp': False, 'openai': False, 'claude': False, 'webhook_signature': False, 'assist_runtime': False}
+Database connection: OK
+Schema initialization: OK (migrations executed)
+Catalog seed: starting
+Catalog seed: OK
+Talent seed: starting
+Talent seed: OK
+Virtual-host desktop/mobile auth, reload, Services and logout isolation PASS; no production network.

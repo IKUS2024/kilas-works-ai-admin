@@ -259,22 +259,24 @@ def register_page():
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login_page():
+    from trading_hosts import is_trading_host
+    template = "trading_login.html" if is_trading_host() else "login.html"
     if request.method == "GET":
-        return render_template("login.html")
+        return render_template(template)
 
     email = (request.form.get("email") or "").strip().lower()
     password = request.form.get("password") or ""
 
     if security.is_login_rate_limited(email):
         flash("Terlalu banyak percobaan login gagal. Coba lagi dalam beberapa menit.", "error")
-        return render_template("login.html", email=email)
+        return render_template(template, email=email)
 
     user = repo.get_user_by_email(email)
 
     if not user or not security.verify_password(user["password_hash"], password):
         security.record_failed_login(email)
         flash("Email atau password salah.", "error")
-        return render_template("login.html", email=email)
+        return render_template(template, email=email)
 
     security.clear_login_attempts(email)
     security.login_user(user)

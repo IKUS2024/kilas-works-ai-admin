@@ -25,9 +25,9 @@ def main():
             page.locator('input[name=email]').fill('irvankarnavi@gmail.com');page.locator('input[name=password]').fill('paper-test-only')
             page.get_by_role('button',name='Login',exact=True).click()
             page.wait_for_url('**/products/start')
-            assert page.locator('.premium-home-secondary h2').filter(has_text='Kilas Trading').count()==1
-            assert page.locator('.premium-home-secondary a[href="/products/services/trading"]').inner_text()=='Buka Kilas Trading'
-            page.locator('.premium-home-secondary a[href="/products/services/trading"]').click()
+            assert page.locator('.premium-home-secondary h2').filter(has_text='Kilas Services').count()==1
+            assert page.locator('.premium-home-secondary a[href="https://kilasworks.id"]').inner_text()=='Kunjungi Kilas Services'
+            page.goto(origin+'/products/services/trading')
             page.wait_for_url('**/products/services/trading')
             assert 'Kilas Services' not in page.locator('.trading').text_content()
             assert page.locator('.trading-heading a').inner_text()=='Muat ulang dashboard'

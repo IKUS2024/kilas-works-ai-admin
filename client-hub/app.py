@@ -244,6 +244,8 @@ def create_app():
     from kilas_trading.access import is_pilot as trading_pilot
     app.register_blueprint(trading_bp)
     app.jinja_env.globals['kilas_trading_pilot'] = trading_pilot
+    from trading_hosts import install as install_trading_hosts
+    install_trading_hosts(app)
     if db.BACKEND != 'postgres' or os.environ.get('KILAS_TRADING_SCHEMA_APPLY', '').lower() == 'true':
         from kilas_trading.schema import apply_release as apply_trading_schema
         apply_trading_schema()

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'trading_shell.html' if trading_host() else 'base.html' %}
 {% block title %}Kilas Trading · MOCK{% endblock %}
 {% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_trading.css', v='polish-review-20261006') }}">{% endblock %}
 {% block content %}

@@ -119,14 +119,14 @@ class TradingTests(unittest.TestCase):
             self.assertEqual(self.client.get('/products/services/trading').status_code,404)
             with self.assertRaises(PermissionError):store.snapshot(self.user)
 
-    def test_services_catalog_and_pilot_card(self):
+    def test_services_catalog_has_no_trading_product(self):
         page=self.client.get('/products/services')
-        for item in ('Form &amp; Online Assistance','Content Studio','Talent Management','Kilas Trading'):
+        for item in ('Form &amp; Online Assistance','Content Studio','Talent Management'):
             self.assertIn(item,page.text)
         self.assertNotIn('Buka Kilas Trading',self.login(self.other).get('/products/services').text)
-        self.assertIn('/products/services',self.client.get('/products/start').text)
+        self.assertIn('https://kilasworks.id',self.client.get('/products/start').text)
 
-    def test_service_entry_direct_only_for_verified_pilot(self):
+    def test_services_entry_restored_for_pilot_and_other_accounts(self):
         import re,html
         def service_links(markup):
             return [href for href,body in re.findall(r'<a\b[^>]*href="([^"]*)"[^>]*>(.*?)</a>',markup,re.S) if html.unescape(re.sub(r'<[^>]*>','',body)).strip() in ('Kilas Services','Kunjungi Kilas Services','Kilas Trading','Buka Kilas Trading')]
@@ -134,19 +134,19 @@ class TradingTests(unittest.TestCase):
             with patch.dict(os.environ,{'KILAS_AI_ENABLED':'true'}):
                 pilot=self.client.get(route,follow_redirects=True)
             self.assertEqual(pilot.status_code,200,route)
-            if route!='/products/services':self.assertNotIn('Kilas Services',pilot.text)
-            self.assertIn('Kilas Trading',pilot.text)
+            self.assertIn('Kilas Services',pilot.text)
+            self.assertNotIn('Kilas Trading',pilot.text)
             links=service_links(pilot.text)
             self.assertTrue(links,route)
-            self.assertTrue(all(a=='/products/services/trading' for a in links),route)
+            self.assertTrue(all(a=='https://kilasworks.id' for a in links),route)
         for c in (self.login(self.other),self.login(self.admin)):
             page=c.get('/products/start')
             self.assertIn('Kilas Services',page.text)
             self.assertNotIn('Kilas Trading',page.text)
             links=service_links(page.text)
             self.assertTrue(links)
-            self.assertTrue(all(a=='/products/services' for a in links))
-        self.assertNotIn('Kilas Services',self.client.get('/products/services/trading').text)
+            self.assertTrue(all(a=='https://kilasworks.id' for a in links))
+        self.assertNotIn('Kilas Services',self.client.get('/products/services/trading').text.split('<main class="trading"',1)[1].split('</main>',1)[0])
         with patch.dict(os.environ,{'KILAS_TRADING_ENABLED':'false'}):
             self.assertNotIn('href="/products/services/trading"',self.client.get('/products/start').text)
 
