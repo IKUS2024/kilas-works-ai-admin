@@ -1,5 +1,7 @@
 """Actual local app browser acceptance and responsive desktop/mobile evidence."""
 import os
+import json
+from test_kilas_trading_diagnostic import diagnostic_fixture
 import shutil
 import threading
 from pathlib import Path
@@ -45,6 +47,41 @@ def main():
             assert not page.locator('#market-details').evaluate('e=>e.open')
             assert not page.locator('#history-details').evaluate('e=>e.open')
             assert not page.locator('#observation-details').evaluate('e=>e.open')
+            assert not page.locator('#diagnostic-details').evaluate('e=>e.open')
+            page.locator('#diagnostic-details > summary').click()
+            page.evaluate('document.fonts.ready')
+            report=diagnostic_fixture(); report['ignored_padding']='x'*20000
+            before_diagnostic=f.store.snapshot(f.TradingTests.user)
+            requests=[]; track=lambda request:requests.append(request.url)
+            page.on('request',track)
+            page.locator('#diagnostic-file').set_input_files({'name':'synthetic.json','mimeType':'application/json','buffer':json.dumps(report).encode()})
+            page.wait_for_function("document.querySelector('#diagnostic-status').textContent.includes('snapshot historis')")
+            text=page.locator('#diagnostic-result').inner_text()
+            assert '2026-10-09T15:47:08.104107Z' in text
+            assert 'BLOCKED' in text and 'USD 2000' in text and '82 ms' in text
+            assert 'SYNTHETIC_PRIVATE_MARKER' not in text and 'onerror' not in text
+            assert not page.locator('#diagnostic-result img').count()
+            assert requests==[],requests
+            page.remove_listener('request',track)
+            assert f.store.snapshot(f.TradingTests.user)==before_diagnostic
+            assert f.app.app.view_functions['kilas_trading.home'].__globals__['analysis'].market_source is None
+            for name in ('Hubungkan','Putuskan koneksi','Mulai AI','Jeda AI','Analisis market demo'):
+                assert page.get_by_role('button',name=name,exact=True,include_hidden=True).is_disabled()
+            for width in (1440,320):
+                page.set_viewport_size({'width':width,'height':1100})
+                assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+                page.screenshot(path=str(output/f'diagnostic-{width}.png'),full_page=True)
+            page.get_by_role('button',name='Bersihkan laporan lokal').click()
+            assert page.locator('#diagnostic-result').inner_text()==''
+            for content in (b'{"status":"<script>bad</script>"}', b'\xff', b'x'*131073):
+                page.locator('#diagnostic-file').set_input_files({'name':'rejected.json','mimeType':'application/json','buffer':content})
+                page.wait_for_function("document.querySelector('#diagnostic-status').textContent.includes('ditolak')")
+                assert page.locator('#diagnostic-result').inner_text()==''
+            page.locator('#diagnostic-file').set_input_files({'name':'synthetic.json','mimeType':'application/json','buffer':json.dumps(report).encode()})
+            page.wait_for_function("document.querySelector('#diagnostic-status').textContent.includes('snapshot historis')")
+            page.reload()
+            assert page.locator('#diagnostic-result').inner_text()==''
+            assert page.locator('#diagnostic-status').text_content()=='Belum ada laporan lokal.'
             assert not page.locator('#order-advanced').evaluate('e=>e.open')
             assert not page.locator('form[data-order] input[name=trailing_distance]').is_visible()
             assert page.get_by_role('button',name='Hentikan trading',exact=True).is_visible()
@@ -125,7 +162,6 @@ def main():
             f.app.app.config.pop('KILAS_TRADING_OBSERVATION_FIXTURE')
             f.app.app.config['TESTING'] = False
             from test_kilas_trading_observation import demo_upload
-            import json
             page.reload()
             page.locator('input[name=observation]').set_input_files({'name':'synthetic-local-acceptance.json','mimeType':'application/json','buffer':json.dumps(demo_upload()).encode()})
             with page.expect_navigation(): page.get_by_role('button',name='Unggah observasi DEMO',exact=True).click()

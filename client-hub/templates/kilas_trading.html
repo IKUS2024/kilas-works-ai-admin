@@ -1,6 +1,6 @@
 {% extends 'trading_shell.html' if trading_host() else 'base.html' %}
 {% block title %}Kilas Trading · MOCK{% endblock %}
-{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_trading.css', v='polish-review-20261006') }}">{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_trading.css', v='diagnostic-local-20261009') }}">{% endblock %}
 {% block content %}
 <main class="trading" aria-labelledby="trading-title">
 <header class="trading-heading"><div><h1 id="trading-title">Kilas Trading <span class="trading-badge">MOCK / PAPER</span></h1><p>Simulasi dengan harga dan saldo buatan. Bukan akun broker.</p></div><a class="trading-reload" href="{{ url_for('kilas_trading.home') }}">Muat ulang dashboard</a></header>
@@ -57,6 +57,15 @@
 <section class="trading-section trading-recent" aria-labelledby="recent-title"><header><h2 id="recent-title">Aktivitas terakhir</h2><a href="#history-details">Lihat jurnal</a></header>
 {% for e in state.events[:3] %}<article class="trading-event"><header><strong>{{ {'ORDER':'Buka posisi','CLOSE':'Tutup posisi','PROTECT':'Ubah proteksi','CONFIGURE':'Simpan risiko','PAUSE':'Jeda posisi baru','RESUME':'Lanjutkan simulasi','KILL':'Hentikan trading','STEP':'Langkah simulasi','RUN':'Jalankan simulasi','AGENT':'Evaluasi strategi'}.get(e.action|upper,'Aksi simulasi') }} · {{ {'ACCEPTED':'Berhasil','REJECTED':'Ditolak','NO_SIGNAL':'Tidak ada sinyal','COMPLETED':'Selesai'}.get(e.outcome,'Tercatat') }}</strong><time>{{ e.created_at }}</time></header><p>{{ e.message }}</p></article>{% else %}<p class="trading-empty">Belum ada aktivitas. Aksi simulasi pertama akan tercatat di sini.</p>{% endfor %}
 </section>
+<details class="trading-secondary" id="diagnostic-details"><summary>Diagnostik DEMO · laporan rekaman lokal</summary>
+<section class="trading-section" aria-labelledby="diagnostic-title"><h2 id="diagnostic-title">Laporan diagnostik <span class="trading-badge">DEMO · HISTORIS · READ ONLY</span></h2>
+<p class="trading-small" id="diagnostic-help">Baca laporan di browser ini saja (JSON UTF-8, maks. 128 KiB). File tidak diunggah atau disimpan layanan. Hanya ringkasan yang ditampilkan sampai halaman ditutup, dimuat ulang atau dibersihkan. Akun, saldo, credential, riwayat dan paket mentah tidak ditampilkan.</p>
+<p class="trading-small">Laporan tidak membuktikan keaslian atau koneksi broker saat ini. Ini terpisah dari MOCK dan unggahan market-only; tidak mengaktifkan AI, order atau eksekusi paper. Waktu capture adalah klaim dalam file, bukan harga live.</p>
+<label for="diagnostic-file">Pilih laporan diagnostik DEMO<input id="diagnostic-file" type="file" accept=".json,application/json" aria-describedby="diagnostic-help"></label>
+<div class="trading-controls"><button type="button" class="btn secondary">Bersihkan laporan lokal</button></div>
+<p id="diagnostic-status" role="status" aria-live="polite">Belum ada laporan lokal.</p><dl id="diagnostic-result"></dl>
+<noscript><p>Aktifkan JavaScript untuk membaca laporan secara lokal. Tidak ada upload alternatif.</p></noscript>
+</section></details>
 <details class="trading-secondary" id="observation-details"><summary>Observasi DEMO · unggahan manual</summary>
 <section class="trading-section" aria-labelledby="observation-title"><h2 id="observation-title">Observasi market · unggahan DEMO</h2>
 {% set o = state.observation %}
@@ -106,7 +115,7 @@
 {% for e in state.events %}<article class="trading-event"><header><strong>{{ e.action }} · {{ e.outcome }}</strong><time>{{ e.created_at }}</time></header><p>{{ e.message }}</p><details><summary>Input, keputusan & hasil</summary><pre>{{ e.inputs|tojson(indent=2) }}</pre></details></article>{% else %}<p class="trading-empty">Jurnal kosong. Aksi pertama Anda akan tercatat di sini.</p>{% endfor %}
 </section>
 </details>
-<script id="trading-data" type="application/json">{{ {'price_cents':state.price_cents,'paused':a.paused,'killed':a.killed}|tojson }}</script><script src="{{ url_for('static', filename='kilas_trading.js', v='polish-review-20261006') }}" defer></script>
+<script id="trading-data" type="application/json">{{ {'price_cents':state.price_cents,'paused':a.paused,'killed':a.killed}|tojson }}</script><script src="{{ url_for('static', filename='kilas_trading.js', v='diagnostic-local-20261009') }}" defer></script>
 {% endif %}
 </main>
 {% endblock %}

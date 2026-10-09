@@ -21,3 +21,5 @@
 .trading-stop-note{flex-basis:100%;margin:0!important}.trading-upload-meta{margin-top:12px}.trading-upload-meta .trading-meta{padding-top:0;border:0}
 
 #kw-main .trading button:disabled{color:#62666f!important;background:#f3f3f2!important;opacity:1!important}#kw-main .trading .btn.danger{color:#b42330;background:#fff;border-color:#b42330}#kw-main .trading .btn.danger:not(:disabled):hover{background:#fff2f3}
+
+.trading #diagnostic-result{display:grid;gap:12px;margin:16px 0 0}.trading #diagnostic-result dt{font-size:13px;color:var(--text-dim)}.trading #diagnostic-result dd{margin:2px 0;font-weight:600;overflow-wrap:anywhere}

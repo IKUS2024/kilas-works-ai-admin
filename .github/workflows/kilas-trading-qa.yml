@@ -15,6 +15,10 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: pip install -r client-hub/requirements.txt
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: python client-hub/tests/test_kilas_trading_diagnostic.py
+      - run: python -m unittest discover -s client-hub/tests -p test_trading_hosts.py
       - run: python client-hub/tests/test_kilas_trading.py
       - run: python client-hub/tests/test_kilas_trading_analysis.py
       - run: python client-hub/tests/test_kilas_trading_observation.py
