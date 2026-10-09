@@ -20,7 +20,11 @@ def sources(user_id, conversation_id, budget=12000):
     per_file=min(4000,max(0,budget)//max(1,len(rows)))
     result=[]
     for row in rows:
-        value=row['extracted_text'][:per_file]
+        source=row['extracted_text']
+        value=source[:per_file]
+        if len(source)>per_file and per_file>200:
+            note='Cakupan terbatas: cuplikan lampiran sebelumnya terpotong untuk konteks; jangan menebak bagian lain.\n'
+            value=note+source[:per_file-len(note)]
         if value:result.append({'filename':row['filename'],'text':value})
     return list(reversed(result))
 

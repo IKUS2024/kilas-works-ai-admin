@@ -18,6 +18,20 @@ def latest_text(messages):
     return model_policy.request_text(content)
 
 
+def arithmetic_mismatch(request, answer):
+    """Check only unambiguous integer +,-,* questions and simple numeric answers.
+
+    No eval, currency/locale parsing, division, percentages or semantic math judging.
+    """
+    expression=re.fullmatch(r'(?i)\s*(?:(?:hitung|calculate|berapa)\s+)?(-?\d{1,12})\s*([+*×x-])\s*(-?\d{1,12})\s*[?=.]?\s*',request)
+    if not expression:return False
+    left,right=int(expression[1]),int(expression[3])
+    expected=left+right if expression[2]=='+' else left-right if expression[2]=='-' else left*right
+    plain=answer.strip().rstrip('.')
+    if '=' in plain:plain=plain.rsplit('=',1)[1].strip()
+    return bool(re.fullmatch(r'-?\d{1,25}',plain)) and int(plain)!=expected
+
+
 def violations(request, answer, *, tier='NORMAL', finish='stop'):
     """Return structural reasons, not a judgment of truth or general prose quality."""
     issues = []
@@ -29,6 +43,8 @@ def violations(request, answer, *, tier='NORMAL', finish='stop'):
             json.loads(raw)
         except (ValueError, TypeError):
             issues.append('invalid_json')
+    if arithmetic_mismatch(request,answer):
+        issues.append('inconsistent_integer_arithmetic')
     prose = re.sub(r'```.*?```', '', answer, flags=re.S)
     if finish in ('length', 'max_tokens'):
         issues.append('truncated')
@@ -48,13 +64,21 @@ def violations(request, answer, *, tier='NORMAL', finish='stop'):
     if len(re.findall(r'https?://\S+', prose)) > 20:
         issues.append('url_dump')
     # This guard is exclusively for ordinary Chat: no Web/artifact call occurred here.
-    transformation = bool(re.search(r'\b(?:translate|terjemah(?:kan)?|rewrite|tulis ulang|benerin typo|perbaiki typo|ubah kalimat)\b', request, re.I))
+    transformation = bool(re.match(r'^(?:tolong )?(?:translate|terjemah(?:kan)?|rewrite|tulis ulang|benerin typo|perbaiki typo|ubah kalimat)\b', request.strip(), re.I))
     if not transformation and re.search(r'\b(?:I (?:searched|browsed) (?:the )?(?:web|internet)|(?:saya|aku|gue) (?:sudah |telah )?(?:mencari|menelusuri|mengecek|cek) (?:di )?(?:web|internet))\b', prose, re.I):
         issues.append('fake_web')
     if not transformation and re.search(r'\b(?:(?:file|pdf|gambar|logo|dokumen|email) (?:sudah|telah|berhasil) (?:dibuat|dikirim|disimpan)|(?:I have|I\'ve) (?:created|sent|saved) (?:the |a )?(?:file|pdf|image|email))\b', prose, re.I):
         issues.append('fake_action')
     if not transformation and re.search(r'^(?:file|pdf|image|document|email) (?:created|sent|saved)(?: successfully)?[.!]*$', prose.strip(), re.I):
         issues.append('fake_action')
+    if not transformation and re.search(r'(?i)\b(?:sudah|telah|berhasil)\s+(?:(?:saya|aku|gue|kami)\s+)?(?:kirim|mengirim|simpan|menyimpan|publish|deploy)\b.{0,60}\b(?:email|pesan|file|dokumen|website|situs)(?:nya)?\b',prose):
+        issues.append('fake_action')
+    if not transformation and re.search(r'(?i)\b(?:menurut|berdasarkan)\s+(?:hasil\s+)?(?:penelusuran|pencarian)\s+(?:web|internet|terbaru)\b',prose):
+        issues.append('fake_web')
+    if not transformation and re.search(r'(?i)\b(?:sumber|source|sources)\s*:',prose) and re.search(r'https?://',prose):
+        # Ordinary Chat did not retrieve these citations; a user-supplied URL may be discussed.
+        if any(url.rstrip('.,)') not in request for url in re.findall(r'https?://\S+',prose)):
+            issues.append('unsupported_citation')
     # Explicit concise requests and short factual follow-ups may legitimately be tiny.
     if (tier in ('DEEP','EXPERT') and len(request) > 35 and len(prose.split()) < 8
             and not re.search(r'\b(?:singkat|pendek|ringkas|concise|brief|satu kalimat|one sentence)\b', request, re.I)

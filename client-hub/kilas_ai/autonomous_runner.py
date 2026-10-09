@@ -102,7 +102,7 @@ def finish(job, token, step, result):
         if state=='SUCCEEDED' and step['worker'] in ('WATCH','MARKET') and (result.output.get('matched') is True or result.output.get('signal') is True):
             store.event(conn,job['id'],'CONDITION_MET','Kondisi terpantau terpenuhi.',f"condition-{step['id']}")
         if state_job == 'COMPLETED':
-            store.event(conn, job['id'], 'COMPLETED', 'Pekerjaan selesai. Hasil terverifikasi tersedia.', f"job-{job['id']}-completed",unread=step['worker']!='REMINDER')
+            store.event(conn, job['id'], 'COMPLETED', 'Pekerjaan selesai. Hasil tersimpan tersedia untuk ditinjau.', f"job-{job['id']}-completed",unread=step['worker']!='REMINDER')
         if result.output.get('reason')=='waiting_input':
             from .work_runtime import persist_question
             persist_question(conn,job,step,checkpoint['waiting_question'])

@@ -48,7 +48,11 @@ def _worker():
             texts.append('Page '+str(number)+':\n'+text)
             if sum(map(len,texts))>=12000:break
         actual=any(value.split(':\n',1)[1].strip() for value in texts)
-        sys.stdout.write(json.dumps({'text':'\n'.join(texts)[:12000].strip(),'scan':scan or not actual,'has_text':actual}))
+        value='\n'.join(texts)
+        if len(texts)<len(reader.pages) or len(value)>12000:
+            note='Cakupan terbatas: '+str(len(texts))+' dari '+str(len(reader.pages))+' halaman diproses, maksimal 12000 karakter; bagian lain belum dibaca.\n'
+            value=note+value[:12000-len(note)]
+        sys.stdout.write(json.dumps({'text':value[:12000].strip(),'scan':scan or not actual,'has_text':actual}))
         return
     import pypdfium2 as pdfium
     pages=[];total=0

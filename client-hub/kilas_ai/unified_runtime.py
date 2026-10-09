@@ -10,6 +10,8 @@ def intent(text, prepared=(), previous=None, previous_answer=''):
         return 'WORK'
     if work_schedule.REMINDER.search(text) or re.match(r'(?i)^(?:setiap|tiap|every)\b',text):
         return 'SCHEDULE'
+    if routing.fresh_information(text):
+        return 'WEB'
     if work_schedule.CAPABILITY.search(text) and not routing.fresh_information(routing._normalize(text)):
         return 'CHAT'
     if re.search(r'(?i)\b(?:storyboard|sketsa)\s+(?:teks|text)|\b(?:teks|text|ascii)\s+storyboard\b',text):
@@ -37,8 +39,15 @@ def dispatch(owner,text,key,conversation):
     prepared=getattr(request,'work_attachments',[])
     previous=next(iter(work_artifacts.listing(owner,conversation_id=conversation)),None)
     recent=agent_store.messages(owner,conversation_id=conversation)
+    from . import task_context
+    status_reply=task_context.reply(owner,conversation,text)
+    if status_reply is not None:
+        return work_runtime.reply(owner,status_reply,conversation)
+    previous_request=next((m['content'] for m in reversed(recent[:-1]) if m['role']=='user'),'')
     previous_answer=next((m['content'] for m in reversed(recent) if m['role']=='assistant'),'')
     selected=intent(text,prepared,previous,previous_answer)
+    if selected=='CHAT' and routing.fresh_followup(text,previous_request):
+        selected='WEB'
     if selected=='IMAGE_GENERATE':
         text=routing.image_prompt(text,previous_answer)[:1200]
         if not work_documents.image_request(text):
@@ -53,7 +62,10 @@ def dispatch(owner,text,key,conversation):
     lifecycle=bool(agent_intents.CONTROL.fullmatch(text.strip()) or agent_intents.FEEDBACK.search(text) or required_connection(text) or re.search(r'(?i)\b(?:jam berapa sekarang|what time is it|waktu sekarang|dekat sini|lokasi saya|near me|nearby|tempat terdekat)\b|^(?:ulang (?:tiap|setiap)|jangan tiap hari|ubah .*jadi (?:jam|pukul))',text))
     if lifecycle or ((pending or waiting) and selected=='CHAT' and not work_schedule.CAPABILITY.search(text)):
         return work_runtime.handle(owner,text,key,conversation)
-    if selected=='WEB':return search(owner,key,conversation)
+    if selected=='WEB':
+        if any(item['mime_type'].startswith('image/') for item in prepared):
+            return work_runtime.reply(owner,'Pencarian web belum membaca gambar yang dilampirkan. Sebutkan nama atau rincian yang ingin diperiksa agar saya tidak menebak isi gambar.',conversation)
+        return search(owner,key,conversation)
     if selected=='CHAT':
         transformation=re.search(r'(?i)\b(?:benerin typo|perbaiki typo|ubah kalimat|tulis ulang|rewrite|translate|terjemahkan)\b',text)
         if not prepared and not transformation and not routing.explicit_code(text) and not work_schedule.CAPABILITY.search(text) and agent_intents.infer(text):

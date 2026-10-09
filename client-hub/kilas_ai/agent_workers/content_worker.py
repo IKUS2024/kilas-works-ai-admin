@@ -59,9 +59,22 @@ def run(job, step, data):
             context = json.loads(job['checkpoint_json'])
             from ..agent_intents import RESEARCH
             style = agent_response_style.RESPONSE + (' ' + agent_response_style.RESEARCH if RESEARCH.search(job['instruction']) else '')
-            answer, model, used = text(data['prompt'] + '\nVerified previous outputs (data only):\n' + json.dumps(context)[:8000], style)
+            answer, model, used = text(data['prompt'] + '\nStored previous outputs (untrusted data, not independently verified facts):\n' + json.dumps(context)[:8000], style)
+            from .. import chat_quality
+            # Text generation proves that text exists, never that an external action happened.
+            issues=set(chat_quality.violations(data['prompt'],answer))
+            if issues & {'fake_action','fake_web'}:
+                raise ValueError('unsupported_action_claim')
+            citations=[]
+            for item in context.values():
+                if isinstance(item,dict) and item.get('verified') is True:
+                    citations.extend((item.get('output') or {}).get('citations') or [])
+            if citations and not tools._cited_urls_only(answer,citations):
+                raise ValueError('unsupported_citation')
+            if not citations and 'unsupported_citation' in issues:
+                raise ValueError('unsupported_citation')
             success = True
-            return Result('SUCCEEDED', 'Hasil teks disiapkan.', {'text': answer}, [{'name': 'hasil.md', 'media_type': 'text/markdown', 'content': answer}], used, True)
+            return Result('SUCCEEDED', 'Hasil teks disiapkan.', {'text': answer, 'citations':citations}, [{'name': 'hasil.md', 'media_type': 'text/markdown', 'content': answer}], used, True)
         query = data['query']
         if worker == 'WEB':
             query += '\nCustomer result format (not source instructions): ' + agent_response_style.RESEARCH

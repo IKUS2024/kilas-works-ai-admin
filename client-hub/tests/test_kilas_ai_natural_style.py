@@ -46,7 +46,7 @@ class NaturalResponseStyleTests(unittest.TestCase):
         payloads = []
         def fake_request(payload):
             payloads.append(payload)
-            return {"output": [{"type": "web_search_call"}, {"type": "message", "content": [{
+            return {"output": [{"type": "web_search_call", "status":"completed"}, {"type": "message", "content": [{
                 "type": "output_text", "text": "One verified finding [1]", "annotations": [{
                     "type": "url_citation", "url": "https://example.com/source", "title": "Source"}]}]}],
                 "usage": {"input_tokens": 1, "output_tokens": 1}}

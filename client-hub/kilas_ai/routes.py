@@ -304,6 +304,9 @@ def send(thread_id):
     tool = routing.tool_for(content, prepared + ([prior_image] if prior_image else []), search=search,
                             pdf_request=ai_pdf.is_request(content, previous_document),
                             has_previous_content=bool(prior_answer or previous_document), previous_answer=prior_answer)
+    previous_request=next((row['content'] for row in reversed(store.messages(user_id,thread_id,6) or []) if row['role']=='user'),'')
+    if tool=='CHAT' and routing.fresh_followup(content,previous_request):
+        tool='WEB'
     if tool == "IMAGE_EDIT" and not any(item["mime_type"].startswith("image/") for item in prepared) and not prior_image:
         return {"error": "Upload gambar terlebih dahulu untuk diedit."}, 400
     if tool == "WEB" and any(item["mime_type"].startswith("image/") for item in prepared):

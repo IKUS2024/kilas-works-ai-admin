@@ -75,16 +75,16 @@ def tool_for(content, attachments=(), *, search=False, pdf_request=False,
         return "CHAT"
     if re.fullmatch(r"can you (?:make|create|generate) (?:a |an )?(?:pdf|image|logo|file|video)[?!.]*", text):
         return "CHAT"
-    if re.search(r"\b(?:benerin typo|perbaiki typo|ubah kalimat|tulis ulang|rewrite|translate|terjemahkan)\b", text):
+    if re.match(r"^(?:tolong )?(?:benerin typo|perbaiki typo|ubah kalimat|tulis ulang|rewrite|translate|terjemahkan)\b", text):
         return "CHAT"
     if work_requested(text):
         return "WORK"
-    if explicit_code(content):
-        return "CHAT"
     if search:
         return "WEB"
     if fresh_information(text):
         return "WEB"
+    if explicit_code(content):
+        return "CHAT"
     if _discussion(text):
         return "CHAT"
     if re.search(r'\b(?:buat|create|export|ekspor|ubah)\b',text) and re.search(r'\b(?:docx|xlsx|pptx|file word|file excel)\b',text):
@@ -146,6 +146,19 @@ def work_requested(text):
 
 
 def fresh_information(text):
+    text = _normalize(text)
+    # Quoted text transformations do not authorize lookup of their source claims.
+    if re.match(r'^(?:tolong )?(?:translate|terjemah(?:kan)?|rewrite|tulis ulang|benerin typo|perbaiki typo|ubah kalimat)\b', text):
+        return False
+    if high_stakes(text):
+        return True
+    if re.search(r'\b(?:siapa|who|nama|name)\b.{0,60}\b(?:ceo|presiden|president|menteri|minister|gubernur|governor)\b', text):
+        return True
+    if re.search(r'\b(?:kurs|exchange rate)\b|\b(?:harga|price)\b.{0,50}\b(?:emas|gold|bensin|fuel)\b', text):
+        return True
+    if (re.search(r'\b(?:hari ini|terbaru|sekarang|terkini|latest|today|current|saat ini|currently)\b', text)
+            and re.search(r'\b(?:harga|berita|news|ceo|presiden|jadwal|kurs|cuaca|price|schedule|weather|aturan|regulasi|hukum|pajak|law|tax|policy|rules)\b', text)):
+        return True
     # 'Cari kemungkinan salahnya' asks for diagnosis, not an internet search.
     if re.search(r"\bcari kemungkinan\b", text) and not re.search(r"\b(?:web|internet|terbaru|terkini|hari ini)\b", text):
         return False
@@ -159,6 +172,20 @@ def fresh_information(text):
         return False
     return bool(re.search(r'\b(?:cari|carikan|search|cek internet|cek web|berita terbaru|berita terkini|latest news)\b',text) or
                 (re.search(r'\b(?:hari ini|terbaru|sekarang|terkini|latest|today|current)\b',text) and re.search(r'\b(?:harga|berita|news|ceo|presiden|jadwal|kurs|cuaca|price|schedule|weather)\b',text)))
+
+
+def high_stakes(text):
+    """Narrow evidence gate, not a medical/legal classifier or correctness claim."""
+    if explicit_code(text) and not re.search(r'(?i)\b(?:aturan|tarif|legal|kewajiban|law|tax rate)\b',text):
+        return False
+    return bool(re.search(r'(?i)\b(?:dosis|dosage|dose|pesangon|pecat|pajak|tax|legal advice|nasihat hukum)\b|\b(?:boleh|legal|aturan|hukum|law)\b.{0,70}\b(?:karyawan|kontrak|obat|employee|contract|medicine)\b',text))
+
+
+def fresh_followup(text, previous_request):
+    """Retain lookup intent only for a short, referential factual follow-up."""
+    return (len(text)<180 and not re.search(r'(?i)\b(?:translate|terjemah|rewrite|buat|bikin|create|generate)\b',text)
+            and bool(re.match(r'(?i)^(?:masih|sekarang|saat ini|per |berapa|yang|yg|kalau|bagaimana|gimana|what about|still|and |how about|why|kenapa)\b',text.strip()))
+            and fresh_information(previous_request))
 
 
 def visual_result_requested(text):
