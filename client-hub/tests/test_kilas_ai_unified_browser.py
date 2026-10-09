@@ -101,8 +101,10 @@ def main():
                 expect(page.locator(f'[data-message-id="{attached_id}"] .work-sent-file')).to_have_count(2)
                 assert page.locator('[data-job-id]').first.get_attribute('data-job-id')==old
                 original=page.locator('input[name=conversation_id]').input_value()
-                fixture.agent_store.append(case.owner,'user','Judul percakapan yang sangat panjang untuk membuktikan elipsis pada sidebar',case.conversation)
-                f.fixture.db.execute('UPDATE kilas_ai_conversations SET title=? WHERE id=?',('Judul percakapan yang sangat panjang untuk membuktikan elipsis',case.conversation))
+                # The canonical route may repair/select another owned conversation;
+                # exercise the sidebar for the conversation actually on this page.
+                fixture.agent_store.append(case.owner,'user','Judul percakapan yang sangat panjang untuk membuktikan elipsis pada sidebar',int(original))
+                f.fixture.db.execute('UPDATE kilas_ai_conversations SET title=? WHERE id=? AND user_id=?',('Judul percakapan yang sangat panjang untuk membuktikan elipsis',int(original),case.owner))
                 page.reload(wait_until='networkidle')
                 if width<760:page.get_by_role('button',name='Buka riwayat').click()
                 row=page.locator('.ai-history a[aria-current=page]')
