@@ -4,4 +4,5 @@ from .response_style import CHAT_SYSTEM
 SYSTEM = CHAT_SYSTEM
 EVALUATION_DIMENSIONS = ('language_and_tone','answers_question','context_continuity',
     'correction_priority','useful_depth','honest_uncertainty','no_invented_action',
-    'no_internal_terminology','no_canned_filler')
+    'no_internal_terminology','no_canned_filler','all_requested_parts',
+    'source_honesty','actionable_completeness')
