@@ -50,6 +50,8 @@ def main():
             assert not page.locator('#diagnostic-details').evaluate('e=>e.open')
             page.locator('#diagnostic-details > summary').click()
             page.evaluate('document.fonts.ready')
+            assert page.locator('#diagnostic-file').evaluate("e=>getComputedStyle(e,'::file-selector-button').color")=='rgb(32, 35, 41)'
+            assert page.locator('#diagnostic-file').evaluate("e=>getComputedStyle(e,'::file-selector-button').backgroundColor")=='rgb(247, 247, 246)'
             report=diagnostic_fixture(); report['ignored_padding']='x'*20000
             before_diagnostic=f.store.snapshot(f.TradingTests.user)
             requests=[]; track=lambda request:requests.append(request.url)

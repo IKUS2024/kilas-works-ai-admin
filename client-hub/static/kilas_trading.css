@@ -23,3 +23,4 @@
 #kw-main .trading button:disabled{color:#62666f!important;background:#f3f3f2!important;opacity:1!important}#kw-main .trading .btn.danger{color:#b42330;background:#fff;border-color:#b42330}#kw-main .trading .btn.danger:not(:disabled):hover{background:#fff2f3}
 
 .trading #diagnostic-result{display:grid;gap:12px;margin:16px 0 0}.trading #diagnostic-result dt{font-size:13px;color:var(--text-dim)}.trading #diagnostic-result dd{margin:2px 0;font-weight:600;overflow-wrap:anywhere}
+.trading #diagnostic-file{color-scheme:light}.trading #diagnostic-file::file-selector-button{background:var(--bg-soft);color:var(--text);border:1px solid var(--border);border-radius:6px;min-height:32px;padding:6px 10px;font:inherit;cursor:pointer}
