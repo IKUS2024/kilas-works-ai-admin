@@ -2,7 +2,7 @@
 {% block title %}Dengar & bantu jawab · Kilas AI{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_live_assist.css') }}">
-<main class="live-assist" id="live-assist" data-provider-ready="{{ 'true' if provider_ready else 'false' }}" data-action="{{ url_for('kilas_ai.live_assist_action',operation='OPERATION') }}">
+<main class="live-assist" id="live-assist" data-provider-ready="{{ 'true' if provider_ready else 'false' }}" data-qa-only="{{ 'true' if qa_only else 'false' }}" data-action="{{ url_for('kilas_ai.live_assist_action',operation='OPERATION') }}">
 <a href="{{ url_for('kilas_ai.home') }}">Kilas AI</a>
 <h1>Dengar &amp; bantu jawab</h1>
 <p>Pilih tab YouTube atau panggilan browser di Chrome desktop. Teks akan muncul per potongan audio sekitar 10 detik ditambah waktu pemrosesan.</p>
@@ -10,6 +10,7 @@
 <div class="live-controls"><label for="live-mode">Saya sedang<select id="live-mode"><option value="video">Menonton video</option><option value="call">Menerima panggilan browser / wawancara</option></select></label><label for="live-target">Bahasa teks bantuan<select id="live-target"><option value="id">Indonesia</option><option value="en">English</option></select></label></div>
 <label class="live-consent"><input type="checkbox" id="live-consent">Saya mengizinkan capture audio dari tab yang saya pilih dan memiliki izin pihak terkait. Saya akan memilih Tab Chrome dan mencentang Bagikan audio tab.</label>
 <label class="live-consent"><input type="checkbox" id="live-provider" {{ 'disabled' if not provider_ready else '' }}>Kirim audio tab ke OpenAI untuk caption dan terjemahan selama sesi ini.</label>
+{% if qa_only %}<p class="live-notice">Tes khusus akun owner: sekali sesi, maksimal 120 detik dan US$0,10. Batas biaya konservatif dapat menghentikan tes lebih awal. Mulai hanya saat audio contoh dan browser sudah siap; sesi tidak bisa diulang setelah dimulai.</p><label class="live-consent"><input type="checkbox" id="live-sample-consent">Saya memakai audio contoh non-sensitif, bukan percakapan pribadi pihak lain, untuk tes sekali ini.</label>{% endif %}
 <input type="hidden" id="live-csrf" value="{{ csrf_token() }}">
 <div class="live-buttons"><button type="button" id="live-start">Pilih tab &amp; mulai</button><button type="button" id="live-stop" disabled>Berhenti &amp; hapus sesi</button></div>
 <p id="live-indicator" role="status">Audio tab tidak aktif.</p><p id="live-status" role="status" aria-live="polite">Belum mendengarkan audio.</p><label for="live-meter">Audio tab yang dipilih</label><meter id="live-meter" min="0" max="1" value="0">0</meter>

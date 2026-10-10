@@ -6,19 +6,21 @@ from . import live_assist as live
 
 @ai_bp.before_request
 def gate_live_assist():
-    if (request.endpoint or '').startswith('kilas_ai.live_assist_') and not live.enabled():abort(404)
+    if (request.endpoint or '').startswith('kilas_ai.live_assist_') and not live.enabled(session.get('user_id')):abort(404)
 
 
 @ai_bp.get('/live-assist',endpoint='live_assist_home')
 def home():
-    return render_template('kilas_content/live_assist.html',provider_ready=live.ready())
+    owner=session['user_id']
+    provider_ready=live.qa.ready(owner,for_start=True) and live.stt.configured() if live.qa.enabled() else live.ready(owner)
+    return render_template('kilas_content/live_assist.html',provider_ready=provider_ready,qa_only=live.qa.enabled()),200,{'Cache-Control':'private, no-store'}
 
 
 @ai_bp.post('/live-assist/<operation>',endpoint='live_assist_action')
 def action(operation):
     owner=session['user_id'];token=request.form.get('session_id','')
     try:
-        if operation=='start':result={'session_id':live.create(owner,request.form.get('mode'),request.form.get('target'),request.form.get('consent')=='yes')}
+        if operation=='start':result={'session_id':live.create(owner,request.form.get('mode'),request.form.get('target'),request.form.get('consent')=='yes',request.form.get('sample_consent')=='yes')}
         elif operation=='stop':live.stop(owner,token);result={'stopped':True}
         elif operation=='chunk':result=live.chunk(owner,token,request.form.get('sequence',type=int),request.files.get('audio'))
         elif operation=='reply':result={'text':live.reply(owner,token,request.form.get('operation_key',''),request.form.get('facts',''))}

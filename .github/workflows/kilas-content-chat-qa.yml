@@ -9,6 +9,7 @@ on:
       - 'client-hub/kilas_ai/chat_project*'
       - 'client-hub/kilas_ai/transcription*'
       - 'client-hub/kilas_ai/live_assist*'
+      - 'client-hub/kilas_ai/live_qa*'
       - 'client-hub/kilas_ai/listening_routes.py'
       - 'client-hub/kilas_ai/agent_routes.py'
       - 'client-hub/templates/kilas_content/**'
@@ -69,6 +70,7 @@ jobs:
           client-hub/tests/test_chat_projects.py
           client-hub/tests/test_chat_transcription.py
           client-hub/tests/test_live_assist.py
+          client-hub/tests/test_live_qa_budget.py
           client-hub/tests/test_listening_demo.py
           client-hub/tests/test_content_release_postgres.py
       - run: node --test client-hub/tests/test_listening_lifecycle.mjs

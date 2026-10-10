@@ -270,6 +270,10 @@ def create_app():
     if content_enabled() and transcription_enabled():
         from kilas_ai import transcription_schema
         transcription_schema.apply()
+    from kilas_ai import live_qa_budget
+    if live_qa_budget.enabled():
+        from kilas_ai import live_qa_schema
+        live_qa_schema.apply()  # Independent owner-QA metadata; never customer billing.
     if kilas_ai_enabled():
         from kilas_ai import video_schema
         video_schema.apply_release()  # Only additive 0082; checksum-idempotent.

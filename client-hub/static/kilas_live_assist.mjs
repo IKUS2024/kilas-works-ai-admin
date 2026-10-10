@@ -5,6 +5,7 @@ if(root) {
   const ready=root.dataset.providerReady==='true',csrf=q('csrf').value;
   let token='',generation=0,replyController=null,pipelineController=null,replyCount=0,hasCaption=false;
   const errorMessages={consent_required:'Setujui capture audio sebelum mulai.',permission_denied:'Pemilihan tab dibatalkan atau izin ditolak.',audio_missing:'Tab tidak menyediakan audio. Pilih Tab Chrome dan aktifkan Bagikan audio tab.',tab_required:'Pilih tab Chrome, bukan jendela atau seluruh layar.',gesture_required:'Mulai melalui tombol Pilih tab & mulai.',unsupported:'Gunakan Chrome desktop melalui HTTPS.',backpressure:'Pemrosesan tertinggal. Sesi dihentikan agar potongan audio tidak menumpuk.',limit:'Batas 2 menit tercapai. Mulai sesi baru bila diperlukan.',source_ended:'Berbagi tab dihentikan. Sesi dibersihkan.',budget_unavailable:'Pemrosesan provider belum aktif. Persetujuan biaya diperlukan.'};
+  if(root.dataset.qaOnly==='true')Object.assign(errorMessages,{limit:'Batas 120 detik tes sekali ini tercapai. Sesi dibersihkan.',chunk_failed:'Tes berhenti karena provider, batas biaya atau masa sesi. Tidak mencoba ulang; allowance tes sekali ini tetap terpakai.',qa_session_already_used:'Sesi QA sekali ini sudah dipakai dan tidak dapat dimulai ulang.',qa_budget_exhausted:'Sisa batas biaya QA tidak cukup. Pemrosesan dihentikan.',qa_expired:'Sesi atau izin harga QA telah berakhir.',backpressure:'Pemrosesan tertinggal. Tes sekali ini dihentikan dan tidak diulang.'});
   const post=async(operation,body,signal)=>{
     body.set('csrf_token',csrf);if(token)body.set('session_id',token);
     const response=await fetch(root.dataset.action.replace('OPERATION',operation),{method:'POST',body,signal});
@@ -30,10 +31,13 @@ if(root) {
   mode.addEventListener('change',()=>{q('call').hidden=mode.value!=='call';});
   start.addEventListener('click',async event=>{
     if(start.disabled)return;
+    const sampleConsent=q('sample-consent');
+    if(sampleConsent&&provider.checked&&!sampleConsent.checked){status.textContent='Setujui penggunaan audio contoh non-sensitif untuk tes sekali ini.';return;}
     const pending=audio.start({consent:consent.checked,userGesture:event.isTrusted}); // No awaited network request before chooser.
     await pending;if(audio.state!=='active'||!provider.checked)return;
     const ticket=generation;pipelineController=new AbortController();
     const body=new FormData();body.set('consent','yes');body.set('mode',mode.value);body.set('target',target.value);
+    if(sampleConsent?.checked)body.set('sample_consent','yes');
     try{const data=await post('start',body,pipelineController.signal);if(ticket!==generation){const cleanup=new FormData();cleanup.set('session_id',data.session_id);cleanup.set('csrf_token',csrf);fetch(root.dataset.action.replace('OPERATION','stop'),{method:'POST',body:cleanup,keepalive:true}).catch(()=>{});return;}token=data.session_id;status.textContent='Mendengarkan audio tab · menunggu potongan pertama sekitar 10 detik.';}
     catch(error){if(ticket===generation)fail(error.message);}
   });
