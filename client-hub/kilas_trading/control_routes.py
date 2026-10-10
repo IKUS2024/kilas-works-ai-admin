@@ -17,13 +17,17 @@ def action(function):
     except Exception:return response({'outcome':'CONTROL_UNAVAILABLE'},503)
 
 def transport():
-    if request.endpoint not in ('kilas_trading.control_sync','kilas_trading.btc_analysis_worker','kilas_trading.btc_evidence_worker'):return None
+    if request.endpoint not in ('kilas_trading.control_sync','kilas_trading.btc_analysis_worker','kilas_trading.btc_evidence_worker','kilas_trading.gold_analysis_worker','kilas_trading.gold_evidence_worker'):return None
     def perform():
         bridge.require(control.enabled(),'DISABLED',404)
         if request.endpoint=='kilas_trading.btc_analysis_worker':
             bridge.require(btc_analysis.enabled(),'BTC_ANALYSIS_DISABLED',404)
         if request.endpoint=='kilas_trading.btc_evidence_worker':
             bridge.require(os.environ.get('KILAS_TRADING_BTC_EVIDENCE_ENABLED')=='true','EVIDENCE_DISABLED',404)
+        if request.endpoint=='kilas_trading.gold_analysis_worker':
+            bridge.require(btc_analysis.enabled('GOLD'),'GOLD_ANALYSIS_DISABLED',404)
+        if request.endpoint=='kilas_trading.gold_evidence_worker':
+            bridge.require(os.environ.get('KILAS_TRADING_GOLD_EVIDENCE_ENABLED')=='true','EVIDENCE_DISABLED',404)
         bridge.require(request.mimetype=='application/json','JSON_REQUIRED',415)
         bridge.require(not request.args and not request.headers.get('Cookie'),'COOKIE_OR_QUERY_NOT_ALLOWED',400)
         bridge.require(limited(),'REQUEST_RATE_LIMIT',429)
@@ -33,6 +37,10 @@ def transport():
             return btc_analysis.accepted_sources.ingest(header[7:],bridge.parse(request.get_data(cache=False)))
         if request.endpoint=='kilas_trading.btc_analysis_worker':
             return btc_analysis.analyze(header[7:],bridge.parse(request.get_data(cache=False)))
+        if request.endpoint=='kilas_trading.gold_evidence_worker':
+            return btc_analysis.accepted_sources.ingest(header[7:],bridge.parse(request.get_data(cache=False)),instrument='GOLD')
+        if request.endpoint=='kilas_trading.gold_analysis_worker':
+            return btc_analysis.analyze(header[7:],bridge.parse(request.get_data(cache=False)),instrument='GOLD')
         return control.sync(header[7:],bridge.parse(request.get_data(cache=False)))
     return action(perform)
 
@@ -44,6 +52,12 @@ def btc_analysis_worker():return response({'outcome':'BTC_ANALYSIS_UNAVAILABLE'}
 
 @bp.post('/control/btc-evidence')
 def btc_evidence_worker():return response({'outcome':'BTC_EVIDENCE_UNAVAILABLE'},503)
+
+@bp.post('/control/gold-analysis')
+def gold_analysis_worker():return response({'outcome':'GOLD_ANALYSIS_UNAVAILABLE'},503)
+
+@bp.post('/control/gold-evidence')
+def gold_evidence_worker():return response({'outcome':'GOLD_EVIDENCE_UNAVAILABLE'},503)
 
 @bp.post('/control/desired')
 def control_desired():

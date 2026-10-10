@@ -8,7 +8,7 @@ from collections import OrderedDict
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
-from . import bridge, bridge_store, btc_news
+from . import bridge, bridge_store, btc_news, demo_instruments
 from .store import query
 
 SPEC_FIELDS=('symbol','contract_size','volume_min','volume_max','volume_step','tick_cents','stops_distance_cents','cost_bound_cents','verified_at')
@@ -76,7 +76,8 @@ class AcceptedSources:
         from . import btc_analysis as btc
         bridge.exact(manifest,('user_id','session_id','instrument','server','created_at','expires_at','model_analysis_allowed','policy_version','max_loss_cents','max_requests'))
         bridge.exact(acceptance,ACCEPTANCE_FIELDS)
-        bridge.require(type(manifest['user_id']) is int and manifest['user_id']>0 and manifest['instrument']=='BTC' and manifest['server']==bridge.SERVER,'APPROVAL_REJECTED')
+        demo_instruments.contract(manifest['instrument'])
+        bridge.require(type(manifest['user_id']) is int and manifest['user_id']>0 and manifest['server']==bridge.SERVER,'APPROVAL_REJECTED')
         btc.session_permissions(manifest,for_evidence=True)
         bridge.secret(manifest['session_id'],32);bridge.secret(manifest['policy_version'])
         start,end=bridge.date(manifest['created_at']),bridge.date(manifest['expires_at'])
@@ -107,21 +108,37 @@ class AcceptedSources:
     def revoke(self,user,ident):
         with self.transaction():self.sessions.pop((user,ident),None)
     def collect_news(self):
+        with self.transaction():
+            bridge.require(self.sessions,'ACCEPTED_SESSION_UNAVAILABLE')
+            bridge.require(all(s['manifest']['instrument']=='BTC' for s in self.sessions.values()),'NEWS_COVERAGE_REJECTED')
         record=btc_news.collect()
         with self.transaction():
             bridge.require(self.sessions,'ACCEPTED_SESSION_UNAVAILABLE')
+            bridge.require(all(s['manifest']['instrument']=='BTC' for s in self.sessions.values()),'NEWS_COVERAGE_REJECTED')
             record['id']=secrets.token_hex(16);self.news=record
             return copy.deepcopy(record)
+    def install_reviewed_gold_news(self,user,ident,record):
+        # Server-only reviewed handoff. No HTTP issuer or automatic provider fetch.
+        with self.transaction() as conn:
+            bridge.pilot(conn,user);state=self._session(user,ident)
+            bridge.require(state['manifest']['instrument']=='GOLD','NEWS_COVERAGE_REJECTED')
+            bridge.require(type(record) is dict,'NEWS_UNTRUSTED')
+            demo_instruments.validate_news(record,'GOLD',record.get('id'),bridge.now())
+            bridge.require(record['risk_review']=='SERVER_REVIEWED' and len(json.dumps(record,allow_nan=False).encode())<=12000,'NEWS_REVIEW_REJECTED')
+            self.news=copy.deepcopy(record)
+            state['news_review']=dict(news_id=record['id'],policy_version=state['manifest']['policy_version'],coverage=record['coverage'],event_risk=record['event_risk'],sentiment=record['sentiment'],expires_at=bridge.stamp(min(bridge.date(record['valid_until']),state['expires'])))
     def review_news(self,user,ident,record):
         # Separate server-side risk-review evidence; public RSS cannot self-promote.
         bridge.exact(record,('news_id','policy_version','coverage','event_risk','sentiment','expires_at'))
         bridge.require(record['coverage']==btc_news.COVERAGE and record['event_risk'] in ('LOW','HIGH','UNKNOWN') and type(record['sentiment']) is int and -1<=record['sentiment']<=1,'NEWS_REVIEW_REJECTED')
         with self.transaction():
             state=self._session(user,ident)
+            bridge.require(state['manifest']['instrument']=='BTC' and self.news and self.news['coverage']==btc_news.COVERAGE,'NEWS_COVERAGE_REJECTED')
             bridge.require(self.news and record['news_id']==self.news['id'] and record['policy_version']==state['manifest']['policy_version'] and bridge.now()<bridge.date(record['expires_at'])<=min(state['expires'],bridge.date(self.news['valid_until'])),'NEWS_REVIEW_REJECTED')
             state['news_review']=copy.deepcopy(record)
     def _news(self,state):
         bridge.require(self.news,'NEWS_UNAVAILABLE')
+        bridge.require(self.news['coverage']==demo_instruments.contract(state['manifest']['instrument'])['coverage'],'NEWS_COVERAGE_REJECTED')
         news=copy.deepcopy(self.news);review=state['news_review']
         if review and review['news_id']==news['id'] and bridge.now()<bridge.date(review['expires_at']):
             news.update(event_risk=review['event_risk'],sentiment=review['sentiment'],risk_review='SERVER_REVIEWED')
@@ -140,9 +157,10 @@ class AcceptedSources:
     def ensure_news(self):
         # Shared lease/backoff prevents each web worker from fetching independently.
         with self.transaction():
-            if self.news and self.news['articles']:return
             bridge.require(self.sessions,'ACCEPTED_SESSION_UNAVAILABLE')
             state=next(iter(self.sessions.values()));now=bridge.now()
+            if state['manifest']['instrument']=='GOLD':return
+            if self.news and self.news['articles']:return
             if state.get('news_retry_at') and now<bridge.date(state['news_retry_at']):return
             state['news_retry_at']=bridge.stamp(now+timedelta(seconds=30))
         try:self.collect_news()
@@ -153,7 +171,7 @@ class AcceptedSources:
         with self.transaction() as conn:
             bridge.pilot(conn,user);state=self._session(user,ident)
             bridge.require(state['manifest']['model_analysis_allowed'] is True,'RUNTIME_APPROVAL_REJECTED')
-            bridge.require(state['runtime'] is None and authority['user_id']==user and authority['session_id']==ident and authority['policy_version']==state['manifest']['policy_version'] and authority['server']==bridge.SERVER and authority['instrument']=='BTC','RUNTIME_APPROVAL_REJECTED')
+            bridge.require(state['runtime'] is None and authority['user_id']==user and authority['session_id']==ident and authority['policy_version']==state['manifest']['policy_version'] and authority['server']==bridge.SERVER and authority['instrument']==state['manifest']['instrument'],'RUNTIME_APPROVAL_REJECTED')
             bridge.require(authority['runtime_eligible'] is True and authority['broker_execution_allowed'] is True and authority['policy_replay_only'] is False and bridge.now()<bridge.date(authority['expires_at'])<=state['expires'],'RUNTIME_APPROVAL_REJECTED')
             state['runtime']=copy.deepcopy(authority)
     def authorization(self,user,ident):
@@ -164,11 +182,12 @@ class AcceptedSources:
             row=control.row_for(conn,user)
             bridge.require(row and row['worker_session_id']==ident and row['desired_state']=='ON' and row['run_status']=='ACTIVE','RUNTIME_INTENT_UNAVAILABLE')
             return dict(copy.deepcopy(grant),command_id=row['command_id'],revision=row['revision'])
-    def ingest(self,token,data):
+    def ingest(self,token,data,*,instrument='BTC'):
         from . import btc_analysis as btc
-        bridge.require(os.environ.get('KILAS_TRADING_BTC_EVIDENCE_ENABLED')=='true','EVIDENCE_DISABLED',404)
+        config=demo_instruments.contract(instrument)
+        bridge.require(os.environ.get('KILAS_TRADING_'+instrument+'_EVIDENCE_ENABLED')=='true','EVIDENCE_DISABLED',404)
         bridge.exact(data,INGEST_FIELDS)
-        bridge.require(type(data['schema_version']) is int and data['schema_version']==2 and data['instrument']=='BTC' and data['account_mode']=='DEMO' and data['terminal_connected'] is True,'DEMO_EVIDENCE_ONLY')
+        bridge.require(type(data['schema_version']) is int and data['schema_version']==2 and data['instrument']==instrument and data['account_mode']=='DEMO' and data['terminal_connected'] is True,'DEMO_EVIDENCE_ONLY')
         bridge.require(type(data['sequence']) is int and 0<=data['sequence']<2**63,'EVIDENCE_SEQUENCE_REJECTED')
         bridge.require(type(data['revision']) is int and 0<=data['revision']<2**63-1,'EVIDENCE_REVISION_REJECTED');bridge.secret(data['session_id'],32)
         if data['command_id'] is not None:bridge.secret(data['command_id'],32)
@@ -186,7 +205,7 @@ class AcceptedSources:
                 current=bridge.now();challenge,expires=self._rotate_capture(state,current)
                 return dict(schema_version=2,outcome='CAPTURE_CHALLENGE_ISSUED',sequence=state['sequence'],challenge=challenge,challenge_expires_at=expires,received_at=bridge.stamp(current),execution_authorized=False)
         bridge.secret(data['challenge'])
-        bridge.validate_market(data['market'],'BTCUSD');bridge.exact(data['spec'],SPEC_FIELDS);bridge.exact(data['risk'],RISK_FIELDS)
+        bridge.validate_market(data['market'],config['symbol']);bridge.exact(data['spec'],SPEC_FIELDS);bridge.exact(data['risk'],RISK_FIELDS)
         # Missing/empty feeds can recover during the normal capture loop. A slow
         # retry may expire this nonce; reject it below and let bootstrap recover
         # with the cached news. Collection never holds the source/control DB lock.
@@ -202,25 +221,25 @@ class AcceptedSources:
             bridge.require(duration<=age+.05,'CAPTURE_PRECEDES_CHALLENGE')
             # Receipt-window liveness is not absolute UTC/profile attestation.
             # Epochs remain broker labels; only relative closed-bar ages are used.
-            market=dict(kind='DEMO',provider='TRUSTED_BTC_V1',symbol='BTCUSD',timeframe='M1',captured_at=raw['capture']['end_utc'],quote_time=raw['tick']['time'],broker_tick_msc=raw['tick']['time_msc'],tick_advanced_at=None,bid_cents=cents(raw['tick']['bid']),ask_cents=cents(raw['tick']['ask']),clock_verified=False,profile_verified=False,time_basis='RECEIPT_BOUNDED',received_at=bridge.stamp(current),freshness_started_at=bridge.stamp(issued),candles=[dict(time=bar['time']+60,**{k:cents(bar[k]) for k in ('open','high','low','close')}) for bar in raw['candles']])
+            market=dict(kind='DEMO',provider=config['provider'],symbol=config['symbol'],timeframe='M1',captured_at=raw['capture']['end_utc'],quote_time=raw['tick']['time'],broker_tick_msc=raw['tick']['time_msc'],tick_advanced_at=None,bid_cents=cents(raw['tick']['bid']),ask_cents=cents(raw['tick']['ask']),clock_verified=False,profile_verified=False,time_basis='RECEIPT_BOUNDED',received_at=bridge.stamp(current),freshness_started_at=bridge.stamp(issued),candles=[dict(time=bar['time']+60,**{k:cents(bar[k]) for k in ('open','high','low','close')}) for bar in raw['candles']])
             if state['latest']:
                 previous=state['records'][state['latest']['market_id']][1]
                 bridge.require(market['broker_tick_msc']>=previous['broker_tick_msc'],'BROKER_CLOCK_REWOUND')
                 market['tick_advanced_at']=bridge.stamp(current) if market['broker_tick_msc']>previous['broker_tick_msc'] else previous['tick_advanced_at']
             spec=copy.deepcopy(data['spec']);risk=copy.deepcopy(data['risk'])
-            bridge.require(spec['symbol']=='BTCUSD' and contract_hash(spec)==accept['broker_contract_sha256'] and risk['broker_contract_sha256']==accept['broker_contract_sha256'] and risk['policy_version']==accept['policy_version'],'BROKER_CONTRACT_MISMATCH')
+            bridge.require(spec['symbol']==config['symbol'] and contract_hash(spec)==accept['broker_contract_sha256'] and risk['broker_contract_sha256']==accept['broker_contract_sha256'] and risk['policy_version']==accept['policy_version'],'BROKER_CONTRACT_MISMATCH')
             bridge.require(risk['captured_at']==raw['capture']['end_utc'] and (not risk['position_open'] or risk['protection_active'] is True),'RISK_CAPTURE_MISMATCH')
             for field in ('broker_contract_sha256','policy_version'):risk.pop(field)
             risk['captured_at']=bridge.stamp(issued)  # conservative earliest capture bound
             bridge.date(spec['verified_at'])  # validate producer claim shape only
             spec['verified']=True;spec['verified_at']=state['manifest']['created_at']
-            placeholder=dict(id='0'*32,provider='TRUSTED_NEWS_V1',as_of=bridge.stamp(current),valid_until=bridge.stamp(current+timedelta(seconds=1)),verified=True,event_risk='UNKNOWN',sentiment=0,coverage=btc_news.COVERAGE,risk_review='UNREVIEWED',articles=[dict(id='0'*32,published_at=bridge.stamp(current),title='Validation placeholder; never retained or sent')])
-            btc.validate(dict(market=dict(market,id='0'*32),spec=dict(spec,id='0'*32),risk=risk,news=placeholder),dict(evidence=dict(market_id='0'*32,news_id='0'*32,spec_id='0'*32)))
+            placeholder=demo_instruments.placeholder_news(instrument,current)
+            btc.validate(dict(market=dict(market,id='0'*32),spec=dict(spec,id='0'*32),risk=risk,news=placeholder),dict(instrument=instrument,evidence=dict(market_id='0'*32,news_id='0'*32,spec_id='0'*32)))
             market_id=self._save(state,'market',market);spec_id=self._save(state,'spec',spec)
             state['sequence']=data['sequence'];state['latest']=dict(market_id=market_id,spec_id=spec_id,risk=copy.deepcopy(risk))
             news_id=self._save(state,'news',self._news(state)) if self.news and not evidence_only else None
             challenge,expires=self._rotate_capture(state,current)
-            return dict(schema_version=2,outcome='EVIDENCE_ACCEPTED',session_id=scope['session_id'],sequence=data['sequence'],challenge=challenge,challenge_expires_at=expires,evidence=dict(market_id=market_id,spec_id=spec_id,news_id=news_id),coverage=btc_news.COVERAGE,risk_review=self._news(state)['risk_review'] if news_id else 'UNREVIEWED',tick_liveness='VERIFIED' if market['tick_advanced_at'] and (current-bridge.date(market['tick_advanced_at'])).total_seconds()<=5 else 'UNCONFIRMED',execution_authorized=False,received_at=bridge.stamp(current))
+            return dict(schema_version=2,outcome='EVIDENCE_ACCEPTED',session_id=scope['session_id'],sequence=data['sequence'],challenge=challenge,challenge_expires_at=expires,evidence=dict(market_id=market_id,spec_id=spec_id,news_id=news_id),coverage=config['coverage'],risk_review=self._news(state)['risk_review'] if news_id else 'UNREVIEWED',tick_liveness='VERIFIED' if market['tick_advanced_at'] and (current-bridge.date(market['tick_advanced_at'])).total_seconds()<=5 else 'UNCONFIRMED',execution_authorized=False,received_at=bridge.stamp(current))
     def resolve(self,user,ident,ids):
         with self.transaction():
             state=self._session(user,ident);out={}
@@ -231,6 +250,7 @@ class AcceptedSources:
             if out['news']['risk_review']=='SERVER_REVIEWED':
                 stored=state['records'][ids['news_id']][1]
                 bridge.require(review and self.news and review['news_id']==stored['id']==self.news['id'] and review['event_risk']==stored['event_risk'] and review['sentiment']==stored['sentiment'] and bridge.now()<bridge.date(review['expires_at']),'NEWS_REVIEW_EXPIRED')
+                if state['manifest']['instrument']=='GOLD':bridge.require(stored==self.news,'NEWS_REVIEW_EXPIRED')
             bridge.require(state['latest'],'LATEST_RISK_UNAVAILABLE');out['risk']=copy.deepcopy(state['latest']['risk'])
             return out
     def latest(self,user,ident):

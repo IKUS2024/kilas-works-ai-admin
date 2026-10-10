@@ -229,7 +229,7 @@ class BTCAnalysisTests(unittest.TestCase):
                 reply['output'][0]['content'][0]['text']=json.dumps(decision)
                 with patch.object(analysis,'_http',side_effect=lambda method,*args:{'id':budget.MODEL} if method=='GET' else reply) as provider:
                     response=self.post().json
-                self.assertEqual(provider.call_count,2);self.assertEqual(response['outcome'],outcome)
+                self.assertEqual(provider.call_count,2 if articles and known_risk!='HIGH' else 0);self.assertEqual(response['outcome'],outcome)
                 self.assertFalse(response['execution_authorized']);self.assertIsNone(response['authorization_expires_at'])
 
     def test_missing_invalid_or_extra_model_classification_rejected(self):
