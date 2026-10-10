@@ -1,5 +1,7 @@
 """Real Flask HTTP integration with synthetic DEMO SDK; no broker or paid calls."""
 import copy
+import io
+from contextlib import redirect_stdout
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
@@ -73,8 +75,40 @@ class BridgeTests(unittest.TestCase):
         with patch.dict(os.environ,{'KILAS_TRADING_BRIDGE_ENABLED':'false'}):
             self.assertEqual(self.pair().status_code,404)
             self.assertEqual(self.post('exchange',{}).status_code,404)
-            self.assertEqual(self.view().status_code,404)
+            self.assertEqual(self.view().status_code,200)
             self.assertEqual(bridge.status(f.TradingTests.user)['outcome'],'DISABLED')
+    def test_off_revoke_preserves_auth_csrf_and_invalidates_existing_token(self):
+        conn=self.connect('BTCUSD')
+        with patch.dict(os.environ,{'KILAS_TRADING_BRIDGE_ENABLED':'false'}):
+            self.assertEqual(self.post('revoke',{},client=self.owner).status_code,400)
+            for user in (f.TradingTests.other,f.TradingTests.admin):
+                self.assertEqual(self.post('revoke',{},client=self.client(user),headers={'X-CSRF-Token':'bridge-test-csrf'}).status_code,404)
+            self.assertEqual(self.post('revoke',{},client=self.owner,headers={'X-CSRF-Token':'bridge-test-csrf'}).json['outcome'],'REVOKED')
+            self.assertEqual(self.pair('BTCUSD').status_code,404)
+            self.assertEqual(self.send(conn).status_code,404)
+            view=self.view().json;self.assertTrue(view['revoked']);self.assertFalse(view['revoke_allowed'])
+            self.assertTrue(view['exchange_completed']);self.assertEqual(view['last_confirmed_stage'],'EXCHANGE_ACCEPTED')
+        self.assertEqual(self.send(conn).status_code,401)
+        row=f.db.query_one('SELECT * FROM kilas_trading_bridges')
+        for key in ('pair_hash','token_hash','challenge_hash','market_json'):self.assertIsNone(row[key])
+
+    def test_off_status_retains_confirmed_progress_without_market_or_secrets(self):
+        conn=self.connect('BTCUSD');self.assertEqual(self.send(conn,market('BTCUSD')).status_code,200)
+        with patch.dict(os.environ,{'KILAS_TRADING_BRIDGE_ENABLED':'false'}):
+            response=self.view();self.assertEqual(response.status_code,200)
+            data=response.json;self.assertEqual(data['outcome'],'DISABLED')
+            self.assertEqual(data['transport'],'DISCONNECTED');self.assertNotIn('market',data)
+            self.assertEqual(data['last_confirmed_stage'],'TELEMETRY_ACCEPTED');self.assertEqual(data['accepted_messages'],1)
+            self.assertEqual(data['last_error'],'NOT_RECORDED');self.assertTrue(data['revoke_allowed'])
+            for key in ('token','challenge','token_hash','challenge_hash','pair_hash','pair_code'):self.assertNotIn(key,data)
+            for value in (conn['token'],conn['challenge']):self.assertNotIn(value,response.get_data(as_text=True))
+
+    def test_off_status_requires_pilot_and_tolerates_uninstalled_schema(self):
+        with patch.dict(os.environ,{'KILAS_TRADING_BRIDGE_ENABLED':'false'}):
+            for user in (f.TradingTests.other,f.TradingTests.admin):self.assertEqual(self.client(user).get(PATH+'/status',base_url=HOST).status_code,404)
+            with patch.object(bridge_store,'transaction',side_effect=RuntimeError('synthetic-private-error')):
+                data=self.view().json;self.assertEqual(data['outcome'],'DISABLED');self.assertEqual(data['history_status'],'UNAVAILABLE')
+                self.assertFalse(data['revoke_allowed']);self.assertNotIn('synthetic-private-error',json.dumps(data))
     def test_pair_requires_session_csrf_and_exact_pilot(self):
         self.assertEqual(self.post('pair',{},client=self.owner).status_code,400)
         for user in (f.TradingTests.other,f.TradingTests.admin):
@@ -354,6 +388,77 @@ class BridgeTests(unittest.TestCase):
         tree=ast.parse((ROOT/'scripts/trading_demo_bridge/collector.py').read_text())
         calls={n.func.attr for n in ast.walk(tree) if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute) and ((isinstance(n.func.value,ast.Name) and n.func.value.id=='sdk') or (isinstance(n.func.value,ast.Attribute) and n.func.value.attr=='sdk'))}
         self.assertEqual(calls,{'initialize','shutdown','terminal_info','account_info','symbol_info','symbol_info_tick','copy_rates_from_pos'})
+
+    def test_pair_input_rejects_malformed_paste_without_normalization_or_echo(self):
+        for value in (' '+('a'*32),'A'*32,'Kode sekali pakai: '+('a'*32),'a'*32+'\n'):
+            with self.subTest(value=value),patch.object(collector.sys,'stdin',SimpleNamespace(isatty=lambda:True)),patch.object(collector.getpass,'getpass',return_value=value):
+                with self.assertRaises(collector.CollectorError) as error:collector.read_pair_code()
+                self.assertEqual(error.exception.code,'PAIR_INPUT_INVALID');self.assertNotIn(value,str(error.exception))
+        with patch.object(collector.sys,'stdin',SimpleNamespace(isatty=lambda:True)),patch.object(collector.getpass,'getpass',return_value='a'*32):self.assertEqual(collector.read_pair_code(),'a'*32)
+
+    def test_pair_input_has_no_echo_fallback(self):
+        with patch.object(collector.sys,'stdin',SimpleNamespace(isatty=lambda:False)),patch.object(collector.getpass,'getpass') as prompt:
+            with self.assertRaises(collector.CollectorError) as error:collector.read_pair_code()
+            self.assertEqual(error.exception.code,'SECURE_CONSOLE_REQUIRED');prompt.assert_not_called()
+        def fallback(*args):
+            import warnings
+            warnings.warn('synthetic-private-warning',collector.getpass.GetPassWarning)
+        with patch.object(collector.sys,'stdin',SimpleNamespace(isatty=lambda:True)),patch.object(collector.getpass,'getpass',side_effect=fallback):
+            with self.assertRaises(collector.CollectorError) as error:collector.read_pair_code()
+            self.assertEqual(error.exception.code,'SECURE_CONSOLE_REQUIRED');self.assertNotIn('synthetic-private-warning',str(error.exception))
+
+    def test_transport_reports_http_network_and_json_without_response_contents(self):
+        import urllib.error
+        secret='synthetic-private-secret'
+        errors=[(urllib.error.HTTPError('https://invalid.local/?token='+secret,401,secret,{},io.BytesIO(secret.encode())),'HTTP_401'),(urllib.error.URLError(secret),'NETWORK_ERROR')]
+        for failure,expected in errors:
+            transport=collector.Transport();transport.opener=SimpleNamespace(open=Mock(side_effect=failure))
+            with self.assertRaises(collector.CollectorError) as error:transport.post('exchange',{})
+            self.assertEqual(error.exception.code,expected);self.assertNotIn(secret,str(error.exception))
+        response=Mock();response.__enter__=Mock(return_value=response);response.__exit__=Mock(return_value=False)
+        response.status=200;response.headers=SimpleNamespace(get_content_type=lambda:'application/json');response.read=Mock(return_value=b'not-json-private')
+        transport=collector.Transport();transport.opener=SimpleNamespace(open=Mock(return_value=response))
+        with self.assertRaises(collector.CollectorError) as error:transport.post('exchange',{})
+        self.assertEqual(error.exception.code,'REMOTE_RESPONSE_INVALID');self.assertNotIn('not-json-private',str(error.exception))
+
+    def test_collector_persists_fixed_failure_stage_before_session_assignment(self):
+        import tempfile
+        sdk,_=self.synthetic_sdk();secret='synthetic-private-secret'
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/'collector-status.json'
+            def paths(value):return target if value=='collector-status.json' else SimpleNamespace(is_file=lambda:True,is_dir=lambda:True)
+            output=io.StringIO()
+            args=['collector','--symbol','BTCUSD','--connect','--terminal-path',EXE,'--terminal-data-path',DATA,'--diagnostic-status']
+            with patch.object(sys,'argv',args),patch.dict(sys.modules,{'MetaTrader5':sdk}),patch.object(collector,'os',SimpleNamespace(name='nt')),patch.object(collector,'Path',side_effect=paths),patch.object(collector,'read_pair_code',return_value='a'*32),patch.object(collector,'Session',side_effect=collector.CollectorError(secret,'HTTP_401')),redirect_stdout(output):
+                self.assertEqual(collector.main(),2)
+            data=json.loads(target.read_text());self.assertEqual(data['stage'],'EXCHANGE');self.assertEqual(data['outcome'],'HTTP_401');self.assertEqual(data['sdk_shutdown'],'COMPLETED')
+            self.assertLess(target.stat().st_size,1024)
+            for value in (secret,'a'*32,EXE,DATA):self.assertNotIn(value,target.read_text()+output.getvalue())
+            self.assertNotIn('token',data);self.assertNotIn('account',data)
+            with patch.object(collector,'Path',return_value=target),self.assertRaises(collector.CollectorError):collector.Diagnostic(True)
+            self.assertEqual(json.loads(target.read_text()),data)
+
+    def test_collector_input_interrupt_is_distinct_and_never_exchanges(self):
+        sdk,_=self.synthetic_sdk();output=io.StringIO()
+        args=['collector','--symbol','BTCUSD','--connect','--terminal-path',EXE,'--terminal-data-path',DATA]
+        with patch.object(sys,'argv',args),patch.dict(sys.modules,{'MetaTrader5':sdk}),patch.object(collector,'os',SimpleNamespace(name='nt')),patch.object(collector,'Path',return_value=SimpleNamespace(is_file=lambda:True,is_dir=lambda:True)),patch.object(collector,'read_pair_code',side_effect=KeyboardInterrupt),patch.object(collector,'Session') as exchange,redirect_stdout(output):
+            self.assertEqual(collector.main(),2)
+        exchange.assert_not_called();sdk.shutdown.assert_called_once_with()
+        self.assertIn('stage=PAIR_INPUT outcome=INTERRUPTED',output.getvalue())
+
+    def test_collector_read_and_telemetry_failure_keep_primary_stage_no_retry(self):
+        for stage in ('MARKET_READ','TELEMETRY'):
+            sdk,_=self.synthetic_sdk();session=Mock();output=io.StringIO()
+            if stage=='MARKET_READ':
+                sdk.symbol_info_tick.side_effect=ValueError('synthetic-private-sdk-message')
+                session.send.side_effect=collector.CollectorError('synthetic-private-network-message','NETWORK_ERROR')
+            else:session.send.side_effect=collector.CollectorError('synthetic-private-http-message','HTTP_409')
+            args=['collector','--symbol','BTCUSD','--connect','--terminal-path',EXE,'--terminal-data-path',DATA]
+            with patch.object(sys,'argv',args),patch.dict(sys.modules,{'MetaTrader5':sdk}),patch.object(collector,'os',SimpleNamespace(name='nt')),patch.object(collector,'Path',return_value=SimpleNamespace(is_file=lambda:True,is_dir=lambda:True)),patch.object(collector,'read_pair_code',return_value='a'*32),patch.object(collector,'Session',return_value=session),redirect_stdout(output):
+                self.assertEqual(collector.main(),2)
+            expected='UNEXPECTED_FAILURE' if stage=='MARKET_READ' else 'HTTP_409'
+            self.assertIn('stage='+stage+' outcome='+expected,output.getvalue());self.assertNotIn('synthetic-private',output.getvalue())
+            sdk.symbol_info_tick.assert_called_once();session.send.assert_called_once();session.clear.assert_called_once_with()
 
     def test_outbound_transport_real_loopback_http(self):
         code=self.pair().json['pair_code']

@@ -162,9 +162,11 @@ class DiagnosticTests(unittest.TestCase):
         source=PARSER.read_text().split('// Recorded reports are local data,')[1]
         for forbidden in ('fetch(', 'XMLHttpRequest', 'localStorage', 'sessionStorage', 'indexedDB', 'innerHTML', 'console.', 'window.location', 'config.'):
             self.assertNotIn(forbidden, source)
-        template=(PARSER.parents[1]/'templates/kilas_trading.html').read_text().split('id="diagnostic-details"')[1].split('id="observation-details"')[0]
+        template=(PARSER.parents[1]/'templates/kilas_trading.html').read_text()
         self.assertNotIn('<form', template)
-        self.assertNotIn('name=', template)
+        self.assertNotIn('id="diagnostic-details"', template)
+        self.assertNotIn('type="file"', template)
+        self.assertNotIn('filename=\'kilas_trading.js\'', template)
 
 
 class NotionalFactsTests(unittest.TestCase):

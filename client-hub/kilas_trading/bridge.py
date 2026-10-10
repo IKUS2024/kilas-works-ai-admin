@@ -166,17 +166,23 @@ def status(user):
                   transport='DISCONNECTED', terminal='UNKNOWN', market_freshness='UNVERIFIED',
                   source_max_age_seconds=SOURCE_MAX_AGE_SECONDS, clock_profile_verification='NOT_INDEPENDENTLY_VERIFIED',
                   producer_acceptance='NOT_IMPLEMENTED', policy_replay_only=False, **{k:False for k in FLAGS})
-    if not enabled(): return result
+    result.update(revoke_allowed=False,last_confirmed_stage='NONE',last_error='NOT_RECORDED')
     try:
         with bridge_store.transaction() as conn:
             pilot(conn,user)
             row = query(conn, 'SELECT * FROM kilas_trading_bridges WHERE user_id=?', (user,), one=True)
     except Rejected: raise
     except Exception:
-        return dict(result,outcome='SCHEMA_UNAVAILABLE')
+        return dict(result,outcome='SCHEMA_UNAVAILABLE' if enabled() else 'DISABLED',history_status='UNAVAILABLE')
     if not row: return result
     current = now()
     result.update(bridge_id=row['bridge_id'],symbol=row['symbol'],server=row['server'])
+    result.update(revoke_allowed=not bool(row['revoked']),revoked=bool(row['revoked']),
+                  last_confirmed_stage='TELEMETRY_ACCEPTED' if row['sequence'] else 'EXCHANGE_ACCEPTED' if row['token_expires'] else 'PAIR_CREATED',
+                  accepted_messages=row['sequence'],last_received_at=row['last_received'],
+                  exchange_completed=bool(row['token_expires']))
+    if not enabled():
+        return dict(result,market_freshness='UNAVAILABLE_BRIDGE_DISABLED')
     if row['revoked']: return dict(result,outcome='REVOKED')
     if not row['token_hash']: return dict(result,outcome='PAIR_PENDING' if current < date(row['pair_expires']) else 'PAIR_EXPIRED')
     if current >= date(row['token_expires']): return dict(result,outcome='TOKEN_EXPIRED')

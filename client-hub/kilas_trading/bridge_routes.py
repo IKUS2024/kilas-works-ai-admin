@@ -72,8 +72,8 @@ def bridge_exchange(): return response({'outcome':'BRIDGE_UNAVAILABLE'},503)
 @bp.post('/bridge/telemetry')
 def bridge_telemetry(): return response({'outcome':'BRIDGE_UNAVAILABLE'},503)
 
-def session_action(function):
-    if not bridge.enabled(): return response({'outcome':'DISABLED'},404)
+def session_action(function, allow_disabled=False):
+    if not allow_disabled and not bridge.enabled(): return response({'outcome':'DISABLED'},404)
     try: return response(function())
     except bridge.Rejected as exc: return response({'outcome':exc.code},exc.status)
     except Exception: return response({'outcome':'BRIDGE_UNAVAILABLE'},503)
@@ -92,10 +92,11 @@ def bridge_pair():
 @bp.post('/bridge/revoke')
 def bridge_revoke():
     def perform():
+        bridge.require(not request.args)
         data = request.get_json() if request.is_json else request.form.to_dict()
         bridge.require(data == {} if request.is_json else set(data)=={'csrf_token'})
         return bridge.revoke(security.current_user()['id'])
-    return session_action(perform)
+    return session_action(perform, allow_disabled=True)
 
 @bp.get('/bridge/status')
-def bridge_status(): return session_action(lambda:bridge.status(security.current_user()['id']))
+def bridge_status(): return session_action(lambda:bridge.status(security.current_user()['id']), allow_disabled=True)

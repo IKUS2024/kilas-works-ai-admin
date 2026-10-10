@@ -7,7 +7,9 @@ import ntpath
 import os
 from pathlib import Path
 import re
+import sys
 import time
+import warnings
 import urllib.request
 import urllib.error
 
@@ -17,7 +19,53 @@ FLAGS = ('runtime_eligible','broker_execution_allowed','ai_analysis','paper_exec
 MAX_BYTES = 16384
 INITIALIZE_TIMEOUT_MS = 5000
 
-class CollectorError(ValueError): pass
+DIAGNOSTIC_STAGES = ('STARTUP','SDK_BINDING','PAIR_INPUT','EXCHANGE','MARKET_READ','TELEMETRY','COMPLETE')
+DIAGNOSTIC_OUTCOMES = ('READY','VERIFIED','WAITING_OWNER','INPUT_VALIDATED','ACCEPTED','FIRST_ACCEPTED','COMPLETED','INTERRUPTED','LOCAL_GUARD_REJECTED','NETWORK_ERROR','REMOTE_RESPONSE_INVALID','UNEXPECTED_FAILURE','SECURE_CONSOLE_REQUIRED','PAIR_INPUT_INVALID','DIAGNOSTIC_FILE_UNAVAILABLE','HTTP_ERROR','HTTP_400','HTTP_401','HTTP_403','HTTP_404','HTTP_409','HTTP_413','HTTP_415','HTTP_429','HTTP_500','HTTP_502','HTTP_503','HTTP_504')
+
+class CollectorError(ValueError):
+    def __init__(self,message,code='LOCAL_GUARD_REJECTED'):
+        super().__init__(message)
+        self.code=code if code in DIAGNOSTIC_OUTCOMES else 'UNEXPECTED_FAILURE'
+
+class Diagnostic:
+    """Optional exclusive-created, fixed-field local status; no credentials or market."""
+    def __init__(self,persist=False):
+        self.file=None
+        self.data=dict(schema_version=1,kind='LOCAL_COLLECTOR_STATUS',stage='STARTUP',outcome='READY',at_utc=utc(),sdk_shutdown='NOT_STARTED')
+        if persist:
+            try:self.file=Path('collector-status.json').open('x',encoding='utf-8')
+            except OSError:raise CollectorError('Local diagnostic file unavailable; do not overwrite existing files.','DIAGNOSTIC_FILE_UNAVAILABLE') from None
+    def save(self):
+        if self.file:
+            try:
+                self.file.seek(0);self.file.write(json.dumps(self.data,separators=(',',':'))+'\n');self.file.truncate();self.file.flush()
+            except OSError:
+                try:self.file.close()
+                except OSError:pass
+                self.file=None
+                raise CollectorError('Local diagnostic write failed; stopped.','DIAGNOSTIC_FILE_UNAVAILABLE') from None
+    def record(self,stage,outcome):
+        require(stage in DIAGNOSTIC_STAGES and outcome in DIAGNOSTIC_OUTCOMES)
+        self.data.update(stage=stage,outcome=outcome,at_utc=utc());self.save()
+        print('BRIDGE_DIAGNOSTIC stage='+stage+' outcome='+outcome,flush=True)
+    def finish(self,shutdown):
+        self.data.update(sdk_shutdown=shutdown,finished_at_utc=utc())
+        try:self.save()
+        finally:
+            if self.file:self.file.close()
+
+def read_pair_code():
+    if not sys.stdin.isatty():
+        raise CollectorError('Use an interactive local console for protected owner entry.','SECURE_CONSOLE_REQUIRED')
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('error',getpass.GetPassWarning)
+            code=getpass.getpass('One-use Trading pairing code (not stored): ')
+    except getpass.GetPassWarning:
+        raise CollectorError('Protected input unavailable; no echo fallback permitted.','SECURE_CONSOLE_REQUIRED') from None
+    if type(code) is not str or re.fullmatch(r'[0-9a-f]{32}',code) is None:
+        raise CollectorError('Pairing input invalid; enter only the exact 32 lowercase hex code.','PAIR_INPUT_INVALID')
+    return code # deliberately no trim, case change, extraction or echo
 
 def require(ok, message='Read-only DEMO bridge unavailable; stop and inspect locally.'):
     if not ok: raise CollectorError(message)
@@ -73,8 +121,15 @@ class Transport:
             result=json.loads(body)
             require(type(result) is dict)
             return result
-        except (OSError, ValueError, urllib.error.URLError):
-            raise CollectorError('Transport failed; no automatic retry. Re-pair after inspection.') from None
+        except urllib.error.HTTPError as exc:
+            code='HTTP_'+str(exc.code)
+            raise CollectorError('HTTP request rejected; no automatic retry.',code if code in DIAGNOSTIC_OUTCOMES else 'HTTP_ERROR') from None
+        except CollectorError:
+            raise CollectorError('Remote response invalid; no automatic retry.','REMOTE_RESPONSE_INVALID') from None
+        except (OSError,urllib.error.URLError):
+            raise CollectorError('Network request failed; no automatic retry.','NETWORK_ERROR') from None
+        except ValueError:
+            raise CollectorError('Remote response invalid; no automatic retry.','REMOTE_RESPONSE_INVALID') from None
 
 class ReadOnlyMT5:
     def __init__(self,sdk,symbol,terminal_path,data_path):
@@ -156,36 +211,61 @@ def main():
     parser.add_argument('--minutes',type=int,default=5,help='Bounded foreground run, 1–60 minutes.')
     parser.add_argument('--terminal-path',help='Approved absolute Windows terminal EXE path; required with --connect.')
     parser.add_argument('--terminal-data-path',help='Approved absolute Windows terminal data directory; required with --connect.')
+    parser.add_argument('--diagnostic-status',action='store_true',help='Create new collector-status.json containing only fixed stage/outcome/timestamps; never overwrite an existing file.')
     args=parser.parse_args()
     if not args.connect:
         print('No connection started. Runtime pairing/MT5 access requires explicit action-time approval.');return 0
-    sdk=None;session=None
+    sdk=None;session=None;report=None;stage='STARTUP';shutdown='NOT_STARTED'
     try:
+        report=Diagnostic(args.diagnostic_status)
         require(1<=args.minutes<=60)
         binding_paths(args.terminal_path,args.terminal_data_path)
         require(os.name=='nt' and Path(args.terminal_path).is_file() and Path(args.terminal_data_path).is_dir(),
                 'Approved Windows terminal executable/data directory unavailable; no SDK initialization attempted.')
         import MetaTrader5 as sdk
+        stage='SDK_BINDING'
         reader=initialize_terminal(sdk,args.symbol,args.terminal_path,args.terminal_data_path)
-        code=getpass.getpass('One-use Trading pairing code (not stored): ')
+        report.record(stage,'VERIFIED')
+        stage='PAIR_INPUT';report.record(stage,'WAITING_OWNER')
+        code=read_pair_code();report.record(stage,'INPUT_VALIDATED')
+        stage='EXCHANGE'
         session=Session(Transport(),args.symbol,code);code=None
+        report.record(stage,'ACCEPTED')
         deadline=time.monotonic()+args.minutes*60
+        first=True
         print('Read-only telemetry started. Market clock/profile unverified; all execution blocked. Ctrl+C stops.')
         while time.monotonic()<deadline:
-            try: market=reader.sample()
+            stage='MARKET_READ'
+            try:market=reader.sample()
             except Exception:
-                session.send(None);raise CollectorError('Terminal read failed; stopped without retry.') from None
+                # Preserve the original read-stage failure even if the one-shot
+                # disconnected heartbeat cannot be confirmed. Never retry reads.
+                try:session.send(None);report.data['disconnect_heartbeat']='ACCEPTED'
+                except Exception:report.data['disconnect_heartbeat']='UNCONFIRMED'
+                raise
+            stage='TELEMETRY'
             session.send(market)
+            if first:report.record(stage,'FIRST_ACCEPTED');first=False
             time.sleep(2)
+        stage='COMPLETE';report.record(stage,'COMPLETED')
         return 0
     except CollectorError as exc:
-        print(str(exc));return 2 # only fixed local messages; no SDK exception/paths
-    except (KeyboardInterrupt,Exception):
+        if report:report.record(stage,exc.code)
+        else:print('BRIDGE_DIAGNOSTIC stage=STARTUP outcome=DIAGNOSTIC_FILE_UNAVAILABLE',flush=True)
+        return 2
+    except KeyboardInterrupt:
+        if report:report.record(stage,'INTERRUPTED')
+        return 2
+    except Exception:
+        if report:report.record(stage,'UNEXPECTED_FAILURE')
         print('Collector stopped. No automatic retry, credentials printed, or orders sent.');return 2
     finally:
         if session is not None: session.clear()
         if sdk is not None:
-            try: sdk.shutdown()
-            except Exception: print('SDK shutdown could not be confirmed; inspect terminal locally.')
+            try:sdk.shutdown();shutdown='COMPLETED'
+            except Exception:shutdown='FAILED';print('SDK shutdown could not be confirmed; inspect terminal locally.')
+        if report:
+            try:report.finish(shutdown)
+            except CollectorError:print('BRIDGE_DIAGNOSTIC stage=COMPLETE outcome=DIAGNOSTIC_FILE_UNAVAILABLE',flush=True)
 
 if __name__=='__main__': raise SystemExit(main())

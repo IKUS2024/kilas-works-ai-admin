@@ -63,6 +63,40 @@ No connection is started without --connect. The service URL is fixed HTTPS;
 there are no redirects, cookies, arbitrary URLs or automatic proxy credential
 discovery. A proxy-only network may fail; do not alter firewall or bypass it.
 
+## Bounded local diagnosis and OFF cleanup
+
+Collector diagnostics print only fixed stage/outcome codes. Stages distinguish
+SDK_BINDING, PAIR_INPUT, EXCHANGE, MARKET_READ and TELEMETRY; HTTP rejections keep
+only a bounded HTTP status code, network/protocol failures remain separate, and
+owner interrupt is explicit. No input, exception text, URL/query, headers, response
+body, account IDs, price/candle or token is included. These codes narrow the failure
+stage; they do not establish a root cause such as paste format, expiry or latency
+unless that specific check supplies the evidence. Input remains exactly 32 lower
+hex characters: no trimming, extraction or case conversion. Protected input requires
+an interactive console; getpass echo fallback is rejected before accepting a secret.
+
+For a separately approved next attempt, --diagnostic-status creates a NEW local
+collector-status.json in the working directory. It contains only a fixed kind/schema,
+last stage/outcome, local UTC timestamps, shutdown state and optionally the fixed
+result of a one-shot disconnected heartbeat. One small record is replaced during
+the same process; no credential or telemetry is saved or uploaded. Existing files
+are never overwritten. Inspect it only after process exit and preserve/rename that
+sanitized artifact before another approved attempt. It is not a broker attestation.
+Without --connect, neither SDK/HTTP nor a diagnostic file is opened.
+
+Dashboard status and session/CSRF-protected revoke remain available with transport
+OFF. Pair/exchange/telemetry stay blocked. The server derives last confirmed stage,
+accepted-message count, last receipt and revocation from its existing bounded row;
+no new schema or sensitive event log is introduced. Failed server attempts are not
+durably recorded and are explicitly NOT_RECORDED. Dashboard HTTP outcome is retained
+on the page across status polling, not as collector evidence or across reloads.
+
+Offline reproduction uses synthetic SDK/input/HTTP errors only: invalid paste,
+protected-console refusal, input interrupt, exchange HTTP401/network/bad JSON,
+market-read failure and telemetry HTTP409. These cases verify stage separation,
+no secret leakage, shutdown/clear, OFF revocation and refusal to overwrite existing
+diagnostics. Do not run a real collector again merely to identify a failure stage.
+
 ## Terminal binding and Python trading gate
 
 The reported terminal installation directory must equal the pinned executable's
