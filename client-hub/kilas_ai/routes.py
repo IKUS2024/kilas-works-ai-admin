@@ -34,21 +34,23 @@ def require_access():
 @ai_bp.get("")
 def home():
     from . import model_policy, autonomous_runner
-    if automation_enabled() and autonomous_runner.enabled() and request.args.get('attachments') != '1' and not request.args.get('automation_result'):
+    from .content_projects import draft
+    content_draft = draft(session['user_id'])
+    if not content_draft and automation_enabled() and autonomous_runner.enabled() and request.args.get('attachments') != '1' and not request.args.get('automation_result'):
         from .agent_routes import new_chat
         return new_chat()
     from . import attachments, store, usage
     current_plan = usage.effective_plan(session["user_id"])["plan"]
     from . import automation_store
     unread = automation_store.unread_count(session["user_id"]) if automation_enabled() else 0
-    prefill = ""
-    if automation_enabled() and request.args.get("automation_result", "").isdigit():
+    prefill = content_draft['project']['brief'] if content_draft else ""
+    if not content_draft and automation_enabled() and request.args.get("automation_result", "").isdigit():
         result = automation_store.result(session["user_id"], int(request.args["automation_result"]))
         if result and result["result_text"]:
             prefill = "Lanjutkan dari hasil Work berikut:\n\n" + result["result_text"][:4000]
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]), selected=None,
                            messages=[], current_plan=current_plan, attachment_limits=attachments.limits(usage.attachment_plan(session["user_id"])),
-                           automation_enabled=automation_enabled(), automation_unread=unread, prefill=prefill)
+                           automation_enabled=automation_enabled(), automation_unread=unread, prefill=prefill, content_draft=content_draft)
 
 
 @ai_bp.get("/usage")

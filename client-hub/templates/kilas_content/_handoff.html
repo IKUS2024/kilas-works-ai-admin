@@ -1,0 +1,7 @@
+{% if content_draft %}
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_content.css') }}">
+<aside class="content-handoff" aria-label="Proyek konten">
+<a href="{{ url_for('kilas_ai.content_project',ident=content_draft.project.id) }}">Kembali ke {{ content_draft.project.title }}</a>
+<p>Draft proyek · naskah v{{ content_draft.version }}. Periksa sebelum memulai. Tautkan hasil baru secara manual dari proyek.</p>
+</aside>
+{% endif %}

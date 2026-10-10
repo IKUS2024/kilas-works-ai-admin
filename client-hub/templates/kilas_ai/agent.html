@@ -19,6 +19,7 @@
     {% set ai_mode = 'agent' %}
     {% include 'kilas_ai/_app_header.html' %}
     <section class="agent-content">
+    {% include 'kilas_content/_handoff.html' %}
     {% if error %}<p class="auto-error" role="alert">{{ {'message':ui_t('Tulis pesan hingga 1.200 karakter.'),'expired':ui_t('Konfirmasi sudah kedaluwarsa. Minta lagi lewat chat.'),'action':ui_t('Tugas belum bisa diubah. Periksa statusnya lalu coba lagi.'),'approval_expired':ui_t('Persetujuan sudah kedaluwarsa. Siapkan tindakan lagi.'),'approval_already_used':ui_t('Tindakan ini sudah pernah dikonfirmasi atau dibatalkan.'),'reauth_required':ui_t('Akses akun eksternal belum tersedia di Kilas AI.'),'permission_missing':ui_t('Tindakan ini belum tersedia di Kilas AI.'),'provider_unavailable':ui_t('Layanan belum merespons. Hasil tindakan belum dapat dipastikan.'),'provider_outcome_uncertain':ui_t('Hasil dari layanan belum pasti. Periksa layanan terkait sebelum mencoba lagi.'),'rate_limited':ui_t('Layanan sedang membatasi permintaan. Coba lagi nanti.'),'invalid_target':ui_t('Tujuan tindakan tidak ditemukan.')}.get(error,ui_t('Permintaan belum bisa diproses.')) }}</p>{% endif %}
     {% if view == 'chat' %}
       <header class="agent-section-head"><div><h2>{{ conversation.title if messages else ui_t('Chat baru') }}</h2></div><details class="agent-rename"><summary aria-label="{{ ui_t('Ubah nama chat') }}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></summary><form method="post" action="{{ url_for('kilas_ai.agent_rename_chat',conversation_id=conversation.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="chat-title">{{ ui_t('Nama chat') }}</label><input id="chat-title" name="title" value="{{ conversation.title }}" maxlength="60" required><button type="submit">{{ ui_t('Simpan') }}</button></form></details></header>
@@ -33,6 +34,11 @@
         {% if not messages %}{% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endif %}
       </div>
       <div id="agent-thinking" class="agent-thinking" role="status" aria-live="polite" hidden><span class="agent-thinking-dot" aria-hidden="true"></span><span>{{ ui_t('Menyiapkan jawaban…') }}</span></div>
+      {% if chat_content %}
+        {% include 'kilas_content/_chat_content_panel.html' %}
+        {% if chat_content.listening_enabled %}<details class="chat-content-listening"><summary>Contoh caption tab · sintetis</summary>{% include 'kilas_content/_listening_panel.html' %}</details>{% endif %}
+        <script type="module" src="{{ url_for('static',filename='kilas_chat_content.mjs') }}"></script>
+      {% endif %}
       <p id="agent-chat-error" class="auto-error" role="alert" hidden></p>
       <form class="agent-composer ai-composer-area" method="post" enctype="multipart/form-data" action="{{ url_for('kilas_ai.agent_chat') }}" id="agent-chat-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="conversation_id" value="{{ conversation.id }}"><input type="hidden" name="operation_key" value="{{ operation_key }}"><label class="ai-visually-hidden" for="agent-message">{{ ui_t('Pesan untuk Kilas') }}</label>
         <input type="hidden" name="browser_timezone"><input type="hidden" name="work_location">

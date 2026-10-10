@@ -27,6 +27,7 @@
   </aside>
   <button type="button" class="ai-backdrop" id="ai-backdrop" data-ai-backdrop aria-label="{{ ui_t('Tutup riwayat') }}"></button>
   <main class="ai-main {{ 'is-empty' if not messages else '' }}">
+    {% include 'kilas_content/_handoff.html' %}
     {% set ai_mode = 'chat' %}
     {% set ai_header_actions %}
       <details class="ai-thread-menu" {% if not selected %}hidden{% endif %}><summary>{{ ui_t('Opsi') }}</summary><div class="ai-menu-content">

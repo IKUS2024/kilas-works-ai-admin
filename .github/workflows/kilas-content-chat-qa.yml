@@ -1,0 +1,64 @@
+name: Kilas Content Chat QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client-hub/kilas_ai/content_*.py'
+      - 'client-hub/kilas_ai/content_schema_*.sql'
+      - 'client-hub/kilas_ai/chat_content*'
+      - 'client-hub/kilas_ai/listening_routes.py'
+      - 'client-hub/kilas_ai/agent_routes.py'
+      - 'client-hub/templates/kilas_content/**'
+      - 'client-hub/templates/kilas_ai/agent.html'
+      - 'client-hub/static/kilas_content.*'
+      - 'client-hub/static/kilas_chat_content.*'
+      - 'client-hub/static/kilas_listening*'
+      - 'client-hub/tests/test_*content*.py'
+      - 'client-hub/tests/test_listening*'
+      - 'client-hub/app.py'
+      - '.github/workflows/kilas-content-chat-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  content:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: synthetic-ci-only
+          POSTGRES_DB: kilas_content_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kilas_content_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt pytest playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Isolated content HTTP, browser, and PostgreSQL regression
+        env:
+          KILAS_CHAT_BROWSER_QA_DIR: /tmp/kilas-chat-qa
+          KILAS_CONTENT_BROWSER_QA_DIR: /tmp/kilas-content-qa
+          KILAS_LISTENING_BROWSER_QA_DIR: /tmp/kilas-listening-qa
+          KILAS_CONTENT_POSTGRES_QA_URL: postgresql://postgres:synthetic-ci-only@127.0.0.1:5432/kilas_content_qa
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: >-
+          pytest -q -p no:cacheprovider
+          client-hub/tests/test_content_projects_prototype.py
+          client-hub/tests/test_chat_content_demo.py
+          client-hub/tests/test_listening_demo.py
+          client-hub/tests/test_content_release_postgres.py
+      - run: node --test client-hub/tests/test_listening_lifecycle.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-content-chat-responsive
+          path: /tmp/kilas-*-qa/*.png
+          if-no-files-found: ignore

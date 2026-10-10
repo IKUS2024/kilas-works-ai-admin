@@ -1,0 +1,18 @@
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_listening.css') }}">
+<section aria-label="Demo terjemahan audio" id="listening-demo" class="listening-demo" data-state="idle">
+<a href="{{ url_for('kilas_ai.home') }}">Kilas AI</a><h1>Dengar &amp; Terjemahkan</h1>
+<p><strong>Demo sintetis · belum terhubung ke provider live.</strong></p>
+<p>Contoh alur caption video atau percakapan di tab Chrome desktop. Demo ini tidak menangkap audio nyata, tidak merekam, dan tidak mengirim data ke provider.</p>
+<section aria-labelledby="listen-privacy"><h2 id="listen-privacy">Sebelum berbagi audio di masa depan</h2>
+<p>Capture nyata nantinya hanya dimulai setelah klik dan pemilihan sumber di dialog browser. Pilih tab Chrome dan aktifkan berbagi audio tab. Ketersediaan audio bergantung pada browser, sumber, dan izin; dukungan seluruh PC atau ponsel tidak dijanjikan.</p>
+<p>Audio percakapan dapat berisi informasi pribadi orang lain. Pastikan izin pihak terkait sebelum berbagi. Integrasi provider belum dipilih; pemrosesan, biaya dan retensi harus disetujui sebelum audio nyata dikirim. Rekaman tidak aktif secara default.</p>
+<button type="button" disabled>Capture tab nyata · belum tersedia</button></section>
+<section aria-labelledby="listen-controls"><h2 id="listen-controls">Coba alur contoh</h2>
+<div class="listening-languages"><label>Bahasa sumber<select id="listen-source"><option value="en">English</option><option value="id">Indonesia</option></select></label><label>Terjemahkan ke<select id="listen-target"><option value="id">Indonesia</option><option value="en">English</option></select></label></div>
+<label class="listening-check"><input type="checkbox" id="listen-consent">Saya memahami demo memakai teks sintetis dan tidak membagikan audio nyata.</label>
+<label class="listening-check"><input type="checkbox" id="listen-suggest">Tampilkan contoh draft balasan untuk saya baca</label>
+<div class="listening-actions"><button type="button" id="listen-start">Mulai demo</button><button type="button" id="listen-stop" disabled>Berhenti</button></div>
+<p id="listen-status" role="status" aria-live="polite">Siap mencoba contoh sintetis.</p></section>
+<section class="listening-captions" aria-label="Caption contoh"><div><h2>Teks asli</h2><div id="listen-original" role="log" aria-live="polite"></div></div><div><h2>Terjemahan</h2><div id="listen-translated" role="log" aria-live="polite"></div></div></section>
+<section><label for="listen-reply">Draft balasan opsional</label><textarea id="listen-reply" rows="3" placeholder="Contoh pertanyaan klarifikasi akan muncul di sini."></textarea><p>Contoh generik, bukan fakta atau komitmen tentangmu. Periksa dan ubah sebelum membacanya sendiri. Tidak dikirim atau diucapkan otomatis. Berhenti menghapus teks demo.</p></section>
+</section><script type="module" src="{{ url_for('static',filename='kilas_listening.mjs') }}"></script>

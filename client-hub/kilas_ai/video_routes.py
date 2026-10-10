@@ -32,6 +32,8 @@ def output(row):
 @ai_bp.get('/video',endpoint='video_home')
 @ai_bp.get('/video/projects/<int:project>',endpoint='video_project')
 def home(project=None):
+    from .content_projects import draft
+    content_draft = draft(owner())
     area=request.args.get('area','plan')
     if area in ('learn','workflow','tools'):return redirect(url_for('kilas_ai.video_home'),code=302)
     if area!='plan':abort(404)
@@ -42,7 +44,7 @@ def home(project=None):
     controls=json.loads(row['options_json']) if row else {}
     retry=controls.pop('_retry',None) if row and row['status']=='ERROR' else None
     if retry:controls.update(retry['controls'])
-    return render_template('kilas_video/home.html',retry=retry,video_entitlement=video_entitlement.state(owner()),area=area,history=rows[:20],more=len(rows)>20,page=page,
+    return render_template('kilas_video/home.html',content_draft=content_draft,retry=retry,video_entitlement=video_entitlement.state(owner()),area=area,history=rows[:20],more=len(rows)>20,page=page,
         plan_types=('Product','UGC','Ads','Cinematic','Social Content','Education','Fashion','Food','Travel','Other'),
         target_tools=director.TOOLS,operation_key=secrets.token_hex(16),
         project=row,controls=controls,**({k:v for k,v in output(row).items() if k not in ('project','controls')} if row else {'spec':None,'package':None,'references':[]}))

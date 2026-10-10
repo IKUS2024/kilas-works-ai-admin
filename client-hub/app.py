@@ -258,6 +258,14 @@ def create_app():
     from kilas_ai.audio_routes import audio_bp
     app.register_blueprint(audio_bp)
     from kilas_ai import video_routes  # Isolated, metered Video planning; no video inference.
+    from kilas_ai import content_routes  # Default-off metadata; guarded additive schema below.
+    from kilas_ai import listening_routes  # Optional synthetic demo; no capture/provider backend.
+    from kilas_ai import chat_content_routes  # Default-off synthetic artifacts within existing chat.
+    from kilas_ai.content_projects import enabled as content_enabled
+    from kilas_ai.chat_content import enabled as chat_content_enabled
+    if content_enabled() or chat_content_enabled():
+        from kilas_ai import content_schema
+        content_schema.apply_release()  # Additive only; disabled features perform no schema work.
     if kilas_ai_enabled():
         from kilas_ai import video_schema
         video_schema.apply_release()  # Only additive 0082; checksum-idempotent.
@@ -269,6 +277,7 @@ def create_app():
     app.register_blueprint(kilas_ai_admin_bp)
     app.jinja_env.globals["kilas_ai_enabled"] = kilas_ai_enabled
     app.jinja_env.globals["kilas_video_enabled"] = kilas_ai_enabled
+    app.jinja_env.globals["kilas_content_enabled"] = content_enabled
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
     from routes_workspace import workspace_bp

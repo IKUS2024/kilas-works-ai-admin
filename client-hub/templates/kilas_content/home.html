@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Proyek Konten · Kilas Works{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_content.css') }}">
+<main class="content-project"><a href="{{ url_for('kilas_ai.home') }}">Kilas AI</a><h1>Proyek Konten</h1>
+<p>Simpan brief, naskah, rencana visual dan hasil audio dalam satu proyek.</p>
+<section><h2>Proyek baru</h2><form method="post" action="{{ url_for('kilas_ai.content_create') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}">
+<label for="content-title">Nama proyek</label><input id="content-title" name="title" maxlength="100" required>
+<label for="content-brief">Brief</label><textarea id="content-brief" name="brief" maxlength="2400" rows="4"></textarea>
+<button class="btn" type="submit">Buat proyek</button></form></section>
+<section><h2>Proyek tersimpan</h2>{% if projects %}<ul>{% for project in projects %}<li><a href="{{ url_for('kilas_ai.content_project',ident=project.id) }}">{{ project.title }}</a></li>{% endfor %}</ul>{% else %}<p>Belum ada proyek. Mulai dari ide baru atau video yang sudah kamu punya.</p>{% endif %}</section></main>
+{% endblock %}
