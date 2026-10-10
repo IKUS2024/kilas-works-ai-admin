@@ -35,7 +35,7 @@ def main():
                     if page.locator('#audio-script').count():
                         assert page.locator('#audio-script').evaluate('el=>getComputedStyle(el).backgroundColor')=='rgb(255, 255, 255)'
                     page.screenshot(path=str(output/f'{name}-{width}.png'),full_page=True)
-                page.goto(origin+'/products/start',wait_until='networkidle');page.get_by_role('link',name='Buka Kilas Translator').click();expect(page.get_by_role('heading',name='Kilas Translator',exact=True)).to_be_visible();check('translate')
+                page.goto(origin+'/products/start',wait_until='networkidle');page.locator('[data-home-task=translate]').click();page.locator('#ai-send').click();expect(page.get_by_role('heading',name='Kilas Translator',exact=True)).to_be_visible();check('translate')
                 # Exercise the actual global file validator and server multipart cap together.
                 raw=wav(3)
                 if width==1440:

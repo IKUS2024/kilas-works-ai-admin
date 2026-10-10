@@ -35,8 +35,8 @@ def main():
                     assert page.locator('body').evaluate('e=>getComputedStyle(e).backgroundColor')=='rgb(255, 255, 255)'
                     page.screenshot(path=str(output/f'{name}-{width}.png'),full_page=True)
                     page.screenshot(path=str(output/f'{name}-viewport-{width}.png'))
-                page.goto(origin+'/products/start',wait_until='networkidle');expect(page.get_by_role('link',name='Buka Kilas Video')).to_be_visible()
-                page.get_by_role('link',name='Buka Kilas Video').click();expect(page.get_by_role('heading',name='Kilas Video',exact=True)).to_be_visible();check('empty')
+                page.goto(origin+'/products/start',wait_until='networkidle');expect(page.locator('[data-home-task=video]')).to_be_visible()
+                page.locator('[data-home-task=video]').click();page.locator('#ai-send').click();expect(page.get_by_role('heading',name='Kilas Video',exact=True)).to_be_visible();check('empty')
                 if width<761:
                     page.locator('[data-premium-menu]').click();expect(page.locator('.premium-navigation').get_by_role('link',name='Video',exact=True)).to_be_visible()
                     page.locator('.premium-sidebar [data-premium-close]').click()

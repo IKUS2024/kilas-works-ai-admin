@@ -57,7 +57,9 @@ class VideoTests(unittest.TestCase):
         self.assertEqual(fixture.app.app.test_client().get('/kilas-ai/video').status_code,302)
         html=self.client.get('/kilas-ai/video').text
         self.assertIn('Kilas Video',html);self.assertNotIn('Connections',html)
-        self.assertIn('Buka Kilas Video',self.client.get('/products/start').text)
+        home=self.client.get('/products/start').text
+        self.assertIn('data-home-task="video"',home)
+        self.assertNotIn('Buka Kilas Video',home)
         self.assertIn('video-studio',html)
 
     def test_create_and_reopen_owner_history(self):
