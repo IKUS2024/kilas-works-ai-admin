@@ -1,0 +1,14 @@
+<details data-transcription data-ready="{{ 'true' if chat_project.transcription.ready else 'false' }}" data-url="{{ url_for('kilas_ai.transcription_job',cid=chat_project.conversation_id,pid=chat_project.project.id,key='OPERATION_KEY') }}" data-key="{{ chat_project.transcription.job.operation_key if chat_project.transcription.job else '' }}">
+<summary>Audio menjadi naskah</summary>
+<p class="chat-project-note">Transkripsi audio asli, terpisah dari contoh suara sintetis. Maksimal 10 MiB dan 3 menit. Periksa teks sebelum menyimpan.</p>
+{% if not chat_project.transcription.ready %}<p role="status">Transkripsi belum aktif. Batas biaya pemrosesan audio belum disetujui.</p>{% endif %}
+<label class="chat-project-review"><input type="checkbox" data-stt-consent>Saya mengizinkan audio ini dikirim ke OpenAI untuk ditranskripsi. Teks hasilnya disimpan di proyek saya; audio asli tidak disimpan oleh aplikasi.</label>
+<label for="stt-file-{{ chat_project.conversation_id }}">Unggah audio</label><input id="stt-file-{{ chat_project.conversation_id }}" type="file" data-stt-file accept="audio/wav,audio/mpeg,audio/mp4,audio/webm,audio/ogg,.m4a" {{ 'disabled' if not chat_project.transcription.ready else '' }}>
+<button type="button" data-stt-record {{ 'disabled' if not chat_project.transcription.ready else '' }}>Rekam suara saya</button><button type="button" data-stt-stop hidden>Hentikan rekaman</button>
+<audio data-stt-preview controls hidden aria-label="Dengarkan audio sebelum transkripsi"></audio>
+<button type="button" data-stt-send disabled>Transkripsikan audio</button><button type="button" data-stt-cancel hidden>Batalkan transkripsi</button><button type="button" data-stt-discard hidden>Buang audio dan draft lokal</button>
+<p role="status" aria-live="polite" data-stt-status></p>
+<label for="stt-text-{{ chat_project.conversation_id }}">Draft transkrip yang bisa diedit</label><textarea id="stt-text-{{ chat_project.conversation_id }}" data-stt-text rows="5" maxlength="4000">{{ chat_project.transcription.job.text if chat_project.transcription.job and chat_project.transcription.job.status=='COMPLETED' else '' }}</textarea>
+<button type="button" data-stt-use {{ 'disabled' if not chat_project.transcription.job or chat_project.transcription.job.status!='COMPLETED' else '' }}>Pakai sebagai draft naskah proyek</button>
+<p class="chat-project-note">Penyimpanan versi memakai tombol Simpan sebagai versi baru dan persetujuan pemeriksaan naskah. Pembatalan tidak menjamin provider menghentikan pemrosesan atau biaya yang sudah terjadi.</p>
+</details>

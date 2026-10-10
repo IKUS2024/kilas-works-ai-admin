@@ -266,6 +266,10 @@ def create_app():
     if content_enabled() or chat_content_enabled():
         from kilas_ai import content_schema
         content_schema.apply_release()  # Additive only; disabled features perform no schema work.
+    from kilas_ai.transcription import enabled as transcription_enabled
+    if content_enabled() and transcription_enabled():
+        from kilas_ai import transcription_schema
+        transcription_schema.apply()
     if kilas_ai_enabled():
         from kilas_ai import video_schema
         video_schema.apply_release()  # Only additive 0082; checksum-idempotent.
@@ -331,6 +335,9 @@ def create_app():
         if request.endpoint in ('kilas_audio.inspect', 'kilas_audio.create'):
             from kilas_ai.audio_media import file_limit
             request.max_content_length = file_limit() + 1024 * 1024
+        elif (request.endpoint or '').startswith('kilas_ai.transcription_'):
+            from kilas_ai.transcription import MAX_BYTES
+            request.max_content_length = MAX_BYTES + 64 * 1024
 
     @app.before_request
     def _expire_idle_customer_session():

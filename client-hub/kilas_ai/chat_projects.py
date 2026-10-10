@@ -102,7 +102,12 @@ def context(owner, conversation_id, version=None):
     chosen = None
     if project and (version or project['script_version']):
         chosen = owned_script(owner, conversation_id, project['id'], version or project['script_version'])
-    return {'conversation_id': conversation_id, 'project': project, 'script': chosen,
+    from . import transcription
+    audio_draft = None
+    if transcription.enabled() and project:
+        row = db.query_one('SELECT * FROM kilas_chat_transcriptions WHERE user_id=? AND conversation_id=? AND project_id=? ORDER BY id DESC LIMIT 1', (owner, conversation_id, project['id']))
+        audio_draft = {'ready': transcription.ready(), 'job': transcription.public(row) if row else None}
+    return {'conversation_id': conversation_id, 'project': project, 'script': chosen, 'transcription': audio_draft,
             'projects': projects.listing(owner),
             'versions': db.query_all('SELECT version FROM kilas_content_scripts WHERE project_id=? ORDER BY version DESC LIMIT 50', (project['id'],)) if project else []}
 

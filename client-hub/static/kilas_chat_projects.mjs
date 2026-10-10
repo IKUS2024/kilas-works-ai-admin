@@ -1,11 +1,13 @@
+import {bindTranscription} from './kilas_transcription.mjs';
 function bind(root) {
+  const disposeTranscription=bindTranscription(root);
   let busy=false,controller=null,generation=0;
   const status=root.querySelector('[data-project-status]'),abort=root.querySelector('[data-project-abort]');
   const choice=root.querySelector('select[name="project_id"]'),newProject=root.querySelector('[data-project-new]'),title=newProject.querySelector('input[name="title"]');
   const toggle=()=>{newProject.hidden=choice.value!=='';title.required=!newProject.hidden;};
   choice.addEventListener('change',toggle);toggle();
   const unlock=()=>{busy=false;abort.hidden=true;root.querySelectorAll('[data-project-form] button[type="submit"]').forEach(b=>b.disabled=false);};
-  const hide=()=>{++generation;controller?.abort();};
+  const hide=()=>{++generation;controller?.abort();disposeTranscription();};
   abort.addEventListener('click',()=>{++generation;controller?.abort();unlock();status.textContent='Permintaan dibatalkan di browser. Muat ulang untuk memeriksa apakah server sudah menyimpan perubahan.';});
   root.addEventListener('submit',async event=>{
     const form=event.target;if(!form.matches('[data-project-form]'))return;
@@ -20,7 +22,7 @@ function bind(root) {
       const doc=new DOMParser().parseFromString(data.panel_html,'text/html'),incoming=doc.querySelector('[data-chat-projects]');
       if(!incoming||incoming.dataset.conversation!==root.dataset.conversation)throw Error('Respons percakapan tidak cocok. Muat ulang chat.');
       const url=new URL(location.href);if(data.script_version)url.searchParams.set('chat_script_version',data.script_version);else url.searchParams.delete('chat_script_version');history.replaceState(null,'',url);
-      window.removeEventListener('pagehide',hide);root.replaceWith(incoming);bind(incoming);
+      window.removeEventListener('pagehide',hide);disposeTranscription();root.replaceWith(incoming);bind(incoming);
     } catch(error) {if(ticket===generation&&root.isConnected)status.textContent=error.name==='AbortError'?'Permintaan dibatalkan. Muat ulang untuk memeriksa perubahan.':error.message;}
     finally {if(ticket===generation&&root.isConnected)unlock();}
   });

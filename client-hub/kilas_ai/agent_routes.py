@@ -14,6 +14,7 @@ from . import connectors, google_connection, connector_flow, connector_planner
 from .routes import ai_bp, automation_enabled
 from . import work_routes  # Register the scoped Work endpoints on the existing blueprint.
 from . import chat_project_routes  # Real project controls; independently gated from demos.
+from . import transcription_routes  # Default-off STT; paid transport locked pending budget.
 
 
 @ai_bp.before_request

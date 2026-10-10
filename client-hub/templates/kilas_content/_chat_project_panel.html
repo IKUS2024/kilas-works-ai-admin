@@ -12,6 +12,7 @@
 </form><p class="chat-project-note">Pilihan disimpan untuk percakapan ini. Membuat atau menautkan proyek tidak menjalankan AI.</p></details>
 {% if chat_project.project %}
 <p class="chat-project-brief">{{ chat_project.project.brief }}</p>
+{% if chat_project.transcription %}{% include 'kilas_content/_transcription.html' %}{% endif %}
 {% if chat_project.script %}
 <form method="get" action="{{ url_for('kilas_ai.agent_home') }}"><input type="hidden" name="conversation" value="{{ chat_project.conversation_id }}"><label for="chat-project-version-{{ chat_project.conversation_id }}">Versi naskah yang dibuka</label><select id="chat-project-version-{{ chat_project.conversation_id }}" name="chat_script_version">{% for item in chat_project.versions %}<option value="{{ item.version }}" {{ 'selected' if item.version==chat_project.script.version }}>v{{ item.version }}</option>{% endfor %}</select><button type="submit">Buka versi naskah</button></form>
 {% endif %}

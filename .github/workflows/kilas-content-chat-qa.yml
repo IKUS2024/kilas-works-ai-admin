@@ -7,6 +7,7 @@ on:
       - 'client-hub/kilas_ai/content_schema_*.sql'
       - 'client-hub/kilas_ai/chat_content*'
       - 'client-hub/kilas_ai/chat_project*'
+      - 'client-hub/kilas_ai/transcription*'
       - 'client-hub/kilas_ai/listening_routes.py'
       - 'client-hub/kilas_ai/agent_routes.py'
       - 'client-hub/templates/kilas_content/**'
@@ -15,8 +16,11 @@ on:
       - 'client-hub/static/kilas_chat_content.*'
       - 'client-hub/static/kilas_chat_projects.*'
       - 'client-hub/static/kilas_listening*'
+      - 'client-hub/static/kilas_transcription*'
       - 'client-hub/tests/test_*content*.py'
       - 'client-hub/tests/test_chat_projects.py'
+      - 'client-hub/tests/test_chat_transcription.py'
+      - 'client-hub/tests/test_transcription*'
       - 'client-hub/tests/test_listening*'
       - 'client-hub/app.py'
       - '.github/workflows/kilas-content-chat-qa.yml'
@@ -49,6 +53,7 @@ jobs:
         env:
           KILAS_CHAT_BROWSER_QA_DIR: /tmp/kilas-chat-qa
           KILAS_REAL_PROJECT_BROWSER_QA_DIR: /tmp/kilas-real-project-qa
+          KILAS_TRANSCRIPTION_BROWSER_QA_DIR: /tmp/kilas-transcription-qa
           KILAS_CONTENT_BROWSER_QA_DIR: /tmp/kilas-content-qa
           KILAS_LISTENING_BROWSER_QA_DIR: /tmp/kilas-listening-qa
           KILAS_CONTENT_POSTGRES_QA_URL: postgresql://postgres:synthetic-ci-only@127.0.0.1:5432/kilas_content_qa
@@ -58,9 +63,11 @@ jobs:
           client-hub/tests/test_content_projects_prototype.py
           client-hub/tests/test_chat_content_demo.py
           client-hub/tests/test_chat_projects.py
+          client-hub/tests/test_chat_transcription.py
           client-hub/tests/test_listening_demo.py
           client-hub/tests/test_content_release_postgres.py
       - run: node --test client-hub/tests/test_listening_lifecycle.mjs
+      - run: node --test client-hub/tests/test_transcription_recorder.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
