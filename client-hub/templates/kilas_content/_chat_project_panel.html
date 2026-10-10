@@ -1,0 +1,30 @@
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_projects.css') }}">
+<section class="chat-projects" data-chat-projects data-conversation="{{ chat_project.conversation_id }}" aria-label="Proyek konten dalam percakapan">
+<details class="chat-project-workspace" {{ 'open' if chat_project.project else '' }}>
+<summary>Proyek percakapan{% if chat_project.project %} <span>{{ chat_project.project.title }}{% if chat_project.script %} · v{{ chat_project.script.version }}{% endif %}</span>{% endif %}</summary>
+<p data-project-status role="status" aria-live="polite"></p><button type="button" data-project-abort hidden>Batalkan permintaan</button>
+<details class="chat-project-choice" {{ 'open' if not chat_project.project else '' }}><summary>{{ 'Ganti atau buat proyek' if chat_project.project else 'Tautkan atau buat proyek' }}</summary>
+<form data-project-form method="post" action="{{ url_for('kilas_ai.chat_project_mutate',conversation_id=chat_project.conversation_id,operation='choose') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ project_key }}-choose"><input type="hidden" name="expected_project_id" value="{{ chat_project.project.id if chat_project.project else 0 }}">
+<label for="chat-project-choice-{{ chat_project.conversation_id }}">Proyek milikmu</label><select id="chat-project-choice-{{ chat_project.conversation_id }}" name="project_id"><option value="">Buat proyek baru</option>{% for item in chat_project.projects %}<option value="{{ item.id }}" {{ 'selected' if chat_project.project and item.id==chat_project.project.id }}>{{ item.title }} · #{{ item.id }}</option>{% endfor %}</select>
+<div data-project-new {{ 'hidden' if chat_project.project else '' }}><label for="chat-project-title-{{ chat_project.conversation_id }}">Nama proyek baru</label><input id="chat-project-title-{{ chat_project.conversation_id }}" name="title" maxlength="100" {{ 'required' if not chat_project.project else '' }}><label for="chat-project-brief-{{ chat_project.conversation_id }}">Brief proyek baru</label><textarea id="chat-project-brief-{{ chat_project.conversation_id }}" name="brief" rows="2" maxlength="2400"></textarea></div>
+<button type="submit" class="chat-project-primary">Tautkan proyek ke percakapan</button>
+</form><p class="chat-project-note">Pilihan disimpan untuk percakapan ini. Membuat atau menautkan proyek tidak menjalankan AI.</p></details>
+{% if chat_project.project %}
+<p class="chat-project-brief">{{ chat_project.project.brief }}</p>
+{% if chat_project.script %}
+<form method="get" action="{{ url_for('kilas_ai.agent_home') }}"><input type="hidden" name="conversation" value="{{ chat_project.conversation_id }}"><label for="chat-project-version-{{ chat_project.conversation_id }}">Versi naskah yang dibuka</label><select id="chat-project-version-{{ chat_project.conversation_id }}" name="chat_script_version">{% for item in chat_project.versions %}<option value="{{ item.version }}" {{ 'selected' if item.version==chat_project.script.version }}>v{{ item.version }}</option>{% endfor %}</select><button type="submit">Buka versi naskah</button></form>
+{% endif %}
+<details class="chat-project-script"><summary>{{ 'Periksa naskah v'~chat_project.script.version if chat_project.script else 'Tulis naskah proyek' }}</summary>
+<form data-project-form method="post" action="{{ url_for('kilas_ai.chat_project_mutate',conversation_id=chat_project.conversation_id,operation='script') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ project_key }}-script"><input type="hidden" name="project_id" value="{{ chat_project.project.id }}"><input type="hidden" name="version" value="{{ chat_project.project.script_version }}">
+<label for="chat-project-script-{{ chat_project.conversation_id }}">Naskah proyek</label><textarea id="chat-project-script-{{ chat_project.conversation_id }}" name="script" rows="5" maxlength="4000" required>{{ chat_project.script.content if chat_project.script else '' }}</textarea>
+<label class="chat-project-review"><input type="checkbox" name="reviewed" value="yes" required>Saya sudah memeriksa naskah ini.</label>
+<button type="submit" class="chat-project-primary">Simpan sebagai versi baru</button>
+</form><p class="chat-project-note">Salin hasil chat yang ingin dipakai, lalu periksa sebelum menyimpan. Versi sebelumnya tetap tersimpan.</p></details>
+<nav class="chat-project-handoff" aria-label="Lanjutkan proyek konten">
+{% if chat_project.script %}<a href="{{ url_for('kilas_audio.home',content_project=chat_project.project.id,script_version=chat_project.script.version,content_mode='voiceover') }}">Buka draft VoiceOver · v{{ chat_project.script.version }}</a><a href="{{ url_for('kilas_ai.chat_project_download',conversation_id=chat_project.conversation_id,ident=chat_project.project.id,version=chat_project.script.version) }}">Unduh naskah v{{ chat_project.script.version }} · TXT</a>{% endif %}
+<a href="{{ url_for('kilas_ai.video_home',content_project=chat_project.project.id,script_version=chat_project.script.version if chat_project.script else 0) }}">Video Plan dari brief</a><a href="{{ url_for('kilas_ai.content_project',ident=chat_project.project.id) }}">Bahan dan hasil proyek</a>
+</nav><p class="chat-project-note">Membuka draft tidak memulai generasi. Video Plan menghasilkan storyboard dan prompt; hasil baru ditautkan manual.</p>
+{% endif %}
+</details></section>

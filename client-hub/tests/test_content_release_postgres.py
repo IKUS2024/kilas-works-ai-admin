@@ -141,3 +141,46 @@ def test_postgres_concurrent_retries_create_one_record_and_action(postgres):
     parallel(lambda: c.run_mock(1, 1, ident, 1, 'translate', 'en', 'concurrent-action-01'))
     assert postgres.query_one('SELECT COUNT(*) AS n FROM kilas_chat_demo_recordings')['n'] == 1
     assert postgres.query_one('SELECT COUNT(*) AS n FROM kilas_chat_demo_actions')['n'] == 1
+
+
+def test_postgres_real_chat_project_without_synthetic_artifacts(postgres):
+    from kilas_ai import chat_projects as c, content_projects as p
+    ident = c.choose(1, 1, None, 0, 'real-project-key001', 'Real project', 'Reviewed brief')
+    assert c.choose(1, 1, None, 0, 'real-project-key001', 'Real project', 'Reviewed brief') == ident
+    assert len(p.links(1, ident)) == 1
+    with pytest.raises(LookupError):
+        c.choose(2, 2, ident, 0, 'foreign-link-key01')
+    assert c.save_script(1, 1, ident, 0, 'Version one', 'real-script-key001', True) == 1
+    assert c.save_script(1, 1, ident, 0, 'Version one', 'real-script-key001', True) == 1
+    assert c.save_script(1, 1, ident, 1, 'Version two', 'real-script-key002', True) == 2
+    assert c.owned_script(1, 1, ident, 1)['content'] == 'Version one'
+    with pytest.raises(p.Conflict):
+        c.choose(1, 1, None, 0, 'stale-project-key1', 'Stale', '')
+    assert len(p.listing(1)) == 1
+    for table in ('kilas_chat_demo_recordings', 'kilas_chat_demo_transcripts', 'kilas_chat_demo_actions'):
+        assert postgres.query_one('SELECT COUNT(*) AS n FROM ' + table)['n'] == 0
+
+
+def test_postgres_real_chat_concurrent_create_and_script_retries(postgres):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from kilas_ai import chat_projects as c, content_projects as p
+    def parallel(call):
+        barrier = Barrier(4)
+        def worker(_):
+            try:
+                barrier.wait(timeout=5)
+                return call()
+            finally:
+                conn = getattr(postgres._local, 'conn', None)
+                if conn:
+                    conn.close()
+                postgres._local.conn = None
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(worker, range(4)))
+        assert len(set(results)) == 1
+        return results[0]
+    ident = parallel(lambda: c.choose(1, 1, None, 0, 'parallel-project1', 'One project', ''))
+    assert parallel(lambda: c.save_script(1, 1, ident, 0, 'One revision', 'parallel-script01', True)) == 1
+    assert len(p.listing(1)) == 1 and len(p.links(1, ident)) == 1
+    assert p.get(1, ident)['script_version'] == 1

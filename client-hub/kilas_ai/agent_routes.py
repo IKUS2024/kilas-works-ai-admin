@@ -13,6 +13,7 @@ from . import agent_planner, agent_store, automation_schedule as schedule, autom
 from . import connectors, google_connection, connector_flow, connector_planner
 from .routes import ai_bp, automation_enabled
 from . import work_routes  # Register the scoped Work endpoints on the existing blueprint.
+from . import chat_project_routes  # Real project controls; independently gated from demos.
 
 
 @ai_bp.before_request
@@ -91,6 +92,8 @@ def agent_home():
     conversation = agent_store.conversation(owner, conversation_id)
     from .chat_content import view_context
     chat_content = view_context(owner, conversation_id) if view == 'chat' else None
+    from .chat_projects import view_context as project_view_context
+    chat_project = project_view_context(owner, conversation_id) if view == 'chat' else None
     from . import autonomous_runner, autonomous_store, work_push
     from .agent_presentation import job_card, time_label
     if view == 'activity':
@@ -124,7 +127,7 @@ def agent_home():
         autonomous_enabled=autonomous_runner.enabled(), active_count=active_count, autonomous_unread=autonomous_unread,
         notifications=notifications, timezone=store.setting(owner), push_available=work_push.configured(),
         location_request=location if location and location['conversation']==conversation_id else None,
-        error=request.args.get('error'), chat_content=chat_content, demo_key=secrets.token_hex(16), content_draft=content_draft, prefill=(content_draft['project']['brief'][:1200] if content_draft else request.args.get('message','')[:1200]))
+        error=request.args.get('error'), chat_content=chat_content, chat_project=chat_project, project_key=secrets.token_hex(16), demo_key=secrets.token_hex(16), content_draft=content_draft, prefill=(content_draft['project']['brief'][:1200] if content_draft else request.args.get('message','')[:1200]))
 
 
 @ai_bp.post("/agent/chat", endpoint="agent_chat")

@@ -34,6 +34,10 @@
         {% if not messages %}{% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endif %}
       </div>
       <div id="agent-thinking" class="agent-thinking" role="status" aria-live="polite" hidden><span class="agent-thinking-dot" aria-hidden="true"></span><span>{{ ui_t('Menyiapkan jawaban…') }}</span></div>
+      {% if chat_project %}
+        {% include 'kilas_content/_chat_project_panel.html' %}
+        <script type="module" src="{{ url_for('static',filename='kilas_chat_projects.mjs') }}"></script>
+      {% endif %}
       {% if chat_content %}
         {% include 'kilas_content/_chat_content_panel.html' %}
         {% if chat_content.listening_enabled %}<details class="chat-content-listening"><summary>Contoh caption tab · sintetis</summary>{% include 'kilas_content/_listening_panel.html' %}</details>{% endif %}
