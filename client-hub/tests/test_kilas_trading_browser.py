@@ -1,7 +1,7 @@
 """Actual local app browser acceptance and responsive desktop/mobile evidence."""
 import os
 import json
-from test_kilas_trading_diagnostic import diagnostic_fixture
+from test_kilas_trading_diagnostic import diagnostic_fixture, diagnostic_with_notional_facts
 import shutil
 import threading
 from pathlib import Path
@@ -41,6 +41,9 @@ def main():
             for name in ('Hubungkan','Putuskan koneksi','Mulai AI','Jeda AI'):
                 assert page.get_by_role('button',name=name,exact=True).is_disabled()
             assert 'DEMO / REAL belum terverifikasi' in page.locator('.trading-connection').inner_text()
+            assert 'Koneksi broker di aplikasi' in page.locator('.trading-connection').inner_text()
+            assert 'Harga broker terbaru' in page.locator('.trading-connection').inner_text()
+            assert 'Diblokir' in page.locator('.trading-connection').inner_text()
             assert 'Data broker:' in page.locator('#paper-account-title').locator('..').inner_text()
             assert 'belum tersedia' in page.locator('#paper-account-title').locator('..').inner_text()
             assert not page.locator('#paper-tools').evaluate('e=>e.open')
@@ -63,6 +66,33 @@ def main():
             assert 'BLOCKED' in text and 'USD 2000' in text and '82 ms' in text
             assert 'SYNTHETIC_PRIVATE_MARKER' not in text and 'onerror' not in text
             assert not page.locator('#diagnostic-result img').count()
+            assert 'Koneksi read-only dalam laporan' in page.locator('#diagnostic-result').inner_text()
+            assert 'Market fresh' in page.locator('#diagnostic-result').inner_text()
+            assert 'tidak membuktikan quote/candle terbaru' in page.locator('#diagnostic-result').inner_text()
+            assert 'NOT_EVALUATED_MISSING_UNITS' in text
+            boundary=json.loads(json.dumps(report))
+            for scenario in boundary['risk_evidence'][0]['scenarios']:
+                scenario.update(notional_usd='2000.00000001',cap_status='BLOCKED')
+            page.locator('#diagnostic-file').set_input_files({'name':'synthetic-boundary.json','mimeType':'application/json','buffer':json.dumps(boundary).encode()})
+            page.wait_for_function("document.querySelector('#diagnostic-result').textContent.includes('2000.00000001')")
+            assert page.locator('#diagnostic-result').inner_text().count('BLOCKED')==2
+            page.locator('#diagnostic-file').set_input_files({'name':'synthetic.json','mimeType':'application/json','buffer':json.dumps(report).encode()})
+            page.wait_for_function("document.querySelector('#diagnostic-result').textContent.includes('4188.55')")
+            consistent=diagnostic_with_notional_facts()
+            page.locator('#diagnostic-file').set_input_files({'name':'synthetic-unit-facts.json','mimeType':'application/json','buffer':json.dumps(consistent).encode()})
+            page.wait_for_function("document.querySelector('#diagnostic-result').textContent.includes('ARITHMETIC_CONSISTENT_ONLY')")
+            consistent_text=page.locator('#diagnostic-result').inner_text()
+            assert 'volume minimum 0.01 lot' in consistent_text
+            assert 'SELL USD 4188.02' in consistent_text and 'BUY USD 4188.55' in consistent_text
+            assert 'belum diverifikasi' in consistent_text and 'tidak memberi izin eksekusi' in consistent_text
+            assert 'SYNTHETIC_PRIVATE_MARKER' not in consistent_text
+            inconsistent=json.loads(json.dumps(consistent))
+            inconsistent['risk_evidence'][0]['scenarios'][0]['volume_lots']='0.015'
+            page.locator('#diagnostic-file').set_input_files({'name':'invalid-step.json','mimeType':'application/json','buffer':json.dumps(inconsistent).encode()})
+            page.wait_for_function("document.querySelector('#diagnostic-status').textContent.includes('ditolak')")
+            assert page.locator('#diagnostic-result').inner_text()==''
+            page.locator('#diagnostic-file').set_input_files({'name':'synthetic.json','mimeType':'application/json','buffer':json.dumps(report).encode()})
+            page.wait_for_function("document.querySelector('#diagnostic-result').textContent.includes('NOT_EVALUATED_MISSING_UNITS')")
             assert requests==[],requests
             page.remove_listener('request',track)
             assert f.store.snapshot(f.TradingTests.user)==before_diagnostic

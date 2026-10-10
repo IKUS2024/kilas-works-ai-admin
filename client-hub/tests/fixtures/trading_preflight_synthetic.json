@@ -1,0 +1,866 @@
+{
+  "ai_analysis": false,
+  "broker_execution_allowed": false,
+  "clock_results": [
+    {
+      "broker_execution_allowed": false,
+      "clock_assurance": "UNAUTHENTICATED_OPERATIONAL_PAPER_ONLY",
+      "clock_expires_mono_ns": 3050000000,
+      "clock_offset_seconds": "0E-20",
+      "input_kind": "DEMO_OBSERVATION",
+      "policy_replay_only": true,
+      "producer_acceptance": "NOT_IMPLEMENTED",
+      "raw_acquired_end_utc": "2026-10-09T12:00:00.700000+00:00",
+      "raw_acquired_start_utc": "2026-10-09T12:00:00.400000+00:00",
+      "reason": "First bounded observation; await advancing tick.",
+      "runtime_eligible": false,
+      "status": "WAIT",
+      "synthetic": true
+    },
+    {
+      "acquired_end_utc": "2026-10-09T12:00:03.700000+00:00",
+      "acquired_start_utc": "2026-10-09T12:00:03.400000+00:00",
+      "ai_analysis": false,
+      "broker_execution_allowed": false,
+      "candle_semantics": "FIXTURE_OPEN_TIME_HYPOTHESIS",
+      "clock_assurance": "UNAUTHENTICATED_OPERATIONAL_PAPER_ONLY",
+      "clock_borderline": false,
+      "clock_evidence_ref": "8818359bcf99b6d069b8f8b3caddcd3ca127e20bbcc77575e1f461e1e6b53c5d",
+      "clock_expires_mono_ns": 6050000000,
+      "clock_offset_seconds": "0E-20",
+      "clock_uncertainty_ms": 118,
+      "closed_candles": [
+        {
+          "close_time_candidate_utc": "2026-10-09T11:49:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:48:00+00:00",
+          "raw_time": 1791557280
+        },
+        {
+          "close_time_candidate_utc": "2026-10-09T11:50:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:49:00+00:00",
+          "raw_time": 1791557340
+        },
+        {
+          "close_time_candidate_utc": "2026-10-09T11:51:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:50:00+00:00",
+          "raw_time": 1791557400
+        },
+        {
+          "close_time_candidate_utc": "2026-10-09T11:52:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:51:00+00:00",
+          "raw_time": 1791557460
+        },
+        {
+          "close_time_candidate_utc": "2026-10-09T11:53:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:52:00+00:00",
+          "raw_time": 1791557520
+        },
+        {
+          "close_time_candidate_utc": "2026-10-09T11:54:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:53:00+00:00",
+          "raw_time": 1791557580
+        },
+        {
+          "close_time_candidate_utc": "2026-10-09T11:55:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:54:00+00:00",
+          "raw_time": 1791557640
+        },
+        {
+          "close_time_candidate_utc": "2026-10-09T11:56:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:55:00+00:00",
+          "raw_time": 1791557700
+        },
+        {
+          "close_time_candidate_utc": "2026-10-09T11:57:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:56:00+00:00",
+          "raw_time": 1791557760
+        },
+        {
+          "close_time_candidate_utc": "2026-10-09T11:58:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:57:00+00:00",
+          "raw_time": 1791557820
+        },
+        {
+          "close_time_candidate_utc": "2026-10-09T11:59:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:58:00+00:00",
+          "raw_time": 1791557880
+        },
+        {
+          "close_time_candidate_utc": "2026-10-09T12:00:00+00:00",
+          "open_time_candidate_utc": "2026-10-09T11:59:00+00:00",
+          "raw_time": 1791557940
+        }
+      ],
+      "input_kind": "DEMO_OBSERVATION",
+      "paper_execution": false,
+      "policy_replay_only": true,
+      "producer_acceptance": "NOT_IMPLEMENTED",
+      "raw_acquired_end_utc": "2026-10-09T12:00:03.700000+00:00",
+      "raw_acquired_start_utc": "2026-10-09T12:00:03.400000+00:00",
+      "runtime_eligible": false,
+      "status": "READ_ONLY_VALIDATED_FIXTURE",
+      "synthetic": true,
+      "tick": {
+        "ai_analysis": false,
+        "api": "symbol_info_tick",
+        "applied_offset_seconds": 10800,
+        "approval_ref": "offline tests only",
+        "candle_time_semantics": null,
+        "evidence_ref": "synthetic only",
+        "freshness": "unknown",
+        "normalized_time_utc": "2026-10-09T12:00:03.500000+00:00",
+        "paper_execution": false,
+        "profile_id": "synthetic-profile",
+        "raw_time": 1791558003,
+        "raw_time_msc": 1791558003500,
+        "server": "XMGlobal-MT5 10",
+        "source_time_status": "profile_normalized_not_verified",
+        "validity_end_utc": "2026-10-09T12:05:00+00:00",
+        "validity_start_utc": "2026-10-09T11:45:00+00:00"
+      }
+    }
+  ],
+  "collection": {
+    "ai_analysis": false,
+    "broker_execution_allowed": false,
+    "cycles": [
+      {
+        "batch": {
+          "acquired_end_mono_ns": 1700000000,
+          "acquired_end_utc": "2026-10-09T12:00:00.700000+00:00",
+          "acquired_start_mono_ns": 1400000000,
+          "acquired_start_utc": "2026-10-09T12:00:00.400000+00:00",
+          "after": [
+            {
+              "end_ns": 1900000000,
+              "end_utc": "2026-10-09T12:00:00.900000+00:00",
+              "packet": {
+                "client_receive_mono_ns": 1900000000,
+                "client_receive_utc": "2026-10-09T12:00:00.900000+00:00",
+                "client_send_mono_ns": 1800000000,
+                "client_send_utc": "2026-10-09T12:00:00.800000+00:00",
+                "leap": 0,
+                "mode": 4,
+                "originate_ntp_hex": "ee7355c0cccccccc",
+                "precision_log2": -20,
+                "receive_ntp_hex": "ee7355c0d9999999",
+                "reference_host": "time.windows.com",
+                "reference_ntp_hex": "ee7355b600000000",
+                "reference_utc": "2026-10-09T11:59:50+00:00",
+                "request_ntp_hex": "ee7355c0cccccccc",
+                "request_peer": "192.0.2.1",
+                "request_port": 123,
+                "resolved_ips": [
+                  "192.0.2.1"
+                ],
+                "response_peer": "192.0.2.1",
+                "response_port": 123,
+                "root_delay_seconds": "0.01",
+                "root_dispersion_seconds": "0.01",
+                "server_receive_utc": "2026-10-09T12:00:00.850000+00:00",
+                "server_transmit_utc": "2026-10-09T12:00:00.850000+00:00",
+                "stratum": 2,
+                "transmit_ntp_hex": "ee7355c0d9999999",
+                "version": 4
+              },
+              "start_ns": 1800000000,
+              "start_utc": "2026-10-09T12:00:00.800000+00:00",
+              "status": "OK"
+            },
+            {
+              "end_ns": 2050000000,
+              "end_utc": "2026-10-09T12:00:01.050000+00:00",
+              "packet": {
+                "client_receive_mono_ns": 2050000000,
+                "client_receive_utc": "2026-10-09T12:00:01.050000+00:00",
+                "client_send_mono_ns": 1950000000,
+                "client_send_utc": "2026-10-09T12:00:00.950000+00:00",
+                "leap": 0,
+                "mode": 4,
+                "originate_ntp_hex": "ee7355c0f3333333",
+                "precision_log2": -20,
+                "receive_ntp_hex": "ee7355c100000000",
+                "reference_host": "time.windows.com",
+                "reference_ntp_hex": "ee7355b600000000",
+                "reference_utc": "2026-10-09T11:59:50+00:00",
+                "request_ntp_hex": "ee7355c0f3333333",
+                "request_peer": "192.0.2.1",
+                "request_port": 123,
+                "resolved_ips": [
+                  "192.0.2.1"
+                ],
+                "response_peer": "192.0.2.1",
+                "response_port": 123,
+                "root_delay_seconds": "0.01",
+                "root_dispersion_seconds": "0.01",
+                "server_receive_utc": "2026-10-09T12:00:01+00:00",
+                "server_transmit_utc": "2026-10-09T12:00:01+00:00",
+                "stratum": 2,
+                "transmit_ntp_hex": "ee7355c100000000",
+                "version": 4
+              },
+              "start_ns": 1950000000,
+              "start_utc": "2026-10-09T12:00:00.950000+00:00",
+              "status": "OK"
+            }
+          ],
+          "before": [
+            {
+              "end_ns": 1100000000,
+              "end_utc": "2026-10-09T12:00:00.100000+00:00",
+              "packet": {
+                "client_receive_mono_ns": 1100000000,
+                "client_receive_utc": "2026-10-09T12:00:00.100000+00:00",
+                "client_send_mono_ns": 1000000000,
+                "client_send_utc": "2026-10-09T12:00:00+00:00",
+                "leap": 0,
+                "mode": 4,
+                "originate_ntp_hex": "ee7355c000000000",
+                "precision_log2": -20,
+                "receive_ntp_hex": "ee7355c00ccccccc",
+                "reference_host": "time.windows.com",
+                "reference_ntp_hex": "ee7355b600000000",
+                "reference_utc": "2026-10-09T11:59:50+00:00",
+                "request_ntp_hex": "ee7355c000000000",
+                "request_peer": "192.0.2.1",
+                "request_port": 123,
+                "resolved_ips": [
+                  "192.0.2.1"
+                ],
+                "response_peer": "192.0.2.1",
+                "response_port": 123,
+                "root_delay_seconds": "0.01",
+                "root_dispersion_seconds": "0.01",
+                "server_receive_utc": "2026-10-09T12:00:00.050000+00:00",
+                "server_transmit_utc": "2026-10-09T12:00:00.050000+00:00",
+                "stratum": 2,
+                "transmit_ntp_hex": "ee7355c00ccccccc",
+                "version": 4
+              },
+              "start_ns": 1000000000,
+              "start_utc": "2026-10-09T12:00:00+00:00",
+              "status": "OK"
+            },
+            {
+              "end_ns": 1250000000,
+              "end_utc": "2026-10-09T12:00:00.250000+00:00",
+              "packet": {
+                "client_receive_mono_ns": 1250000000,
+                "client_receive_utc": "2026-10-09T12:00:00.250000+00:00",
+                "client_send_mono_ns": 1150000000,
+                "client_send_utc": "2026-10-09T12:00:00.150000+00:00",
+                "leap": 0,
+                "mode": 4,
+                "originate_ntp_hex": "ee7355c026666666",
+                "precision_log2": -20,
+                "receive_ntp_hex": "ee7355c033333333",
+                "reference_host": "time.windows.com",
+                "reference_ntp_hex": "ee7355b600000000",
+                "reference_utc": "2026-10-09T11:59:50+00:00",
+                "request_ntp_hex": "ee7355c026666666",
+                "request_peer": "192.0.2.1",
+                "request_port": 123,
+                "resolved_ips": [
+                  "192.0.2.1"
+                ],
+                "response_peer": "192.0.2.1",
+                "response_port": 123,
+                "root_delay_seconds": "0.01",
+                "root_dispersion_seconds": "0.01",
+                "server_receive_utc": "2026-10-09T12:00:00.200000+00:00",
+                "server_transmit_utc": "2026-10-09T12:00:00.200000+00:00",
+                "stratum": 2,
+                "transmit_ntp_hex": "ee7355c033333333",
+                "version": 4
+              },
+              "start_ns": 1150000000,
+              "start_utc": "2026-10-09T12:00:00.150000+00:00",
+              "status": "OK"
+            }
+          ],
+          "clock_domain": "ONE_PROCESS_PERF_COUNTER_NS",
+          "decision_mono_ns": 2100000000,
+          "decision_utc": "2026-10-09T12:00:01.100000+00:00",
+          "schema": "kilas-clock-batch-offline-v2",
+          "session_id": "syntheticsession0001"
+        },
+        "cycle": 1,
+        "qualification": {
+          "assurance": "UNAUTHENTICATED_OPERATIONAL_PAPER_ONLY",
+          "attempt_count": 4,
+          "broker_execution_allowed": false,
+          "evidence_sha256": "7e1c49f06c721bd71f50bb67b0e006eba52ebcb6b855d5c502f448dc4ea30fa6",
+          "expires_mono_ns": 3050000000,
+          "offset_seconds": "0E-20",
+          "producer_acceptance": "NOT_IMPLEMENTED",
+          "reply_count": 4,
+          "runtime_eligible": false,
+          "schema": "kilas-clock-batch-offline-v2",
+          "source_freshness_evaluated": false,
+          "status": "OFFLINE_CLOCK_BATCH_VALIDATED",
+          "uncertainty_seconds": "0.11705095367431640625"
+        }
+      },
+      {
+        "batch": {
+          "acquired_end_mono_ns": 4700000000,
+          "acquired_end_utc": "2026-10-09T12:00:03.700000+00:00",
+          "acquired_start_mono_ns": 4400000000,
+          "acquired_start_utc": "2026-10-09T12:00:03.400000+00:00",
+          "after": [
+            {
+              "end_ns": 4900000000,
+              "end_utc": "2026-10-09T12:00:03.900000+00:00",
+              "packet": {
+                "client_receive_mono_ns": 4900000000,
+                "client_receive_utc": "2026-10-09T12:00:03.900000+00:00",
+                "client_send_mono_ns": 4800000000,
+                "client_send_utc": "2026-10-09T12:00:03.800000+00:00",
+                "leap": 0,
+                "mode": 4,
+                "originate_ntp_hex": "ee7355c3cccccccc",
+                "precision_log2": -20,
+                "receive_ntp_hex": "ee7355c3d9999999",
+                "reference_host": "time.windows.com",
+                "reference_ntp_hex": "ee7355b600000000",
+                "reference_utc": "2026-10-09T11:59:50+00:00",
+                "request_ntp_hex": "ee7355c3cccccccc",
+                "request_peer": "192.0.2.1",
+                "request_port": 123,
+                "resolved_ips": [
+                  "192.0.2.1"
+                ],
+                "response_peer": "192.0.2.1",
+                "response_port": 123,
+                "root_delay_seconds": "0.01",
+                "root_dispersion_seconds": "0.01",
+                "server_receive_utc": "2026-10-09T12:00:03.850000+00:00",
+                "server_transmit_utc": "2026-10-09T12:00:03.850000+00:00",
+                "stratum": 2,
+                "transmit_ntp_hex": "ee7355c3d9999999",
+                "version": 4
+              },
+              "start_ns": 4800000000,
+              "start_utc": "2026-10-09T12:00:03.800000+00:00",
+              "status": "OK"
+            },
+            {
+              "end_ns": 5050000000,
+              "end_utc": "2026-10-09T12:00:04.050000+00:00",
+              "packet": {
+                "client_receive_mono_ns": 5050000000,
+                "client_receive_utc": "2026-10-09T12:00:04.050000+00:00",
+                "client_send_mono_ns": 4950000000,
+                "client_send_utc": "2026-10-09T12:00:03.950000+00:00",
+                "leap": 0,
+                "mode": 4,
+                "originate_ntp_hex": "ee7355c3f3333333",
+                "precision_log2": -20,
+                "receive_ntp_hex": "ee7355c400000000",
+                "reference_host": "time.windows.com",
+                "reference_ntp_hex": "ee7355b600000000",
+                "reference_utc": "2026-10-09T11:59:50+00:00",
+                "request_ntp_hex": "ee7355c3f3333333",
+                "request_peer": "192.0.2.1",
+                "request_port": 123,
+                "resolved_ips": [
+                  "192.0.2.1"
+                ],
+                "response_peer": "192.0.2.1",
+                "response_port": 123,
+                "root_delay_seconds": "0.01",
+                "root_dispersion_seconds": "0.01",
+                "server_receive_utc": "2026-10-09T12:00:04+00:00",
+                "server_transmit_utc": "2026-10-09T12:00:04+00:00",
+                "stratum": 2,
+                "transmit_ntp_hex": "ee7355c400000000",
+                "version": 4
+              },
+              "start_ns": 4950000000,
+              "start_utc": "2026-10-09T12:00:03.950000+00:00",
+              "status": "OK"
+            }
+          ],
+          "before": [
+            {
+              "end_ns": 4100000000,
+              "end_utc": "2026-10-09T12:00:03.100000+00:00",
+              "packet": {
+                "client_receive_mono_ns": 4100000000,
+                "client_receive_utc": "2026-10-09T12:00:03.100000+00:00",
+                "client_send_mono_ns": 4000000000,
+                "client_send_utc": "2026-10-09T12:00:03+00:00",
+                "leap": 0,
+                "mode": 4,
+                "originate_ntp_hex": "ee7355c300000000",
+                "precision_log2": -20,
+                "receive_ntp_hex": "ee7355c30ccccccc",
+                "reference_host": "time.windows.com",
+                "reference_ntp_hex": "ee7355b600000000",
+                "reference_utc": "2026-10-09T11:59:50+00:00",
+                "request_ntp_hex": "ee7355c300000000",
+                "request_peer": "192.0.2.1",
+                "request_port": 123,
+                "resolved_ips": [
+                  "192.0.2.1"
+                ],
+                "response_peer": "192.0.2.1",
+                "response_port": 123,
+                "root_delay_seconds": "0.01",
+                "root_dispersion_seconds": "0.01",
+                "server_receive_utc": "2026-10-09T12:00:03.050000+00:00",
+                "server_transmit_utc": "2026-10-09T12:00:03.050000+00:00",
+                "stratum": 2,
+                "transmit_ntp_hex": "ee7355c30ccccccc",
+                "version": 4
+              },
+              "start_ns": 4000000000,
+              "start_utc": "2026-10-09T12:00:03+00:00",
+              "status": "OK"
+            },
+            {
+              "end_ns": 4250000000,
+              "end_utc": "2026-10-09T12:00:03.250000+00:00",
+              "packet": {
+                "client_receive_mono_ns": 4250000000,
+                "client_receive_utc": "2026-10-09T12:00:03.250000+00:00",
+                "client_send_mono_ns": 4150000000,
+                "client_send_utc": "2026-10-09T12:00:03.150000+00:00",
+                "leap": 0,
+                "mode": 4,
+                "originate_ntp_hex": "ee7355c326666666",
+                "precision_log2": -20,
+                "receive_ntp_hex": "ee7355c333333333",
+                "reference_host": "time.windows.com",
+                "reference_ntp_hex": "ee7355b600000000",
+                "reference_utc": "2026-10-09T11:59:50+00:00",
+                "request_ntp_hex": "ee7355c326666666",
+                "request_peer": "192.0.2.1",
+                "request_port": 123,
+                "resolved_ips": [
+                  "192.0.2.1"
+                ],
+                "response_peer": "192.0.2.1",
+                "response_port": 123,
+                "root_delay_seconds": "0.01",
+                "root_dispersion_seconds": "0.01",
+                "server_receive_utc": "2026-10-09T12:00:03.200000+00:00",
+                "server_transmit_utc": "2026-10-09T12:00:03.200000+00:00",
+                "stratum": 2,
+                "transmit_ntp_hex": "ee7355c333333333",
+                "version": 4
+              },
+              "start_ns": 4150000000,
+              "start_utc": "2026-10-09T12:00:03.150000+00:00",
+              "status": "OK"
+            }
+          ],
+          "clock_domain": "ONE_PROCESS_PERF_COUNTER_NS",
+          "decision_mono_ns": 5100000000,
+          "decision_utc": "2026-10-09T12:00:04.100000+00:00",
+          "schema": "kilas-clock-batch-offline-v2",
+          "session_id": "syntheticsession0001"
+        },
+        "cycle": 2,
+        "qualification": {
+          "assurance": "UNAUTHENTICATED_OPERATIONAL_PAPER_ONLY",
+          "attempt_count": 4,
+          "broker_execution_allowed": false,
+          "evidence_sha256": "8818359bcf99b6d069b8f8b3caddcd3ca127e20bbcc77575e1f461e1e6b53c5d",
+          "expires_mono_ns": 6050000000,
+          "offset_seconds": "0E-20",
+          "producer_acceptance": "NOT_IMPLEMENTED",
+          "reply_count": 4,
+          "runtime_eligible": false,
+          "schema": "kilas-clock-batch-offline-v2",
+          "source_freshness_evaluated": false,
+          "status": "OFFLINE_CLOCK_BATCH_VALIDATED",
+          "uncertainty_seconds": "0.11705095367431640625"
+        }
+      }
+    ],
+    "paper_execution": false,
+    "producer_acceptance": "NOT_IMPLEMENTED",
+    "request_count": 8,
+    "runtime_eligible": false,
+    "schema": "kilas-collector-diagnostic-v1",
+    "status": "DIAGNOSTIC_COLLECTION_VALIDATED",
+    "synthetic": true
+  },
+  "drawdown": "NOT_EVALUATED",
+  "finished_utc": "2026-10-09T12:00:05Z",
+  "history": [],
+  "history_complete": false,
+  "input_kind": "DEMO_OBSERVATION",
+  "markets": [
+    {
+      "account_mode": "DEMO",
+      "ai_analysis": false,
+      "broker_execution_allowed": false,
+      "calls": {
+        "candles": {
+          "ended_mono_ns": 1420000000,
+          "session_id": "syntheticsession0001",
+          "started_mono_ns": 1410000000,
+          "symbol": "GOLD"
+        },
+        "specs": {
+          "ended_mono_ns": 1430000000,
+          "session_id": "syntheticsession0001",
+          "started_mono_ns": 1420000000,
+          "symbol": "GOLD"
+        },
+        "tick": {
+          "ended_mono_ns": 1410000000,
+          "session_id": "syntheticsession0001",
+          "started_mono_ns": 1400000000,
+          "symbol": "GOLD"
+        }
+      },
+      "candle_semantics": "OPEN_TIME_CANDIDATE_NOT_VERIFIED",
+      "candles": [
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557280
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557340
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557400
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557460
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557520
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557580
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557640
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557700
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557760
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557820
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557880
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557940
+        }
+      ],
+      "canonical_symbol": "XAUUSD",
+      "clock_evidence": null,
+      "diagnostic_details": {},
+      "input_kind": "DEMO_OBSERVATION",
+      "paper_execution": false,
+      "runtime_eligible": false,
+      "sample": {
+        "acquired_end_mono_ns": 1700000000,
+        "acquired_end_utc": "2026-10-09T12:00:00.700000+00:00",
+        "acquired_start_mono_ns": 1400000000,
+        "acquired_start_utc": "2026-10-09T12:00:00.400000+00:00",
+        "kind": "DEMO_OBSERVATION",
+        "time": 1791558000,
+        "time_msc": 1791558000500
+      },
+      "server": "XMGlobal-MT5 10",
+      "session_id": "syntheticsession0001",
+      "source_time_status": "UNQUALIFIED",
+      "specs": {
+        "currency_margin": "USD",
+        "currency_profit": "USD",
+        "point": "0.01",
+        "trade_contract_size": "100.0",
+        "trade_freeze_level": 0,
+        "trade_stops_level": 0,
+        "trade_tick_size": "0.01",
+        "trade_tick_value": "1.0",
+        "volume_max": "50.0",
+        "volume_min": "0.01",
+        "volume_step": "0.01"
+      },
+      "status": "READ_ONLY_MARKET_UNQUALIFIED",
+      "symbol": "GOLD",
+      "tick": {
+        "ask": "2500.30",
+        "bid": "2500.10",
+        "time": 1791558000,
+        "time_msc": 1791558000500
+      },
+      "timeframe": "M1"
+    },
+    {
+      "account_mode": "DEMO",
+      "ai_analysis": false,
+      "broker_execution_allowed": false,
+      "calls": {
+        "candles": {
+          "ended_mono_ns": 4420000000,
+          "session_id": "syntheticsession0001",
+          "started_mono_ns": 4410000000,
+          "symbol": "GOLD"
+        },
+        "specs": {
+          "ended_mono_ns": 4430000000,
+          "session_id": "syntheticsession0001",
+          "started_mono_ns": 4420000000,
+          "symbol": "GOLD"
+        },
+        "tick": {
+          "ended_mono_ns": 4410000000,
+          "session_id": "syntheticsession0001",
+          "started_mono_ns": 4400000000,
+          "symbol": "GOLD"
+        }
+      },
+      "candle_semantics": "OPEN_TIME_CANDIDATE_NOT_VERIFIED",
+      "candles": [
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557280
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557340
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557400
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557460
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557520
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557580
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557640
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557700
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557760
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557820
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557880
+        },
+        {
+          "close": "2500.20",
+          "high": "2501.00",
+          "low": "2499.00",
+          "open": "2500.10",
+          "time": 1791557940
+        }
+      ],
+      "canonical_symbol": "XAUUSD",
+      "clock_evidence": null,
+      "diagnostic_details": {},
+      "input_kind": "DEMO_OBSERVATION",
+      "paper_execution": false,
+      "runtime_eligible": false,
+      "sample": {
+        "acquired_end_mono_ns": 4700000000,
+        "acquired_end_utc": "2026-10-09T12:00:03.700000+00:00",
+        "acquired_start_mono_ns": 4400000000,
+        "acquired_start_utc": "2026-10-09T12:00:03.400000+00:00",
+        "kind": "DEMO_OBSERVATION",
+        "time": 1791558003,
+        "time_msc": 1791558003500
+      },
+      "server": "XMGlobal-MT5 10",
+      "session_id": "syntheticsession0001",
+      "source_time_status": "UNQUALIFIED",
+      "specs": {
+        "currency_margin": "USD",
+        "currency_profit": "USD",
+        "point": "0.01",
+        "trade_contract_size": "100.0",
+        "trade_freeze_level": 0,
+        "trade_stops_level": 0,
+        "trade_tick_size": "0.01",
+        "trade_tick_value": "1.0",
+        "volume_max": "50.0",
+        "volume_min": "0.01",
+        "volume_step": "0.01"
+      },
+      "status": "READ_ONLY_MARKET_UNQUALIFIED",
+      "symbol": "GOLD",
+      "tick": {
+        "ask": "2500.30",
+        "bid": "2500.10",
+        "time": 1791558003,
+        "time_msc": 1791558003500
+      },
+      "timeframe": "M1"
+    }
+  ],
+  "ntp_datagrams_sent": 8,
+  "paper_execution": false,
+  "producer_acceptance": "NOT_IMPLEMENTED",
+  "profit_after_costs": "NOT_EVALUATED",
+  "raw_attempts": [],
+  "risk_evidence": [
+    {
+      "ai_analysis": false,
+      "broker_execution_allowed": false,
+      "costs": {
+        "commission": "UNKNOWN",
+        "slippage": "UNKNOWN",
+        "swap_execution_cost": "UNKNOWN"
+      },
+      "notional_cap_usd": "2000",
+      "paper_execution": false,
+      "quote": {
+        "ask": "2500.30",
+        "bid": "2500.10",
+        "raw_time": 1791558003,
+        "raw_time_msc": 1791558003500
+      },
+      "runtime_eligible": false,
+      "scenarios": [
+        {
+          "account_sizing_applied": false,
+          "cap_status": "BLOCKED",
+          "direction": "BUY",
+          "hypothetical": true,
+          "notional_usd": "2500.30",
+          "volume_lots": "0.01"
+        },
+        {
+          "account_sizing_applied": false,
+          "cap_status": "BLOCKED",
+          "direction": "SELL",
+          "hypothetical": true,
+          "notional_usd": "2500.10",
+          "volume_lots": "0.01"
+        }
+      ],
+      "session": {
+        "session_id": "syntheticsession0001",
+        "status": "READ_ONLY_DEMO_SESSION"
+      },
+      "specs": {
+        "currency_margin": "USD",
+        "currency_profit": "USD",
+        "point": "0.01",
+        "trade_contract_size": "100.0",
+        "trade_freeze_level": 0,
+        "trade_stops_level": 0,
+        "trade_tick_size": "0.01",
+        "trade_tick_value": "1.0",
+        "volume_max": "50.0",
+        "volume_min": "0.01",
+        "volume_step": "0.01"
+      },
+      "status": "READ_ONLY_DEMO_RISK_EVIDENCE"
+    }
+  ],
+  "runtime_eligible": false,
+  "sdk_shutdown": "COMPLETED",
+  "source_semantics": "CANDIDATE_PROFILE_NOT_BROKER_VERIFIED",
+  "status": "READ_ONLY_DEMO_DIAGNOSTIC_CAPTURED"
+}

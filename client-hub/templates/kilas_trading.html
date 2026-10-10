@@ -16,7 +16,7 @@
 <section class="trading-section trading-overview" aria-labelledby="connection-title">
 <h2 id="connection-title">Koneksi & agen trading</h2>
 <div class="trading-status-grid"><div>
-<dl class="trading-connection"><div><dt>Koneksi broker</dt><dd>Belum terhubung</dd></div><div><dt>Mode akun broker</dt><dd>DEMO / REAL belum terverifikasi</dd></div></dl>
+<dl class="trading-connection"><div><dt>Koneksi broker di aplikasi</dt><dd>Belum terhubung</dd></div><div><dt>Mode akun broker</dt><dd>DEMO / REAL belum terverifikasi</dd></div><div><dt>Harga broker terbaru</dt><dd>Belum diverifikasi</dd></div><div><dt>Order broker</dt><dd>Diblokir</dd></div></dl>
 <p id="connection-unavailable" class="trading-small">Koneksi belum tersedia. Terhubung bukan berarti trading aktif.</p>
 <div class="trading-controls"><button type="button" class="btn secondary" disabled aria-describedby="connection-unavailable">Hubungkan</button><button type="button" class="btn secondary" disabled aria-describedby="connection-unavailable">Putuskan koneksi</button></div>
 </div><div>
@@ -115,7 +115,7 @@
 {% for e in state.events %}<article class="trading-event"><header><strong>{{ e.action }} · {{ e.outcome }}</strong><time>{{ e.created_at }}</time></header><p>{{ e.message }}</p><details><summary>Input, keputusan & hasil</summary><pre>{{ e.inputs|tojson(indent=2) }}</pre></details></article>{% else %}<p class="trading-empty">Jurnal kosong. Aksi pertama Anda akan tercatat di sini.</p>{% endfor %}
 </section>
 </details>
-<script id="trading-data" type="application/json">{{ {'price_cents':state.price_cents,'paused':a.paused,'killed':a.killed}|tojson }}</script><script src="{{ url_for('static', filename='kilas_trading.js', v='diagnostic-local-20261009') }}" defer></script>
+<script id="trading-data" type="application/json">{{ {'price_cents':state.price_cents,'paused':a.paused,'killed':a.killed}|tojson }}</script><script src="{{ url_for('static', filename='kilas_trading.js', v='diagnostic-preflight-20261010') }}" defer></script>
 {% endif %}
 </main>
 {% endblock %}

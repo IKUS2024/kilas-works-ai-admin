@@ -104,10 +104,67 @@
   const object = x => { if (!x || typeof x !== 'object' || Array.isArray(x)) invalid(); return x; };
   const list = (x, max, min = 0) => { if (!Array.isArray(x) || x.length < min || x.length > max) invalid(); return x; };
   const integer = (x, max) => { if (!Number.isSafeInteger(x) || x < 0 || x > max) invalid(); return x; };
-  const number = x => {
-    if (!(typeof x === 'number' || typeof x === 'string' && /^\d{1,9}(?:\.\d{1,8})?$/.test(x)) || !Number.isFinite(Number(x)) || Number(x) <= 0 || Number(x) > 1e9) invalid();
-    return Number(x);
+  const decimal = x => {
+    // Diagnostic quantities/money are decimal strings, not JSON floats. Keep
+    // all eight supported fractional places through comparison and display.
+    if (typeof x !== 'string' || !/^\d{1,9}(?:\.\d{1,8})?$/.test(x)) invalid();
+    const [whole, fraction = ''] = x.split('.');
+    const units = BigInt(whole) * 100000000n + BigInt(fraction.padEnd(8, '0'));
+    if (units <= 0n) invalid();
+    const normalizedFraction = fraction.replace(/0+$/, '');
+    return {units, text: BigInt(whole).toString() + (normalizedFraction ? '.' + normalizedFraction : '')};
   };
+  const exact = (x, fields) => {
+    object(x);
+    if (Object.keys(x).length !== fields.length || fields.some(k => !Object.hasOwn(x, k))) invalid();
+    return x;
+  };
+  const notionalGates = () => ({source_verification: 'NOT_INDEPENDENTLY_VERIFIED',
+    freshness: 'NOT_EVALUATED', producer_acceptance: 'NOT_IMPLEMENTED', policy_replay_only: true,
+    runtime_eligible: false, broker_execution_allowed: false, ai_analysis: false, paper_execution: false});
+  function checkNotionalFacts(raw) {
+    exact(raw, ['schema', 'input_kind', 'units', 'specs', 'quote', 'scenarios', 'notional_cap_usd']);
+    if (raw.schema !== 'kilas-offline-notional-facts-v1' || !['SYNTHETIC_TEST_FACTS', 'HISTORICAL_DECLARED_FACTS'].includes(raw.input_kind)) invalid();
+    const units = exact(raw.units, ['quote_currency', 'price_unit', 'contract_unit', 'volume_step_origin']);
+    if (units.quote_currency !== 'USD' || units.price_unit !== 'USD_PER_TROY_OUNCE' || units.contract_unit !== 'TROY_OUNCES_PER_LOT' || units.volume_step_origin !== 'ZERO_MULTIPLES') invalid();
+    const specs = exact(raw.specs, ['currency_profit', 'trade_contract_size', 'volume_min', 'volume_step', 'volume_max']);
+    if (specs.currency_profit !== 'USD') invalid();
+    const size = decimal(specs.trade_contract_size), minimum = decimal(specs.volume_min);
+    const step = decimal(specs.volume_step), maximum = decimal(specs.volume_max);
+    if (minimum.units > maximum.units || minimum.units % step.units !== 0n || maximum.units % step.units !== 0n) invalid();
+    const quote = exact(raw.quote, ['bid', 'ask']);
+    const bid = decimal(quote.bid), ask = decimal(quote.ask);
+    if (ask.units < bid.units) invalid();
+    const cap = decimal(raw.notional_cap_usd);
+    if (cap.units !== 200000000000n) invalid();
+    function derive(volume, price) {
+      const product = volume.units * size.units * price.units;
+      // Three eight-place factors -> one eight-place notional, with no rounding.
+      if (product % 10000000000000000n !== 0n) invalid();
+      const amount = product / 10000000000000000n;
+      if (amount <= 0n || amount > 99999999999999999n) invalid();
+      const fraction = (amount % 100000000n).toString().padStart(8, '0').replace(/0+$/, '');
+      return {notional_usd: (amount / 100000000n).toString() + (fraction ? '.' + fraction : ''),
+        cap_status: amount > cap.units ? 'BLOCKED' : 'WITHIN_CAP', units: amount};
+    }
+    const scenarios = list(raw.scenarios, 2, 1).map(s => {
+      exact(s, ['direction', 'volume_lots', 'notional_usd', 'cap_status', 'hypothetical', 'account_sizing_applied']);
+      if (!['BUY', 'SELL'].includes(s.direction) || s.hypothetical !== true || s.account_sizing_applied !== false) invalid();
+      const volume = decimal(s.volume_lots), reported = decimal(s.notional_usd);
+      if (volume.units < minimum.units || volume.units > maximum.units || volume.units % step.units !== 0n) invalid();
+      const derived = derive(volume, s.direction === 'BUY' ? ask : bid);
+      if (derived.units !== reported.units || derived.cap_status !== s.cap_status) invalid();
+      return {direction: s.direction, volume_lots: volume.text, derived_notional_usd: derived.notional_usd, cap_status: derived.cap_status};
+    });
+    if (new Set(scenarios.map(s => s.direction)).size !== scenarios.length) invalid();
+    const minimumNotional = ['BUY', 'SELL'].map(direction => {
+      const result = derive(minimum, direction === 'BUY' ? ask : bid);
+      return {direction, notional_usd: result.notional_usd, cap_status: result.cap_status};
+    });
+    return {outcome: 'ARITHMETIC_CONSISTENT_ONLY', input_kind: raw.input_kind,
+      minimum_volume_lots: minimum.text, minimum_notional: minimumNotional, scenarios, ...notionalGates()};
+  }
+  const parseNotionalFacts = text => checkNotionalFacts(parseJSON(text));
   function disabled(x, keys) { object(x); for (const key of keys) if (x[key] !== false) invalid(); }
   function parseReport(text) {
     const r = object(parseJSON(text));
@@ -147,25 +204,37 @@
     const risks = list(r.risk_evidence, 4).map(e => {
       object(e); disabled(e, ['runtime_eligible', 'broker_execution_allowed', 'paper_execution', 'ai_analysis']);
       if (e.status !== 'READ_ONLY_DEMO_RISK_EVIDENCE') invalid();
-      const cap = number(e.notional_cap_usd);
-      if (cap !== 2000) invalid();
+      const cap = decimal(e.notional_cap_usd);
+      if (cap.units !== 200000000000n) invalid();
       const costs = object(e.costs);
       if (costs.commission !== 'UNKNOWN' || costs.slippage !== 'UNKNOWN' || costs.swap_execution_cost !== 'UNKNOWN') invalid();
       const scenarios = list(e.scenarios, 2, 1).map(s => {
         object(s);
         if (!['BUY', 'SELL'].includes(s.direction) || s.hypothetical !== true || s.account_sizing_applied !== false || !['BLOCKED', 'WITHIN_CAP'].includes(s.cap_status)) invalid();
-        const notional = number(s.notional_usd);
-        if (s.cap_status !== (notional > cap ? 'BLOCKED' : 'WITHIN_CAP')) invalid();
-        return {direction: s.direction, lots: number(s.volume_lots), notional, capStatus: s.cap_status};
+        const notional = decimal(s.notional_usd);
+        if (s.cap_status !== (notional.units > cap.units ? 'BLOCKED' : 'WITHIN_CAP')) invalid();
+        return {direction: s.direction, lots: decimal(s.volume_lots).text, notional: notional.text, capStatus: s.cap_status};
       });
       if (new Set(scenarios.map(s => s.direction)).size !== scenarios.length) invalid();
-      return {cap, scenarios};
+      let consistency = {outcome: 'NOT_EVALUATED_MISSING_UNITS', ...notionalGates()};
+      if (Object.hasOwn(e, 'notional_units')) {
+        // Explicit adapter metadata is required. Never infer units from GOLD,
+        // contract size, profit currency, or any synthetic engine assumptions.
+        const specs = object(e.specs), quote = object(e.quote);
+        consistency = checkNotionalFacts({schema: 'kilas-offline-notional-facts-v1',
+          input_kind: collection.synthetic ? 'SYNTHETIC_TEST_FACTS' : 'HISTORICAL_DECLARED_FACTS',
+          units: e.notional_units, notional_cap_usd: e.notional_cap_usd,
+          specs: Object.fromEntries(['currency_profit', 'trade_contract_size', 'volume_min', 'volume_step', 'volume_max'].map(k => [k, specs[k]])),
+          quote: {bid: quote.bid, ask: quote.ask},
+          scenarios: e.scenarios.map(s => Object.fromEntries(['direction', 'volume_lots', 'notional_usd', 'cap_status', 'hypothetical', 'account_sizing_applied'].map(k => [k, s[k]])))});
+      }
+      return {cap: cap.text, scenarios, consistency};
     });
     // Fresh allowlisted projection: private account/history/raw packets and all
     // unknown fields are discarded. This object never enters app config/storage.
     return {timestamp, outcome: r.status, synthetic: collection.synthetic, observations: markets.length, requests, replies, clocks, risks};
   }
-  if (typeof module !== 'undefined' && module.exports) module.exports = {parseReport, MAX_BYTES};
+  if (typeof module !== 'undefined' && module.exports) module.exports = {parseReport, parseNotionalFacts, MAX_BYTES};
   if (typeof document === 'undefined') return;
   const panel = document.querySelector('#diagnostic-details');
   if (!panel) return;
@@ -189,11 +258,21 @@
       status.textContent = 'DEMO · snapshot historis · hanya baca' + (report.synthetic ? ' · fixture sintetis' : ' · klaim sumber dari file');
       row('Capture selesai · UTC dari laporan', report.timestamp);
       row('Hasil diagnostik dalam laporan', report.outcome);
+      row('Koneksi read-only dalam laporan', 'Klaim capture historis dari file; aplikasi belum terhubung ke broker.');
+      row('Market fresh', 'Belum diverifikasi. Replay clock dan status koneksi tidak membuktikan quote/candle terbaru.');
       row('Observasi / balasan NTP tercatat', `${report.observations} observasi · ${report.replies}/${report.requests} balasan`);
       row('Clock · belum terautentikasi', report.clocks.map(c => c.status + (c.uncertaintyMs === null ? '' : ` · ketidakpastian ${c.uncertaintyMs} ms`)).join('; '));
       row('Profil broker', 'Profil kandidat belum diverifikasi; offset broker/DST, usia data dan mapping GOLD belum terverifikasi.');
       row('Runtime / broker / AI / paper', 'Tidak memenuhi syarat / diblokir / nonaktif / nonaktif. Producer acceptance NOT_IMPLEMENTED; policy replay only; SDK shutdown COMPLETED.');
-      for (const risk of report.risks) for (const s of risk.scenarios) row(`Risiko hipotetis ${s.direction} · ${s.capStatus}`, `${s.lots} lot · notional USD ${s.notional.toFixed(2)} · cap laporan USD ${risk.cap}. Tidak menerapkan sizing akun; bukan izin eksekusi.`);
+      for (const risk of report.risks) {
+        for (const s of risk.scenarios) {
+          const [whole, fraction = ''] = s.notional.split('.');
+          row(`Risiko hipotetis ${s.direction} · ${s.capStatus}`, `${s.lots} lot · notional USD ${whole}.${fraction.padEnd(2, '0')} · cap laporan USD ${risk.cap}. Tidak menerapkan sizing akun; bukan izin eksekusi.`);
+        }
+        row('Konsistensi notional · aritmetika saja', risk.consistency.outcome === 'ARITHMETIC_CONSISTENT_ONLY'
+          ? 'ARITHMETIC_CONSISTENT_ONLY · volume minimum ' + risk.consistency.minimum_volume_lots + ' lot; ' + risk.consistency.minimum_notional.map(s => `${s.direction} USD ${s.notional_usd} · ${s.cap_status}`).join('; ') + '. Fakta dari file belum diverifikasi; tidak memberi izin eksekusi.'
+          : 'NOT_EVALUATED_MISSING_UNITS · unit harga/kontrak dan aturan lot belum dinyatakan lengkap. Angka risiko adalah klaim historis dari file, bukan sizing broker terverifikasi.');
+      }
       if (!report.risks.length) row('Risiko', 'Tidak ada bukti risiko dalam laporan; eksekusi tetap diblokir.');
       row('Biaya & evaluasi', 'Komisi, slippage dan swap tidak diketahui. Riwayat tidak lengkap; net P&L dan drawdown tidak dievaluasi.');
     } catch (_) {
