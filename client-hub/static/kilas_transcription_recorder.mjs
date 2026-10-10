@@ -1,6 +1,6 @@
 // Injectable browser microphone lifecycle. No capture runs merely by importing this module.
 export class VoiceRecorder {
-  constructor({mediaDevices,Recorder,onBlob,onState,setTimer=setInterval,clearTimer=clearInterval,now=Date.now}) {
+  constructor({mediaDevices,Recorder,onBlob,onState,setTimer=(fn,ms)=>globalThis.setInterval(fn,ms),clearTimer=id=>globalThis.clearInterval(id),now=Date.now}) {
     Object.assign(this,{mediaDevices,Recorder,onBlob,onState,setTimer,clearTimer,now});
     this.version=0;this.stream=null;this.recorder=null;this.timer=null;
   }

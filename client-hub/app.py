@@ -338,6 +338,9 @@ def create_app():
         elif (request.endpoint or '').startswith('kilas_ai.transcription_'):
             from kilas_ai.transcription import MAX_BYTES
             request.max_content_length = MAX_BYTES + 64 * 1024
+        elif (request.endpoint or '').startswith('kilas_ai.live_assist_'):
+            from kilas_ai.live_assist import MAX_BYTES
+            request.max_content_length = MAX_BYTES + 64 * 1024
 
     @app.before_request
     def _expire_idle_customer_session():

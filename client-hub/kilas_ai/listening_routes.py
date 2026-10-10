@@ -2,6 +2,7 @@
 import os
 from flask import abort, render_template
 from .routes import ai_bp
+from . import live_assist_routes  # Real selected-tab capture is separately default-off.
 
 
 def enabled():

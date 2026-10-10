@@ -6,7 +6,7 @@ export function displayCapture({enabled=false, mediaDevices=globalThis.navigator
     if (!mediaDevices?.getDisplayMedia) return Promise.reject(new Error('unsupported'));
     // Invoked directly from the future click handler, before asynchronous work.
     return mediaDevices.getDisplayMedia({video:{displaySurface:'browser'},audio:true,
-      systemAudio:'exclude',selfBrowserSurface:'exclude',surfaceSwitching:'exclude'});
+      systemAudio:'exclude',selfBrowserSurface:'exclude',surfaceSwitching:'exclude',monitorTypeSurfaces:'exclude'});
   };
 }
 
