@@ -58,6 +58,7 @@ def upload():
 
 # Register isolated read-only bridge routes on the same protected Trading host.
 from . import bridge_routes  # noqa: E402,F401
+from . import model_preflight_routes  # noqa: E402,F401
 
 
 @bp.post('/<action>')

@@ -1,0 +1,25 @@
+{% extends 'trading_shell.html' if trading_host() else 'base.html' %}
+{% block title %}Model access · Kilas Trading{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_trading.css',v='model-diagnostic-20261010') }}">{% endblock %}
+{% block content %}
+<main class="trading" aria-labelledby="model-diagnostic-title">
+<header class="trading-heading"><h1 id="model-diagnostic-title">Model access</h1></header>
+<section class="trading-section" aria-label="Model catalog diagnostic">
+<p>Check access to the Sol6.1 model catalog. This does not run AI analysis or enable the DEMO robot.</p>
+<form id="model-preflight-form" action="{{ url_for('kilas_trading.model_catalog_preflight') }}" method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<button class="btn" type="submit">Check model access</button>
+</form>
+<p id="model-preflight-status" role="status" aria-live="polite">Not checked. Start a check using the button above.</p>
+<dl id="model-preflight-result" class="trading-meta" hidden>
+<div><dt>Server credential</dt><dd id="model-credential"></dd></div>
+<div><dt>Provider HTTP status</dt><dd id="model-http"></dd></div>
+<div><dt>Exact model ID match</dt><dd id="model-match"></dd></div>
+<div><dt>Checked at (UTC)</dt><dd id="model-checked"></dd></div>
+</dl>
+<p class="trading-small">Catalog access does not verify inference compatibility, market data, or trading readiness.</p>
+<a href="{{ url_for('kilas_trading.home') }}">Return to Trading</a>
+</section>
+</main>
+<script src="{{ url_for('static',filename='kilas_trading_model_preflight.js',v='20261010') }}" defer></script>
+{% endblock %}
