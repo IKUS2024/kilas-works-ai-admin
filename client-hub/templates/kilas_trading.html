@@ -1,6 +1,6 @@
 {% extends 'trading_shell.html' if trading_host() else 'base.html' %}
 {% block title %}Kilas Trading · MOCK{% endblock %}
-{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_trading.css', v='diagnostic-local-20261009') }}">{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_trading.css', v='bridge-isolated-20261010') }}">{% endblock %}
 {% block content %}
 <main class="trading" aria-labelledby="trading-title">
 <header class="trading-heading"><div><h1 id="trading-title">Kilas Trading <span class="trading-badge">MOCK / PAPER</span></h1><p>Simulasi dengan harga dan saldo buatan. Bukan akun broker.</p></div><a class="trading-reload" href="{{ url_for('kilas_trading.home') }}">Muat ulang dashboard</a></header>
@@ -57,6 +57,18 @@
 <section class="trading-section trading-recent" aria-labelledby="recent-title"><header><h2 id="recent-title">Aktivitas terakhir</h2><a href="#history-details">Lihat jurnal</a></header>
 {% for e in state.events[:3] %}<article class="trading-event"><header><strong>{{ {'ORDER':'Buka posisi','CLOSE':'Tutup posisi','PROTECT':'Ubah proteksi','CONFIGURE':'Simpan risiko','PAUSE':'Jeda posisi baru','RESUME':'Lanjutkan simulasi','KILL':'Hentikan trading','STEP':'Langkah simulasi','RUN':'Jalankan simulasi','AGENT':'Evaluasi strategi'}.get(e.action|upper,'Aksi simulasi') }} · {{ {'ACCEPTED':'Berhasil','REJECTED':'Ditolak','NO_SIGNAL':'Tidak ada sinyal','COMPLETED':'Selesai'}.get(e.outcome,'Tercatat') }}</strong><time>{{ e.created_at }}</time></header><p>{{ e.message }}</p></article>{% else %}<p class="trading-empty">Belum ada aktivitas. Aksi simulasi pertama akan tercatat di sini.</p>{% endfor %}
 </section>
+<details class="trading-secondary" id="bridge-details"><summary>Bridge DEMO · koneksi read-only lokal</summary>
+<section class="trading-section" id="trading-bridge" data-enabled="{{ 'true' if state.bridge.enabled else 'false' }}" data-paired="{{ 'true' if state.bridge.bridge_id|default('') else 'false' }}" data-status-url="{{ url_for('kilas_trading.bridge_status') }}" aria-labelledby="bridge-title">
+<h2 id="bridge-title">Collector lokal DEMO</h2>
+<p class="trading-small">{{ 'Pairing tersedia untuk collector yang dimulai manual setelah persetujuan koneksi.' if state.bridge.enabled else 'Bridge belum diaktifkan. Pairing dan koneksi lokal menunggu persetujuan; tidak ada akses persisten.' }} Tidak mengirim saldo, nomor akun atau history. Token maksimal satu jam; tanpa order atau AI.</p>
+<p data-bridge-status role="status" aria-live="polite">{{ state.bridge.outcome }} · transport {{ state.bridge.transport }} · market {{ state.bridge.market_freshness }}</p>
+<p class="trading-small">Transport aktif tidak membuktikan quote segar. Qualification memerlukan usia sumber + uncertainty ≤5 detik dan profil waktu broker terverifikasi; keduanya belum diberikan oleh bridge ini.</p>
+<form data-bridge-form method="post" action="{{ url_for('kilas_trading.bridge_pair') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="server" value="XMGlobal-MT5 10"><label>Simbol yang dibaca<select name="symbol"><option value="GOLD">GOLD</option><option value="BTCUSD">BTCUSD</option></select></label><button class="btn secondary" {{ 'disabled' if not state.bridge.enabled }}>Buat pairing sekali pakai</button></form>
+<p data-bridge-code class="trading-small" hidden style="overflow-wrap:anywhere"></p>
+<div data-bridge-market class="trading-small" style="overflow-wrap:anywhere"></div>
+<form data-bridge-form method="post" action="{{ url_for('kilas_trading.bridge_revoke') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary" {{ 'disabled' if not state.bridge.enabled }}>Cabut akses bridge</button></form>
+</section></details>
+<script src="{{ url_for('static', filename='kilas_trading_bridge.js', v='bridge-disabled-v1') }}" defer></script>
 <details class="trading-secondary" id="diagnostic-details"><summary>Diagnostik DEMO · laporan rekaman lokal</summary>
 <section class="trading-section" aria-labelledby="diagnostic-title"><h2 id="diagnostic-title">Laporan diagnostik <span class="trading-badge">DEMO · HISTORIS · READ ONLY</span></h2>
 <p class="trading-small" id="diagnostic-help">Baca laporan di browser ini saja (JSON UTF-8, maks. 128 KiB). File tidak diunggah atau disimpan layanan. Hanya ringkasan yang ditampilkan sampai halaman ditutup, dimuat ulang atau dibersihkan. Akun, saldo, credential, riwayat dan paket mentah tidak ditampilkan.</p>
@@ -115,7 +127,7 @@
 {% for e in state.events %}<article class="trading-event"><header><strong>{{ e.action }} · {{ e.outcome }}</strong><time>{{ e.created_at }}</time></header><p>{{ e.message }}</p><details><summary>Input, keputusan & hasil</summary><pre>{{ e.inputs|tojson(indent=2) }}</pre></details></article>{% else %}<p class="trading-empty">Jurnal kosong. Aksi pertama Anda akan tercatat di sini.</p>{% endfor %}
 </section>
 </details>
-<script id="trading-data" type="application/json">{{ {'price_cents':state.price_cents,'paused':a.paused,'killed':a.killed}|tojson }}</script><script src="{{ url_for('static', filename='kilas_trading.js', v='diagnostic-preflight-20261010') }}" defer></script>
+<script id="trading-data" type="application/json">{{ {'price_cents':state.price_cents,'paused':a.paused,'killed':a.killed}|tojson }}</script><script src="{{ url_for('static', filename='kilas_trading.js', v='bridge-isolated-20261010') }}" defer></script>
 {% endif %}
 </main>
 {% endblock %}

@@ -24,3 +24,4 @@
 
 .trading #diagnostic-result{display:grid;gap:12px;margin:16px 0 0}.trading #diagnostic-result dt{font-size:13px;color:var(--text-dim)}.trading #diagnostic-result dd{margin:2px 0;font-weight:600;overflow-wrap:anywhere}
 .trading #diagnostic-file{color-scheme:light}.trading #diagnostic-file::file-selector-button{background:#f7f7f6!important;color:#202329!important;border:1px solid var(--border);border-radius:6px;min-height:32px;padding:6px 10px;font:inherit;cursor:pointer}
+.trading #trading-bridge .btn.secondary:not(:disabled):hover{background:#fff0e5!important;color:#202329!important;border-color:#d5d7da!important}

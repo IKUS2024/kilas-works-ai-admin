@@ -19,7 +19,7 @@
     document.querySelector('#trading-stop').value = (config.price_cents/100 - sign*10).toFixed(2);
     document.querySelector('#trading-target').value = (config.price_cents/100 + sign*20).toFixed(2);
   });
-  root.querySelectorAll('form').forEach(form => form.addEventListener('submit', async event => {
+  root.querySelectorAll('form:not([data-bridge-form])').forEach(form => form.addEventListener('submit', async event => {
     event.preventDefault();
     if (pending) return;
     if (form.hasAttribute('data-kill') && !window.confirm('Hentikan trading? Posisi baru akan diblokir permanen untuk pilot ini. Posisi lama tetap terbuka dan dapat ditutup manual.')) return;

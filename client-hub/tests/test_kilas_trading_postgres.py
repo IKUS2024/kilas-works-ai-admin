@@ -32,6 +32,12 @@ def main():
         suite=unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(f.TradingTests),unittest.defaultTestLoader.loadTestsFromTestCase(analyst.AnalysisTests),unittest.defaultTestLoader.loadTestsFromTestCase(observation.ObservationTests)])
         result=unittest.TextTestRunner(verbosity=2).run(suite)
         if not result.wasSuccessful():raise SystemExit(1)
+        import test_kilas_trading_bridge as bridge_tests
+        bridge_suite=unittest.defaultTestLoader.loadTestsFromTestCase(bridge_tests.BridgeTests)
+        bridge_result=unittest.TextTestRunner(verbosity=2).run(bridge_suite)
+        if not bridge_result.wasSuccessful():raise SystemExit(1)
+        bridge_after={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
+        assert bridge_after-after=={'kilas_trading_bridges','kilas_trading_bridge_releases'}
         # Old application can read its original tables after Trader installation.
         assert db.query_one('SELECT count(*) AS n FROM users')['n']==3
         print('PostgreSQL PASS: additive four-table boundary/idempotence, concurrent operations, old users readback.')

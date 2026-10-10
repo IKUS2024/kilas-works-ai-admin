@@ -1,0 +1,512 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9223372036854775807
+    },
+    "server_challenge": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "message_kind": {
+      "enum": [
+        "HEARTBEAT",
+        "MARKET"
+      ]
+    },
+    "server": {
+      "const": "XMGlobal-MT5 10"
+    },
+    "account_mode": {
+      "enum": [
+        "DEMO",
+        "UNKNOWN"
+      ]
+    },
+    "terminal_connected": {
+      "type": "boolean"
+    },
+    "market": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "symbol": {
+              "enum": [
+                "GOLD",
+                "BTCUSD"
+              ]
+            },
+            "timeframe": {
+              "const": "M1"
+            },
+            "tick": {
+              "type": "object",
+              "properties": {
+                "time": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 999999999999999
+                },
+                "time_msc": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 999999999999999
+                },
+                "bid": {
+                  "type": "string",
+                  "maxLength": 24,
+                  "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                  "description": "Positive decimal <=100000000; numeric bound checked by server."
+                },
+                "ask": {
+                  "type": "string",
+                  "maxLength": 24,
+                  "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                  "description": "Positive decimal <=100000000; numeric bound checked by server."
+                }
+              },
+              "required": [
+                "time",
+                "time_msc",
+                "bid",
+                "ask"
+              ],
+              "additionalProperties": false
+            },
+            "capture": {
+              "type": "object",
+              "properties": {
+                "start_utc": {
+                  "type": "string",
+                  "maxLength": 40,
+                  "format": "date-time",
+                  "description": "UTC zero offset required by server."
+                },
+                "end_utc": {
+                  "type": "string",
+                  "maxLength": 40,
+                  "format": "date-time",
+                  "description": "UTC zero offset required by server."
+                },
+                "start_mono_ns": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9223372036854775807
+                },
+                "end_mono_ns": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9223372036854775807
+                }
+              },
+              "required": [
+                "start_utc",
+                "end_utc",
+                "start_mono_ns",
+                "end_mono_ns"
+              ],
+              "additionalProperties": false
+            },
+            "candles": {
+              "type": "array",
+              "minItems": 12,
+              "maxItems": 12,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "time": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 999999999999999
+                  },
+                  "open": {
+                    "type": "string",
+                    "maxLength": 24,
+                    "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                    "description": "Positive decimal <=100000000; numeric bound checked by server."
+                  },
+                  "high": {
+                    "type": "string",
+                    "maxLength": 24,
+                    "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                    "description": "Positive decimal <=100000000; numeric bound checked by server."
+                  },
+                  "low": {
+                    "type": "string",
+                    "maxLength": 24,
+                    "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                    "description": "Positive decimal <=100000000; numeric bound checked by server."
+                  },
+                  "close": {
+                    "type": "string",
+                    "maxLength": 24,
+                    "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                    "description": "Positive decimal <=100000000; numeric bound checked by server."
+                  }
+                },
+                "required": [
+                  "time",
+                  "open",
+                  "high",
+                  "low",
+                  "close"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "clock": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "const": "PRODUCER_CLAIM_ONLY"
+                    },
+                    "offset_seconds": {
+                      "type": "string",
+                      "maxLength": 24,
+                      "pattern": "^-?\\d{1,5}(?:\\.\\d{1,8})?$",
+                      "description": "Absolute value <=60"
+                    },
+                    "uncertainty_ms": {
+                      "type": "string",
+                      "maxLength": 24,
+                      "pattern": "^-?\\d{1,5}(?:\\.\\d{1,8})?$",
+                      "description": "Value 0..10000"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "offset_seconds",
+                    "uncertainty_ms"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "clock_profile": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "profile_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_.:-]{1,80}$"
+                    },
+                    "candidate_offset_seconds": {
+                      "type": "integer",
+                      "minimum": -50400,
+                      "maximum": 50400
+                    },
+                    "evidence_ref": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_.:-]{1,80}$"
+                    }
+                  },
+                  "required": [
+                    "profile_id",
+                    "candidate_offset_seconds",
+                    "evidence_ref"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "required": [
+            "symbol",
+            "timeframe",
+            "tick",
+            "capture",
+            "candles",
+            "clock",
+            "clock_profile"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "runtime_eligible": {
+      "const": false,
+      "type": "boolean"
+    },
+    "broker_execution_allowed": {
+      "const": false,
+      "type": "boolean"
+    },
+    "ai_analysis": {
+      "const": false,
+      "type": "boolean"
+    },
+    "paper_execution": {
+      "const": false,
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "sequence",
+    "server_challenge",
+    "message_kind",
+    "server",
+    "account_mode",
+    "terminal_connected",
+    "market",
+    "runtime_eligible",
+    "broker_execution_allowed",
+    "ai_analysis",
+    "paper_execution"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kilas:demo-bridge-telemetry:v1",
+  "title": "Kilas read-only DEMO bridge telemetry v1",
+  "description": "Exact structural schema; <=16384 UTF-8 bytes. Server enforces numeric/cross-field, token scope, sequence, challenge, and timing constraints described in README. No freshness qualification from producer claims.",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "message_kind": {
+            "const": "MARKET"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "market": {
+            "type": "object",
+            "properties": {
+              "symbol": {
+                "enum": [
+                  "GOLD",
+                  "BTCUSD"
+                ]
+              },
+              "timeframe": {
+                "const": "M1"
+              },
+              "tick": {
+                "type": "object",
+                "properties": {
+                  "time": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 999999999999999
+                  },
+                  "time_msc": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 999999999999999
+                  },
+                  "bid": {
+                    "type": "string",
+                    "maxLength": 24,
+                    "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                    "description": "Positive decimal <=100000000; numeric bound checked by server."
+                  },
+                  "ask": {
+                    "type": "string",
+                    "maxLength": 24,
+                    "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                    "description": "Positive decimal <=100000000; numeric bound checked by server."
+                  }
+                },
+                "required": [
+                  "time",
+                  "time_msc",
+                  "bid",
+                  "ask"
+                ],
+                "additionalProperties": false
+              },
+              "capture": {
+                "type": "object",
+                "properties": {
+                  "start_utc": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "format": "date-time",
+                    "description": "UTC zero offset required by server."
+                  },
+                  "end_utc": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "format": "date-time",
+                    "description": "UTC zero offset required by server."
+                  },
+                  "start_mono_ns": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9223372036854775807
+                  },
+                  "end_mono_ns": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9223372036854775807
+                  }
+                },
+                "required": [
+                  "start_utc",
+                  "end_utc",
+                  "start_mono_ns",
+                  "end_mono_ns"
+                ],
+                "additionalProperties": false
+              },
+              "candles": {
+                "type": "array",
+                "minItems": 12,
+                "maxItems": 12,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "time": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 999999999999999
+                    },
+                    "open": {
+                      "type": "string",
+                      "maxLength": 24,
+                      "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                      "description": "Positive decimal <=100000000; numeric bound checked by server."
+                    },
+                    "high": {
+                      "type": "string",
+                      "maxLength": 24,
+                      "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                      "description": "Positive decimal <=100000000; numeric bound checked by server."
+                    },
+                    "low": {
+                      "type": "string",
+                      "maxLength": 24,
+                      "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                      "description": "Positive decimal <=100000000; numeric bound checked by server."
+                    },
+                    "close": {
+                      "type": "string",
+                      "maxLength": 24,
+                      "pattern": "^(?!0+(?:\\.0+)?$)\\d{1,9}(?:\\.\\d{1,8})?$",
+                      "description": "Positive decimal <=100000000; numeric bound checked by server."
+                    }
+                  },
+                  "required": [
+                    "time",
+                    "open",
+                    "high",
+                    "low",
+                    "close"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "clock": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "const": "PRODUCER_CLAIM_ONLY"
+                      },
+                      "offset_seconds": {
+                        "type": "string",
+                        "maxLength": 24,
+                        "pattern": "^-?\\d{1,5}(?:\\.\\d{1,8})?$",
+                        "description": "Absolute value <=60"
+                      },
+                      "uncertainty_ms": {
+                        "type": "string",
+                        "maxLength": 24,
+                        "pattern": "^-?\\d{1,5}(?:\\.\\d{1,8})?$",
+                        "description": "Value 0..10000"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "offset_seconds",
+                      "uncertainty_ms"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "clock_profile": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "profile_id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_.:-]{1,80}$"
+                      },
+                      "candidate_offset_seconds": {
+                        "type": "integer",
+                        "minimum": -50400,
+                        "maximum": 50400
+                      },
+                      "evidence_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_.:-]{1,80}$"
+                      }
+                    },
+                    "required": [
+                      "profile_id",
+                      "candidate_offset_seconds",
+                      "evidence_ref"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "symbol",
+              "timeframe",
+              "tick",
+              "capture",
+              "candles",
+              "clock",
+              "clock_profile"
+            ],
+            "additionalProperties": false
+          },
+          "account_mode": {
+            "const": "DEMO"
+          },
+          "terminal_connected": {
+            "const": true
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "market": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

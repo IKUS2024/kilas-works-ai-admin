@@ -22,6 +22,8 @@ def home():
         state = store.snapshot(security.current_user()['id'])
         state['ai_analysis'] = analysis.availability()
         state['observation'] = observation.view(security.current_user()['id'])
+        from . import bridge
+        state['bridge'] = bridge.status(security.current_user()['id'])
     except PermissionError:
         abort(404)
     except engine.TradingError as exc:
@@ -52,6 +54,10 @@ def upload():
         return jsonify(result), 200 if result['outcome'] == 'OK' else 409 if result['outcome'] == 'REJECTED' else 503
     flash(result['message'], 'success' if result['outcome'] == 'OK' else 'error')
     return redirect(url_for('kilas_trading.home'), code=303)
+
+
+# Register isolated read-only bridge routes on the same protected Trading host.
+from . import bridge_routes  # noqa: E402,F401
 
 
 @bp.post('/<action>')
