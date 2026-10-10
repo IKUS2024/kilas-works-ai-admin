@@ -200,6 +200,27 @@ limits need approval. ACCEPTED means reviewed producer/contract/policy for this
 receipt-bounded path, not absolute clock/profile proof. Historical NOT_IMPLEMENTED
 diagnostics cannot become accepted by upload or copying examples.
 
+### Evidence-only sessions
+
+The same server-side manifest also accepts the exact permission combination
+`model_analysis_allowed:false, max_requests:0, max_loss_cents:0`. Mixed permissions,
+boolean budgets and nonzero evidence-only budgets reject. The normal model-approved
+combination still requires true and both existing positive budgets.
+
+Evidence-only admission needs CONTROL and BTC_EVIDENCE enabled; BTC_ANALYSIS, AI,
+BTC_NEWS and BTC_RUNTIME may all remain disabled. The worker schema2 payload is
+unchanged. Require credential `max_run_seconds=NULL`, desired OFF, no pending/active
+run, and a fresh matching OFF/flat DEMO acknowledgement. Recheck this boundary under
+the source transaction before rotating a nonce or storing a capture. An approved
+60-second exchange uses credential and manifest expiry; it never issues ON.
+
+Evidence-only ingestion never fetches or attaches news, even if the global news
+flag changes; news_id stays null. It returns execution_authorized false. Analysis
+and runtime-grant installation reject this manifest even if their flags are later
+enabled. Unknown cost bounds, false strategy booleans and zero remaining-loss
+context remain valid evidence; reviewed owner/session/spec/policy provenance and
+all capture validation still apply. No zero values confer model or loss authority.
+
 Separate runtime permission is installed once per approved session by
 `accepted_sources.install_runtime_authority(user_id, session_id, grant)`:
 

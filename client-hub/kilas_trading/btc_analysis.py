@@ -24,8 +24,29 @@ def integer(value,minimum=0,maximum=100000000):return type(value) is int and min
 def freshness_time(market):
     return market['freshness_started_at'] if market['time_basis']=='RECEIPT_BOUNDED' else market['quote_time']
 
-def authorize(token,request):
-    bridge.require(enabled() and control.enabled(),'BTC_ANALYSIS_DISABLED',404)
+def session_permissions(manifest, *, for_evidence=False):
+    evidence_only=manifest['model_analysis_allowed'] is False
+    require(manifest['model_analysis_allowed'] is True or for_evidence and evidence_only,'MODEL_SESSION_UNAPPROVED')
+    if evidence_only:
+        require(integer(manifest['max_loss_cents'],0,0) and integer(manifest['max_requests'],0,0),'EVIDENCE_ONLY_BUDGETS_REQUIRED')
+    else:
+        require(integer(manifest['max_loss_cents'],1,engine.RISK['max_exposure_cents']*engine.RISK['risk_bps']//10000),'LOSS_CAP_UNAPPROVED')
+        require(integer(manifest['max_requests'],1,budget.DAY_REQUESTS),'MODEL_REQUEST_CAP_UNAPPROVED')
+    return evidence_only
+
+
+def evidence_only_off(conn,scope,request):
+    # NULL run authority also makes the existing owner ON handler reject.
+    bridge.pilot(conn,scope['user_id']);current=bridge.now()
+    bound=control.binding(conn,scope['user_id'],current);row=control.row_for(conn,scope['user_id'])
+    require(bound and bound['session_id']==scope['session_id'] and bound['credential_hash']==scope['credential_hash'] and bound['symbol']=='BTCUSD' and bound['server']==bridge.SERVER and bound['max_run_seconds'] is None and row and control.fresh(row,bound,current),'EVIDENCE_ONLY_OFF_REQUIRED')
+    ack=json.loads(row['ack_json'])
+    require(row['desired_state']=='OFF' and row['run_status'] in ('NONE','ENDED') and row['revision']==request['revision'] and row['command_id']==request['command_id'] and row['instrument']==request['instrument'] and row['lot']==request['lot'],'EVIDENCE_ONLY_OFF_REQUIRED')
+    require(ack['revision']==row['revision'] and ack['command_id']==row['command_id'] and ack['instrument']==request['instrument'] and ack['lot']==request['lot'] and ack['actual_state']=='OFF' and ack['position_open'] is False and ack['account_mode']=='DEMO' and ack['terminal_connected'] is True,'EVIDENCE_ONLY_OFF_REQUIRED')
+
+
+def authorize(token,request, *, for_evidence=False):
+    bridge.require((for_evidence or enabled()) and control.enabled(),'BTC_ANALYSIS_DISABLED',404)
     bridge.secret(token)
     with bridge_store.transaction() as conn:
         b=query(conn,'SELECT * FROM kilas_trading_control_credentials_v2 WHERE credential_hash=?',(bridge.digest(token),),one=True)
@@ -42,11 +63,11 @@ def authorize(token,request):
     manifest=approval_source.session(scope['user_id'],scope['session_id'])
     bridge.exact(manifest,('user_id','session_id','instrument','server','created_at','expires_at','model_analysis_allowed','policy_version','max_loss_cents','max_requests'))
     current=bridge.now();start,end=bridge.date(manifest['created_at']),bridge.date(manifest['expires_at'])
-    require(manifest['user_id']==scope['user_id'] and manifest['session_id']==scope['session_id'] and manifest['instrument']=='BTC' and manifest['server']==bridge.SERVER and manifest['model_analysis_allowed'] is True,'MODEL_SESSION_UNAPPROVED')
+    require(manifest['user_id']==scope['user_id'] and manifest['session_id']==scope['session_id'] and manifest['instrument']=='BTC' and manifest['server']==bridge.SERVER,'MODEL_SESSION_UNAPPROVED')
     require(start<=current<end and 0<(end-start).total_seconds()<=300 and end<=bridge.date(scope['expires_at']),'MODEL_SESSION_EXPIRED')
     bridge.secret(manifest['policy_version'])
-    require(integer(manifest['max_loss_cents'],1,engine.RISK['max_exposure_cents']*engine.RISK['risk_bps']//10000),'LOSS_CAP_UNAPPROVED')
-    require(integer(manifest['max_requests'],1,budget.DAY_REQUESTS),'MODEL_REQUEST_CAP_UNAPPROVED')
+    if session_permissions(manifest,for_evidence=for_evidence):
+        with bridge_store.transaction() as conn:evidence_only_off(conn,scope,request)
     return scope,manifest
 
 

@@ -76,10 +76,11 @@ class AcceptedSources:
         from . import btc_analysis as btc
         bridge.exact(manifest,('user_id','session_id','instrument','server','created_at','expires_at','model_analysis_allowed','policy_version','max_loss_cents','max_requests'))
         bridge.exact(acceptance,ACCEPTANCE_FIELDS)
-        bridge.require(type(manifest['user_id']) is int and manifest['user_id']>0 and manifest['instrument']=='BTC' and manifest['server']==bridge.SERVER and manifest['model_analysis_allowed'] is True,'APPROVAL_REJECTED')
+        bridge.require(type(manifest['user_id']) is int and manifest['user_id']>0 and manifest['instrument']=='BTC' and manifest['server']==bridge.SERVER,'APPROVAL_REJECTED')
+        btc.session_permissions(manifest,for_evidence=True)
         bridge.secret(manifest['session_id'],32);bridge.secret(manifest['policy_version'])
         start,end=bridge.date(manifest['created_at']),bridge.date(manifest['expires_at'])
-        bridge.require(start<=bridge.now()<end and 0<(end-start).total_seconds()<=300 and btc.integer(manifest['max_loss_cents'],1,2000) and btc.integer(manifest['max_requests'],1,10),'APPROVAL_REJECTED')
+        bridge.require(start<=bridge.now()<end and 0<(end-start).total_seconds()<=300,'APPROVAL_REJECTED')
         bridge.require(acceptance['producer_acceptance']=='ACCEPTED' and type(acceptance['clock_verified']) is bool and type(acceptance['profile_verified']) is bool and acceptance['policy_version']==manifest['policy_version'],'PRODUCER_UNACCEPTED')
         bridge.secret(acceptance['broker_contract_sha256'])
         bridge.require(type(acceptance['candidate_offset_seconds']) is int and abs(acceptance['candidate_offset_seconds'])<=50400 and all(type(acceptance[k]) is str and 1<=len(acceptance[k])<=80 for k in ('profile_id','evidence_ref')),'PROFILE_REJECTED')
@@ -151,6 +152,7 @@ class AcceptedSources:
         bridge.exact(authority,('user_id','session_id','policy_version','expires_at','runtime_eligible','broker_execution_allowed','policy_replay_only','server','instrument'))
         with self.transaction() as conn:
             bridge.pilot(conn,user);state=self._session(user,ident)
+            bridge.require(state['manifest']['model_analysis_allowed'] is True,'RUNTIME_APPROVAL_REJECTED')
             bridge.require(state['runtime'] is None and authority['user_id']==user and authority['session_id']==ident and authority['policy_version']==state['manifest']['policy_version'] and authority['server']==bridge.SERVER and authority['instrument']=='BTC','RUNTIME_APPROVAL_REJECTED')
             bridge.require(authority['runtime_eligible'] is True and authority['broker_execution_allowed'] is True and authority['policy_replay_only'] is False and bridge.now()<bridge.date(authority['expires_at'])<=state['expires'],'RUNTIME_APPROVAL_REJECTED')
             state['runtime']=copy.deepcopy(authority)
@@ -170,14 +172,16 @@ class AcceptedSources:
         bridge.require(type(data['sequence']) is int and 0<=data['sequence']<2**63,'EVIDENCE_SEQUENCE_REJECTED')
         bridge.require(type(data['revision']) is int and 0<=data['revision']<2**63-1,'EVIDENCE_REVISION_REJECTED');bridge.secret(data['session_id'],32)
         if data['command_id'] is not None:bridge.secret(data['command_id'],32)
-        btc.control.lot(data['lot']);scope,manifest=btc.authorize(token,data)
+        btc.control.lot(data['lot']);scope,manifest=btc.authorize(token,data,for_evidence=True)
+        evidence_only=manifest['model_analysis_allowed'] is False
         if data['sequence']==0:
             bridge.require(data['challenge'] is None and data['market'] is None and data['spec'] is None and data['risk'] is None,'CAPTURE_BOOTSTRAP_INVALID')
             # Public collection precedes the capture challenge; no network operation
             # consumes the five-second capture window or holds a database lock.
-            self.ensure_news()
-            with self.transaction():
+            if not evidence_only:self.ensure_news()
+            with self.transaction() as conn:
                 state=self._session(scope['user_id'],scope['session_id'])
+                if evidence_only:btc.evidence_only_off(conn,scope,data)
                 bridge.require(state['capture_challenge_hash'] is None or bridge.now()>=bridge.date(state['capture_issued_at'])+timedelta(seconds=CAPTURE_WINDOW_SECONDS),'CAPTURE_BOOTSTRAP_REPLAY')
                 current=bridge.now();challenge,expires=self._rotate_capture(state,current)
                 return dict(schema_version=2,outcome='CAPTURE_CHALLENGE_ISSUED',sequence=state['sequence'],challenge=challenge,challenge_expires_at=expires,received_at=bridge.stamp(current),execution_authorized=False)
@@ -186,9 +190,10 @@ class AcceptedSources:
         # Missing/empty feeds can recover during the normal capture loop. A slow
         # retry may expire this nonce; reject it below and let bootstrap recover
         # with the cached news. Collection never holds the source/control DB lock.
-        self.ensure_news()
-        with self.transaction():
+        if not evidence_only:self.ensure_news()
+        with self.transaction() as conn:
             state=self._session(scope['user_id'],scope['session_id']);accept=state['acceptance'];current=bridge.now()
+            if evidence_only:btc.evidence_only_off(conn,scope,data)
             bridge.require(data['sequence']==state['sequence']+1,'EVIDENCE_REPLAY_REJECTED')
             bridge.require(state['capture_challenge_hash'] and secrets.compare_digest(bridge.digest(data['challenge']),state['capture_challenge_hash']),'CAPTURE_CHALLENGE_REJECTED')
             issued=bridge.date(state['capture_issued_at']);age=(current-issued).total_seconds()
@@ -213,9 +218,9 @@ class AcceptedSources:
             btc.validate(dict(market=dict(market,id='0'*32),spec=dict(spec,id='0'*32),risk=risk,news=placeholder),dict(evidence=dict(market_id='0'*32,news_id='0'*32,spec_id='0'*32)))
             market_id=self._save(state,'market',market);spec_id=self._save(state,'spec',spec)
             state['sequence']=data['sequence'];state['latest']=dict(market_id=market_id,spec_id=spec_id,risk=copy.deepcopy(risk))
-            news_id=self._save(state,'news',self._news(state)) if self.news else None
+            news_id=self._save(state,'news',self._news(state)) if self.news and not evidence_only else None
             challenge,expires=self._rotate_capture(state,current)
-            return dict(schema_version=2,outcome='EVIDENCE_ACCEPTED',session_id=scope['session_id'],sequence=data['sequence'],challenge=challenge,challenge_expires_at=expires,evidence=dict(market_id=market_id,spec_id=spec_id,news_id=news_id),coverage=btc_news.COVERAGE,risk_review=self._news(state)['risk_review'] if self.news else 'UNREVIEWED',tick_liveness='VERIFIED' if market['tick_advanced_at'] and (current-bridge.date(market['tick_advanced_at'])).total_seconds()<=5 else 'UNCONFIRMED',execution_authorized=False,received_at=bridge.stamp(current))
+            return dict(schema_version=2,outcome='EVIDENCE_ACCEPTED',session_id=scope['session_id'],sequence=data['sequence'],challenge=challenge,challenge_expires_at=expires,evidence=dict(market_id=market_id,spec_id=spec_id,news_id=news_id),coverage=btc_news.COVERAGE,risk_review=self._news(state)['risk_review'] if news_id else 'UNREVIEWED',tick_liveness='VERIFIED' if market['tick_advanced_at'] and (current-bridge.date(market['tick_advanced_at'])).total_seconds()<=5 else 'UNCONFIRMED',execution_authorized=False,received_at=bridge.stamp(current))
     def resolve(self,user,ident,ids):
         with self.transaction():
             state=self._session(user,ident);out={}

@@ -20,7 +20,7 @@ def transport():
     if request.endpoint not in ('kilas_trading.control_sync','kilas_trading.btc_analysis_worker','kilas_trading.btc_evidence_worker'):return None
     def perform():
         bridge.require(control.enabled(),'DISABLED',404)
-        if request.endpoint in ('kilas_trading.btc_analysis_worker','kilas_trading.btc_evidence_worker'):
+        if request.endpoint=='kilas_trading.btc_analysis_worker':
             bridge.require(btc_analysis.enabled(),'BTC_ANALYSIS_DISABLED',404)
         if request.endpoint=='kilas_trading.btc_evidence_worker':
             bridge.require(os.environ.get('KILAS_TRADING_BTC_EVIDENCE_ENABLED')=='true','EVIDENCE_DISABLED',404)

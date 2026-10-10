@@ -57,6 +57,20 @@ class SourceTests(unittest.TestCase):
         self.source.review_news(f.TradingTests.user,self.base.request['session_id'],dict(news_id=news['id'],policy_version=self.base.manifest['policy_version'],coverage=btc_news.COVERAGE,event_risk=event,sentiment=0,expires_at=bridge.stamp(self.base.fixture.helper.time+timedelta(seconds=60))))
     def advance(self):
         self.base.fixture.advance();self.assertEqual(self.base.fixture.sync(self.base.fixture.ack()).status_code,200)
+    def evidence_only(self):
+        flags=patch.dict(os.environ,{name:'false' for name in ('KILAS_TRADING_BTC_ANALYSIS_ENABLED','KILAS_TRADING_AI_ENABLED','KILAS_TRADING_BTC_NEWS_ENABLED','KILAS_TRADING_BTC_RUNTIME_ENABLED')})
+        flags.start();self.addCleanup(flags.stop)
+        self.source.reset()
+        self.base.manifest.update(model_analysis_allowed=False,max_requests=0,max_loss_cents=0,expires_at=bridge.stamp(self.base.fixture.helper.time+timedelta(seconds=60)))
+        self.base.evidence['spec']['cost_bound_cents']=None
+        self.base.evidence['risk'].update(strategy_verified=False,cooldown_clear=False,loss_streak_clear=False,daily_loss_remaining_cents=0)
+        self.acceptance.update(clock_verified=False,profile_verified=False,broker_contract_sha256=btc_sources.contract_hash(self.base.evidence['spec']))
+        with fixture.c.bridge_store.transaction() as conn:
+            fixture.c.query(conn,'UPDATE kilas_trading_control_credentials_v2 SET max_run_seconds=NULL,expires_at=?',(self.base.manifest['expires_at'],))
+        self.source.install_reviewed(self.base.manifest,self.acceptance)
+        self.base.fixture.advance()
+        self.assertEqual(self.base.fixture.sync(self.base.fixture.ack(specs_verified=False,risk_allowed=False,policy_state='UNSET',wait_reason='STRATEGY_UNAVAILABLE')).status_code,200)
+        self.challenge=None
     def test_end_to_end_autonomous_news_model_and_no_runtime_grant(self):
         trace=[];news=self.collect();self.assertEqual(news['event_risk'],'UNKNOWN');self.assertEqual(news['risk_review'],'UNREVIEWED')
         first=self.post();self.assertEqual(first.status_code,200,first.json);self.assertEqual(first.json['tick_liveness'],'UNCONFIRMED')
@@ -73,9 +87,89 @@ class SourceTests(unittest.TestCase):
             from pathlib import Path
             Path(os.environ['TRADING_BTC_TRACE_OUTPUT']).write_text(json.dumps(dict(fixture_only=True,external_calls=0,credentials_created=0,trace=trace),indent=2))
     def test_disabled_empty_acceptance_default_no_upload_or_calls(self):
-        for name in ('KILAS_TRADING_BTC_EVIDENCE_ENABLED','KILAS_TRADING_BTC_ANALYSIS_ENABLED','KILAS_TRADING_CONTROL_ENABLED'):
+        for name in ('KILAS_TRADING_BTC_EVIDENCE_ENABLED','KILAS_TRADING_CONTROL_ENABLED'):
             with patch.dict(os.environ,{name:'false'}):self.assertEqual(self.post().status_code,404)
         self.source.reset();self.assertEqual(self.post().status_code,409)
+    def test_evidence_only_capture_with_model_news_runtime_disabled(self):
+        self.evidence_only()
+        with patch.object(analysis,'_http') as model,patch.object(btc_news.requests,'get') as news,patch.object(btc,'runtime_gate') as runtime:
+            bootstrap=self.post(self.payload(0));self.assertEqual(bootstrap.status_code,200,bootstrap.json)
+            self.base.fixture.advance(.1);first=self.post(self.payload(1))
+            self.assertEqual(first.status_code,200,first.json);self.assertIsNone(first.json['evidence']['news_id'])
+            self.assertFalse(first.json['execution_authorized'])
+            # Even accidental global news enablement cannot fetch or attach news.
+            with self.source.transaction():self.source.news=btc_news.parse(self.feed(),self.base.fixture.helper.time)
+            with patch.dict(os.environ,{'KILAS_TRADING_BTC_NEWS_ENABLED':'true'}):
+                self.advance();second=self.post(self.payload(2))
+            self.assertEqual(second.status_code,200,second.json);self.assertIsNone(second.json['evidence']['news_id'])
+            self.assertFalse(second.json['execution_authorized']);model.assert_not_called();news.assert_not_called();runtime.assert_not_called()
+        self.assertEqual(self.base.fixture.status()['effective_desired_state'],'OFF')
+        self.assertEqual(f.db.query_one("SELECT count(*) AS n FROM kilas_trading_events WHERE action='AI_ANALYSIS'")['n'],0)
+        self.assertEqual(f.db.query_one('SELECT count(*) AS n FROM kilas_trading_positions')['n'],0)
+        self.assertEqual(self.base.fixture.desired('ON').json['outcome'],'RUN_DURATION_UNAPPROVED')
+    def test_evidence_only_cannot_analyze_or_install_runtime_with_flags_enabled(self):
+        self.evidence_only()
+        with patch.dict(os.environ,{'KILAS_TRADING_BTC_ANALYSIS_ENABLED':'true','KILAS_TRADING_AI_ENABLED':'true','KILAS_TRADING_BTC_RUNTIME_ENABLED':'true'}),patch.object(analysis,'_http') as model,patch.object(self.source,'resolve') as resolve:
+            response=self.base.post();self.assertEqual(response.json['outcome'],'MODEL_SESSION_UNAPPROVED')
+            model.assert_not_called();resolve.assert_not_called()
+            grant=dict(user_id=f.TradingTests.user,session_id=self.base.request['session_id'],policy_version=self.base.manifest['policy_version'],expires_at=self.base.manifest['expires_at'],runtime_eligible=True,broker_execution_allowed=True,policy_replay_only=False,server=bridge.SERVER,instrument='BTC')
+            with self.assertRaises(bridge.Rejected) as rejected:self.source.install_runtime_authority(f.TradingTests.user,self.base.request['session_id'],grant)
+            self.assertEqual(rejected.exception.code,'RUNTIME_APPROVAL_REJECTED')
+        with self.source.transaction():self.assertIsNone(self.source.sessions[(f.TradingTests.user,self.base.request['session_id'])]['runtime'])
+        self.assertEqual(f.db.query_one("SELECT count(*) AS n FROM kilas_trading_events WHERE action='AI_ANALYSIS'")['n'],0)
+    def test_reviewed_manifest_requires_exact_zero_or_positive_permissions(self):
+        self.source.reset()
+        cases=[(False,1,0),(False,0,1),(False,False,0),(False,0,False),(False,'0',0),(True,0,1),(True,1,0),(True,False,1),(True,1,False),(0,0,0),(None,0,0)]
+        for allowed,requests,loss in cases:
+            with self.subTest(allowed=allowed,requests=requests,loss=loss),self.assertRaises(bridge.Rejected):
+                self.source.install_reviewed(dict(self.base.manifest,model_analysis_allowed=allowed,max_requests=requests,max_loss_cents=loss),self.acceptance)
+        self.assertFalse(self.source.sessions)
+    def test_evidence_only_requires_off_current_ack_and_null_run_authority(self):
+        self.evidence_only()
+        with fixture.c.bridge_store.transaction() as conn:original=fixture.c.control.row_for(conn,f.TradingTests.user)
+        cases=[('desired_state','ON'),('run_status','PENDING'),('run_status','ACTIVE'),('max_run_seconds',60),('actual_state','BLOCKED'),('position_open',True),('revision',1),('command_id','f'*32)]
+        for key,value in cases:
+            with self.subTest(key=key,value=value):
+                with fixture.c.bridge_store.transaction() as conn:
+                    if key=='max_run_seconds':fixture.c.query(conn,'UPDATE kilas_trading_control_credentials_v2 SET max_run_seconds=?',(value,))
+                    elif key in ('desired_state','run_status'):fixture.c.query(conn,f'UPDATE kilas_trading_controls_v2 SET {key}=?',(value,))
+                    else:
+                        ack=json.loads(original['ack_json']);ack[key]=value
+                        fixture.c.query(conn,'UPDATE kilas_trading_controls_v2 SET ack_json=?',(json.dumps(ack),))
+                self.assertEqual(self.post(self.payload(0)).json['outcome'],'EVIDENCE_ONLY_OFF_REQUIRED')
+                with fixture.c.bridge_store.transaction() as conn:
+                    fixture.c.query(conn,'UPDATE kilas_trading_control_credentials_v2 SET max_run_seconds=NULL')
+                    fixture.c.query(conn,'UPDATE kilas_trading_controls_v2 SET desired_state=?,run_status=?,ack_json=?',(original['desired_state'],original['run_status'],original['ack_json']))
+    def test_evidence_only_preserves_identity_provenance_and_expiry(self):
+        self.evidence_only();self.assertEqual(self.post(self.payload(0)).status_code,200);self.base.fixture.advance(.1)
+        raw=self.payload(1)
+        for mutate in (lambda p:p.update(session_id='e'*32),lambda p:p.update(account_mode='REAL'),lambda p:p['spec'].update(contract_size='100'),lambda p:p['risk'].update(policy_version='f'*64),lambda p:p.update(balance=1)):
+            bad=copy.deepcopy(raw);mutate(bad);self.assertEqual(self.post(bad).status_code,409)
+        with patch.object(bridge.access,'PILOT_EMAIL','unapproved@example.test'):
+            self.assertEqual(self.post(raw).status_code,401)
+        self.assertEqual(self.post(raw,token=self.base.fixture.readonly['token']).status_code,401)
+        self.assertEqual(self.post(raw).status_code,200)
+        with fixture.c.bridge_store.transaction() as conn:fixture.c.query(conn,'UPDATE kilas_trading_control_credentials_v2 SET revoked=1')
+        self.assertEqual(self.post(self.payload(2)).status_code,401)
+        with fixture.c.bridge_store.transaction() as conn:fixture.c.query(conn,'UPDATE kilas_trading_control_credentials_v2 SET revoked=0')
+        self.base.fixture.helper.time=bridge.date(self.base.manifest['expires_at'])
+        self.assertEqual(self.post(self.payload(2)).status_code,401)
+    def test_evidence_only_rechecks_off_before_nonce_or_capture_commit(self):
+        self.evidence_only()
+        original=btc.authorize
+        def authorize_then_on(*args,**kwargs):
+            result=original(*args,**kwargs)
+            with fixture.c.bridge_store.transaction() as conn:fixture.c.query(conn,"UPDATE kilas_trading_controls_v2 SET desired_state='ON'")
+            return result
+        for sequence in (0,1):
+            if sequence:
+                with fixture.c.bridge_store.transaction() as conn:fixture.c.query(conn,"UPDATE kilas_trading_controls_v2 SET desired_state='OFF'")
+                self.assertEqual(self.post(self.payload(0)).status_code,200);self.base.fixture.advance(.1)
+            with patch.object(btc,'authorize',side_effect=authorize_then_on):
+                self.assertEqual(self.post(self.payload(sequence)).json['outcome'],'EVIDENCE_ONLY_OFF_REQUIRED')
+            with self.source.transaction():
+                state=self.source.sessions[(f.TradingTests.user,self.base.request['session_id'])]
+                self.assertEqual(state['sequence'],0);self.assertFalse(state['records'])
     def test_reject_account_credentials_history_real_and_unknown_fields(self):
         for name in ('account_id','balance','credentials','history','prompt'):
             self.assertEqual(self.post(dict(self.raw,**{name:'private'})).status_code,409)

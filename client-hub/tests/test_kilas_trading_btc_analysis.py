@@ -85,7 +85,7 @@ class BTCAnalysisTests(unittest.TestCase):
         self.assertFalse(self.calls)
     def test_explicit_loss_approval_missing_unapproved_or_expired(self):
         with self.fake():
-            for key,value in (('max_loss_cents',None),('max_loss_cents',2001),('model_analysis_allowed',False),('expires_at',bridge.stamp(self.time)),('expires_at',bridge.stamp(self.time+timedelta(seconds=301)))):
+            for key,value in (('max_loss_cents',None),('max_loss_cents',0),('max_loss_cents',False),('max_loss_cents',2001),('max_requests',0),('max_requests',False),('model_analysis_allowed',False),('expires_at',bridge.stamp(self.time)),('expires_at',bridge.stamp(self.time+timedelta(seconds=301)))):
                 before=self.manifest[key];self.manifest[key]=value;self.assertEqual(self.post().status_code,409);self.manifest[key]=before
         self.assertFalse(self.calls)
     def test_catalog_mismatch_zero_paid_post(self):
