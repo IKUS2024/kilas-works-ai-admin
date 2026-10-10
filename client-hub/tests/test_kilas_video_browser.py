@@ -38,7 +38,7 @@ def main():
                 page.goto(origin+'/products/start',wait_until='networkidle');expect(page.locator('[data-home-task=video]')).to_be_visible()
                 page.locator('[data-home-task=video]').click();page.locator('#ai-send').click();expect(page.get_by_role('heading',name='Kilas Video',exact=True)).to_be_visible();check('empty')
                 if width<761:
-                    page.locator('[data-premium-menu]').click();expect(page.locator('.premium-navigation').get_by_role('link',name='Video',exact=True)).to_be_visible()
+                    page.locator('[data-premium-menu]').click();expect(page.locator('.premium-navigation').get_by_role('link',name='Home',exact=True)).to_be_visible()
                     page.locator('.premium-sidebar [data-premium-close]').click()
                 page.locator('.video-options summary').click();page.select_option('#video-duration','10');page.select_option('#video-tool','Seedance')
                 payload={'name':'reference.png','mimeType':'image/png','buffer':image.getvalue()}

@@ -83,7 +83,7 @@ def main():
                 assert page.get_by_role("heading", name="Apa yang ingin kamu kerjakan?").is_visible()
                 assert page.locator(".ai-shell").get_attribute("data-max-files") == "2"
                 # Closed mobile history is now inert and visually hidden.
-                assert page.locator(".ai-drawer-navigation [aria-current=page] span").text_content().strip() == "Kilas AI"
+                assert page.locator(".ai-drawer-navigation [aria-current=page] span").text_content().strip() == "Percakapan"
                 if width <= 760:
                     page.get_by_role("button", name="Buka riwayat").click()
                     assert page.locator("#ai-sidebar").is_visible()
