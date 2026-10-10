@@ -35,7 +35,10 @@ def home():
     state['chart'] = [dict(b, x=25+i*17, yo=20+(high-b['open'])*180/(high-low),
                          yc=20+(high-b['close'])*180/(high-low),
                          yh=20+(high-b['high'])*180/(high-low), yl=20+(high-b['low'])*180/(high-low)) for i,b in enumerate(bars)]
-    return render_template('kilas_trading.html', state=state, new_key=lambda: uuid.uuid4().hex)
+    from . import control
+    try: control_state=control.status(security.current_user()['id'])
+    except Exception: control_state={}
+    return render_template('kilas_trading.html', state=state, control_state=control_state, new_key=lambda: uuid.uuid4().hex)
 
 
 @bp.post('/observations/upload')
@@ -57,7 +60,7 @@ def upload():
 
 
 # Register isolated read-only bridge routes on the same protected Trading host.
-from . import bridge_routes  # noqa: E402,F401
+from . import bridge_routes, control_routes  # noqa: E402,F401
 from . import model_preflight_routes  # noqa: E402,F401
 
 

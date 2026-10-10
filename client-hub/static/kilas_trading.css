@@ -33,3 +33,5 @@
 .trading-switch-track{display:inline-flex;align-items:center;width:60px;height:32px;padding:4px;border:1px solid #c7c9cd;border-radius:20px;background:var(--bg-soft);box-sizing:border-box}.trading-switch-track>span{width:22px;height:22px;border-radius:50%;background:#62666f}.trading #demo-robot-toggle>span:last-child{color:var(--text-dim)}
 #trading-maintenance>summary{font-size:13px;font-weight:400;color:var(--text-dim)}
 @media(max-width:440px){.trading-robot{padding:20px 0;gap:16px}.trading-robot>div{flex-basis:100%}}
+
+.trading-robot-controls #robot-account{flex-basis:100%;margin:0;font-size:13px;font-weight:400}

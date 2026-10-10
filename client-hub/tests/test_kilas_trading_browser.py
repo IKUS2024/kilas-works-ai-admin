@@ -30,6 +30,8 @@ def main():
             def inactive():
                 assert toggle.is_disabled() and toggle.get_attribute('aria-checked')=='false'
                 assert 'OFF · Belum siap' in page.locator('#robot-status').inner_text()
+                assert 'offline / belum terverifikasi' in page.locator('#robot-account').inner_text()
+                assert 'XMGlobal-MT5 10' not in page.locator('#robot-account').inner_text()
                 assert page.locator('.trading button').count()==1
                 assert page.locator('.trading select').count()==1
                 assert page.locator('.trading input').count()==1

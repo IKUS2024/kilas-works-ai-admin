@@ -1,11 +1,11 @@
 {% extends 'trading_shell.html' if trading_host() else 'base.html' %}
 {% block title %}Kilas Trading{% endblock %}
-{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_trading.css', v='simple-control-instrument-20261010') }}">{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_trading.css', v='control-account-20261010') }}">{% endblock %}
 {% block content %}
 <main class="trading" aria-labelledby="trading-title">
 <header class="trading-heading"><h1 id="trading-title">Kilas Trading</h1></header>
 <section class="trading-robot" aria-label="Kontrol robot DEMO">
-<div class="trading-robot-controls"><label for="demo-robot-instrument">Instrumen<select id="demo-robot-instrument" aria-label="Instrumen" aria-describedby="robot-status"><option value="GOLD">GOLD</option><option value="BTC" selected>BTC</option></select></label><label for="demo-robot-lot">LOT<input id="demo-robot-lot" name="demo_volume_lots" type="number" min="0.01" step="any" value="0.01" required aria-describedby="robot-status"></label><button id="demo-robot-toggle" type="button" role="switch" aria-checked="false" aria-label="ON/OFF robot DEMO" aria-describedby="robot-status" disabled><span>OFF</span><span class="trading-switch-track" aria-hidden="true"><span></span></span><span>ON</span></button><p id="robot-status" class="trading-small" role="status">OFF · Belum siap. Kontrol robot DEMO belum tersedia.</p></div>
+<div class="trading-robot-controls"><label for="demo-robot-instrument">Instrumen<select id="demo-robot-instrument" aria-label="Instrumen" aria-describedby="robot-status"><option value="GOLD">GOLD</option><option value="BTC" selected>BTC</option></select></label><label for="demo-robot-lot">LOT<input id="demo-robot-lot" name="demo_volume_lots" type="number" min="0.01" step="any" value="0.01" required aria-describedby="robot-status"></label><button id="demo-robot-toggle" type="button" role="switch" aria-checked="false" aria-label="ON/OFF robot DEMO" aria-describedby="robot-status" disabled><span>OFF</span><span class="trading-switch-track" aria-hidden="true"><span></span></span><span>ON</span></button><p id="robot-status" class="trading-small" role="status">OFF · Belum siap. Kontrol robot DEMO belum tersedia.</p><p id="robot-account" class="trading-small">{% if control_state|default({}) and control_state.account_detail %}Akun DEMO · XM · MT5 · {{ control_state.account_detail.server }} (laporan worker){% else %}Target akun DEMO · XM · MT5 — offline / belum terverifikasi.{% endif %}</p></div>
 </section>
 </main>
 {% endblock %}

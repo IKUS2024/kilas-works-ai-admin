@@ -2,6 +2,7 @@
 import unittest
 import io
 import json
+import re
 from datetime import timedelta
 from unittest.mock import patch
 from datetime import datetime, timezone
@@ -88,20 +89,44 @@ class ObservationTests(unittest.TestCase):
         self.assertEqual(f.db.query_all('SELECT * FROM kilas_trading_events'), before)
         self.assertEqual(f.db.query_one('SELECT count(*) AS n FROM kilas_trading_positions')['n'], 0)
 
-    def test_pilot_fixture_ui_and_rejected_or_missing_states(self):
+    def assert_disabled_dashboard(self, page):
+        self.assertEqual(page.status_code, 200)
+        main = page.text.split('<main class="trading"', 1)[1].split('</main>', 1)[0]
+        self.assertCountEqual(re.findall(r'<(?:select|input|button)\b[^>]*\bid="([^"]+)"', main),
+                              ['demo-robot-instrument', 'demo-robot-lot', 'demo-robot-toggle'])
+        for text in ('value="GOLD"', 'value="BTC" selected', 'OFF · Belum siap'):
+            self.assertIn(text, main)
+        self.assertRegex(main, r'<input\b[^>]*id="demo-robot-lot"[^>]*min="0\.01"[^>]*value="0\.01"')
+        self.assertRegex(main, r'<button\b[^>]*id="demo-robot-toggle"[^>]*aria-checked="false"[^>]*\sdisabled(?:\s|>)')
+        self.assertNotIn('<form', main)
+        self.assertNotIn('kilas_trading.js', page.text)
+        return main
+
+    def test_pilot_fixture_stays_backend_only_on_disabled_dashboard(self):
         store.snapshot(self.base.user)
         baseline = f.db.query_all('SELECT * FROM kilas_trading_events')
         f.app.app.config['KILAS_TRADING_OBSERVATION_FIXTURE'] = observation_fixture()
-        page = self.base.client.get('/products/services/trading')
-        self.assertEqual(page.status_code, 200)
-        for text in ('OBSERVATION_ONLY', 'TEST FIXTURE SINTETIS', 'usia data belum diketahui', 'GOLD', 'Raw time_msc', 'null · belum diketahui'):
-            self.assertIn(text, page.text)
+        observed = observation.view(self.base.user)
+        self.assertEqual(observed['outcome'], 'OBSERVATION_ONLY')
+        self.assertEqual(observed['kind'], 'TEST_FIXTURE')
+        self.assertEqual(observed['time_msc'], observation_fixture()['time_msc'])
+        self.assertEqual(observed['freshness'], 'unknown')
+        self.assertIsNone(observed['event_time_utc'])
+        for flag in ('ai_analysis', 'paper_execution', 'ingestion_enabled'):
+            self.assertIs(observed[flag], False)
+        main = self.assert_disabled_dashboard(self.base.client.get('/products/services/trading'))
+        for text in ('OBSERVATION_ONLY', 'TEST FIXTURE SINTETIS', 'Raw time_msc',
+                     str(observed['time_msc']), observed['bid'], observed['ask']):
+            self.assertNotIn(text, main)
         self.assertEqual(self.base.login(self.base.other).get('/products/services/trading').status_code, 404)
         self.assertEqual(f.db.query_all('SELECT * FROM kilas_trading_events'), baseline)
         f.app.app.config['KILAS_TRADING_OBSERVATION_FIXTURE'] = dict(observation_fixture(), account_id='not-allowed')
         self.assertEqual(observation.view()['outcome'], 'REJECTED')
+        self.assert_disabled_dashboard(self.base.client.get('/products/services/trading'))
         f.app.app.config.pop('KILAS_TRADING_OBSERVATION_FIXTURE')
         self.assertEqual(observation.view()['outcome'], 'UNAVAILABLE')
+        self.assert_disabled_dashboard(self.base.client.get('/products/services/trading'))
+        self.assertEqual(f.db.query_all('SELECT * FROM kilas_trading_events'), baseline)
 
     def upload(self, raw=None, content=None, client=None, csrf=True):
         data = {'observation':(io.BytesIO(content if content is not None else json.dumps(raw or demo_upload()).encode()), 'ignored-path.json')}
@@ -111,16 +136,24 @@ class ObservationTests(unittest.TestCase):
     def test_upload_persists_market_only_without_execution(self):
         result = self.upload(); self.assertEqual(result.status_code, 200)
         saved = observation.view(self.base.user)
+        self.assertEqual(saved['outcome'], 'OBSERVATION_ONLY'); self.assertEqual(saved['kind'], 'DEMO')
         for key in ('time', 'time_msc', 'observed_at_utc'): self.assertEqual(saved[key], demo_upload()[key])
         self.assertEqual(saved['candles'], demo_upload()['candles'])
         self.assertIsNone(saved['event_time_utc']); self.assertIsNone(saved['canonical_symbol'])
         self.assertFalse(saved['ai_analysis']); self.assertFalse(saved['paper_execution'])
         self.assertEqual(saved['freshness'], 'unknown')
+        self.assertEqual(saved['source_time_status'], 'unverified')
+        self.assertEqual(saved['mapping_status'], 'unknown')
+        self.assertEqual(datetime.fromisoformat(saved['received_at_utc']).utcoffset(), timedelta(0))
         self.assertEqual(f.db.query_one('SELECT count(*) AS n FROM kilas_trading_positions')['n'], 0)
         self.assertEqual(f.db.query_one("SELECT count(*) AS n FROM kilas_trading_events WHERE action='AI_ANALYSIS'")['n'], 0)
-        page = self.base.client.get('/products/services/trading')
-        self.assertIn('sumber dinyatakan DEMO', page.text); self.assertIn('3 candle mentah', page.text)
-        self.assertIn('Diterima server UTC', page.text)
+        baseline = f.db.query_all('SELECT * FROM kilas_trading_events')
+        main = self.assert_disabled_dashboard(self.base.client.get('/products/services/trading'))
+        for text in ('sumber dinyatakan DEMO', '3 candle mentah', 'Diterima server UTC',
+                     str(saved['time_msc']), saved['bid'], saved['ask']):
+            self.assertNotIn(text, main)
+        self.assertEqual(f.db.query_all('SELECT * FROM kilas_trading_events'), baseline)
+        self.assertEqual(observation.view(self.base.user), saved)
 
     def test_upload_gate_and_csrf(self):
         self.assertEqual(self.upload(csrf=False).status_code, 400)

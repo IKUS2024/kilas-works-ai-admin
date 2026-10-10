@@ -74,7 +74,7 @@ def previous(user, key):
         return result(row,True) if row and row['action']==ACTION else None
 
 
-def reserve(user, key, fingerprint, meta):
+def reserve(user, key, fingerprint, meta, *, admission=None):
     card=policy();amount=cost_micros(card,INPUT_BOUND,OUTPUT_BOUND)
     if amount<=0 or amount>DAY_CAP or amount>MONTH_CAP:
         raise GuardError('Reservasi biaya tidak tersedia; analisis diblokir.')
@@ -86,6 +86,7 @@ def reserve(user, key, fingerprint, meta):
             raise GuardError('Analisis dijeda oleh kontrol paper/kill switch.')
         same=store.query(conn,'SELECT * FROM kilas_trading_events WHERE user_id=? AND action=? AND (operation_key=? OR fingerprint=?) ORDER BY id LIMIT 1',(user,ACTION,key,fingerprint),one=True)
         if same:return result(same,True),None
+        if admission is not None:admission(conn)
         rows=store.query(conn,'SELECT outcome,inputs_json,created_at FROM kilas_trading_events WHERE user_id=? AND action=? ORDER BY id DESC LIMIT 5001',(user,ACTION))
         if len(rows)>5000:raise GuardError('Ledger terlalu besar untuk pilot; perlu peninjauan sebelum analisis.')
         spent=spent_today=count_today=0
