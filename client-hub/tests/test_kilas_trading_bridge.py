@@ -4,12 +4,13 @@ from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
 import os
+import sys
 from pathlib import Path
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import test_kilas_trading as f
 from kilas_trading import bridge, bridge_store, bridge_routes, analysis, observation
 from werkzeug.serving import make_server
@@ -19,6 +20,13 @@ spec=importlib.util.spec_from_file_location('demo_collector',ROOT/'scripts/tradi
 collector=importlib.util.module_from_spec(spec);spec.loader.exec_module(collector)
 HOST='https://trading.kilasworks.id'
 PATH='/products/services/trading/bridge'
+EXE=r'C:\SyntheticMT5\terminal64.exe'
+DATA=r'C:\SyntheticData\Terminal'
+
+def terminal(**changes):
+    values=dict(connected=True,tradeapi_disabled=True,trade_allowed=False,path=r'C:\SyntheticMT5',data_path=DATA,commondata_path=r'C:\SyntheticData\Common',build=5000,name='Synthetic MT5',company='Synthetic')
+    values.update(changes)
+    return SimpleNamespace(**values)
 
 def market(symbol='GOLD', tick=1780000031):
     last=tick//60*60-60
@@ -251,17 +259,101 @@ class BridgeTests(unittest.TestCase):
         session.clear();self.assertIsNone(session.token)
     def test_sdk_facade_excludes_account_data_and_binds_identity(self):
         m=market();account=SimpleNamespace(trade_mode=0,server=bridge.SERVER,login=987654)
-        sdk=SimpleNamespace(TIMEFRAME_M1=1,terminal_info=lambda:SimpleNamespace(connected=True,tradeapi_disabled=True),account_info=lambda:account,symbol_info=lambda s:SimpleNamespace(name=s,visible=True),symbol_info_tick=lambda s:SimpleNamespace(**m['tick']),copy_rates_from_pos=lambda *args:m['candles'])
-        sample=collector.ReadOnlyMT5(sdk,'GOLD').sample();bridge.validate_market(sample,'GOLD')
+        sdk=SimpleNamespace(TIMEFRAME_M1=1,terminal_info=lambda:terminal(),account_info=lambda:account,symbol_info=lambda s:SimpleNamespace(name=s,visible=True),symbol_info_tick=lambda s:SimpleNamespace(**m['tick']),copy_rates_from_pos=lambda *args:m['candles'])
+        sample=collector.ReadOnlyMT5(sdk,'GOLD',EXE,DATA).sample();bridge.validate_market(sample,'GOLD')
         self.assertNotIn('987654',json.dumps(sample));self.assertIsNone(sample['clock_profile'])
-        reader=collector.ReadOnlyMT5(sdk,'GOLD');reader.verify();account.login=456
+        reader=collector.ReadOnlyMT5(sdk,'GOLD',EXE,DATA);reader.verify();account.login=456
         with self.assertRaises(collector.CollectorError):reader.verify()
     def test_sdk_real_mode_and_enabled_trading_blocked(self):
         account=SimpleNamespace(trade_mode=2,server=bridge.SERVER,login=1)
-        sdk=SimpleNamespace(terminal_info=lambda:SimpleNamespace(connected=True,tradeapi_disabled=True),account_info=lambda:account)
-        with self.assertRaises(collector.CollectorError):collector.ReadOnlyMT5(sdk,'GOLD').verify()
-        account.trade_mode=0;sdk.terminal_info=lambda:SimpleNamespace(connected=True,tradeapi_disabled=False)
-        with self.assertRaises(collector.CollectorError):collector.ReadOnlyMT5(sdk,'GOLD').verify()
+        sdk=SimpleNamespace(terminal_info=lambda:terminal(),account_info=lambda:account)
+        with self.assertRaises(collector.CollectorError):collector.ReadOnlyMT5(sdk,'GOLD',EXE,DATA).verify()
+        account.trade_mode=0;sdk.terminal_info=lambda:terminal(tradeapi_disabled=False)
+        with self.assertRaises(collector.CollectorError):collector.ReadOnlyMT5(sdk,'GOLD',EXE,DATA).verify()
+
+    def synthetic_sdk(self):
+        value=terminal();m=market()
+        return SimpleNamespace(TIMEFRAME_M1=1,initialize=Mock(return_value=True),shutdown=Mock(),
+            terminal_info=Mock(side_effect=lambda:value),
+            account_info=Mock(return_value=SimpleNamespace(trade_mode=0,server=bridge.SERVER,login=1)),
+            symbol_info=Mock(side_effect=lambda name:SimpleNamespace(name=name,visible=True)),
+            symbol_info_tick=Mock(return_value=SimpleNamespace(**m['tick'])),
+            copy_rates_from_pos=Mock(return_value=m['candles'])),value
+
+    def test_collector_initializes_only_pinned_path_and_five_second_timeout(self):
+        sdk,_=self.synthetic_sdk()
+        reader=collector.initialize_terminal(sdk,'GOLD',EXE,DATA)
+        sdk.initialize.assert_called_once_with(EXE,timeout=5000)
+        self.assertEqual(reader.data_path,collector.windows_path(DATA))
+        self.assertIsNotNone(reader.terminal_identity)
+
+    def test_collector_initialize_failure_has_no_identity_or_market_reads(self):
+        sdk,_=self.synthetic_sdk();sdk.initialize.return_value=False
+        with self.assertRaises(collector.CollectorError):collector.initialize_terminal(sdk,'GOLD',EXE,DATA)
+        sdk.initialize.assert_called_once_with(EXE,timeout=5000)
+        sdk.terminal_info.assert_not_called();sdk.account_info.assert_not_called()
+        sdk.symbol_info_tick.assert_not_called()
+
+    def test_collector_connect_missing_pins_cannot_initialize_or_exchange(self):
+        sdk,_=self.synthetic_sdk()
+        for args in ([],['--terminal-path',EXE],['--terminal-data-path',DATA]):
+            with self.subTest(args=args),patch.object(sys,'argv',['collector','--symbol','GOLD','--connect']+args),patch.dict(sys.modules,{'MetaTrader5':sdk}),patch.object(collector,'Transport',side_effect=AssertionError('no HTTP')):
+                self.assertEqual(collector.main(),2)
+        sdk.initialize.assert_not_called();sdk.shutdown.assert_not_called()
+
+    def test_collector_connect_init_failure_shuts_down_without_pairing(self):
+        sdk,_=self.synthetic_sdk();sdk.initialize.return_value=False
+        with patch.object(sys,'argv',['collector','--symbol','GOLD','--connect','--terminal-path',EXE,'--terminal-data-path',DATA]),patch.dict(sys.modules,{'MetaTrader5':sdk}),patch.object(collector,'os',SimpleNamespace(name='nt')),patch.object(collector,'Path',return_value=SimpleNamespace(is_file=lambda:True,is_dir=lambda:True)),patch.object(collector,'Transport',side_effect=AssertionError('no HTTP')),patch.object(collector.getpass,'getpass',side_effect=AssertionError('no pairing')):
+            self.assertEqual(collector.main(),2)
+        sdk.initialize.assert_called_once_with(EXE,timeout=5000);sdk.shutdown.assert_called_once_with()
+
+    def test_collector_rejects_ambiguous_remote_or_nonterminal_paths(self):
+        for value in (None,'terminal64.exe',r'C:terminal64.exe',r'\\host\share\terminal64.exe',r'\\?\C:\MT5\terminal64.exe',r'C:\MT5\..\terminal64.exe',r'C:\MT5\terminal64.exe:stream',r'C:\MT5.\terminal64.exe',r'C:\MT5\other.exe'):
+            with self.subTest(value=value),self.assertRaises(collector.CollectorError):collector.binding_paths(value,DATA)
+        self.assertEqual(collector.binding_paths('c:/SYNTHETICMT5/terminal64.exe',DATA)[0],collector.windows_path(EXE))
+
+    def test_collector_initial_terminal_install_or_data_mismatch_blocks_account_read(self):
+        for field in ('path','data_path'):
+            sdk,value=self.synthetic_sdk();setattr(value,field,r'C:\WrongTerminal')
+            with self.subTest(field=field),self.assertRaises(collector.CollectorError):collector.initialize_terminal(sdk,'GOLD',EXE,DATA)
+            sdk.account_info.assert_not_called();sdk.symbol_info_tick.assert_not_called()
+
+    def test_collector_terminal_identity_changes_during_tick_stop_before_bars(self):
+        for field,new in [('path',r'C:\OtherMT5'),('data_path',r'C:\OtherData'),('commondata_path',r'C:\OtherCommon'),('build',5001),('name','Other'),('company','Other')]:
+            sdk,value=self.synthetic_sdk();reader=collector.initialize_terminal(sdk,'GOLD',EXE,DATA)
+            def changed(symbol):
+                setattr(value,field,new);return SimpleNamespace(**market()['tick'])
+            sdk.symbol_info_tick.side_effect=changed
+            with self.subTest(field=field),self.assertRaises(collector.CollectorError):reader.sample()
+            sdk.copy_rates_from_pos.assert_not_called()
+
+    def test_collector_terminal_data_changes_during_bars_never_emit_sample(self):
+        sdk,value=self.synthetic_sdk();reader=collector.initialize_terminal(sdk,'GOLD',EXE,DATA)
+        def changed(*args):value.data_path=r'C:\OtherData';return market()['candles']
+        sdk.copy_rates_from_pos.side_effect=changed
+        with self.assertRaises(collector.CollectorError):reader.sample()
+
+    def test_collector_terminal_changes_during_account_read_stop_before_symbol(self):
+        sdk,value=self.synthetic_sdk()
+        def changed():value.data_path=r'C:\OtherData';return SimpleNamespace(trade_mode=0,server=bridge.SERVER,login=1)
+        sdk.account_info.side_effect=changed
+        with self.assertRaises(collector.CollectorError):collector.initialize_terminal(sdk,'GOLD',EXE,DATA)
+        sdk.symbol_info.assert_not_called()
+
+    def test_collector_algo_off_does_not_substitute_for_python_trade_disable(self):
+        sdk,value=self.synthetic_sdk();value.trade_allowed=False;value.tradeapi_disabled=False
+        with self.assertRaisesRegex(collector.CollectorError,'External Python trading is not disabled'):collector.initialize_terminal(sdk,'GOLD',EXE,DATA)
+        sdk.account_info.assert_not_called()
+        value.tradeapi_disabled=True
+        reader=collector.initialize_terminal(sdk,'GOLD',EXE,DATA)
+        sample=reader.sample();bridge.validate_market(sample,'GOLD')
+        self.assertNotIn('SyntheticData',json.dumps(sample));self.assertNotIn('terminal',sample)
+
+    def test_collector_sdk_call_allowlist_is_unchanged_and_excludes_execution(self):
+        import ast
+        tree=ast.parse((ROOT/'scripts/trading_demo_bridge/collector.py').read_text())
+        calls={n.func.attr for n in ast.walk(tree) if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute) and ((isinstance(n.func.value,ast.Name) and n.func.value.id=='sdk') or (isinstance(n.func.value,ast.Attribute) and n.func.value.attr=='sdk'))}
+        self.assertEqual(calls,{'initialize','shutdown','terminal_info','account_info','symbol_info','symbol_info_tick','copy_rates_from_pos'})
 
     def test_outbound_transport_real_loopback_http(self):
         code=self.pair().json['pair_code']

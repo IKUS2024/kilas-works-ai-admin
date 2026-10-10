@@ -3,6 +3,9 @@ import argparse
 from datetime import datetime, timezone
 import getpass
 import json
+import ntpath
+import os
+from pathlib import Path
 import re
 import time
 import urllib.request
@@ -12,11 +15,37 @@ BASE = 'https://trading.kilasworks.id/products/services/trading/bridge'
 SERVER = 'XMGlobal-MT5 10'
 FLAGS = ('runtime_eligible','broker_execution_allowed','ai_analysis','paper_execution')
 MAX_BYTES = 16384
+INITIALIZE_TIMEOUT_MS = 5000
 
 class CollectorError(ValueError): pass
 
-def require(ok):
-    if not ok: raise CollectorError('Read-only DEMO bridge unavailable; stop and inspect locally.')
+def require(ok, message='Read-only DEMO bridge unavailable; stop and inspect locally.'):
+    if not ok: raise CollectorError(message)
+
+def windows_path(value):
+    """Explicit local absolute paths only; no expansion, discovery or aliases."""
+    require(type(value) is str and 0 < len(value) <= 512)
+    drive, tail = ntpath.splitdrive(value)
+    require(bool(re.fullmatch(r'[A-Za-z]:',drive)) and tail.startswith(('\\','/')))
+    require(not any(ord(c)<32 or c in ':*?"<>|' for c in tail))
+    parts = tail.replace('/','\\').split('\\')[1:]
+    require(all(p not in ('.','..') and not p.endswith((' ','.')) for p in parts if p))
+    return ntpath.normcase(ntpath.normpath(value))
+
+def binding_paths(terminal_path, data_path):
+    executable, data = windows_path(terminal_path), windows_path(data_path)
+    require(ntpath.basename(executable) in ('terminal.exe','terminal64.exe','metatrader.exe','metatrader64.exe'))
+    return executable, data
+
+def initialize_terminal(sdk, symbol, terminal_path, data_path):
+    require(symbol in ('GOLD','BTCUSD'))
+    executable, data = binding_paths(terminal_path,data_path)
+    # No automatic terminal discovery, login/password/server or portable override.
+    require(sdk.initialize(terminal_path,timeout=INITIALIZE_TIMEOUT_MS) is True,
+            'Pinned terminal initialization failed or timed out; stopped without retry.')
+    reader = ReadOnlyMT5(sdk, symbol, executable, data)
+    reader.verify()
+    return reader
 def utc(): return datetime.now(timezone.utc).isoformat()
 def number(value):
     # SDK numeric fields only; no arbitrary strings or exception contents.
@@ -48,22 +77,42 @@ class Transport:
             raise CollectorError('Transport failed; no automatic retry. Re-pair after inspection.') from None
 
 class ReadOnlyMT5:
-    def __init__(self,sdk,symbol):
+    def __init__(self,sdk,symbol,terminal_path,data_path):
         require(symbol in ('GOLD','BTCUSD'))
-        self.sdk,self.symbol,self.identity=sdk,symbol,None
+        self.executable,self.data_path=binding_paths(terminal_path,data_path)
+        self.sdk,self.symbol,self.identity,self.terminal_identity=sdk,symbol,None,None
+    def verify_terminal(self):
+        terminal=self.sdk.terminal_info()
+        require(terminal is not None and terminal.connected is True)
+        require(terminal.tradeapi_disabled is True,
+                'External Python trading is not disabled; owner-approved terminal setting review required.')
+        installation = windows_path(terminal.path)
+        data = windows_path(terminal.data_path)
+        common = windows_path(terminal.commondata_path)
+        require(installation==ntpath.dirname(self.executable) and data==self.data_path,
+                'Terminal installation/data path mismatch; stopped without discovery or switching.')
+        require(type(terminal.build) is int and terminal.build>0)
+        require(all(type(v) is str and 0<len(v)<=128 for v in (terminal.name,terminal.company)))
+        identity=(installation,data,common,terminal.build,terminal.name,terminal.company)
+        require(self.terminal_identity is None or self.terminal_identity==identity,
+                'Terminal identity changed during read-only access; stopped.')
+        self.terminal_identity=identity # process memory only; no path/identity export
     def verify(self):
-        terminal=self.sdk.terminal_info();account=self.sdk.account_info()
-        require(terminal is not None and terminal.connected is True and terminal.tradeapi_disabled is True)
+        self.verify_terminal()
+        account=self.sdk.account_info()
+        self.verify_terminal()
         require(account is not None and type(account.trade_mode) is int and account.trade_mode==0 and account.server==SERVER)
         identity=(account.login,account.server)
         require(self.identity is None or self.identity==identity)
         self.identity=identity # in-process binding only; never serialized
         specs=self.sdk.symbol_info(self.symbol)
         require(specs is not None and specs.name==self.symbol and specs.visible is True)
+        self.verify_terminal()
     def sample(self):
         start,sm=utc(),time.monotonic_ns()
         self.verify()
         tick=self.sdk.symbol_info_tick(self.symbol)
+        self.verify_terminal()
         bars=self.sdk.copy_rates_from_pos(self.symbol,self.sdk.TIMEFRAME_M1,0,13)
         self.verify()
         em,end=time.monotonic_ns(),utc()
@@ -105,15 +154,19 @@ def main():
     parser.add_argument('--symbol',choices=('GOLD','BTCUSD'),required=True)
     parser.add_argument('--connect',action='store_true',help='Explicitly approved manual connection only; no service installation.')
     parser.add_argument('--minutes',type=int,default=5,help='Bounded foreground run, 1–60 minutes.')
+    parser.add_argument('--terminal-path',help='Approved absolute Windows terminal EXE path; required with --connect.')
+    parser.add_argument('--terminal-data-path',help='Approved absolute Windows terminal data directory; required with --connect.')
     args=parser.parse_args()
     if not args.connect:
         print('No connection started. Runtime pairing/MT5 access requires explicit action-time approval.');return 0
-    require(1<=args.minutes<=60)
     sdk=None;session=None
     try:
+        require(1<=args.minutes<=60)
+        binding_paths(args.terminal_path,args.terminal_data_path)
+        require(os.name=='nt' and Path(args.terminal_path).is_file() and Path(args.terminal_data_path).is_dir(),
+                'Approved Windows terminal executable/data directory unavailable; no SDK initialization attempted.')
         import MetaTrader5 as sdk
-        require(sdk.initialize()) # existing terminal only; no login/password arguments
-        reader=ReadOnlyMT5(sdk,args.symbol);reader.verify()
+        reader=initialize_terminal(sdk,args.symbol,args.terminal_path,args.terminal_data_path)
         code=getpass.getpass('One-use Trading pairing code (not stored): ')
         session=Session(Transport(),args.symbol,code);code=None
         deadline=time.monotonic()+args.minutes*60
@@ -125,6 +178,8 @@ def main():
             session.send(market)
             time.sleep(2)
         return 0
+    except CollectorError as exc:
+        print(str(exc));return 2 # only fixed local messages; no SDK exception/paths
     except (KeyboardInterrupt,Exception):
         print('Collector stopped. No automatic retry, credentials printed, or orders sent.');return 2
     finally:
