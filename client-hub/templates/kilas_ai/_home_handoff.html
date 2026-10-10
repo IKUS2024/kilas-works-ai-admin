@@ -1,0 +1,3 @@
+<nav aria-label="{{ ui_t('Pilihan tugas Kilas AI') }}" class="home-task-return"><a href="{{ url_for('products.product_start') }}" aria-label="{{ ui_t('Kembali ke Kilas AI Home') }}"><span aria-hidden="true">← </span>{{ ui_t('Kembali ke Kilas AI Home') }}</a></nav>
+<p class="muted">{{ ui_t('Brief dari Home sudah dibawa. Periksa pengaturan sebelum memulai. Hasil tersimpan di riwayat alat ini.') }}</p>
+{% if home_task=='translate' and initial_brief %}<p class="muted"><strong>{{ ui_t('Catatan terjemahan') }}:</strong> {{ initial_brief }}</p>{% endif %}

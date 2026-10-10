@@ -2,9 +2,10 @@
 {% block title %}Kilas Translator · Kilas Works
 {% endblock %}
 {% block content %}
+{% if home_task %}{% include 'kilas_ai/_home_handoff.html' %}{% endif %}
 {% include 'kilas_content/_handoff.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='voice-library-20261005') }}">
-<section class="audio-studio" id="audio-studio" data-max-seconds="{{ max_seconds }}" data-active-mode="{{ job.mode if job else content_draft.mode if content_draft else 'translate' }}">
+<section class="audio-studio" id="audio-studio" data-max-seconds="{{ max_seconds }}" data-active-mode="{{ job.mode if job else home_task if home_task in ['translate','voiceover'] else content_draft.mode if content_draft else 'translate' }}">
 <header class="audio-heading"><div><h1>Kilas Translator</h1><p>Terjemahkan suara atau buat voice over tanpa ribet.</p></div><div class="audio-balance">{% include 'kilas_translator/_balance.html' %}</div></header>
 <div class="audio-workbench"><main class="audio-primary">
 {% if not balance.exempt and not balance.available %}<section class="audio-notice"><h2>Saldo Audio belum tersedia</h2><p>Beli saldo untuk menggunakan Translate atau Voice Over.</p><a class="btn" href="#audio-packs">Beli Saldo</a></section>{% endif %}
@@ -56,7 +57,7 @@
 <button type="button" class="btn" id="save-personal-voice" disabled>Simpan Suara</button><p id="record-error" role="alert" hidden></p>
 </div></section>
 <div id="kilas-voice-options" hidden><label for="kilas-voice-choice">Suara Kilas</label><select id="kilas-voice-choice">{% for voice in voices %}<option value="kilas-{{ loop.index0 }}">{{ voice.name }} ? {{ voice.style }}</option>{% else %}<option value="">Suara belum tersedia</option>{% endfor %}</select></div>
-<label for="audio-script">Naskah</label><textarea id="audio-script" name="script" maxlength="4000" rows="7" required placeholder="Tulis apa yang ingin diucapkan..." aria-describedby="voice-language-status voice-estimate">{{ content_draft.script if content_draft and not job else '' }}</textarea>
+<label for="audio-script">Naskah</label><textarea id="audio-script" name="script" maxlength="4000" rows="7" required placeholder="Tulis apa yang ingin diucapkan..." aria-describedby="voice-language-status voice-estimate">{{ initial_brief if home_task=='voiceover' and initial_brief is not none else content_draft.script if content_draft and not job else '' }}</textarea>
 <p id="voice-language-status" role="status">Bahasa mengikuti naskah.</p>
 <input type="hidden" id="voice-language" name="language" value="auto"><input type="hidden" id="voice-translation-source" name="translation_source" value="auto">
 <label class="voice-translation-toggle"><input type="checkbox" id="voice-translate-toggle" name="translate_script" value="yes">Terjemahkan naskah</label>

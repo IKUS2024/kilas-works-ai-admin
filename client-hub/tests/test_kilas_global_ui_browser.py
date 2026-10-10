@@ -78,7 +78,7 @@ def main():
                             assert page.locator('a[href*="workspace/more"]').count() == 0
                             if name == 'home':
                                 assert page.locator('a[href="https://kilasworks.id"][target="_blank"][rel="noopener noreferrer"]').count() >= 2
-                                expect(page.get_by_role('heading', name={'id': 'Home', 'en': 'Home', 'es': 'Inicio', 'zh': '首页'}[language], exact=True)).to_be_visible()
+                                expect(page.get_by_role('heading', name={'id': 'Mau ngapain hari ini?', 'en': 'What would you like to do today?', 'es': '¿Qué quieres hacer hoy?', 'zh': '今天想做什么？'}[language], exact=True)).to_be_visible()
                             if name == 'video':
                                 expect(page.locator('#video-submit')).to_have_text({'id': 'Susun Video Plan', 'en': 'Create Video Plan', 'es': 'Crear plan de vídeo', 'zh': '生成视频方案'}[language])
                             if name in ('finance', 'balances'):

@@ -1,24 +1,13 @@
 {% extends 'base.html' %}
 {% block title %}{{ ui_t('Home · Kilas Works') }}{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='kilas_home.css', v='home-20261005') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='kilas_home.css', v='unified-home-20261010') }}">
 <section class="premium-home">
-<header class="premium-page-heading"><h1>{{ ui_t('Home') }}</h1><p>{{ ui_t('Pilih alat yang tepat untuk pekerjaanmu.') }}</p></header>
+{% if not kilas_ai_enabled %}<header class="premium-page-heading"><h1>{{ ui_t('Home') }}</h1><p>{{ ui_t('Pilih alat yang tepat untuk pekerjaanmu.') }}</p></header>{% endif %}
 {% if kilas_ai_enabled %}
-<section class="premium-home-ai" aria-labelledby="home-ai-title">
-<div class="home-ai-intro"><h2 id="home-ai-title">Kilas AI</h2>
-<p>{{ ui_t('Riset, analisis, dan kreasi dalam satu percakapan.') }}</p>
-<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="kilas_ai"><button class="btn" type="submit">{{ ui_t('Buka Kilas AI') }}</button></form>
-</div><dl class="premium-home-capabilities">
-<div><dt>{{ ui_t('Riset & informasi') }}</dt><dd>{{ ui_t('Cari informasi dari web dan kembangkan ide.') }}</dd></div>
-<div><dt>{{ ui_t('Analisis dokumen') }}</dt><dd>{{ ui_t('Baca file, rangkum PDF, dan pahami isinya.') }}</dd></div>
-<div><dt>{{ ui_t('Gambar & konten') }}</dt><dd>{{ ui_t('Buat gambar, susun tulisan, dan revisi hasilnya.') }}</dd></div>
-</dl>
-</section>
+{% include 'kilas_ai/_home_workspace.html' %}
 {% endif %}
 <div class="premium-home-secondary">
-{% if kilas_ai_enabled %}<section><h2>Kilas Video</h2><p>{{ ui_t('Ubah ide menjadi konsep, storyboard, dan prompt video siap produksi.') }}</p><a class="btn secondary" href="{{ url_for('kilas_ai.video_home') }}">{{ ui_t('Buka Kilas Video') }}</a></section>{% endif %}
-{% if kilas_ai_enabled %}<section><h2>Kilas Translator</h2><p>{{ ui_t('Terjemahkan audio dan buat voice over dari naskah.') }}</p><a class="btn secondary" href="{{ url_for('kilas_audio.home') }}">{{ ui_t('Buka Kilas Translator') }}</a></section>{% endif %}
 <section><h2>Kilas Finance <span class="subscription-status">{{ ui_t('GRATIS') }}</span></h2><p>{{ ui_t('Catat pemasukan, pengeluaran, tagihan, dan invoice. Kelola keuangan bisnis dari satu tempat.') }}</p><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance"><button class="btn secondary" type="submit">{{ ui_t('Buka Kilas Finance') }}</button></form></section>
 <section><h2>Kilas Services</h2><p>{{ ui_t('Bantuan langsung dari tim Kilas Works untuk kebutuhan layanan digital kamu.') }}</p><a class="btn secondary" href="https://kilasworks.id" target="_blank" rel="noopener noreferrer">{{ ui_t('Kunjungi Kilas Services') }}</a></section>
 </div>

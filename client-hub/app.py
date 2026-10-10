@@ -258,6 +258,7 @@ def create_app():
     from kilas_ai.audio_routes import audio_bp
     app.register_blueprint(audio_bp)
     from kilas_ai import video_routes  # Isolated, metered Video planning; no video inference.
+    from kilas_ai import home_tasks  # Scoped Home entry reuses existing task workspaces.
     from kilas_ai import content_routes  # Default-off metadata; guarded additive schema below.
     from kilas_ai import listening_routes  # Optional synthetic demo; no capture/provider backend.
     from kilas_ai import chat_content_routes  # Default-off synthetic artifacts within existing chat.

@@ -7940,5 +7940,165 @@
     "en": "Renew for Rp99,000 / 30 days",
     "es": "Renovar por Rp99.000 / 30 días",
     "zh": "续订 Rp99,000 / 30 天"
+  },
+  "Mau ngapain hari ini?": {
+    "en": "What would you like to do today?",
+    "es": "¿Qué quieres hacer hoy?",
+    "zh": "今天想做什么？"
+  },
+  "Mulai dari ide, pertanyaan, atau pekerjaanmu.": {
+    "en": "Start with an idea, a question, or your work.",
+    "es": "Empieza con una idea, una pregunta o tu trabajo.",
+    "zh": "从想法、问题或工作开始。"
+  },
+  "Pilihan tugas Kilas AI": {
+    "en": "Kilas AI tasks",
+    "es": "Tareas de Kilas AI",
+    "zh": "Kilas AI 任务"
+  },
+  "Chat AI": {
+    "en": "AI chat",
+    "es": "Chat con IA",
+    "zh": "AI 聊天"
+  },
+  "Naskah & ide video": {
+    "en": "Scripts & video ideas",
+    "es": "Guiones e ideas de video",
+    "zh": "脚本与视频创意"
+  },
+  "Terjemahkan audio/video": {
+    "en": "Translate audio/video",
+    "es": "Traducir audio/video",
+    "zh": "翻译音频/视频"
+  },
+  "Buat suara": {
+    "en": "Create a voiceover",
+    "es": "Crear una voz en off",
+    "zh": "制作配音"
+  },
+  "Pilihan ini membuka formulir yang sudah ada. Hasil tersimpan di riwayat alat tersebut.": {
+    "en": "This opens the existing form. Results are saved in that tool’s history.",
+    "es": "Se abre el formulario existente. Los resultados se guardan en el historial de esa herramienta.",
+    "zh": "将打开现有表单，结果保存在相应工具的历史记录中。"
+  },
+  "Organisasi opsional": {
+    "en": "Optional organization",
+    "es": "Organización opcional",
+    "zh": "可选的整理方式"
+  },
+  "Simpan brief dan naskah dalam proyek bila diperlukan.": {
+    "en": "Keep briefs and scripts in a project when useful.",
+    "es": "Guarda instrucciones y guiones en un proyecto cuando lo necesites.",
+    "zh": "需要时可在项目中保存简介和脚本。"
+  },
+  "Buka ruang percakapan lengkap": {
+    "en": "Open the full chat workspace",
+    "es": "Abrir el espacio de chat completo",
+    "zh": "打开完整聊天工作区"
+  },
+  "Terjemahan langsung / Bantu jawab": {
+    "en": "Live translation / Reply assistance",
+    "es": "Traducción en directo / Ayuda para responder",
+    "zh": "实时翻译 / 回答辅助"
+  },
+  "Chrome desktop · audio tab yang dipilih": {
+    "en": "Desktop Chrome · selected tab audio",
+    "es": "Chrome de escritorio · audio de la pestaña seleccionada",
+    "zh": "桌面 Chrome · 所选标签页音频"
+  },
+  "Belum tersedia untuk akun ini": {
+    "en": "Not available for this account yet",
+    "es": "Aún no disponible para esta cuenta",
+    "zh": "此账户暂不可用"
+  },
+  "Percakapan terbaru": {
+    "en": "Recent conversations",
+    "es": "Conversaciones recientes",
+    "zh": "最近的对话"
+  },
+  "Kembali ke Kilas AI Home": {
+    "en": "Back to Kilas AI Home",
+    "es": "Volver al inicio de Kilas AI",
+    "zh": "返回 Kilas AI 首页"
+  },
+  "Brief dari Home sudah dibawa. Periksa pengaturan sebelum memulai. Hasil tersimpan di riwayat alat ini.": {
+    "en": "Your Home draft is here. Review the settings before starting. Results are saved in this tool’s history.",
+    "es": "Tu borrador está aquí. Revisa la configuración antes de empezar. Los resultados se guardan en el historial de esta herramienta.",
+    "zh": "首页草稿已带入。开始前请检查设置，结果保存在此工具的历史记录中。"
+  },
+  "Catatan terjemahan": {
+    "en": "Translation notes",
+    "es": "Notas de traducción",
+    "zh": "翻译备注"
+  },
+  "Susun naskah, storyboard, dan prompt. Produksi video dilakukan di tool eksternal.": {
+    "en": "Plan scripts, storyboards, and prompts. Produce the video in an external tool.",
+    "es": "Prepara guiones, storyboards y prompts. Produce el video en una herramienta externa.",
+    "zh": "规划脚本、分镜和提示词，在外部工具中制作视频。"
+  },
+  "Ceritakan ide videomu": {
+    "en": "Describe your video idea",
+    "es": "Describe tu idea de video",
+    "zh": "描述你的视频创意"
+  },
+  "Produk, tujuan, penonton, atau ide yang ingin dikembangkan...": {
+    "en": "Product, goal, audience, or idea you want to develop...",
+    "es": "Producto, objetivo, público o idea que quieres desarrollar...",
+    "zh": "产品、目标、受众或想要发展的创意..."
+  },
+  "Buka Video Plan": {
+    "en": "Open Video Plan",
+    "es": "Abrir Video Plan",
+    "zh": "打开视频计划"
+  },
+  "Pilih bahasa dan unggah audio atau video di formulir terjemahan.": {
+    "en": "Choose languages and upload audio or video in the translation form.",
+    "es": "Elige idiomas y sube audio o video en el formulario de traducción.",
+    "zh": "在翻译表单中选择语言并上传音频或视频。"
+  },
+  "Catatan untuk terjemahan (opsional)": {
+    "en": "Translation notes (optional)",
+    "es": "Notas de traducción (opcional)",
+    "zh": "翻译备注（可选）"
+  },
+  "Bahasa tujuan atau catatan yang ingin kamu bawa...": {
+    "en": "Target language or notes to bring with you...",
+    "es": "Idioma de destino o notas que quieres llevar...",
+    "zh": "目标语言或需要带入的备注..."
+  },
+  "Buka formulir terjemahan": {
+    "en": "Open translation form",
+    "es": "Abrir formulario de traducción",
+    "zh": "打开翻译表单"
+  },
+  "Bawa naskahmu, lalu pilih bahasa dan suara di formulir voiceover.": {
+    "en": "Bring your script, then choose the language and voice in the voiceover form.",
+    "es": "Lleva tu guion y elige el idioma y la voz en el formulario de voz en off.",
+    "zh": "带入脚本后，在配音表单中选择语言和声音。"
+  },
+  "Naskah suara (opsional)": {
+    "en": "Voiceover script (optional)",
+    "es": "Guion de voz en off (opcional)",
+    "zh": "配音脚本（可选）"
+  },
+  "Tulis naskah yang ingin dibacakan...": {
+    "en": "Write the script you want spoken...",
+    "es": "Escribe el guion que quieres escuchar...",
+    "zh": "输入需要朗读的脚本..."
+  },
+  "Buka formulir suara": {
+    "en": "Open voiceover form",
+    "es": "Abrir formulario de voz en off",
+    "zh": "打开配音表单"
+  },
+  "Selesaikan chat atau hapus lampiran sebelum mengganti tugas.": {
+    "en": "Finish the chat or remove attachments before switching tasks.",
+    "es": "Termina el chat o elimina los archivos antes de cambiar de tarea.",
+    "zh": "切换任务前请完成聊天或移除附件。"
+  },
+  "Percakapan": {
+    "en": "Conversations",
+    "es": "Conversaciones",
+    "zh": "对话"
   }
 }

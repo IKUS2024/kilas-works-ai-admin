@@ -43,7 +43,7 @@ def seconds(value):
 
 @audio_bp.get('')
 @audio_bp.get('/jobs/<int:ident>')
-def home(ident=None):
+def home(ident=None,initial_brief=None,home_task=None):
     from .content_projects import draft
     content_draft = draft(session['user_id'])
     user=session['user_id'];job=owned(ident) if ident else None
@@ -52,7 +52,7 @@ def home(ident=None):
     except ValueError:abort(400)
     rows=store.history(user,page)
     saved_voices=personal.saved_voices(user)
-    return render_template('kilas_translator/home.html',content_draft=content_draft,balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
+    return render_template('kilas_translator/home.html',content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
                            voices=provider.voices() if state['exempt'] or state['available'] else [],
                            personal_voice=bool(personal.get(user)),personal_preview=personal.has_preview(user),voice_operation_key=secrets.token_hex(16),
                            saved_voices=saved_voices,

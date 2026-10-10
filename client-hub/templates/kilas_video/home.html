@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ ui_t('Kilas Video · Kilas Works') }}{% endblock %}
 {% block content %}
+{% if home_task %}{% include 'kilas_ai/_home_handoff.html' %}{% endif %}
 {% include 'kilas_content/_handoff.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_video.css',v='clip-workflow-20261005') }}">
 <section class="video-studio" id="video-studio" data-quota-blocked="{{ 'true' if not video_entitlement.allowed else 'false' }}">
@@ -13,7 +14,7 @@
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}"><input type="hidden" name="project_id" value="{{ project.id if project else '' }}"><input type="hidden" name="version" value="{{ project.version if project else 0 }}">
 <p class="video-revision-context" id="video-revision-context" {{ '' if spec else 'hidden' }}>{{ ui_t('Revisi rencana aktif') }}</p>
 <label for="video-idea" id="video-composer-label">{{ ui_t('Ubah atau sempurnakan rencana') if spec else ui_t('Ceritakan video yang ingin kamu buat') }}</label>
-<textarea id="video-idea" name="idea" maxlength="2400" minlength="3" required placeholder="{{ ui_t('Contoh: lebih premium, tanpa voice-over, produknya tetap sama.') if spec else ui_t('Contoh: gw mau bikin iklan parfum cowok buat reels, mewah, malam di Jakarta.') }}">{{ retry.idea if retry else project.idea if project and not spec else content_draft.project.brief if content_draft and not project else '' }}</textarea>
+<textarea id="video-idea" name="idea" maxlength="2400" minlength="3" required placeholder="{{ ui_t('Contoh: lebih premium, tanpa voice-over, produknya tetap sama.') if spec else ui_t('Contoh: gw mau bikin iklan parfum cowok buat reels, mewah, malam di Jakarta.') }}">{{ retry.idea if retry else project.idea if project and not spec else initial_brief if initial_brief is not none else content_draft.project.brief if content_draft and not project else '' }}</textarea>
 <fieldset class="video-mode"><legend>{{ ui_t('Mode rencana') }}</legend><div class="video-mode-choices">
 <label><input type="radio" name="plan_mode" value="single" {{ 'checked' if controls.get('plan_mode','single')!='multi' }}>{{ ui_t('Single video') }}</label>
 <label><input type="radio" name="plan_mode" value="multi" {{ 'checked' if controls.get('plan_mode')=='multi' }}>{{ ui_t('Multi-part / klip tersambung') }}</label></div></fieldset>
