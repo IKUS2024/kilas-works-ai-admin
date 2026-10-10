@@ -27,6 +27,11 @@
 .kilas-home-workspace{max-width:980px;margin:0 auto 36px;color:var(--text,#252525)}
 .kilas-home-workspace [hidden]{display:none!important}
 .kilas-home-workspace .home-workspace-top{display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:13px}
+/* Contextual history lives beside the workspace title; no lower Home section. */
+.kilas-home-workspace .home-workspace-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px 16px;min-width:0}
+.kilas-home-workspace .home-history{position:relative;flex-shrink:0}
+.kilas-home-workspace .home-history-panel{position:absolute;z-index:5;right:0;top:100%;box-sizing:border-box;width:min(320px,calc(100vw - 40px));max-height:48vh;overflow:auto;padding:12px 16px;background:#fff;border:1px solid var(--line,#dededb);border-radius:12px}
+.kilas-home-workspace .home-history-panel>a{display:block;padding:10px 8px}
 .kilas-home-workspace .home-workspace-brand{font-size:18px;font-weight:750;letter-spacing:-.025em}
 .kilas-home-workspace a{color:inherit;text-underline-offset:4px}
 .kilas-home-workspace .ai-main{max-width:760px;margin:0 auto;padding-top:58px}

@@ -34,10 +34,15 @@ def main():
                 assert page.goto(origin+'/products/start',wait_until='networkidle').status==200
                 expect(page.get_by_role('heading',name='Mau ngapain hari ini?',exact=True)).to_be_visible()
                 assert page.locator('[data-home-task]').count()==4
+                assert page.locator('.premium-navigation a[href="/products/start"]').count()==1
+                assert page.locator('.premium-navigation').get_by_role('link',name='Percakapan',exact=True).count()==0
+                assert page.locator('.home-project-options, .premium-home-secondary').count()==0
+                assert page.locator('form input[name=product][value=finance]').count()==1
                 assert page.locator('.premium-home-ai').count()==0
                 assert page.locator('.premium-navigation a[href="/kilas-ai/video"]').count()==0
                 assert page.locator('.premium-navigation a[href="/kilas-translator"]').count()==0
-                expect(page.get_by_text('Belum tersedia untuk akun ini',exact=True)).to_be_visible()
+                assert page.locator('.home-workspace-footer, .home-recent').count()==0
+                assert page.get_by_text('Belum tersedia untuk akun ini',exact=True).count()==0
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 page.evaluate('document.fonts.ready')
                 page.screenshot(path=str(output/f'home-{width}.png'),full_page=True)
@@ -85,8 +90,21 @@ def main():
                 expect(page.locator('#ai-send')).to_be_enabled()
                 thread_url=page.url;assert '/kilas-ai/threads/' in thread_url
                 page.reload(wait_until='networkidle');expect(page.locator('.ai-assistant')).to_contain_text('Ini jawaban sintetis')
-                page.goto(origin+'/products/start');page.locator('.home-recent summary').click()
-                expect(page.locator('.home-recent a[href="'+thread_url.removeprefix(origin)+'"]')).to_be_visible()
+                page.goto(origin+'/products/start');page.locator('.home-history summary').click()
+                history_link=page.locator('.home-history a[href="'+thread_url.removeprefix(origin)+'"]')
+                expect(history_link).to_be_visible()
+                assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+                page.screenshot(path=str(output/f'home-history-{width}.png'),full_page=True)
+                history_link.click();page.wait_for_load_state('networkidle')
+                expect(page.locator('.ai-assistant')).to_contain_text('Ini jawaban sintetis')
+                assert page.locator('.ai-drawer-navigation').get_by_role('link',name='Percakapan',exact=True).count()==0
+                home_link=page.locator('.ai-drawer-navigation').get_by_role('link',name='Home',exact=True)
+                if width<761:
+                    page.locator('[data-ai-menu]').click()
+                home_link.click();page.wait_for_load_state('networkidle')
+                expect(page.locator('#ai-input')).to_be_visible()
+                page.go_back(wait_until='networkidle');expect(page.locator('.ai-assistant')).to_contain_text('Ini jawaban sintetis')
+                page.go_forward(wait_until='networkidle');expect(page.locator('#ai-input')).to_be_visible()
                 # Stop aborts the existing transport; blocked switching keeps the task stable.
                 page.evaluate("""() => {window.homeQAOriginalFetch=window.fetch;window.fetch=(url,options)=>String(url).endsWith('/send')?new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')))):window.homeQAOriginalFetch(url,options)}""")
                 page.locator('#ai-input').fill('Pesan untuk uji Stop');page.locator('#ai-send').click()
@@ -103,7 +121,7 @@ def main():
             page.locator('[data-home-task=voiceover]').click();expect(page.locator('#ai-send')).to_have_text('Open voiceover form')
             page.screenshot(path=str(output/'home-en-1440.png'),full_page=True)
             browser.close()
-        report['checks']=['single entry','optional projects','live unavailable','mobile drawer repeated open/Escape','draft switch/cancel','attachment guard/remove','native handoff CSRF/upload forms','back/forward','translation notes','voiceover draft','real chat mocked provider','saved history/reload','stop/blocked task switch','selected locale','no overflow','no browser JS errors']
+        report['checks']=['single entry','no optional organization or duplicate Finance','no lower Home clutter; top contextual history; no unavailable placeholder','mobile drawer repeated open/Escape','draft switch/cancel','attachment guard/remove','native handoff CSRF/upload forms','back/forward','translation notes','voiceover draft','real chat mocked provider','saved history/reload/open/return Home/back/forward','stop/blocked task switch','selected locale','no overflow','no browser JS errors']
         (output/'verification.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps(report,indent=2))
     finally:server.shutdown();case.doCleanups()

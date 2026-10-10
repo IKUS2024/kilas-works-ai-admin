@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 import test_kilas_ai_unified as fixture
-from kilas_ai import audio_provider, content_projects
+from kilas_ai import audio_provider, content_projects, content_schema
 
 
 class HomeTests(unittest.TestCase):
@@ -21,19 +21,34 @@ class HomeTests(unittest.TestCase):
     def handoff(self,task,brief='Synthetic <script>alert(1)</script> brief'):
         return self.client().post('/kilas-ai/home-task',data={'csrf_token':'work-csrf','task':task,'brief':brief})
 
-    def test_home_single_entry_optional_projects_and_live_unavailable(self):
+    def test_home_single_entry_no_duplicate_tools(self):
         with patch.dict(os.environ,{'KILAS_LIVE_ASSIST_QA_ENABLED':'false','KILAS_LIVE_ASSIST_ENABLED':'false'}):
             response=self.client().get('/products/start')
         self.assertEqual(response.status_code,200)
         html=response.get_data(as_text=True)
         self.assertIn('Mau ngapain hari ini?',html)
         for task in ('chat','video','translate','voiceover'):self.assertIn('data-home-task="'+task+'"',html)
-        self.assertIn('Belum tersedia untuk akun ini',html)
+        self.assertNotIn('home-workspace-footer',html)
         self.assertNotIn('premium-home-tools',html)
         self.assertNotIn('href="/kilas-ai/video"',html)
         self.assertNotIn('href="/kilas-translator"',html)
-        self.assertIn('home-project-options',html)
+        self.assertNotIn('home-project-options',html)
+        self.assertNotIn('premium-home-secondary',html)
+        self.assertNotIn('<span>Percakapan</span>',html)
+        self.assertEqual(html.count('name="product" value="finance"'),1)
+        self.assertIn('Riwayat percakapan',html)
+        self.assertNotIn('home-recent',html)
+        self.assertIn('home-history-panel',html)
+        self.assertNotIn('Belum tersedia untuk akun ini',html)
         self.assertIn('name="product" value="finance"',html)
+
+    def test_available_live_access_is_preserved_without_enabling_it(self):
+        from kilas_ai import live_assist, live_qa_budget
+        for ready in (False,True):
+            with patch.object(live_qa_budget,'enabled',return_value=True), patch.object(live_assist,'ready',return_value=ready), patch.object(live_qa_budget,'ready',return_value=True):
+                html=self.client().get('/products/start').get_data(as_text=True)
+            self.assertEqual('Terjemahan langsung / Bantu jawab' in html,ready)
+            self.assertNotIn('Belum tersedia untuk akun ini',html)
 
     def test_task_handoffs_escape_drafts_preserve_original_forms(self):
         for task in ('chat','video','translate','voiceover'):
@@ -66,6 +81,16 @@ class HomeTests(unittest.TestCase):
     def test_old_routes_still_render(self):
         for route in ('/kilas-ai?attachments=1','/kilas-ai/agent?view=history','/kilas-ai/video','/kilas-translator'):
             with self.subTest(route=route):self.assertEqual(self.client().get(route).status_code,200)
+
+    def test_project_data_and_routes_remain_accessible(self):
+        with patch.dict(os.environ,{'KILAS_CONTENT_PROJECTS_ENABLED':'true'}):
+            content_schema.apply_disposable_sqlite(Path(fixture.base.f.fixture.db.SQLITE_PATH).parent)
+            ident=content_projects.create(self.owner,'Synthetic retained project','Synthetic brief','home-nav-retained-project')
+            client=self.client()
+            self.assertEqual(client.get('/products/start').status_code,200)
+            self.assertEqual(client.get('/kilas-ai/content-projects').status_code,200)
+            self.assertEqual(client.get('/kilas-ai/content-projects/'+str(ident)).status_code,200)
+            self.assertEqual(content_projects.get(self.owner,ident)['brief'],'Synthetic brief')
 
     def test_selected_locale_is_respected(self):
         for language,title in [('en','What would you like to do today?'),('es','¿Qué quieres hacer hoy?'),('zh','今天想做什么？')]:
