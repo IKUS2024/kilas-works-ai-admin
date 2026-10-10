@@ -14,6 +14,35 @@ from kilas_trading import btc_analysis as btc, analysis, analysis_budget as budg
 
 PATH='/products/services/trading/control/btc-analysis'
 
+def check_ambiguous_provider_transport(test,post,reply):
+    """Exercise the actual bounded HTTP decoder with synthetic response bytes."""
+    class Response:
+        status_code=200
+        def __init__(self,raw):self.raw=raw
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def raise_for_status(self):pass
+        def iter_content(self,n):return iter([self.raw[:13],self.raw[13:]])
+    for kind in ('catalog','model','usage'):
+        f.db.execute('DELETE FROM kilas_trading_events')
+        payload=json.dumps(reply)
+        if kind=='model':payload=payload.replace('"model":','"model":"incorrect","model":',1)
+        if kind=='usage':payload=payload.replace('"input_tokens":','"input_tokens":999999,"input_tokens":',1)
+        catalog=json.dumps({'id':budget.MODEL})
+        if kind=='catalog':catalog=catalog.replace('"id":','"id":"incorrect","id":',1)
+        def send(method,*args,**kwargs):
+            test.assertFalse(kwargs['allow_redirects']);test.assertTrue(kwargs['stream'])
+            return Response((catalog if method=='GET' else payload).encode())
+        with test.subTest(kind=kind),patch.object(analysis.requests,'request',side_effect=send) as transport:
+            result=post();duplicate=post()
+            test.assertEqual(result.json['outcome'],'MODEL_PREFLIGHT_UNAVAILABLE' if kind=='catalog' else 'MODEL_RESULT_UNAVAILABLE')
+            test.assertEqual(duplicate.json['outcome'],'MODEL_RESULT_UNAVAILABLE')
+            test.assertFalse(result.json['execution_authorized']);test.assertIsNone(result.json['decision'])
+            test.assertEqual(transport.call_count,1 if kind=='catalog' else 2)
+        data=json.loads(f.db.query_one("SELECT inputs_json FROM kilas_trading_events WHERE action='AI_ANALYSIS'")['inputs_json'])
+        test.assertEqual(data['cost_upper_micros'],0 if kind=='catalog' else data['reserved_micros'])
+        test.assertIsNone(data['decision'])
+
 class BTCAnalysisTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):c.ControlTests.setUpClass()
@@ -101,6 +130,8 @@ class BTCAnalysisTests(unittest.TestCase):
             self.assertEqual(self.post().json['outcome'],'MODEL_RESULT_UNAVAILABLE');self.assertEqual(self.post().json['outcome'],'MODEL_RESULT_UNAVAILABLE')
         self.assertEqual(self.calls,['GET','POST'])
         row=f.db.query_one("SELECT inputs_json FROM kilas_trading_events WHERE action='AI_ANALYSIS'");data=json.loads(row['inputs_json']);self.assertEqual(data['cost_upper_micros'],data['reserved_micros'])
+    def test_ambiguous_provider_transport_holds_cost_and_never_retries(self):
+        check_ambiguous_provider_transport(self,self.post,self.reply())
     def test_duplicate_same_no_call_changed_request_conflicts(self):
         with self.fake():
             self.assertEqual(self.post().json['outcome'],'PROPOSAL_READY');self.assertEqual(self.post().json['outcome'],'PROPOSAL_READY')

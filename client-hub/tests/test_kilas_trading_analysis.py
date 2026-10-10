@@ -260,5 +260,21 @@ class AnalysisTests(unittest.TestCase):
             self.assertEqual(transport.call_count,1)
         with self.assertRaises(budget.GuardError):analysis._body({'payload':'x'*17000})
 
+    def test_provider_envelope_duplicate_fields_and_non_objects_rejected(self):
+        class Response:
+            status_code=200
+            def raise_for_status(self):pass
+            def iter_content(self,n):return iter([self.raw[:10],self.raw[10:]])
+        response=Response()
+        for raw in (b'{"model":"incorrect","model":"gpt-6.1-sol"}',
+                    b'{"usage":{"input_tokens":9999,"input_tokens":1}}',
+                    b'{"output":[],"output":[]}', b'[]', b'null',
+                    b'{"usage":{"input_tokens":NaN}}'):
+            with self.subTest(raw=raw):
+                response.raw=raw
+                with self.assertRaises(ValueError):analysis._read(response)
+        response.raw=json.dumps(reply()).encode()
+        self.assertEqual(analysis._read(response),reply())
+
 
 if __name__=='__main__':unittest.main(verbosity=2)

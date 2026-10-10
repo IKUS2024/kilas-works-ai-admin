@@ -121,7 +121,16 @@ def _read(response):
         if size>MAX_REPLY_BYTES or time.monotonic()-started>60:
             raise Unavailable('Batas respons provider terlampaui.')
         chunks.append(part)
-    return json.loads(b''.join(chunks),parse_constant=lambda value:(_ for _ in ()).throw(ValueError('nonfinite')))
+    def unique_fields(pairs):
+        result={}
+        for name,value in pairs:
+            if name in result:raise ValueError('ambiguous_provider_json')
+            result[name]=value
+        return result
+    payload=json.loads(b''.join(chunks),object_pairs_hook=unique_fields,
+                       parse_constant=lambda value:(_ for _ in ()).throw(ValueError('nonfinite')))
+    if type(payload) is not dict:raise ValueError('invalid_provider_response')
+    return payload
 
 
 def _http(method,url,key,body=None,*,status_sink=None,timeout=(5,45)):

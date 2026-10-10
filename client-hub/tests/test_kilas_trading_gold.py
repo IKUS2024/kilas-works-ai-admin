@@ -125,6 +125,8 @@ class GoldTests(unittest.TestCase):
         changed=copy.deepcopy(self.base.request);changed['evidence']['market_id']='9'*32
         with self.fake():self.assertEqual(self.post(changed).status_code,409)
         self.assertEqual(len(self.calls),2)
+    def test_ambiguous_provider_transport_holds_cost_and_never_retries_gold(self):
+        fixture.check_ambiguous_provider_transport(self,self.post,self.reply())
     def test_transport_flag_credential_instrument_cookie_host_size_isolation(self):
         with patch.dict(os.environ,{'KILAS_TRADING_GOLD_ANALYSIS_ENABLED':'false'}),self.fake():self.assertEqual(self.post().status_code,404)
         with self.fake():
