@@ -1,5 +1,6 @@
 """Real upload/audio/download/paywall DOM across all seven launch widths; mock provider only."""
 import os
+import shutil
 import struct
 import tempfile
 import threading
@@ -15,10 +16,10 @@ def main():
     server=make_server('127.0.0.1',0,f.app.app,threaded=True)
     threading.Thread(target=server.serve_forever,daemon=True).start()
     origin=f'http://127.0.0.1:{server.server_port}'
-    output=Path(tempfile.gettempdir())/'kilas-audio-browser';output.mkdir(exist_ok=True)
+    output=Path(os.environ.get('KILAS_AUDIO_SCREENSHOTS',str(Path(tempfile.gettempdir())/'kilas-audio-browser')));output.mkdir(exist_ok=True)
     try:
         with patch.object(provider,'voices',return_value=[{'id':'available123','name':'QA Warm','style':'Female · Warm'},{'id':'available456','name':'QA Professional','style':'Male · Professional'}]),patch.object(provider,'speech',return_value=(AudioTests.audio,'qa-request')),patch.object(provider,'dub',return_value='qa-dubbing'),patch.object(provider,'dub_status',return_value={'status':'dubbed','source_language':'id'}),patch.object(provider,'dub_result',return_value=AudioTests.audio),sync_playwright() as p:
-            browser=p.chromium.launch()
+            browser=p.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
             for width in (320,360,390,430,768,1024,1440):
                 case=AudioTests('test_shared_balance_actual_seconds');case.id=lambda:'audio-browser-'+str(width);case.setUp();case.credit(300)
                 context=browser.new_context(viewport={'width':width,'height':900},has_touch=width<761,reduced_motion='reduce')
@@ -35,7 +36,12 @@ def main():
                     if page.locator('#audio-script').count():
                         assert page.locator('#audio-script').evaluate('el=>getComputedStyle(el).backgroundColor')=='rgb(255, 255, 255)'
                     page.screenshot(path=str(output/f'{name}-{width}.png'),full_page=True)
+                def clean_workbench():
+                    expect(page.locator('#audio-packs')).to_have_count(0)
+                    expect(page.get_by_role('heading',name='Saldo untuk dua cara berkarya.')).to_have_count(0)
+                    expect(page.locator('.audio-balance a')).to_have_attribute('href','/kilas-ai/usage#audio-settings-title')
                 page.goto(origin+'/products/start',wait_until='networkidle');page.locator('[data-home-task=translate]').click();page.locator('#ai-send').click();expect(page.get_by_role('heading',name='Kilas Translator',exact=True)).to_be_visible();check('translate')
+                clean_workbench()
                 # Exercise the actual global file validator and server multipart cap together.
                 raw=wav(3)
                 if width==1440:
@@ -55,6 +61,7 @@ def main():
                 page.reload(wait_until='networkidle');expect(page.locator('#audio-result audio')).to_be_visible()
                 page.get_by_role('link',name='Translate another').click();page.locator('#voiceover-tab').click();expect(page.locator('#voiceover-panel')).to_be_visible()
                 page.fill('#audio-script','Safe synthetic voice over.');expect(page.locator('#voice-estimate')).to_contain_text('reservasi')
+                clean_workbench()
                 page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-1');check('voiceover')
                 def generation_feedback(route):
                     expect(page.locator('#generation-feedback')).to_be_visible()
@@ -80,12 +87,22 @@ def main():
                 expect(page.get_by_role('button',name='Generate Voice Over')).to_be_enabled()
                 page.unroute('**'+action)
 
-                page.locator('#audio-packs').scroll_into_view_if_needed();check('pricing');expect(page.get_by_role('button',name='Beli 5 menit')).to_be_visible()
-                page.get_by_role('button',name='Beli 5 menit').click();expect(page.get_by_role('heading',name='Beli Saldo Audio')).to_be_visible();check('invoice')
+                # A low-balance error keeps a compact, working top-up path.
+                page.route('**'+action,lambda route:route.fulfill(status=402,content_type='application/json',body='{"error":"Saldo QA sintetis habis"}'))
+                page.get_by_role('button',name='Generate Voice Over').click()
+                expect(page.locator('#audio-error-purchase')).to_be_visible()
+                expect(page.locator('#audio-error-purchase')).to_have_attribute('href','/kilas-ai/usage#audio-settings-title')
+                page.unroute('**'+action)
+                page.locator('#generation-feedback-close').click()
+                page.locator('#audio-error-purchase').click()
+                expect(page.locator('#audio-settings-title')).to_be_visible();check('settings-topup');expect(page.get_by_role('button',name=__import__('re').compile('Beli 5 menit'))).to_be_visible()
+                page.get_by_role('button',name=__import__('re').compile('Beli 5 menit')).click();expect(page.get_by_role('heading',name='Beli Saldo Audio')).to_be_visible();check('invoice')
                 zero=f.repo.create_user(f'audio-zero-{width}@example.test','hash');client=f.app.app.test_client()
                 with client.session_transaction() as s:s.update(user_id=zero,role='CLIENT_OWNER',_csrf_token='zero-csrf')
                 cookie=client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
                 page.goto(origin+'/kilas-translator',wait_until='networkidle');expect(page.get_by_role('heading',name='Saldo Audio belum tersedia')).to_be_visible();expect(page.locator('#translate-panel button[type=submit]')).to_be_disabled();check('paywall')
+                clean_workbench()
+                expect(page.locator('.audio-notice a')).to_have_attribute('href','/kilas-ai/usage#audio-settings-title')
                 page.goto(origin+'/kilas-ai/video',wait_until='networkidle');expect(page.get_by_role('heading',name='Kuota Kilas Video belum tersedia')).to_be_visible();expect(page.locator('#video-submit')).to_be_disabled()
                 assert not errors,errors
                 context.close();case.doCleanups();print('PASS audio browser width',width,flush=True)

@@ -66,6 +66,31 @@ class AudioTests(unittest.TestCase):
             r,call,dub=self.create();self.assertEqual(r.status_code,402);call.assert_not_called();dub.assert_not_called()
             self.client.get('/kilas-translator');paid.assert_not_called();decode.assert_not_called()
 
+    def test_workbench_topup_uses_existing_settings_without_inline_packs(self):
+        target='/kilas-ai/usage#audio-settings-title'
+        for available in (False,True):
+            if available:self.credit()
+            with patch.object(provider,'voices',return_value=self.voices):
+                page=self.client.get('/kilas-translator')
+            self.assertEqual(page.status_code,200)
+            self.assertNotIn('id="audio-packs"',page.text)
+            self.assertNotIn('Saldo untuk dua cara berkarya.',page.text)
+            self.assertNotIn('action="/kilas-translator/checkout"',page.text)
+            self.assertIn('href="'+target+'"',page.text)
+            self.assertIn('id="translate-panel"',page.text)
+            self.assertIn('id="voiceover-panel"',page.text)
+        settings=self.client.get('/kilas-ai/usage')
+        self.assertEqual(settings.status_code,200)
+        self.assertIn('id="audio-settings-title"',settings.text)
+        for code,(_,price) in store.PACKS.items():
+            self.assertIn('name="pack" value="'+code+'"',settings.text)
+            self.assertIn('Rp'+f'{price:,}'.replace(',','.'),settings.text)
+        f.db.execute('UPDATE kilas_audio_balances SET seconds=0 WHERE user_id=?',(self.user,))
+        response,speech,_=self.create()
+        self.assertEqual(response.status_code,402)
+        self.assertEqual(response.json['purchase_url'],target)
+        speech.assert_not_called()
+
     def test_finance_session_can_open_translator_without_bypassing_gates(self):
         with self.client.session_transaction() as state:
             state['active_product'] = 'finance'

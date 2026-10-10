@@ -27,7 +27,7 @@ def access():
 @audio_bp.errorhandler(store.AudioError)
 @audio_bp.errorhandler(media.MediaError)
 def invalid(error):
-    return {'error':str(error),'code':getattr(error,'code','invalid'),'purchase_url':url_for('kilas_audio.home')+'#audio-packs'},getattr(error,'status',400)
+    return {'error':str(error),'code':getattr(error,'code','invalid'),'purchase_url':url_for('kilas_ai.usage_page')+'#audio-settings-title'},getattr(error,'status',400)
 
 
 def owned(ident):
