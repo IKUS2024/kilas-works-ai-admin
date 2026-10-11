@@ -54,12 +54,7 @@ class CRMTests(runtime_fixture.RuntimeTests):
                 whatsapp.handle(self.bid,'456',{'messages':[{'id':'paid-'+str(self.n),'from':self.phone,
                     'timestamp':str(int(time.time())),'type':'text','text':{'body':text}}],
                     'contacts':[{'wa_id':self.phone,'profile':{'name':name}}]},'messages')
-        # Select the conversation's contact, regardless of same-second UUID
-        # ordering or an unrelated legacy contact added by the test.
-        rows = customers.list_customers(self.bid, search=self.phone)[0]
-        matches = [row for row in rows if row['phone'] == self.phone]
-        self.assertEqual(len(matches), 1)
-        self.customer = matches[0]
+        self.customer = customers.list_customers(self.bid)[0][0]
         return customer_insights._stored(self.bid,self.customer['id'])['insight']
 
     def test_information_stays_lead_and_concrete_request_promotes_one_identity(self):

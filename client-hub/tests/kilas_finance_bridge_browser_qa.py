@@ -33,12 +33,10 @@ def main():
         owner.goto(BASE+'/dev/standalone',wait_until='networkidle')
         assert owner.url.endswith(f"/business/{data['standalone']}/finance")
         shot(owner,'01_standalone_zero_bridge.png')
-        for tail in ('?view=accounts','?view=transactions','/receivables?section=invoices','/operations','/reports','/invoices/settings'):
+        for tail in ('?view=accounts','?view=transactions','/receivables?section=invoices','/operations','/reports','/invoices/settings','/assistant'):
             response=owner.goto(f"{BASE}/business/{data['standalone']}/finance{tail}",wait_until='networkidle')
             assert response.status==200,(tail,response.status)
             fits(owner)
-        for tail in ('/assistant','/analyst','/operator','/receipts/new','/bank-imports'):
-            assert context.request.get(BASE+f'/business/{target}/finance'+tail).status==404,tail
         owner.goto(BASE+'/dev/owner',wait_until='networkidle')
         expect(owner.locator('[data-finance-bridge]')).to_have_count(0)
         owner.get_by_label('Status',exact=True).select_option('IN_PROGRESS')
@@ -88,22 +86,22 @@ def main():
         assert other.goto(job).status==404
         owner.goto(base,wait_until='networkidle')
         csrf=owner.locator('input[name="csrf_token"]').input_value()
-        assert context.request.post(BASE+'/dev/emergency',form={'csrf_token':csrf}).ok
+        assert context.request.post(BASE+'/dev/expire',form={'csrf_token':csrf}).ok
         owner.goto(job,wait_until='networkidle')
         expect(owner.get_by_text('Status: PARTIALLY_PAID',exact=True)).to_be_visible()
-        shot(owner,'08_emergency_history_readable.png')
+        shot(owner,'08_expired_history_readable.png')
         owner.goto(base,wait_until='networkidle')
         owner.get_by_label('Bisnis dan cabang Finance').select_option(f'{target}:{branch}')
         owner.get_by_role('checkbox').check()
         owner.get_by_role('button',name='Simpan koneksi',exact=True).click()
         expect(owner.get_by_text('Aksi belum selesai',exact=True)).to_be_visible()
-        shot(owner,'09_emergency_write_blocked.png')
+        shot(owner,'09_expired_write_blocked.png')
         assert not errors,errors
         assert not LAYOUT_ISSUES,json.dumps(LAYOUT_ISSUES)
         (OUT/'results.json').write_text(json.dumps(dict(passed=True,viewport='390x844',
             checks=['standalone zero bridge','Finance-only pages','explicit mapping','explicit customer',
                     'owner reviewed draft','Finance detail','authoritative partial payment','foreign tenant',
-                    'retired paid AI denied','emergency read','emergency write blocked','no horizontal overflow','no JS errors']),indent=2))
+                    'expired read','expired write blocked','no horizontal overflow','no JS errors']),indent=2))
         print('Phase 7 mobile browser QA PASS')
         browser.close()
 

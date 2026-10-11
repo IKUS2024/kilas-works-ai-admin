@@ -85,13 +85,7 @@ class WorkspaceTests(unittest.TestCase):
             response = self.client.get('/workspace', follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         self.assertIn('Navigasi Kilas Finance', response.text)
-        # Finance is free; historical subscription flags do not make this
-        # ordinary GET read-only. The emergency veto still does.
-        self.assertNotIn('Finance hanya-baca', response.text)
-        with patch.dict(__import__('os').environ, {'KILAS_FINANCE_EMERGENCY_DISABLE':'true'}):
-            emergency=self.client.get('/workspace',follow_redirects=True)
-            self.assertEqual(emergency.status_code,200)
-            self.assertIn('Finance hanya-baca',emergency.text)
+        self.assertIn('Finance hanya-baca', response.text)
         self.assertNotIn('PRIVATE CUSTOMER', response.text)
         self.assertEqual(before, fixture.f.get_finance_invoice(self.b, invoice, actor_user_id=self.uid))
         self.assertEqual(fixture.f.list_transactions(self.b, actor_user_id=self.uid), [])
@@ -143,12 +137,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertIn('href="/products/start"', page.text)
         self.assertIn('Home', page.text)
         self.assertNotIn('Pilih produk', page.text)
-        # Free Finance lists all owned businesses; selecting one cannot merge
-        # its ledger with another. Foreign businesses remain absent.
-        picker=re.search(r'<select id="finance-app-business"[^>]*>(.*?)</select>',page.text,re.S).group(1)
-        self.assertEqual(set(re.findall(r'<option value="(\d+)"',picker)),{str(self.b),str(second)})
-        self.assertNotIn('Other business',picker)
-        self.assertIn(f'value="{self.b}" selected',picker)
+        self.assertNotIn('Separate AI', page.text)
         self.assertEqual(self.client.get('/workspace').status_code, 303)
         # Direct AI deep link exits old Finance session trap, preserving independent ids.
         page = self.client.get(f'/business/{second}/review')

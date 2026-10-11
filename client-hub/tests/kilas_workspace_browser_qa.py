@@ -49,21 +49,11 @@ with sync_playwright() as p:
             (f'/business/{target}/finance/operations','bills'),
             (f'/business/{target}/finance/budget','budget'),
             (f'/business/{target}/finance/reports','reports'),
+            (f'/business/{target}/finance/bank-imports','bank'),
+            (f'/business/{target}/finance/assistant','finance-ai'),
             ('/workspace/go/services','services'),('/workspace/go/projects','projects'),
             ('/workspace/go/talent','talent'),('/workspace/go/account','account')]:
             visit(path,name)
-        # Every viewport covers current retirement, valid CSRF and no writes,
-        # while the manual ledger, invoices and reports above remain exercised.
-        before=context.request.get(BASE+'/dev/health').json()['database_digest']
-        for tail in ('assistant','analyst','operator','receipts/new','bank-imports'):
-            response=context.request.get(BASE+f'/business/{target}/finance/'+tail)
-            assert response.status==404,(tail,response.status)
-            results.append(dict(width=width,page='retired-'+tail,status=response.status))
-        csrf=page.locator('input[name="csrf_token"]').first.input_value()
-        response=context.request.post(BASE+f'/business/{target}/finance/assistant/message',
-            data={'text':'catat pengeluaran'},headers={'X-CSRF-Token':csrf})
-        assert response.status==404,response.status
-        assert context.request.get(BASE+'/dev/health').json()['database_digest']==before
         # Switch product from Finance without a routing dead end.
         visit(f'/workspace/go/finance?business_id={target}','finance-selector')
         # Legacy Assist deep links still work after retirement from normal product navigation.
@@ -151,6 +141,7 @@ with sync_playwright() as p:
     assert evidence['packages']==['AI_ADMIN'] and evidence['finance_accounts']==0,evidence
     page.screenshot(path=str(OUT/'390-ai-continue-later.png'),full_page=True)
     page.goto(BASE+'/dev/finance-onboarding',wait_until='networkidle')
+    page.get_by_role('button',name='Kilas Finance',exact=False).click()
     expect(page.get_by_role('heading',name='Buat bisnis Finance',exact=True)).to_be_visible()
     page.get_by_label('Nama bisnis',exact=True).fill('Finance Nadia')
     page.get_by_role('button',name='Buat Bisnis',exact=False).click()

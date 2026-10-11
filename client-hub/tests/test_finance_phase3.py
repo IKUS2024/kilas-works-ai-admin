@@ -184,16 +184,13 @@ class ReportsTests(unittest.TestCase):
                 self.assertEqual(single.status_code,200)
                 self.assertEqual(z.read(name+'.csv'),single.data)
 
-    def test_route_auth_free_access_and_header_safety(self):
+    def test_route_auth_beta_and_header_safety(self):
         paths=('/reports','/reports/export/transactions.csv','/reports/export/invoices.csv','/reports/export/all.zip')
         for path in paths:
             self.assertEqual(app.test_client().get(self.url+path).status_code,302)
             self.assertEqual(self.client.get(f'/business/{self.other}/finance'+path).status_code,404)
         os.environ['KILAS_FINANCE_BETA']='off'
-        for path in paths:
-            response=self.client.get(self.url+path)
-            self.assertEqual(response.status_code,200,path)
-            self.assertIn('no-store',response.headers['Cache-Control'])
+        for path in paths:self.assertEqual(self.client.get(self.url+path).status_code,404)
         admin=repo.create_user('reports-admin@example.test','unused',role='KILAS_ADMIN')
         with self.client.session_transaction() as session:session['user_id']=admin
         self.assertEqual(self.client.get(self.url+'/reports').status_code,200)
