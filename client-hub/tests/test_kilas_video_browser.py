@@ -36,7 +36,7 @@ def main():
                     page.screenshot(path=str(output/f'{name}-{width}.png'),full_page=True)
                     page.screenshot(path=str(output/f'{name}-viewport-{width}.png'))
                 page.goto(origin+'/products/start',wait_until='networkidle')
-                page.locator('.home-tool-selector summary').click()
+                expect(page.locator('.home-task-choices')).to_be_visible()
                 expect(page.locator('[data-home-task=video]')).to_be_visible()
                 page.locator('[data-home-task=video]').click();page.locator('#ai-send').click();expect(page.get_by_role('heading',name='Kilas Video',exact=True)).to_be_visible();check('empty')
                 if width<761:

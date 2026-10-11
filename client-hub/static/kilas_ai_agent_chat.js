@@ -57,6 +57,14 @@
   const chat = document.querySelector('#agent-conversation');
   const thinking = document.querySelector('#agent-thinking');
   const error = document.querySelector('#agent-chat-error');
+  const copyIcon=document.querySelector('#ai-copy-icon');
+  function copyButton(article){
+    if(!copyIcon||article.querySelector('.ai-copy'))return;
+    const button=document.createElement('button');button.type='button';button.className='ai-copy';
+    const state=copied=>{button.replaceChildren(copyIcon.content.cloneNode(true));button.setAttribute('aria-label',t(copied?'Tersalin':'Salin'));button.title=t(copied?'Tersalin':'Salin');if(copied)button.querySelector('path').setAttribute('d','m5 12 4 4L19 6');};state(false);
+    button.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(article.querySelector('.agent-message-text').textContent);state(true);setTimeout(()=>state(false),1500);}catch(_){error.textContent=t('Tidak dapat menyalin. Pilih teks lalu salin.');error.hidden=false;}});article.append(button);
+  }
+  const copyAnswers=()=>chat.querySelectorAll('.agent-message-assistant').forEach(copyButton);copyAnswers();
   let busy = false;
   let controller;
   const stop=form.querySelector('[data-unified-stop]');
@@ -82,7 +90,9 @@
     if (!current) throw new Error('refresh');
     chat.replaceChildren(...current.childNodes);
     window.KilasAttachmentPreview?.clear();
-    window.KilasMarkdown.hydrate(chat);
+    window.KilasMarkdown.hydrate(chat);copyAnswers();
+    const history=doc.querySelector('.home-history .ai-history'),currentHistory=document.querySelector('.home-history .ai-history');
+    if(history&&currentHistory)currentHistory.replaceChildren(...history.childNodes);
     const chats = doc.querySelector('.agent-chats');
     if (chats) document.querySelector('.agent-chats')?.replaceChildren(...chats.childNodes);
     const heading = doc.querySelector('.agent-section-head h2');
@@ -101,6 +111,7 @@
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (busy || !input.value.trim()) return;
+    const draft=input.value;
     const data = new FormData(form);
     if (!canAutoFocus()) input.blur();
     busy = true; send.disabled = true; input.readOnly = true;
@@ -142,17 +153,18 @@
           }
           if (done) break;
         }
-        if (!complete) throw new Error('interrupted');
+        if (!complete || !answer?.textContent.trim()) throw new Error('interrupted');
       }
-      await refresh(); input.value = '';
+      await refresh(); if(input.value===draft){input.value='';input.dispatchEvent(new Event('input'));}
       form.dispatchEvent(new Event('work:accepted'));
       startDue();
       const sources=form.querySelector('#work-source-files'); if(sources) sources.value='';
-      form.elements.operation_key.value = crypto.randomUUID();
+      form.elements.operation_key.value = Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
     } catch (failure) {
       error.textContent = failure.publicMessage || t('Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.');
       error.hidden = false;
       // Same key is retained after an uncertain outcome: retry cannot create duplicate work.
+      if(!accepted)userMessage.closest('.agent-message').remove();
       if (accepted) { try { await refresh(); } catch (_) { /* Keep visible local messages. */ } }
     } finally {
       document.dispatchEvent(new Event('kilas:request-finished'));
@@ -180,7 +192,7 @@
       // Preserve each result's position in the durable message timeline.
       const incoming=doc.querySelector('#agent-conversation');
       if(incoming && incoming.querySelectorAll('.agent-message').length!==chat.querySelectorAll('.agent-message').length) {
-        chat.replaceChildren(...incoming.childNodes);window.KilasMarkdown.hydrate(chat);
+        chat.replaceChildren(...incoming.childNodes);window.KilasMarkdown.hydrate(chat);copyAnswers();
       } else if(incoming) {
         for(const card of incoming.querySelectorAll('[data-job-id]')) {
           const previous=chat.querySelector(`[data-job-id="${card.dataset.jobId}"]`);

@@ -43,29 +43,28 @@ def main():
                 for mode in ('agent','chat'):
                     if mode=='chat':page.goto(origin+'/kilas-ai?attachments=1',wait_until='networkidle')
                     assert page.locator('.ai-mode-tabs').count()==0
-                    assert page.locator('.ai-app-header').count()==1
-                    assert page.locator('.ai-app-header .ai-brand').inner_text()=='Kilas AI'
+                    assert page.locator('.home-workspace-top').count()==1
+                    assert page.locator('.home-workspace-brand').inner_text()=='Kilas AI'
                     assert page.get_by_role('button',name='Buka menu chat').count()==0
                     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),(width,mode)
-                    dimensions.append(page.evaluate("""() => ({header:document.querySelector('.ai-app-header').offsetHeight,sidebar:document.querySelector('[data-ai-sidebar]').offsetWidth,composer:getComputedStyle(document.querySelector('.ai-composer')).borderRadius,send:document.querySelector('.ai-send').offsetHeight})"""))
+                    dimensions.append(page.evaluate("""() => ({header:document.querySelector('.home-workspace-top').offsetHeight,sidebar:document.querySelector('.premium-sidebar').offsetWidth,composer:getComputedStyle(document.querySelector('.ai-composer')).borderRadius,send:document.querySelector('.ai-send').offsetHeight})"""))
                     page.screenshot(path=str(Path(tempfile.gettempdir())/f'kilas-shell-{mode}-{width}.png'),full_page=True)
                     if width<=760:
-                        menu=page.get_by_role('button',name='Buka riwayat',exact=True)
+                        menu=page.get_by_role('button',name='Buka navigasi',exact=True)
                         expect(menu).to_be_visible()
                         assert menu.bounding_box()['height']>=44
                         for closing in ('close','backdrop','escape'):
                             menu.click();expect(menu).to_have_attribute('aria-expanded','true')
-                            expect(page.locator('[data-ai-sidebar]')).to_be_visible()
+                            expect(page.locator('.premium-sidebar')).to_be_visible()
                             if width==320 and closing=='close':page.screenshot(path=str(Path(tempfile.gettempdir())/f'kilas-shell-drawer-{mode}-320.png'),full_page=True)
-                            if closing=='close':page.locator('[data-ai-close]').click()
-                            elif closing=='backdrop':page.locator('[data-ai-backdrop]').click(position={'x':width-4,'y':height//2})
+                            if closing=='close':page.locator('.premium-sidebar [data-premium-close]').click()
+                            elif closing=='backdrop':page.locator('.premium-backdrop').click(position={'x':width-4,'y':height//2})
                             else:page.keyboard.press('Escape')
                             expect(menu).to_have_attribute('aria-expanded','false')
-                            expect(page.locator('[data-ai-sidebar]')).to_be_hidden()
-                        menu.click()
+                            expect(page.locator('.premium-sidebar')).to_be_hidden()
                     if mode=='agent':
-                        assert page.locator('.agent-chats').get_by_text('Riset kompetitor sampai selesai',exact=True).count()==1
-                        assert page.locator('.agent-chats').get_by_text('Pertanyaan di normal Chat',exact=True).count()==0
+                        assert page.locator('.home-history .ai-history').get_by_text('Riset kompetitor sampai selesai',exact=True).count()==1
+                        assert page.locator('.home-history .ai-history').get_by_text('Pertanyaan di normal Chat',exact=True).count()==1
                         page.get_by_role('button',name='Chat baru',exact=True).click()
                         assert page.locator('.agent-message').count()==0
                         assert fixture.jobs.get(owner,job['id'])['status']=='PLANNING'
@@ -73,7 +72,7 @@ def main():
                         assert page.locator('.ai-history').get_by_text('Pertanyaan di normal Chat',exact=True).count()==1
                         page.get_by_role('link',name='Chat baru',exact=True).click()
                         expect(page.locator('#ai-composer')).to_be_visible()
-                        assert 'attachments=1' in page.url
+                        assert page.url.endswith('/products/start')
                         assert len(store.list_threads(owner))==1
                         assert page.locator('#ai-search').count()==1
                         page.locator('#ai-files').set_input_files({'name':'shell.txt','mimeType':'text/plain','buffer':b'hello'})

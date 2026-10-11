@@ -122,7 +122,8 @@ def agent_home():
     from .work_runtime import LABELS
     notifications = [{**dict(e),'label':e['summary'] if e['kind']=='REMINDER' else LABELS.get(e['kind'],'Pekerjaan diperbarui'),'time_label':time_label(e['created_at'],store.setting(owner))} for e in db.query_all('SELECT e.*,j.origin_conversation_id FROM kilas_agent_events e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE j.user_id=? AND e.unread=1 AND e.kind IN (\'REMINDER\',\'CONDITION_MET\',\'COMPLETED\',\'FAILED\',\'WAITING_INPUT\',\'WAITING_CAPABILITY\',\'NEEDS_APPROVAL\',\'BLOCKED\') ORDER BY e.id DESC LIMIT 30',(owner,))] if view=='notifications' else []
     location = session.get('work_location_request')
-    return render_template('kilas_ai/agent.html', view=view, messages=messages, message_attachments=message_attachments, conversation=conversation, inline_jobs=inline_jobs,
+    from .home_tasks import context as home_context
+    return render_template('kilas_ai/agent_chat_home.html' if view=='chat' else 'kilas_ai/agent.html', home_agent=view=='chat', home_ai=home_context(owner) if view=='chat' else None, view=view, messages=messages, message_attachments=message_attachments, conversation=conversation, inline_jobs=inline_jobs,
         recent_chats=agent_store.recent_conversations(owner), older=bool(older), operation_key=secrets.token_urlsafe(24),
         history_chats=history_chats, legacy_chats=legacy_chats, history_page=page, more_chats=more_chats, autonomous_jobs=autonomous_jobs,
         autonomous_enabled=autonomous_runner.enabled(), active_count=active_count, autonomous_unread=autonomous_unread,

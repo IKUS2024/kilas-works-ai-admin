@@ -44,7 +44,7 @@ def main():
                 page.goto(origin+'/kilas-ai/agent',wait_until='networkidle')
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),(width,'empty')
                 assert page.locator('.autonomous-options').count()==0
-                assert not page.locator('.agent-main').inner_text().find('UTC')>=0
+                assert not page.locator('.ai-main').inner_text().find('UTC')>=0
                 composer=page.get_by_label('Pesan untuk Kilas')
                 composer.fill('Apa itu Bitcoin?');composer.press('Enter')
                 expect(page.locator('#agent-thinking')).to_be_visible()
@@ -65,16 +65,14 @@ def main():
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),(width,'task')
                 page.screenshot(path=str(Path(tempfile.gettempdir())/f'agent-chat-{width}.png'),full_page=True)
                 if width<=760:
-                    page.get_by_role('button',name='Buka riwayat').tap()
-                    expect(page.locator('#agent-sidebar')).to_be_visible()
+                    page.get_by_role('button',name='Buka navigasi').tap()
+                    expect(page.locator('.premium-sidebar')).to_be_visible()
                     page.keyboard.press('Escape')
-                    expect(page.locator('#agent-sidebar')).to_be_hidden()
-                    page.get_by_role('button',name='Buka riwayat').tap()
+                    expect(page.locator('.premium-sidebar')).to_be_hidden()
                 page.get_by_role('button',name='Chat baru',exact=True).click()
-                expect(page.get_by_role('heading',name='Apa yang ingin kamu kerjakan?',exact=True)).to_be_visible()
+                expect(page.get_by_role('heading',name='Mau ngapain hari ini?',exact=True)).to_be_visible()
                 assert page.locator('.agent-message').count()==0
                 assert jobs.get(owner,job['id'])['status']=='PLANNING'
-                if width<=760:page.get_by_role('button',name='Buka riwayat').tap()
                 page.goto(origin + '/kilas-ai/agent?view=history')
                 expect(page.locator('[data-job-id]')).to_be_visible()
                 page.get_by_role('button',name='Jeda',exact=True).click()

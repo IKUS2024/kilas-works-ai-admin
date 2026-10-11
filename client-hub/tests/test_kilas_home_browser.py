@@ -13,8 +13,7 @@ from kilas_ai import providers
 
 
 def choose_task(page,task):
-    selector=page.locator('.home-tool-selector')
-    if not selector.evaluate('e=>e.open'):selector.locator('summary').click()
+    expect(page.locator('.home-task-choices')).to_be_visible()
     page.locator('[data-home-task='+task+']').click()
 
 
@@ -172,10 +171,10 @@ def main():
                 page.screenshot(path=str(output/f'home-history-{width}.png'),full_page=True)
                 history_link.click();page.wait_for_load_state('networkidle')
                 expect(page.locator('.ai-assistant')).to_contain_text('Ini jawaban sintetis')
-                assert page.locator('.ai-drawer-navigation').get_by_role('link',name='Percakapan',exact=True).count()==0
-                home_link=page.locator('.ai-drawer-navigation').get_by_role('link',name='Home',exact=True)
+                assert page.locator('.premium-navigation').get_by_role('link',name='Percakapan',exact=True).count()==0
+                home_link=page.locator('.premium-navigation').get_by_role('link',name='Home',exact=True)
                 if width<761:
-                    page.locator('[data-ai-menu]').click()
+                    page.get_by_role('button',name='Buka navigasi',exact=True).click()
                 home_link.click();page.wait_for_load_state('networkidle')
                 expect(page.locator('#ai-input')).to_be_visible()
                 page.go_back(wait_until='networkidle');expect(page.locator('.ai-assistant')).to_contain_text('Ini jawaban sintetis')

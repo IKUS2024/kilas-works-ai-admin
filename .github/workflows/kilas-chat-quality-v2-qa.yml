@@ -52,3 +52,17 @@ jobs:
         run: |
           python client-hub/tests/test_kilas_ai_browser.py
           python client-hub/tests/test_kilas_composer_focus_browser.py
+  webkit-canonical-chat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps webkit
+      - name: iPad WebKit persisted send, errors, keyboard viewport and canonical tools
+        env:
+          KILAS_CHAT_ENGINE: webkit
+        run: python client-hub/tests/test_kilas_chat_consistency_browser.py

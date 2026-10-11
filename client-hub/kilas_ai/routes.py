@@ -34,6 +34,7 @@ def require_access():
 @ai_bp.get("")
 def home(initial_brief=None):
     from . import model_policy, autonomous_runner
+    from .home_tasks import context as home_context
     from .content_projects import draft
     content_draft = draft(session['user_id'])
     if initial_brief is None and not content_draft and automation_enabled() and autonomous_runner.enabled() and request.args.get('attachments') != '1' and not request.args.get('automation_result'):
@@ -48,9 +49,12 @@ def home(initial_brief=None):
         result = automation_store.result(session["user_id"], int(request.args["automation_result"]))
         if result and result["result_text"]:
             prefill = "Lanjutkan dari hasil Work berikut:\n\n" + result["result_text"][:4000]
+    home_ui = home_context(session['user_id'])
+    if request.args.get('attachments') == '1':home_ui['threads'] = store.list_threads(session['user_id'])
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]), selected=None,
                            messages=[], current_plan=current_plan, attachment_limits=attachments.limits(usage.attachment_plan(session["user_id"])),
-                           automation_enabled=automation_enabled(), automation_unread=unread, prefill=prefill, content_draft=content_draft)
+                           automation_enabled=automation_enabled(), automation_unread=unread, prefill=prefill, content_draft=content_draft,
+                           home_ai=home_ui)
 
 
 @ai_bp.get("/usage")
@@ -99,12 +103,14 @@ def thread_page(thread_id):
             row["metadata"] = {}
     current_plan = usage.effective_plan(session["user_id"])["plan"]
     from . import automation_store
+    from .home_tasks import context as home_context
     unread = automation_store.unread_count(session["user_id"]) if automation_enabled() else 0
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]),
                            selected=selected, messages=rows,
                            attachments=store.attachment_list(session["user_id"], thread_id),
                            current_plan=current_plan, attachment_limits=attachments.limits(usage.attachment_plan(session["user_id"])),
-                           automation_enabled=automation_enabled(), automation_unread=unread)
+                           automation_enabled=automation_enabled(), automation_unread=unread,
+                           home_ai=home_context(session['user_id']))
 
 
 @ai_bp.get("/threads/<int:thread_id>/attachments/<int:attachment_id>")
