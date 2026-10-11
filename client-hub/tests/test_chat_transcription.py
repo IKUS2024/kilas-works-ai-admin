@@ -2,10 +2,12 @@
 import io
 import json
 import os
+import secrets
 from pathlib import Path
 import wave
 from datetime import datetime, timezone, timedelta
 import pytest
+from flask import abort, render_template_string, session
 from werkzeug.datastructures import FileStorage
 from test_chat_projects import real, create, save
 from test_chat_content_demo import chat
@@ -30,6 +32,21 @@ def audio(real, monkeypatch):
     monkeypatch.setenv('KILAS_CHAT_TRANSCRIPTION_ENABLED', 'true')
     db.execute('CREATE TABLE kilas_content_releases(name TEXT PRIMARY KEY,checksum TEXT NOT NULL)')
     schema.apply()
+    # Test-only retained-component surface; ordinary production chat stays panel-free.
+    # Exercise the original owned store/partial/module and existing API unchanged.
+    def retained_component(cid):
+        owner = session.get('user_id')
+        if not owner or session.get('role') != 'CLIENT_OWNER':
+            abort(404)
+        data = chat_projects.view_context(owner, cid)
+        if not data:
+            abort(404)
+        return render_template_string('''<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+            <form id="agent-chat-form"><label for="agent-message">Pesan umum</label><textarea id="agent-message"></textarea></form>
+            {% include 'kilas_content/_chat_project_panel.html' %}
+            <script type="module" src="{{ url_for('static',filename='kilas_chat_projects.mjs') }}"></script>
+            </body></html>''', chat_project=data, project_key=secrets.token_hex(16))
+    app.add_url_rule('/__qa/retained-project/<int:cid>', 'qa_retained_project', retained_component)
     ident = create(client)
     calls = []
     monkeypatch.setattr(provider, 'budget_ready', lambda: True)
@@ -60,7 +77,9 @@ def test_default_off_and_budget_lock_prevent_paid_transport(audio, monkeypatch):
     response=upload(client,pid)
     assert response.status_code == 503 and response.json['code']=='transcription_budget_unavailable'
     assert not calls and db.query_one('SELECT COUNT(*) AS n FROM kilas_chat_transcriptions')['n']==0
-    assert b'data-ready="false"' in client.get('/kilas-ai/agent?conversation=1').data
+    assert b'data-transcription' not in client.get('/kilas-ai/agent?conversation=1').data
+    assert b'data-ready="false"' in client.get('/__qa/retained-project/1').data
+    assert client.get('/__qa/retained-project/2').status_code == 404
     assert client.post(path(pid),data={'csrf_token':'synthetic-csrf','action':'cancel'}).status_code==503
 
 
@@ -74,7 +93,8 @@ def test_real_transcript_review_revision_reload_and_exact_retry(audio):
     assert upload(client,pid,raw=wav(2)).status_code==409
     assert save(client,pid,text='Teks audio yang sudah diedit.').status_code==303
     assert content_projects.script(1,pid,1)['content']=='Teks audio yang sudah diedit.'
-    assert b'Halo, ini teks audio asli.' in client.get('/kilas-ai/agent?conversation=1').data
+    assert b'data-transcription' not in client.get('/kilas-ai/agent?conversation=1').data
+    assert b'Halo, ini teks audio asli.' in client.get('/__qa/retained-project/1').data
     for name in ('kilas_chat_demo_recordings','kilas_chat_demo_transcripts','kilas_chat_demo_actions'):
         assert db.query_one('SELECT COUNT(*) AS n FROM '+name)['n']==0
     assert db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_jobs')['n']==3
@@ -220,6 +240,8 @@ def test_browser_upload_edit_save_reload_and_default_locked_controls(audio,monke
                 context.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin+'/') else route.abort())
                 context.add_cookies([{'name':'session','value':client.get_cookie('session').value,'url':origin}])
                 page=context.new_page();page.on('dialog',lambda dialog:dialog.accept());page.goto(origin+'/kilas-ai/agent?conversation=1')
+                expect(page.locator('[data-transcription],[data-chat-projects]')).to_have_count(0)
+                page.goto(origin+'/__qa/retained-project/1')
                 page.locator('#agent-message').fill('Pesan umum tetap di chat.')
                 page.locator('[data-transcription] > summary').click()
                 expect(page.locator('[data-stt-send]')).to_be_disabled()
@@ -233,9 +255,13 @@ def test_browser_upload_edit_save_reload_and_default_locked_controls(audio,monke
                 expect(page.get_by_label('Naskah proyek',exact=True)).to_have_value('Naskah diperiksa '+label)
                 expect(page.locator('[name=reviewed]')).not_to_be_checked()
                 page.locator('[name=reviewed]').check()
+                expected_version=content_projects.get(1,pid)['script_version']+1
                 page.get_by_role('button',name='Simpan sebagai versi baru',exact=True).click()
+                expect(page.locator('.chat-project-workspace > summary')).to_contain_text('v'+str(expected_version))
                 expect(page.locator('#agent-message')).to_have_value('Pesan umum tetap di chat.')
                 page.reload()
+                expect(page.get_by_label('Naskah proyek',exact=True)).to_have_value('Naskah diperiksa '+label)
+                assert content_projects.script(1,pid,content_projects.get(1,pid)['script_version'])['content'] == 'Naskah diperiksa '+label
                 assert page.evaluate('window.mediaCalls')==0
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 page.locator('[data-transcription] > summary').click()
@@ -244,7 +270,7 @@ def test_browser_upload_edit_save_reload_and_default_locked_controls(audio,monke
             monkeypatch.setattr(provider,'budget_ready',lambda:False)
             context=browser.new_context(viewport={'width':390,'height':1000})
             context.add_cookies([{'name':'session','value':client.get_cookie('session').value,'url':origin}])
-            page=context.new_page();page.goto(origin+'/kilas-ai/agent?conversation=1')
+            page=context.new_page();page.goto(origin+'/__qa/retained-project/1')
             expect(page.locator('[data-stt-record]')).to_be_disabled()
             expect(page.locator('[data-stt-file]')).to_be_disabled()
             expect(page.locator('[data-stt-send]')).to_be_disabled()
