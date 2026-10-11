@@ -38,7 +38,14 @@
     const attach=root.querySelector('[data-home-attachment],.work-attachment-bar');attach.hidden=next!=='chat';root.querySelector('#ai-files,#work-source-files').disabled=next!=='chat';const hint=root.querySelector('[data-home-hint]');if(hint)hint.hidden=next!=='chat';notice.textContent='';
     root.querySelectorAll('[data-home-task]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.homeTask===next)));
   }
-  root.querySelectorAll('[data-home-task]').forEach(button=>button.addEventListener('click',()=>select(button.dataset.homeTask)));
+  root.querySelectorAll('[data-home-task]').forEach(button=>button.addEventListener('click',()=>{
+    const next=button.dataset.homeTask;if(next==='chat'){select('chat');input.focus();return;}
+    if(send.disabled||pending.children.length){notice.textContent=t('Selesaikan chat atau hapus lampiran sebelum mengganti tugas.');return;}
+    if(input.value.length>tasks[next].limit){notice.textContent=t('Draf terlalu panjang untuk fitur ini. Pendekkan teks sebelum membuka fitur.');return;}
+    const handoff=agent?document.querySelector('#home-task-handoff'):form;
+    handoff.action=next==='video'?'/kilas-ai/video':'/kilas-translator?mode='+next;handoff.elements.task.value=next;handoff.elements.brief.value=input.value;
+    handoff.submit();
+  }));
   root.querySelector('[data-home-cancel]')?.addEventListener('click',()=>{select('chat');input.focus();});
   // Capture runs before the legacy chat submit handler. Native POST preserves CSRF and back navigation.
   form.addEventListener('submit',event=>{

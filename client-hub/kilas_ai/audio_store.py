@@ -63,14 +63,22 @@ def require_balance(user, required=1):
 
 
 def get(user,ident):
-    return db.query_one("SELECT id,user_id,mode,title,source_language,target_language,voice_id,voice_name,estimated_seconds,source_ms,actual_ms,seconds_charged,status,provider_id,error_code,created_at,updated_at, CASE WHEN substr(result_content,5,4)=? THEN 1 ELSE 0 END AS result_is_video FROM kilas_audio_jobs WHERE id=? AND user_id=?",(b'ftyp',ident,user))
+    return db.query_one("SELECT id,user_id,mode,title,source_language,target_language,voice_id,voice_name,estimated_seconds,source_ms,actual_ms,seconds_charged,status,provider_id,error_code,created_at,updated_at, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL THEN 1 ELSE 0 END AS has_original_script, CASE WHEN substr(result_content,5,4)=? THEN 1 ELSE 0 END AS result_is_video FROM kilas_audio_jobs WHERE id=? AND user_id=?",(b'ftyp',ident,user))
 
 
 def history(user,page=1):
-    return db.query_all('SELECT id,mode,title,source_language,target_language,voice_name,source_ms,actual_ms,status,created_at FROM kilas_audio_jobs WHERE user_id=? ORDER BY id DESC LIMIT 21 OFFSET ?',(user,(page-1)*20))
+    return db.query_all("SELECT id,mode,title,source_language,target_language,voice_name,source_ms,actual_ms,status,created_at, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL THEN 1 ELSE 0 END AS has_original_script FROM kilas_audio_jobs WHERE user_id=? ORDER BY id DESC LIMIT 21 OFFSET ?",(user,(page-1)*20))
 
 
-def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,pcm,estimated,reserve,*,personal_required=False):
+def edit_script(user,ident):
+    row=db.query_one("SELECT original_script FROM kilas_audio_jobs WHERE id=? AND user_id=? AND mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL",(ident,user))
+    return row['original_script'] if row else None
+
+
+def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,pcm,estimated,reserve,*,personal_required=False,original_script=None):
+    if mode!='voiceover':original_script=None
+    if original_script is not None and (not isinstance(original_script,str) or not 1<=len(original_script)<=4000):
+        raise AudioError('Naskah asli maksimal 4.000 karakter; teks tidak dipotong.')
     fingerprint = hashlib.sha256(json.dumps([mode,title,source,target,voice,script,source_ms],ensure_ascii=False).encode()+(pcm or b'')).hexdigest()
     with locked(user) as conn:
         _expire(conn,user)
@@ -95,8 +103,8 @@ def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,p
             raise AudioError(f'Saldo tidak cukup. Estimasi {estimated}s; perlu mencadangkan hingga {reserve}s. Saldo tersedia {available}s. Sisa reservasi dikembalikan setelah durasi aktual dihitung.','insufficient_balance',402)
         reserve = 0 if exempt else reserve
         now = usage._now().isoformat()
-        sql = 'INSERT INTO kilas_audio_jobs(user_id,operation_key,fingerprint,mode,title,source_language,target_language,voice_id,voice_name,script,source_ms,source_content,estimated_seconds,reserved_seconds,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?,?)'
-        params = (user,key,fingerprint,mode,title,source,target,voice,voice_name,script,source_ms,pcm,estimated,reserve,'QUEUED',now,now)
+        sql = 'INSERT INTO kilas_audio_jobs(user_id,operation_key,fingerprint,mode,title,source_language,target_language,voice_id,voice_name,script,original_script,source_ms,source_content,estimated_seconds,reserved_seconds,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?,?)'
+        params = (user,key,fingerprint,mode,title,source,target,voice,voice_name,script,original_script,source_ms,pcm,estimated,reserve,'QUEUED',now,now)
         if db.BACKEND=='postgres':ident=usage._query(conn,sql+' RETURNING id',params,one=True)[0]
         else:ident=conn.execute(sql,params).lastrowid
     log.info('KILAS_AUDIO job=%s user=%s mode=%s status=QUEUED reserved_seconds=%s',ident,user,mode,reserve)

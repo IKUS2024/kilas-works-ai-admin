@@ -45,3 +45,9 @@ def open_task():
         return home(initial_brief=brief,home_task=task)
     from .audio_routes import home
     return home(initial_brief=brief,home_task=task)
+
+
+@ai_bp.post('/video', endpoint='video_home_handoff')
+def open_video_task():
+    if request.form.get('task')!='video':abort(400)
+    return open_task()

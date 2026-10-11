@@ -24,7 +24,7 @@ def main():
         values=original();return dict(values,options=values['options']+' -c search_path='+isolated)
     try:
         with patch.object(db,'_postgres_connect_kwargs',side_effect=options):
-            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_'))]):db.init_schema()
+            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_','0090_'))]):db.init_schema()
             before={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert schema.apply_release()==[schema.NAME];assert schema.apply_release()==[]
             after={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
@@ -35,6 +35,13 @@ def main():
             assert schema.apply_release('0085_kilas_voice_preview')==[]
             assert schema.apply_release('0086_kilas_voice_library')==['0086_kilas_voice_library']
             assert schema.apply_release('0086_kilas_voice_library')==[]
+            # A pre-release row remains untouched and cannot invent its source text.
+            db.execute("INSERT INTO users(email,password_hash,role) VALUES ('pre-edit@example.test','hash','CLIENT_OWNER')")
+            legacy_user=db.query_one("SELECT id FROM users WHERE email='pre-edit@example.test'")['id']
+            db.execute("INSERT INTO kilas_audio_jobs(user_id,operation_key,fingerprint,mode,title,source_language,target_language,estimated_seconds,reserved_seconds,status,created_at,updated_at) VALUES (?,'pre-edit-key','synthetic','voiceover','Old title','id','en',2,0,'COMPLETED','2026-01-01','2026-01-01')",(legacy_user,))
+            assert schema.apply_release('0090_kilas_audio_script_edit')==['0090_kilas_audio_script_edit']
+            assert db.query_one('SELECT original_script FROM kilas_audio_jobs WHERE user_id=?',(legacy_user,))['original_script'] is None
+            assert schema.apply_release('0090_kilas_audio_script_edit')==[]
             with store.locked(0) as conn:
                 user=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
                 admin=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio-admin@example.test','hash','KILAS_ADMIN') RETURNING id",one=True)[0]
@@ -96,6 +103,30 @@ def main():
             assert store.get(user+999,ident) is None
             assert schema.apply_release()==[];assert store.balance(user)['seconds']==23
             assert usage.effective_plan(user)['plan']=='FREE'
+            # Native psycopg2 + additive schema: exact original survives payload cleanup.
+            assert db.query_one('SELECT original_script FROM kilas_audio_jobs WHERE id=?',(ident,))['original_script'] is None
+            original_text='  ORIGINAL <script> is text\nBahasa asli  '
+            voice,_=store.create(user,'postgres-edit-original-1234','voiceover','QA','id','en','voice','QA','Translated TTS',0,None,2,5,original_script=original_text)
+            assert store.start(user,voice);store.submitted(user,voice,'synthetic-edit')
+            payload=db.query_one('SELECT script,original_script FROM kilas_audio_jobs WHERE id=?',(voice,))
+            assert payload['script'] is None and payload['original_script']==original_text
+            assert store.edit_script(user,voice) is None
+            assert store.finish(user,voice,b'ID3synthetic',2000)
+            assert store.edit_script(user,voice)==original_text and store.edit_script(admin,voice) is None
+            with db.psycopg2.connect(db.DATABASE_URL,**db._postgres_connect_kwargs()) as bounded:
+                try:
+                    with bounded.cursor() as cur:cur.execute('UPDATE kilas_audio_jobs SET original_script=%s WHERE id=%s',('x'*4001,voice))
+                except db.psycopg2.errors.CheckViolation:bounded.rollback()
+                else:raise AssertionError('original-script bound was not enforced by PostgreSQL')
+            assert store.edit_script(user,voice)==original_text
+            assert store.balance(user)['seconds']==21
+            assert store.finish(user,voice,b'duplicate',2000) is False
+            assert store.balance(user)['seconds']==21
+            failed,_=store.create(user,'postgres-edit-failed-1234','voiceover','QA','id','en','voice','QA','TTS',0,None,2,5,original_script=original_text)
+            store.fail(user,failed,'synthetic-failure')
+            assert db.query_one('SELECT original_script FROM kilas_audio_jobs WHERE id=?',(failed,))['original_script']==original_text
+            assert store.edit_script(user,failed)==original_text
+            assert schema.apply_release('0090_kilas_audio_script_edit')==[]
     finally:
         with control.cursor() as cur:cur.execute('DROP SCHEMA '+isolated+' CASCADE')
         control.close()

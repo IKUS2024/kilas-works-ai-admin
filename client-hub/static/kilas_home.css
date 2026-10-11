@@ -132,3 +132,10 @@ body.premium-workspace:has(.kilas-home-workspace)>.wrap{height:100%;padding:12px
  .kilas-home-workspace .ai-messages{padding:12px 2px 16px;font-size:15px}
  .kilas-home-workspace .ai-composer-actions{margin-top:4px}
 }
+
+/* Native feature screens reuse the same horizontal Kilas task controls. */
+.kilas-feature-navigation{margin:0 auto 12px;max-width:1440px;min-width:0}
+.kilas-feature-navigation .home-task-choices{display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap}
+.kilas-feature-navigation [data-kilas-feature]{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:6px 12px;border:1px solid #d9ded9;border-radius:18px;color:#35463b;text-decoration:none;white-space:nowrap;flex-shrink:0}
+.kilas-feature-navigation [data-kilas-feature] svg{width:18px;height:18px}
+.kilas-feature-navigation [aria-current=page]{background:#edf3ed;border-color:#8da393;color:#243f2c}

@@ -65,6 +65,18 @@ class HomeTests(unittest.TestCase):
                     self.assertIn('data-active-mode="'+task+'"',html)
                 if task!='chat':self.assertIn('Kembali ke Kilas AI Home',html)
 
+    def test_native_feature_handoff_validated_without_generating(self):
+        app=fixture.base.f.fixture.app.app
+        from kilas_ai import audio_service,video_director
+        with patch.object(audio_service,'submit') as audio,patch.object(video_director,'generate') as video:
+            for path,task in (('/kilas-translator?mode=voiceover','voiceover'),('/kilas-translator?mode=translate','translate'),('/kilas-ai/video','video')):
+                response=self.client().post(path,data={'csrf_token':'work-csrf','task':task,'brief':'Native carried draft'})
+                self.assertEqual(response.status_code,200);self.assertIn('Native carried draft',response.get_data(as_text=True))
+                self.assertEqual(self.client().post(path,data={'task':task}).status_code,400)
+                self.assertEqual(self.client().post(path,data={'csrf_token':'work-csrf','task':'chat'}).status_code,400)
+                self.assertEqual(app.test_client().post(path,data={'csrf_token':'work-csrf','task':task}).status_code,400)
+            audio.assert_not_called();video.assert_not_called()
+
     def test_invalid_csrf_task_and_size_rejected(self):
         self.assertEqual(self.client().post('/kilas-ai/home-task',data={'task':'video','brief':'draft'}).status_code,400)
         self.assertEqual(self.handoff('unknown').status_code,400)

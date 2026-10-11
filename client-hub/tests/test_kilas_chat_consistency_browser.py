@@ -14,14 +14,31 @@ ANSWER='Jawaban sintetis yang tersimpan.\n\n'+('Paragraf panjang untuk memeriksa
 VIEWPORT="""window.qaViewport=new EventTarget();Object.assign(qaViewport,{height:innerHeight,width:innerWidth,offsetTop:0,offsetLeft:0});Object.defineProperty(window,'visualViewport',{get:()=>qaViewport});Object.defineProperty(crypto,'randomUUID',{value:undefined});String.prototype.replaceAll=undefined;"""
 
 
-def tools_and_layout(page, selector):
+def tools_and_layout(page, selector, navigate=False):
     expect(page.locator('[data-home-task]')).to_have_count(4)
     row=page.locator('.home-task-choices')
     assert row.evaluate("e=>{const buttons=[...e.children];return getComputedStyle(e).display==='flex'&&buttons.every(b=>Math.abs(b.getBoundingClientRect().top-buttons[0].getBoundingClientRect().top)<2)}")
     for task in ('chat','video','translate','voiceover'):
-        button=page.locator(f'[data-home-task={task}]');expect(button).to_be_visible();button.scroll_into_view_if_needed();button.click()
-        expect(button).to_have_attribute('aria-pressed','true')
-    page.locator('[data-home-task=chat]').click()
+        button=page.locator(f'[data-home-task={task}]');expect(button).to_be_visible()
+        assert button.evaluate('e=>e.getBoundingClientRect().height>=44')
+    expect(page.locator('[data-home-task=chat]')).to_have_attribute('aria-pressed','true')
+    if navigate:
+        original_url=page.url
+        for task,path,field in [('video','/kilas-ai/video','#video-idea'),('translate','/kilas-translator','#audio-file'),('voiceover','/kilas-translator','#audio-script')]:
+            page.locator(selector).fill('Carried draft' if task!='translate' else '')
+            page.locator(f'[data-home-task={task}]').click()
+            expect(page.locator('[data-kilas-feature]')).to_have_count(4)
+            expect(page.locator(f'[data-kilas-feature={task}]')).to_have_attribute('aria-current','page')
+            assert __import__('urllib.parse',fromlist=['urlsplit']).urlsplit(page.url).path==path
+            if task!='translate':expect(page.locator(field)).to_have_value('Carried draft')
+            page.reload(wait_until='networkidle')
+            expect(page.locator(f'[data-kilas-feature={task}]')).to_have_attribute('aria-current','page')
+            if task!='translate':expect(page.locator(field)).to_have_value('Carried draft')
+            page.go_back(wait_until='networkidle')
+            assert page.url==original_url
+            expect(page.locator('[data-home-task=chat]')).to_have_attribute('aria-pressed','true')
+        page.locator(selector).fill('')
+
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
     form=page.locator('#agent-chat-form' if selector=='#agent-message' else '#ai-composer')
     expect(form).to_be_in_viewport()
@@ -63,7 +80,7 @@ def main():
                     path='/kilas-ai/agent?conversation='+str(case.conversation) if work else '/products/start'
                     page.goto(origin+path,wait_until='networkidle')
                     selector='#agent-message' if work else '#ai-input';form='#agent-chat-form' if work else '#ai-composer';send=page.locator(form+' button[type=submit]')
-                    tools_and_layout(page,selector)
+                    tools_and_layout(page,selector,navigate=True)
                     message=('Halo Kilas, pertanyaan sintetis.\n'*18)+str(width)+str(work)
                     page.fill(selector,message);assert page.locator(selector).evaluate('e=>e.clientHeight>48')
                     # Failure retains exact draft, including line breaks, and height.

@@ -37,7 +37,7 @@ def environment(tmp_path, monkeypatch):
         INSERT INTO kilas_ai_conversations VALUES(1,1,'Brief owner',NULL),(2,2,'Other owner',NULL);
         INSERT INTO kilas_ai_threads VALUES(1,1,'Legacy brief'),(2,2,'Other legacy');
     ''')
-    for name in ('0082_kilas_video_sqlite.sql', '0083_kilas_audio_sqlite.sql'):
+    for name in ('0082_kilas_video_sqlite.sql', '0083_kilas_audio_sqlite.sql', '0090_kilas_audio_script_edit_sqlite.sql'):
         conn.executescript((ROOT / 'migrations' / name).read_text())
     for owner in (1,2):
         conn.execute("INSERT INTO kilas_video_projects(id,user_id,title,idea,version,spec_json,operation_key,created_at,updated_at) VALUES (?,?,?,'brief',1,?,?,'2026-01-01','2026-01-01')", (owner,owner,'Plan '+str(owner),json.dumps({'voice_over':'Naskah dari plan'}),'video-key-'+str(owner)))
@@ -79,6 +79,7 @@ def environment(tmp_path, monkeypatch):
     scope = {'request':request,'current_app':current_app,'security':security,'abort':abort}
     exec(compile(ast.Module(body=[hook],type_ignores=[]),'original-app-csrf','exec'),scope)
     app.before_request(scope['_csrf_protect'])
+    app.add_url_rule('/products/start', endpoint='products.product_start', view_func=lambda:'Home')
     app.add_url_rule('/login', endpoint='auth.login_page', view_func=lambda:'Login')
     app.register_blueprint(ai_bp)
     app.register_blueprint(audio_routes.audio_bp)

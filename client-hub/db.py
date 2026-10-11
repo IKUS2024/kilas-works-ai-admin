@@ -304,6 +304,7 @@ MIGRATIONS = [
     ("0084_kilas_personal_voice_sqlite.sql", "0084_kilas_personal_voice_postgres.sql"),
     ("0085_kilas_voice_preview_sqlite.sql", "0085_kilas_voice_preview_postgres.sql"),
     ("0086_kilas_voice_library_sqlite.sql", "0086_kilas_voice_library_postgres.sql"),
+    ("0090_kilas_audio_script_edit_sqlite.sql", "0090_kilas_audio_script_edit_postgres.sql"),
 ]
 
 

@@ -3,6 +3,7 @@
 {% block content %}
 {% if home_task %}{% include 'kilas_ai/_home_handoff.html' %}{% endif %}
 {% include 'kilas_content/_handoff.html' %}
+{% with selected_feature='video' %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_video.css',v='clip-workflow-20261005') }}">
 <section class="video-studio" id="video-studio" data-quota-blocked="{{ 'true' if not video_entitlement.allowed else 'false' }}">
 <header class="video-heading"><div><h1>Kilas Video</h1><p>{{ ui_t('Ubah ide sederhana menjadi rencana video yang siap diproduksi.') }}</p></div><a href="{{ url_for('kilas_ai.video_home') }}" class="btn secondary">{{ ui_t('Rencana baru') }}</a></header>

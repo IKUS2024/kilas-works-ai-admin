@@ -43,7 +43,7 @@ def postgres(monkeypatch):
             CREATE TABLE kilas_ai_threads(id BIGINT PRIMARY KEY,user_id BIGINT,title TEXT);
             CREATE TABLE protected_sentinel(id INTEGER PRIMARY KEY, value TEXT);
             INSERT INTO protected_sentinel VALUES(1,'unchanged');''')
-        for name in ('0082_kilas_video_postgres.sql', '0083_kilas_audio_postgres.sql'):
+        for name in ('0082_kilas_video_postgres.sql', '0083_kilas_audio_postgres.sql', '0090_kilas_audio_script_edit_postgres.sql'):
             cur.execute((ROOT / 'migrations' / name).read_text())
         cur.execute("INSERT INTO kilas_video_projects(user_id,title,idea,version,spec_json,operation_key,created_at,updated_at) VALUES(1,'Synthetic','brief',1,%s,'synthetic-video','now','now')", ('{"voice_over":"Source version one"}',))
         cur.execute("INSERT INTO kilas_audio_jobs(user_id,operation_key,fingerprint,mode,title,source_language,target_language,estimated_seconds,reserved_seconds,status,result_content,created_at,updated_at) VALUES(1,'synthetic-audio','fixture','translate','Synthetic','id','en',1,0,'COMPLETED',%s,'now','now')", (b'0000ftypSYNTHETIC',))

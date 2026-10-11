@@ -54,6 +54,55 @@ class AudioTests(unittest.TestCase):
             r=self.client.post('/kilas-translator/jobs',data=body,content_type='multipart/form-data')
         return r,speech,dub
 
+    def test_edit_returns_exact_original_not_translation_without_charge_or_provider(self):
+        self.credit(300)
+        original='  Naskah asli\n<script>tetap teks</script>  '
+        response,_,_=self.create(script=original,translate_script='yes',translated_script='A separate translated voice script.')
+        self.assertEqual(response.status_code,201)
+        ident=response.json['id'];before=store.balance(self.user)['seconds']
+        with patch.object(service,'refresh') as poll,patch.object(provider,'request') as paid:
+            result=self.client.get(f'/kilas-translator/jobs/{ident}/script')
+        self.assertEqual(result.status_code,200);self.assertEqual(result.json,{'script':original})
+        self.assertIn('no-store',result.headers['Cache-Control']);paid.assert_not_called();poll.assert_not_called()
+        self.assertEqual(store.balance(self.user)['seconds'],before)
+        row=f.db.query_one('SELECT script,original_script FROM kilas_audio_jobs WHERE id=?',(ident,))
+        self.assertIsNone(row['script']);self.assertEqual(row['original_script'],original)
+        metadata=store.get(self.user,ident);self.assertTrue(metadata['has_original_script']);self.assertNotIn('original_script',metadata)
+        html=self.client.get(f'/kilas-translator/jobs/{ident}').get_data(as_text=True)
+        self.assertIn('data-audio-edit=',html);self.assertNotIn(original,html)
+        other=f.app.app.test_client()
+        with other.session_transaction() as session:session.update(user_id=self.other,role='CLIENT_OWNER')
+        self.assertEqual(other.get(f'/kilas-translator/jobs/{ident}/script').status_code,404)
+        self.assertEqual(f.app.app.test_client().get(f'/kilas-translator/jobs/{ident}/script').status_code,302)
+        f.db.execute('UPDATE kilas_audio_jobs SET original_script=NULL WHERE id=?',(ident,))
+        self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/script').status_code,409)
+        self.assertIn('Naskah asli tidak tersedia',self.client.get(f'/kilas-translator/jobs/{ident}').get_data(as_text=True))
+
+    def test_original_archive_retained_during_submission_failure_and_expiry(self):
+        self.credit(300)
+        original='Naskah asli untuk diedit.'
+        ident,_=store.create(self.user,'retain-original-123456','voiceover','Title','id','en','voice','QA','Translated TTS',0,None,2,20,original_script=original)
+        self.assertTrue(store.start(self.user,ident));store.submitted(self.user,ident,'synthetic')
+        row=f.db.query_one('SELECT script,original_script FROM kilas_audio_jobs WHERE id=?',(ident,))
+        self.assertIsNone(row['script']);self.assertEqual(row['original_script'],original)
+        self.assertIsNone(store.edit_script(self.user,ident));store.fail(self.user,ident,'synthetic_error')
+        self.assertEqual(f.db.query_one('SELECT original_script FROM kilas_audio_jobs WHERE id=?',(ident,))['original_script'],original);self.assertEqual(store.edit_script(self.user,ident),original)
+        ident,_=store.create(self.user,'expire-original-123456','voiceover','Title','id','en','voice','QA','TTS',0,None,2,20,original_script=original)
+        f.db.execute('UPDATE kilas_audio_jobs SET created_at=? WHERE id=?',((usage._now()-timedelta(hours=3)).isoformat(),ident))
+        store.balance(self.user)
+        self.assertEqual(f.db.query_one('SELECT original_script FROM kilas_audio_jobs WHERE id=?',(ident,))['original_script'],original);self.assertEqual(store.edit_script(self.user,ident),original)
+
+    def test_original_maximum_no_truncation_and_valid_mode_presentation(self):
+        self.credit(300)
+        result,speech,_=self.create(script='a'*4001,translate_script='yes',translated_script='Valid translated script.')
+        self.assertEqual(result.status_code,400);speech.assert_not_called()
+        with self.assertRaises(store.AudioError):store.create(self.user,'overlong-original-123456','voiceover','Title','id','en','v','QA','TTS',0,None,2,20,original_script='a'*4001)
+        for mode in ('voiceover','translate'):
+            html=self.client.get('/kilas-translator?mode='+mode).get_data(as_text=True)
+            self.assertIn('data-active-mode="'+mode+'"',html)
+            self.assertIn('data-kilas-feature="'+mode+'"',html)
+        self.assertIn('data-active-mode="translate"',self.client.get('/kilas-translator?mode=invalid').get_data(as_text=True))
+
     def test_auth_csrf_and_role(self):
         self.assertEqual(f.app.app.test_client().get('/kilas-translator').status_code,302)
         self.assertEqual(self.client.get('/kilas-translator').status_code,200)

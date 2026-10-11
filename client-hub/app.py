@@ -281,6 +281,7 @@ def create_app():
         from kilas_ai import audio_schema
         audio_schema.apply_release()  # Only additive 0083; prepaid audio release.
         audio_schema.apply_release('0084_kilas_personal_voice')  # Owner-only voice association; no audio retained.
+        audio_schema.apply_release('0090_kilas_audio_script_edit')  # New VoiceOver originals only; existing rows remain NULL.
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)

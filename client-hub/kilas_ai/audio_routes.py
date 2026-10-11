@@ -47,17 +47,26 @@ def home(ident=None,initial_brief=None,home_task=None):
     from .content_projects import draft
     content_draft = draft(session['user_id'])
     user=session['user_id'];job=owned(ident) if ident else None
+    mode_hint=request.args.get('mode')
+    active_mode=mode_hint if mode_hint in ('translate','voiceover') else home_task if home_task in ('translate','voiceover') else job['mode'] if job else content_draft['mode'] if content_draft and content_draft['mode'] in ('translate','voiceover') else 'translate'
     state=store.balance(user)
     try:page=max(1,min(10000,int(request.args.get('page',1))))
     except ValueError:abort(400)
     rows=store.history(user,page)
     saved_voices=personal.saved_voices(user)
-    return render_template('kilas_translator/home.html',content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
+    return render_template('kilas_translator/home.html',active_mode=active_mode,content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
                            voices=provider.voices() if state['exempt'] or state['available'] else [],
                            personal_voice=bool(personal.get(user)),personal_preview=personal.has_preview(user),voice_operation_key=secrets.token_hex(16),
                            saved_voices=saved_voices,
                            provider_ready=provider.configured(),languages=provider.LANGUAGES,packs=store.PACKS,
                            seconds=seconds,operation_key=secrets.token_hex(16),max_mb=media.file_limit()//1024//1024,audio_max_mb=media.file_limit('wav')//1024//1024,max_seconds=media.duration_limit())
+
+
+@audio_bp.post('')
+def home_handoff():
+    if request.form.get('task') not in ('translate','voiceover'):abort(400)
+    from .home_tasks import open_task
+    return open_task()
 
 
 @audio_bp.post('/inspect')
@@ -77,11 +86,14 @@ def create():
     if not provider.configured():raise store.AudioError('Audio sedang belum tersedia. Saldo kamu tetap aman.','not_configured',503)
     mode=request.form.get('mode');source=request.form.get('source_language','auto');target=request.form.get('language','en')
     if (target not in provider.LANGUAGES and not (mode=='voiceover' and target=='auto')) or (source!='auto' and source not in provider.LANGUAGES):abort(400)
-    voice=voice_name=script='';ms=0;pcm=None
+    voice=voice_name=script='';original_script=None;ms=0;pcm=None
     if mode=='translate':
         title,ms,pcm=media.upload(request.files.get('file'),preserve_video=True)
         estimated=reserve=math.ceil(ms/1000)
     elif mode=='voiceover':
+        original_script=request.form.get('script')
+        if original_script is not None and len(original_script)>4000:raise store.AudioError('Naskah asli maksimal 4.000 karakter; teks tidak dipotong.')
+        if not original_script or not re.search(r'\w',original_script):original_script=None
         translated=request.form.get('translate_script')=='yes'
         script=request.form.get('translated_script' if translated else 'script','').strip()
         if not 1<=len(script)<=4000 or not re.search(r'\w',script):raise store.AudioError('Tulis naskah 1–4.000 karakter dalam bahasa yang dipilih.')
@@ -105,7 +117,7 @@ def create():
         estimated,reserve=service.estimate(script)
         if estimated>media.duration_limit():raise store.AudioError('Naskah terlalu panjang. Pendekkan naskah sebelum membuat audio.')
     else:abort(400)
-    ident,new=store.create(user,key,mode,title,source,target,voice,voice_name,script,ms,pcm,estimated,reserve,personal_required=mode=='voiceover' and request.form.get('voice','').startswith('personal:'))
+    ident,new=store.create(user,key,mode,title,source,target,voice,voice_name,script,ms,pcm,estimated,reserve,personal_required=mode=='voiceover' and request.form.get('voice','').startswith('personal:'),original_script=original_script)
     if new:service.submit(user,ident)
     return {'url':url_for('kilas_audio.home',ident=ident),'id':ident},201 if new else 200
 
@@ -178,7 +190,17 @@ def status(ident):
     return {'status':job['status'],'id':ident,'status_label':{'QUEUED':'Menunggu','PROCESSING':'Diproses','COMPLETED':'Selesai','FAILED':'Belum berhasil'}[job['status']],
             'duration_label':seconds(((job['source_ms'] if job['mode']=='translate' else job['actual_ms'])+999)//1000),
             'balance_html':render_template('kilas_translator/_balance.html',balance=store.balance(session['user_id']),seconds=seconds),
+            'edit_script_url':url_for('kilas_audio.script_for_edit',ident=ident) if job['has_original_script'] else None,
             'html':render_template('kilas_translator/_result.html',job=job,languages=provider.LANGUAGES,seconds=seconds)},200,{'Cache-Control':'no-store'}
+
+
+@audio_bp.get('/jobs/<int:ident>/script')
+def script_for_edit(ident):
+    job=owned(ident)
+    text=store.edit_script(session['user_id'],ident)
+    if job['mode']!='voiceover' or text is None:
+        return {'error':'Naskah asli tidak tersedia untuk hasil ini. Hasil audio tetap tersimpan.','code':'script_unavailable'},409,{'Cache-Control':'private, no-store'}
+    return {'script':text},200,{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}
 
 
 @audio_bp.get('/jobs/<int:ident>/result')

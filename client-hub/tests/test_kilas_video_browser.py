@@ -38,7 +38,7 @@ def main():
                 page.goto(origin+'/products/start',wait_until='networkidle')
                 expect(page.locator('.home-task-choices')).to_be_visible()
                 expect(page.locator('[data-home-task=video]')).to_be_visible()
-                page.locator('[data-home-task=video]').click();page.locator('#ai-send').click();expect(page.get_by_role('heading',name='Kilas Video',exact=True)).to_be_visible();check('empty')
+                page.locator('[data-home-task=video]').click();expect(page.get_by_role('heading',name='Kilas Video',exact=True)).to_be_visible();check('empty')
                 if width<761:
                     page.locator('[data-premium-menu]').click();expect(page.locator('.premium-navigation').get_by_role('link',name='Home',exact=True)).to_be_visible()
                     page.locator('.premium-sidebar [data-premium-close]').click()

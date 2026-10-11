@@ -118,20 +118,19 @@ def main():
                         page.keyboard.press('Escape')
                         assert page.locator('.premium-sidebar').evaluate('e=>e.inert')
                 box=page.locator('#ai-input');box.fill('Draft chat tersimpan di layar')
-                for _ in range(3):
-                    choose_task(page,'video');box.fill('Ide video sintetis')
-                    page.locator('[data-home-cancel]').click();expect(box).to_have_value('Draft chat tersimpan di layar')
-                    choose_task(page,'video');expect(box).to_have_value('Ide video sintetis')
-                    page.locator('[data-home-cancel]').click()
+                # Immediate navigation carries the current brief; no extra Send required.
+                box.fill('x'*2401);choose_task(page,'video')
+                expect(box).to_have_value('x'*2401);expect(page.locator('#ai-notice')).to_contain_text('terlalu panjang')
+                box.fill('Draft chat tersimpan di layar')
                 # Pending chat uploads must survive task-switch attempts.
                 page.locator('#ai-files').set_input_files({'name':'brief.txt','mimeType':'text/plain','buffer':b'Synthetic brief'})
                 choose_task(page,'video')
                 expect(page.locator('#home-task-value')).to_have_value('chat')
                 expect(page.locator('#ai-pending')).to_contain_text('brief.txt')
                 page.get_by_role('button',name='Hapus lampiran brief.txt',exact=True).click()
-                choose_task(page,'video');box.fill('Ide video sintetis')
+                box.fill('Ide video sintetis');choose_task(page,'video')
                 page.screenshot(path=str(output/f'home-video-{width}.png'),full_page=True)
-                page.locator('#ai-send').click();expect(page.locator('#video-idea')).to_have_value('Ide video sintetis')
+                expect(page.locator('#video-idea')).to_have_value('Ide video sintetis')
                 assert page.locator('form[action="/kilas-ai/video/plan"] input[name=csrf_token]').count()==1
                 assert page.locator('input[name=references]').get_attribute('type')=='file'
                 assert page.locator('form[action="/kilas-ai/video/plan"]').get_attribute('enctype')=='multipart/form-data'
@@ -140,14 +139,12 @@ def main():
                 # Browser back returns the real form; forward returns Home without duplicate listeners.
                 page.go_back(wait_until='networkidle');expect(page.locator('#video-idea')).to_have_value('Ide video sintetis')
                 page.go_forward(wait_until='networkidle')
-                choose_task(page,'translate');page.locator('#ai-input').fill('Bahasa tujuan Indonesia')
-                page.locator('#ai-send').click();expect(page.locator('#translate-panel')).to_be_visible()
+                page.locator('#ai-input').fill('Bahasa tujuan Indonesia');choose_task(page,'translate');expect(page.locator('#translate-panel')).to_be_visible()
                 expect(page.get_by_text('Bahasa tujuan Indonesia',exact=False)).to_be_visible()
                 assert page.locator('#audio-file').get_attribute('name')=='file'
                 assert page.locator('#translate-panel form').get_attribute('enctype')=='multipart/form-data'
                 page.get_by_role('link',name='Kembali ke Kilas AI Home',exact=True).click();page.wait_for_load_state('networkidle')
-                choose_task(page,'voiceover');page.locator('#ai-input').fill('Naskah suara sintetis.')
-                page.locator('#ai-send').click();expect(page.locator('#voiceover-panel')).to_be_visible()
+                page.locator('#ai-input').fill('Naskah suara sintetis.');choose_task(page,'voiceover');expect(page.locator('#voiceover-panel')).to_be_visible()
                 expect(page.locator('#audio-script')).to_have_value('Naskah suara sintetis.')
                 page.get_by_role('link',name='Kembali ke Kilas AI Home',exact=True).click();page.wait_for_load_state('networkidle')
                 page.locator('#ai-input').fill('Halo, ini uji chat sintetis.');page.locator('#ai-send').click()
@@ -223,10 +220,10 @@ def main():
             context=browser.new_context(viewport={'width':1440,'height':1000});context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'en','url':origin}])
             page=context.new_page();page.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin) else route.abort())
             page.goto(origin+'/products/start',wait_until='networkidle');expect(page.get_by_role('heading',name='What would you like to do today?',exact=True)).to_be_visible()
-            choose_task(page,'voiceover');expect(page.locator('#ai-send')).to_have_attribute('aria-label','Open voiceover form')
+            choose_task(page,'voiceover');expect(page.locator('#voiceover-panel')).to_be_visible();expect(page.locator('[data-kilas-feature=voiceover]')).to_have_attribute('aria-current','page')
             page.screenshot(path=str(output/'home-en-1440.png'),full_page=True)
             browser.close()
-        report['checks']=['single entry','no optional organization or duplicate Finance','no lower Home clutter; top contextual history; no unavailable placeholder','mobile drawer repeated open/Escape','draft switch/cancel','attachment guard/remove','native handoff CSRF/upload forms','back/forward','translation notes','voiceover draft','real chat mocked provider','saved history/reload/open/return Home/back/forward','stop/blocked task switch','selected locale','spacious viewport canvas and bottom task choices/composer','compact auto-growing icon composer and native four-tool menu','new/loaded right-user left-AI and copy/options icons','Home account actual click with unchanged Finance session, direct/invalid hints','small-height keyboard layout simulation','independent long-message scroll','MyAccount same Home navigation and active link','account mobile drawer and tab browser back','existing audio purchase destination','no overflow','no browser JS errors']
+        report['checks']=['single entry','no optional organization or duplicate Finance','no lower Home clutter; top contextual history; no unavailable placeholder','mobile drawer repeated open/Escape','immediate feature click with target length guard','attachment guard/remove','native handoff CSRF/upload forms','back/forward','translation notes','voiceover draft','real chat mocked provider','saved history/reload/open/return Home/back/forward','stop/blocked task switch','selected locale','spacious viewport canvas and bottom task choices/composer','compact auto-growing icon composer and native four-tool menu','new/loaded right-user left-AI and copy/options icons','Home account actual click with unchanged Finance session, direct/invalid hints','small-height keyboard layout simulation','independent long-message scroll','MyAccount same Home navigation and active link','account mobile drawer and tab browser back','existing audio purchase destination','no overflow','no browser JS errors']
         (output/'verification.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps(report,indent=2))
     finally:server.shutdown();case.doCleanups()
