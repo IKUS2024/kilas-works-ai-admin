@@ -2,7 +2,7 @@ name: Kilas Audio QA
 on:
   push:
     branches: [main]
-    paths: ['client-hub/kilas_ai/audio_*.py', 'client-hub/kilas_ai/video_entitlement.py', 'client-hub/templates/kilas_translator/**', 'client-hub/static/kilas_audio.*', 'client-hub/static/kilas_personal_voice.js', 'client-hub/migrations/0083_*', 'client-hub/migrations/0084_*', 'client-hub/migrations/0090_*', 'client-hub/tests/test_kilas_audio*.py', 'client-hub/tests/test_kilas_personal_voice*.py', 'client-hub/app.py', 'client-hub/db.py', 'client-hub/requirements.txt', '.github/workflows/kilas-audio-qa.yml', 'client-hub/templates/kilas_ai/**', 'client-hub/static/kilas_chat.css', 'client-hub/static/kilas_home.css', 'client-hub/static/kilas_home.js', 'client-hub/static/kilas_feature_navigation.js', 'client-hub/tests/test_kilas_premium_ui_browser.py']
+    paths: ['client-hub/kilas_ai/audio_*.py', 'client-hub/kilas_ai/video_entitlement.py', 'client-hub/templates/kilas_translator/**', 'client-hub/static/kilas_audio.*', 'client-hub/static/kilas_personal_voice.js', 'client-hub/migrations/0083_*', 'client-hub/migrations/0084_*', 'client-hub/migrations/0090_*', 'client-hub/migrations/0091_*', 'client-hub/static/kilas_video_script.js', 'client-hub/static/kilas_voice_script.js', 'client-hub/static/kilas_script_assist.js', 'client-hub/tests/test_kilas_audio*.py', 'client-hub/tests/test_kilas_personal_voice*.py', 'client-hub/app.py', 'client-hub/db.py', 'client-hub/requirements.txt', '.github/workflows/kilas-audio-qa.yml', 'client-hub/templates/kilas_ai/**', 'client-hub/static/kilas_chat.css', 'client-hub/static/kilas_home.css', 'client-hub/static/kilas_home.js', 'client-hub/static/kilas_feature_navigation.js', 'client-hub/tests/test_kilas_premium_ui_browser.py']
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,6 +16,7 @@ jobs:
         with: {python-version: '3.12'}
       - run: pip install -r client-hub/requirements.txt
       - run: python client-hub/tests/test_kilas_audio.py
+      - run: python client-hub/tests/test_kilas_audio_video_script.py
       - run: python client-hub/tests/test_kilas_personal_voice.py
   browser:
     runs-on: ubuntu-latest
@@ -27,6 +28,7 @@ jobs:
       - run: pip install -r client-hub/requirements.txt playwright
       - run: python -m playwright install --with-deps chromium
       - run: python client-hub/tests/test_kilas_audio_browser.py
+      - run: python client-hub/tests/test_kilas_audio_video_script_browser.py
       - run: python client-hub/tests/test_kilas_personal_voice_browser.py
       - uses: actions/upload-artifact@v4
         if: always()

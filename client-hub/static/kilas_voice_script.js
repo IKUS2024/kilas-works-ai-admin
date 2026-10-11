@@ -27,5 +27,5 @@
     }catch(e){if(current===version){error.textContent=e instanceof SyntaxError||e instanceof TypeError?'Terjemahan belum berhasil. Naskah asli tetap aman.':e.message;error.hidden=false;status.hidden=true;}}
     finally{busy=false;button.disabled=false;state();}
   });
-  document.querySelector('#voiceover-panel form').addEventListener('submit',event=>{if(toggle.checked&&(result.hidden||busy||!edited.value.trim())){event.preventDefault();event.stopImmediatePropagation();error.textContent='Terjemahkan dan periksa naskah sebelum membuat suara.';error.hidden=false;}},true);
+  document.querySelector('#voiceover-panel form[data-audio-form]').addEventListener('submit',event=>{if(toggle.checked&&(result.hidden||busy||!edited.value.trim())){event.preventDefault();event.stopImmediatePropagation();error.textContent='Terjemahkan dan periksa naskah sebelum membuat suara.';error.hidden=false;}},true);
 })();

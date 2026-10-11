@@ -1,5 +1,6 @@
 """Authenticated Translator utility, private media and existing admin review."""
 import io
+import hashlib
 import math
 import re
 import secrets
@@ -12,6 +13,7 @@ from .billing_routes import admin_bp
 from . import audio_store as store, audio_provider as provider, audio_service as service, audio_media as media, audio_billing as billing
 from . import audio_personal_voice as personal
 from . import audio_voice_script as voice_script
+from . import audio_transcription_budget as video_budget, audio_transcription_provider as video_stt
 
 audio_bp=Blueprint('kilas_audio',__name__,url_prefix='/kilas-translator')
 
@@ -56,7 +58,7 @@ def home(ident=None,initial_brief=None,home_task=None):
     except ValueError:abort(400)
     rows=store.history(user,page)
     saved_voices=personal.saved_voices(user)
-    return render_template('kilas_translator/home.html',active_mode=active_mode,content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
+    return render_template('kilas_translator/home.html',active_mode=active_mode,video_script_ready=video_budget.ready(),content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
                            voices=provider.voices() if state['exempt'] or state['available'] else [],
                            personal_voice=bool(personal.get(user)),personal_preview=personal.has_preview(user),voice_operation_key=secrets.token_hex(16),
                            saved_voices=saved_voices,
@@ -172,6 +174,39 @@ def delete_saved_voice(ident):
     except provider.ProviderError:
         return {'error':'Suara belum berhasil dihapus. Suara tersimpan tetap tersedia. Coba lagi nanti.'},503
     return {'ready':True},200,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.route('/voice-script/video',methods=['POST','GET'])
+def video_script():
+    owner=session['user_id'];key=request.args.get('operation_key') if request.method=='GET' else request.form.get('operation_key')
+    headers={'Cache-Control':'private, no-store'}
+    try:
+        video_budget.key_valid(key)
+        if request.method=='GET':
+            row=video_budget.owned(owner,key)
+            if not row:abort(404)
+            return row,200,headers
+        if request.form.get('action')=='cancel':return video_budget.cancel(owner,key),200,headers
+        if request.form.get('consent')!='yes':raise video_budget.BudgetError('consent_required',400)
+        if not video_budget.ready():raise video_budget.BudgetError('budget_unavailable')
+        item=request.files.get('video')
+        if not item or not item.filename or item.filename.rsplit('.',1)[-1].lower()!='mp4':raise video_budget.BudgetError('invalid_video',400)
+        _,_,pcm=media.upload(item)
+        pcm,ms=video_stt.normalize(pcm)
+        row,capability=video_budget.claim(owner,key,hashlib.sha256(pcm).hexdigest(),ms)
+        if capability:
+            text=video_stt.transcribe(pcm,capability)
+            row=video_budget.owned(owner,key)
+            if text is not None and row['status']=='COMPLETED':row['text']=text
+        return row,200,headers
+    except video_budget.BudgetError as error:
+        messages={'budget_unavailable':'Unggah video ke naskah belum tersedia. Batas biaya transkripsi belum diaktifkan; kamu tetap bisa mengetik atau memakai Bantu AI.',
+                  'budget_limit':'Batas transkripsi tercapai. Naskah kamu tetap aman.',
+                  'consent_required':'Setujui pemrosesan ucapan dari video terlebih dahulu.',
+                  'script_too_long':'Hasil lebih dari 4.000 karakter. Video tidak dipotong; naskah semula tetap aman. Pilih video lebih pendek.',
+                  'invalid_video':'Pilih file MP4 yang valid.',
+                  'attempt_limit':'Batas percobaan hari ini tercapai. Naskah kamu tetap aman.'}
+        return {'error':messages.get(error.code,'Video belum dapat dijadikan naskah. Naskah semula tetap aman; tidak ada pengulangan otomatis.'),'code':error.code},error.status,headers
 
 
 @audio_bp.post('/voice-script/translate')

@@ -153,7 +153,7 @@ def main():
                     expect(page.get_by_role('button',name='Sedang memproses...')).to_be_disabled()
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                     route.continue_()
-                action=page.locator('#voiceover-panel form').get_attribute('action')
+                action=page.locator('#voiceover-panel form[data-audio-form]').get_attribute('action')
                 page.route('**'+action,generation_feedback)
                 page.get_by_role('button',name='Generate Voice Over').click();expect(page.locator('#audio-result audio')).to_be_visible(timeout=20000)
                 expect(page.locator('#generation-feedback')).to_have_attribute('data-state','success')

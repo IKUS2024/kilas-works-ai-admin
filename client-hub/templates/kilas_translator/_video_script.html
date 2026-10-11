@@ -1,0 +1,13 @@
+<details id="voice-video-script" data-ready="{{ 'true' if video_script_ready else 'false' }}" data-busy="false">
+<summary>Ambil naskah dari video (opsional)</summary>
+<p>Ucapan dari video menjadi teks dalam bahasa aslinya. Periksa dan edit naskah sebelum Generate Voice Over; tidak ada terjemahan atau suara yang dibuat otomatis.</p>
+{% if not video_script_ready %}<p role="status">Unggah video ke naskah belum tersedia. Batas biaya transkripsi belum diaktifkan; kamu tetap bisa mengetik atau memakai Bantu AI.</p>{% endif %}
+<form id="voice-video-extract-form" action="{{ url_for('kilas_audio.video_script') }}" method="post" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label for="voice-video-file">Video MP4</label><input type="file" id="voice-video-file" name="video" accept=".mp4,video/mp4" data-max-bytes="{{ max_mb*1024*1024 }}" data-max-file-mb="{{ max_mb }}" {{ 'disabled' if not video_script_ready }}>
+<p>MP4 maksimal {{ max_mb }} MB dan {{ max_seconds//60 }} menit. Naskah maksimal 4.000 karakter; hasil yang lebih panjang tidak dipotong.</p>
+<label class="voice-consent"><input type="checkbox" id="voice-video-consent" name="consent" value="yes" {{ 'disabled' if not video_script_ready }}><span>Saya memiliki izin untuk memproses ucapan ini melalui penyedia transkripsi. File hanya diproses sementara.</span></label>
+<div class="voice-preview-actions"><button type="submit" class="btn secondary" id="voice-video-extract" {{ 'disabled' if not video_script_ready }}>Ambil naskah</button><button type="button" class="btn secondary" id="voice-video-stop" hidden>Stop</button><button type="button" class="btn secondary" id="voice-video-apply" hidden>Gunakan hasil video</button><button type="button" class="btn secondary" id="voice-video-undo" hidden>Urungkan naskah video</button></div>
+<p id="voice-video-status" role="status"></p>
+</form>
+</details>

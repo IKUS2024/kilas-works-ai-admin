@@ -49,7 +49,7 @@ class ClientHubRequest(Request):
         # Werkzeug's default spools files larger than 500 KB to a temporary disk file.
         if self.endpoint in ('finance.bank_analyze', 'finance.receipt_analyze', 'finance.assistant_recognize', 'finance.assistant_document'):
             return io.BytesIO()
-        if self.endpoint in ('kilas_audio.inspect', 'kilas_audio.create'):
+        if self.endpoint in ('kilas_audio.inspect', 'kilas_audio.create', 'kilas_audio.video_script'):
             import tempfile
             return tempfile.TemporaryFile(mode='w+b')
         return super()._get_file_stream(total_content_length, content_type, filename, content_length)
@@ -282,6 +282,7 @@ def create_app():
         audio_schema.apply_release()  # Only additive 0083; prepaid audio release.
         audio_schema.apply_release('0084_kilas_personal_voice')  # Owner-only voice association; no audio retained.
         audio_schema.apply_release('0090_kilas_audio_script_edit')  # New VoiceOver originals only; existing rows remain NULL.
+        audio_schema.apply_release('0091_kilas_voice_script_transcription')  # Independent default-off STT accounting; never customer credits.
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)
@@ -338,7 +339,7 @@ def create_app():
     def _translator_upload_limit():
         # Translator advertises its own media cap; allow multipart overhead before CSRF.
         # Keep all other products' request limits unchanged.
-        if request.endpoint in ('kilas_audio.inspect', 'kilas_audio.create'):
+        if request.endpoint in ('kilas_audio.inspect', 'kilas_audio.create', 'kilas_audio.video_script'):
             from kilas_ai.audio_media import file_limit
             request.max_content_length = file_limit() + 1024 * 1024
         elif (request.endpoint or '').startswith('kilas_ai.transcription_'):

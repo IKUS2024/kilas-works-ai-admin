@@ -31,10 +31,11 @@
   async function checked(response){if(response.redirected)throw Error('Sesi berakhir. Masuk kembali untuk melanjutkan.');if(!response.ok){let body;try{body=await response.json();}catch(_){}throw Error(body?.error||'Naskah belum berhasil dibuat. Coba lagi.');}return response;}
   generate.addEventListener('click',async()=>{
     if(controller||dictating)return;
+    if(document.querySelector('#voice-video-script')?.dataset.busy==='true'){status.textContent='Selesaikan pengambilan naskah video terlebih dahulu.';return;}
     const content=(mode.value==='tidy'?script.value:prompt.value).trim(),before=script.value,startVersion=version;
     if(!content){status.textContent=mode.value==='tidy'?'Tulis naskah terlebih dahulu, atau pilih Buat naskah dari ide.':'Tulis atau dikte ide terlebih dahulu.';(mode.value==='tidy'?script:prompt).focus();return;}
     if(content.length>4000){status.textContent='Naskah atau ide maksimal 4.000 karakter. Teks tetap aman.';return;}
-    controller=new AbortController();generate.disabled=true;prompt.disabled=true;mode.disabled=true;mic.disabled=true;stop.hidden=false;status.textContent='Menulis naskah…';
+    controller=new AbortController();root.dataset.busy='true';generate.disabled=true;prompt.disabled=true;mode.disabled=true;mic.disabled=true;stop.hidden=false;status.textContent='Menulis naskah…';
     const csrf=document.querySelector('#voiceover-panel [name=csrf_token]').value;
     const headers={'Content-Type':'application/json','X-CSRF-Token':csrf};
     try {
@@ -47,7 +48,7 @@
       if(version!==startVersion||script.value!==before){status.textContent='Naskah sudah kamu edit. Hasil AI tidak menimpa edit tersebut; lihat percakapan atau coba lagi.';return;}
       apply(draft);undo={before,applied:draft,version};el('undo').hidden=false;status.textContent='Naskah masuk ke kolom dan siap diperiksa. Belum ada audio yang dibuat.';
     }catch(error){status.textContent=error.name==='AbortError'?'AI dihentikan. Naskah semula tetap aman; belum ada audio yang dibuat.':error instanceof TypeError?'Koneksi terputus. Periksa naskah atau coba lagi.':error.message;}
-    finally{controller=null;generate.disabled=false;prompt.disabled=false;mode.disabled=false;mic.disabled=!Recognition;stop.hidden=true;usable();}
+    finally{controller=null;root.dataset.busy='false';generate.disabled=false;prompt.disabled=false;mode.disabled=false;mic.disabled=!Recognition;stop.hidden=true;usable();}
   });
   script.addEventListener('input',changed);
   el('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(script.value);status.textContent='Naskah disalin.';}catch(_){status.textContent='Salin otomatis belum tersedia. Pilih teks naskah untuk menyalin.';script.focus();script.select();}});

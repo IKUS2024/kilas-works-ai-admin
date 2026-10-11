@@ -24,7 +24,7 @@ def main():
         values=original();return dict(values,options=values['options']+' -c search_path='+isolated)
     try:
         with patch.object(db,'_postgres_connect_kwargs',side_effect=options):
-            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_','0090_'))]):db.init_schema()
+            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_','0090_','0091_'))]):db.init_schema()
             before={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert schema.apply_release()==[schema.NAME];assert schema.apply_release()==[]
             after={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
@@ -42,9 +42,42 @@ def main():
             assert schema.apply_release('0090_kilas_audio_script_edit')==['0090_kilas_audio_script_edit']
             assert db.query_one('SELECT original_script FROM kilas_audio_jobs WHERE user_id=?',(legacy_user,))['original_script'] is None
             assert schema.apply_release('0090_kilas_audio_script_edit')==[]
+            before_stt={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
+            assert schema.apply_release('0091_kilas_voice_script_transcription')==['0091_kilas_voice_script_transcription']
+            assert schema.apply_release('0091_kilas_voice_script_transcription')==[]
+            after_stt={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
+            assert after_stt-before_stt=={'kilas_vo_stt_campaigns','kilas_vo_stt_operations'}
             with store.locked(0) as conn:
                 user=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
                 admin=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio-admin@example.test','hash','KILAS_ADMIN') RETURNING id",one=True)[0]
+            # Actual driver: finite atomic cross-owner reservation and consistent cancel/submit locks.
+            from kilas_ai import audio_transcription_budget as stt_budget
+            from datetime import datetime,timezone,timedelta
+            funded={'OPENAI_API_KEY':'synthetic-only','KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'true','KILAS_VO_STT_CAMPAIGN':'native-pg-test','KILAS_VO_STT_GLOBAL_BUDGET_MICRO_USD':'30000','KILAS_VO_STT_ACCOUNT_BUDGET_MICRO_USD':'30000','KILAS_VO_STT_EXPIRES_AT':(datetime.now(timezone.utc)+timedelta(hours=1)).isoformat(),'KILAS_VO_STT_PRICE_VERSION':stt_budget.PRICE_VERSION}
+            with store.locked(0) as conn:
+                another=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('stt-other@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
+            def reserve_stt(owner):
+                try:return stt_budget.claim(owner,'postgres-stt-operation-1234','a'*64,2000)[1]
+                except stt_budget.BudgetError:return None
+            with patch.dict(os.environ,funded):
+                with ThreadPoolExecutor(max_workers=2) as pool:claims=list(pool.map(reserve_stt,(user,another)))
+                assert sum(cap is not None for cap in claims)==1
+                cap=next(cap for cap in claims if cap is not None)
+                stt_budget.dispatch(cap,'a'*64,2000)
+                with patch.dict(os.environ,{'KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):assert stt_budget.finish(cap,True)
+                assert db.query_one('SELECT charge_micro FROM kilas_vo_stt_operations WHERE user_id=?',(cap.owner,))['charge_micro']==30000
+            funded.update(KILAS_VO_STT_CAMPAIGN='native-pg-cancel',KILAS_VO_STT_GLOBAL_BUDGET_MICRO_USD='90000',KILAS_VO_STT_ACCOUNT_BUDGET_MICRO_USD='60000')
+            with patch.dict(os.environ,funded):
+                def race(action):
+                    if action=='cancel':return stt_budget.cancel(another,'postgres-cancel-operation-1234')
+                    return stt_budget.claim(another,'postgres-cancel-operation-1234','b'*64,2000)
+                with ThreadPoolExecutor(max_workers=2) as pool:list(pool.map(race,('submit','cancel')))
+                assert stt_budget.owned(another,'postgres-cancel-operation-1234')['status']=='CANCELLED'
+                _,cap=stt_budget.claim(user,'postgres-overrun-operation-1234','c'*64,2000)
+                stt_budget.dispatch(cap,'c'*64,2000)
+                assert not stt_budget.finish(cap,True,{'type':'tokens','input_tokens':20000,'output_tokens':3000})
+                assert db.query_one('SELECT charge_micro FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(user,cap.key))['charge_micro']==40000
+                assert db.query_one('SELECT blocked FROM kilas_vo_stt_campaigns WHERE id=?',('native-pg-cancel',))['blocked']==1
             with patch.object(media,'voice_sample',return_value=b'synthetic-voice'),patch.object(media,'personal_preview',return_value=b'private-preview'),patch.object(provider,'clone_voice',return_value='privatePostgres123') as clone:
                 personal.create(user,'postgres-personal-key-1234',None)
                 personal.create(user,'postgres-personal-key-1234',None)
