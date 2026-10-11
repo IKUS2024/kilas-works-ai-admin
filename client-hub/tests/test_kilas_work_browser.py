@@ -38,7 +38,7 @@ def main():
                 page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto(origin+f'/kilas-ai/agent?conversation={conversation}',wait_until='networkidle')
                 assert page.locator('.ai-mode-tabs').count()==0
-                expect(page.get_by_role('heading',name='Mau ngapain hari ini?')).to_be_visible()
+                expect(page.get_by_role('heading',name='How can I Help you?')).to_be_visible()
                 page.locator('#agent-message').fill(fixture.REQUEST)
                 page.get_by_role('button',name='Kirim',exact=True).click()
                 expect(page.locator('[data-job-id]')).to_have_count(1)
@@ -84,7 +84,7 @@ def main():
                 if width<760:
                     page.get_by_role('button',name='Buka navigasi').click();page.keyboard.press('Escape')
                 click_new_chat(page,agent=True)
-                expect(page.get_by_role('heading',name='Mau ngapain hari ini?')).to_be_visible()
+                expect(page.get_by_role('heading',name='How can I Help you?')).to_be_visible()
                 assert fixture.fixture.store.get(owner,active)['status']=='PLANNING'
                 assert not errors,errors
                 fixture.fixture.store.control(owner,active,'stop')

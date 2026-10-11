@@ -1,0 +1,13 @@
+.kilas-live-translator{max-width:640px;margin:32px auto;padding:16px}
+#live-setup-form{display:grid;gap:16px}
+#live-setup-form label{display:grid;gap:8px}
+#live-setup-form label:has(input){display:block;line-height:1.6}
+#live-setup-form p{color:var(--muted);font-size:14px;line-height:1.6}
+#live-active{min-height:60vh;display:grid;place-content:center;justify-items:center;gap:48px}
+#live-active[hidden]{display:none}
+/* Temporary plain orb. Exact owner reference is unavailable, so no matching claim. */
+.kilas-live-orb{width:min(55vw,260px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3dd,#f3aa61 40%,#bf4b05 75%,#512207);box-shadow:0 0 42px #de76132b;animation:kilas-orb-breathe 3s ease-in-out infinite}
+.kilas-live-orb[data-state=processing]{animation-duration:1.5s}
+.kilas-live-orb[data-state=playing]{animation-duration:1s}
+@keyframes kilas-orb-breathe{50%{transform:scale(1.06);box-shadow:0 0 64px #de761350}}
+@media(prefers-reduced-motion:reduce){.kilas-live-orb{animation:none}}

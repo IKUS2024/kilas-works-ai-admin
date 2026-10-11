@@ -39,9 +39,10 @@ def chat_sidebar_context():
                 'conversations': agent_store.recent_conversations(session['user_id'])[:6] if automation_enabled() else [],
                 'automation_enabled': automation_enabled()}
     import security
+    from . import live_translator
     user = security.current_user()
     return {'chat_sidebar_enabled': request.blueprint != 'kilas_audio',
-            'kilas_revision_shell': True, 'kilas_profile_email': user.get('email','') if user else '',
+            'kilas_revision_shell': True, 'kilas_live_translator_available': live_translator.ready(), 'kilas_profile_email': user.get('email','') if user else '',
             'chat_sidebar_history': history}
 
 

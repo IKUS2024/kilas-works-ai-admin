@@ -24,7 +24,7 @@ def main():
         values=original();return dict(values,options=values['options']+' -c search_path='+isolated)
     try:
         with patch.object(db,'_postgres_connect_kwargs',side_effect=options):
-            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_','0090_','0091_'))]):db.init_schema()
+            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_','0090_','0091_','0092_'))]):db.init_schema()
             before={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert schema.apply_release()==[schema.NAME];assert schema.apply_release()==[]
             after={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
@@ -47,9 +47,23 @@ def main():
             assert schema.apply_release('0091_kilas_voice_script_transcription')==[]
             after_stt={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert after_stt-before_stt=={'kilas_vo_stt_campaigns','kilas_vo_stt_operations'}
+            assert schema.apply_release('0092_kilas_live_translator')==['0092_kilas_live_translator']
+            assert schema.apply_release('0092_kilas_live_translator')==[]
             with store.locked(0) as conn:
                 user=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
                 admin=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio-admin@example.test','hash','KILAS_ADMIN') RETURNING id",one=True)[0]
+            from kilas_ai import live_translator_store as sessions
+            live_id=sessions.create(user,'id','en','kilas-male')
+            def live_claim():
+                try:sessions.claim(user,live_id,'live-'+'1'*32);return True
+                except store.AudioError:return False
+            with ThreadPoolExecutor(max_workers=2) as executor:assert sorted(executor.map(lambda _:live_claim(),range(2)))==[False,True]
+            sessions.end(user,live_id)
+            assert sessions.result(user,live_id,'live-'+'1'*32)['status']=='CANCELLED'
+            try:sessions.check(user,live_id,'live-'+'1'*32);raise AssertionError('Ended session accepted')
+            except store.AudioError:pass
+            try:sessions.result(admin,live_id,'live-'+'1'*32);raise AssertionError('Foreign session accepted')
+            except store.AudioError:pass
             # Actual driver: finite atomic cross-owner reservation and consistent cancel/submit locks.
             from kilas_ai import audio_transcription_budget as stt_budget
             from datetime import datetime,timezone,timedelta

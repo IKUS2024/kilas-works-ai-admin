@@ -363,3 +363,55 @@ def audio_review(ident):
     try:billing.review(ident,session['user_id'],request.form.get('decision'),request.form.get('note'))
     except store.AudioError as error:return {'error':str(error)},error.status
     return redirect(url_for('kilas_ai_admin.payments'),code=303)
+
+
+@audio_bp.get('/live')
+def live_translator_home():
+    from . import live_translator as live
+    return render_template('kilas_translator/live.html',live_ready=live.ready(),voices=branded.public_choices(),languages=provider.LANGUAGES),200,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.post('/live/sessions')
+def live_translator_start():
+    from . import live_translator as live, live_translator_store as sessions
+    live.require_ready()
+    if request.form.get('consent')!='yes':raise store.AudioError('Setujui pemrosesan ucapan sebelum mulai.','consent_required',400)
+    a,b=request.form.get('language_a'),request.form.get('language_b');voice=request.form.get('voice')
+    if a not in provider.LANGUAGES or b not in provider.LANGUAGES or a==b:abort(400)
+    if not branded.resolve(voice):raise store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
+    store.require_balance(session['user_id'])
+    ident=sessions.create(session['user_id'],a,b,voice)
+    return {'session_id':ident},201,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.post('/live/sessions/<ident>/end')
+def live_translator_end(ident):
+    # End remains allowed when a rollout flag/campaign expires or is switched off.
+    from . import live_translator_store as sessions
+    sessions.end(session['user_id'],ident)
+    return {'status':'ENDED'},200,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.route('/live/sessions/<ident>/turns/<key>',methods=['GET','POST'])
+def live_translator_turn(ident,key):
+    from . import live_translator as live, live_translator_store as sessions
+    video_budget.key_valid(key)
+    if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
+    if request.method=='POST':
+        live.enqueue(session['user_id'],ident,key,request.files.get('recording'))
+        return {'status':'PROCESSING'},202,{'Cache-Control':'private, no-store'}
+    state=sessions.result(session['user_id'],ident,key)
+    if state['status']=='COMPLETED':
+        state={'status':'COMPLETED','audio_url':url_for('kilas_audio.live_translator_result',ident=ident,key=key)}
+    elif state['status']=='FAILED':
+        code=state.get('error_code');state={'status':'FAILED','recoverable':code=='no_speech','error':'Ucapan belum terbaca dalam pasangan bahasa ini. Bicara kembali.' if code=='no_speech' else 'Ucapan belum berhasil diproses. Sesi dihentikan; tidak ada pengulangan otomatis.'}
+    else:state={'status':state['status']}
+    return state,200,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.get('/live/sessions/<ident>/turns/<key>/audio')
+def live_translator_result(ident,key):
+    from . import live_translator_store as sessions
+    state=sessions.result(session['user_id'],ident,key)
+    if state['status']!='COMPLETED':abort(404)
+    return result(state['audio_job_id'])
