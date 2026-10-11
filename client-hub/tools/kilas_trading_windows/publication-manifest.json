@@ -4,6 +4,12 @@
   "destination": "client-hub/tools/kilas_trading_windows/",
   "files": [
     {
+      "path": "client-hub/tools/kilas_trading_windows/README.md",
+      "bytes": 3372,
+      "lines": 58,
+      "sha256": "9df6a50cbebb47f4c459428314fe1afedd0aec4cb7b073ea19cbf78fe2477865"
+    },
+    {
       "path": "client-hub/tools/kilas_trading_windows/ai_market_news_contract.py",
       "bytes": 13021,
       "lines": 195,
@@ -143,21 +149,15 @@
     },
     {
       "path": "client-hub/tools/kilas_trading_windows/offline-test-result.json",
-      "bytes": 324,
+      "bytes": 310,
       "lines": 14,
-      "sha256": "e4ebd5c20152a8b77f84a033cb1361f1949819a1368a7d85fcf6940fc51a6bdc"
-    },
-    {
-      "path": "client-hub/tools/kilas_trading_windows/README.md",
-      "bytes": 2865,
-      "lines": 50,
-      "sha256": "58211cb65e7ee3c85c358a2089aaf860677605b9812c2b5a69077a60205270c0"
+      "sha256": "a1a3ad4f91c4579547f788c79ab44a3f87474e6e01a8c359019e0e99e8258a2d"
     },
     {
       "path": "client-hub/tools/kilas_trading_windows/run_offline_tests.py",
-      "bytes": 939,
-      "lines": 17,
-      "sha256": "96872369763cf87f188da1f7623106366a30d76cfadfa2719597dc53545de7f6"
+      "bytes": 1782,
+      "lines": 39,
+      "sha256": "7a66c6780ad60134cfb9b62bab2fa595a7207f0be330a448f2891f69c2a3e655"
     },
     {
       "path": "client-hub/tools/kilas_trading_windows/terminal_process_guard.py",
@@ -221,9 +221,9 @@
     },
     {
       "path": "client-hub/tools/kilas_trading_windows/test_demo_control_v2.py",
-      "bytes": 14455,
+      "bytes": 14453,
       "lines": 221,
-      "sha256": "6d23704acc3e9359ce3d187c9b844be476131805c1c433743e663227e0ca74ad"
+      "sha256": "6367f28f03b2c7cf2ba9b5d8951e639b3d1da59060c568cc31e87e7fbd05d21f"
     },
     {
       "path": "client-hub/tools/kilas_trading_windows/test_demo_instrument_profiles.py",
@@ -262,6 +262,12 @@
       "sha256": "48f082561c7b4292be2f94bbdbf7f45927f7e0aa6af626d625e9ba48fb9cf5b0"
     },
     {
+      "path": "client-hub/tools/kilas_trading_windows/test_publication_package.py",
+      "bytes": 2894,
+      "lines": 58,
+      "sha256": "f5a7f5e2e7a8bc43625da9e50bb04c6febd5f9ee71cfcfcaaf0c545101aeea65"
+    },
+    {
       "path": "client-hub/tools/kilas_trading_windows/test_timestamp_guard.py",
       "bytes": 3560,
       "lines": 71,
@@ -274,7 +280,7 @@
       "sha256": "1dc990ea7c892c4c4d6e8e763b1aa1348896d557dc1423532add569ebabcb7f9"
     }
   ],
-  "scope": "All additions under one new isolated directory. Existing cloud files unchanged.",
+  "scope": "Isolated Windows source bundle plus scoped Trading CI coverage. Existing cloud application files unchanged.",
   "redaction": "Published DATA pin is a nonfunctional placeholder. Private local source unchanged.",
   "verification": {
     "packaged": {
@@ -302,5 +308,6 @@
       "seconds": 2.734
     },
     "cloud_flask_suite": "Not run locally: Flask/requests unavailable. No installation performed."
-  }
+  },
+  "verification_note": "Verification entries below are historical Windows worker evidence, not the current cloud review result. The 323 and 411 counts overlap. Current guarded results are emitted to stdout and recorded by CI."
 }

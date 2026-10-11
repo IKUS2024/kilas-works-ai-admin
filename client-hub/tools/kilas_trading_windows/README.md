@@ -33,9 +33,17 @@ Parity tests evaluate selected pure definitions from hash-verified pinned cloud
 source; they do not import the cloud app. Full cloud Flask regression belongs
 to the cloud environment and remains a separate check.
 
+The runner blocks external socket connections, UDP sends, subprocesses and
+native SDK imports for the entire discovery/run. Aggregate results go to stdout;
+the published historical `offline-test-result.json` is never rewritten. Its
+323 tests and the historical 411-test local suite overlap and are not additive.
+Manifest checks cover every shipped file, and cloud CI additionally compares the
+pinned contract sources with the current server before accepting the bundle.
+
 The retained source snapshot is test input under `cloud-contract-db035/`, not
-a replacement for cloud server modules. Publication adds only this directory;
-it changes no server flags, UI, Finance, unifiedHome or existing cloud source.
+a replacement for cloud server modules. Publication adds this directory and a
+scoped Trading CI gate; it changes no server flags, UI, Finance, unifiedHome or
+existing cloud application source.
 
 The historical local UNKNOWN entry audit remains intact. A separately audited
 exact-ticket close and later read-only flat checks do not automatically clear

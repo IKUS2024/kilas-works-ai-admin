@@ -2,11 +2,25 @@ name: Kilas Trading QA
 on:
   push:
     branches: [main, feature/kilas-trading-paper-20261006]
-    paths: ['client-hub/kilas_trading/**', 'client-hub/templates/kilas_trading.html', 'client-hub/templates/kilas_services.html', 'client-hub/static/kilas_trading*', 'client-hub/migrations/0087_*', 'client-hub/migrations/kilas_trading_bridge_v1_*', 'scripts/trading_demo_bridge/**', 'client-hub/tests/test_kilas_trading*.py', 'client-hub/tests/fixtures/trading_clock_policy/**', 'client-hub/tests/fixtures/trading_preflight_synthetic.json', 'scripts/trading_diagnostic_preflight.py', 'client-hub/app.py', 'client-hub/templates/base.html', '.github/workflows/kilas-trading-qa.yml']
+    paths: &trading_paths ['client-hub/tools/kilas_trading_windows/**', 'client-hub/kilas_trading/**', 'client-hub/templates/kilas_trading.html', 'client-hub/templates/kilas_services.html', 'client-hub/static/kilas_trading*', 'client-hub/migrations/0087_*', 'client-hub/migrations/kilas_trading_bridge_v1_*', 'scripts/trading_demo_bridge/**', 'client-hub/tests/test_kilas_trading*.py', 'client-hub/tests/fixtures/trading_clock_policy/**', 'client-hub/tests/fixtures/trading_preflight_synthetic.json', 'scripts/trading_diagnostic_preflight.py', 'client-hub/app.py', 'client-hub/templates/base.html', '.github/workflows/kilas-trading-qa.yml']
+  pull_request:
+    branches: [main]
+    paths: *trading_paths
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
+  windows-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Guarded fake Windows bundle and current cloud contract parity
+        run: python -B client-hub/tools/kilas_trading_windows/run_offline_tests.py
+      - name: Verification preserves published sources and historical evidence
+        run: git diff --exit-code
   focused:
     runs-on: ubuntu-latest
     timeout-minutes: 10
