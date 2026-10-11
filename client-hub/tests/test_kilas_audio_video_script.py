@@ -89,7 +89,7 @@ class VideoScriptTests(unittest.TestCase):
             self.assertFalse(budget.ready());self.assertFalse(old_stt.budget_ready())
             response=self.post();self.assertEqual(response.status_code,503);self.assertEqual(response.json['code'],'budget_unavailable');paid.assert_not_called();decode.assert_not_called()
             html=self.client.get('/kilas-translator?mode=voiceover').text
-            self.assertIn('data-ready="false"',html);self.assertIn('Batas biaya transkripsi belum diaktifkan',html)
+            self.assertIn('data-ready="false"',html);self.assertIn('Transkripsi video belum aktif.',html)
             title=html.split('<title>',1)[1].split('</title>',1)[0];self.assertNotIn('<script',title)
             self.assertEqual(html.count('id="audio-script"'),1)
 

@@ -27,7 +27,7 @@ def main():
                     page=context.new_page();errors=[];jobs=[];page.on('pageerror',lambda e:errors.append(str(e)));page.on('request',lambda r:jobs.append(r.url) if r.method=='POST' and r.url.endswith('/kilas-translator/jobs') else None)
                     page.goto(origin+'/kilas-translator?mode=voiceover',wait_until='networkidle')
                     expect(page.locator('#audio-script')).to_have_count(1);expect(page.locator('#translate-panel')).to_have_count(0)
-                    page.locator('#voice-video-script summary').click();page.locator('#voice-video-extract').click();expect(page.locator('#voice-video-status')).to_contain_text('Pilih video')
+                    page.locator('#voice-video-script>summary').click();page.locator('#voice-video-extract').click();expect(page.locator('#voice-video-status')).to_contain_text('Pilih video')
                     page.locator('#voice-video-file').set_input_files({'name':'spoken.mp4','mimeType':'video/mp4','buffer':case.video});page.locator('#voice-video-consent').check()
                     page.fill('#audio-script','Original draft.')
                     page.evaluate("window.qaBeforeFetch=fetch;window.fetch=(url,options)=>String(url).endsWith('/voice-script/translate')?new Promise(resolve=>window.qaTranslateResolve=resolve):qaBeforeFetch(url,options)")
@@ -73,9 +73,9 @@ def main():
                     page.evaluate('document.activeElement?.blur()');page.screenshot(path=str(output/f'video-script-{width}.png'),full_page=True)
                     if width==390:
                         with patch.dict(os.environ,{'KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):
-                            page.goto(origin+'/kilas-translator?mode=voiceover',wait_until='networkidle');page.locator('#voice-video-script summary').click()
+                            page.goto(origin+'/kilas-translator?mode=voiceover',wait_until='networkidle');page.locator('#voice-video-script>summary').click()
                             expect(page.locator('#voice-video-script')).to_have_attribute('data-ready','false');expect(page.locator('#voice-video-extract')).to_be_disabled()
-                            expect(page.get_by_text('Unggah video ke naskah belum tersedia.',exact=False)).to_be_visible();expect(page.locator('#audio-script')).to_be_editable();expect(page.locator('#voice-script-assist summary')).to_be_visible()
+                            expect(page.get_by_text('Transkripsi video belum aktif.',exact=False)).to_be_visible();expect(page.locator('#audio-script')).to_be_editable();expect(page.locator('#voice-script-assist summary')).to_be_visible()
                             page.screenshot(path=str(output/'video-script-default-off-390.png'),full_page=True)
                     context.close()
                 case.doCleanups();print('PASS VO video-script browser',width,flush=True)

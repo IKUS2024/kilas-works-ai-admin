@@ -1,9 +1,10 @@
 <details class="voice-script-assist" id="voice-script-assist">
 <summary>Bantu AI</summary>
+<p class="voice-assist-usage">Bantu AI memakai kuota chat.</p>
 <label for="voice-assist-mode">Bantuan naskah</label><select id="voice-assist-mode"><option value="tidy">Rapikan naskah</option><option value="generate">Buat naskah dari ide</option></select>
 <div id="voice-assist-idea" hidden><label for="voice-assist-prompt">Ide atau arahan</label><input type="text" id="voice-assist-prompt" maxlength="4000" placeholder="Contoh: promosi kopi lokal untuk video 30 detik"></div>
 <div class="voice-assist-actions"><button type="button" class="btn secondary" id="voice-assist-mic" aria-label="Dikte arahan naskah" title="Dikte arahan naskah"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg></button><button type="button" class="btn secondary" id="voice-assist-mic-stop" hidden>Stop dikte</button><button type="button" class="btn secondary" id="voice-assist-generate">Bantu naskah</button><button type="button" class="btn secondary" id="voice-assist-stop" hidden>Stop AI</button></div>
 <p id="voice-assist-mic-note">Dikte memakai pengenalan suara browser, yang dapat mengirim suara ke layanan browser. Tekan mic untuk mulai; teks tidak dikirim ke AI otomatis.</p>
 <div class="voice-assist-actions"><button type="button" class="btn secondary" id="voice-assist-undo" hidden>Undo bantuan AI</button><a id="voice-assist-history" href="#" hidden>Lihat percakapan</a></div>
 </details>
-<p id="voice-assist-status" role="status" aria-live="polite">Hasil AI masuk ke kolom Naskah. Pemakaian chat berlaku; audio dibuat hanya saat Generate Voice Over ditekan.</p>
+<p id="voice-assist-status" role="status" aria-live="polite"></p>

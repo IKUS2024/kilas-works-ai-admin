@@ -48,6 +48,36 @@ class AudioTests(unittest.TestCase):
     def credit(self,seconds=60):
         f.db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,?)',(self.user,seconds))
 
+    def test_compact_script_copy_keeps_disclosures_and_accessible_controls(self):
+        html=self.client.get('/kilas-translator?mode=voiceover').text
+        self.assertNotIn('Naskah asli Voice Over baru disimpan bersama',html)
+        self.assertNotIn('Hasil AI masuk ke kolom Naskah. Pemakaian chat berlaku',html)
+        self.assertIn('class="voice-script-info"',html)
+        self.assertIn('Naskah Voice Over baru disimpan di riwayat, termasuk saat proses gagal, untuk diedit kembali.',html)
+        self.assertIn('Bantu AI memakai kuota chat.',html)
+        self.assertIn('id="voice-assist-status" role="status" aria-live="polite"></p>',html)
+        for ident in ('audio-script','voice-language-status','voice-assist-copy','voice-assist-generate','voice-translate-toggle','voice-estimate','voice-generate'):
+            self.assertEqual(html.count('id="'+ident+'"'),1)
+        self.assertIn('aria-describedby="voice-language-status voice-estimate"',html)
+        self.assertIn('Saldo akhir mengikuti durasi MP3 aktual.',html)
+
+    def test_compact_video_copy_keeps_privacy_and_disabled_consent(self):
+        with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false','KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):
+            html=self.client.get('/kilas-translator?mode=voiceover').text
+        self.assertNotIn('Buat voice over dari naskah dengan suara pilihanmu.',html)
+        self.assertNotIn('Voice over dengan suara kamu.',html)
+        self.assertIn('<legend>Pilih suara</legend>',html)
+        self.assertIn('id="open-recorder"',html)
+        self.assertIn('Saya punya izin dan menyetujui pemrosesan audio video ini sesuai Detail privasi.',html)
+        self.assertIn('Transkripsi video belum aktif.',html)
+        self.assertIn('MP4 · maks. 250 MB · 10 menit',html)
+        self.assertIn('<summary>Detail privasi</summary>',html)
+        self.assertIn('ElevenLabs memakai logging bawaan dan dapat menyimpan audio serta transkrip.',html)
+        self.assertIn('File sementara di Kilas dihapus setelah proses',html)
+        self.assertIn('id="voice-video-consent" name="consent" value="yes" aria-describedby="voice-video-privacy-terms" disabled',html)
+        self.assertIn('data-ready="false"',html)
+        self.assertIn('hasil yang lebih panjang tidak dipotong',html)
+
     def create(self,mode='voiceover',key='audio-key-1234567890',**data):
         body={'csrf_token':'audio-csrf','operation_key':key,'mode':mode,'language':'en','voice':'actualVoice123','script':'Hello. This is a safe synthetic audio test.',**data}
         with patch.object(provider,'voices',return_value=self.voices),patch.object(provider,'speech',return_value=(self.audio,'request-1')) as speech,patch.object(provider,'dub',return_value='dubbing123') as dub:

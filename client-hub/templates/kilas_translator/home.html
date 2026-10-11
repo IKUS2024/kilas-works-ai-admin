@@ -5,9 +5,9 @@
 {% if home_task %}{% include 'kilas_ai/_home_handoff.html' %}{% endif %}
 {% include 'kilas_content/_handoff.html' %}
 {% with selected_feature=active_mode %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='voice-inline-20261011') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='voice-copy-review-1') }}">
 <section class="audio-studio" id="audio-studio" data-max-seconds="{{ max_seconds }}" data-active-mode="{{ active_mode }}">
-<header class="audio-heading"><div><h1>{{ 'Kilas Translator' if upload_translation_visible else 'Voice Over' }}</h1><p>{{ 'Terjemahkan suara atau buat voice over tanpa ribet.' if upload_translation_visible else 'Buat voice over dari naskah dengan suara pilihanmu.' }}</p></div><div class="audio-balance">{% include 'kilas_translator/_balance.html' %}</div></header>
+<header class="audio-heading"><div><h1>{{ 'Kilas Translator' if upload_translation_visible else 'Voice Over' }}</h1>{% if upload_translation_visible %}<p>Terjemahkan suara atau buat voice over tanpa ribet.</p>{% endif %}</div><div class="audio-balance">{% include 'kilas_translator/_balance.html' %}</div></header>
 <div class="audio-workbench"><main class="audio-primary">
 {% if not balance.exempt and not balance.available %}<section class="audio-notice"><h2>Saldo Audio belum tersedia</h2><p>{{ 'Beli saldo untuk menggunakan Translate atau Voice Over.' if upload_translation_visible else 'Beli saldo untuk membuat Voice Over.' }}</p><a class="btn" href="{{ url_for('kilas_ai.usage_page') }}#audio-settings-title">Beli Saldo</a></section>{% endif %}
 {% if not provider_ready %}<p class="audio-notice" role="status">Layanan audio sedang belum tersedia. Saldo kamu tetap aman.</p>{% endif %}
@@ -24,7 +24,6 @@
 </form></section>{% endif %}
 <section id="voiceover-panel" role="tabpanel" aria-labelledby="voiceover-tab" {{ 'hidden' if active_mode!='voiceover' }}>
 {% include 'kilas_translator/_video_script.html' %}
-<h2>Voice over dengan suara kamu.</h2><p>Rekam sekali, lalu gunakan suara yang sama untuk naskah dalam berbagai bahasa.</p>
 <form action="{{ url_for('kilas_audio.create') }}" method="post" data-audio-form>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}-v"><input type="hidden" name="mode" value="voiceover">
 <fieldset class="audio-voices personal-choices"><legend>Pilih suara</legend>
@@ -60,14 +59,14 @@
 </div></section>
 <div id="kilas-voice-options" hidden><label for="kilas-voice-choice">Suara Kilas</label><select id="kilas-voice-choice">{% for voice in voices %}<option value="kilas-{{ loop.index0 }}">{{ voice.name }} ? {{ voice.style }}</option>{% else %}<option value="">Suara belum tersedia</option>{% endfor %}</select></div>
 {% from 'kilas_ai/_chat_icons.html' import chat_icon %}
-<div class="voice-script-label"><label for="audio-script">Naskah</label><button type="button" class="btn secondary" id="voice-assist-copy" aria-label="Salin naskah" title="Salin naskah">{{ chat_icon('copy') }}</button></div><textarea id="audio-script" name="script" maxlength="4000" rows="7" required placeholder="Tulis apa yang ingin diucapkan..." aria-describedby="voice-language-status voice-estimate">{{ initial_brief if home_task=='voiceover' and initial_brief is not none else content_draft.script if content_draft and not job else '' }}</textarea>
-<p class="audio-script-retention">Naskah asli Voice Over baru disimpan bersama riwayat pekerjaan, termasuk proses yang gagal, agar bisa kamu edit kembali.</p>
+<div class="voice-script-workspace">
+<div class="voice-script-label"><label for="audio-script">Naskah</label><div class="voice-script-tools"><details class="voice-script-info"><summary aria-label="Info naskah" title="Info naskah">Info</summary><div><p class="audio-script-retention">Naskah Voice Over baru disimpan di riwayat, termasuk saat proses gagal, untuk diedit kembali.</p><p id="voice-language-status" role="status">Bahasa mengikuti naskah.</p></div></details><button type="button" class="btn secondary" id="voice-assist-copy" aria-label="Salin naskah" title="Salin naskah">{{ chat_icon('copy') }}</button></div></div><textarea id="audio-script" name="script" maxlength="4000" rows="7" required placeholder="Tulis apa yang ingin diucapkan..." aria-describedby="voice-language-status voice-estimate">{{ initial_brief if home_task=='voiceover' and initial_brief is not none else content_draft.script if content_draft and not job else '' }}</textarea>
 {% include 'kilas_translator/_script_assist.html' %}
-<p id="voice-language-status" role="status">Bahasa mengikuti naskah.</p>
 <input type="hidden" id="voice-language" name="language" value="auto"><input type="hidden" id="voice-translation-source" name="translation_source" value="auto">
 <label class="voice-translation-toggle"><input type="checkbox" id="voice-translate-toggle" name="translate_script" value="yes">Terjemahkan naskah</label>
 <div id="voice-translation-options" hidden><label for="voice-translation-target">Terjemahkan ke</label><select id="voice-translation-target">{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }}>{{ label }}</option>{% endfor %}</select><button type="button" class="btn secondary" id="voice-translate-preview">Terjemahkan Naskah</button><p id="voice-translation-status" role="status" hidden></p><p id="voice-translation-error" role="alert" hidden></p><div id="voice-translated-result" hidden><label for="voice-translated-script">Hasil terjemahan</label><textarea id="voice-translated-script" name="translated_script" maxlength="4000" rows="5"></textarea><p>Periksa atau edit terjemahan ini sebelum membuat suara. Naskah asli tetap disimpan di atas.</p></div></div>
 <p id="voice-estimate">Estimasi dihitung dari naskah. Saldo akhir mengikuti durasi MP3 aktual.</p>
+</div>
 <button id="voice-generate" type="submit" class="btn" data-enabled="{{ 'true' if provider_ready and (balance.exempt or balance.available) else 'false' }}" {{ 'disabled' if not personal_voice or not provider_ready or (not balance.exempt and not balance.available) }}>Generate Voice Over</button>
 </form></section>
 <p id="audio-progress" role="status" aria-live="polite" hidden></p><p id="audio-error" role="alert" hidden></p><a id="audio-error-purchase" href="{{ url_for('kilas_ai.usage_page') }}#audio-settings-title" hidden>Tambah Saldo</a>
