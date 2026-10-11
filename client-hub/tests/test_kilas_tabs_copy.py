@@ -39,7 +39,9 @@ class TabsCopyTests(unittest.TestCase):
             for ident in ids:self.assertIn('id="'+ident+'"',responses[key].text)
         self.assertIn('Jawaban AI dapat keliru.',responses['home'].text)
         self.assertIn('Video akhir dibuat di tool pilihanmu.',responses['video_new'].text)
-        self.assertIn('ElevenLabs memakai logging bawaan',responses['voiceover'].text)
+        self.assertNotIn('ElevenLabs memakai logging bawaan',responses['voiceover'].text)
+        self.assertIn('href="/privacy#audio-processing"',responses['voiceover'].text)
+        self.assertIn('ElevenLabs memakai logging bawaan',self.client.get('/privacy').text)
         self.assertIn('Pemrosesan provider belum aktif.',responses['live_assist'].text)
         self.assertIn('Hubungan versi naskah tidak memverifikasi kecocokan isi audio.',responses['project'].text)
 

@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from flask import Flask, abort, current_app, request, session
+from flask import Flask, abort, current_app, request, session, render_template
 from jinja2 import ChoiceLoader, DictLoader
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -82,6 +82,7 @@ def environment(tmp_path, monkeypatch):
     app.before_request(scope['_csrf_protect'])
     app.add_url_rule('/products/start', endpoint='products.product_start', view_func=lambda:'Home')
     app.add_url_rule('/login', endpoint='auth.login_page', view_func=lambda:'Login')
+    app.add_url_rule('/privacy', endpoint='privacy_policy', view_func=lambda:render_template('privacy_policy.html'))
     app.register_blueprint(ai_bp)
     app.register_blueprint(audio_routes.audio_bp)
     client = app.test_client()

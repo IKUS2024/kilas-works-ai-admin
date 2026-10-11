@@ -40,7 +40,8 @@ def test_real_flag_independent_from_demo_and_no_mock_reads(real, monkeypatch):
     monkeypatch.setattr(db, 'query_one', guard(original_one))
     monkeypatch.setattr(db, 'query_all', guard(original_all))
     body = client.get('/kilas-ai/agent?conversation=1').data
-    assert b'data-chat-projects' in body and b'id="agent-chat-form"' in body
+    assert b'data-chat-projects' not in body and b'id="agent-chat-form"' in body
+    assert b'kilas_chat_projects.mjs' not in body
     assert b'data-chat-content' not in body and b'listening-demo' not in body and b'Simulasikan' not in body
     assert client.post('/kilas-ai/agent/conversations/1/content-demo/project', data={'csrf_token': 'synthetic-csrf'}).status_code == 404
     monkeypatch.setenv('KILAS_CONTENT_PROJECTS_ENABLED', 'false')
@@ -117,8 +118,8 @@ def test_get_reload_old_version_and_handoff_never_generate(real):
     url = '/kilas-ai/agent?conversation=1&chat_script_version=1'
     for _ in range(3):
         body = client.get(url).get_data(as_text=True)
-        assert 'Naskah yang sudah diperiksa.' in body and '>Versi terbaru</textarea>' not in body
-        assert f'content_project={ident}&amp;script_version=1' in body
+        assert 'data-chat-projects' not in body and 'kilas_chat_projects.mjs' not in body
+        assert client.get(f'/kilas-ai/agent/conversations/1/content-project/{ident}/scripts/1.txt').text == 'Naskah yang sudah diperiksa.'
     translator = client.get(f'/kilas-translator?content_project={ident}&script_version=1&content_mode=voiceover').get_data(as_text=True)
     assert 'Naskah yang sudah diperiksa.' in translator and '>Versi terbaru</textarea>' not in translator
     assert projects.get(1, ident)['script_version'] == 2
@@ -141,7 +142,7 @@ def test_download_version_is_owner_and_conversation_scoped(real):
     assert response.headers['Cache-Control'] == 'private, no-store'
     assert 'attachment;' in response.headers['Content-Disposition']
     assert client.get(url.replace('/1/content-project/', '/3/content-project/')).status_code == 404
-    body = client.get('/kilas-ai/agent?conversation=1').get_data(as_text=True)
+    body = client.get(f'/kilas-ai/content-projects/{ident}').get_data(as_text=True)
     assert '<script>unsafe text</script>' not in body and '&lt;script&gt;unsafe text&lt;/script&gt;' in body
     with client.session_transaction() as sess:
         sess.update(user_id=2, role='CLIENT_OWNER')
@@ -168,6 +169,8 @@ def test_browser_real_project_with_demo_off_desktop_mobile(real):
     from werkzeug.serving import make_server
     from playwright.sync_api import sync_playwright, expect
     app, client = real
+    ident = create(client)
+    assert save(client, ident).status_code == 303
     output = Path(os.environ['KILAS_REAL_PROJECT_BROWSER_QA_DIR']); output.mkdir(parents=True, exist_ok=True)
     server = make_server('127.0.0.1', 0, app); worker = Thread(target=server.serve_forever, daemon=True); worker.start()
     origin = f'http://127.0.0.1:{server.server_port}'
@@ -179,44 +182,28 @@ def test_browser_real_project_with_demo_off_desktop_mobile(real):
             context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(origin + '/') else route.abort())
             context.add_cookies([{'name': 'session', 'value': client.get_cookie('session').value, 'url': origin}])
             page = context.new_page(); page.goto(origin + '/kilas-ai/agent?conversation=1')
-            expect(page.locator('[data-chat-content],#listening-demo')).to_have_count(0)
+            expect(page.locator('[data-chat-projects],[data-chat-content],#listening-demo')).to_have_count(0)
+            expect(page.locator('script[src*="kilas_chat_projects"]')).to_have_count(0)
             page.locator('#agent-message').fill('Pesan biasa tetap di composer.')
-            page.locator('.chat-project-workspace > summary').click()
-            page.get_by_label('Nama proyek baru', exact=True).fill('Proyek dari percakapan')
-            page.get_by_label('Brief proyek baru', exact=True).fill('Brief yang saya tulis.')
-            calls = []; page.on('request', lambda req: calls.append(req.url) if '/content-project/choose' in req.url else None)
-            page.get_by_role('button', name='Tautkan proyek ke percakapan', exact=True).evaluate("button=>{const form=button.closest('form');form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));}")
-            expect(page.locator('.chat-project-workspace > summary')).to_contain_text('Proyek dari percakapan')
-            assert len(calls) == 1
             expect(page.locator('#agent-message')).to_have_value('Pesan biasa tetap di composer.')
-            page.locator('.chat-project-script > summary').click()
-            page.get_by_label('Naskah proyek', exact=True).fill('Versi satu yang sudah saya periksa.')
-            page.get_by_label('Saya sudah memeriksa naskah ini.', exact=True).check()
-            page.get_by_role('button', name='Simpan sebagai versi baru', exact=True).click()
-            expect(page.get_by_role('link', name='Buka draft VoiceOver · v1', exact=True)).to_be_attached()
-            expect(page.locator('#agent-message')).to_have_value('Pesan biasa tetap di composer.')
-            page.locator('.chat-project-script > summary').click()
-            page.get_by_label('Naskah proyek', exact=True).fill('Versi dua yang sudah saya periksa.')
-            page.get_by_label('Saya sudah memeriksa naskah ini.', exact=True).check()
-            page.get_by_role('button', name='Simpan sebagai versi baru', exact=True).click()
-            expect(page.get_by_role('link', name='Buka draft VoiceOver · v2', exact=True)).to_be_attached()
+            page.locator('#agent-message').fill('')
+            page.goto(origin + f'/kilas-ai/content-projects/{ident}')
+            expect(page.locator('#content-script')).to_have_value('Naskah yang sudah diperiksa.')
+            page.locator('#content-script').fill('Versi dua yang sudah saya periksa.')
+            page.get_by_role('button', name='Simpan versi naskah', exact=True).click()
+            expect(page.locator('#content-script')).to_have_value('Versi dua yang sudah saya periksa.')
+            assert projects.script(1, ident, 1)['content'] == 'Naskah yang sudah diperiksa.'
+            assert projects.script(1, ident, 2)['content'] == 'Versi dua yang sudah saya periksa.'
             page.reload()
-            page.get_by_label('Versi naskah yang dibuka', exact=True).select_option('1')
-            page.get_by_role('button', name='Buka versi naskah', exact=True).click()
-            expect(page.get_by_role('link', name='Buka draft VoiceOver · v1', exact=True)).to_be_attached()
-            with page.expect_download() as info:
-                page.get_by_role('link', name='Unduh naskah v1 · TXT', exact=True).click()
-            assert Path(info.value.path()).read_text() == 'Versi satu yang sudah saya periksa.'
-            page.get_by_role('link', name='Buka draft VoiceOver · v1', exact=True).click()
-            expect(page.locator('#audio-script')).to_have_value('Versi satu yang sudah saya periksa.')
-            page.go_back(); page.locator('.chat-project-script > summary').click()
+            expect(page.locator('#content-script')).to_have_value('Versi dua yang sudah saya periksa.')
+            page.get_by_role('link', name='Buka draft VoiceOver', exact=True).click()
+            expect(page.locator('#audio-script')).to_have_value('Versi dua yang sudah saya periksa.')
+            page.go_back(); expect(page.locator('#content-script')).to_have_value('Versi dua yang sudah saya periksa.')
             for name, width in (('desktop', 1440), ('mobile', 390)):
                 page.set_viewport_size({'width': width, 'height': 1000})
                 assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
-                page.locator('[data-chat-projects]').evaluate('root=>{root.scrollTop=root.querySelector(".chat-project-script").offsetTop-root.offsetTop;}')
                 page.screenshot(path=str(output / (name + '.png')), full_page=True)
             assert page.evaluate('window.realCalls') == 0
-            assert page.locator('#agent-chat-form').count() == 1
             browser.close()
     finally:
         server.shutdown(); worker.join(timeout=5)
