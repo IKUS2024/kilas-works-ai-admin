@@ -40,7 +40,7 @@ def main():
                     expect(page.locator('#audio-packs')).to_have_count(0)
                     expect(page.get_by_role('heading',name='Saldo untuk dua cara berkarya.')).to_have_count(0)
                     expect(page.locator('.audio-balance a')).to_have_attribute('href','/kilas-ai/usage#audio-settings-title')
-                page.goto(origin+'/products/start',wait_until='networkidle');page.locator('[data-home-task=translate]').click();page.locator('#ai-send').click();expect(page.get_by_role('heading',name='Kilas Translator',exact=True)).to_be_visible();check('translate')
+                page.goto(origin+'/products/start',wait_until='networkidle');page.locator('.home-tool-selector summary').click();page.locator('[data-home-task=translate]').click();page.locator('#ai-send').click();expect(page.get_by_role('heading',name='Kilas Translator',exact=True)).to_be_visible();check('translate')
                 clean_workbench()
                 # Exercise the actual global file validator and server multipart cap together.
                 raw=wav(3)
