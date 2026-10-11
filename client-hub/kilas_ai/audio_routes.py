@@ -49,6 +49,8 @@ def home(ident=None,initial_brief=None,home_task=None):
     user=session['user_id'];job=owned(ident) if ident else None
     mode_hint=request.args.get('mode')
     active_mode=mode_hint if mode_hint in ('translate','voiceover') else home_task if home_task in ('translate','voiceover') else job['mode'] if job else content_draft['mode'] if content_draft and content_draft['mode'] in ('translate','voiceover') else 'translate'
+    from .audio_presentation import upload_translation_visible
+    if not upload_translation_visible():active_mode='voiceover'
     state=store.balance(user)
     try:page=max(1,min(10000,int(request.args.get('page',1))))
     except ValueError:abort(400)

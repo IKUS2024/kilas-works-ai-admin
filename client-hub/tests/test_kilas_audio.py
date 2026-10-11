@@ -41,7 +41,7 @@ class AudioTests(unittest.TestCase):
         self.client=f.app.app.test_client()
         with self.client.session_transaction() as s:s.update(user_id=self.user,role='CLIENT_OWNER',_csrf_token='audio-csrf')
         self.voices=[{'id':'actualVoice123','name':'QA Calm','style':'Female · Calm'}]
-        self.env=patch.dict(os.environ,{'ELEVENLABS_API_KEY':'synthetic-only'});self.env.start();self.addCleanup(self.env.stop)
+        self.env=patch.dict(os.environ,{'ELEVENLABS_API_KEY':'synthetic-only','KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'true'});self.env.start();self.addCleanup(self.env.stop)
         self.transport=patch.object(provider.requests,'request',side_effect=provider.requests.ConnectionError('offline provider mock'))
         self.transport.start();self.addCleanup(self.transport.stop)
 
@@ -53,6 +53,38 @@ class AudioTests(unittest.TestCase):
         with patch.object(provider,'voices',return_value=self.voices),patch.object(provider,'speech',return_value=(self.audio,'request-1')) as speech,patch.object(provider,'dub',return_value='dubbing123') as dub:
             r=self.client.post('/kilas-translator/jobs',data=body,content_type='multipart/form-data')
         return r,speech,dub
+
+    def test_hidden_upload_offering_preserves_voice_script_and_old_results(self):
+        self.credit(300)
+        with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false'}):
+            response,_,_=self.create('translate',file=(io.BytesIO(wav()),'qa.wav','audio/wav'))
+            ident=response.json['id']
+            with patch.object(provider,'dub_status',return_value={'status':'dubbed','source_language':'id'}),patch.object(provider,'dub_result',return_value=self.audio):service.refresh(self.user,ident)
+            for path in ('/kilas-translator','/kilas-translator?mode=translate',f'/kilas-translator/jobs/{ident}'):
+                html=self.client.get(path).text
+                self.assertIn('data-active-mode="voiceover"',html)
+                for item in ('id="translate-tab"','id="translate-panel"','id="audio-file"','data-kilas-feature="translate"','Translate another'):self.assertNotIn(item,html)
+                for item in ('id="audio-script"','id="voice-translate-toggle"','id="voice-assist-generate"','data-kilas-feature="voiceover"'):self.assertIn(item,html)
+                self.assertIn('id="voiceover-tab" role="tab" aria-selected="true"',html)
+                self.assertIn('id="voiceover-panel" role="tabpanel" aria-labelledby="voiceover-tab" >',html)
+            self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/result').status_code,200)
+            other=f.app.app.test_client()
+            with other.session_transaction() as session:session.update(user_id=self.other,role='CLIENT_OWNER')
+            self.assertEqual(other.get(f'/kilas-translator/jobs/{ident}').status_code,404)
+            self.assertEqual(other.get(f'/kilas-translator/jobs/{ident}/result').status_code,404)
+            self.assertEqual(self.client.get('/kilas-translator/jobs/99999999').status_code,404)
+        self.assertIn('id="audio-file"',self.client.get('/kilas-translator').text)
+
+    def test_upload_offering_default_hidden_and_explicit_rollback(self):
+        from kilas_ai.audio_presentation import upload_translation_visible
+        with patch.dict(os.environ):
+            os.environ.pop('KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE',None)
+            self.assertFalse(upload_translation_visible())
+            for value in ('true','1','yes','on'):
+                os.environ['KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE']=value
+                self.assertTrue(upload_translation_visible())
+            os.environ['KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE']='invalid'
+            self.assertFalse(upload_translation_visible())
 
     def test_edit_returns_exact_original_not_translation_without_charge_or_provider(self):
         self.credit(300)
@@ -434,8 +466,10 @@ class AudioTests(unittest.TestCase):
         job=store.get(self.user,ident);self.assertEqual(job['status'],'COMPLETED');self.assertTrue(job['result_is_video'])
         self.assertIsNone(store.payload(self.user,ident)['source_content'])
         self.assertEqual(job['seconds_charged'],math.ceil(job['source_ms']/1000))
-        page=self.client.get(f'/kilas-translator/jobs/{ident}');self.assertIn('<video controls',page.text);self.assertIn('Download MP4',page.text)
-        self.assertIn('Video tetap berupa MP4',page.text);self.assertNotIn('video hanya diproses track audionya',page.text)
+        with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false'}):page=self.client.get(f'/kilas-translator/jobs/{ident}')
+        self.assertIn('<video controls',page.text);self.assertIn('Download MP4',page.text)
+        self.assertNotIn('id="audio-file"',page.text);self.assertIn('data-active-mode="voiceover"',page.text)
+        self.assertNotIn('Video tetap berupa MP4',page.text);self.assertNotIn('video hanya diproses track audionya',page.text)
         downloaded=self.client.get(f'/kilas-translator/jobs/{ident}/result?download=1')
         self.assertEqual(downloaded.mimetype,'video/mp4');self.assertEqual(downloaded.data[4:8],b'ftyp')
         self.assertIn('.mp4',downloaded.headers['Content-Disposition'])

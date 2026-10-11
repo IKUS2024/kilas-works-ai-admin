@@ -6,7 +6,7 @@
 <section><h2>Mulai dari bahanmu</h2><nav class="content-actions" aria-label="Langkah produksi">
 <a class="btn secondary" href="{{ url_for(chat_endpoint,content_project=project.id,script_version=project.script_version) }}">Bahas brief di Kilas AI</a>
 <a class="btn secondary" href="{{ url_for('kilas_ai.video_home',content_project=project.id,script_version=project.script_version) }}">Siapkan Video Plan</a>
-<a class="btn secondary" href="{{ url_for('kilas_audio.home',content_project=project.id,script_version=project.script_version,content_mode='translate') }}">Dubbing video yang sudah ada</a>
+{% if upload_translation_visible %}<a class="btn secondary" href="{{ url_for('kilas_audio.home',content_project=project.id,script_version=project.script_version,content_mode='translate') }}">Dubbing video yang sudah ada</a>{% endif %}
 {% if active_script %}<a class="btn secondary" href="{{ url_for('kilas_audio.home',content_project=project.id,script_version=project.script_version,content_mode='voiceover') }}">Buka draft VoiceOver</a>{% endif %}
 </nav><p>Video Plan menyiapkan storyboard dan prompt. Produksi visual serta perakitan video dilakukan di tool eksternal. Membuka draft tidak memulai generasi.</p></section>
 <section><h2>Naskah aktif{% if active_script %} · v{{ active_script.version }}{% endif %}</h2>

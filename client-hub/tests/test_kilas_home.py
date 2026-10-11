@@ -13,6 +13,7 @@ class HomeTests(unittest.TestCase):
 
     def setUp(self):
         fixture.UnifiedTests.setUp(self)
+        self.offering=patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'true'});self.offering.start();self.addCleanup(self.offering.stop)
         self.network=patch('requests.sessions.Session.request',side_effect=AssertionError('External transport forbidden'))
         self.network.start();self.addCleanup(self.network.stop)
         self.voices=patch.object(audio_provider,'voices',return_value=[])
@@ -20,6 +21,18 @@ class HomeTests(unittest.TestCase):
 
     def handoff(self,task,brief='Synthetic <script>alert(1)</script> brief'):
         return self.client().post('/kilas-ai/home-task',data={'csrf_token':'work-csrf','task':task,'brief':brief})
+
+    def test_hidden_upload_entry_keeps_other_tools_and_native_handoff(self):
+        with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false'}):
+            html=self.client().get('/products/start').text
+            self.assertNotIn('data-home-task="translate"',html)
+            for task in ('chat','video','voiceover'):self.assertIn('data-home-task="'+task+'"',html)
+            response=self.handoff('translate','A carried brief')
+            self.assertEqual(response.status_code,200)
+            self.assertIn('A carried brief',response.text)
+            self.assertIn('data-active-mode="voiceover"',response.text)
+            self.assertNotIn('id="audio-file"',response.text)
+            self.assertNotIn('data-kilas-feature="translate"',self.client().get('/kilas-ai/video').text)
 
     def test_home_single_entry_no_duplicate_tools(self):
         with patch.dict(os.environ,{'KILAS_LIVE_ASSIST_QA_ENABLED':'false','KILAS_LIVE_ASSIST_ENABLED':'false'}):

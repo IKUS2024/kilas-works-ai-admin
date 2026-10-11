@@ -15,19 +15,19 @@ VIEWPORT="""window.qaViewport=new EventTarget();Object.assign(qaViewport,{height
 
 
 def tools_and_layout(page, selector, navigate=False):
-    expect(page.locator('[data-home-task]')).to_have_count(4)
+    expect(page.locator('[data-home-task]')).to_have_count(3)
     row=page.locator('.home-task-choices')
     assert row.evaluate("e=>{const buttons=[...e.children];return getComputedStyle(e).display==='flex'&&buttons.every(b=>Math.abs(b.getBoundingClientRect().top-buttons[0].getBoundingClientRect().top)<2)}")
-    for task in ('chat','video','translate','voiceover'):
+    for task in ('chat','video','voiceover'):
         button=page.locator(f'[data-home-task={task}]');expect(button).to_be_visible()
         assert button.evaluate('e=>e.getBoundingClientRect().height>=44')
     expect(page.locator('[data-home-task=chat]')).to_have_attribute('aria-pressed','true')
     if navigate:
         original_url=page.url
-        for task,path,field in [('video','/kilas-ai/video','#video-idea'),('translate','/kilas-translator','#audio-file'),('voiceover','/kilas-translator','#audio-script')]:
+        for task,path,field in [('video','/kilas-ai/video','#video-idea'),('voiceover','/kilas-translator','#audio-script')]:
             page.locator(selector).fill('Carried draft' if task!='translate' else '')
             page.locator(f'[data-home-task={task}]').click()
-            expect(page.locator('[data-kilas-feature]')).to_have_count(4)
+            expect(page.locator('[data-kilas-feature]')).to_have_count(3)
             expect(page.locator(f'[data-kilas-feature={task}]')).to_have_attribute('aria-current','page')
             assert __import__('urllib.parse',fromlist=['urlsplit']).urlsplit(page.url).path==path
             if task!='translate':expect(page.locator(field)).to_have_value('Carried draft')
@@ -58,7 +58,7 @@ def keyboard(page, selector, height, top):
 
 
 def main():
-    case=fixture.HomeTests('test_old_routes_still_render');case.id=lambda:'canonical-chat-browser';case.setUp()
+    case=fixture.HomeTests('test_old_routes_still_render');case.id=lambda:'canonical-chat-browser';case.setUp();offering=patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false'});offering.start();case.addCleanup(offering.stop)
     app=fixture.fixture.base.f.fixture.app.app
     server=make_server('127.0.0.1',0,app,threaded=True);threading.Thread(target=server.serve_forever,daemon=True).start()
     origin=f'http://127.0.0.1:{server.server_port}'

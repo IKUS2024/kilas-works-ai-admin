@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Kilas Translator · Kilas Works
+{% block title %}{{ 'Kilas Translator' if upload_translation_visible else 'Voice Over' }} · Kilas Works
 {% endblock %}
 {% block content %}
 {% if home_task %}{% include 'kilas_ai/_home_handoff.html' %}{% endif %}
@@ -7,13 +7,13 @@
 {% with selected_feature=active_mode %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='voice-inline-20261011') }}">
 <section class="audio-studio" id="audio-studio" data-max-seconds="{{ max_seconds }}" data-active-mode="{{ active_mode }}">
-<header class="audio-heading"><div><h1>Kilas Translator</h1><p>Terjemahkan suara atau buat voice over tanpa ribet.</p></div><div class="audio-balance">{% include 'kilas_translator/_balance.html' %}</div></header>
+<header class="audio-heading"><div><h1>{{ 'Kilas Translator' if upload_translation_visible else 'Voice Over' }}</h1><p>{{ 'Terjemahkan suara atau buat voice over tanpa ribet.' if upload_translation_visible else 'Buat voice over dari naskah dengan suara pilihanmu.' }}</p></div><div class="audio-balance">{% include 'kilas_translator/_balance.html' %}</div></header>
 <div class="audio-workbench"><main class="audio-primary">
-{% if not balance.exempt and not balance.available %}<section class="audio-notice"><h2>Saldo Audio belum tersedia</h2><p>Beli saldo untuk menggunakan Translate atau Voice Over.</p><a class="btn" href="{{ url_for('kilas_ai.usage_page') }}#audio-settings-title">Beli Saldo</a></section>{% endif %}
+{% if not balance.exempt and not balance.available %}<section class="audio-notice"><h2>Saldo Audio belum tersedia</h2><p>{{ 'Beli saldo untuk menggunakan Translate atau Voice Over.' if upload_translation_visible else 'Beli saldo untuk membuat Voice Over.' }}</p><a class="btn" href="{{ url_for('kilas_ai.usage_page') }}#audio-settings-title">Beli Saldo</a></section>{% endif %}
 {% if not provider_ready %}<p class="audio-notice" role="status">Layanan audio sedang belum tersedia. Saldo kamu tetap aman.</p>{% endif %}
 <div id="audio-result" data-status-url="{{ url_for('kilas_audio.status',ident=job.id) if job else '' }}" data-job-status="{{ job.status if job else '' }}">{% if job %}{% include 'kilas_translator/_result.html' %}{% endif %}</div>
-<div class="audio-tabs" role="tablist" aria-label="Mode Kilas Translator"><button type="button" id="translate-tab" role="tab" aria-selected="true" aria-controls="translate-panel">Translate</button><button type="button" id="voiceover-tab" role="tab" aria-selected="false" aria-controls="voiceover-panel" tabindex="-1">Voice Over</button></div>
-<section id="translate-panel" role="tabpanel" aria-labelledby="translate-tab">
+<div class="audio-tabs" role="tablist" aria-label="Mode audio">{% if upload_translation_visible %}<button type="button" id="translate-tab" role="tab" aria-selected="{{ 'true' if active_mode=='translate' else 'false' }}" tabindex="{{ 0 if active_mode=='translate' else -1 }}" aria-controls="translate-panel">Translate</button>{% endif %}<button type="button" id="voiceover-tab" role="tab" aria-selected="{{ 'true' if active_mode=='voiceover' else 'false' }}" aria-controls="voiceover-panel" tabindex="{{ 0 if active_mode=='voiceover' else -1 }}">Voice Over</button></div>
+{% if upload_translation_visible %}<section id="translate-panel" role="tabpanel" aria-labelledby="translate-tab" {{ 'hidden' if active_mode!='translate' }}>
 <h2>Suara yang sama. Bahasa baru.</h2><p>Ubah audio atau video ke bahasa lain tanpa perlu rekam ulang. Video tetap berupa MP4 dengan suara terjemahan; file audio menghasilkan MP3.</p>
 <form action="{{ url_for('kilas_audio.create') }}" method="post" enctype="multipart/form-data" data-audio-form>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}-t"><input type="hidden" name="mode" value="translate">
@@ -21,8 +21,8 @@
 <input type="file" id="audio-file" name="file" accept=".mp4,.mp3,.wav,.m4a" data-max-file-mb="{{ max_mb }}" data-max-audio-mb="{{ audio_max_mb }}" required aria-describedby="audio-duration"><p id="audio-duration" role="status">Durasi dibaca sebelum Translate.</p>
 <div class="audio-fields"><label>Bahasa sumber<select name="source_language"><option value="auto">Auto Detect</option>{% for code,label in languages.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></label><label>Bahasa tujuan<select name="language">{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }}>{{ label }}</option>{% endfor %}</select></label></div>
 <button class="btn" type="submit" {{ 'disabled' if not provider_ready or (not balance.exempt and not balance.available) }}>Translate</button>
-</form></section>
-<section id="voiceover-panel" role="tabpanel" aria-labelledby="voiceover-tab" hidden>
+</form></section>{% endif %}
+<section id="voiceover-panel" role="tabpanel" aria-labelledby="voiceover-tab" {{ 'hidden' if active_mode!='voiceover' }}>
 <h2>Voice over dengan suara kamu.</h2><p>Rekam sekali, lalu gunakan suara yang sama untuk naskah dalam berbagai bahasa.</p>
 <form action="{{ url_for('kilas_audio.create') }}" method="post" data-audio-form>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}-v"><input type="hidden" name="mode" value="voiceover">
@@ -72,8 +72,8 @@
 <p id="audio-progress" role="status" aria-live="polite" hidden></p><p id="audio-error" role="alert" hidden></p><a id="audio-error-purchase" href="{{ url_for('kilas_ai.usage_page') }}#audio-settings-title" hidden>Tambah Saldo</a>
 
 </main><aside class="audio-history"><h2>Recent</h2><p>Audio kamu tersimpan di sini.</p>{% if history %}<ul>{% for item in history %}<li><a href="{{ url_for('kilas_audio.home',ident=item.id) }}" data-audio-history="{{ item.id }}" {{ 'aria-current=page' if job and job.id==item.id }}><strong title="{{ item.title }}">{{ item.title }}</strong><span>{{ 'Translate' if item.mode=='translate' else 'Voice Over' }} · <span data-audio-history-status>{{ {'QUEUED':'Menunggu','PROCESSING':'Diproses','COMPLETED':'Selesai','FAILED':'Belum berhasil'}[item.status] }}</span></span><span>{{ languages.get(item.source_language,'Auto Detect') }} → {{ languages.get(item.target_language,'Bahasa naskah') }}{% if item.mode=='voiceover' %} · {{ item.voice_name }}{% endif %}</span><small><span data-audio-history-duration>{{ seconds(((item.source_ms if item.mode=='translate' else item.actual_ms)+999)//1000) }}</span> · <time datetime="{{ item.created_at }}">{{ item.created_at[:16].replace('T',' ') }} UTC</time></small></a>{% if item.mode=='voiceover' and item.status in ['COMPLETED','FAILED'] %}{% if item.has_original_script %}<button type="button" class="btn secondary audio-edit-script" data-audio-edit="{{ url_for('kilas_audio.script_for_edit',ident=item.id) }}">Edit naskah</button>{% else %}<small>Naskah asli tidak tersedia untuk hasil lama ini.</small>{% endif %}{% endif %}</li>{% endfor %}</ul>{% endif %}<nav aria-label="Halaman riwayat">{% if page>1 %}<a href="{{ url_for('kilas_audio.home',page=page-1) }}">Sebelumnya</a>{% endif %}{% if more %}<a href="{{ url_for('kilas_audio.home',page=page+1) }}">Berikutnya</a>{% endif %}</nav></aside></div>
-</section>{% include '_generation_feedback.html' %}<script src="{{ url_for('static',filename='kilas_audio.js',v='voice-edit-20261011') }}" defer></script>
+</section>{% include '_generation_feedback.html' %}<script src="{{ url_for('static',filename='kilas_audio.js',v='voiceover-only-20261011') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_personal_voice.js',v='voice-library-20261005') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_voice_script.js',v='voice-library-20261005') }}" defer></script>
-<script src="{{ url_for('static',filename='kilas_script_assist.js',v='voice-inline-20261011') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_script_assist.js',v='voiceover-only-20261011') }}" defer></script>
 {% endblock %}

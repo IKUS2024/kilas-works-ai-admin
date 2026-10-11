@@ -21,6 +21,7 @@ from kilas_ai.routes import ai_bp
 @pytest.fixture
 def environment(tmp_path, monkeypatch):
     monkeypatch.setenv('KILAS_AI_ENABLED', 'true')
+    monkeypatch.setenv('KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE','true')
     monkeypatch.setenv('KILAS_CONTENT_PROJECTS_ENABLED', 'true')
     monkeypatch.setenv('KILAS_AI_AUTOMATION_ENABLED', 'true')
     monkeypatch.setattr(db, 'BACKEND', 'sqlite')
@@ -336,3 +337,17 @@ def test_browser_project_flow_desktop_mobile(environment):
             browser.close()
     finally:
         server.shutdown();worker.join(timeout=5)
+
+
+def test_hidden_upload_entry_retains_owned_content_audio_results(environment,monkeypatch):
+    _,client=environment
+    ident=project(client);save(client,ident)
+    post(client,f'/kilas-ai/content-projects/{ident}/links',target='audio:1',script_version=1)
+    monkeypatch.setenv('KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE','false')
+    body=client.get(f'/kilas-ai/content-projects/{ident}').text
+    assert 'Dubbing video yang sudah ada' not in body
+    assert 'Buka draft VoiceOver' in body and 'MP4 hasil dubbing' in body
+    assert client.get('/kilas-translator/jobs/1/result?download=1').status_code==200
+    body=client.get('/kilas-translator?'+f'content_project={ident}&script_version=1&content_mode=translate').text
+    assert 'data-active-mode="voiceover"' in body and 'id="audio-file"' not in body
+    assert 'Naskah &lt;script&gt;aman&lt;/script&gt;' in body

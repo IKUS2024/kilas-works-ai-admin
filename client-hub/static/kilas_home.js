@@ -28,7 +28,7 @@
     voiceover:{title:'Buat suara',description:'Bawa naskahmu, lalu pilih bahasa dan suara di formulir voiceover.',label:'Naskah suara (opsional)',placeholder:'Tulis naskah yang ingin dibacakan...',button:'Buka formulir suara',limit:4000}
   };
   function select(next){
-    if(!(next in tasks))return;
+    if(!(next in tasks)||!root.querySelector(`[data-home-task="${next}"]`))return;
     if(next!==current&&(send.disabled||pending.children.length)){
       notice.textContent=t('Selesaikan chat atau hapus lampiran sebelum mengganti tugas.');return;
     }

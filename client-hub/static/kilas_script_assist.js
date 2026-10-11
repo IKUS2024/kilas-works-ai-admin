@@ -26,7 +26,7 @@
   micStop.addEventListener('click',()=>{recognition?.stop();status.textContent='Menghentikan dikte…';});
   function leave(){haltDictation();controller?.abort();}
   document.addEventListener('visibilitychange',()=>{if(document.hidden)leave();});window.addEventListener('pagehide',leave);
-  document.querySelector('#translate-tab').addEventListener('click',leave);root.addEventListener('toggle',()=>{if(!root.open)leave();});
+  document.querySelector('#translate-tab')?.addEventListener('click',leave);root.addEventListener('toggle',()=>{if(!root.open)leave();});
   stop.addEventListener('click',()=>controller?.abort());
   async function checked(response){if(response.redirected)throw Error('Sesi berakhir. Masuk kembali untuk melanjutkan.');if(!response.ok){let body;try{body=await response.json();}catch(_){}throw Error(body?.error||'Naskah belum berhasil dibuat. Coba lagi.');}return response;}
   generate.addEventListener('click',async()=>{

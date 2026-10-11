@@ -15,6 +15,12 @@ def context(owner):
 
 
 @ai_bp.app_context_processor
+def audio_offering_context():
+    from .audio_presentation import upload_translation_visible
+    return {'upload_translation_visible': upload_translation_visible()}
+
+
+@ai_bp.app_context_processor
 def account_workspace_context():
     """Share account navigation independently of the selected product's content."""
     from flask import session
