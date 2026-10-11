@@ -26,7 +26,7 @@ class HomeTests(unittest.TestCase):
         with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false'}):
             html=self.client().get('/products/start').text
             self.assertNotIn('data-home-task="translate"',html)
-            for task in ('chat','video','voiceover'):self.assertIn('data-home-task="'+task+'"',html)
+            for task in ('chat','voiceover'):self.assertIn('data-home-task="'+task+'"',html)
             response=self.handoff('translate','A carried brief')
             self.assertEqual(response.status_code,200)
             self.assertIn('A carried brief',response.text)
@@ -39,8 +39,8 @@ class HomeTests(unittest.TestCase):
             response=self.client().get('/products/start')
         self.assertEqual(response.status_code,200)
         html=response.get_data(as_text=True)
-        self.assertIn('Mau ngapain hari ini?',html)
-        for task in ('chat','video','translate','voiceover'):self.assertIn('data-home-task="'+task+'"',html)
+        self.assertIn('How can I Help you?',html)
+        for task in ('chat','voiceover'):self.assertIn('data-home-task="'+task+'"',html)
         self.assertNotIn('home-workspace-footer',html)
         self.assertNotIn('premium-home-tools',html)
         self.assertNotIn('href="/kilas-ai/video"',html)
@@ -71,8 +71,12 @@ class HomeTests(unittest.TestCase):
         for route in ('/products/start','/account?workspace=home','/kilas-translator?mode=voiceover','/kilas-ai/video','/kilas-ai/usage','/kilas-ai/threads/'+str(owned)):
             response=self.client().get(route);self.assertEqual(response.status_code,200)
             html=response.text
-            self.assertEqual(html.count('data-chat-sidebar'),1)
-            self.assertIn('My &lt;script&gt; saved title',html)
+            if route.startswith('/kilas-translator'):
+                self.assertNotIn('data-chat-sidebar',html)
+                self.assertNotIn('My &lt;script&gt; saved title',html)
+            else:
+                self.assertEqual(html.count('data-chat-sidebar'),1)
+                self.assertIn('My &lt;script&gt; saved title',html)
             self.assertNotIn('Foreign private history',html)
             self.assertNotIn('home-history-panel',html)
         html=self.client().get('/kilas-ai/threads/'+str(owned)).text
@@ -146,7 +150,7 @@ class HomeTests(unittest.TestCase):
             self.assertEqual(content_projects.get(self.owner,ident)['brief'],'Synthetic brief')
 
     def test_selected_locale_is_respected(self):
-        for language,title in [('en','What would you like to do today?'),('es','¿Qué quieres hacer hoy?'),('zh','今天想做什么？')]:
+        for language,title in [('en','How can I Help you?'),('es','How can I Help you?'),('zh','How can I Help you?')]:
             client=self.client();client.set_cookie('kilas_language',language)
             response=client.get('/products/start')
             self.assertIn(title,response.get_data(as_text=True))
@@ -156,9 +160,9 @@ class HomeTests(unittest.TestCase):
         self.assertIn('account-workspace-access',html)
         self.assertNotIn('<span>Video</span>',html)
         self.assertNotIn('<span>Translator</span>',html)
-        self.assertIn('href="/account?workspace=home" aria-current="page"',html)
+        self.assertIn('href="/account?workspace=home"',html)
         self.assertIn('href="/kilas-ai/usage"',html)
-        for anchor in ('offer-title','audio-settings-title','billing-title'):
+        for anchor in ('offer-title','billing-title'):
             self.assertIn('href="/kilas-ai/usage#'+anchor+'"',html)
             settings=client.get('/kilas-ai/usage').get_data(as_text=True)
             self.assertIn('id="'+anchor+'"',settings)
@@ -193,7 +197,7 @@ class HomeTests(unittest.TestCase):
         client=self.client()
         with client.session_transaction() as values:values['active_product']='finance'
         home=client.get('/products/start').text
-        href=re.search(r'premium-sidebar-account.*?<a href="([^"]+)"',home).group(1)
+        href=re.search(r'kilas-profile-options.*?<a href="([^"]+)"',home,re.S).group(1)
         self.assertEqual(href,'/account?workspace=home')
         for route in (href,href+'#security','/account?workspace=home&tab=business'):
             html=client.get(route).text

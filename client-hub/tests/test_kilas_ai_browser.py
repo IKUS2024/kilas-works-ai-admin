@@ -73,13 +73,13 @@ def main():
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Mau ngapain hari ini?").is_visible()
+                assert page.get_by_role("heading", name="How can I Help you?").is_visible()
                 assert page.get_by_text("Mulai dari ide, pertanyaan, atau pekerjaanmu.").count() == 0
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "empty")
                 click_new_chat(page)
                 assert page.url.endswith("/products/start")
                 assert store.list_threads(owner) == []
-                expect(page.get_by_role("heading", name="Mau ngapain hari ini?")).to_be_visible()
+                expect(page.get_by_role("heading", name="How can I Help you?")).to_be_visible()
                 assert page.locator(".ai-shell").get_attribute("data-max-files") == "2"
                 # Closed mobile history is now inert and visually hidden.
                 assert page.locator(".premium-navigation [aria-current=page] span").text_content().strip() == "Home"
@@ -163,12 +163,12 @@ def main():
                 count = len(store.list_threads(owner))
                 click_new_chat(page)
                 assert page.url.endswith("/products/start")
-                assert page.get_by_role("heading", name="Mau ngapain hari ini?").is_visible()
+                assert page.get_by_role("heading", name="How can I Help you?").is_visible()
                 assert page.locator("#ai-tool,#ai-mode").count() == 0
                 assert len(store.list_threads(owner)) == count
                 legacy = store.create_thread(owner, "SMART")
                 page.goto(origin + f"/kilas-ai/threads/{legacy}", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Mau ngapain hari ini?").is_visible()
+                assert page.get_by_role("heading", name="How can I Help you?").is_visible()
                 assert page.locator(".ai-messages").is_hidden()
                 assert page.locator("#ai-composer").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "legacy empty")

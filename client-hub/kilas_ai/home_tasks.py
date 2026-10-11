@@ -17,7 +17,7 @@ def context(owner):
 @ai_bp.app_context_processor
 def audio_offering_context():
     from .audio_presentation import upload_translation_visible
-    return {'upload_translation_visible': upload_translation_visible()}
+    return {'upload_translation_visible': upload_translation_visible(), 'live_translation_visible': False}
 
 
 @ai_bp.app_context_processor
@@ -30,7 +30,7 @@ def chat_sidebar_context():
                     (request.args.get('workspace') == 'home' or session.get('active_product') != 'finance'))
     surface = (endpoint == 'products.product_start' or home_account or
                request.blueprint in ('kilas_ai', 'kilas_audio'))
-    if not (surface and enabled() and session.get('user_id') and session.get('role') == 'CLIENT_OWNER'):
+    if request.endpoint in ('kilas_ai.shared','kilas_ai.share') or not (surface and enabled() and session.get('user_id') and session.get('role') == 'CLIENT_OWNER'):
         return {}
 
     def history():
@@ -38,7 +38,11 @@ def chat_sidebar_context():
         return {'threads': store.list_threads(session['user_id'], 6),
                 'conversations': agent_store.recent_conversations(session['user_id'])[:6] if automation_enabled() else [],
                 'automation_enabled': automation_enabled()}
-    return {'chat_sidebar_enabled': True, 'chat_sidebar_history': history}
+    import security
+    user = security.current_user()
+    return {'chat_sidebar_enabled': request.blueprint != 'kilas_audio',
+            'kilas_revision_shell': True, 'kilas_profile_email': user['email'] if user else '',
+            'chat_sidebar_history': history}
 
 
 @ai_bp.app_context_processor
@@ -72,6 +76,19 @@ def open_task():
         return home(initial_brief=brief,home_task=task)
     from .audio_routes import home
     return home(initial_brief=brief,home_task=task)
+
+
+@ai_bp.get('/library')
+def library():
+    from flask import render_template, session
+    import db
+    from . import audio_store, video_store, work_artifacts
+    owner=session['user_id']
+    # Metadata only. Downloads retain existing owner-scoped handlers.
+    files=db.query_all('SELECT id,thread_id,filename,mime_type FROM kilas_ai_attachments WHERE user_id=? ORDER BY id DESC LIMIT 50',(owner,))
+    return render_template('kilas_ai/library.html',files=files,audio=audio_store.history(owner)[:20],
+                           plans=video_store.history(owner)[:20],
+                           artifacts=work_artifacts.listing(owner) if automation_enabled() else [])
 
 
 @ai_bp.post('/video', endpoint='video_home_handoff')

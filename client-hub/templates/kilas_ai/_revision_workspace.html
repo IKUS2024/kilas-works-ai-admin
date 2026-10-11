@@ -1,0 +1,14 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='kilas_revision_shell.css', v='20261011-1') }}">
+<a class="premium-skip" href="#kw-main">{{ ui_t('Lewati navigasi') }}</a>
+{% if request.blueprint == 'kilas_audio' %}
+<header class="kilas-audio-header"><a class="premium-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a>{% include 'kilas_ai/_profile_menu.html' %}</header>
+{% else %}
+<header class="premium-mobile-header"><button type="button" data-premium-menu aria-controls="premium-sidebar" aria-expanded="false" aria-label="{{ ui_t('Buka navigasi') }}">☰</button><a class="premium-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a></header>
+<button type="button" class="premium-backdrop" data-premium-close aria-label="{{ ui_t('Tutup navigasi') }}" hidden></button>
+<aside class="premium-sidebar kilas-revision-sidebar" id="premium-sidebar" aria-label="{{ ui_t('Workspace Kilas Works') }}">
+  <div class="premium-sidebar-head"><a class="premium-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a><button type="button" data-premium-close aria-label="{{ ui_t('Tutup navigasi') }}">×</button></div>
+  {% include 'kilas_ai/_chat_sidebar.html' %}
+  <footer class="kilas-sidebar-profile">{% include 'kilas_ai/_profile_menu.html' %}</footer>
+</aside>
+<script src="{{ url_for('static', filename='kilas_premium.js', v='profile-20261011') }}" defer></script>
+{% endif %}

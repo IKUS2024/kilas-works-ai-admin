@@ -1,0 +1,19 @@
+/* Explicit Kilas AI shell only; preserve Finance and existing chat typography. */
+.kilas-revision-sidebar .kilas-chat-sidebar{flex:1}
+.kilas-sidebar-profile{position:sticky;bottom:-18px;margin-top:auto;padding:12px 0;background:var(--bg-soft);border-top:1px solid var(--line)}
+.customer-ui .kilas-sidebar-profile{display:block;text-align:left;flex:none}
+.kilas-profile-menu{position:relative;min-width:0}
+.kilas-profile-menu>summary{cursor:pointer;min-height:44px;padding:10px 12px;font-weight:600}
+.kilas-profile-options{display:grid;gap:2px;padding:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--premium-shadow)}
+.kilas-sidebar-profile .kilas-profile-options{position:absolute;bottom:100%;left:0;right:0}
+.kilas-profile-options>a,.kilas-profile-language>summary{display:block;padding:10px 8px;min-height:44px;color:var(--text);text-decoration:none;cursor:pointer}
+.kilas-profile-options small{display:block;color:var(--muted);overflow-wrap:anywhere;font-size:12px}
+.kilas-profile-options .language-selector{display:grid;gap:8px;margin:0;padding:8px;border:0}
+.kilas-audio-header{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--line)}
+.kilas-audio-header .kilas-profile-options{position:absolute;right:0;top:100%;width:240px;z-index:50}
+.premium-workspace:has(.kilas-audio-header)>.wrap{margin:0 auto!important;width:100%;padding:24px!important;max-width:1160px}
+.home-task-choices .kilas-finance-entry{display:flex;margin:0}
+.home-task-choices .kilas-finance-entry button{display:flex;align-items:center;gap:8px;min-height:44px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--text);font:inherit;padding:8px 12px;cursor:pointer;white-space:nowrap}
+.kilas-profile-menu:not([open])>.kilas-profile-options{display:none}
+.home-task-choices .kilas-translator-pending{padding:8px 12px;color:var(--muted);align-self:center;white-space:nowrap}
+@media(max-width:760px){.kilas-audio-header{padding:8px 16px}.premium-workspace:has(.kilas-audio-header)>.wrap{padding:16px!important}}

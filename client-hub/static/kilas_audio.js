@@ -8,7 +8,7 @@
   const progress=document.querySelector('#audio-progress'),error=document.querySelector('#audio-error'),purchase=document.querySelector('#audio-error-purchase');
   let busy=false,inspecting=false,fileVersion=0,inspected=false;
   function message(text){progress.textContent=text;progress.hidden=false;error.hidden=true;purchase.hidden=true;}
-  function failure(text,buy=false){progress.hidden=true;error.textContent=text;error.hidden=false;purchase.hidden=!buy;}
+  function failure(text,buy=false){progress.hidden=true;error.textContent=text;error.hidden=false;purchase.hidden=true;}
   const csrf=root.querySelector('[name=csrf_token]').value;
   async function post(url,data){const response=await fetch(url,{method:'POST',body:data,credentials:'same-origin',headers:{'X-CSRF-Token':csrf}});if(response.redirected&&new URL(response.url).pathname==='/login')throw Error('Sesi berakhir. Masuk kembali untuk melanjutkan.');let body;try{body=await response.json();}catch{throw Error('Audio belum dapat diproses. Coba lagi nanti.');}if(!response.ok){const e=Error(body.error||'Audio belum dapat diproses.');e.purchase=response.status===402;throw e;}return body;}
   const file=document.querySelector('#audio-file');
@@ -16,7 +16,7 @@
   const script=document.querySelector('#audio-script');let scriptVersion=0;script.addEventListener('input',()=>scriptVersion++);script.addEventListener('input',()=>{const text=script.value.trim(),words=text?text.split(/\s+/).length:0;const seconds=text?Math.max(1,Math.ceil(Math.max(words/2.3,text.length/13))):0;const reserve=text?Math.min(Number(root.dataset.maxSeconds),Math.ceil(Math.max(words/0.8,text.length/4)+10)):0;document.querySelector('#voice-estimate').textContent=`Estimasi ${seconds}s · reservasi hingga ${reserve}s. Pemakaian akhir mengikuti MP3 aktual; sisa reservasi dikembalikan.`;});
   let editing=false;
   root.addEventListener('click',async event=>{
-    const button=event.target.closest('[data-audio-edit]');if(!button||busy||editing||document.querySelector('#voice-video-script')?.dataset.busy==='true')return;
+    const button=event.target.closest('[data-audio-edit]');if(!button||busy||editing||document.querySelector('#voice-video-script')?.dataset.busy==='true'||root.dataset.dictationBusy==='true')return;
     const snapshot=script.value,version=scriptVersion;editing=true;root.dataset.scriptEditing='true';button.disabled=true;
     try{
       const response=await fetch(button.dataset.audioEdit,{credentials:'same-origin',cache:'no-store'});
@@ -34,7 +34,7 @@
   function pendingFeedback(value){try{if(value)sessionStorage.setItem(feedbackKey,'pending');else sessionStorage.removeItem(feedbackKey);}catch{}}
   function hasPendingFeedback(){try{return sessionStorage.getItem(feedbackKey)==='pending';}catch{return false;}}
   root.querySelectorAll('[data-audio-form]').forEach(form=>form.addEventListener('submit',async e=>{
-    e.preventDefault();if(busy||editing||document.querySelector('#voice-video-script')?.dataset.busy==='true')return;
+    e.preventDefault();if(busy||editing||document.querySelector('#voice-video-script')?.dataset.busy==='true'||root.dataset.dictationBusy==='true')return;
     const mode=form.querySelector('[name=mode]').value;
     if(mode==='voiceover'&&document.querySelector('#personal-voice-setup')?.dataset.busy==='true')return;
     if(mode==='translate'&&(!inspected||inspecting)){failure('Tunggu durasi terbaca sebelum Translate.');return;}

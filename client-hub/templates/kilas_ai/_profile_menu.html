@@ -1,0 +1,9 @@
+<details class="kilas-profile-menu">
+  <summary>{{ ui_t('Profile') }}</summary>
+  <div class="kilas-profile-options">
+    <a href="{{ url_for('auth.account_page', workspace='home') }}"><strong>Account</strong><small>{{ kilas_profile_email }}</small></a>
+    <a href="{{ url_for('kilas_ai.usage_page') }}">Subscription</a>
+    <details class="kilas-profile-language"><summary>App Language</summary>{% set language_location='kilas-profile' %}{% include '_language_selector.html' %}</details>
+    <a href="{{ url_for('auth.logout_page') }}">Logout</a>
+  </div>
+</details>

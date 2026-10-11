@@ -58,7 +58,7 @@ def main():
                 page.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin) else route.abort())
                 page.add_init_script("navigator.mediaDevices.getDisplayMedia=()=>{throw Error('Capture forbidden in QA')};navigator.mediaDevices.getUserMedia=()=>{throw Error('Capture forbidden in QA')}")
                 assert page.goto(origin+'/products/start',wait_until='networkidle').status==200
-                expect(page.get_by_role('heading',name='Mau ngapain hari ini?',exact=True)).to_be_visible()
+                expect(page.get_by_role('heading',name='How can I Help you?',exact=True)).to_be_visible()
                 assert page.locator('[data-home-task]').count()==4
                 assert page.locator('.premium-navigation a[href="/products/start"]').count()==1
                 assert page.locator('.premium-navigation').get_by_role('link',name='Percakapan',exact=True).count()==0

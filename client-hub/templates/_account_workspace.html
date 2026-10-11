@@ -10,7 +10,6 @@
   <h2 id="account-workspace-title">Kilas AI</h2>
   <nav class="account-workspace-links" aria-label="{{ ui_t('Settings') }} Kilas AI">
     <a href="{{ url_for('kilas_ai.usage_page') }}#offer-title">{{ ui_t('Kilas Pro') }} &amp; {{ ui_t('Kapasitas Premium') }}</a>
-    {% if kilas_video_enabled() %}<a href="{{ url_for('kilas_ai.usage_page') }}#audio-settings-title">{{ ui_t('Saldo tersedia') }} · Translator &amp; Voice Over</a>{% endif %}
     <a href="{{ url_for('kilas_ai.usage_page') }}#billing-title">{{ ui_t('Tagihan') }} &amp; {{ ui_t('pembayaran') }}</a>
     {% if account_workspace.preferences %}<a href="{{ url_for('kilas_ai.agent_home',view='settings') }}">{{ ui_t('Pengaturan') }}</a>{% endif %}
   </nav>

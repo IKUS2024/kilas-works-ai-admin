@@ -12,6 +12,7 @@ from .routes import enabled
 from .billing_routes import admin_bp
 from . import audio_store as store, audio_provider as provider, audio_service as service, audio_media as media, audio_billing as billing
 from . import audio_personal_voice as personal
+from . import audio_branded_voices as branded
 from . import audio_voice_script as voice_script
 from . import audio_transcription_budget as video_budget, audio_transcription_provider as video_stt
 
@@ -59,7 +60,7 @@ def home(ident=None,initial_brief=None,home_task=None):
     rows=store.history(user,page)
     saved_voices=personal.saved_voices(user)
     return render_template('kilas_translator/home.html',active_mode=active_mode,video_script_ready=video_budget.ready(),content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
-                           voices=provider.voices() if state['exempt'] or state['available'] else [],
+                           voices=branded.public_choices(),
                            personal_voice=bool(personal.get(user)),personal_preview=personal.has_preview(user),voice_operation_key=secrets.token_hex(16),
                            saved_voices=saved_voices,
                            provider_ready=provider.configured(),languages=provider.LANGUAGES,packs=store.PACKS,
@@ -109,6 +110,8 @@ def create():
         elif voice=='personal':
             saved=personal.get(user)
             choice={'id':saved,'name':'Suara Saya'} if saved else None
+        elif voice in ('kilas-male','kilas-female'):
+            choice=branded.resolve(voice)
         else:
             choices=provider.voices()
             choice=next((v for i,v in enumerate(choices) if voice in (v['id'],'kilas-'+str(i))),None)
@@ -207,6 +210,35 @@ def video_script():
                   'invalid_video':'Pilih file MP4 yang valid.',
                   'attempt_limit':'Batas percobaan hari ini tercapai. Naskah kamu tetap aman.'}
         return {'error':messages.get(error.code,'Video belum dapat dijadikan naskah. Naskah semula tetap aman; tidak ada pengulangan otomatis.'),'code':error.code},error.status,headers
+
+
+@audio_bp.post('/voice-script/dictate')
+def dictate():
+    owner=session['user_id'];key=request.form.get('operation_key')
+    headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}
+    try:
+        video_budget.key_valid(key)
+        if not key.startswith('dictate-'):raise video_budget.BudgetError('invalid_operation',400)
+        if request.form.get('action')=='cancel':return video_budget.cancel(owner,key),200,headers
+        if request.form.get('consent')!='yes':raise video_budget.BudgetError('consent_required',400)
+        # Existing finite campaign gate also guards microphone STT, before decode/IO.
+        if not video_budget.ready():raise video_budget.BudgetError('budget_unavailable')
+        pcm=media.voice_sample(request.files.get('recording'),sample_rate=16000)
+        pcm,ms=video_stt.normalize(pcm)
+        row,capability=video_budget.claim(owner,key,hashlib.sha256(pcm).hexdigest(),ms)
+        if capability:
+            text=video_stt.transcribe(pcm,capability)
+            row=video_budget.owned(owner,key)
+            if text is not None and row['status']=='COMPLETED':row['text']=text
+        return row,200,headers
+    except video_budget.BudgetError as error:
+        message={'budget_unavailable':'Dikte belum aktif. Batas biaya transkripsi belum terverifikasi; naskah tetap aman.',
+                 'consent_required':'Setujui pemrosesan rekaman sebelum mulai.',
+                 'attempt_limit':'Batas percobaan transkripsi hari ini tercapai. Naskah tetap aman.',
+                 'script_too_long':'Hasil melebihi 4.000 karakter. Rekam ucapan yang lebih pendek.',
+                 'budget_limit':'Batas transkripsi tercapai. Naskah tetap aman.'}.get(error.code,
+                 'Dikte belum berhasil. Naskah tetap aman. Tidak ada pengulangan otomatis; kamu dapat merekam kembali.')
+        return {'error':message,'code':error.code},error.status,headers
 
 
 @audio_bp.route('/jobs/<int:ident>/reconstruct-script',methods=['POST','GET'])

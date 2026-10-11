@@ -36,7 +36,7 @@ class ChatTests(unittest.TestCase):
         b = self.client_for(self.b)
         before = len(store.list_threads(self.a))
         empty = a.get("/kilas-ai")
-        self.assertIn("Mau ngapain hari ini?", empty.text)
+        self.assertIn("How can I Help you?", empty.text)
         self.assertNotIn("Mulai dari ide, pertanyaan, atau pekerjaanmu.", empty.text)
         fresh = a.post("/kilas-ai/threads", data={"mode": "FAST", "csrf_token": "chat-csrf"})
         self.assertEqual(fresh.status_code, 303)
@@ -50,12 +50,12 @@ class ChatTests(unittest.TestCase):
         thread_id = created.json["thread_id"]
         self.assertEqual(len(store.list_threads(self.a)), before + 1)
         self.assertEqual(store.thread(self.a, thread_id)["selected_mode"], "FAST")
-        self.assertIn("Mau ngapain hari ini?", a.get(created.json["url"]).text)
+        self.assertIn("How can I Help you?", a.get(created.json["url"]).text)
         self.assertEqual(b.get(created.json["url"]).status_code, 404)
         self.assertEqual(b.post(created.json["url"] + "/rename", data={"title": "stolen", "csrf_token": "chat-csrf"}).status_code, 404)
         self.assertEqual(b.post(created.json["url"] + "/delete", data={"csrf_token": "chat-csrf"}).status_code, 404)
         self.assertEqual(a.post(created.json["url"] + "/rename", data={"title": "Research", "csrf_token": "chat-csrf"}).status_code, 303)
-        self.assertIn("Mau ngapain hari ini?", a.get(created.json["url"]).text)
+        self.assertIn("How can I Help you?", a.get(created.json["url"]).text)
         self.assertEqual(a.post(created.json["url"] + "/delete", data={"csrf_token": "chat-csrf"}).status_code, 303)
         self.assertEqual(a.get(created.json["url"]).status_code, 404)
 

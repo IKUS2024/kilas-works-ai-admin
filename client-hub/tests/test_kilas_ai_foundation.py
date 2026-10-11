@@ -50,7 +50,7 @@ class KilasAIFoundationTests(unittest.TestCase):
         with patch.dict(os.environ, {"KILAS_AI_ENABLED": "true"}):
             picker = client.get("/products/start")
             self.assertIn('data-home-task="chat"', picker.text)
-            self.assertIn('Mau ngapain hari ini?', picker.text)
+            self.assertIn('How can I Help you?', picker.text)
             response = client.post("/products/start", data={"product": "kilas_ai", "csrf_token": "kilas-ai-test-csrf"})
             self.assertEqual(response.status_code, 303)
             self.assertEqual(response.location, "/kilas-ai")

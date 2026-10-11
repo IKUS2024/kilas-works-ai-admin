@@ -22,7 +22,7 @@
     if (!open) return;
     if (event.key === 'Escape') { event.preventDefault(); update(false, true); }
     if (event.key === 'Tab') {
-      const items = [...sidebar.querySelectorAll('a,button')].filter(el => !el.disabled);
+      const items = [...sidebar.querySelectorAll('a,button,summary,select,input:not([type=hidden])')].filter(el => !el.disabled && el.getClientRects().length);
       const first = items[0], last = items[items.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }

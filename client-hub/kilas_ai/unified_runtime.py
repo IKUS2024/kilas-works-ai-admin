@@ -14,6 +14,8 @@ def intent(text, prepared=(), previous=None, previous_answer=''):
         return 'WEB'
     if work_schedule.CAPABILITY.search(text) and not routing.fresh_information(routing._normalize(text)):
         return 'CHAT'
+    from .chat_video_planning import requested as video_requested
+    if video_requested(text):return 'CHAT'
     if re.search(r'(?i)\b(?:storyboard|sketsa)\s+(?:teks|text)|\b(?:teks|text|ascii)\s+storyboard\b',text):
         return 'CHAT'
     # A prohibition on creating a new artifact is not authorization to create one.
@@ -72,7 +74,8 @@ def dispatch(owner,text,key,conversation):
         return search(owner,key,conversation)
     if selected=='CHAT':
         transformation=re.search(r'(?i)\b(?:benerin typo|perbaiki typo|ubah kalimat|tulis ulang|rewrite|translate|terjemahkan)\b',text)
-        if not prepared and not transformation and not routing.explicit_code(text) and not work_schedule.CAPABILITY.search(text) and agent_intents.infer(text):
+        from .chat_video_planning import requested as video_requested
+        if not prepared and not transformation and not video_requested(text) and not routing.explicit_code(text) and not work_schedule.CAPABILITY.search(text) and agent_intents.infer(text):
             return work_runtime.handle(owner,text,key,conversation)
         return agent_chat.ordinary(owner,conversation,key) or redirect(url_for('kilas_ai.agent_home'),code=303)
     if selected=='IMAGE_EDIT' and previous and previous['media_type'].startswith('image/') and not any(p['mime_type'].startswith('image/') for p in prepared):

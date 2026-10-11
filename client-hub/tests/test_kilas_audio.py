@@ -59,7 +59,7 @@ class AudioTests(unittest.TestCase):
         for ident in ('audio-script','voice-language-status','voice-assist-copy','voice-assist-generate','voice-translate-toggle','voice-estimate','voice-generate'):
             self.assertEqual(html.count('id="'+ident+'"'),1)
         self.assertIn('aria-describedby="voice-language-status voice-estimate"',html)
-        self.assertIn('Saldo akhir mengikuti durasi MP3 aktual.',html)
+        self.assertIn('Biaya akhir mengikuti durasi MP3 aktual.',html)
 
     def test_compact_video_copy_keeps_privacy_and_disabled_consent(self):
         with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false','KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):
@@ -68,19 +68,14 @@ class AudioTests(unittest.TestCase):
         self.assertNotIn('Voice over dengan suara kamu.',html)
         self.assertIn('<legend>Pilih suara</legend>',html)
         self.assertIn('id="open-recorder"',html)
-        self.assertIn('Saya punya izin dan menyetujui pemrosesan audio video ini sesuai',html)
-        self.assertIn('Transkripsi video belum aktif.',html)
-        self.assertIn('MP4 · maks. 250 MB · 10 menit',html)
-        self.assertNotIn('<summary>Detail privasi</summary>',html)
-        self.assertNotIn('ElevenLabs',html)
+        self.assertNotIn('id="voice-video-script"',html)
+        self.assertIn('Dikte belum aktif. Batas biaya transkripsi belum terverifikasi.',html)
+        self.assertIn('id="dictation-consent" disabled',html)
         self.assertIn('href="/privacy#audio-processing"',html)
         policy=f.app.app.test_client().get('/privacy')
         self.assertEqual(policy.status_code,200)
         self.assertIn('id="audio-processing"',policy.text)
-        self.assertIn('Audio video dikirim ke ElevenLabs untuk transkripsi bahasa asli. File sementara di Kilas dihapus setelah proses; ElevenLabs memakai logging bawaan dan dapat menyimpan audio serta transkrip.',policy.text)
-        self.assertIn('id="voice-video-consent" name="consent" value="yes" aria-describedby="voice-video-privacy-terms" disabled',html)
-        self.assertIn('data-ready="false"',html)
-        self.assertIn('hasil yang lebih panjang tidak dipotong',html)
+        self.assertIn('ElevenLabs memakai logging bawaan dan dapat menyimpan audio serta transkrip.',policy.text)
 
     def create(self,mode='voiceover',key='audio-key-1234567890',**data):
         body={'csrf_token':'audio-csrf','operation_key':key,'mode':mode,'language':'en','voice':'actualVoice123','script':'Hello. This is a safe synthetic audio test.',**data}
@@ -166,7 +161,8 @@ class AudioTests(unittest.TestCase):
         for mode in ('voiceover','translate'):
             html=self.client.get('/kilas-translator?mode='+mode).get_data(as_text=True)
             self.assertIn('data-active-mode="'+mode+'"',html)
-            self.assertIn('data-kilas-feature="'+mode+'"',html)
+            self.assertIn('data-kilas-feature="voiceover"',html)
+            self.assertIn('Translator · Belum tersedia',html)
         self.assertIn('data-active-mode="translate"',self.client.get('/kilas-translator?mode=invalid').get_data(as_text=True))
 
     def test_auth_csrf_and_role(self):
@@ -191,15 +187,16 @@ class AudioTests(unittest.TestCase):
             self.assertNotIn('id="audio-packs"',page.text)
             self.assertNotIn('Saldo untuk dua cara berkarya.',page.text)
             self.assertNotIn('action="/kilas-translator/checkout"',page.text)
-            self.assertIn('href="'+target+'"',page.text)
+            self.assertNotIn('href="'+target+'"',page.text)
+            self.assertNotIn('class="audio-balance"',page.text)
             self.assertIn('id="translate-panel"',page.text)
             self.assertIn('id="voiceover-panel"',page.text)
         settings=self.client.get('/kilas-ai/usage')
         self.assertEqual(settings.status_code,200)
-        self.assertIn('id="audio-settings-title"',settings.text)
+        self.assertNotIn('id="audio-settings-title"',settings.text)
         for code,(_,price) in store.PACKS.items():
-            self.assertIn('name="pack" value="'+code+'"',settings.text)
-            self.assertIn('Rp'+f'{price:,}'.replace(',','.'),settings.text)
+            self.assertNotIn('name="pack" value="'+code+'"',settings.text)
+            self.assertNotIn('Rp'+f'{price:,}'.replace(',','.'),settings.text)
         f.db.execute('UPDATE kilas_audio_balances SET seconds=0 WHERE user_id=?',(self.user,))
         response,speech,_=self.create()
         self.assertEqual(response.status_code,402)

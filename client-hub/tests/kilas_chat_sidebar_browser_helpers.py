@@ -10,7 +10,7 @@ def open_chat_sidebar(page):
     return sidebar
 
 
-def click_new_chat(page,agent=False,name='Chat baru'):
+def click_new_chat(page,agent=False,name='New Chat'):
     sidebar=open_chat_sidebar(page)
     # Existing fixture deliberately leaves its old draft when beginning a new chat.
     def accept(dialog):dialog.accept()

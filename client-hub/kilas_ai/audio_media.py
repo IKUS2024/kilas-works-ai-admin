@@ -125,7 +125,7 @@ def download_wav(raw):
             raise MediaError('Unduhan WAV belum dapat disiapkan. MP3 tetap tersedia.') from None
 
 
-def voice_sample(item):
+def voice_sample(item, *, sample_rate=44100):
     """Decode browser WebM/MP4 microphone audio in a private, short-lived directory."""
     allowed={'audio/webm','video/webm','audio/ogg','audio/mp4','video/mp4','audio/wav','audio/x-wav'}
     if not item or item.mimetype not in allowed:raise MediaError('Rekaman belum dapat dibaca. Rekam ulang lalu coba lagi.')
@@ -137,7 +137,7 @@ def voice_sample(item):
     if not headers[item.mimetype]:raise MediaError('Rekaman belum dapat dibaca. Rekam ulang lalu coba lagi.')
     with tempfile.TemporaryDirectory(prefix='kilas-voice-') as folder:
         source=Path(folder)/'recording';source.write_bytes(raw)
-        ms,pcm=_decode_source(source,folder,sample_rate=44100,max_seconds=180)
+        ms,pcm=_decode_source(source,folder,sample_rate=sample_rate,max_seconds=180)
     if ms>180000:raise MediaError('Gunakan rekaman maksimal 3 menit.')
     return pcm
 
