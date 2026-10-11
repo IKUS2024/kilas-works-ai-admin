@@ -15,6 +15,9 @@ on:
       - 'client-hub/templates/kilas_ai/**'
       - 'client-hub/static/kilas_ai.*'
       - 'client-hub/templates/product_start.html'
+      - 'client-hub/static/kilas_chat.css'
+      - 'client-hub/static/kilas_home.css'
+      - 'client-hub/static/kilas_home.js'
       - '.github/workflows/kilas-ai-focused-qa.yml'
   workflow_dispatch:
 permissions:

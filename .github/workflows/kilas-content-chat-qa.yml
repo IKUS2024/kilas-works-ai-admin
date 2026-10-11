@@ -27,6 +27,12 @@ on:
       - 'client-hub/tests/test_live*'
       - 'client-hub/tests/test_listening*'
       - 'client-hub/app.py'
+      - 'client-hub/static/kilas_chat.css'
+      - 'client-hub/static/kilas_home.css'
+      - 'client-hub/static/kilas_home.js'
+      - 'client-hub/templates/kilas_ai/_home_workspace.html'
+      - 'client-hub/templates/kilas_ai/_agent_home_chat.html'
+      - 'client-hub/templates/kilas_ai/agent_chat_home.html'
       - '.github/workflows/kilas-content-chat-qa.yml'
   workflow_dispatch:
 permissions:
