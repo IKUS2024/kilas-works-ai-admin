@@ -21,6 +21,7 @@ class VideoScriptTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.legacy_audio=audio_fixture.mp3(2.4)
         import imageio_ffmpeg
         with tempfile.TemporaryDirectory() as folder:
             p=Path(folder);(p/'a.wav').write_bytes(wav())
@@ -40,6 +41,48 @@ class VideoScriptTests(unittest.TestCase):
         response.iter_content.return_value=[json.dumps({'text':text,'language_code':'id','language_probability':0.99,'words':[],**({'usage':usage} if usage is not None else {})}).encode()]
         context=Mock();context.__enter__=Mock(return_value=response);context.__exit__=Mock(return_value=False)
         return context
+
+    def legacy_job(self,owner=None,mode='voiceover',status='COMPLETED',original=None,raw=None):
+        owner=self.user if owner is None else owner
+        f.db.execute("INSERT INTO kilas_audio_jobs(user_id,operation_key,fingerprint,mode,title,source_language,target_language,estimated_seconds,reserved_seconds,actual_ms,seconds_charged,status,original_script,result_content,created_at,updated_at) VALUES (?,?,?,?,?,'id','en',3,0,2400,3,?,?,?,?,?)",(owner,'legacy-'+os.urandom(8).hex(),'unchanged-fingerprint',mode,'Legacy output',status,original,self.legacy_audio if raw is None else raw,'2026-01-01','2026-01-01'))
+        return f.db.query_one('SELECT MAX(id) AS id FROM kilas_audio_jobs WHERE user_id=?',(owner,))['id']
+
+    def reconstruct(self,ident,**fields):
+        return self.client.post('/kilas-translator/jobs/'+str(ident)+'/reconstruct-script',data={'csrf_token':'audio-csrf','consent':'yes','operation_key':'legacy-'+str(ident)+'-synthetic-operation-1234',**fields})
+
+    def test_legacy_reconstruction_preserves_entire_job_and_never_restores_original(self):
+        ident=self.legacy_job();before=f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(ident,))
+        with self.funded(),patch.object(stt.requests,'post',return_value=self.response('Spoken English output.')) as paid,patch('requests.sessions.Session.request',side_effect=AssertionError('No other external transport')):
+            result=self.reconstruct(ident);self.assertEqual(result.status_code,200);self.assertEqual(result.json['text'],'Spoken English output.')
+            self.assertEqual(result.json['source_kind'],'audio_reconstruction');self.assertEqual(result.json['job_id'],ident);self.assertIn('no-store',result.headers['Cache-Control'])
+            self.assertEqual(self.reconstruct(ident).json['status'],'COMPLETED');self.assertEqual(paid.call_count,1)
+        self.assertEqual(f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(ident,)),before)
+        self.assertIsNone(f.db.query_one('SELECT seconds FROM kilas_audio_balances WHERE user_id=?',(self.user,)))
+
+    def test_legacy_original_first_no_cost_and_cancellation_after_original_appears(self):
+        ident=self.legacy_job(original='Exact archived original.')
+        with patch.dict(os.environ,{'KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}),patch.object(stt.requests,'post') as paid,patch('kilas_ai.audio_media.decode') as decode:
+            response=self.reconstruct(ident,consent='no');self.assertEqual(response.json['text'],'Exact archived original.');self.assertEqual(response.json['source_kind'],'original_script');paid.assert_not_called();decode.assert_not_called()
+        old=self.legacy_job();key='legacy-'+str(old)+'-synthetic-operation-1234';raw,ms=stt.normalize(wav());digest=hashlib.sha256(raw).hexdigest()
+        with self.funded():
+            _,cap=budget.claim(self.user,key,digest,ms);budget.dispatch(cap,digest,ms)
+            f.db.execute('UPDATE kilas_audio_jobs SET original_script=? WHERE id=?',('Original arrived later.',old))
+            self.assertEqual(self.reconstruct(old,action='cancel').json['status'],'CANCELLED');self.assertFalse(budget.finish(cap,True))
+            status=self.client.get('/kilas-translator/jobs/'+str(old)+'/reconstruct-script?operation_key='+key)
+            self.assertEqual(status.json['status'],'CANCELLED');self.assertNotIn('text',status.json)
+
+    def test_legacy_guard_ownership_mode_status_media_csrf_consent_and_off(self):
+        good=self.legacy_job();invalid=[self.legacy_job(owner=self.other),self.legacy_job(mode='translate'),self.legacy_job(status='FAILED'),self.legacy_job(status='QUEUED')]
+        with self.funded(),patch.object(stt.requests,'post') as paid,patch('kilas_ai.audio_media.decode') as decode:
+            for ident in invalid:self.assertEqual(self.reconstruct(ident).status_code,404)
+            self.assertEqual(self.reconstruct(good,csrf_token='wrong').status_code,400)
+            self.assertEqual(self.reconstruct(good,consent='no').status_code,400)
+            self.assertEqual(self.reconstruct(good,operation_key='legacy-wrong-operation-1234').status_code,400)
+            for raw in (b'',b'not MP3',b'ID3'+b'x'*(20*1024*1024)):
+                f.db.execute('UPDATE kilas_audio_jobs SET result_content=? WHERE id=?',(raw,good));self.assertEqual(self.reconstruct(good).status_code,400)
+            with patch.dict(os.environ,{'KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):
+                response=self.reconstruct(good);self.assertEqual(response.status_code,503);self.assertIn('belum diaktifkan',response.json['error'])
+            paid.assert_not_called();decode.assert_not_called()
 
     def test_default_unavailable_keeps_old_stt_guard_and_no_decode_or_provider(self):
         with patch.dict(os.environ,{'KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}),patch.object(stt.requests,'post') as paid,patch('kilas_ai.audio_media.upload') as decode:

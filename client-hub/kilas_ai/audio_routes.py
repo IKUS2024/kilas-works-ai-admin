@@ -209,6 +209,44 @@ def video_script():
         return {'error':messages.get(error.code,'Video belum dapat dijadikan naskah. Naskah semula tetap aman; tidak ada pengulangan otomatis.'),'code':error.code},error.status,headers
 
 
+@audio_bp.route('/jobs/<int:ident>/reconstruct-script',methods=['POST','GET'])
+def reconstruct_script(ident):
+    # Never fetch an arbitrary URL or overwrite an archived original.
+    owner=session['user_id'];job=owned(ident)
+    headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}
+    if job['mode']!='voiceover' or job['status']!='COMPLETED':abort(404)
+    key=request.args.get('operation_key') if request.method=='GET' else request.form.get('operation_key')
+    try:
+        video_budget.key_valid(key)
+        if not key.startswith('legacy-'+str(ident)+'-'):raise video_budget.BudgetError('invalid_operation',400)
+        if request.method=='GET':
+            row=video_budget.owned(owner,key)
+            if not row:abort(404)
+        elif request.form.get('action')=='cancel':row=video_budget.cancel(owner,key)
+        else:
+            original=store.edit_script(owner,ident)
+            if original is not None:
+                return {'status':'COMPLETED','text':original,'source_kind':'original_script','job_id':ident},200,headers
+            if request.form.get('consent')!='yes':raise video_budget.BudgetError('consent_required',400)
+            if not video_budget.ready():raise video_budget.BudgetError('budget_unavailable')
+            size=db.query_one("SELECT length(result_content) AS size FROM kilas_audio_jobs WHERE id=? AND user_id=? AND mode='voiceover' AND status='COMPLETED' AND original_script IS NULL",(ident,owner))
+            if not size or not size['size'] or size['size']>20*1024*1024:raise video_budget.BudgetError('invalid_audio',400)
+            item=db.query_one("SELECT result_content FROM kilas_audio_jobs WHERE id=? AND user_id=? AND mode='voiceover' AND status='COMPLETED' AND original_script IS NULL",(ident,owner))
+            if not item or not item['result_content']:raise video_budget.BudgetError('invalid_audio',400)
+            raw=bytes(item['result_content'])
+            if not (raw[:3]==b'ID3' or (len(raw)>1 and raw[0]==255 and raw[1]&224==224)):raise video_budget.BudgetError('invalid_audio',400)
+            _,pcm=media.decode(raw,'mp3');pcm,ms=video_stt.normalize(pcm)
+            row,capability=video_budget.claim(owner,key,hashlib.sha256(pcm).hexdigest(),ms)
+            if capability:
+                text=video_stt.transcribe(pcm,capability);row=video_budget.owned(owner,key)
+                if text is not None and row['status']=='COMPLETED':row['text']=text
+        return {**row,'source_kind':'audio_reconstruction','job_id':ident},200,headers
+    except (video_budget.BudgetError,media.MediaError) as error:
+        code=getattr(error,'code','invalid_audio')
+        message='Transkripsi audio lama belum diaktifkan. Kamu tetap bisa memakai naskah asli tersimpan atau mengetik; draf dan audio tetap aman.' if code=='budget_unavailable' else 'Audio lama belum dapat ditranskripsikan. Naskah asli tidak direka; draf dan hasil audio tetap aman. Tidak ada pengulangan otomatis.'
+        return {'error':message,'code':code},getattr(error,'status',400),headers
+
+
 @audio_bp.post('/voice-script/translate')
 def translate_voice_script():
     import time
@@ -228,7 +266,7 @@ def status(ident):
             'duration_label':seconds(((job['source_ms'] if job['mode']=='translate' else job['actual_ms'])+999)//1000),
             'balance_html':render_template('kilas_translator/_balance.html',balance=store.balance(session['user_id']),seconds=seconds),
             'edit_script_url':url_for('kilas_audio.script_for_edit',ident=ident) if job['has_original_script'] else None,
-            'html':render_template('kilas_translator/_result.html',job=job,languages=provider.LANGUAGES,seconds=seconds)},200,{'Cache-Control':'no-store'}
+            'html':render_template('kilas_translator/_result.html',job=job,languages=provider.LANGUAGES,seconds=seconds,video_script_ready=video_budget.ready())},200,{'Cache-Control':'no-store'}
 
 
 @audio_bp.get('/jobs/<int:ident>/script')

@@ -1,0 +1,4 @@
+{% if reconstruct_job.mode=='voiceover' and reconstruct_job.status=='COMPLETED' and not reconstruct_job.has_original_script %}
+<button type="button" class="btn secondary" data-audio-reconstruct="{{ url_for('kilas_audio.reconstruct_script',ident=reconstruct_job.id) }}" data-audio-job-id="{{ reconstruct_job.id }}" {{ 'disabled' if not video_script_ready }}>Transkripsikan audio untuk diedit</button>
+<small>Rekonstruksi ucapan dari audio hasil, bukan pemulihan naskah asli. Bahasa atau kata dapat berbeda dari naskah sebelum diterjemahkan. {% if not video_script_ready %}Transkripsi belum diaktifkan.{% endif %}</small>
+{% endif %}
