@@ -7,6 +7,7 @@ import shutil
 import tempfile
 from unittest.mock import patch
 from werkzeug.serving import make_server
+from kilas_chat_sidebar_browser_helpers import open_chat_sidebar, click_new_chat
 from playwright.sync_api import sync_playwright, expect
 import test_kilas_home as fixture
 from kilas_ai import providers
@@ -161,8 +162,8 @@ def main():
                     page.locator('#ai-input').focus();expect(page.locator('#ai-send')).to_be_in_viewport()
                     page.set_viewport_size({'width':width,'height':1000})
                 page.screenshot(path=str(output/f'chat-history-{width}.png'),full_page=True)
-                page.goto(origin+'/products/start');page.locator('.home-history summary').click()
-                history_link=page.locator('.home-history a[href="'+thread_url.removeprefix(origin)+'"]')
+                page.goto(origin+'/products/start');open_chat_sidebar(page)
+                history_link=page.locator('[data-chat-sidebar] a[href="'+thread_url.removeprefix(origin)+'"]')
                 expect(history_link).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 page.screenshot(path=str(output/f'home-history-{width}.png'),full_page=True)

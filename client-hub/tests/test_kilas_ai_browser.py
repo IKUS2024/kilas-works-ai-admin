@@ -16,6 +16,7 @@ import app  # noqa: E402
 import repo  # noqa: E402
 from PIL import Image  # noqa: E402
 from kilas_ai import providers, store, tools, model_policy  # noqa: E402
+from kilas_chat_sidebar_browser_helpers import click_new_chat
 from playwright.sync_api import sync_playwright, expect  # noqa: E402
 from werkzeug.serving import make_server  # noqa: E402
 
@@ -75,7 +76,7 @@ def main():
                 assert page.get_by_role("heading", name="Mau ngapain hari ini?").is_visible()
                 assert page.get_by_text("Mulai dari ide, pertanyaan, atau pekerjaanmu.").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "empty")
-                page.get_by_role("link", name="Chat baru").click()
+                click_new_chat(page)
                 assert page.url.endswith("/products/start")
                 assert store.list_threads(owner) == []
                 expect(page.get_by_role("heading", name="Mau ngapain hari ini?")).to_be_visible()
@@ -162,7 +163,7 @@ def main():
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "retry")
                 assert page.evaluate("document.activeElement.id === 'ai-input'") is (width > 760)
                 count = len(store.list_threads(owner))
-                page.get_by_role("link", name="Chat baru").click()
+                click_new_chat(page)
                 assert page.url.endswith("/products/start")
                 assert page.get_by_role("heading", name="Mau ngapain hari ini?").is_visible()
                 assert page.locator("#ai-tool,#ai-mode").count() == 0

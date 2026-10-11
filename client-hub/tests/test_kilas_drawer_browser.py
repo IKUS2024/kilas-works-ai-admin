@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import test_kilas_autonomous_agent as fixture
 from kilas_ai import agent_store, store, automation_store
+from kilas_chat_sidebar_browser_helpers import open_chat_sidebar, click_new_chat
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 
@@ -51,8 +52,10 @@ def main():
                         page.locator('[data-premium-menu]').click()
                         expect(drawer.locator('[data-premium-close]')).to_be_focused()
                     expect(drawer).to_be_visible()
-                    assert drawer.locator('.ai-history').count()==0
-                    assert drawer.locator('.premium-sidebar-account a').last.bounding_box()['y'] < 844
+                    assert drawer.locator('[data-chat-sidebar] .ai-history').count()==1
+                    assert page.locator('.kilas-home-workspace .ai-history,.home-history').count()==0
+                    drawer.locator('.premium-sidebar-account a').last.scroll_into_view_if_needed()
+                    expect(drawer.locator('.premium-sidebar-account a').last).to_be_in_viewport()
                     fit = drawer.locator('select[name=language]').evaluate("""el => {
                         const style=getComputedStyle(el), canvas=document.createElement('canvas'), ctx=canvas.getContext('2d');
                         ctx.font=style.font;
@@ -74,19 +77,19 @@ def main():
                         page.locator('[data-premium-menu]').click()
                         page.locator('.premium-backdrop').click(position={'x':width-5,'y':300})
                         assert not page.locator('body').evaluate('el=>el.classList.contains("premium-menu-open")')
-                    page.locator('.home-history summary').click()
-                    rows=page.locator('.home-history .ai-history a')
+                    open_chat_sidebar(page)
+                    rows=page.locator('[data-chat-sidebar] .ai-history a')
                     assert rows.count()==6
                     assert rows.first.get_attribute('title').startswith('Halo.')
                     assert rows.first.get_attribute('aria-current')=='page'
                     dimensions=rows.evaluate_all('(rows)=>rows.map(el=>({height:el.getBoundingClientRect().height,wrap:getComputedStyle(el).whiteSpace,ellipsis:getComputedStyle(el).textOverflow}))')
                     assert all(row=={'height':44,'wrap':'nowrap','ellipsis':'ellipsis'} for row in dimensions),dimensions
                     assert rows.first.evaluate('el=>el.scrollWidth>el.clientWidth')
-                    panel=page.locator('.home-history-panel')
-                    assert panel.evaluate('el=>el.getBoundingClientRect().height<=innerHeight*.48+1&&getComputedStyle(el).overflowY==="auto"')
+                    panel=page.locator('#premium-sidebar')
+                    assert panel.evaluate('el=>el.getBoundingClientRect().height<=innerHeight+1&&getComputedStyle(el).overflowY==="auto"')
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                     # Preview stays compact while the original full history retains all20 records.
-                    page.locator('.home-history-panel>a[href*="view=history"]').click()
+                    panel.locator('.chat-history-all[href*="view=history"]').click()
                     expect(page.locator('.agent-main .agent-chats a[href*="conversation="]')).to_have_count(20)
                     page.locator(f'.agent-main .agent-chats a[href$="conversation={ids[-2]}"]').click()
                     page.wait_for_load_state('networkidle');assert f'conversation={ids[-2]}' in page.url
@@ -95,7 +98,7 @@ def main():
                     drawer.locator('select[name=language]').select_option('en' if language=='id' else 'id')
                     drawer.locator('.language-selector button').click();page.wait_for_load_state('networkidle')
                     assert page.locator('html').get_attribute('lang')==('en' if language=='id' else 'id')
-                    page.get_by_role('button',name='New chat' if language=='id' else 'Chat baru',exact=True).click()
+                    click_new_chat(page,agent=True,name='New chat' if language=='id' else 'Chat baru')
                     page.wait_for_load_state('networkidle')
                     assert f'conversation={ids[-2]}' not in page.url
                     assert not page.locator('.agent-message-user').count()
@@ -109,21 +112,21 @@ def main():
             for count in (0, 1):
                 with patch.object(agent_store, 'recent_conversations', return_value=[{'id':ids[-1], 'title':'Chat QA'}] if count else []):
                     page.goto(f'{origin}/kilas-ai/agent?conversation={ids[-1]}',wait_until='networkidle')
-                page.locator('.home-history summary').click()
-                assert page.locator('.home-history .ai-history a').count()==count
+                open_chat_sidebar(page)
+                assert page.locator('[data-chat-sidebar] .ai-history a').count()==count
                 if not count:expect(page.locator('.ai-sidebar-empty')).to_be_visible()
-                if count:assert page.locator('.home-history .ai-history a').bounding_box()['height']==44
+                if count:assert page.locator('[data-chat-sidebar] .ai-history a').bounding_box()['height']==44
                 page.screenshot(path=str(captures/f'count-{count}-360.png'))
             # Legacy saved conversations retain active history and native logout.
             thread=store.create_thread(owner)
             store.rename_thread(owner,thread,'Percakapan lama sintetis dengan judul yang panjang untuk pemeriksaan drawer')
             page.goto(f'{origin}/kilas-ai/threads/{thread}',wait_until='networkidle')
-            page.locator('.home-history summary').click()
+            open_chat_sidebar(page)
             expect(page.locator('.ai-history-item[aria-current=page]')).to_be_visible()
             assert page.locator('.ai-history-item').bounding_box()['height']==44
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.screenshot(path=str(captures/'legacy-360.png'))
-            page.locator('[data-premium-menu]').click()
+            open_chat_sidebar(page)
             page.locator('.premium-sidebar-account a').last.click();page.wait_for_load_state('networkidle')
             assert not page.locator('.premium-sidebar').count()
             context.close()

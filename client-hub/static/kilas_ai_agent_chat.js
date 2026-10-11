@@ -91,7 +91,7 @@
     chat.replaceChildren(...current.childNodes);
     window.KilasAttachmentPreview?.clear();
     window.KilasMarkdown.hydrate(chat);copyAnswers();
-    const history=doc.querySelector('.home-history .ai-history'),currentHistory=document.querySelector('.home-history .ai-history');
+    const history=doc.querySelector('[data-chat-sidebar] .ai-history'),currentHistory=document.querySelector('[data-chat-sidebar] .ai-history');
     if(history&&currentHistory)currentHistory.replaceChildren(...history.childNodes);
     const chats = doc.querySelector('.agent-chats');
     if (chats) document.querySelector('.agent-chats')?.replaceChildren(...chats.childNodes);

@@ -21,6 +21,27 @@ def audio_offering_context():
 
 
 @ai_bp.app_context_processor
+def chat_sidebar_context():
+    """Owned, read-only sidebar projection on Kilas surfaces only."""
+    from flask import session
+    from .routes import enabled
+    endpoint = request.endpoint or ''
+    home_account = (endpoint == 'auth.account_page' and
+                    (request.args.get('workspace') == 'home' or session.get('active_product') != 'finance'))
+    surface = (endpoint == 'products.product_start' or home_account or
+               request.blueprint in ('kilas_ai', 'kilas_audio'))
+    if not (surface and enabled() and session.get('user_id') and session.get('role') == 'CLIENT_OWNER'):
+        return {}
+
+    def history():
+        from . import agent_store, store
+        return {'threads': store.list_threads(session['user_id'], 6),
+                'conversations': agent_store.recent_conversations(session['user_id'])[:6] if automation_enabled() else [],
+                'automation_enabled': automation_enabled()}
+    return {'chat_sidebar_enabled': True, 'chat_sidebar_history': history}
+
+
+@ai_bp.app_context_processor
 def account_workspace_context():
     """Share account navigation independently of the selected product's content."""
     from flask import session

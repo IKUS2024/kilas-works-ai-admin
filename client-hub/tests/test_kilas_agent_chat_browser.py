@@ -14,6 +14,7 @@ import app
 import repo
 import db
 from kilas_ai import autonomous_store as jobs, providers, autonomous_planner, autonomous_runner
+from kilas_chat_sidebar_browser_helpers import click_new_chat
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 
@@ -69,7 +70,7 @@ def main():
                     expect(page.locator('.premium-sidebar')).to_be_visible()
                     page.keyboard.press('Escape')
                     expect(page.locator('.premium-sidebar')).to_be_hidden()
-                page.get_by_role('button',name='Chat baru',exact=True).click()
+                click_new_chat(page,agent=True)
                 expect(page.get_by_role('heading',name='Mau ngapain hari ini?',exact=True)).to_be_visible()
                 assert page.locator('.agent-message').count()==0
                 assert jobs.get(owner,job['id'])['status']=='PLANNING'

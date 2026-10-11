@@ -155,7 +155,12 @@ def main():
                     route.continue_()
                 action=page.locator('#voiceover-panel form[data-audio-form]').get_attribute('action')
                 page.route('**'+action,generation_feedback)
+                redirect_dialogs=[]
+                def record_redirect_dialog(dialog):redirect_dialogs.append(dialog.type);dialog.dismiss()
+                page.on('dialog',record_redirect_dialog)
                 page.get_by_role('button',name='Generate Voice Over').click();expect(page.locator('#audio-result audio')).to_be_visible(timeout=20000)
+                page.remove_listener('dialog',record_redirect_dialog)
+                assert redirect_dialogs==[],('Generate result redirect must not be interrupted',redirect_dialogs)
                 expect(page.locator('#generation-feedback')).to_have_attribute('data-state','success')
                 expect(page.locator('#generation-feedback')).to_contain_text('Audio tersimpan')
                 page.locator('#generation-feedback-close').click();expect(page.locator('#generation-feedback')).to_be_hidden()

@@ -5,6 +5,7 @@ import threading
 from unittest.mock import patch
 import test_kilas_agent_chat_browser as fixture
 from kilas_ai import store
+from kilas_chat_sidebar_browser_helpers import click_new_chat
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 
@@ -63,14 +64,14 @@ def main():
                             expect(menu).to_have_attribute('aria-expanded','false')
                             expect(page.locator('.premium-sidebar')).to_be_hidden()
                     if mode=='agent':
-                        assert page.locator('.home-history .ai-history').get_by_text('Riset kompetitor sampai selesai',exact=True).count()==1
-                        assert page.locator('.home-history .ai-history').get_by_text('Pertanyaan di normal Chat',exact=True).count()==1
-                        page.get_by_role('button',name='Chat baru',exact=True).click()
+                        assert page.locator('[data-chat-sidebar] .ai-history').get_by_text('Riset kompetitor sampai selesai',exact=True).count()==1
+                        assert page.locator('[data-chat-sidebar] .ai-history').get_by_text('Pertanyaan di normal Chat',exact=True).count()==1
+                        click_new_chat(page,agent=True)
                         assert page.locator('.agent-message').count()==0
                         assert fixture.jobs.get(owner,job['id'])['status']=='PLANNING'
                     else:
                         assert page.locator('.ai-history').get_by_text('Pertanyaan di normal Chat',exact=True).count()==1
-                        page.get_by_role('link',name='Chat baru',exact=True).click()
+                        click_new_chat(page)
                         expect(page.locator('#ai-composer')).to_be_visible()
                         assert page.url.endswith('/products/start')
                         assert len(store.list_threads(owner))==1

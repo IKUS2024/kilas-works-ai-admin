@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 import test_kilas_work_documents as fixture
 from playwright.sync_api import sync_playwright,expect
+from kilas_chat_sidebar_browser_helpers import click_new_chat
 from werkzeug.serving import make_server
 
 
@@ -82,7 +83,7 @@ def main():
                 expect(page.locator(f'[data-job-id="{job}"]')).to_have_count(1)
                 if width<760:
                     page.get_by_role('button',name='Buka navigasi').click();page.keyboard.press('Escape')
-                page.get_by_role('button',name='Chat baru',exact=True).click()
+                click_new_chat(page,agent=True)
                 expect(page.get_by_role('heading',name='Mau ngapain hari ini?')).to_be_visible()
                 assert fixture.fixture.store.get(owner,active)['status']=='PLANNING'
                 assert not errors,errors

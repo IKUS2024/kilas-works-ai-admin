@@ -51,7 +51,8 @@ class HomeTests(unittest.TestCase):
         self.assertEqual(html.count('name="product" value="finance"'),1)
         self.assertIn('Riwayat percakapan',html)
         self.assertNotIn('home-recent',html)
-        self.assertIn('home-history-panel',html)
+        self.assertIn('data-chat-sidebar',html)
+        self.assertNotIn('home-history-panel',html)
         self.assertNotIn('Belum tersedia untuk akun ini',html)
         self.assertIn('name="product" value="finance"',html)
 
@@ -62,6 +63,33 @@ class HomeTests(unittest.TestCase):
                 html=self.client().get('/products/start').get_data(as_text=True)
             self.assertEqual('Terjemahan langsung / Bantu jawab' in html,ready)
             self.assertNotIn('Belum tersedia untuk akun ini',html)
+
+    def test_shared_sidebar_owned_history_selection_and_native_new_chat(self):
+        from kilas_ai import store
+        owned=store.create_thread(self.owner);store.rename_thread(self.owner,owned,'My <script> saved title')
+        foreign=store.create_thread(self.other);store.rename_thread(self.other,foreign,'Foreign private history')
+        for route in ('/products/start','/account?workspace=home','/kilas-translator?mode=voiceover','/kilas-ai/video','/kilas-ai/usage','/kilas-ai/threads/'+str(owned)):
+            response=self.client().get(route);self.assertEqual(response.status_code,200)
+            html=response.text
+            self.assertEqual(html.count('data-chat-sidebar'),1)
+            self.assertIn('My &lt;script&gt; saved title',html)
+            self.assertNotIn('Foreign private history',html)
+            self.assertNotIn('home-history-panel',html)
+        html=self.client().get('/kilas-ai/threads/'+str(owned)).text
+        self.assertIn('href="/kilas-ai/threads/'+str(owned)+'" title="My &lt;script&gt; saved title" data-chat-navigation aria-current="page"',html)
+        agent=self.client().get('/kilas-ai/agent?conversation='+str(self.conversation)).text
+        self.assertIn('action="/kilas-ai/agent/conversations" data-chat-navigation',agent)
+        self.assertIn('name="csrf_token" value="work-csrf"',agent)
+
+    def test_sidebar_projection_excludes_finance_and_disabled_accounts(self):
+        client=self.client()
+        with client.session_transaction() as values:values['active_product']='finance'
+        html=client.get('/account').text
+        self.assertNotIn('data-chat-sidebar',html)
+        self.assertNotIn('kilas_chat_sidebar.',html)
+        self.assertIn('data-chat-sidebar',client.get('/account?workspace=home').text)
+        with patch.dict(os.environ,{'KILAS_AI_ENABLED':'false'}):
+            self.assertNotIn('data-chat-sidebar',client.get('/products/start').text)
 
     def test_task_handoffs_escape_drafts_preserve_original_forms(self):
         for task in ('chat','video','translate','voiceover'):

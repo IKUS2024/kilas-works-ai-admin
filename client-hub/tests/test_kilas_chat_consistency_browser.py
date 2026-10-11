@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 import test_kilas_home as fixture
 from kilas_ai import providers, agent_store
+from kilas_chat_sidebar_browser_helpers import open_chat_sidebar, click_new_chat
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 
@@ -114,11 +115,11 @@ def main():
                     page.locator(selector).fill('');page.evaluate('qaViewport.height=innerHeight;qaViewport.offsetTop=0;qaViewport.dispatchEvent(new Event("resize"))')
                     assert page.locator('.ai-composer').last.evaluate('e=>innerHeight-e.getBoundingClientRect().bottom<60')
                     page.screenshot(path=str(output/f'{engine}-{"agent" if work else "legacy"}-{width}.png'))
-                    new=page.get_by_role('button' if work else 'link',name='Chat baru',exact=True);new.click();page.wait_for_load_state('networkidle')
+                    click_new_chat(page,agent=work)
                     tools_and_layout(page,selector);expect(page.get_by_text('Mau ngapain hari ini?',exact=True)).to_be_visible()
                     # Opening the original saved destination from Home history preserves the same tools/composer.
-                    page.goto(origin+'/products/start',wait_until='networkidle');page.locator('.home-history summary').click()
-                    link=page.locator('.home-history a[href="'+saved.removeprefix(origin)+'"]');expect(link).to_be_visible();link.click();page.wait_for_load_state('networkidle')
+                    page.goto(origin+'/products/start',wait_until='networkidle');open_chat_sidebar(page)
+                    link=page.locator('[data-chat-sidebar] a[href="'+saved.removeprefix(origin)+'"]');expect(link).to_be_visible();link.click();page.wait_for_load_state('networkidle')
                     tools_and_layout(page,selector);expect(page.locator('#agent-conversation' if work else '#ai-messages')).to_contain_text('Jawaban sintetis yang tersimpan.')
                 assert not errors,errors
                 report['cases'].append({'width':width,'height':height,'legacy':'PASS','agent':'PASS'});context.close()
