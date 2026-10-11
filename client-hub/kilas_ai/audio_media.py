@@ -101,6 +101,30 @@ def mp3_duration(raw):
     return decode(raw, 'mp3')[0]
 
 
+def download_wav(raw):
+    """Decode stored MP3 to real PCM WAV; never claim recovered source quality."""
+    if not raw or len(raw)>20*1024*1024 or not (raw[:3]==b'ID3' or (len(raw)>1 and raw[0]==255 and raw[1]&224==224)):
+        raise MediaError('Unduhan WAV belum dapat disiapkan. MP3 tetap tersedia.')
+    with tempfile.TemporaryDirectory(prefix='kilas-wav-download-') as folder:
+        source = Path(folder) / 'source.mp3'
+        target = Path(folder) / 'download.wav'
+        source.write_bytes(raw)
+        try:
+            result = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), '-nostdin', '-v', 'error',
+                '-protocol_whitelist', 'file,pipe', '-threads', '1', '-i', str(source),
+                '-map', '0:a:0', '-vn', '-t', str(duration_limit()+1),
+                '-c:a', 'pcm_s16le', '-y', str(target)], capture_output=True, timeout=15)
+            if result.returncode or not target.exists() or target.stat().st_size > 240*1024*1024:
+                raise MediaError('Unduhan WAV belum dapat disiapkan. MP3 tetap tersedia.')
+            output = target.read_bytes()
+            with wave.open(io.BytesIO(output)) as audio:
+                if not 0 < audio.getnframes()/audio.getframerate() <= duration_limit():
+                    raise MediaError('Unduhan WAV belum dapat disiapkan. MP3 tetap tersedia.')
+            return output
+        except (subprocess.TimeoutExpired, wave.Error, EOFError, OSError):
+            raise MediaError('Unduhan WAV belum dapat disiapkan. MP3 tetap tersedia.') from None
+
+
 def voice_sample(item):
     """Decode browser WebM/MP4 microphone audio in a private, short-lived directory."""
     allowed={'audio/webm','video/webm','audio/ogg','audio/mp4','video/mp4','audio/wav','audio/x-wav'}

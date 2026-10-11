@@ -205,6 +205,34 @@ class AudioTests(unittest.TestCase):
         for path in (r.json['url'],f'/kilas-translator/jobs/{ident}/result',f'/kilas-translator/jobs/{ident}/status'):self.assertEqual(self.client.get(path).status_code,404)
         self.assertNotIn('safe synthetic audio test',self.client.get('/kilas-translator').text)
 
+    def test_voiceover_wav_is_real_private_pcm_without_recharging(self):
+        self.credit();created,speech,_=self.create();ident=created.json['id']
+        f.db.execute('UPDATE kilas_audio_balances SET seconds=0 WHERE user_id=?',(self.user,))
+        before=store.balance(self.user)
+        with patch.object(provider,'speech') as paid,patch.object(provider,'dub') as dub:
+            response=self.client.get(f'/kilas-translator/jobs/{ident}/result?download=1&format=wav')
+            self.assertEqual(response.status_code,200,response.data[:100])
+            self.assertEqual(response.mimetype,'audio/wav')
+            self.assertIn('.wav',response.headers['Content-Disposition'])
+            self.assertEqual(response.data[:4],b'RIFF');self.assertEqual(response.data[8:12],b'WAVE')
+            with wave.open(io.BytesIO(response.data)) as audio:
+                self.assertEqual(audio.getsampwidth(),2)
+                self.assertGreater(audio.getnframes()/audio.getframerate(),2)
+            self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/result?download=1').data,self.audio)
+            self.assertEqual(store.balance(self.user),before)
+            paid.assert_not_called();dub.assert_not_called()
+        with self.client.session_transaction() as state:state['user_id']=self.other
+        self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/result?format=wav').status_code,404)
+
+    def test_wav_conversion_failure_does_not_change_completed_job(self):
+        self.credit();created,_,_=self.create();ident=created.json['id']
+        with patch.object(media.subprocess,'run',side_effect=subprocess.TimeoutExpired('ffmpeg',15)):
+            response=self.client.get(f'/kilas-translator/jobs/{ident}/result?format=wav')
+        self.assertEqual(response.status_code,400)
+        self.assertIn('MP3 tetap tersedia',response.json['error'])
+        self.assertEqual(store.get(self.user,ident)['status'],'COMPLETED')
+        self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/result').data,self.audio)
+
     def test_supported_wav_duration_and_invalid_extension_mime(self):
         from werkzeug.datastructures import FileStorage
         for name,mime,raw in [('audio.wav','audio/wav',wav(2.25)),('audio.mp3','audio/mpeg',self.audio)]:

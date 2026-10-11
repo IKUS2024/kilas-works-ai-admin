@@ -190,8 +190,12 @@ def result(ident):
     # Ignore user paths; only the sanitized display stem and fixed provider language name.
     from werkzeug.utils import secure_filename
     video=raw[4:8]==b'ftyp'
-    name=(secure_filename(job['title']).rsplit('.',1)[0][:80] or 'audio')+'-'+provider.LANGUAGES.get(job['target_language'],'Voice Over').split(' / ')[0]+('.mp4' if video else '.mp3')
-    response=send_file(io.BytesIO(raw),mimetype='video/mp4' if video else 'audio/mpeg',download_name=name,as_attachment=request.args.get('download')=='1')
+    wav = request.args.get('format') == 'wav'
+    if wav:
+        if job['mode'] != 'voiceover' or video:abort(400)
+        raw = media.download_wav(raw)
+    name=(secure_filename(job['title']).rsplit('.',1)[0][:80] or 'audio')+'-'+provider.LANGUAGES.get(job['target_language'],'Voice Over').split(' / ')[0]+('.wav' if wav else '.mp4' if video else '.mp3')
+    response=send_file(io.BytesIO(raw),mimetype='audio/wav' if wav else 'video/mp4' if video else 'audio/mpeg',download_name=name,as_attachment=request.args.get('download')=='1')
     response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
     return response
 

@@ -78,6 +78,11 @@ def main():
                 page.unroute('**'+action)
                 expect(page.locator('#voiceover-tab')).to_have_attribute('aria-selected','true');page.reload(wait_until='networkidle');expect(page.locator('#audio-result audio')).to_be_visible();check('voice-result')
                 expect(page.locator('.audio-history li')).to_have_count(2)
+                with page.expect_download() as wav_download:page.get_by_role('link',name='Download WAV',exact=True).click()
+                assert wav_download.value.suggested_filename.endswith('.wav')
+                wav_path=output/f'download-{width}.wav';wav_download.value.save_as(wav_path)
+                assert wav_path.read_bytes()[:4]==b'RIFF' and wav_path.read_bytes()[8:12]==b'WAVE'
+
                 page.route('**'+action,lambda route:route.fulfill(status=503,content_type='application/json',body='{"error":"Gangguan QA sintetis"}'))
                 page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-1')
                 page.fill('#audio-script','Synthetic failure check.')
