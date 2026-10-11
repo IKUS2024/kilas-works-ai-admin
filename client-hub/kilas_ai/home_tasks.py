@@ -16,13 +16,17 @@ def context(owner):
 
 @ai_bp.app_context_processor
 def account_workspace_context():
-    """Account presentation only; Finance keeps its existing account surface."""
+    """Share account navigation independently of the selected product's content."""
     from flask import session
     from .routes import enabled
     if (request.endpoint == 'auth.account_page' and session.get('user_id')
-            and session.get('role') != 'KILAS_ADMIN'
-            and session.get('active_product') != 'finance' and enabled()):
-        return {'account_workspace': {'preferences': automation_enabled()}}
+            and session.get('role') != 'KILAS_ADMIN'):
+        result = {'account_navigation': True}
+        # Exact, presentation-only entry hint; never changes product/access authority.
+        home_entry = request.args.get('workspace') == 'home'
+        if enabled() and (home_entry or session.get('active_product') != 'finance'):
+            result['account_workspace'] = {'preferences': automation_enabled()}
+        return result
     return {}
 
 

@@ -6,7 +6,7 @@
   <header class="subscription-header"><h1>{{ ui_t('Settings') }}</h1><p>{{ ui_t('Akun, pembelian, dan penggunaan Kilas AI, Video, serta Translator.') }}</p></header>
   <section class="subscription-section" aria-labelledby="settings-account-title">
     <h2 id="settings-account-title">{{ ui_t('Akun & keamanan') }}</h2>
-    <p><a href="{{ url_for('auth.account_page') }}#security">{{ ui_t('Kelola profil & keamanan akun') }}</a> ? <a href="{{ url_for('auth.account_page') }}">{{ ui_t('Pengaturan Finance') }}</a></p>
+    <p><a href="{{ url_for('auth.account_page', workspace='home') }}#security">{{ ui_t('Kelola profil & keamanan akun') }}</a> ? <a href="{{ url_for('auth.account_page') }}">{{ ui_t('Pengaturan Finance') }}</a></p>
     <p class="subscription-fine">{{ ui_t('Data bisnis, invoice, dan metode pembayaran Finance dikelola terpisah di pengaturan Finance.') }}</p>
   </section>
   <div class="subscription-layout">

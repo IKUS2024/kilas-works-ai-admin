@@ -21,7 +21,7 @@
       notice.textContent=t('Selesaikan chat atau hapus lampiran sebelum mengganti tugas.');return;
     }
     drafts[current]=input.value;current=next;value.value=next;input.value=drafts[next];const task=tasks[next];
-    input.maxLength=task.limit;input.placeholder=t(task.placeholder);root.querySelector('[data-home-input-label]').textContent=t(task.label);send.textContent=t(task.button);
+    input.maxLength=task.limit;input.placeholder=t(task.placeholder);root.querySelector('[data-home-input-label]').textContent=t(task.label);send.setAttribute('aria-label',t(task.button));send.title=t(task.button);root.querySelector('[data-home-selected-task]').textContent=root.querySelector(`[data-home-task="${next}"] span`).textContent;root.querySelector('.home-tool-selector').open=false;input.dispatchEvent(new Event('input'));
     context.hidden=next==='chat';root.querySelector('[data-home-context-title]').textContent=t(task.title||'');root.querySelector('[data-home-context-description]').textContent=t(task.description||'');
     root.querySelector('[data-home-attachment]').hidden=next!=='chat';root.querySelector('#ai-files').disabled=next!=='chat';root.querySelector('[data-home-hint]').hidden=next!=='chat';notice.textContent='';
     root.querySelectorAll('[data-home-task]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.homeTask===next)));

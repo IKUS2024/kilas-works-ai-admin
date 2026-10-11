@@ -103,7 +103,7 @@ class HomeTests(unittest.TestCase):
         self.assertIn('account-workspace-access',html)
         self.assertNotIn('<span>Video</span>',html)
         self.assertNotIn('<span>Translator</span>',html)
-        self.assertIn('href="/account" aria-current="page"',html)
+        self.assertIn('href="/account?workspace=home" aria-current="page"',html)
         self.assertIn('href="/kilas-ai/usage"',html)
         for anchor in ('offer-title','audio-settings-title','billing-title'):
             self.assertIn('href="/kilas-ai/usage#'+anchor+'"',html)
@@ -115,21 +115,44 @@ class HomeTests(unittest.TestCase):
             # Existing account forms remain available; no replacement account backend.
             self.assertIn('value="'+action+'"',html)
 
-    def test_account_finance_and_feature_off_preserve_original_surface(self):
+    def test_account_finance_content_preserved_with_canonical_home_navigation(self):
         client=self.client()
         with client.session_transaction() as values:values['active_product']='finance'
         html=client.get('/account').get_data(as_text=True)
         self.assertNotIn('account-workspace-access',html)
-        self.assertIn('<span>Video</span>',html)
+        for label in ('Video','Translator','Kilas AI'):
+            self.assertNotIn('<span>'+label+'</span>',html)
         self.assertIn('href="/account" aria-current="page"',html)
         self.assertIn('history.replaceState',html)
         self.assertNotIn('history.pushState',html)
+        self.assertIn('href="/kilas-ai/usage"',html)
+        for action in ('personal_profile','email_change_request','password'):
+            self.assertIn('value="'+action+'"',html)
         with client.session_transaction() as values:values['active_product']='kilas_ai'
         with patch.dict(os.environ,{'KILAS_AI_AUTOMATION_ENABLED':'false'}):
             html=client.get('/account').get_data(as_text=True)
             self.assertNotIn('href="/kilas-ai/agent?view=settings"',html)
         with patch.dict(os.environ,{'KILAS_AI_ENABLED':'false'}):
             self.assertNotIn('account-workspace-access',client.get('/account').get_data(as_text=True))
+
+    def test_home_account_entry_overrides_only_presentation_in_finance_session(self):
+        import re
+        client=self.client()
+        with client.session_transaction() as values:values['active_product']='finance'
+        home=client.get('/products/start').text
+        href=re.search(r'premium-sidebar-account.*?<a href="([^"]+)"',home).group(1)
+        self.assertEqual(href,'/account?workspace=home')
+        for route in (href,href+'#security','/account?workspace=home&tab=business'):
+            html=client.get(route).text
+            self.assertIn('account-workspace-access',html)
+            self.assertIn('<h1>Akun saya</h1>',html)
+            self.assertNotIn('<span>Video</span>',html)
+        for route in ('/account','/account#business','/account?workspace=finance','/account?workspace=HOME','/account?workspace=invalid'):
+            html=client.get(route).text
+            self.assertNotIn('account-workspace-access',html)
+            self.assertNotIn('<span>Video</span>',html)
+            self.assertIn('history.replaceState',html)
+        with client.session_transaction() as values:self.assertEqual(values['active_product'],'finance')
 
 
 if __name__=='__main__':unittest.main()

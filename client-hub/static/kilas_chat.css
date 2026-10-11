@@ -1,0 +1,36 @@
+/* Only the Home/legacy chat shells load this shared conversation presentation. */
+.kilas-light .ai-shell .ai-message{border:0;padding:0;margin:0 0 20px;max-width:100%}
+.kilas-light .ai-shell .ai-message-name{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.kilas-light .ai-shell .chat-visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.kilas-light .ai-shell .ai-user{display:flex;flex-direction:column;align-items:flex-end}
+.kilas-light .ai-shell .ai-user .ai-message-text{width:fit-content;max-width:min(85%,65ch);padding:10px 14px;border:0;border-radius:16px 16px 4px 16px;background:#f2f2ef;white-space:pre-wrap}
+.kilas-light .ai-shell .ai-assistant{display:flex;flex-direction:column;align-items:flex-start}
+.kilas-light .ai-shell .ai-assistant .ai-message-text{width:100%;max-width:75ch;min-width:0;line-height:1.65}
+.kilas-light .ai-shell .ai-message-text{overflow-wrap:anywhere}
+.kilas-light .ai-shell .ai-message-text pre{max-width:100%;overflow:auto}
+.kilas-light .ai-shell .ai-user :is(.ai-sent-file,.ai-image-result,.ai-file-card){max-width:85%}
+.kilas-light .ai-shell .ai-copy{display:inline-flex;align-items:center;justify-content:center;width:36px;min-height:36px;padding:8px;margin-top:5px;border:0;background:none;color:var(--muted);cursor:pointer}
+.kilas-light .ai-shell .ai-copy:hover{color:var(--accent);background:#f5f5f2;border-radius:8px}
+.kilas-light .ai-shell .ai-thread-menu>summary{list-style:none;display:flex;align-items:center;justify-content:center;width:40px;min-height:40px;padding:8px;cursor:pointer;background:transparent;color:var(--text)}
+.kilas-light .ai-shell .ai-thread-menu>summary:hover{background:#f5f5f2}
+.kilas-light .ai-shell .ai-thread-menu>summary::-webkit-details-marker{display:none}
+.kilas-light .ai-shell .ai-copy:focus-visible,.kilas-light .ai-shell .ai-thread-menu>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.kilas-light .ai-shell .ai-composer{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto;gap:6px;align-items:end;padding:8px 10px}
+.kilas-light .ai-shell #ai-input{grid-column:2;grid-row:1;min-height:40px;max-height:144px;resize:none;margin:0;padding:8px 2px;font-size:16px;line-height:24px;box-sizing:border-box}
+.kilas-light .ai-shell .ai-composer-actions{display:contents}
+.kilas-light .ai-shell .ai-attach{grid-column:1;grid-row:1;display:flex;align-items:center;justify-content:center;padding:0;width:36px;min-height:40px;margin:0;cursor:pointer}
+.kilas-light .ai-shell #ai-send{grid-column:3;grid-row:1;width:40px;min-height:40px;margin:0;padding:10px;border-radius:50%}
+.kilas-light .ai-shell #ai-stop{grid-column:4;grid-row:1;min-height:40px;margin:0;padding:8px 10px}
+.kilas-light .ai-shell .ai-pending{grid-column:1/-1;grid-row:3}
+.kilas-light .ai-shell .ai-search-toggle{grid-column:1/-1;grid-row:2;justify-self:start;width:fit-content;margin:0;padding:2px 6px;font-size:12px;min-height:24px}
+.kilas-light .ai-shell .ai-hint{margin-top:5px;font-size:11px}
+.kilas-light .kilas-home-workspace .ai-thread-menu{align-self:flex-end;overflow:visible;max-height:none;position:relative}
+.kilas-light .kilas-home-workspace .home-chat-menu{position:absolute;right:0;z-index:3;width:min(310px,calc(100vw - 32px));padding:14px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:0 8px 24px #0002}
+.kilas-light .kilas-home-workspace .home-chat-menu input{width:100%}
+.kilas-light .kilas-home-workspace .home-tool-selector{position:relative;align-self:flex-start;margin:0 0 6px;flex:none}
+.kilas-light .kilas-home-workspace .home-tool-selector>summary{display:flex;align-items:center;gap:5px;min-height:32px;padding:4px 8px;list-style:none;font-size:12px;border-radius:8px}
+.kilas-light .kilas-home-workspace .home-tool-selector>summary::-webkit-details-marker{display:none}
+.kilas-light .kilas-home-workspace .home-task-choices{position:absolute;left:0;bottom:100%;z-index:3;display:grid;gap:3px;width:180px;padding:6px;margin:0;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 8px 24px #0002}
+.kilas-light .kilas-home-workspace .home-task-choices button{justify-content:flex-start;width:100%;min-height:36px;padding:6px 9px;font-size:13px}
+.kilas-light .kilas-home-workspace .home-tool-selector:focus-within{outline-color:var(--accent)}
+@media(max-width:440px){.kilas-light .ai-shell .ai-user .ai-message-text{max-width:90%}.kilas-light .ai-shell .ai-composer{gap:4px;padding:6px 8px}.kilas-light .ai-shell #ai-send,.kilas-light .ai-shell #ai-stop{padding-inline:9px}}
