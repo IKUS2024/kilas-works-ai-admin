@@ -82,7 +82,8 @@ def main():
                 expect(page.get_by_role("heading", name="How can I Help you?")).to_be_visible()
                 assert page.locator(".ai-shell").get_attribute("data-max-files") == "2"
                 # Closed mobile history is now inert and visually hidden.
-                assert page.locator(".premium-navigation [aria-current=page] span").text_content().strip() == "Home"
+                assert page.locator('[data-chat-sidebar] .ai-new').count() == 1
+                assert page.locator('[data-chat-sidebar] a[href="/kilas-ai/library"]').count() == 1
                 if width <= 760:
                     page.get_by_role("button", name="Buka navigasi").click()
                     assert page.locator(".premium-sidebar").is_visible()

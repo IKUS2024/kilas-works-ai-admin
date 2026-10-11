@@ -41,3 +41,9 @@ Costs incurred by this task: no paid provider calls, clones, top-ups, purchases 
 ## Release evidence
 
 Pending remote main/CI/manual Render deploy verification for this candidate. A push alone is not a production release.
+
+## First release regression follow-up
+
+Candidate `5a8a263560c0c30596e158198c9d5e775cba3590` passed the new revisions workflow (`38162918261`). Existing CI exposed retired UI assertions and two regressions: audio polling dereferenced the hidden balance element, and removing the video upload partial disabled archived audio reconstruction. Both are fixed; reconstruction controls appear only for the retained owned history action, with the video upload UI absent. Profile language controls now fit narrow drawers. Tests now enter archived Video Plan/upload translation routes directly, select personal voices explicitly, and check hidden purchase UI while retaining backend accounting tests.
+
+Local follow-up: 124 backend tests and 326 subtests passed; 59 isolated content tests passed (1 optional skip, 5 browser cases excluded in that invocation). Responsive Home, canonical chat, saved sidebar, revisions dictation, archived video results, Audio downloads/Edit/Bantu AI/error controls and legacy reconstruction passed. Paid calls remain zero. Exact references still unavailable. The exact signed-download transport status was not preserved in the execution record; Library preparation returned no unavailable items and no permission-denied response. Repository inventory has only the existing `kilas-logo-login.jpg`, not supplied `1000327810.png`.

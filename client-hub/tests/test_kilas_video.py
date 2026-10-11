@@ -58,7 +58,8 @@ class VideoTests(unittest.TestCase):
         html=self.client.get('/kilas-ai/video').text
         self.assertIn('Kilas Video',html);self.assertNotIn('Connections',html)
         home=self.client.get('/products/start').text
-        self.assertIn('data-home-task="video"',home)
+        self.assertNotIn('data-home-task="video"',home)
+        self.assertIn('data-home-task="chat"',home)
         self.assertNotIn('Buka Kilas Video',home)
         self.assertIn('video-studio',html)
 

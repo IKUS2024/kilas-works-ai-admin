@@ -67,6 +67,7 @@ def environment(tmp_path, monkeypatch):
     monkeypatch.setattr(audio_routes.personal, 'get', lambda owner: None)
     monkeypatch.setattr(audio_routes.personal, 'has_preview', lambda owner: False)
     monkeypatch.setattr(audio_routes.provider, 'configured', lambda: False)
+    monkeypatch.setattr(audio_routes.branded, 'choices', lambda: [])
     app = Flask('content-prototype', template_folder=str(ROOT / 'templates'), static_folder=str(ROOT / 'static'))
     app.secret_key = 'synthetic-local-test-only'
     app.config.update(TESTING=True, CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)

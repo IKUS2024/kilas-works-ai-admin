@@ -24,7 +24,7 @@ def main():
                 case=PersonalVoiceTests('test_create_persist_retry_no_public_identifier');case.id=lambda:'personal-browser-'+str(width);case.setUp();case.credit(300)
                 c=browser.new_context(viewport={'width':width,'height':950},has_touch=width<761,permissions=['microphone'],reduced_motion='reduce')
                 cookie=case.client.get_cookie('session');c.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);page=c.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-                page.goto(origin+'/kilas-translator',wait_until='networkidle');page.locator('#voiceover-tab').click()
+                page.goto(origin+'/kilas-translator',wait_until='networkidle');page.locator('#voiceover-tab').click();page.locator('[name=voice_kind][value=personal]').check()
                 expect(page.locator('#saved-voice-choice')).to_have_value('');expect(page.locator('#voice-generate')).to_be_disabled()
                 page.locator('#add-saved-voice').click();page.locator('#record-voice-name').fill('Suara Saya');page.locator('#record-start').click();expect(page.locator('#record-state')).to_contain_text('Mikrofon aktif')
                 expect(page.locator('#record-timer')).not_to_have_text('0:00');page.locator('#record-stop').click()
@@ -34,7 +34,7 @@ def main():
                 with page.expect_response('**/personal-voice') as response:page.locator('#save-personal-voice').click()
                 assert response.value.ok,response.value.text()
                 expect(page.locator('#personal-voice-state')).to_have_text('Siap digunakan');assert personal.get(case.user)=='personalPrivate123'
-                page.reload(wait_until='networkidle');page.locator('#voiceover-tab').click();expect(page.locator('#personal-voice-state')).to_have_text('Siap digunakan');assert 'personalPrivate123' not in page.content() and 'stockPrivate123' not in page.content()
+                page.reload(wait_until='networkidle');page.locator('#voiceover-tab').click();page.locator('[name=voice_kind][value=personal]').check();expect(page.locator('#personal-voice-state')).to_have_text('Siap digunakan');assert 'personalPrivate123' not in page.content() and 'stockPrivate123' not in page.content()
                 page.locator('#play-personal-preview').click();expect(page.locator('#personal-preview')).to_be_visible();assert not page.locator('#personal-preview').evaluate('el=>el.paused');page.locator('#personal-preview').evaluate('el=>el.pause()')
                 page.locator('#audio-script').fill('Halo, saya di Bali.');page.locator('#voice-translate-toggle').check();expect(page.locator('#voice-generate')).to_be_disabled()
                 before=speech.call_count
@@ -45,7 +45,7 @@ def main():
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth');page.screenshot(path=str(output/f'translation-{width}.png'),full_page=True)
                 page.locator('#voice-generate').click();expect(page).to_have_url(re.compile(r'/kilas-translator/jobs/\d+'),timeout=20000)
                 assert speech.call_args.args[0]=='Hello, today I am enjoying Bali.' and speech.call_args.args[1]=='personalPrivate123' and speech.call_args.kwargs['personal']
-                page.goto(origin+'/kilas-translator',wait_until='networkidle');page.locator('#voiceover-tab').click()
+                page.goto(origin+'/kilas-translator',wait_until='networkidle');page.locator('#voiceover-tab').click();page.locator('[name=voice_kind][value=personal]').check()
                 for text,language in [('Selamat datang di Kilas Works.','Indonesian'),('Welcome to Kilas Works. Today we are building something new.','English')]:
                     page.locator('#audio-script').fill(text);expect(page.locator('#voice-language-status')).to_contain_text(language)
                     page.locator('#voice-generate').click();expect(page).to_have_url(re.compile(r'/kilas-translator/jobs/\d+'),timeout=20000)
@@ -53,7 +53,7 @@ def main():
                     page.locator('#audio-result audio').evaluate('el=>el.play()');assert not page.locator('#audio-result audio').evaluate('el=>el.paused');page.locator('#audio-result audio').evaluate('el=>el.pause()')
                     with page.expect_download() as downloaded:page.get_by_role('link',name='Download MP3').click()
                     assert downloaded.value.suggested_filename.endswith('.mp3')
-                    page.goto(origin+'/kilas-translator',wait_until='networkidle');page.locator('#voiceover-tab').click()
+                    page.goto(origin+'/kilas-translator',wait_until='networkidle');page.locator('#voiceover-tab').click();page.locator('[name=voice_kind][value=personal]').check()
                 if width==390:
                     page.once('dialog',lambda d:d.accept());page.locator('#open-recorder').click();page.locator('#record-start').click();expect(page.locator('#record-timer')).not_to_have_text('0:00');page.locator('#record-stop').click();expect(page.locator('#record-playback')).to_be_visible();page.locator('#voice-consent').check()
                     with patch.object(provider,'clone_voice',side_effect=provider.ProviderError()):
@@ -67,7 +67,7 @@ def main():
                     page.locator('#rename-saved-voice').click();page.locator('#saved-voice-new-name').fill('Narasi Presentasi Indonesia');page.locator('#save-voice-name').click();expect(page.locator('#saved-voice-rename')).to_be_hidden()
                     expect(page.locator('#saved-voice-choice option:checked')).to_have_text('Narasi Presentasi Indonesia')
                     page.screenshot(path=str(output/'library-390.png'),full_page=True)
-                    page.reload(wait_until='networkidle');page.locator('#voiceover-tab').click();page.select_option('#saved-voice-choice',second)
+                    page.reload(wait_until='networkidle');page.locator('#voiceover-tab').click();page.locator('[name=voice_kind][value=personal]').check();page.select_option('#saved-voice-choice',second)
                     expect(page.locator('#selected-voice')).to_have_value('personal:'+second)
                     with patch.object(provider,'request',return_value={}):
                         page.once('dialog',lambda d:d.accept());page.locator('#delete-saved-voice').click();expect(page.locator('#saved-voice-choice option')).to_have_count(1)

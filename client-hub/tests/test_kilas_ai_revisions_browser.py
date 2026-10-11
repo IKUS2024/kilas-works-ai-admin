@@ -69,7 +69,7 @@ def main():
                 expect(page.locator('.kilas-feature-navigation')).to_be_visible()
                 expect(page.locator('#dictation-start')).to_be_disabled();expect(page.locator('#dictation-status')).to_contain_text('belum aktif')
                 assert page.evaluate('qaMic.calls')==0
-                assert page.locator('#voice-video-script,.audio-balance').count()==0
+                assert page.locator('#voice-video-file,#voice-video-extract,.audio-balance').count()==0
                 expect(page.locator('[name=voice_kind][value=kilas]')).to_be_checked()
                 expect(page.locator('#kilas-voice-choice')).to_have_value('kilas-male')
                 page.locator('#kilas-voice-choice').select_option('kilas-female');expect(page.locator('#selected-voice')).to_have_value('kilas-female')

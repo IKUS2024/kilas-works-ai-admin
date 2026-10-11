@@ -16,19 +16,19 @@ VIEWPORT="""window.qaViewport=new EventTarget();Object.assign(qaViewport,{height
 
 
 def tools_and_layout(page, selector, navigate=False):
-    expect(page.locator('[data-home-task]')).to_have_count(3)
+    expect(page.locator('[data-home-task]')).to_have_count(2)
     row=page.locator('.home-task-choices')
-    assert row.evaluate("e=>{const buttons=[...e.children];return getComputedStyle(e).display==='flex'&&buttons.every(b=>Math.abs(b.getBoundingClientRect().top-buttons[0].getBoundingClientRect().top)<2)}")
-    for task in ('chat','video','voiceover'):
+    assert row.evaluate("e=>{const buttons=[...e.children];return getComputedStyle(e).display==='flex'&&buttons.map(b=>b.textContent.trim()).join('|').startsWith('AI Chat|Translator')}")
+    for task in ('chat','voiceover'):
         button=page.locator(f'[data-home-task={task}]');expect(button).to_be_visible()
         assert button.evaluate('e=>e.getBoundingClientRect().height>=44')
     expect(page.locator('[data-home-task=chat]')).to_have_attribute('aria-pressed','true')
     if navigate:
         original_url=page.url
-        for task,path,field in [('video','/kilas-ai/video','#video-idea'),('voiceover','/kilas-translator','#audio-script')]:
+        for task,path,field in [('voiceover','/kilas-translator','#audio-script')]:
             page.locator(selector).fill('Carried draft' if task!='translate' else '')
             page.locator(f'[data-home-task={task}]').click()
-            expect(page.locator('[data-kilas-feature]')).to_have_count(3)
+            expect(page.locator('[data-kilas-feature]')).to_have_count(2)
             expect(page.locator(f'[data-kilas-feature={task}]')).to_have_attribute('aria-current','page')
             assert __import__('urllib.parse',fromlist=['urlsplit']).urlsplit(page.url).path==path
             if task!='translate':expect(page.locator(field)).to_have_value('Carried draft')
@@ -116,7 +116,7 @@ def main():
                     assert page.locator('.ai-composer').last.evaluate('e=>innerHeight-e.getBoundingClientRect().bottom<60')
                     page.screenshot(path=str(output/f'{engine}-{"agent" if work else "legacy"}-{width}.png'))
                     click_new_chat(page,agent=work)
-                    tools_and_layout(page,selector);expect(page.get_by_text('Mau ngapain hari ini?',exact=True)).to_be_visible()
+                    tools_and_layout(page,selector);expect(page.get_by_text('How can I Help you?',exact=True)).to_be_visible()
                     # Opening the original saved destination from Home history preserves the same tools/composer.
                     page.goto(origin+'/products/start',wait_until='networkidle');open_chat_sidebar(page)
                     link=page.locator('[data-chat-sidebar] a[href="'+saved.removeprefix(origin)+'"]');expect(link).to_be_visible();link.click();page.wait_for_load_state('networkidle')

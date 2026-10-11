@@ -9,7 +9,7 @@ from unittest.mock import patch
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 from test_kilas_audio import AudioTests, f, provider, wav
-from kilas_ai import providers, model_policy
+from kilas_ai import providers, model_policy, audio_branded_voices as branded
 
 
 def script_reply(*args, **kwargs):
@@ -33,7 +33,7 @@ def main():
     origin=f'http://127.0.0.1:{server.server_port}'
     output=Path(os.environ.get('KILAS_AUDIO_SCREENSHOTS',str(Path(tempfile.gettempdir())/'kilas-audio-browser')));output.mkdir(exist_ok=True)
     try:
-        with patch.object(provider,'voices',return_value=[{'id':'available123','name':'QA Warm','style':'Female · Warm'},{'id':'available456','name':'QA Professional','style':'Male · Professional'}]),patch.object(provider,'speech',return_value=(AudioTests.audio,'qa-request')),patch.object(provider,'dub',return_value='qa-dubbing'),patch.object(provider,'dub_status',return_value={'status':'dubbed','source_language':'id'}),patch.object(provider,'dub_result',return_value=AudioTests.audio),patch.object(providers,'stream',side_effect=script_reply),sync_playwright() as p:
+        with patch.object(branded,'choices',return_value=[{'alias':'kilas-male','id':'available456','name':'Kilas Male','style':'Natural'},{'alias':'kilas-female','id':'available123','name':'Kilas Female','style':'Natural'}]),patch.object(provider,'voices',return_value=[{'id':'available123','name':'QA Warm','style':'Female · Warm'},{'id':'available456','name':'QA Professional','style':'Male · Professional'}]),patch.object(provider,'speech',return_value=(AudioTests.audio,'qa-request')),patch.object(provider,'dub',return_value='qa-dubbing'),patch.object(provider,'dub_status',return_value={'status':'dubbed','source_language':'id'}),patch.object(provider,'dub_result',return_value=AudioTests.audio),patch.object(providers,'stream',side_effect=script_reply),sync_playwright() as p:
             browser=p.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
             for width in (320,360,390,430,768,1024,1440):
                 case=AudioTests('test_shared_balance_actual_seconds');case.id=lambda:'audio-browser-'+str(width);case.setUp();case.credit(300)
@@ -56,8 +56,8 @@ def main():
                 def clean_workbench():
                     expect(page.locator('#audio-packs')).to_have_count(0)
                     expect(page.get_by_role('heading',name='Saldo untuk dua cara berkarya.')).to_have_count(0)
-                    expect(page.locator('.audio-balance a')).to_have_attribute('href','/kilas-ai/usage#audio-settings-title')
-                page.goto(origin+'/products/start',wait_until='networkidle');page.locator('[data-home-task=translate]').click();expect(page.get_by_role('heading',name='Kilas Translator',exact=True)).to_be_visible();check('translate')
+                    expect(page.locator('.audio-balance')).to_have_count(0)
+                page.goto(origin+'/kilas-translator?mode=translate',wait_until='networkidle');expect(page.get_by_role('heading',name='Kilas Translator',exact=True)).to_be_visible();check('translate')
                 clean_workbench()
                 # Exercise the actual global file validator and server multipart cap together.
                 raw=wav(3)
@@ -69,7 +69,7 @@ def main():
                 assert page.locator('#audio-file').evaluate('el=>el.validity.valid')
                 page.select_option('#translate-panel select[name=language]','en');page.locator('#translate-panel button[type=submit]').click()
                 expect(page).to_have_url(__import__('re').compile(r'/kilas-translator/jobs/\d+'),timeout=20000)
-                expect(page.locator('#audio-result audio')).to_be_visible(timeout=20000);expect(page.locator('.audio-balance')).not_to_contain_text('sedang dicadangkan');expect(page.locator('[data-audio-history-status]')).to_have_text('Selesai');check('result')
+                expect(page.locator('#audio-result audio')).to_be_visible(timeout=20000);expect(page.locator('.audio-balance')).to_have_count(0);expect(page.locator('[data-audio-history-status]')).to_have_text('Selesai');check('result')
                 audio=page.locator('#audio-result audio');expect(audio).to_have_attribute('src',__import__('re').compile('/result'))
                 audio.evaluate('el=>el.play()');assert audio.evaluate('el=>!el.paused')
                 audio.evaluate('el=>el.pause()')
@@ -149,7 +149,7 @@ def main():
                 page.locator('#voice-script-assist > summary').click()
                 page.fill('#audio-script','Safe synthetic voice over.');expect(page.locator('#voice-estimate')).to_contain_text('reservasi')
                 clean_workbench()
-                page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-1');check('voiceover')
+                page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-male');check('voiceover')
                 def generation_feedback(route):
                     expect(page.locator('#generation-feedback')).to_be_visible()
                     expect(page.locator('#generation-feedback')).to_have_attribute('data-state','busy')
@@ -179,7 +179,7 @@ def main():
                 assert page.locator('[data-audio-edit]').evaluate_all("es=>es.every(e=>!e.closest('a'))")
                 if width==320:
                     page.evaluate("window.qaEditFetch=fetch;window.fetch=(url,options)=>String(url).endsWith('/script')?new Promise(resolve=>window.qaEditResolve=resolve):qaEditFetch(url,options)")
-                    page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-1')
+                    page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-male')
                     edit.click();page.wait_for_function('!!window.qaEditResolve');page.get_by_role('button',name='Generate Voice Over').click();assert len(audio_jobs)==1
                     page.fill('#audio-script','Changed during Edit fetch.')
                     page.evaluate("qaEditResolve(new Response(JSON.stringify({script:'Safe synthetic voice over.'}),{headers:{'Content-Type':'application/json'}}));window.fetch=qaEditFetch")
@@ -195,17 +195,17 @@ def main():
                     expect(page.locator('#voice-assist-status')).to_contain_text('tidak menimpa')
                     expect(page.locator('#audio-script')).to_have_value('Safe synthetic voice over.')
                 page.fill('#audio-script','Safe synthetic voice over.')
-                page.locator('[data-kilas-feature=translate]').click();expect(page.locator('#translate-panel')).to_be_visible()
+                page.locator('#translate-tab').click();expect(page.locator('#translate-panel')).to_be_visible()
                 expect(page).to_have_url(__import__('re').compile('mode=translate'))
                 page.reload(wait_until='networkidle');expect(page.locator('#translate-panel')).to_be_visible()
-                page.locator('[data-kilas-feature=voiceover]').click();expect(page.locator('#voiceover-panel')).to_be_visible()
+                page.locator('#voiceover-tab').click();expect(page.locator('#voiceover-panel')).to_be_visible()
                 expect(page.locator('[data-kilas-feature=voiceover]')).to_have_attribute('aria-current','page')
                 with page.expect_download() as wav_download:page.get_by_role('link',name='Download WAV',exact=True).click()
                 assert wav_download.value.suggested_filename.endswith('.wav')
                 wav_path=output/f'download-{width}.wav';wav_download.value.save_as(wav_path)
                 assert wav_path.read_bytes()[:4]==b'RIFF' and wav_path.read_bytes()[8:12]==b'WAVE'
                 page.route('**'+action,lambda route:route.fulfill(status=503,content_type='application/json',body='{"error":"Gangguan QA sintetis"}'))
-                page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-1')
+                page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-male')
                 page.fill('#audio-script','Synthetic failure check.')
                 page.get_by_role('button',name='Generate Voice Over').click()
                 expect(page.locator('#generation-feedback')).to_have_attribute('data-state','error')
@@ -213,22 +213,21 @@ def main():
                 expect(page.get_by_role('button',name='Generate Voice Over')).to_be_enabled()
                 page.unroute('**'+action)
 
-                # A low-balance error keeps a compact, working top-up path.
+                # Low balance remains an error; temporary purchase UI is hidden.
                 page.route('**'+action,lambda route:route.fulfill(status=402,content_type='application/json',body='{"error":"Saldo QA sintetis habis"}'))
                 page.get_by_role('button',name='Generate Voice Over').click()
-                expect(page.locator('#audio-error-purchase')).to_be_visible()
-                expect(page.locator('#audio-error-purchase')).to_have_attribute('href','/kilas-ai/usage#audio-settings-title')
-                page.unroute('**'+action)
-                page.locator('#generation-feedback-close').click()
-                page.locator('#audio-error-purchase').click()
-                expect(page.locator('#audio-settings-title')).to_be_visible();check('settings-topup');expect(page.get_by_role('button',name=__import__('re').compile('Beli 5 menit'))).to_be_visible()
-                page.get_by_role('button',name=__import__('re').compile('Beli 5 menit')).click();expect(page.get_by_role('heading',name='Beli Saldo Audio')).to_be_visible();check('invoice')
+                expect(page.locator('#generation-feedback')).to_contain_text('Saldo QA sintetis habis')
+                expect(page.locator('#audio-error-purchase')).to_be_hidden()
+                page.unroute('**'+action);page.locator('#generation-feedback-close').click()
+                page.goto(origin+'/kilas-ai/usage',wait_until='networkidle')
+                expect(page.locator('#audio-settings-title,form[action="/kilas-translator/checkout"]')).to_have_count(0)
+                # Existing checkout accounting stays covered server-side by test_kilas_audio.py.
                 zero=f.repo.create_user(f'audio-zero-{width}@example.test','hash');client=f.app.app.test_client()
                 with client.session_transaction() as s:s.update(user_id=zero,role='CLIENT_OWNER',_csrf_token='zero-csrf')
                 cookie=client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
-                page.goto(origin+'/kilas-translator',wait_until='networkidle');expect(page.get_by_role('heading',name='Saldo Audio belum tersedia')).to_be_visible();expect(page.locator('#translate-panel button[type=submit]')).to_be_disabled();check('paywall')
+                page.goto(origin+'/kilas-translator',wait_until='networkidle');expect(page.locator('.audio-balance,.audio-notice')).to_have_count(0);expect(page.locator('#translate-panel button[type=submit]')).to_be_disabled();check('paywall')
                 clean_workbench()
-                expect(page.locator('.audio-notice a')).to_have_attribute('href','/kilas-ai/usage#audio-settings-title')
+                expect(page.locator('.audio-notice a')).to_have_count(0)
                 page.goto(origin+'/kilas-ai/video',wait_until='networkidle');expect(page.get_by_role('heading',name='Kuota Kilas Video belum tersedia')).to_be_visible();expect(page.locator('#video-submit')).to_be_disabled()
                 # Current presentation; explicit ON above retains full historical upload coverage.
                 with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false'}):
@@ -236,7 +235,7 @@ def main():
                     page.goto(origin+'/kilas-translator?mode=translate',wait_until='networkidle')
                     expect(page.get_by_role('heading',name='Voice Over',exact=True)).to_be_visible()
                     expect(page.locator('#translate-tab,#translate-panel,#audio-file,[data-kilas-feature=translate]')).to_have_count(0)
-                    expect(page.locator('[data-kilas-feature]')).to_have_count(3)
+                    expect(page.locator('[data-kilas-feature]')).to_have_count(2)
                     expect(page.locator('#voiceover-panel')).to_be_visible()
                     page.locator('#voiceover-tab').press('ArrowRight');expect(page.locator('#voiceover-panel')).to_be_visible()
                     expect(page.locator('#voice-translate-toggle')).to_be_visible()

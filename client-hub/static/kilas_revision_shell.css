@@ -8,7 +8,7 @@
 .kilas-sidebar-profile .kilas-profile-options{position:absolute;bottom:100%;left:0;right:0}
 .kilas-profile-options>a,.kilas-profile-language>summary{display:block;padding:10px 8px;min-height:44px;color:var(--text);text-decoration:none;cursor:pointer}
 .kilas-profile-options small{display:block;color:var(--muted);overflow-wrap:anywhere;font-size:12px}
-.kilas-profile-options .language-selector{display:grid;gap:8px;margin:0;padding:8px;border:0}
+.kilas-profile-options .language-selector{display:grid;gap:8px;margin:0;padding:4px;border:0}
 .kilas-audio-header{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--line)}
 .kilas-audio-header .kilas-profile-options{position:absolute;right:0;top:100%;width:240px;z-index:50}
 .premium-workspace:has(.kilas-audio-header)>.wrap{margin:0 auto!important;width:100%;padding:24px!important;max-width:1160px}
@@ -17,3 +17,7 @@
 .kilas-profile-menu:not([open])>.kilas-profile-options{display:none}
 .home-task-choices .kilas-translator-pending{padding:8px 12px;color:var(--muted);align-self:center;white-space:nowrap}
 @media(max-width:760px){.kilas-audio-header{padding:8px 16px}.premium-workspace:has(.kilas-audio-header)>.wrap{padding:16px!important}}
+
+.kilas-profile-options .language-selector select{width:100%;min-width:0;max-width:none;grid-column:auto}
+
+body:has(.kilas-home-workspace) .premium-sidebar .kilas-profile-options .language-selector{grid-template-columns:minmax(0,1fr)}

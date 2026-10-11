@@ -59,8 +59,8 @@ def main():
                 page.add_init_script("navigator.mediaDevices.getDisplayMedia=()=>{throw Error('Capture forbidden in QA')};navigator.mediaDevices.getUserMedia=()=>{throw Error('Capture forbidden in QA')}")
                 assert page.goto(origin+'/products/start',wait_until='networkidle').status==200
                 expect(page.get_by_role('heading',name='How can I Help you?',exact=True)).to_be_visible()
-                assert page.locator('[data-home-task]').count()==4
-                assert page.locator('.premium-navigation a[href="/products/start"]').count()==1
+                assert page.locator('[data-home-task]').count()==2
+                assert page.locator('[data-chat-sidebar] .ai-new').count()==1
                 assert page.locator('.premium-navigation').get_by_role('link',name='Percakapan',exact=True).count()==0
                 assert page.locator('.home-project-options, .premium-home-secondary').count()==0
                 assert page.locator('form input[name=product][value=finance]').count()==1
@@ -73,13 +73,13 @@ def main():
                 page.evaluate('document.fonts.ready')
                 page.screenshot(path=str(output/f'home-{width}.png'),full_page=True)
                 # Exact owner regression before AI routes can update product selection.
-                home_nav=page.locator('.premium-navigation').inner_text()
+                home_nav=page.locator('[data-chat-sidebar]').inner_text()
                 if width<761:page.get_by_role('button',name='Buka navigasi',exact=True).click()
-                page.locator('.premium-sidebar-account a').first.click();page.wait_for_load_state('networkidle')
+                page.locator('.kilas-profile-menu>summary').click();page.locator('.kilas-profile-options a').first.click();page.wait_for_load_state('networkidle')
                 assert page.url.endswith('/account?workspace=home')
                 expect(page.locator('.account-workspace-access')).to_be_visible()
                 expect(page.get_by_role('heading',name='Akun saya',exact=True)).to_be_visible()
-                assert page.locator('.premium-navigation').inner_text()==home_nav
+                assert page.locator('[data-chat-sidebar]').inner_text()==home_nav
                 if width<761:page.get_by_role('button',name='Buka navigasi',exact=True).click()
                 page.screenshot(path=str(output/f'account-from-finance-home-{width}.png'),full_page=True)
                 if width<761:page.keyboard.press('Escape')
@@ -88,7 +88,7 @@ def main():
                 for suffix in ('','?workspace=finance','?workspace=invalid'):
                     page.goto(origin+'/account'+suffix,wait_until='networkidle')
                     assert page.locator('.account-workspace-access').count()==0
-                    assert page.locator('.premium-navigation').inner_text()==home_nav
+                    assert page.locator('.premium-navigation').count()==1
                     expect(page.locator('.account-back-finance')).to_be_visible()
                 if width<761:page.get_by_role('button',name='Buka navigasi',exact=True).click()
                 page.screenshot(path=str(output/f'account-direct-finance-{width}.png'),full_page=True)
@@ -120,31 +120,24 @@ def main():
                         assert page.locator('.premium-sidebar').evaluate('e=>e.inert')
                 box=page.locator('#ai-input');box.fill('Draft chat tersimpan di layar')
                 # Immediate navigation carries the current brief; no extra Send required.
-                box.fill('x'*2401);choose_task(page,'video')
-                expect(box).to_have_value('x'*2401);expect(page.locator('#ai-notice')).to_contain_text('terlalu panjang')
+                box.fill('x'*4001);choose_task(page,'voiceover')
+                expect(box).to_have_value('x'*4001);expect(page.locator('#ai-notice')).to_contain_text('terlalu panjang')
                 box.fill('Draft chat tersimpan di layar')
                 # Pending chat uploads must survive task-switch attempts.
                 page.locator('#ai-files').set_input_files({'name':'brief.txt','mimeType':'text/plain','buffer':b'Synthetic brief'})
-                choose_task(page,'video')
+                choose_task(page,'voiceover')
                 expect(page.locator('#home-task-value')).to_have_value('chat')
                 expect(page.locator('#ai-pending')).to_contain_text('brief.txt')
                 page.get_by_role('button',name='Hapus lampiran brief.txt',exact=True).click()
-                box.fill('Ide video sintetis');choose_task(page,'video')
-                page.screenshot(path=str(output/f'home-video-{width}.png'),full_page=True)
-                expect(page.locator('#video-idea')).to_have_value('Ide video sintetis')
-                assert page.locator('form[action="/kilas-ai/video/plan"] input[name=csrf_token]').count()==1
-                assert page.locator('input[name=references]').get_attribute('type')=='file'
-                assert page.locator('form[action="/kilas-ai/video/plan"]').get_attribute('enctype')=='multipart/form-data'
+                box.fill('Naskah dibawa melalui navigasi');choose_task(page,'voiceover')
+                expect(page.locator('#audio-script')).to_have_value('Naskah dibawa melalui navigasi')
+                assert page.locator('#premium-sidebar').count()==0
+                assert page.locator('#voiceover-panel form[data-audio-form] input[name=csrf_token]').count()==1
                 page.get_by_role('link',name='Kembali ke Kilas AI Home',exact=True).click();page.wait_for_load_state('networkidle')
                 expect(page.locator('#ai-input')).to_be_visible()
-                # Browser back returns the real form; forward returns Home without duplicate listeners.
-                page.go_back(wait_until='networkidle');expect(page.locator('#video-idea')).to_have_value('Ide video sintetis')
+                page.go_back(wait_until='networkidle');expect(page.locator('#audio-script')).to_have_value('Naskah dibawa melalui navigasi')
                 page.go_forward(wait_until='networkidle')
-                page.locator('#ai-input').fill('Bahasa tujuan Indonesia');choose_task(page,'translate');expect(page.locator('#translate-panel')).to_be_visible()
-                expect(page.get_by_text('Bahasa tujuan Indonesia',exact=False)).to_be_visible()
-                assert page.locator('#audio-file').get_attribute('name')=='file'
-                assert page.locator('#translate-panel form').get_attribute('enctype')=='multipart/form-data'
-                page.get_by_role('link',name='Kembali ke Kilas AI Home',exact=True).click();page.wait_for_load_state('networkidle')
+                expect(page.locator('.kilas-translator-pending')).to_have_attribute('aria-disabled','true')
                 page.locator('#ai-input').fill('Naskah suara sintetis.');choose_task(page,'voiceover');expect(page.locator('#voiceover-panel')).to_be_visible()
                 expect(page.locator('#audio-script')).to_have_value('Naskah suara sintetis.')
                 page.get_by_role('link',name='Kembali ke Kilas AI Home',exact=True).click();page.wait_for_load_state('networkidle')
@@ -170,7 +163,7 @@ def main():
                 history_link.click();page.wait_for_load_state('networkidle')
                 expect(page.locator('.ai-assistant')).to_contain_text('Ini jawaban sintetis')
                 assert page.locator('.premium-navigation').get_by_role('link',name='Percakapan',exact=True).count()==0
-                home_link=page.locator('.premium-navigation').get_by_role('link',name='Home',exact=True)
+                home_link=page.locator('[data-chat-sidebar] .ai-new')
                 if width<761:
                     page.get_by_role('button',name='Buka navigasi',exact=True).click()
                 home_link.click();page.wait_for_load_state('networkidle')
@@ -181,7 +174,7 @@ def main():
                 page.evaluate("""() => {window.homeQAOriginalFetch=window.fetch;window.fetch=(url,options)=>String(url).endsWith('/send')?new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')))):window.homeQAOriginalFetch(url,options)}""")
                 page.locator('#ai-input').fill('Pesan untuk uji Stop');page.locator('#ai-send').click()
                 expect(page.locator('#ai-stop')).to_be_visible()
-                choose_task(page,'video');expect(page.locator('#home-task-value')).to_have_value('chat')
+                choose_task(page,'voiceover');expect(page.locator('#home-task-value')).to_have_value('chat')
                 page.locator('#ai-stop').click();expect(page.locator('#ai-send')).to_be_enabled()
                 page.evaluate('window.fetch=window.homeQAOriginalFetch')
                 # Long conversations scroll independently without pushing the composer off-screen.
@@ -189,15 +182,15 @@ def main():
                 assert page.locator('#ai-messages').evaluate('e=>e.scrollHeight>e.clientHeight')
                 expect(page.locator('#ai-send')).to_be_in_viewport()
                 page.goto(origin+'/products/start',wait_until='networkidle')
-                home_nav=page.locator('.premium-navigation').inner_text()
-                assert page.locator('.premium-sidebar-account a').first.get_attribute('href')=='/account?workspace=home'
+                home_nav=page.locator('[data-chat-sidebar]').inner_text()
+                assert page.locator('.kilas-profile-options a').first.get_attribute('href')=='/account?workspace=home'
                 if width<761:page.get_by_role('button',name='Buka navigasi',exact=True).click()
-                page.locator('.premium-sidebar-account a').first.click()
+                page.locator('.kilas-profile-menu>summary').click();page.locator('.kilas-profile-options a').first.click()
                 page.wait_for_load_state('networkidle')
-                assert page.locator('.premium-navigation').inner_text()==home_nav
+                assert page.locator('[data-chat-sidebar]').inner_text()==home_nav
                 expect(page.locator('.account-workspace-access')).to_be_visible()
                 expect(page.get_by_role('heading',name='Akun saya',exact=True)).to_be_visible()
-                expect(page.locator('.premium-sidebar-account a[aria-current=page]')).to_have_attribute('href','/account?workspace=home')
+                expect(page.locator('.kilas-profile-options a').first).to_have_attribute('href','/account?workspace=home')
                 assert page.locator('.premium-navigation a[aria-current=page]').count()==0
                 page.screenshot(path=str(output/f'account-{width}.png'),full_page=True)
                 if width<761:
@@ -210,9 +203,9 @@ def main():
                 page.locator('[data-account-tab=personal]').click();expect(page.locator('#account-panel-personal')).to_be_visible()
                 page.go_back();expect(page.locator('#account-panel-security')).to_be_visible()
                 page.go_back();expect(page.locator('#account-panel-personal')).to_be_visible()
-                page.locator('.account-workspace-links a[href$="#audio-settings-title"]').click()
-                expect(page.locator('#audio-settings-title')).to_be_visible()
-                assert page.locator('form[action="/kilas-translator/checkout"]').count()==3
+                assert page.locator('.account-workspace-links a[href$="#audio-settings-title"]').count()==0
+                page.goto(origin+'/kilas-ai/usage',wait_until='networkidle')
+                assert page.locator('form[action="/kilas-translator/checkout"],#audio-settings-title').count()==0
                 page.go_back(wait_until='networkidle');expect(page.locator('.account-workspace-access')).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 assert not errors,errors
@@ -220,11 +213,11 @@ def main():
             # Locale is the selected cookie, including JS task descriptions.
             context=browser.new_context(viewport={'width':1440,'height':1000});context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'en','url':origin}])
             page=context.new_page();page.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin) else route.abort())
-            page.goto(origin+'/products/start',wait_until='networkidle');expect(page.get_by_role('heading',name='What would you like to do today?',exact=True)).to_be_visible()
+            page.goto(origin+'/products/start',wait_until='networkidle');expect(page.get_by_role('heading',name='How can I Help you?',exact=True)).to_be_visible()
             choose_task(page,'voiceover');expect(page.locator('#voiceover-panel')).to_be_visible();expect(page.locator('[data-kilas-feature=voiceover]')).to_have_attribute('aria-current','page')
             page.screenshot(path=str(output/'home-en-1440.png'),full_page=True)
             browser.close()
-        report['checks']=['single entry','no optional organization or duplicate Finance','no lower Home clutter; top contextual history; no unavailable placeholder','mobile drawer repeated open/Escape','immediate feature click with target length guard','attachment guard/remove','native handoff CSRF/upload forms','back/forward','translation notes','voiceover draft','real chat mocked provider','saved history/reload/open/return Home/back/forward','stop/blocked task switch','selected locale','spacious viewport canvas and bottom task choices/composer','compact auto-growing icon composer and native four-tool menu','new/loaded right-user left-AI and copy/options icons','Home account actual click with unchanged Finance session, direct/invalid hints','small-height keyboard layout simulation','independent long-message scroll','MyAccount same Home navigation and active link','account mobile drawer and tab browser back','existing audio purchase destination','no overflow','no browser JS errors']
+        report['checks']=['single entry','no optional organization or duplicate Finance','no lower Home clutter; top contextual history; no unavailable placeholder','mobile drawer repeated open/Escape','immediate feature click with target length guard','attachment guard/remove','native handoff CSRF/upload forms','back/forward','translation notes','voiceover draft','real chat mocked provider','saved history/reload/open/return Home/back/forward','stop/blocked task switch','selected locale','spacious viewport canvas and bottom task choices/composer','compact auto-growing icon composer and current feature menu','new/loaded right-user left-AI and copy/options icons','Home account actual click with unchanged Finance session, direct/invalid hints','small-height keyboard layout simulation','independent long-message scroll','MyAccount same Home navigation and active link','account mobile drawer and tab browser back','hidden balance controls','no overflow','no browser JS errors']
         (output/'verification.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps(report,indent=2))
     finally:server.shutdown();case.doCleanups()

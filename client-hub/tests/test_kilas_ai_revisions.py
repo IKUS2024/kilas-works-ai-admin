@@ -41,7 +41,7 @@ class RevisionTests(unittest.TestCase):
         self.assertEqual(self.client.get('/kilas-ai/library').status_code,200)
         voice=self.client.get('/kilas-translator?mode=voiceover').text
         self.assertNotIn('data-chat-sidebar',voice);self.assertNotIn('id="premium-sidebar"',voice)
-        self.assertIn('kilas-feature-navigation',voice);self.assertNotIn('voice-video-script',voice)
+        self.assertIn('kilas-feature-navigation',voice);self.assertNotIn('id="voice-video-file"',voice)
         self.assertNotIn('class="audio-balance"',voice)
 
     def test_branded_aliases_exact_records_no_new_clone_or_personal_change(self):

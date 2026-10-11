@@ -41,7 +41,7 @@ def chat_sidebar_context():
     import security
     user = security.current_user()
     return {'chat_sidebar_enabled': request.blueprint != 'kilas_audio',
-            'kilas_revision_shell': True, 'kilas_profile_email': user['email'] if user else '',
+            'kilas_revision_shell': True, 'kilas_profile_email': user.get('email','') if user else '',
             'chat_sidebar_history': history}
 
 

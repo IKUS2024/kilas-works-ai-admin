@@ -68,7 +68,7 @@ class AudioTests(unittest.TestCase):
         self.assertNotIn('Voice over dengan suara kamu.',html)
         self.assertIn('<legend>Pilih suara</legend>',html)
         self.assertIn('id="open-recorder"',html)
-        self.assertNotIn('id="voice-video-script"',html)
+        self.assertNotIn('id="voice-video-file"',html)
         self.assertIn('Dikte belum aktif. Batas biaya transkripsi belum terverifikasi.',html)
         self.assertIn('id="dictation-consent" disabled',html)
         self.assertIn('href="/privacy#audio-processing"',html)

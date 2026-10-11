@@ -46,7 +46,7 @@ class AgentTests(unittest.TestCase):
         response=client.get('/kilas-ai/agent?view=connections')
         self.assertEqual(response.status_code,303)
         self.assertTrue(response.location.endswith('/kilas-ai/agent'))
-        self.assertIn('Kilas Finance',client.get('/products/start').text)
+        self.assertIn('Finance',client.get('/products/start').text)
         self.assertNotIn('Pilih Kilas Assist',client.get('/products/start').text)
         self.assertNotEqual(client.get('/products/assist').status_code,404)
 

@@ -54,8 +54,9 @@ def main():
                     expect(drawer).to_be_visible()
                     assert drawer.locator('[data-chat-sidebar] .ai-history').count()==1
                     assert page.locator('.kilas-home-workspace .ai-history,.home-history').count()==0
-                    drawer.locator('.premium-sidebar-account a').last.scroll_into_view_if_needed()
-                    expect(drawer.locator('.premium-sidebar-account a').last).to_be_in_viewport()
+                    drawer.locator('.kilas-profile-menu>summary').click();drawer.locator('.kilas-profile-language>summary').click()
+                    drawer.locator('.kilas-profile-options a').last.scroll_into_view_if_needed()
+                    expect(drawer.locator('.kilas-profile-options a').last).to_be_in_viewport()
                     fit = drawer.locator('select[name=language]').evaluate("""el => {
                         const style=getComputedStyle(el), canvas=document.createElement('canvas'), ctx=canvas.getContext('2d');
                         ctx.font=style.font;
@@ -68,8 +69,9 @@ def main():
                     if mobile:
                         drawer.locator('select[name=language]').focus();page.keyboard.press('Tab')
                         expect(drawer.locator('.language-selector button')).to_be_focused()
-                        drawer.locator('.premium-sidebar-account a').last.focus();page.keyboard.press('Tab')
+                        drawer.locator('.kilas-profile-options a').last.focus();page.keyboard.press('Tab')
                         expect(drawer.locator('.premium-brand')).to_be_focused()
+                        drawer.locator('.kilas-profile-menu>summary').click()
                         page.keyboard.press('Escape')
                         expect(page.locator('[data-premium-menu]')).to_be_focused()
                         page.locator('[data-premium-menu]').click();drawer.locator('[data-premium-close]').click()
@@ -77,6 +79,7 @@ def main():
                         page.locator('[data-premium-menu]').click()
                         page.locator('.premium-backdrop').click(position={'x':width-5,'y':300})
                         assert not page.locator('body').evaluate('el=>el.classList.contains("premium-menu-open")')
+                    if drawer.locator('.kilas-profile-menu').get_attribute('open') is not None:drawer.locator('.kilas-profile-menu>summary').click()
                     open_chat_sidebar(page)
                     rows=page.locator('[data-chat-sidebar] .ai-history a')
                     assert rows.count()==6
@@ -95,10 +98,11 @@ def main():
                     page.wait_for_load_state('networkidle');assert f'conversation={ids[-2]}' in page.url
                     page.reload(wait_until='networkidle');assert f'conversation={ids[-2]}' in page.url
                     if mobile:page.locator('[data-premium-menu]').click()
+                    drawer.locator('.kilas-profile-menu>summary').click();drawer.locator('.kilas-profile-language>summary').click()
                     drawer.locator('select[name=language]').select_option('en' if language=='id' else 'id')
                     drawer.locator('.language-selector button').click();page.wait_for_load_state('networkidle')
                     assert page.locator('html').get_attribute('lang')==('en' if language=='id' else 'id')
-                    click_new_chat(page,agent=True,name='New chat' if language=='id' else 'Chat baru')
+                    click_new_chat(page,agent=True,name='New Chat')
                     page.wait_for_load_state('networkidle')
                     assert f'conversation={ids[-2]}' not in page.url
                     assert not page.locator('.agent-message-user').count()
@@ -127,7 +131,7 @@ def main():
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.screenshot(path=str(captures/'legacy-360.png'))
             open_chat_sidebar(page)
-            page.locator('.premium-sidebar-account a').last.click();page.wait_for_load_state('networkidle')
+            page.locator('.kilas-profile-menu>summary').click();page.locator('.kilas-profile-options a').last.click();page.wait_for_load_state('networkidle')
             assert not page.locator('.premium-sidebar').count()
             context.close()
             for zone in ('Asia/Bangkok', 'Europe/London'):

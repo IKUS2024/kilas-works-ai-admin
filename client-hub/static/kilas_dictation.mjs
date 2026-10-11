@@ -38,7 +38,7 @@ if(root){
   start.addEventListener('click',async()=>{
     if(busy||!consent.checked||root.dataset.ready!=='true'||studio.querySelector('[aria-busy=true]')||studio.dataset.scriptEditing==='true')return;
     if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){fail('Browser ini belum mendukung mikrofon. Kamu tetap dapat mengetik.');return;}
-    const ticket=++version;key='dictate-'+crypto.randomUUID();busy=true;error.hidden=true;undo.hidden=true;status.textContent='Menunggu izin mikrofon…';controls();
+    const ticket=++version;key='dictate-'+(crypto.randomUUID?.()||Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''));busy=true;error.hidden=true;undo.hidden=true;status.textContent='Menunggu izin mikrofon…';controls();
     try{await recorder.start({userGesture:true,consent:true,enabled:true});}catch{if(ticket!==version)return;busy=false;controls();fail('Izin mikrofon belum tersedia. Periksa izin browser lalu coba lagi.');}
   });
   stop.addEventListener('click',()=>{stop.disabled=true;recorder.stop();stop.disabled=false;});

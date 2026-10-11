@@ -71,7 +71,7 @@ def main():
                     page.keyboard.press('Escape')
                     expect(page.locator('.premium-sidebar')).to_be_hidden()
                 click_new_chat(page,agent=True)
-                expect(page.get_by_role('heading',name='Mau ngapain hari ini?',exact=True)).to_be_visible()
+                expect(page.get_by_role('heading',name='How can I Help you?',exact=True)).to_be_visible()
                 assert page.locator('.agent-message').count()==0
                 assert jobs.get(owner,job['id'])['status']=='PLANNING'
                 page.goto(origin + '/kilas-ai/agent?view=history')

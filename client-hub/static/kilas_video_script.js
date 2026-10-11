@@ -8,11 +8,11 @@
   function discardResult(){pendingText=null;pendingKind=null;applyButton.hidden=true;}
   script.addEventListener('input',()=>{version++;undo=null;undoButton.hidden=true;});
   function write(text){script.value=text;script.dispatchEvent(new Event('input',{bubbles:true}));}
-  function done(current){if(operation!==current)return;operation=null;root.dataset.busy='false';stop.hidden=true;button.disabled=root.dataset.ready!=='true';file.disabled=root.dataset.ready!=='true';consent.disabled=root.dataset.ready!=='true';}
+  function done(current){if(operation!==current)return;operation=null;root.dataset.busy='false';stop.hidden=true;if(button)button.disabled=root.dataset.ready!=='true';if(file)file.disabled=root.dataset.ready!=='true';if(consent)consent.disabled=root.dataset.ready!=='true';}
   function cancel(){
     discardResult();const current=operation;if(!current)return;
-    operation=null;root.dataset.busy='false';current.controller.abort();stop.hidden=true;button.disabled=root.dataset.ready!=='true';file.disabled=root.dataset.ready!=='true';consent.disabled=root.dataset.ready!=='true';
-    const body=new FormData();body.append('action','cancel');body.append('operation_key',current.key);body.append('csrf_token',form.querySelector('[name=csrf_token]').value);
+    operation=null;root.dataset.busy='false';current.controller.abort();stop.hidden=true;if(button)button.disabled=root.dataset.ready!=='true';if(file)file.disabled=root.dataset.ready!=='true';if(consent)consent.disabled=root.dataset.ready!=='true';
+    const body=new FormData();body.append('action','cancel');body.append('operation_key',current.key);body.append('csrf_token',document.querySelector('#voiceover-panel [name=csrf_token]').value);
     fetch(current.endpoint,{method:'POST',body,credentials:'same-origin',keepalive:true}).catch(()=>{});
     status.textContent='Dihentikan. Naskah semula tetap aman. Pemrosesan yang sudah dikirim tidak diulang atau dibatalkan biayanya otomatis.';
   }
@@ -23,21 +23,21 @@
     if(operation||pendingText!==text||version!==beforeVersion||script.value!==before){status.textContent='Naskah berubah saat konfirmasi; edit kamu tidak ditimpa.';return;}
     const kind=pendingKind;write(text);undo={before,applied:text,version};undoButton.hidden=false;discardResult();script.scrollIntoView({block:'center'});script.focus();status.textContent=kind==='audio_reconstruction'?'Rekonstruksi audio dipakai; bukan naskah asli. Periksa dahulu, lalu Generate sendiri.':'Naskah dipakai. Periksa dahulu; Generate tetap perlu kamu klik sendiri.';
   });
-  stop.addEventListener('click',cancel);file.addEventListener('change',()=>{cancel();undo=null;undoButton.hidden=true;});
+  stop.addEventListener('click',cancel);file?.addEventListener('change',()=>{cancel();undo=null;undoButton.hidden=true;});
   window.addEventListener('pagehide',cancel);
   undoButton.addEventListener('click',()=>{if(operation||!undo)return;if(version!==undo.version||script.value!==undo.applied){undoButton.hidden=true;status.textContent='Naskah sudah diedit; edit tersebut tidak ditimpa.';return;}const previous=undo.before;write(previous);status.textContent='Naskah sebelum transkripsi dipulihkan.';});
   async function start(legacy=null){
     if(operation||root.dataset.ready!=='true')return;
-    if(document.querySelector('#voice-script-assist')?.dataset.busy==='true'||document.querySelector('#audio-studio')?.dataset.scriptEditing==='true'||document.querySelector('[data-audio-form][aria-busy=true]')){status.textContent='Selesaikan proses naskah atau audio yang sedang berjalan terlebih dahulu.';return;}
-    const chosen=file.files[0];if(!legacy&&(!chosen||!consent.checked)){status.textContent='Pilih video MP4 dan setujui pemrosesan ucapan terlebih dahulu.';return;}
+    if(document.querySelector('#voice-script-assist')?.dataset.busy==='true'||document.querySelector('#audio-studio')?.dataset.scriptEditing==='true'||document.querySelector('#audio-studio')?.dataset.dictationBusy==='true'||document.querySelector('[data-audio-form][aria-busy=true]')){status.textContent='Selesaikan proses naskah atau audio yang sedang berjalan terlebih dahulu.';return;}
+    const chosen=file?.files[0];if(!legacy&&(!chosen||!consent.checked)){status.textContent='Pilih video MP4 dan setujui pemrosesan ucapan terlebih dahulu.';return;}
     if(!legacy&&(!/\.mp4$/i.test(chosen.name)||chosen.size>Number(file.dataset.maxBytes))){status.textContent='Pilih MP4 dalam batas ukuran yang tertera. Naskah tetap aman.';return;}
     if(legacy&&!confirm('Transkripsikan ucapan dari audio hasil melalui ElevenLabs? Ini rekonstruksi, bukan naskah asli sebelum diterjemahkan. ElevenLabs memakai logging bawaan dan dapat menyimpan audio serta transkrip. Generate Voice Over tidak berjalan otomatis.'))return;
     if(operation)return;
     discardResult();
     const key=(legacy?'legacy-'+legacy.jobId+'-':'')+Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
-    const current={key,endpoint:legacy?legacy.endpoint:form.action,jobId:legacy?.jobId,controller:new AbortController(),before:script.value,version};operation=current;root.dataset.busy='true';stop.hidden=false;button.disabled=true;file.disabled=true;consent.disabled=true;
-    const data=new FormData();if(!legacy)data.append('video',chosen);data.append('consent','yes');data.append('operation_key',key);data.append('csrf_token',form.querySelector('[name=csrf_token]').value);
-    root.open=true;document.querySelector('#voiceover-tab')?.click();status.textContent=legacy?'Merekonstruksi ucapan dari audio hasil… Draf tetap bisa diedit.':'Membaca ucapan dari video… Naskah tetap bisa kamu edit.';
+    const current={key,endpoint:legacy?legacy.endpoint:form.action,jobId:legacy?.jobId,controller:new AbortController(),before:script.value,version};operation=current;root.dataset.busy='true';stop.hidden=false;if(button)button.disabled=true;if(file)file.disabled=true;if(consent)consent.disabled=true;
+    const data=new FormData();if(!legacy)data.append('video',chosen);data.append('consent','yes');data.append('operation_key',key);data.append('csrf_token',document.querySelector('#voiceover-panel [name=csrf_token]').value);
+    root.hidden=false;root.open=true;document.querySelector('#voiceover-tab')?.click();status.textContent=legacy?'Merekonstruksi ucapan dari audio hasil… Draf tetap bisa diedit.':'Membaca ucapan dari video… Naskah tetap bisa kamu edit.';
     try{
       const response=await fetch(current.endpoint,{method:'POST',body:data,credentials:'same-origin',signal:current.controller.signal});
       if(response.redirected)throw Error('Sesi berakhir. Masuk kembali untuk melanjutkan.');
