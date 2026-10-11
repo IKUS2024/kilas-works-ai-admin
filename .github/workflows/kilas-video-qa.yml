@@ -13,6 +13,11 @@ on:
       - 'client-hub/db.py'
       - 'client-hub/tests/test_kilas_video*.py'
       - 'client-hub/tests/fixtures/kilas_video_corpus.json'
+      - 'client-hub/templates/kilas_ai/**'
+      - 'client-hub/static/kilas_chat.css'
+      - 'client-hub/static/kilas_home.css'
+      - 'client-hub/static/kilas_home.js'
+      - 'client-hub/tests/test_kilas_premium_ui_browser.py'
       - '.github/workflows/kilas-video-qa.yml'
   workflow_dispatch:
 permissions:
