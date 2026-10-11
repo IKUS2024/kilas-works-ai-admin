@@ -1,0 +1,17 @@
+<style>
+  .account-workspace-access{margin:24px 0;padding:24px 0;border-block:1px solid var(--line)}
+  .account-workspace-access h2{margin:0 0 12px;font-size:18px}
+  .account-workspace-links{display:flex;flex-wrap:wrap;gap:8px 24px}
+  .account-workspace-links a{display:inline-flex;align-items:center;min-height:44px;overflow-wrap:anywhere}
+  .premium-sidebar-account a[aria-current=page]{color:var(--accent);font-weight:700}
+  @media(max-width:760px){.account-workspace-links{display:grid;gap:4px}.account-workspace-access{margin:20px 0;padding:20px 0}}
+</style>
+<section class="account-workspace-access" aria-labelledby="account-workspace-title">
+  <h2 id="account-workspace-title">Kilas AI</h2>
+  <nav class="account-workspace-links" aria-label="{{ ui_t('Settings') }} Kilas AI">
+    <a href="{{ url_for('kilas_ai.usage_page') }}#offer-title">{{ ui_t('Kilas Pro') }} &amp; {{ ui_t('Kapasitas Premium') }}</a>
+    {% if kilas_video_enabled() %}<a href="{{ url_for('kilas_ai.usage_page') }}#audio-settings-title">{{ ui_t('Saldo tersedia') }} · Translator &amp; Voice Over</a>{% endif %}
+    <a href="{{ url_for('kilas_ai.usage_page') }}#billing-title">{{ ui_t('Tagihan') }} &amp; {{ ui_t('pembayaran') }}</a>
+    {% if account_workspace.preferences %}<a href="{{ url_for('kilas_ai.agent_home',view='settings') }}">{{ ui_t('Pengaturan') }}</a>{% endif %}
+  </nav>
+</section>

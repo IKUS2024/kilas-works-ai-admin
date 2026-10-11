@@ -309,7 +309,7 @@
 <div class="account-page">
   <header class="account-head">
     <div class="account-head-copy">
-      <h1>{{ ui_t('Akun') }}</h1>
+      <h1>{{ ui_t('Akun saya') if account_workspace|default(false) else ui_t('Akun') }}</h1>
       <p class="muted">{{ ui_t('Kelola profil Pribadi, Bisnis, keamanan, dan data invoice Kilas Works.') }}</p>
     </div>
     <div class="account-head-actions">
@@ -340,6 +340,8 @@
       <button class="account-hero-edit" type="button" data-profile-edit><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L20 8a3.5 3.5 0 0 0-5-5L4 14z"/></svg>{{ ui_t('Edit profil') }}</button>
     </div>
   </section>
+
+  {% if account_workspace|default(false) %}{% include '_account_workspace.html' %}{% endif %}
 
   <dialog class="account-profile-dialog" id="account-profile-dialog">
     <div class="account-profile-dialog-head">
@@ -718,7 +720,9 @@
     panels.forEach(function(panel){
       panel.hidden = panel.dataset.accountPanel !== name;
     });
-    if (updateHash) history.replaceState(null, '', '#' + name);
+    if (updateHash) {
+      {% if account_workspace|default(false) %}history.pushState(null, '', '#' + name);{% else %}history.replaceState(null, '', '#' + name);{% endif %}
+    }
   }
 
   tabs.forEach(function(tab){
@@ -728,6 +732,10 @@
   const serverSecurityOpen = {{ 'true' if password_open else 'false' }};
   const initialTab = serverSecurityOpen ? 'security' : (location.hash || '').replace('#','');
   showTab(initialTab || 'personal', false);
+  {% if account_workspace|default(false) %}
+  window.addEventListener('popstate', function(){ showTab(location.hash.slice(1) || 'personal', false); });
+  window.addEventListener('hashchange', function(){ showTab(location.hash.slice(1) || 'personal', false); });
+  {% endif %}
 
   const profileDialog = document.getElementById('account-profile-dialog');
   document.querySelectorAll('[data-profile-edit]').forEach(function(button){

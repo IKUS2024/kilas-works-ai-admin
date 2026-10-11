@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ ui_t('Home · Kilas Works') }}{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='kilas_home.css', v='unified-home-cleanup-20261010') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='kilas_home.css', v='spacious-home-20261011') }}">
 <section class="premium-home">
 {% if not kilas_ai_enabled %}<header class="premium-page-heading"><h1>{{ ui_t('Home') }}</h1><p>{{ ui_t('Pilih alat yang tepat untuk pekerjaanmu.') }}</p></header>{% endif %}
 {% if kilas_ai_enabled %}

@@ -98,5 +98,38 @@ class HomeTests(unittest.TestCase):
             response=client.get('/products/start')
             self.assertIn(title,response.get_data(as_text=True))
 
+    def test_account_uses_home_navigation_and_existing_destinations(self):
+        client=self.client();html=client.get('/account').get_data(as_text=True)
+        self.assertIn('account-workspace-access',html)
+        self.assertNotIn('<span>Video</span>',html)
+        self.assertNotIn('<span>Translator</span>',html)
+        self.assertIn('href="/account" aria-current="page"',html)
+        self.assertIn('href="/kilas-ai/usage"',html)
+        for anchor in ('offer-title','audio-settings-title','billing-title'):
+            self.assertIn('href="/kilas-ai/usage#'+anchor+'"',html)
+            settings=client.get('/kilas-ai/usage').get_data(as_text=True)
+            self.assertIn('id="'+anchor+'"',settings)
+        self.assertIn('href="/kilas-ai/agent?view=settings"',html)
+        self.assertEqual(client.get('/kilas-ai/agent?view=settings').status_code,200)
+        for action in ('personal_profile','email_change_request','password'):
+            # Existing account forms remain available; no replacement account backend.
+            self.assertIn('value="'+action+'"',html)
+
+    def test_account_finance_and_feature_off_preserve_original_surface(self):
+        client=self.client()
+        with client.session_transaction() as values:values['active_product']='finance'
+        html=client.get('/account').get_data(as_text=True)
+        self.assertNotIn('account-workspace-access',html)
+        self.assertIn('<span>Video</span>',html)
+        self.assertIn('href="/account" aria-current="page"',html)
+        self.assertIn('history.replaceState',html)
+        self.assertNotIn('history.pushState',html)
+        with client.session_transaction() as values:values['active_product']='kilas_ai'
+        with patch.dict(os.environ,{'KILAS_AI_AUTOMATION_ENABLED':'false'}):
+            html=client.get('/account').get_data(as_text=True)
+            self.assertNotIn('href="/kilas-ai/agent?view=settings"',html)
+        with patch.dict(os.environ,{'KILAS_AI_ENABLED':'false'}):
+            self.assertNotIn('account-workspace-access',client.get('/account').get_data(as_text=True))
+
 
 if __name__=='__main__':unittest.main()

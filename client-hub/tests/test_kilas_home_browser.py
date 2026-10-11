@@ -46,6 +46,18 @@ def main():
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 page.evaluate('document.fonts.ready')
                 page.screenshot(path=str(output/f'home-{width}.png'),full_page=True)
+                # Spacious Home: controls sit below the canvas; composer stays within the viewport.
+                layout=page.evaluate("""() => {const b=s=>document.querySelector(s).getBoundingClientRect();return {composer:b('#ai-composer').bottom,choices:b('.home-task-choices').bottom,top:b('#ai-composer').top,canvas:b('.ai-main').height}}""")
+                assert layout['composer']<=1000 and layout['choices']<=layout['top'],layout
+                assert layout['canvas']>700,layout
+                if width<761:
+                    # Reduced visible height simulates keyboard layout; no real device IME claim.
+                    page.set_viewport_size({'width':width,'height':460})
+                    page.locator('#ai-input').focus()
+                    expect(page.locator('#ai-send')).to_be_in_viewport()
+                    assert page.locator('#ai-composer').evaluate('e=>e.getBoundingClientRect().bottom<=innerHeight')
+                    page.screenshot(path=str(output/f'home-small-height-{width}.png'))
+                    page.set_viewport_size({'width':width,'height':1000})
                 if width<761:
                     for _ in range(3):
                         page.get_by_role('button',name='Buka navigasi',exact=True).click()
@@ -112,6 +124,32 @@ def main():
                 page.locator('[data-home-task=video]').click();expect(page.locator('#home-task-value')).to_have_value('chat')
                 page.locator('#ai-stop').click();expect(page.locator('#ai-send')).to_be_enabled()
                 page.evaluate('window.fetch=window.homeQAOriginalFetch')
+                # Long conversations scroll independently without pushing the composer off-screen.
+                page.locator('#ai-messages').evaluate("e=>{e.hidden=false;e.closest('.ai-main').classList.remove('is-empty');e.innerHTML='<p>'+('Synthetic scroll content '.repeat(1500))+'</p>';document.querySelector('.ai-empty').hidden=true}")
+                assert page.locator('#ai-messages').evaluate('e=>e.scrollHeight>e.clientHeight')
+                expect(page.locator('#ai-send')).to_be_in_viewport()
+                page.goto(origin+'/products/start',wait_until='networkidle')
+                home_nav=page.locator('.premium-navigation').inner_text()
+                page.goto(origin+'/account',wait_until='networkidle')
+                assert page.locator('.premium-navigation').inner_text()==home_nav
+                expect(page.locator('.premium-sidebar-account a[aria-current=page]')).to_have_attribute('href','/account')
+                assert page.locator('.premium-navigation a[aria-current=page]').count()==0
+                page.screenshot(path=str(output/f'account-{width}.png'),full_page=True)
+                if width<761:
+                    page.get_by_role('button',name='Buka navigasi',exact=True).click()
+                    expect(page.locator('.premium-sidebar')).to_be_visible()
+                    page.screenshot(path=str(output/f'account-navigation-{width}.png'))
+                    page.keyboard.press('Escape')
+                    assert page.locator('.premium-sidebar').evaluate('e=>e.inert')
+                page.locator('[data-account-tab=security]').click();expect(page.locator('#account-panel-security')).to_be_visible()
+                page.locator('[data-account-tab=personal]').click();expect(page.locator('#account-panel-personal')).to_be_visible()
+                page.go_back();expect(page.locator('#account-panel-security')).to_be_visible()
+                page.go_back();expect(page.locator('#account-panel-personal')).to_be_visible()
+                page.locator('.account-workspace-links a[href$="#audio-settings-title"]').click()
+                expect(page.locator('#audio-settings-title')).to_be_visible()
+                assert page.locator('form[action="/kilas-translator/checkout"]').count()==3
+                page.go_back(wait_until='networkidle');expect(page.locator('.account-workspace-access')).to_be_visible()
+                assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 assert not errors,errors
                 report['widths'].append(width);context.close()
             # Locale is the selected cookie, including JS task descriptions.
@@ -121,7 +159,7 @@ def main():
             page.locator('[data-home-task=voiceover]').click();expect(page.locator('#ai-send')).to_have_text('Open voiceover form')
             page.screenshot(path=str(output/'home-en-1440.png'),full_page=True)
             browser.close()
-        report['checks']=['single entry','no optional organization or duplicate Finance','no lower Home clutter; top contextual history; no unavailable placeholder','mobile drawer repeated open/Escape','draft switch/cancel','attachment guard/remove','native handoff CSRF/upload forms','back/forward','translation notes','voiceover draft','real chat mocked provider','saved history/reload/open/return Home/back/forward','stop/blocked task switch','selected locale','no overflow','no browser JS errors']
+        report['checks']=['single entry','no optional organization or duplicate Finance','no lower Home clutter; top contextual history; no unavailable placeholder','mobile drawer repeated open/Escape','draft switch/cancel','attachment guard/remove','native handoff CSRF/upload forms','back/forward','translation notes','voiceover draft','real chat mocked provider','saved history/reload/open/return Home/back/forward','stop/blocked task switch','selected locale','spacious viewport canvas and bottom task choices/composer','small-height keyboard layout simulation','independent long-message scroll','MyAccount same Home navigation and active link','account mobile drawer and tab browser back','existing audio purchase destination','no overflow','no browser JS errors']
         (output/'verification.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps(report,indent=2))
     finally:server.shutdown();case.doCleanups()

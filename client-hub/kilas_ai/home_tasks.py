@@ -14,6 +14,18 @@ def context(owner):
     }
 
 
+@ai_bp.app_context_processor
+def account_workspace_context():
+    """Account presentation only; Finance keeps its existing account surface."""
+    from flask import session
+    from .routes import enabled
+    if (request.endpoint == 'auth.account_page' and session.get('user_id')
+            and session.get('role') != 'KILAS_ADMIN'
+            and session.get('active_product') != 'finance' and enabled()):
+        return {'account_workspace': {'preferences': automation_enabled()}}
+    return {}
+
+
 @ai_bp.post('/home-task', endpoint='home_task')
 def open_task():
     task = request.form.get('task','chat')

@@ -8,15 +8,15 @@
   </div></div>
   <main class="ai-main is-empty">
     <header class="ai-empty"><h1>{{ ui_t('Mau ngapain hari ini?') }}</h1><p>{{ ui_t('Mulai dari ide, pertanyaan, atau pekerjaanmu.') }}</p></header>
-    <div class="home-task-choices" role="group" aria-label="{{ ui_t('Pilihan tugas Kilas AI') }}">
-      {% for value,label,icon in [('chat','Chat AI','chat'),('video','Naskah & ide video','video'),('translate','Terjemahkan audio/video','language'),('voiceover','Buat suara','voice')] %}
-      <button type="button" data-home-task="{{ value }}" aria-pressed="{{ 'true' if value=='chat' else 'false' }}" aria-controls="home-task-context">{% include 'kilas_ai/_home_task_icon.html' %}<span>{{ ui_t(label) }}</span></button>
-      {% endfor %}
-    </div>
     <section class="home-task-context" id="home-task-context" aria-live="polite" hidden><h2 data-home-context-title></h2><p data-home-context-description></p><p class="home-task-note">{{ ui_t('Pilihan ini membuka formulir yang sudah ada. Hasil tersimpan di riwayat alat tersebut.') }}</p><button type="button" data-home-cancel>{{ ui_t('Kembali ke chat') }}</button></section>
     <div class="ai-conversation-title" hidden></div>
     <details class="ai-thread-menu" hidden><summary>{{ ui_t('Opsi chat') }}</summary><div class="home-chat-menu"><form method="post" data-action="rename"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="ai-title">{{ ui_t('Nama chat') }}</label><input id="ai-title" name="title" maxlength="100" required><button type="submit">{{ ui_t('Simpan nama') }}</button></form><form method="post" data-action="share"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">{{ ui_t('Bagikan chat') }}</button></form><form method="post" data-action="delete" onsubmit='return confirm({{ ui_t("Hapus chat ini?")|tojson }})'><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">{{ ui_t('Hapus chat') }}</button></form></div></details>
     <div class="ai-messages" id="ai-messages" aria-live="polite" hidden></div>
+    <div class="home-task-choices" role="group" aria-label="{{ ui_t('Pilihan tugas Kilas AI') }}">
+      {% for value,label,icon in [('chat','Chat AI','chat'),('video','Video Plan','video'),('translate','Translate','language'),('voiceover','Voice Over','voice')] %}
+      <button type="button" data-home-task="{{ value }}" aria-pressed="{{ 'true' if value=='chat' else 'false' }}" aria-controls="home-task-context">{% include 'kilas_ai/_home_task_icon.html' %}<span>{{ ui_t(label) }}</span></button>
+      {% endfor %}
+    </div>
     <div class="ai-composer-area"><p class="ai-notice" id="ai-notice" role="status"></p><form id="ai-composer" class="ai-composer" method="post" action="{{ url_for('kilas_ai.home_task') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="task" value="chat" id="home-task-value">
       <label class="home-input-label" for="ai-input" data-home-input-label>{{ ui_t('Tulis pesan') }}</label><textarea id="ai-input" name="brief" maxlength="12000" rows="3" placeholder="{{ ui_t('Tulis pesan untuk Kilas AI...') }}"></textarea>
@@ -26,4 +26,4 @@
   </main>
 
 </section>
-<script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='1') }}" defer></script><script src="{{ url_for('static',filename='kilas_home.js',v='unified-home-20261010') }}" defer></script><script src="{{ url_for('static',filename='kilas_ai.js',v='drawer-20261004') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='1') }}" defer></script><script src="{{ url_for('static',filename='kilas_home.js',v='spacious-home-20261011') }}" defer></script><script src="{{ url_for('static',filename='kilas_ai.js',v='drawer-20261004') }}" defer></script>

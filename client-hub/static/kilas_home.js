@@ -1,6 +1,11 @@
 /* Presentation only. Chat retains its existing transport; other tasks open their own forms. */
 (()=>{
   const root=document.querySelector('.kilas-home-workspace');if(!root)return;
+  // Layout only: visualViewport shrinks when a mobile on-screen keyboard opens.
+  const viewport=window.visualViewport;
+  const fitViewport=()=>document.documentElement.style.setProperty('--home-viewport-height',`${viewport?viewport.height:window.innerHeight}px`);
+  fitViewport();window.addEventListener('resize',fitViewport);
+  if(viewport)viewport.addEventListener('resize',fitViewport);
   const t=message=>window.KilasUI?window.KilasUI.t(message):message;
   const form=root.querySelector('#ai-composer'),input=root.querySelector('#ai-input'),value=root.querySelector('#home-task-value'),send=root.querySelector('#ai-send'),notice=root.querySelector('#ai-notice'),context=root.querySelector('#home-task-context');
   const drafts={chat:'',video:'',translate:'',voiceover:''};let current='chat';
