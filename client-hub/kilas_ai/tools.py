@@ -41,6 +41,22 @@ def _search_text(context):
     return "\n".join(lines)[-12000:]
 
 
+def _chat_search_text(context, currency=None):
+    """Send the current request, plus one user topic only for referential follow-ups."""
+    from .model_policy import request_text
+    if currency:
+        return f'{currency["amount"]:f} {currency["base"]} to {currency["quote"]}: current published exchange rate'
+    latest = request_text(context[-1]['content']).strip()[:6000]
+    if not re.search(r'(?i)\b(?:keduanya|ketiganya|tersebut|tadi|both|those|them)\b|\b(?:about|tentang|harga|price of)\s+(?:itu|that|it)\b', latest):
+        return latest
+    previous = next((request_text(item['content']).strip() for item in reversed(context[:-1])
+                     if item['role'] == 'user'), '')
+    # The previous question's first line is enough to resolve its topic; omit replies,
+    # earlier history, extracted attachments and subsequent private notes.
+    topic = re.split(r'[\r\n]|(?<=[?!])\s+', previous, maxsplit=1)[0][:500]
+    return latest + ('\nPrevious user question: ' + topic if topic else '')
+
+
 def research_requested(context):
     latest = context[-1]["content"] if context else ""
     text = (latest if isinstance(latest, str) else latest[0]["text"]).split(
@@ -134,13 +150,21 @@ def _synthesize_research(chunks, citations):
     return answer, model, data.get("usage") or {}
 
 
-def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_timeout=None):
+def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_timeout=None, *, verify_currency=False, minimal_query=False):
+    from . import chat_web, model_policy
     model = os.environ.get("KILAS_AI_OPENAI_WEB_MODEL", "").strip()
     if not model:
         raise ToolUnavailable("Web search belum tersedia.")
-    complex_request = research_requested(context)
+    lookup = model_policy.request_text(context[-1]['content'])
+    currency = chat_web.conversion(lookup) if verify_currency else None
+    if verify_currency and not currency:
+        previous = next((model_policy.request_text(item['content']) for item in reversed(context[:-1]) if item['role']=='user'), '')
+        currency = chat_web.conversion_followup(lookup, previous)
+    if verify_currency and not currency and chat_web.conversion_requested(lookup) and re.search(r'\d', lookup):
+        raise ToolUnavailable(chat_web.UNVERIFIED)
+    complex_request = research_requested(context) and not currency
     limit = min(5, max(1, int(max_calls or SEARCH_CALL_CAPS.get(plan, 1)))) if complex_request else 1
-    prompt = _search_text(context)
+    prompt = _chat_search_text(context, currency) if minimal_query else _search_text(context)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     angles = ("Find the most relevant primary or official evidence for the request.",
               "Find independent evidence or missing comparison dimensions; avoid sources already found.",
@@ -159,6 +183,8 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
             today, angles[index] if complex_request else "Answer the user's question directly."),
             "input": query, "tools": [{"type": "web_search"}], "tool_choice": "required", "store": False,
             "reasoning": {"effort": "medium" if complex_request else "low"}, "max_tool_calls": 1, "max_output_tokens": 2048}
+        if currency:
+            payload['instructions'] += chat_web.conversion_instructions(currency)
         calls += 1
         try:
             data = _request(payload) if request_timeout is None else _request(payload, timeout=request_timeout)
@@ -181,6 +207,12 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
             if not complex_request:
                 break
             continue
+        if currency:
+            try:
+                answer = chat_web.conversion_answer(currency, answer, found, _source_url)
+            except (ValueError, TypeError, KeyError, ArithmeticError):
+                raise ToolUnavailable(chat_web.UNVERIFIED, model=model,
+                    usage={'input_tokens':input_tokens,'output_tokens':output_tokens,'cost_components':cost_components}) from None
         new_sources = [item for item in found if item["url"] not in {source["url"] for source in citations}]
         if not new_sources and citations:
             break

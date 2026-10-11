@@ -75,7 +75,7 @@ def main():
                         expect(page.locator('#ai-composer')).to_be_visible()
                         assert page.url.endswith('/products/start')
                         assert len(store.list_threads(owner))==1
-                        assert page.locator('#ai-search').count()==1
+                        assert page.locator('#ai-search').count()==0
                         page.locator('#ai-files').set_input_files({'name':'shell.txt','mimeType':'text/plain','buffer':b'hello'})
                         expect(page.locator('.ai-pending-item')).to_be_visible()
                         page.get_by_role('button',name='Hapus lampiran shell.txt').click()
@@ -95,7 +95,7 @@ def main():
                 context.close()
             browser.close()
     finally:server.shutdown()
-    print('PASS: shared header/tabs/composer/drawer; X/backdrop/Escape; isolated histories/New Chat; task continuity/controls; attachment/Search presence; no overflow at 320/360/390/820/1440')
+    print('PASS: shared header/tabs/composer/drawer; X/backdrop/Escape; isolated histories/New Chat; task continuity/controls; attachment presence/automatic Search; no overflow at 320/360/390/820/1440')
 
 
 if __name__=='__main__':main()

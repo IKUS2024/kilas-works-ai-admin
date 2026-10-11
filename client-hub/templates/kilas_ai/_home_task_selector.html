@@ -4,4 +4,4 @@
       {% if feature_navigation|default(false) %}<a data-kilas-feature="{{ value }}" href="{{ url_for('products.product_start') if value=='chat' else url_for('kilas_ai.video_home') if value=='video' else url_for('kilas_audio.home',mode=value) }}" {{ 'aria-current=page' if selected_feature==value }}>{% include 'kilas_ai/_home_task_icon.html' %}<span>{{ ui_t(label) }}</span></a>{% else %}<button type="button" data-home-task="{{ value }}" aria-pressed="{{ 'true' if value=='chat' else 'false' }}" aria-controls="home-task-context">{% include 'kilas_ai/_home_task_icon.html' %}<span>{{ ui_t(label) }}</span></button>{% endif %}
       {% endif %}
       {% endfor %}
-    </div>{% if not feature_navigation|default(false) and not home_agent|default(false) %}<label class="home-search-toggle"><input id="ai-search" type="checkbox"> {{ ui_t('Search') }}</label>{% endif %}</div>
+    </div></div>

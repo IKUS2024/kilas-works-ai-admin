@@ -84,6 +84,7 @@ def main():
                     page.on('pageerror', lambda error: errors.append(str(error)))
                     page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(origin) else route.abort())
                     page.goto(origin + ('/kilas-ai/agent?conversation=' + str(case.conversation) if agent else '/products/start'), wait_until='networkidle')
+                    expect(page.locator('#ai-search,.home-search-toggle')).to_have_count(0)
                     field = page.locator('#agent-message' if agent else '#ai-input')
                     timeline = page.locator('#agent-conversation' if agent else '#ai-messages')
                     send = page.locator('#agent-chat-form button[type=submit]' if agent else '#ai-send')

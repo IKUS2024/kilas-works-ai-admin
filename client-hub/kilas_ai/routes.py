@@ -330,12 +330,14 @@ def send(thread_id, *, script_only=False):
                             pdf_request=ai_pdf.is_request(content, previous_document),
                             has_previous_content=bool(prior_answer or previous_document), previous_answer=prior_answer)
     previous_request=next((row['content'] for row in reversed(store.messages(user_id,thread_id,6) or []) if row['role']=='user'),'')
+    no_search_current = not script_only and routing.no_search_requested(content) and (
+        routing.fresh_information(content,respect_no_search=False) or routing.fresh_followup(content,previous_request,respect_no_search=False))
     if not script_only and tool=='CHAT' and routing.fresh_followup(content,previous_request):
         tool='WEB'
     if tool == "IMAGE_EDIT" and not any(item["mime_type"].startswith("image/") for item in prepared) and not prior_image:
         return {"error": "Upload gambar terlebih dahulu untuk diedit."}, 400
     if tool == "WEB" and any(item["mime_type"].startswith("image/") for item in prepared):
-        return {"error": "Matikan Search untuk menganalisis gambar yang diunggah."}, 400
+        return {"error": "Pencarian web belum membaca gambar yang dilampirkan. Sebutkan nama atau rincian yang ingin diperiksa."}, 400
     prior = store.operation(user_id, thread_id, key)
     if prior:
         answer = store.operation(user_id, thread_id, key + ":assistant")
@@ -348,7 +350,8 @@ def send(thread_id, *, script_only=False):
         plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool, profile=model_policy.chat_profile(
             store.context(user_id, thread_id) + [{'role':'user','content':attachments.prompt_content(content, prepared)}]) if tool == 'CHAT' else None)
     except ai_usage.UsageLimit as error:
-        return {"error": str(error)}, 429
+        from .chat_web import UNVERIFIED
+        return {"error": str(error) + (' ' + UNVERIFIED if tool == 'WEB' else '')}, 429
     if plan is None:
         return Response(_sse("busy", {"message": "Permintaan ini sedang diproses."}), status=409,
                         mimetype="text/event-stream")
@@ -374,6 +377,13 @@ def send(thread_id, *, script_only=False):
         persisted = False
         reason = None
         try:
+            if no_search_current:
+                from .chat_web import NO_SEARCH
+                store.append_assistant(user_id,thread_id,NO_SEARCH,mode,None,None,key,{'status':'complete','tool':'chat'})
+                finished = persisted = True
+                yield _sse('delta',{'text':NO_SEARCH})
+                yield _sse('done',{'finish_reason':'stop'})
+                return
             if tool in ("WORK", "CLARIFY", "FILE"):
                 if tool == "WORK":
                     yield _sse("activity", {"label": "Menyiapkan pekerjaan…"})
@@ -436,7 +446,7 @@ def send(thread_id, *, script_only=False):
                         yield _sse("activity", {"label": "Mencari sumber terbaru…"})
                         result = None
                         for update in ai_tools.web_search_steps(context, mode=mode, plan=plan,
-                                max_calls=ai_usage.web_call_budget(user_id, plan) if research else 1):
+                                max_calls=ai_usage.web_call_budget(user_id, plan) if research else 1,verify_currency=True,minimal_query=True):
                             if "activity" in update:
                                 yield _sse("activity", {"label": update["activity"]})
                             else:
@@ -476,7 +486,8 @@ def send(thread_id, *, script_only=False):
                     if error.model:
                         provider, model = 'openai', error.model
                         usage.update(error.usage)
-                    yield _sse("error", {"message": "Gambar belum dapat dibuat sekarang. Coba lagi sebentar." if tool in ("IMAGE_GENERATE", "IMAGE_EDIT") else str(error)})
+                    from .chat_web import UNVERIFIED
+                    yield _sse("error", {"message": "Gambar belum dapat dibuat sekarang. Coba lagi sebentar." if tool in ("IMAGE_GENERATE", "IMAGE_EDIT") else UNVERIFIED})
                     return
             yield _sse("activity", {"label": "Menganalisis gambar…" if any(item["mime_type"].startswith("image/") for item in prepared)
                           else "Membaca dokumen…" if any(item["extracted_text"] for item in prepared)

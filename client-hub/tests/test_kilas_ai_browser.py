@@ -92,7 +92,7 @@ def main():
                 page.get_by_role("button", name="Hapus lampiran note.txt").click()
                 assert page.locator("#ai-pending .ai-pending-item").count() == 0
                 assert page.locator("#ai-tool,#ai-mode").count() == 0
-                assert page.locator("#ai-search").count() == 1
+                assert page.locator("#ai-search").count() == 0
                 page.locator("#ai-input").fill("Halo Kilas AI")
                 page.get_by_role("button", name="Kirim").click()
                 page.get_by_text("Jawaban uji Kilas AI.").wait_for()
@@ -119,12 +119,10 @@ def main():
                 page.locator(".ai-file-card").wait_for()
                 assert page.get_by_role("link", name="Download").count() == 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "pdf")
-                page.locator("#ai-search").check()
                 page.locator("#ai-input").fill("Cari informasi uji")
                 page.get_by_role("button", name="Kirim").click()
                 page.get_by_role("link", name="Sumber uji").wait_for()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "web")
-                page.locator("#ai-search").uncheck()
                 page.locator("#ai-input").fill("Buat gambar uji")
                 page.get_by_role("button", name="Kirim").click()
                 page.locator(".ai-image-result img").wait_for()

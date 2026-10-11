@@ -46,6 +46,10 @@ def dispatch(owner,text,key,conversation):
     previous_request=next((m['content'] for m in reversed(recent[:-1]) if m['role']=='user'),'')
     previous_answer=next((m['content'] for m in reversed(recent) if m['role']=='assistant'),'')
     selected=intent(text,prepared,previous,previous_answer)
+    if selected=='CHAT' and routing.no_search_requested(text) and (routing.fresh_information(text,respect_no_search=False)
+            or routing.fresh_followup(text,previous_request,respect_no_search=False)):
+        from .chat_web import NO_SEARCH
+        return work_runtime.reply(owner,NO_SEARCH,conversation)
     if selected=='CHAT' and routing.fresh_followup(text,previous_request):
         selected='WEB'
     if selected=='IMAGE_GENERATE':
@@ -79,18 +83,19 @@ def dispatch(owner,text,key,conversation):
 
 
 def search(owner,key,conversation):
+    from .chat_web import UNVERIFIED
     context=agent_chat.context(owner,conversation)
     meter='agent-web-'+key
     mode=routing.mode_for(model_policy.request_text(context[-1]['content']))
     try:plan,operations=usage.reserve(owner,None,meter,mode,'WEB')
-    except usage.UsageLimit as error:return work_runtime.reply(owner,str(error),conversation)
+    except usage.UsageLimit as error:return work_runtime.reply(owner,str(error)+' '+UNVERIFIED,conversation)
     if not operations:return work_runtime.reply(owner,'Permintaan ini sudah diterima.',conversation)
     def generate():
         success=False;used={};model=None
         try:
             yield {'type':'activity','label':'Mencari informasi terbaru…'}
             result=None
-            for update in tools.web_search_steps(context,mode=mode,plan=plan,max_calls=usage.web_call_budget(owner,plan) if tools.research_requested(context) else 1):
+            for update in tools.web_search_steps(context,mode=mode,plan=plan,max_calls=usage.web_call_budget(owner,plan) if tools.research_requested(context) else 1,verify_currency=True,minimal_query=True):
                 if 'activity' in update:yield {'type':'activity','label':update['activity']}
                 else:result=update['result']
             if not result or not result.get('citations'):raise tools.ToolUnavailable('sources_missing')
@@ -108,8 +113,8 @@ def search(owner,key,conversation):
         except Exception as error:
             model = getattr(error,'model',None) or model
             used.update(getattr(error,'usage',{}) or {})
-            agent_store.append(owner,'assistant','Informasi terbaru belum dapat diperiksa. Coba lagi sebentar.',conversation)
-            yield {'type':'error','message':'Informasi terbaru belum dapat diperiksa. Coba lagi sebentar.'}
+            agent_store.append(owner,'assistant',UNVERIFIED,conversation)
+            yield {'type':'error','message':UNVERIFIED}
         finally:usage.finish(owner,meter,operations,success=success,provider='openai' if model else None,model=model,usage=used)
     if request.headers.get('X-Agent-Chat')=='1':
         return Response(stream_with_context(('data: '+json.dumps(event,ensure_ascii=False)+'\n\n' for event in generate())),mimetype='text/event-stream',headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'})
