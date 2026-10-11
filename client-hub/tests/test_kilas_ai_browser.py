@@ -78,7 +78,7 @@ def main():
                 page.get_by_role("link", name="Chat baru").click()
                 assert page.url.endswith("/products/start")
                 assert store.list_threads(owner) == []
-                assert page.get_by_role("heading", name="Mau ngapain hari ini?").is_visible()
+                expect(page.get_by_role("heading", name="Mau ngapain hari ini?")).to_be_visible()
                 assert page.locator(".ai-shell").get_attribute("data-max-files") == "2"
                 # Closed mobile history is now inert and visually hidden.
                 assert page.locator(".premium-navigation [aria-current=page] span").text_content().strip() == "Home"
