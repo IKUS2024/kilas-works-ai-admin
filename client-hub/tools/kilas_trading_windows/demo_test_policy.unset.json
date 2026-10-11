@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "session_id": null,
+  "strategy_reference": null,
+  "max_run_seconds": null,
+  "max_entries": null,
+  "session_loss_usd": null,
+  "max_tick_receipt_age": null,
+  "max_stop_loss_usd": null,
+  "max_notional_usd": null,
+  "max_spread_cost_usd": null,
+  "sl_loss_usd": null,
+  "tp_profit_usd": null,
+  "fee_reserve_usd": null,
+  "deviation_points": null
+}

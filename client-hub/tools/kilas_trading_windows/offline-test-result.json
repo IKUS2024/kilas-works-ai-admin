@@ -1,0 +1,14 @@
+{
+  "offline_only": true,
+  "tests": 323,
+  "successful": true,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "seconds": 37.911,
+  "native_sdk_attachments": 0,
+  "native_order_checks": 0,
+  "native_order_sends": 0,
+  "paid_model_requests": 0,
+  "cloud_commit": "db035b5da415bed61bed08e2b1cac50d8d31f73c"
+}
