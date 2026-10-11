@@ -33,7 +33,7 @@ def main():
                 page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(origin+'/kilas-ai',wait_until='networkidle')
                 assert page.locator('.ai-mode-tabs,#ai-search').count()==0
-                assert page.locator('button').filter(has_text='Chat baru').count()==1
+                assert page.locator('button').filter(has_text='New Chat').count()==1
                 def send(text):
                     count=page.locator('.agent-message-user').count()
                     page.locator('#agent-message').fill(text)
@@ -113,7 +113,7 @@ def main():
                 assert page.locator('#agent-sidebar a[href*=tasks],#agent-sidebar a[href*=notifications]').count()==0
                 page.screenshot(path=str(Path(tempfile.gettempdir())/f'kilas-cleanup-sidebar-{width}.png'))
                 click_new_chat(page,agent=True)
-                expect(page.get_by_role('heading',name='Mau ngapain hari ini?')).to_be_visible()
+                expect(page.get_by_role('heading',name='How can I Help you?')).to_be_visible()
                 expect(page.locator('.work-sent-file,[data-job-id]')).to_have_count(0)
                 page.goto(origin+'/kilas-ai/agent?view=history',wait_until='networkidle')
                 assert page.locator(f'nav[aria-label="Riwayat percakapan"] a[href$="conversation={original}"]').count()==1

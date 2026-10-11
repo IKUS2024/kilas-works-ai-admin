@@ -9,6 +9,7 @@ on:
       - 'client-hub/templates/_premium_navigation.html'
       - 'client-hub/templates/product_start.html'
       - 'client-hub/migrations/0082_*'
+      - 'client-hub/tests/test_kilas_ai_unified_browser.py'
       - 'client-hub/app.py'
       - 'client-hub/db.py'
       - 'client-hub/tests/test_kilas_video*.py'

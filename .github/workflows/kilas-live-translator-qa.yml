@@ -2,7 +2,7 @@ name: Kilas Live Translator QA
 on:
   push:
     branches: [main]
-    paths: ['client-hub/kilas_ai/live_translator*.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/kilas_ai/audio_schema.py', 'client-hub/kilas_ai/home_tasks.py', 'client-hub/static/kilas_live_translator*', 'client-hub/templates/kilas_translator/live.html', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/migrations/0092_*', 'client-hub/tests/test_kilas_live_translator*', 'client-hub/tests/test_kilas_audio_postgres.py', 'client-hub/app.py', 'client-hub/db.py', '.github/workflows/kilas-live-translator-qa.yml']
+    paths: ['client-hub/kilas_ai/live_translator*.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/kilas_ai/audio_schema.py', 'client-hub/kilas_ai/home_tasks.py', 'client-hub/static/kilas_live_translator*', 'client-hub/templates/kilas_translator/live.html', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/migrations/0092_*', 'client-hub/tests/test_kilas_live_translator*', 'client-hub/tests/test_kilas_ai_unified_browser.py', 'client-hub/tests/test_kilas_audio_postgres.py', 'client-hub/app.py', 'client-hub/db.py', '.github/workflows/kilas-live-translator-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,6 +21,7 @@ jobs:
       - run: python client-hub/tests/test_kilas_live_translator.py
       - run: node --test client-hub/tests/test_kilas_live_translator_engine.mjs
       - run: python client-hub/tests/test_kilas_live_translator_browser.py
+      - run: python client-hub/tests/test_kilas_ai_unified_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: kilas-live-translator-synthetic, path: /tmp/kilas-live-translator-browser/}
