@@ -262,6 +262,19 @@ class AudioTests(unittest.TestCase):
         with self.client.session_transaction() as state:state['user_id']=self.other
         self.assertEqual(self.client.post(path,json=body,headers=headers).status_code,404)
 
+    def test_script_tidy_accepts_full_script_and_validates_mode(self):
+        from kilas_ai import store as chat_store,model_policy
+        thread=chat_store.create_thread(self.user,'FAST')
+        path=f'/kilas-ai/threads/{thread}/voice-script'
+        headers={'X-CSRF-Token':'audio-csrf'}
+        body={'content':'x'*4000,'script_mode':'tidy','operation_key':'script-tidy-boundary-1234'}
+        with patch.object(usage,'reserve',side_effect=usage.UsageLimit('QA stop before provider')),patch.object(model_policy,'chat_profile',return_value={}) as profile:
+            self.assertEqual(self.client.post(path,json=body,headers=headers).status_code,429)
+            instruction=profile.call_args.args[0][-1]['content']
+            self.assertTrue(instruction.endswith('x'*4000))
+            self.assertIn('tanpa mengubah maksud',instruction)
+        self.assertEqual(self.client.post(path,json={**body,'script_mode':'unknown'},headers=headers).status_code,400)
+
     def test_supported_wav_duration_and_invalid_extension_mime(self):
         from werkzeug.datastructures import FileStorage
         for name,mime,raw in [('audio.wav','audio/wav',wav(2.25)),('audio.mp3','audio/mpeg',self.audio)]:

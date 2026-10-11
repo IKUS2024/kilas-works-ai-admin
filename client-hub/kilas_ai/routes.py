@@ -290,8 +290,13 @@ def send(thread_id, *, script_only=False):
         abort(400)
     if script_only:
         if files or len(content) > 4000:abort(400)
-        content = ('Tulis atau rapikan naskah Voice Over sesuai arahan di bawah. '
-                   'Balas hanya naskah siap dibaca, maksimal 4000 karakter, tanpa pengantar. '
+        script_mode = str(body.get("script_mode") or "generate")
+        if script_mode not in {"generate", "tidy"}:abort(400)
+        if script_mode == "tidy":
+            instruction = "Rapikan naskah berikut: perbaiki ejaan dan alur tanpa mengubah maksud atau menambahkan fakta. "
+        else:
+            instruction = "Tulis atau rapikan naskah Voice Over sesuai arahan di bawah. "
+        content = (instruction + 'Balas hanya naskah siap dibaca, maksimal 4000 karakter, tanpa pengantar. '
                    'Jangan membuat audio, gambar, dokumen atau menggunakan pencarian. '
                    'Jangan menambahkan fakta yang tidak diberikan.\n\nArahan pengguna:\n' + content)
     try:
