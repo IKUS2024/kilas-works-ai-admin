@@ -62,7 +62,7 @@ def main():
                 page.screenshot(path=str(output/f'voice-script-{width}.png'))
                 page.locator('.voice-script-info summary').click();expect(page.locator('.audio-script-retention')).to_be_visible()
                 expect(page.locator('#voice-language-status')).to_be_visible();page.locator('.voice-script-info summary').click()
-                page.locator('#voice-script-assist summary').click();expect(page.locator('.voice-assist-usage')).to_be_visible()
+                page.locator('#voice-script-assist > summary').click();expect(page.locator('.voice-assist-usage')).to_be_visible()
                 expect(page.locator('#voice-assist-generate')).to_be_visible();script.fill('Naskah sebelum bantuan.')
                 page.locator('#voice-assist-generate').click();expect(page.locator('#voice-assist-status')).to_contain_text('masuk ke kolom',timeout=20000)
                 assert script.input_value().startswith('Produk ini cocok')

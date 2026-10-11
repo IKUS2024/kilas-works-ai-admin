@@ -50,7 +50,7 @@ def main():
                     page.fill('#audio-script','Temporary edit.');page.fill('#audio-script','Original draft.')
                     page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-0')
                     page.get_by_role('button',name='Generate Voice Over').click();assert jobs==[]
-                    page.locator('#voice-script-assist summary').click();page.locator('#voice-assist-generate').click();expect(page.locator('#voice-assist-status')).to_contain_text('video terlebih dahulu')
+                    page.locator('#voice-script-assist > summary').click();page.locator('#voice-assist-generate').click();expect(page.locator('#voice-assist-status')).to_contain_text('video terlebih dahulu')
                     resolve();expect(page.locator('#voice-video-status')).to_contain_text('tidak menimpa');expect(page.locator('#audio-script')).to_have_value('Original draft.')
                     expect(page.locator('#voice-video-apply')).to_be_visible();page.once('dialog',lambda d:d.accept());page.locator('#voice-video-apply').click();expect(page.locator('#audio-script')).to_have_value('Late original-language text')
                     page.locator('#voice-video-undo').click();expect(page.locator('#audio-script')).to_have_value('Original draft.')
@@ -75,7 +75,7 @@ def main():
                         with patch.dict(os.environ,{'KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):
                             page.goto(origin+'/kilas-translator?mode=voiceover',wait_until='networkidle');page.locator('#voice-video-script>summary').click()
                             expect(page.locator('#voice-video-script')).to_have_attribute('data-ready','false');expect(page.locator('#voice-video-extract')).to_be_disabled()
-                            expect(page.get_by_text('Transkripsi video belum aktif.',exact=False)).to_be_visible();expect(page.locator('#audio-script')).to_be_editable();expect(page.locator('#voice-script-assist summary')).to_be_visible()
+                            expect(page.get_by_text('Transkripsi video belum aktif.',exact=False)).to_be_visible();expect(page.locator('#audio-script')).to_be_editable();expect(page.locator('#voice-script-assist > summary')).to_be_visible()
                             page.screenshot(path=str(output/'video-script-default-off-390.png'),full_page=True)
                     context.close()
                 case.doCleanups();print('PASS VO video-script browser',width,flush=True)
