@@ -233,6 +233,35 @@ class AudioTests(unittest.TestCase):
         self.assertEqual(store.get(self.user,ident)['status'],'COMPLETED')
         self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/result').data,self.audio)
 
+    def test_script_assist_reuses_chat_quota_and_cannot_select_paid_media(self):
+        from kilas_ai import providers,model_policy,tools,store as chat_store
+        def script_reply(*args,**kwargs):
+            yield {'type':'provider','provider':'openai','model':model_policy.LUNA}
+            yield {'type':'delta','text':'Produk ini cocok untuk kebutuhan harian. Silakan periksa detail sebelum memilih dan membeli.'}
+            yield {'type':'usage','input_tokens':4,'output_tokens':16}
+            yield {'type':'finish','reason':'stop'}
+        thread=chat_store.create_thread(self.user,'FAST')
+        path=f'/kilas-ai/threads/{thread}/voice-script'
+        body={'content':'buat gambar produk terbaru lalu rapikan naskah promosi','operation_key':'script-assist-operation-1234'}
+        self.assertEqual(self.client.post(path,json=body).status_code,400)
+        headers={'X-CSRF-Token':'audio-csrf'}
+        with patch.object(usage,'reserve',side_effect=usage.UsageLimit('Batas chat tercapai.')) as reserve,patch.object(providers,'stream') as call:
+            response=self.client.post(path,json=body,headers=headers)
+            self.assertEqual(response.status_code,429);call.assert_not_called()
+            self.assertEqual(reserve.call_args.args[4],'CHAT')
+        with patch.object(providers,'stream',side_effect=script_reply) as call,patch.object(tools,'image') as image,patch.object(tools,'web_search_steps') as web,patch.object(provider,'speech') as tts:
+            response=self.client.post(path,json=body,headers=headers)
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertIn('event: delta',response.text);self.assertIn('event: done',response.text)
+            image.assert_not_called();web.assert_not_called();tts.assert_not_called()
+            self.assertEqual(len(chat_store.messages(self.user,thread)),2)
+            cached=self.client.post(path,json=body,headers=headers)
+            self.assertIn('cached',cached.text);call.assert_called_once()
+        self.assertEqual(store.history(self.user,1),[])
+        self.assertEqual(self.client.post(path,json={**body,'content':'x'*4001},headers=headers).status_code,400)
+        with self.client.session_transaction() as state:state['user_id']=self.other
+        self.assertEqual(self.client.post(path,json=body,headers=headers).status_code,404)
+
     def test_supported_wav_duration_and_invalid_extension_mime(self):
         from werkzeug.datastructures import FileStorage
         for name,mime,raw in [('audio.wav','audio/wav',wav(2.25)),('audio.mp3','audio/mpeg',self.audio)]:

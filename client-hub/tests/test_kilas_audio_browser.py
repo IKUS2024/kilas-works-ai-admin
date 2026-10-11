@@ -9,6 +9,21 @@ from unittest.mock import patch
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 from test_kilas_audio import AudioTests, f, provider, wav
+from kilas_ai import providers, model_policy
+
+
+def script_reply(*args, **kwargs):
+    yield {'type':'provider','provider':'openai','model':model_policy.LUNA}
+    yield {'type':'delta','text':'Produk ini cocok untuk kebutuhan harian. Silakan periksa detail sebelum memilih dan membeli.'}
+    yield {'type':'usage','input_tokens':4,'output_tokens':16}
+    yield {'type':'finish','reason':'stop'}
+
+
+DICTATION_MOCK = """window.SpeechRecognition=class {
+ start(){window.qaDictation=this;window.qaMicStarts=(window.qaMicStarts||0)+1;}
+ stop(){window.qaMicStops=(window.qaMicStops||0)+1;this.onend?.();}
+ abort(){window.qaMicAborts=(window.qaMicAborts||0)+1;this.onend?.();}
+};"""
 
 
 def main():
@@ -18,11 +33,13 @@ def main():
     origin=f'http://127.0.0.1:{server.server_port}'
     output=Path(os.environ.get('KILAS_AUDIO_SCREENSHOTS',str(Path(tempfile.gettempdir())/'kilas-audio-browser')));output.mkdir(exist_ok=True)
     try:
-        with patch.object(provider,'voices',return_value=[{'id':'available123','name':'QA Warm','style':'Female · Warm'},{'id':'available456','name':'QA Professional','style':'Male · Professional'}]),patch.object(provider,'speech',return_value=(AudioTests.audio,'qa-request')),patch.object(provider,'dub',return_value='qa-dubbing'),patch.object(provider,'dub_status',return_value={'status':'dubbed','source_language':'id'}),patch.object(provider,'dub_result',return_value=AudioTests.audio),sync_playwright() as p:
+        with patch.object(provider,'voices',return_value=[{'id':'available123','name':'QA Warm','style':'Female · Warm'},{'id':'available456','name':'QA Professional','style':'Male · Professional'}]),patch.object(provider,'speech',return_value=(AudioTests.audio,'qa-request')),patch.object(provider,'dub',return_value='qa-dubbing'),patch.object(provider,'dub_status',return_value={'status':'dubbed','source_language':'id'}),patch.object(provider,'dub_result',return_value=AudioTests.audio),patch.object(providers,'stream',side_effect=script_reply),sync_playwright() as p:
             browser=p.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
             for width in (320,360,390,430,768,1024,1440):
                 case=AudioTests('test_shared_balance_actual_seconds');case.id=lambda:'audio-browser-'+str(width);case.setUp();case.credit(300)
                 context=browser.new_context(viewport={'width':width,'height':900},has_touch=width<761,reduced_motion='reduce')
+                context.add_init_script(DICTATION_MOCK + "Object.defineProperty(crypto,'randomUUID',{value:undefined});")
+                context.grant_permissions(['clipboard-read','clipboard-write'])
                 cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
                 page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 def check(name):
@@ -60,6 +77,50 @@ def main():
                 assert downloaded.value.suggested_filename.endswith('-English.mp3')
                 page.reload(wait_until='networkidle');expect(page.locator('#audio-result audio')).to_be_visible()
                 page.get_by_role('link',name='Translate another').click();page.locator('#voiceover-tab').click();expect(page.locator('#voiceover-panel')).to_be_visible()
+                assert page.evaluate('window.qaMicStarts||0')==0
+                page.locator('#voice-script-assist summary').click()
+                page.locator('#voice-assist-generate').click();expect(page.locator('#voice-assist-status')).to_contain_text('terlebih dahulu')
+                expect(page.locator('#voice-assist-copy')).to_be_disabled();expect(page.locator('#voice-assist-use')).to_be_disabled()
+                page.locator('#voice-assist-mic').click();expect(page.locator('#voice-assist-mic-stop')).to_be_visible()
+                page.evaluate("qaDictation.onresult({resultIndex:0,results:[Object.assign([{transcript:'Rapikan naskah promosi yang singkat.'}],{isFinal:true})]})")
+                expect(page.locator('#voice-assist-prompt')).to_have_value('Rapikan naskah promosi yang singkat.')
+                page.locator('#voice-assist-mic-stop').click();expect(page.locator('#voice-assist-mic-stop')).to_be_hidden()
+                expect(page.locator('#audio-script')).to_have_value('')
+                audio_jobs=[];page.on('request',lambda req:audio_jobs.append(req.url) if req.method=='POST' and '/kilas-translator/jobs' in req.url else None)
+                page.locator('#voice-assist-generate').click();expect(page.locator('#voice-assist-status')).to_contain_text('siap diperiksa',timeout=20000)
+                expect(page.locator('#voice-assist-history')).to_have_attribute('href',__import__('re').compile('/kilas-ai/threads/'))
+                page.fill('#voice-assist-script','Naskah sintetis yang telah saya edit.')
+                page.locator('#voice-assist-copy').click();expect(page.locator('#voice-assist-status')).to_have_text('Naskah disalin.')
+                assert page.evaluate('navigator.clipboard.readText()')=='Naskah sintetis yang telah saya edit.'
+                page.locator('#voice-assist-use').click();expect(page.locator('#audio-script')).to_have_value('Naskah sintetis yang telah saya edit.')
+                assert audio_jobs==[],audio_jobs
+                page.locator('#voice-assist-mic').click();page.evaluate("qaDictation.onerror({error:'not-allowed'});qaDictation.onend()")
+                expect(page.locator('#voice-assist-status')).to_contain_text('Izin mic tidak diberikan')
+                page.route('**/voice-script',lambda route:route.fulfill(status=429,content_type='application/json',body='{"error":"Batas chat QA"}'))
+                page.locator('#voice-assist-generate').click();expect(page.locator('#voice-assist-status')).to_have_text('Batas chat QA')
+                expect(page.locator('#voice-assist-generate')).to_be_enabled();page.unroute('**/voice-script')
+                if width==320:
+                    # Abort a pending text request without creating an audio job.
+                    page.evaluate("""window.qaOriginalFetch=window.fetch;window.fetch=(url,options)=>String(url).endsWith('/voice-script')?new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Stopped','AbortError')))):qaOriginalFetch(url,options);""")
+                    page.locator('#voice-assist-generate').click();expect(page.locator('#voice-assist-stop')).to_be_visible()
+                    page.locator('#voice-assist-stop').click();expect(page.locator('#voice-assist-status')).to_contain_text('AI dihentikan')
+                    expect(page.locator('#voice-assist-generate')).to_be_enabled();expect(page.locator('#voice-assist-stop')).to_be_hidden()
+                    page.evaluate('window.fetch=qaOriginalFetch')
+                    page.locator('#voice-assist-mic').click();page.locator('#voice-script-assist summary').click()
+                    expect(page.locator('#voice-assist-mic-stop')).to_be_hidden()
+                    page.wait_for_function('(window.qaMicAborts||0)>0')
+                    assert page.evaluate('window.qaMicAborts||0')>0
+                    page.locator('#voice-script-assist summary').click()
+                    fallback=browser.new_context(viewport={'width':390,'height':900})
+                    fallback.add_init_script('window.SpeechRecognition=undefined;window.webkitSpeechRecognition=undefined;')
+                    fallback.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+                    typed=fallback.new_page();typed.goto(origin+'/kilas-translator',wait_until='networkidle');typed.locator('#voiceover-tab').click();typed.locator('#voice-script-assist summary').click()
+                    expect(typed.locator('#voice-assist-mic')).to_be_disabled();expect(typed.locator('#voice-assist-mic-note')).to_contain_text('Ketik arahan')
+                    typed.fill('#voice-assist-prompt','Rapikan arahan yang diketik.');typed.locator('#voice-assist-generate').click();expect(typed.locator('#voice-assist-status')).to_contain_text('siap diperiksa',timeout=20000)
+                    fallback.close()
+                assert audio_jobs==[],audio_jobs
+                check('script-assist')
+                page.locator('#voice-script-assist summary').click()
                 page.fill('#audio-script','Safe synthetic voice over.');expect(page.locator('#voice-estimate')).to_contain_text('reservasi')
                 clean_workbench()
                 page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-1');check('voiceover')
@@ -82,7 +143,6 @@ def main():
                 assert wav_download.value.suggested_filename.endswith('.wav')
                 wav_path=output/f'download-{width}.wav';wav_download.value.save_as(wav_path)
                 assert wav_path.read_bytes()[:4]==b'RIFF' and wav_path.read_bytes()[8:12]==b'WAVE'
-
                 page.route('**'+action,lambda route:route.fulfill(status=503,content_type='application/json',body='{"error":"Gangguan QA sintetis"}'))
                 page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-1')
                 page.fill('#audio-script','Synthetic failure check.')

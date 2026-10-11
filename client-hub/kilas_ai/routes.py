@@ -268,8 +268,14 @@ def regenerate(thread_id):
     return response
 
 
+@ai_bp.post("/threads/<int:thread_id>/voice-script")
+def voice_script_send(thread_id):
+    """Text-only script assistance through the existing authorized chat pipeline."""
+    return send(thread_id, script_only=True)
+
+
 @ai_bp.post("/threads/<int:thread_id>/send")
-def send(thread_id):
+def send(thread_id, *, script_only=False):
     from . import model_policy, attachments, pdf as ai_pdf, providers, routing, store, chat_quality, usage as ai_usage
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
@@ -282,6 +288,12 @@ def send(thread_id):
         content = "Tolong jelaskan lampiran ini."
     if not content or len(content) > 12000 or not re.fullmatch(r"[a-zA-Z0-9_-]{16,96}", key):
         abort(400)
+    if script_only:
+        if files or len(content) > 4000:abort(400)
+        content = ('Tulis atau rapikan naskah Voice Over sesuai arahan di bawah. '
+                   'Balas hanya naskah siap dibaca, maksimal 4000 karakter, tanpa pengantar. '
+                   'Jangan membuat audio, gambar, dokumen atau menggunakan pencarian. '
+                   'Jangan menambahkan fakta yang tidak diberikan.\n\nArahan pengguna:\n' + content)
     try:
         prepared = attachments.prepare_many(files, plan=ai_usage.attachment_plan(user_id))
     except attachments.AttachmentError as error:
@@ -303,11 +315,11 @@ def send(thread_id):
     prior_image = (store.recent_image(user_id, thread_id)
                    if not any(item["mime_type"].startswith("image/") for item in prepared) and routing.may_edit_image(content)
                    else None)
-    tool = routing.tool_for(content, prepared + ([prior_image] if prior_image else []), search=search,
+    tool = 'CHAT' if script_only else routing.tool_for(content, prepared + ([prior_image] if prior_image else []), search=search,
                             pdf_request=ai_pdf.is_request(content, previous_document),
                             has_previous_content=bool(prior_answer or previous_document), previous_answer=prior_answer)
     previous_request=next((row['content'] for row in reversed(store.messages(user_id,thread_id,6) or []) if row['role']=='user'),'')
-    if tool=='CHAT' and routing.fresh_followup(content,previous_request):
+    if not script_only and tool=='CHAT' and routing.fresh_followup(content,previous_request):
         tool='WEB'
     if tool == "IMAGE_EDIT" and not any(item["mime_type"].startswith("image/") for item in prepared) and not prior_image:
         return {"error": "Upload gambar terlebih dahulu untuk diedit."}, 400

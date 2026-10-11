@@ -1,0 +1,10 @@
+{% from 'kilas_ai/_chat_icons.html' import chat_icon %}
+<details class="voice-script-assist" id="voice-script-assist">
+<summary>Bantu naskah dengan AI</summary>
+<label for="voice-assist-prompt">Ide atau arahan naskah</label>
+<textarea id="voice-assist-prompt" maxlength="4000" rows="2" placeholder="Contoh: rapikan naskah promosi berikut agar singkat dan natural..."></textarea>
+<div class="voice-assist-actions"><button type="button" class="btn secondary" id="voice-assist-mic" aria-label="Dikte arahan naskah" title="Dikte arahan naskah"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg></button><button type="button" class="btn secondary" id="voice-assist-mic-stop" hidden>Stop dikte</button><button type="button" class="btn secondary" id="voice-assist-generate">Buat / rapikan naskah</button><button type="button" class="btn secondary" id="voice-assist-stop" hidden>Stop AI</button></div>
+<p id="voice-assist-mic-note">Dikte memakai pengenalan suara browser, yang dapat mengirim suara ke layanan browser. Tekan mic untuk mulai; teks tidak dikirim ke AI otomatis.</p>
+<p id="voice-assist-status" role="status" aria-live="polite">AI menggunakan pemakaian chat yang berlaku. Membuat naskah tidak membuat audio.</p>
+<div id="voice-assist-result" hidden><label for="voice-assist-script">Naskah dari AI · bisa diedit</label><textarea id="voice-assist-script" maxlength="4000" rows="4"></textarea><div class="voice-assist-actions"><button type="button" class="btn secondary" id="voice-assist-copy" aria-label="Salin naskah" title="Salin naskah">{{ chat_icon('copy') }}</button><button type="button" class="btn secondary" id="voice-assist-use">Pakai naskah</button><a id="voice-assist-history" href="#" hidden>Lihat percakapan</a></div></div>
+</details>
