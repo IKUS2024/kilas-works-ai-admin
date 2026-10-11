@@ -108,7 +108,7 @@ def main():
                 capture('chat', '/kilas-ai')
                 assert page.locator('.ai-mode-tabs,#ai-search').count() == 0
                 if width < 761:
-                    page.get_by_role('button', name='Buka riwayat', exact=True).click()
+                    page.get_by_role('button', name='Buka navigasi', exact=True).click()
                     page.screenshot(path=str(output / f'chat-navigation-{width}.png'))
                     page.keyboard.press('Escape')
                 for name, suffix in [('finance-home', ''), ('finance-transactions', '?view=transactions'), ('finance-accounts', '?view=accounts'), ('finance-invoices', '/receivables'), ('finance-reports', '/reports')]:

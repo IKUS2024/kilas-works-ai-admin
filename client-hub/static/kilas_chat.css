@@ -80,3 +80,9 @@ body.home-keyboard-open .kilas-home-workspace .ai-hint{display:none}
 .kilas-home-workspace .work-attachment-info small{font-size:13px;color:var(--muted)}
 .kilas-home-workspace .work-pending-file button{flex:none;min-width:36px;min-height:44px;padding:0;border:0;background:none}
 .kilas-home-workspace .ai-capacity-notice{flex:none;max-height:20vh;overflow:auto}
+
+.kilas-home-workspace .home-history .ai-history a{display:block;box-sizing:border-box;min-width:0;height:44px;padding:10px 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+body:has(.kilas-home-workspace) .premium-sidebar .language-selector :is(select,button){font-size:13px;padding-inline:6px}
+body:has(.kilas-home-workspace) .premium-sidebar .language-selector{grid-template-columns:minmax(0,1fr) 54px;gap:4px}
+body:has(.kilas-home-workspace) .premium-sidebar .language-selector button{font-size:12px}

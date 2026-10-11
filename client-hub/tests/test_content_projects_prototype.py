@@ -53,6 +53,14 @@ def environment(tmp_path, monkeypatch):
     monkeypatch.setattr(audio_routes.service, 'submit', forbidden)
     monkeypatch.setattr(video_routes.director, 'generate', forbidden)
     monkeypatch.setattr(video_routes.video_entitlement, 'state', lambda owner: {'allowed':True})
+    # Shared Home chrome uses commercial presentation data absent from this isolated
+    # content-only schema; keep artifact handlers, ownership and CSRF fully real.
+    monkeypatch.setattr(agent_routes, 'home_context', lambda owner: {
+        'automation_enabled': True,
+        'limits': {'max_files': 1, 'max_file_bytes': 16777216, 'max_image_bytes': 8388608},
+        'threads': [], 'conversations': agent_routes.agent_store.recent_conversations(owner)[:6],
+        'live_available': False,
+    })
     monkeypatch.setattr(audio_routes.store, 'balance', lambda owner: {'exempt':False,'available':0,'reserved':0})
     monkeypatch.setattr(audio_routes.personal, 'saved_voices', lambda owner: [])
     monkeypatch.setattr(audio_routes.personal, 'get', lambda owner: None)
@@ -250,7 +258,7 @@ def test_chat_handoff_real_views_and_legacy_fallback(environment, monkeypatch):
     monkeypatch.setenv('KILAS_AI_AUTOMATION_ENABLED','false')
     monkeypatch.setattr(routes.usage if hasattr(routes,'usage') else projects.usage,'effective_plan',lambda owner:{'plan':'FREE'})
     from kilas_ai import store, attachments
-    monkeypatch.setattr(store,'list_threads',lambda owner:[])
+    monkeypatch.setattr(store,'list_threads',lambda owner,limit=50:[])
     monkeypatch.setattr(projects.usage,'attachment_plan',lambda owner:'FREE')
     monkeypatch.setattr(routes,'render_template',lambda name,**context:jsonify(prefill=context['prefill']))
     response=client.get('/kilas-ai?'+query)

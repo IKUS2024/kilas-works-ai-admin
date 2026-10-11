@@ -106,13 +106,13 @@ def main():
                 fixture.agent_store.append(case.owner,'user','Judul percakapan yang sangat panjang untuk membuktikan elipsis pada sidebar',int(original))
                 f.fixture.db.execute('UPDATE kilas_ai_conversations SET title=? WHERE id=? AND user_id=?',('Judul percakapan yang sangat panjang untuk membuktikan elipsis',int(original),case.owner))
                 page.reload(wait_until='networkidle')
-                if width<760:page.get_by_role('button',name='Buka riwayat').click()
-                row=page.locator('.ai-history a[aria-current=page]')
+                page.locator('.home-history summary').click()
+                row=page.locator('.home-history .ai-history a[aria-current=page]')
                 assert row.evaluate("e=>getComputedStyle(e).whiteSpace==='nowrap' && getComputedStyle(e).textOverflow==='ellipsis' && e.scrollWidth>e.clientWidth && e.getBoundingClientRect().height<=48")
                 assert page.locator('#agent-sidebar a[href*=tasks],#agent-sidebar a[href*=notifications]').count()==0
                 page.screenshot(path=str(Path(tempfile.gettempdir())/f'kilas-cleanup-sidebar-{width}.png'))
                 page.get_by_role('button',name='Chat baru',exact=True).click()
-                expect(page.get_by_role('heading',name='Apa yang ingin kamu kerjakan?')).to_be_visible()
+                expect(page.get_by_role('heading',name='Mau ngapain hari ini?')).to_be_visible()
                 expect(page.locator('.work-sent-file,[data-job-id]')).to_have_count(0)
                 page.goto(origin+'/kilas-ai/agent?view=history',wait_until='networkidle')
                 assert page.locator(f'nav[aria-label="Riwayat percakapan"] a[href$="conversation={original}"]').count()==1

@@ -42,12 +42,12 @@ def main():
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai/agent", wait_until="networkidle")
-                assert page.locator('.ai-app-header .ai-brand').inner_text() == 'Kilas AI'
+                assert page.locator('.home-workspace-top .home-workspace-brand').inner_text() == 'Kilas AI'
                 assert page.locator('.agent-section-head h2').inner_text() == 'Chat baru'
                 assert page.locator("#agent-message").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat overflow")
                 autonomous_store.create(owner,'Rangkuman pasar untuk tim kerja dan pelanggan '+('Nama proyek panjang '*12),wake_at=autonomous_store.now()+__import__('datetime').timedelta(days=1))
-                if width <= 760: page.get_by_role("button", name="Buka riwayat").click()
+                if width <= 760: page.get_by_role("button", name="Buka navigasi").click()
                 page.goto(origin + '/kilas-ai/agent?view=tasks')
                 assert page.get_by_text("Rangkuman Pasar",exact=False).count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long task overflow")
