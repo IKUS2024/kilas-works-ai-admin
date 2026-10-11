@@ -310,7 +310,7 @@
   <header class="account-head">
     <div class="account-head-copy">
       <h1>{{ ui_t('Akun saya') if account_workspace|default(false) else ui_t('Akun') }}</h1>
-      <p class="muted">{{ ui_t('Kelola profil Pribadi, Bisnis, keamanan, dan data invoice Kilas Works.') }}</p>
+      {% if not account_workspace|default(false) %}<p class="muted">{{ ui_t('Kelola profil Pribadi, Bisnis, keamanan, dan data invoice Kilas Works.') }}</p>{% endif %}
     </div>
     <div class="account-head-actions">
       <a class="account-back-finance" href="{{ url_for('finance.workspace_choice', business_id=finance_return_business_id) if finance_return_business_id else url_for('products.finance_entry') }}" aria-label="{{ ui_t('Kembali ke dashboard Finance') }}">

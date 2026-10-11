@@ -7,7 +7,6 @@
     <div>
       <p class="services-kicker">KILAS SERVICES</p>
       <h1 id="services-title">Bantuan langsung dari tim Kilas Works</h1>
-      <p>Ceritakan kebutuhan Anda. Tim kami akan membantu menyiapkan langkah berikutnya dan menghubungi Anda melalui WhatsApp.</p>
     </div>
     <a class="services-back" href="{{ url_for('products.product_start') }}">← Ganti Layanan</a>
   </header>
@@ -16,7 +15,7 @@
     {% for service in services %}
     <article class="service-card">
       <div class="service-card-head"><span>{{ service.number }}</span><h2>Kilas {{ service.title }}</h2></div>
-      <p class="service-summary">{{ service.summary }}</p>
+      <details><summary>Info layanan</summary><p class="service-summary">{{ service.summary }}</p></details>
       <ul>{% for item in service['items'] %}<li>{{ item }}</li>{% endfor %}</ul>
       {% if service.get('notice') %}<p class="service-notice"><strong>Persetujuan Anda diperlukan.</strong> {{ service.notice }}</p>{% endif %}
       <a class="btn service-cta" href="{{ service.whatsapp_url }}" target="_blank" rel="noopener noreferrer">Konsultasi via WhatsApp</a>

@@ -7,7 +7,7 @@
 @media(max-width:620px){.catalog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-item{padding:9px}.catalog-item h3{font-size:13px}.catalog-desc{display:none}}@media(max-width:360px){.catalog-grid{grid-template-columns:1fr}.catalog-desc{display:block}}
 </style>
 <div class="client-page">
-  <header class="client-head"><div><h1>Layanan Kilas Works</h1><p>Pilih kategori dulu, baru lihat layanan di dalamnya.</p></div><span class="client-count">{{ services_total }} layanan</span></header>
+  <header class="client-head"><div><h1>Layanan Kilas Works</h1></div><span class="client-count">{{ services_total }} layanan</span></header>
 
   <form method="get" class="card client-search-card" action="{{ url_for('projects.service_catalog_page') }}">
     <div class="client-search-row">
@@ -35,7 +35,6 @@
     <details class="card catalog-group">
       <summary>Talent &amp; Creator</summary>
       <div class="catalog-body">
-        <p class="client-note">Pilih talent dari profil bergambar, lihat niche dan ketersediaannya, lalu kirim kebutuhan campaign untuk direview tim Kilas Works.</p>
         <a class="btn" href="{{ url_for('talent.talent_list') }}" style="width:100%;text-align:center;">Lihat Talent</a>
       </div>
     </details>
