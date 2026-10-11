@@ -37,7 +37,7 @@ class ChatTests(unittest.TestCase):
         before = len(store.list_threads(self.a))
         empty = a.get("/kilas-ai")
         self.assertIn("Mau ngapain hari ini?", empty.text)
-        self.assertIn("Mulai dari ide, pertanyaan, atau pekerjaanmu.", empty.text)
+        self.assertNotIn("Mulai dari ide, pertanyaan, atau pekerjaanmu.", empty.text)
         fresh = a.post("/kilas-ai/threads", data={"mode": "FAST", "csrf_token": "chat-csrf"})
         self.assertEqual(fresh.status_code, 303)
         self.assertEqual(fresh.location, "/kilas-ai")

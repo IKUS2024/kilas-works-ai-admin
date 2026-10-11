@@ -74,7 +74,7 @@ def main():
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
                 assert page.get_by_role("heading", name="Mau ngapain hari ini?").is_visible()
-                assert page.get_by_text("Mulai dari ide, pertanyaan, atau pekerjaanmu.").is_visible()
+                assert page.get_by_text("Mulai dari ide, pertanyaan, atau pekerjaanmu.").count() == 0
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "empty")
                 click_new_chat(page)
                 assert page.url.endswith("/products/start")

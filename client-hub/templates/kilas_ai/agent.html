@@ -29,7 +29,7 @@
           {% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}
           {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}" data-message-id="{{ message.id }}"><div class="agent-speaker">{{ ui_t('Kamu') if message.role == 'user' else ui_t('Kilas') }}</div><div class="agent-message-text {{ 'ai-markdown' if message.role=='assistant' else '' }}" {% if message.role=='assistant' %}data-kilas-markdown{% endif %}>{{ message.content }}</div>{% if message_attachments.get(message.id) %}<div class="work-sent-files" aria-label="{{ ui_t('Lampiran terkirim') }}">{% for attachment in message_attachments[message.id] %}{% include 'kilas_ai/_message_attachment.html' %}{% endfor %}</div>{% endif %}</article>{% for job in inline_jobs.get(message.id,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endfor %}
         {% else %}
-          <div class="agent-welcome"><h3>{{ ui_t('Apa yang ingin kamu kerjakan?') }}</h3><p>{{ ui_t('Dari ide hingga selesai. Tanya Kilas, cari informasi, atau mulai dari file kamu.') }}</p></div>
+          <div class="agent-welcome"><h3>{{ ui_t('Apa yang ingin kamu kerjakan?') }}</h3></div>
         {% endif %}
         {% if not messages %}{% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endif %}
       </div>
@@ -50,13 +50,12 @@
         <div id="work-pending-files" class="work-pending-files" aria-live="polite"></div>
         {% if location_request %}<div class="work-context-permission"><p>{{ ui_t('Lokasi hanya digunakan untuk pekerjaan ini.') }}</p><button type="button" data-work-location data-request="{{ location_request.text }}">{{ ui_t('Izinkan lokasi') }}</button><span>{{ ui_t('Atau ketik nama daerah.') }}</span></div>{% endif %}
         <div class="ai-composer"><textarea id="agent-message" name="message" rows="2" maxlength="1200" required placeholder="{{ ui_t('Tulis pesan untuk Kilas AI…') }}">{{ prefill }}</textarea><div class="ai-composer-actions"><button class="ai-send" type="submit">{{ ui_t('Kirim') }}</button><button class="ai-stop" data-unified-stop type="button" hidden>{{ ui_t('Stop') }}</button></div></div>
-        <p>{{ ui_t('Enter untuk kirim') }} &middot; {{ ui_t('Shift+Enter untuk baris baru.') }}</p>
 
       </form>
     {% elif view == 'tasks' %}
       <header class="agent-section-head"><h2>{{ ui_t('Pekerjaan aktif') }}</h2></header>
       {% include 'kilas_ai/_autonomous_tasks.html' %}
-      {% if not autonomous_jobs %}<div class="agent-empty"><h3>{{ ui_t('Belum ada pekerjaan aktif') }}</h3><p>{{ ui_t('Berikan pekerjaan dari percakapan Kilas AI.') }}</p><a href="{{ url_for('kilas_ai.agent_home') }}">{{ ui_t('Buka Kilas AI') }}</a></div>{% endif %}
+      {% if not autonomous_jobs %}<div class="agent-empty"><h3>{{ ui_t('Belum ada pekerjaan aktif') }}</h3><a href="{{ url_for('kilas_ai.agent_home') }}">{{ ui_t('Buka Kilas AI') }}</a></div>{% endif %}
     {% elif view == 'notifications' %}
       <header class="agent-section-head"><h2>{{ ui_t('Notifikasi') }}</h2></header>
       <ol class="agent-activity">{% for item in notifications %}<li><div><p>{{(item.label)|ui_text}}</p><small>{{ item.time_label }}</small><a href="{{ url_for('kilas_ai.agent_home',conversation=item.origin_conversation_id) }}">{{ ui_t('Buka percakapan') }}</a></div></li>{% else %}<li>{{ ui_t('Semua notifikasi sudah dibaca.') }}</li>{% endfor %}</ol>
