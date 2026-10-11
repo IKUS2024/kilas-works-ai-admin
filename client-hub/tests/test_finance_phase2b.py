@@ -235,7 +235,7 @@ class RecurringTests(unittest.TestCase):
         self.assertEqual(f.list_transactions(self.other),[])
         self.assertEqual(f.list_recurring_postings(self.b,f.list_recurring_expenses(self.b)[0]['id']),[])
 
-    def test_ui_get_read_only_projects_scoped_and_beta(self):
+    def test_ui_get_read_only_projects_scoped_and_free_without_beta(self):
         self.rule();before=f.list_transactions(self.b)
         html=self.client.get(self.url+'/operations?section=projects').get_data(as_text=True)
         self.assertIn('Tagihan',html);self.assertNotIn('PRIVATE project',html)
@@ -245,7 +245,8 @@ class RecurringTests(unittest.TestCase):
         self.assertIn('name="customer_id"',html)
         self.assertEqual(self.client.get(f'/business/{self.other}/finance/operations').status_code,404)
         os.environ['KILAS_FINANCE_BETA']='off'
-        self.assertEqual(self.client.get(self.url+'/operations').status_code,404)
+        self.assertEqual(self.client.get(self.url+'/operations').status_code,200)
+        self.assertEqual(before,f.list_transactions(self.b))
         admin=repo.create_user('admin-recurring@example.test','unused',role='KILAS_ADMIN')
         with self.client.session_transaction() as session:session['user_id']=admin
         self.assertEqual(self.client.get(self.url+'/operations').status_code,200)
@@ -259,7 +260,16 @@ class RecurringTests(unittest.TestCase):
         foreign=self.rule(business_id=self.other,account_id=f.list_accounts(self.other)[0]['id'],category_id=f.list_categories(self.other,'EXPENSE')[0]['id'],project_id=self.op,actor_user_id=self.other_uid)
         self.assertEqual(self.client.post(self.url+f'/recurring/{foreign}/deactivate').status_code,404)
         os.environ['KILAS_FINANCE_BETA']='off'
-        for p in paths:self.assertEqual(self.client.post(self.url+p).status_code,404)
+        # Beta no longer disables free Finance. The actual emergency gate must
+        # still block every recurring writer, with no schedule or cash mutation.
+        before=db.query_all('SELECT * FROM finance_recurring_expenses')
+        with patch.dict(os.environ,{'KILAS_FINANCE_EMERGENCY_DISABLE':'true'}):
+            for p in paths:
+                response=self.client.post(self.url+p)
+                self.assertEqual(response.status_code,303)
+                self.assertIn('finance-subscription',response.location)
+        self.assertEqual(db.query_all('SELECT * FROM finance_recurring_expenses'),before)
+        self.assertEqual(f.list_transactions(self.b),[])
 
     def test_ui_create_process_deactivate_and_anchor_not_trusted(self):
         data=dict(name='Routine',amount='123',account_id=self.a,category_id=self.exp,cadence='MONTHLY',next_due_on='2026-01-31',anchor_day='1',project_id=self.project)

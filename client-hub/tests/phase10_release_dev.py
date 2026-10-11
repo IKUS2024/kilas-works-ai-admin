@@ -25,7 +25,7 @@ admin = repo.create_user('phase10-operator@example.test', security.hash_password
 repo.upsert_business_profile(case.source, {'category':'Logistics'})
 repo.save_ai_normalized_config(case.source, 'Synthetic approved logistics fixture',
                               {'business_name':'Release Logistics','hours':'09.00-17.00'}, [])
-os.environ.update(KILAS_WEB_CHAT_ENABLED='true', KILAS_PLAYBOOKS_V2_ENABLED='true',
+os.environ.update(KILAS_AI_ENABLED='true', KILAS_WEB_CHAT_ENABLED='true', KILAS_PLAYBOOKS_V2_ENABLED='true',
                   KILAS_OPERATIONS_V2_ENABLED='true', KILAS_FINANCE_ACCESS_MODE='self_service',
                   KILAS_FINANCE_UNLIMITED_TRIAL='false', KILAS_FINANCE_OPERATOR_ENABLED='true')
 # Archived shared-transport fixture only; production public routes remain retired.

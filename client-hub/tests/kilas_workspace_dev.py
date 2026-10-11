@@ -1,5 +1,6 @@
 """Phase 9 disposable UI fixture. Never imported by production; all HTTP IO blocked."""
 import os
+import hashlib
 if os.environ.get('KILAS_PHASE9_BROWSER_QA') != '1':
     raise SystemExit('Explicit synthetic Phase 9 QA flag required')
 from test_kilas_finance_bridge import BridgeTests
@@ -42,7 +43,8 @@ app.before_request_funcs[None].insert(0, persona_entry)
 @app.get('/dev/health')
 def health():
     return jsonify(source=case.source, target=case.target, branch=case.branch,
-                   customer=case.cid, job=case.jid, standalone=case.b, ai=ai_business)
+                   customer=case.cid, job=case.jid, standalone=case.b, ai=ai_business,
+                   database_digest=hashlib.sha256('\n'.join(db.get_connection().iterdump()).encode()).hexdigest())
 
 
 @app.get('/dev/persona/<name>')
@@ -60,7 +62,7 @@ def persona(name):
 def finance_onboarding():
     os.environ.update(KILAS_FINANCE_ACCESS_MODE='self_service', KILAS_FINANCE_UNLIMITED_TRIAL='false')
     session.clear();session.update(user_id=new_owner, role='CLIENT_OWNER', _csrf_token='phase9-browser')
-    return redirect('/products/start')
+    return redirect('/products/finance?step=business')
 
 
 @app.get('/dev/owner-evidence')

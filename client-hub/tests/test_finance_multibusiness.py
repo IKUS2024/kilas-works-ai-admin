@@ -74,11 +74,9 @@ class MultiBusinessTests(unittest.TestCase):
             html = response.get_data(as_text=True)
             for name in ('Business', 'Second authorized business'):
                 self.assertIn(name, html)
-            # The dashboard selector is product-aware; membership alone does not activate Finance.
-            if url.startswith('/finance?'):
-                self.assertIn('Empty authorized business', html)
-            else:
-                self.assertNotIn('Empty authorized business', html)
+            # Free Finance lists all authorized businesses, including an empty
+            # one, without initializing its ledger or exposing a foreign tenant.
+            self.assertIn('Empty authorized business', html)
             self.assertEqual('Semua Bisnis' in html,url.startswith('/finance?'))
             for secret in ('Other business', 'PRIVATE CUSTOMER', '987.654.321'):
                 self.assertNotIn(secret, html)
@@ -218,24 +216,29 @@ class MultiBusinessTests(unittest.TestCase):
         for text in ('Pemasukan', 'Pengeluaran'):
             self.assertIn(text, single.get_data(as_text=True))
 
-    def test_login_and_feature_gates_unchanged(self):
+    def test_login_and_ownership_gates_survive_free_access_without_beta(self):
         self.assertEqual(app.test_client().get('/finance').status_code, 302)
         with patch.dict(os.environ, {'KILAS_FINANCE_BETA': 'off'}):
-            self.assertEqual(self.client.get('/finance').status_code, 404)
-            self.assertEqual(self.client.get(self.url).status_code, 404)
+            self.assertEqual(self.client.get('/finance').status_code, 200)
+            self.assertEqual(self.client.get(self.url).status_code, 200)
+            self.assertEqual(self.client.get(f'/business/{self.other}/finance').status_code,404)
 
-    def test_expired_and_emergency_read_only_remain_viewable_writes_denied(self):
+    def test_legacy_trial_dates_do_not_revoke_free_access_emergency_denies_writes(self):
         self.transaction(self.b, 'INCOME', 700)
         with patch.dict(os.environ, {'KILAS_FINANCE_ACCESS_MODE': 'self_service', 'KILAS_FINANCE_BETA': 'off'}):
             with patch.object(entitlement, 'now', return_value=datetime(2026, 1, 1, tzinfo=timezone.utc)):
                 entitlement.start_trial(self.b, self.uid)
             with patch.object(entitlement, 'now', return_value=datetime(2026, 9, 30, tzinfo=timezone.utc)):
-                self.assertEqual(entitlement.state(self.b)['status'], 'EXPIRED')
+                self.assertEqual(entitlement.state(self.b)['status'], 'FREE')
                 _, context = self.page()
                 self.assertEqual(context['summary']['total_income_minor'], 700)
                 single, _ = self.page(self.url+'?month=2026-09')
-                self.assertIn('Finance hanya-baca', single.get_data(as_text=True))
-                self.assertEqual(self.client.post(self.url+'/transactions', json={}).status_code, 403)
+                self.assertNotIn('Finance hanya-baca', single.get_data(as_text=True))
+                # A malformed write is rejected on validation, not on a
+                # fictitious trial expiry; the emergency remains authoritative.
+                rejected=self.client.post(self.url+'/transactions',json={})
+                self.assertEqual(rejected.status_code,303)
+                self.assertNotIn('finance-subscription',rejected.location)
                 with patch.dict(os.environ, {'KILAS_FINANCE_EMERGENCY_DISABLE': 'true'}):
                     self.assertEqual(self.client.get('/finance').status_code, 200)
                     self.assertEqual(self.client.get(self.url).status_code, 200)

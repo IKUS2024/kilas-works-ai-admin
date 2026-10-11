@@ -33,8 +33,11 @@ def signup(page, name):
     page.locator('[name=email]').fill('release-' + name + '@example.test')
     page.locator('[name=password]').fill(PASSWORD)
     page.locator('button.auth-submit').click()
+    expect(page.get_by_role('heading', name='Mau ngapain hari ini?', exact=True)).to_be_visible()
+    for task in ('Chat AI','Naskah & ide video','Terjemahkan audio/video','Buat suara'):
+        expect(page.get_by_role('button',name=task,exact=True)).to_be_visible()
     expect(page.get_by_role('button', name='Pilih Kilas Assist', exact=False)).to_have_count(0)
-    expect(page.get_by_role('button', name='Kilas Finance', exact=False)).to_be_visible()
+    expect(page.get_by_role('button', name='Kilas Finance', exact=False)).to_have_count(0)
     expect(page.get_by_role('button', name='Pilih Keduanya', exact=False)).to_have_count(0)
 
 
@@ -78,7 +81,8 @@ def main():
             shot(page, persona + '-login-persistence')
             if persona == 'both':
                 page.goto(BASE + '/workspace/go/finance_setup')
-                page.get_by_role('button', name='Mulai Sekarang', exact=False).click()
+                expect(page.get_by_text('GRATIS',exact=True)).to_be_visible()
+                page.get_by_role('button',name='Buka Finance',exact=False).click()
                 expect(page.get_by_role('heading', name='Release both', exact=True)).to_be_visible()
                 page.goto(BASE + '/workspace')
                 expect(page.locator('.finance-app-sidebar')).to_be_visible()
@@ -86,7 +90,7 @@ def main():
                 assert [s.strip() for s in page.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Inbox','Customers','Jobs','More']
                 shot(page, 'both-real-finance-activation')
         finance_only = new_page(); signup(finance_only, 'finance')
-        finance_only.get_by_role('button', name='Kilas Finance', exact=False).click()
+        finance_only.goto(BASE + '/products/finance?step=business')
         finance_only.get_by_label('Nama bisnis', exact=True).fill('Release finance')
         finance_only.get_by_role('button', name='Buat Bisnis', exact=False).click()
         expect(finance_only.get_by_role('heading', name='Release finance', exact=True)).to_be_visible()
@@ -138,15 +142,22 @@ def main():
         budget.locator('[name=currency]').select_option('IDR')
         budget.get_by_role('button', name='Simpan Anggaran', exact=True).click()
         shot(finance_only, 'finance-only-budget-created')
-        finance_only.goto(finance_base + '/assistant')
-        finance_only.locator('#assistant-text').fill('catat pengeluaran')
-        finance_only.locator('#assistant-send').click()
-        expect(finance_only.locator('#assistant-draft-status')).to_contain_text('Draft', timeout=15000)
-        finance_only.locator('#assistant-text').fill('batal')
-        finance_only.locator('#assistant-send').click()
-        expect(finance_only.locator('#assistant-draft-status')).to_have_text('')
-        assert ledger() == before_drafts, 'Budget, recurring rule or unconfirmed AI draft posted cash'
-        shot(finance_only, 'finance-ai-draft-cancel-no-write')
+        # Paid Finance AI is retired. Cancellation now exercises the actual
+        # manual transaction dialog; no tentative form may post cash.
+        finance_only.goto(finance_base + '?view=transactions&direction=EXPENSE')
+        finance_only.locator('[data-finance-open="add-transaction-dialog"]').first.click()
+        finance_only.locator('#add-transaction [name=amount]').fill('999')
+        finance_only.keyboard.press('Escape')
+        expect(finance_only.locator('#add-transaction-dialog')).not_to_be_visible()
+        assert ledger() == before_drafts, 'Budget, recurring rule or cancelled manual entry posted cash'
+        shot(finance_only, 'finance-manual-cancel-no-write')
+        csrf=finance_only.locator('input[name="csrf_token"]').first.input_value()
+        for tail in ('assistant','analyst','operator','receipts/new','bank-imports'):
+            assert finance_only.context.request.get(finance_base+'/'+tail).status == 404,tail
+        retired=finance_only.context.request.post(finance_base+'/assistant/message',
+            data={'text':'catat pengeluaran'},headers={'X-CSRF-Token':csrf})
+        assert retired.status == 404
+        assert ledger() == before_drafts, 'Retired Finance AI changed ledger'
         finance_only.goto(finance_base + '/invoices/new')
         finance_only.locator('#new-recipient').click()
         finance_only.locator('[name=recipient_name]').fill('Standalone release customer')
@@ -164,7 +175,7 @@ def main():
         expect(finance_only.locator('.fin-invoice-amounts')).to_contain_text('600')
         assert len(ledger()) == 3
         shot(finance_only, 'finance-only-invoice-partial-payment')
-        for tail in ('operations','budget','reports','assistant'):
+        for tail in ('operations','budget','reports'):
             assert finance_only.goto(finance_base + '/' + tail).status == 200
             shot(finance_only, 'finance-only-' + tail)
         export = finance_only.context.request.get(finance_base + '/reports/export/all.zip')

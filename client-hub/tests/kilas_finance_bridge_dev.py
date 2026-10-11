@@ -56,10 +56,10 @@ def payment():
                                  actor_user_id=case.actor,idempotency_key='synthetic-browser-payment')
     return jsonify(ok=True)
 
-@app.post('/dev/expire')
-def expire():
+@app.post('/dev/emergency')
+def emergency():
     if session.get('user_id')!=case.actor:abort(404)
-    os.environ.update(KILAS_FINANCE_ACCESS_MODE='self_service',KILAS_FINANCE_UNLIMITED_TRIAL='false')
+    os.environ['KILAS_FINANCE_EMERGENCY_DISABLE']='true'
     return jsonify(ok=True)
 
 if __name__=='__main__':app.run(host='127.0.0.1',port=8768,use_reloader=False)

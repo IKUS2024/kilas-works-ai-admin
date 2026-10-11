@@ -69,9 +69,12 @@ class BridgeRoutesTests(unittest.TestCase):
         self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kw_core_finance_connections')['n'],0)
         self.assertEqual(db.query_one('SELECT package FROM businesses WHERE id=?',(self.target,))['package'],'NONE')
         with patch.dict(os.environ,{'KILAS_FINANCE_BRIDGE_ENABLED':'false','KILAS_CORE_V2_ENABLED':'false'}):
-            for tail in ('','?view=accounts','?view=transactions','/receivables?section=invoices','/operations','/reports','/invoices/settings','/assistant'):
+            for tail in ('','?view=accounts','?view=transactions','/receivables?section=invoices','/operations','/reports','/invoices/settings'):
                 response=self.client.get(f'/business/{self.target}/finance'+tail,follow_redirects=True)
                 self.assertEqual(response.status_code,200,(tail,response.status_code))
+            # Paid AI is retired even for an authorized standalone owner.
+            for tail in ('/assistant','/analyst','/operator','/receipts/new','/bank-imports'):
+                self.assertEqual(self.client.get(f'/business/{self.target}/finance'+tail).status_code,404,tail)
             customer=f.create_customer(self.target,'Independent',actor_user_id=self.actor)
             invoice=f.create_finance_invoice(self.target,customer,actor_user_id=self.actor,**self.invoice)
             f.issue_finance_invoice(self.target,invoice,actor_user_id=self.actor)

@@ -86,10 +86,14 @@ class DashboardDesignTests(unittest.TestCase):
             fixture.f.create_transaction(self.b,'INCOME',45000,account,category,'2026-09-01',actor_user_id=self.uid)
         html,c=self.page(f'&branch_id={personal}')
         self.assertEqual(c['period_income_display'],'Rp450,00')
-        self.assertIn('>Scan Struk</a>',html)
+        self.assertNotIn('>Scan Struk</a>',html)
         self.assertIn('>Buat Invoice</a>',html)
         self.assertNotIn('>Tanya</a>',html)
         self.assertIn('Invoice',html)
+        before=fixture.f.list_transactions(self.b,actor_user_id=self.uid)
+        for tail in ('assistant','receipts/new','bank-imports'):
+            self.assertEqual(self.client.get(self.url+'/'+tail+f'?branch_id={personal}').status_code,404,tail)
+        self.assertEqual(fixture.f.list_transactions(self.b,actor_user_id=self.uid),before)
         _,business=self.page(f'&branch_id={self.branch}')
         self.assertEqual(business['period_income_display'],'Rp0,00')
 

@@ -264,7 +264,7 @@ class BridgeCases:
         self.connect(finance_branch_id=new_branch,expected_version=3,operation_key='7'*32)
         self.assertEqual(bridge.read_invoice(self.source,self.actor,self.jid),invoice)
 
-    def test_verified_assist_includes_only_explicit_owned_finance_workspace(self):
+    def test_verified_assist_never_replaces_free_finance_ownership_or_authority(self):
         import assist_billing,catalog_service,payment_service,finance_entitlements
         catalog_service.seed_catalog_if_needed()
         admin=repo.create_user(uuid.uuid4().hex+'@example.test','unused',role='KILAS_ADMIN')
@@ -275,21 +275,30 @@ class BridgeCases:
         payment_service.verify_payment(payment['id'],self.source,admin)
         before=db.query_one('SELECT COUNT(*) AS n FROM finance_transactions')['n']
         with patch.dict(os.environ,{'KILAS_FINANCE_ACCESS_MODE':'self_service','KILAS_FINANCE_UNLIMITED_TRIAL':'false'}):
-            self.assertFalse(finance_entitlements.state(self.target)['active'])
+            historical=db.query_all('SELECT * FROM finance_entitlements')
+            self.assertEqual(finance_entitlements.state(self.target)['status'],'FREE')
             self.connect()
-            self.assertEqual(finance_entitlements.state(self.target)['status'],'PAID_ACTIVE')
-            self.assertFalse(finance_entitlements.state(self.foreign)['active'])
+            self.assertEqual(finance_entitlements.state(self.target)['status'],'FREE')
+            self.assertEqual(finance_entitlements.state(self.foreign)['status'],'FREE')
+            with self.assertRaises((bridge.BridgeError,f.FinanceError)):
+                self.connect(finance_business_id=self.foreign,finance_branch_id=self.foreign_branch,
+                             expected_version=1,operation_key='8'*32)
             self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM finance_transactions')['n'],before)
             db.execute("UPDATE subscriptions SET status='SUSPENDED' WHERE business_id=?",(self.source,))
-            self.assertFalse(finance_entitlements.state(self.target)['active'])
+            self.assertEqual(finance_entitlements.state(self.target)['status'],'FREE')
+            with self.assertRaises(bridge.BridgeError):self.customer()
+            self.assertEqual(db.query_all('SELECT * FROM finance_entitlements'),historical)
 
-    def test_expired_emergency_and_disabled_ai_block_new_writes_keep_finance_reads(self):
+    def test_free_finance_keeps_history_emergency_and_assist_suspension_veto_writes(self):
         self.connect();self.customer();invoice=self.draft()
         with patch.dict(os.environ,{'KILAS_FINANCE_ACCESS_MODE':'self_service','KILAS_FINANCE_UNLIMITED_TRIAL':'false'}):
             self.assertEqual(bridge.read_invoice(self.source,self.actor,self.jid),invoice)
-            with self.assertRaises(f.FinanceError):self.connect(expected_version=1,operation_key='9'*32)
+            # Legacy trial flags cannot revoke free manual Finance. Updating a
+            # mapping still requires both owners and writes no financial rows.
+            self.assertEqual(self.connect(expected_version=1,operation_key='9'*32)['version'],2)
+            self.assertEqual(bridge.read_invoice(self.source,self.actor,self.jid),invoice)
         with patch.dict(os.environ,{'KILAS_FINANCE_EMERGENCY_DISABLE':'true'}):
-            with self.assertRaises(f.FinanceError):self.connect(expected_version=1,operation_key='9'*32)
+            with self.assertRaises(f.FinanceError):self.connect(expected_version=2,operation_key='a'*32)
         db.execute("UPDATE subscriptions SET status='SUSPENDED' WHERE business_id=?",(self.source,))
         with self.assertRaises(bridge.BridgeError):self.draft()
 
@@ -370,10 +379,15 @@ class BridgeCases:
         self.assertEqual(len(results),2)
         self.assertTrue(all(row['version']==1 for row in results))
 
-    def test_personal_branch_and_unavailable_finance_product_fail_closed(self):
+    def test_personal_branch_rejected_and_free_finance_ignores_legacy_beta_flag(self):
         personal=branches.ensure_personal(self.target,self.actor)
         with self.assertRaises(bridge.BridgeError):self.connect(finance_branch_id=personal)
         self.assertIsNone(bridge.connection(self.source,self.actor))
         with patch.dict(os.environ,{'KILAS_FINANCE_BETA':'off'}):
-            with self.assertRaises(bridge.BridgeError):self.connect()
-        self.assertIsNone(bridge.connection(self.source,self.actor))
+            mapping=self.connect()
+            self.assertEqual(mapping['finance_business_id'],self.target)
+            self.assertEqual(mapping['finance_branch_id'],self.branch)
+        with patch.dict(os.environ,{'KILAS_FINANCE_BRIDGE_ENABLED':'false'}):
+            with self.assertRaises(bridge.BridgeError):
+                self.connect(expected_version=1,operation_key='a'*32)
+        self.assertEqual(bridge.connection(self.source,self.actor),mapping)

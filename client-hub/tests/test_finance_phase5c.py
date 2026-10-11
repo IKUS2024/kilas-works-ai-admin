@@ -154,10 +154,16 @@ class CollectionsTests(unittest.TestCase):
             self.assertIn(client.get(p).status_code,(302,401))
         self.assertIn(client.post(self.path()+'/share').status_code,(302,401))
 
-    def test_finance_beta_gate(self):
+    def test_free_finance_ignores_beta_and_emergency_still_blocks_share(self):
+        self.invoice()
+        before=self.snapshot()
         with patch.dict(os.environ,{'KILAS_FINANCE_BETA':'off'}):
-            self.assertEqual(self.client.get(self.url+'/collections').status_code,404)
-            self.assertEqual(self.client.post(self.path()+'/share').status_code,404)
+            self.assertEqual(self.client.get(self.url+'/collections').status_code,200)
+            with patch.dict(os.environ,{'KILAS_FINANCE_EMERGENCY_DISABLE':'true'}):
+                response=self.client.post(self.path()+'/share')
+                self.assertEqual(response.status_code,303)
+                self.assertIn('finance-subscription',response.location)
+        self.assertEqual(self.snapshot(),before)
 
     def test_queue_markup_navigation_and_filters(self):
         i=self.invoice()
