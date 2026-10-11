@@ -318,7 +318,7 @@ def send(thread_id, *, script_only=False):
             prior_answer = row["content"]
         break
     prior_image = (store.recent_image(user_id, thread_id)
-                   if not any(item["mime_type"].startswith("image/") for item in prepared) and routing.may_edit_image(content)
+                   if not script_only and not any(item["mime_type"].startswith("image/") for item in prepared) and routing.may_edit_image(content)
                    else None)
     tool = 'CHAT' if script_only else routing.tool_for(content, prepared + ([prior_image] if prior_image else []), search=search,
                             pdf_request=ai_pdf.is_request(content, previous_document),

@@ -10,7 +10,7 @@ if os.environ.get("KILAS_AI_POSTGRES_QA") != "1" or urlsplit(os.environ.get("DAT
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import db  # noqa: E402
-from kilas_ai import schema  # noqa: E402
+from kilas_ai import schema, store  # noqa: E402
 
 
 def main():
@@ -47,11 +47,40 @@ def main():
             fields = {row["column_name"] for row in db.query_all(
                 "SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='kilas_ai_usage'")}
             assert {"status", "quota_source"}.issubset(fields)
+
+            # Exercise the real psycopg2 driver: literal image/% in a parameterized
+            # query previously raised IndexError before any provider could run.
+            owner = db.insert_returning_id(
+                "INSERT INTO users(email,password_hash,role) VALUES (?,?,?)",
+                ("image-owner@example.test", "synthetic-hash", "CLIENT_OWNER"))
+            other = db.insert_returning_id(
+                "INSERT INTO users(email,password_hash,role) VALUES (?,?,?)",
+                ("image-other@example.test", "synthetic-hash", "CLIENT_OWNER"))
+            thread_id = store.create_thread(owner, "FAST")
+            assert store.recent_image(owner, thread_id) is None
+            assert store.latest_user_image(owner, thread_id) is None
+            message_id, created = store.append_user_once(
+                owner, thread_id, "Synthetic image", "FAST", "pg-image-query-operation")
+            assert created
+            raw = b"synthetic image query fixture"
+            store.save_attachments(owner, thread_id, message_id, [{
+                "filename": "synthetic.png", "mime_type": "image/png",
+                "byte_size": len(raw), "content": raw, "extracted_text": ""}])
+            for lookup in (store.recent_image, store.latest_user_image):
+                row = lookup(owner, thread_id)
+                assert row["filename"] == "synthetic.png" and row["mime_type"] == "image/png"
+                assert bytes(row["content"]) == raw
+                assert lookup(other, thread_id) is None
+            # Preserve the existing four-message image-context window.
+            for index in range(4):
+                store.append_user_once(owner, thread_id, "Later message", "FAST", "pg-later-" + str(index))
+            assert store.recent_image(owner, thread_id) is None
+            assert store.latest_user_image(owner, thread_id)["filename"] == "synthetic.png"
     finally:
         with control.cursor() as cursor:
             cursor.execute("DROP SCHEMA " + isolated + " CASCADE")
         control.close()
-    print("Kilas AI explicit PostgreSQL schema applied once and preserved all baseline tables")
+    print("Kilas AI PostgreSQL schema and owned image-context queries passed with real psycopg2")
 
 
 if __name__ == "__main__":

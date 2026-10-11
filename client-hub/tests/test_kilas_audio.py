@@ -245,11 +245,11 @@ class AudioTests(unittest.TestCase):
         body={'content':'buat gambar produk terbaru lalu rapikan naskah promosi','operation_key':'script-assist-operation-1234'}
         self.assertEqual(self.client.post(path,json=body).status_code,400)
         headers={'X-CSRF-Token':'audio-csrf'}
-        with patch.object(usage,'reserve',side_effect=usage.UsageLimit('Batas chat tercapai.')) as reserve,patch.object(providers,'stream') as call:
+        with patch.object(chat_store,'recent_image',side_effect=AssertionError('Script assist must not inspect image context')),patch.object(usage,'reserve',side_effect=usage.UsageLimit('Batas chat tercapai.')) as reserve,patch.object(providers,'stream') as call:
             response=self.client.post(path,json=body,headers=headers)
             self.assertEqual(response.status_code,429);call.assert_not_called()
             self.assertEqual(reserve.call_args.args[4],'CHAT')
-        with patch.object(providers,'stream',side_effect=script_reply) as call,patch.object(tools,'image') as image,patch.object(tools,'web_search_steps') as web,patch.object(provider,'speech') as tts:
+        with patch.object(chat_store,'recent_image',side_effect=AssertionError('Script assist must not inspect image context')),patch.object(providers,'stream',side_effect=script_reply) as call,patch.object(tools,'image') as image,patch.object(tools,'web_search_steps') as web,patch.object(provider,'speech') as tts:
             response=self.client.post(path,json=body,headers=headers)
             self.assertEqual(response.status_code,200,response.text)
             self.assertIn('event: delta',response.text);self.assertIn('event: done',response.text)
@@ -268,7 +268,7 @@ class AudioTests(unittest.TestCase):
         path=f'/kilas-ai/threads/{thread}/voice-script'
         headers={'X-CSRF-Token':'audio-csrf'}
         body={'content':'x'*4000,'script_mode':'tidy','operation_key':'script-tidy-boundary-1234'}
-        with patch.object(usage,'reserve',side_effect=usage.UsageLimit('QA stop before provider')),patch.object(model_policy,'chat_profile',return_value={}) as profile:
+        with patch.object(chat_store,'recent_image',side_effect=AssertionError('Tidy must not inspect image context')),patch.object(usage,'reserve',side_effect=usage.UsageLimit('QA stop before provider')),patch.object(model_policy,'chat_profile',return_value={}) as profile:
             self.assertEqual(self.client.post(path,json=body,headers=headers).status_code,429)
             instruction=profile.call_args.args[0][-1]['content']
             self.assertTrue(instruction.endswith('x'*4000))
