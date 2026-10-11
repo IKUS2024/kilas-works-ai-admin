@@ -30,14 +30,14 @@ class VideoScriptTests(unittest.TestCase):
             cls.silent_video=(p/'silent.mp4').read_bytes()
 
     def funded(self,global_micro=90000,account_micro=60000):
-        return patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only','KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'true','KILAS_VO_STT_CAMPAIGN':'synthetic-'+str(self.user),'KILAS_VO_STT_GLOBAL_BUDGET_MICRO_USD':str(global_micro),'KILAS_VO_STT_ACCOUNT_BUDGET_MICRO_USD':str(account_micro),'KILAS_VO_STT_EXPIRES_AT':(datetime.now(timezone.utc)+timedelta(hours=1)).isoformat(),'KILAS_VO_STT_PRICE_VERSION':budget.PRICE_VERSION})
+        return patch.dict(os.environ,{'ELEVENLABS_API_KEY':'synthetic-only','KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'true','KILAS_VO_STT_CAMPAIGN':'synthetic-'+str(self.user),'KILAS_VO_STT_GLOBAL_BUDGET_MICRO_USD':str(global_micro),'KILAS_VO_STT_ACCOUNT_BUDGET_MICRO_USD':str(account_micro),'KILAS_VO_STT_EXPIRES_AT':(datetime.now(timezone.utc)+timedelta(hours=1)).isoformat(),'KILAS_VO_STT_PRICE_VERSION':budget.PRICE_VERSION})
 
     def post(self,key='video-script-operation-1234',**fields):
         return self.client.post('/kilas-translator/voice-script/video',data={'csrf_token':'audio-csrf','operation_key':key,'consent':'yes','video':(io.BytesIO(self.video),'source.mp4','video/mp4'),**fields})
 
     def response(self,text='Ini ucapan asli, bukan terjemahan.',usage=None):
         response=Mock(status_code=200)
-        response.iter_content.return_value=[json.dumps({'text':text,'usage':usage or {'type':'tokens','input_tokens':40,'output_tokens':20}}).encode()]
+        response.iter_content.return_value=[json.dumps({'text':text,'language_code':'id','language_probability':0.99,'words':[],**({'usage':usage} if usage is not None else {})}).encode()]
         context=Mock();context.__enter__=Mock(return_value=response);context.__exit__=Mock(return_value=False)
         return context
 
@@ -55,13 +55,17 @@ class VideoScriptTests(unittest.TestCase):
         with self.funded(),patch.object(stt.requests,'post',return_value=self.response()) as paid,patch('requests.sessions.Session.request',side_effect=AssertionError('External transport forbidden')):
             response=self.post();self.assertEqual(response.status_code,200);self.assertEqual(response.json['text'],'Ini ucapan asli, bukan terjemahan.')
             self.assertEqual(response.json['status'],'COMPLETED');self.assertIn('no-store',response.headers['Cache-Control'])
-            args=paid.call_args;self.assertEqual(args.args[0],'https://api.openai.com/v1/audio/transcriptions');self.assertEqual(args.kwargs['data'],{'model':budget.MODEL,'response_format':'json'})
+            args=paid.call_args;self.assertEqual(args.args[0],'https://api.elevenlabs.io/v1/speech-to-text');self.assertEqual(args.kwargs['data']['model_id'],'scribe_v2')
+            self.assertEqual(args.kwargs['headers'],{'xi-api-key':'synthetic-only'});self.assertEqual(args.kwargs['params'],{'enable_logging':'true'})
+            self.assertFalse(args.kwargs['allow_redirects']);self.assertTrue(args.kwargs['stream'])
+            for flag in ('tag_audio_events','diarize','webhook','use_multi_channel','use_speaker_library','detect_speaker_roles','no_verbatim'):self.assertEqual(args.kwargs['data'][flag],'false')
+            for absent in ('language_code','transcript_edit','keyterms','source_url','cloud_storage_url','entity_detection','entity_redaction'):self.assertNotIn(absent,args.kwargs['data'])
             self.assertEqual(args.kwargs['files']['file'][0],'recording.wav')
             self.assertEqual(self.post().json['status'],'COMPLETED');self.assertEqual(paid.call_count,1)
             self.assertEqual(self.client.get('/kilas-translator/voice-script/video?operation_key=video-script-operation-1234').json,{'status':'COMPLETED','operation_key':'video-script-operation-1234'})
         self.assertEqual(f.db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_jobs')['n'],before)
         self.assertEqual(f.db.query_one('SELECT seconds FROM kilas_audio_balances WHERE user_id=?',(self.user,))['seconds'],60)
-        row=f.db.query_one('SELECT * FROM kilas_vo_stt_operations WHERE user_id=?',(self.user,));self.assertEqual(row['charge_micro'],30000);self.assertEqual(row['actual_estimate_micro'],150);self.assertNotIn('text',row)
+        row=f.db.query_one('SELECT * FROM kilas_vo_stt_operations WHERE user_id=?',(self.user,));self.assertEqual(row['charge_micro'],budget.reserve_micro(row['duration_ms']));self.assertIsNone(row['actual_estimate_micro']);self.assertIsNone(row['input_tokens']);self.assertIsNone(row['output_tokens']);self.assertNotIn('text',row)
 
     def test_consent_csrf_auth_mime_size_and_missing_audio_before_provider(self):
         with self.funded(),patch.object(stt.requests,'post') as paid:
@@ -80,7 +84,7 @@ class VideoScriptTests(unittest.TestCase):
         with self.funded(),patch.object(stt.requests,'post',return_value=self.response('x'*4001)) as paid:
             response=self.post();self.assertEqual(response.status_code,422);self.assertEqual(response.json['code'],'script_too_long')
             self.assertEqual(self.post().json['status'],'FAILED');self.assertEqual(paid.call_count,1)
-        self.assertEqual(f.db.query_one('SELECT charge_micro FROM kilas_vo_stt_operations WHERE user_id=?',(self.user,))['charge_micro'],30000)
+        row=f.db.query_one('SELECT charge_micro,duration_ms FROM kilas_vo_stt_operations WHERE user_id=?',(self.user,));self.assertEqual(row['charge_micro'],budget.reserve_micro(row['duration_ms']))
 
     def test_capability_fingerprint_nonce_and_duplicate_dispatch(self):
         raw,ms=stt.normalize(wav());digest=hashlib.sha256(raw).hexdigest()
@@ -89,20 +93,24 @@ class VideoScriptTests(unittest.TestCase):
             for invalid in (None,budget.Reservation(self.other,cap.key,cap.lease),budget.Reservation(cap.owner,cap.key,'forged')):
                 with self.assertRaises(budget.BudgetError):stt.transcribe(raw,invalid)
             paid.assert_not_called()
+            f.db.execute('UPDATE kilas_vo_stt_operations SET charge_micro=0 WHERE user_id=? AND operation_key=?',(self.user,cap.key))
+            with self.assertRaises(budget.BudgetError):stt.transcribe(raw,cap)
+            paid.assert_not_called()
+            f.db.execute('UPDATE kilas_vo_stt_operations SET charge_micro=? WHERE user_id=? AND operation_key=?',(budget.reserve_micro(ms),self.user,cap.key))
             budget.dispatch(cap,digest,ms)
             with self.assertRaises(budget.BudgetError):budget.dispatch(cap,digest,ms)
             with self.assertRaises(budget.BudgetError):budget.claim(self.user,cap.key,'a'*64,ms)
 
     def test_global_atomic_cap_and_parallel_same_key_claim(self):
         raw,ms=stt.normalize(wav());digest=hashlib.sha256(raw).hexdigest()
-        with self.funded(global_micro=30000,account_micro=30000):
+        with self.funded(global_micro=budget.reserve_micro(ms),account_micro=budget.reserve_micro(ms)):
             def claim(owner):
                 try:return budget.claim(owner,'parallel-claim-operation-1234',digest,ms)[1]
                 except budget.BudgetError:return None
             with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(claim,(self.user,self.other)))
             self.assertEqual(sum(x is not None for x in results),1)
             cap=next(x for x in results if x is not None);self.assertIsNone(budget.claim(cap.owner,cap.key,digest,ms)[1])
-            self.assertEqual(f.db.query_one('SELECT SUM(charge_micro) AS n FROM kilas_vo_stt_operations WHERE campaign=?',(budget.policy()['id'],))['n'],30000)
+            self.assertEqual(f.db.query_one('SELECT SUM(charge_micro) AS n FROM kilas_vo_stt_operations WHERE campaign=?',(budget.policy()['id'],))['n'],budget.reserve_micro(ms))
 
     def test_cancel_fences_before_dispatch_and_keeps_unknown_spend(self):
         raw,ms=stt.normalize(wav());digest=hashlib.sha256(raw).hexdigest()
@@ -110,8 +118,8 @@ class VideoScriptTests(unittest.TestCase):
             budget.cancel(self.user,'cancel-before-operation-1234')
             self.assertIsNone(budget.claim(self.user,'cancel-before-operation-1234',digest,ms)[1])
             _,cap=budget.claim(self.user,'cancel-after-operation-1234',digest,ms);budget.dispatch(cap,digest,ms)
-            budget.cancel(self.user,cap.key);self.assertFalse(budget.finish(cap,True,{'type':'tokens','input_tokens':50,'output_tokens':20}))
-            row=f.db.query_one('SELECT * FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(self.user,cap.key));self.assertEqual(row['status'],'CANCELLED');self.assertEqual(row['charge_micro'],30000)
+            budget.cancel(self.user,cap.key);self.assertFalse(budget.finish(cap,True))
+            row=f.db.query_one('SELECT * FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(self.user,cap.key));self.assertEqual(row['status'],'CANCELLED');self.assertEqual(row['charge_micro'],budget.reserve_micro(row['duration_ms']))
 
     def test_missing_invalid_expired_policy_is_failclosed(self):
         raw,ms=stt.normalize(wav());digest=hashlib.sha256(raw).hexdigest()
@@ -130,7 +138,7 @@ class VideoScriptTests(unittest.TestCase):
                 with case.funded(),patch.object(stt.requests,'post',side_effect=stt.requests.Timeout() if kind=='timeout' else None,return_value=response) as paid:
                     result=case.post();self.assertEqual(result.status_code,200 if kind=='missing_usage' else 503)
                     self.assertEqual(case.post().json['status'],'COMPLETED' if kind=='missing_usage' else 'FAILED');self.assertEqual(paid.call_count,1)
-                row=f.db.query_one('SELECT charge_micro,actual_estimate_micro FROM kilas_vo_stt_operations WHERE user_id=?',(case.user,));self.assertEqual(row['charge_micro'],30000);self.assertIsNone(row['actual_estimate_micro'])
+                row=f.db.query_one('SELECT charge_micro,actual_estimate_micro,duration_ms FROM kilas_vo_stt_operations WHERE user_id=?',(case.user,));self.assertEqual(row['charge_micro'],budget.reserve_micro(row['duration_ms']));self.assertIsNone(row['actual_estimate_micro'])
             finally:case.doCleanups()
 
     def test_oversize_duration_no_audio_reject_and_delete_private_temps(self):
@@ -145,16 +153,69 @@ class VideoScriptTests(unittest.TestCase):
             paid.assert_not_called()
         self.assertTrue(folders);self.assertTrue(all(not folder.exists() for folder in folders))
 
-    def test_off_inflight_finish_and_full_overrun_record_persistent_halt(self):
+    def test_minimum_audio_and_slow_stream_failure_hold_allowance(self):
+        import wave
+        def pcm(frames):
+            raw=io.BytesIO()
+            with wave.open(raw,'wb') as out:
+                out.setnchannels(1);out.setsampwidth(2);out.setframerate(16000);out.writeframes(b'\0'*(frames*2))
+            return raw.getvalue()
+        with self.funded(),patch.object(stt.requests,'post') as paid:
+            for frames in (1,1599):
+                with self.assertRaises(budget.BudgetError):stt.normalize(pcm(frames))
+            self.assertEqual(stt.normalize(pcm(1600))[1],100);paid.assert_not_called()
+        with self.funded(),patch.object(stt.requests,'post',return_value=self.response()) as paid,patch.object(stt,'monotonic',side_effect=(0,61)):
+            response=self.post();self.assertEqual(response.status_code,503);self.assertEqual(response.json['code'],'transcription_failed');self.assertNotIn('text',response.json)
+            self.assertEqual(self.post().json['status'],'FAILED');self.assertEqual(paid.call_count,1)
+        row=f.db.query_one('SELECT * FROM kilas_vo_stt_operations WHERE user_id=?',(self.user,))
+        self.assertEqual(row['status'],'FAILED');self.assertEqual(row['charge_micro'],budget.reserve_micro(row['duration_ms']))
+
+    def test_duration_ceiling_and_off_inflight_finish_without_invoice_claim(self):
+        for ms,expected in ((1,1),(1000,62),(1001,62),(60000,3667),(600000,36667)):
+            self.assertEqual(budget.reserve_micro(ms),expected)
+        for invalid in (True,0,-1,600001,1.5):
+            with self.assertRaises(budget.BudgetError):budget.reserve_micro(invalid)
         raw,ms=stt.normalize(wav());digest=hashlib.sha256(raw).hexdigest()
         with self.funded():
             _,cap=budget.claim(self.user,'inflight-operation-1234',digest,ms);budget.dispatch(cap,digest,ms)
             with patch.dict(os.environ,{'KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):self.assertTrue(budget.finish(cap,True))
-            _,cap=budget.claim(self.user,'overrun-operation-1234',digest,ms);budget.dispatch(cap,digest,ms)
-            self.assertFalse(budget.finish(cap,True,{'type':'tokens','input_tokens':20000,'output_tokens':3000}))
-            row=f.db.query_one('SELECT * FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(self.user,cap.key));self.assertEqual(row['actual_estimate_micro'],40000);self.assertEqual(row['charge_micro'],40000);self.assertEqual(row['status'],'UNKNOWN')
+            row=f.db.query_one('SELECT * FROM kilas_vo_stt_operations WHERE user_id=?',(self.user,))
+            self.assertEqual(row['charge_micro'],budget.reserve_micro(ms));self.assertIsNone(row['actual_estimate_micro'])
+
+    def test_ten_minute_reservation_enforces_full_duration_cap(self):
+        with self.funded(global_micro=36666,account_micro=36666):
+            with self.assertRaises(budget.BudgetError) as denied:budget.claim(self.user,'ten-minute-operation-1234','a'*64,600000)
+            self.assertEqual(denied.exception.code,'budget_limit')
+        with self.funded(global_micro=36667,account_micro=36667),patch.dict(os.environ,{'KILAS_VO_STT_CAMPAIGN':'ten-minute-funded'}):
+            budget.claim(self.user,'ten-minute-operation-1234','a'*64,600000)
+            row=f.db.query_one('SELECT charge_micro FROM kilas_vo_stt_operations WHERE user_id=?',(self.user,))
+            self.assertEqual(row['charge_micro'],36667)
+
+    def test_old_price_version_cannot_admit_or_settle_as_new_provider(self):
+        raw,ms=stt.normalize(wav());digest=hashlib.sha256(raw).hexdigest()
+        with self.funded(),patch.object(stt.requests,'post') as paid:
+            _,cap=budget.claim(self.user,'old-price-operation-1234',digest,ms)
+            f.db.execute("UPDATE kilas_vo_stt_campaigns SET price_version='openai-mini-transcribe-20261011-standard' WHERE id=?",(budget.policy()['id'],))
+            with self.assertRaises(budget.BudgetError):stt.transcribe(raw,cap)
+            paid.assert_not_called()
+            f.db.execute("UPDATE kilas_vo_stt_operations SET status='DISPATCHED' WHERE user_id=?",(self.user,))
+            self.assertFalse(budget.finish(cap,True))
+            self.assertEqual(f.db.query_one('SELECT status FROM kilas_vo_stt_operations WHERE user_id=?',(self.user,))['status'],'UNKNOWN')
             self.assertEqual(f.db.query_one('SELECT blocked FROM kilas_vo_stt_campaigns WHERE id=?',(budget.policy()['id'],))['blocked'],1)
-            with self.assertRaises(budget.BudgetError):budget.claim(self.other,'overrun-next-operation-1234',digest,ms)
+
+    def test_access_denied_redirect_and_unknown_token_usage_do_not_change_allowance(self):
+        for kind in ('access_denied','redirect','oversized','fake_tokens'):
+            case=VideoScriptTests('test_default_unavailable_keeps_old_stt_guard_and_no_decode_or_provider');case.id=lambda:'protocol-'+kind;case.setUp()
+            try:
+                response=case.response(usage={'type':'tokens','input_tokens':99999999,'output_tokens':99999999})
+                response.__enter__.return_value.status_code={'access_denied':403,'redirect':302,'oversized':200,'fake_tokens':200}[kind]
+                if kind=='oversized':response.__enter__.return_value.iter_content.return_value=[b'x'*65537]
+                with case.funded(),patch.object(stt.requests,'post',return_value=response) as paid:
+                    result=case.post();self.assertEqual(result.status_code,200 if kind=='fake_tokens' else 503);self.assertEqual(paid.call_count,1)
+                    if kind!='fake_tokens':self.assertEqual(result.json['code'],'transcription_failed')
+                row=f.db.query_one('SELECT * FROM kilas_vo_stt_operations WHERE user_id=?',(case.user,))
+                self.assertEqual(row['charge_micro'],budget.reserve_micro(row['duration_ms']));self.assertIsNone(row['actual_estimate_micro']);self.assertIsNone(row['input_tokens']);self.assertIsNone(row['output_tokens'])
+            finally:case.doCleanups()
 
 
 if __name__=='__main__':unittest.main()

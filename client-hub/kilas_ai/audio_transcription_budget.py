@@ -14,11 +14,17 @@ import db
 from . import usage
 from .autonomous_store import transaction
 
-MODEL = 'gpt-4o-mini-transcribe'
-PRICE_VERSION = 'openai-mini-transcribe-20261011-standard'
-# Model-window estimate: 16k input @ $1.25/M + 2k output @ $5/M.
-# This is not a documented per-file invoice cap; overruns halt admissions.
-RESERVE_MICRO = 30000
+MODEL = 'scribe_v2'
+PRICE_VERSION = 'elevenlabs-scribe-v2-20261011-base-022usd-hour'
+# Public base estimate $0.22/hour, rounded UP to integer microUSD.
+# This is an internal allowance, not observed supplier billing or a credit guarantee.
+RATE_MICRO_PER_HOUR = 220000
+
+
+def reserve_micro(ms):
+    if type(ms) is not int or not 0 < ms <= 600000:
+        raise BudgetError('invalid_audio', 400)
+    return (ms * RATE_MICRO_PER_HOUR + 3599999) // 3600000
 DAILY_ATTEMPTS = 2
 GLOBAL_CONCURRENCY = 3
 
@@ -45,14 +51,14 @@ def policy():
         account_micro=int(os.environ['KILAS_VO_STT_ACCOUNT_BUDGET_MICRO_USD'])
         expiry=datetime.fromisoformat(os.environ['KILAS_VO_STT_EXPIRES_AT'].replace('Z','+00:00'))
         if expiry.tzinfo is None or expiry<=datetime.now(timezone.utc):return None
-        if not RESERVE_MICRO<=account_micro<=global_micro<=1000000000:return None
+        if not 1<=account_micro<=global_micro<=1000000000:return None
         if os.environ.get('KILAS_VO_STT_PRICE_VERSION')!=PRICE_VERSION:return None
         return {'id':campaign,'global_micro':global_micro,'account_micro':account_micro,'expires_at':expiry.astimezone(timezone.utc).isoformat(),'price_version':PRICE_VERSION}
     except (KeyError,ValueError,TypeError,OverflowError):return None
 
 
 def configured():
-    return bool(os.environ.get('OPENAI_API_KEY','').strip())
+    return bool(os.environ.get('ELEVENLABS_API_KEY','').strip())
 
 
 def ready():
@@ -105,14 +111,14 @@ def owned(owner,key):
         return {'status':row[3],'operation_key':key} if row else None
 
 
-def _admit(conn,owner,config):
+def _admit(conn,owner,config,reserve=0):
     cutoff=(datetime.now(timezone.utc)-timedelta(days=1)).isoformat()
     if usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,cutoff),one=True)[0]>=DAILY_ATTEMPTS:raise BudgetError('attempt_limit',429)
     if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",(owner,),one=True)[0]:raise BudgetError('already_processing',429)
     if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status IN ('RESERVED','DISPATCHED')",one=True)[0]>=GLOBAL_CONCURRENCY:raise BudgetError('service_busy',429)
     total=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=?',(config['id'],),one=True)[0]
     account=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=? AND user_id=?',(config['id'],owner),one=True)[0]
-    if total+RESERVE_MICRO>config['global_micro'] or account+RESERVE_MICRO>config['account_micro']:raise BudgetError('budget_limit',429)
+    if total+reserve>config['global_micro'] or account+reserve>config['account_micro']:raise BudgetError('budget_limit',429)
 
 
 def claim(owner,key,fingerprint,ms):
@@ -126,9 +132,10 @@ def claim(owner,key,fingerprint,ms):
         if old:
             if old[3]!='CANCELLED' and old[2]!=fingerprint:raise BudgetError('operation_conflict',409)
             return {'status':old[3],'operation_key':key},None
-        _admit(conn,owner,config)
+        reserve=reserve_micro(ms)
+        _admit(conn,owner,config,reserve)
         lease=secrets.token_hex(32)
-        usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at) VALUES (?,?,?,?,'RESERVED',?,?,?,?)",(owner,key,config['id'],fingerprint,RESERVE_MICRO,ms,_hash(lease),datetime.now(timezone.utc).isoformat()))
+        usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at) VALUES (?,?,?,?,'RESERVED',?,?,?,?)",(owner,key,config['id'],fingerprint,reserve,ms,_hash(lease),datetime.now(timezone.utc).isoformat()))
         return {'status':'RESERVED','operation_key':key},Reservation(owner,key,lease)
 
 
@@ -140,7 +147,7 @@ def dispatch(capability,fingerprint,ms):
     with transaction() as conn:
         _campaign(conn,config);_owner(conn,capability.owner);_expire(conn,campaign=config['id'])
         row=_row(conn,capability.owner,capability.key)
-        if not row or row[1]!=config['id'] or row[2]!=fingerprint or row[3]!='RESERVED' or row[5]!=_hash(capability.lease) or row[6]!=ms:raise BudgetError('invalid_reservation')
+        if not row or row[1]!=config['id'] or row[2]!=fingerprint or row[3]!='RESERVED' or row[5]!=_hash(capability.lease) or row[6]!=ms or row[4]<reserve_micro(ms):raise BudgetError('invalid_reservation')
         usage._query(conn,"UPDATE kilas_vo_stt_operations SET status='DISPATCHED',dispatched_at=? WHERE id=? AND status='RESERVED'",(datetime.now(timezone.utc).isoformat(),row[0]))
 
 
@@ -153,23 +160,22 @@ def _lock_existing_campaign(conn,owner,key):
     return row
 
 
-def finish(capability,success,evidence=None):
+def finish(capability,success):
     # Completion is allowed after flag OFF/expiry; it cannot admit new calls.
-    evidence=evidence or {}
-    incoming=evidence.get('input_tokens');outgoing=evidence.get('output_tokens')
-    valid=evidence.get('type')=='tokens' and type(incoming) is int and type(outgoing) is int and 0<=incoming<=1000000000 and 0<=outgoing<=1000000000
-    estimate=(incoming*125+outgoing*500+99)//100 if valid else None
+    # Scribe's response is NOT an invoice. Keep the duration allowance on every
+    # dispatch outcome, with no token conversion, credit deduction or refund.
     with transaction() as conn:
         _lock_existing_campaign(conn,capability.owner,capability.key);_owner(conn,capability.owner)
         row=_row(conn,capability.owner,capability.key)
         if not row or row[5]!=_hash(capability.lease):raise BudgetError('invalid_reservation')
-        # Late cancellation still records real provider evidence; it cannot revive text/status.
-        over=valid and (estimate>row[4] or incoming>16000 or outgoing>2000)
-        if over:usage._query(conn,'UPDATE kilas_vo_stt_campaigns SET blocked=1 WHERE id=?',(row[1],))
-        usage._query(conn,'UPDATE kilas_vo_stt_operations SET actual_estimate_micro=?,input_tokens=?,output_tokens=?,charge_micro=? WHERE id=?',(estimate,incoming if valid else None,outgoing if valid else None,max(row[4],estimate or 0),row[0]))
+        version=usage._query(conn,'SELECT price_version FROM kilas_vo_stt_campaigns WHERE id=?',(row[1],),one=True)[0]
+        compatible=version==PRICE_VERSION and row[4]>=reserve_micro(row[6])
+        if not compatible:
+            usage._query(conn,'UPDATE kilas_vo_stt_campaigns SET blocked=1 WHERE id=?',(row[1],))
         if row[3]!='DISPATCHED':return False
-        usage._query(conn,'UPDATE kilas_vo_stt_operations SET status=?,finished_at=? WHERE id=?',('UNKNOWN' if over else 'COMPLETED' if success else 'FAILED',datetime.now(timezone.utc).isoformat(),row[0]))
-        return not over
+        usage._query(conn,'UPDATE kilas_vo_stt_operations SET status=?,finished_at=? WHERE id=?',('UNKNOWN' if not compatible else 'COMPLETED' if success else 'FAILED',datetime.now(timezone.utc).isoformat(),row[0]))
+        # Historical token/actual_estimate columns remain untouched and nullable.
+        return compatible
 
 
 def cancel(owner,key):

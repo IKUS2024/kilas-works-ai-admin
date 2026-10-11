@@ -53,7 +53,7 @@ def main():
             # Actual driver: finite atomic cross-owner reservation and consistent cancel/submit locks.
             from kilas_ai import audio_transcription_budget as stt_budget
             from datetime import datetime,timezone,timedelta
-            funded={'OPENAI_API_KEY':'synthetic-only','KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'true','KILAS_VO_STT_CAMPAIGN':'native-pg-test','KILAS_VO_STT_GLOBAL_BUDGET_MICRO_USD':'30000','KILAS_VO_STT_ACCOUNT_BUDGET_MICRO_USD':'30000','KILAS_VO_STT_EXPIRES_AT':(datetime.now(timezone.utc)+timedelta(hours=1)).isoformat(),'KILAS_VO_STT_PRICE_VERSION':stt_budget.PRICE_VERSION}
+            funded={'ELEVENLABS_API_KEY':'synthetic-only','KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'true','KILAS_VO_STT_CAMPAIGN':'native-pg-test','KILAS_VO_STT_GLOBAL_BUDGET_MICRO_USD':str(stt_budget.reserve_micro(2000)),'KILAS_VO_STT_ACCOUNT_BUDGET_MICRO_USD':str(stt_budget.reserve_micro(2000)),'KILAS_VO_STT_EXPIRES_AT':(datetime.now(timezone.utc)+timedelta(hours=1)).isoformat(),'KILAS_VO_STT_PRICE_VERSION':stt_budget.PRICE_VERSION}
             with store.locked(0) as conn:
                 another=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('stt-other@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
             def reserve_stt(owner):
@@ -65,7 +65,7 @@ def main():
                 cap=next(cap for cap in claims if cap is not None)
                 stt_budget.dispatch(cap,'a'*64,2000)
                 with patch.dict(os.environ,{'KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):assert stt_budget.finish(cap,True)
-                assert db.query_one('SELECT charge_micro FROM kilas_vo_stt_operations WHERE user_id=?',(cap.owner,))['charge_micro']==30000
+                assert db.query_one('SELECT charge_micro FROM kilas_vo_stt_operations WHERE user_id=?',(cap.owner,))['charge_micro']==stt_budget.reserve_micro(2000)
             funded.update(KILAS_VO_STT_CAMPAIGN='native-pg-cancel',KILAS_VO_STT_GLOBAL_BUDGET_MICRO_USD='90000',KILAS_VO_STT_ACCOUNT_BUDGET_MICRO_USD='60000')
             with patch.dict(os.environ,funded):
                 def race(action):
@@ -75,8 +75,9 @@ def main():
                 assert stt_budget.owned(another,'postgres-cancel-operation-1234')['status']=='CANCELLED'
                 _,cap=stt_budget.claim(user,'postgres-overrun-operation-1234','c'*64,2000)
                 stt_budget.dispatch(cap,'c'*64,2000)
-                assert not stt_budget.finish(cap,True,{'type':'tokens','input_tokens':20000,'output_tokens':3000})
-                assert db.query_one('SELECT charge_micro FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(user,cap.key))['charge_micro']==40000
+                with store.locked(0) as conn:usage._query(conn,"UPDATE kilas_vo_stt_campaigns SET price_version='legacy-openai' WHERE id=?",('native-pg-cancel',))
+                assert not stt_budget.finish(cap,True)
+                assert db.query_one('SELECT charge_micro FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(user,cap.key))['charge_micro']==stt_budget.reserve_micro(2000)
                 assert db.query_one('SELECT blocked FROM kilas_vo_stt_campaigns WHERE id=?',('native-pg-cancel',))['blocked']==1
             with patch.object(media,'voice_sample',return_value=b'synthetic-voice'),patch.object(media,'personal_preview',return_value=b'private-preview'),patch.object(provider,'clone_voice',return_value='privatePostgres123') as clone:
                 personal.create(user,'postgres-personal-key-1234',None)
