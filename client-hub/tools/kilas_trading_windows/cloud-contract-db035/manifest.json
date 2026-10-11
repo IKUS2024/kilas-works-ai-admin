@@ -1,0 +1,34 @@
+{
+  "repository": "IKUS2024/kilas-works-ai-admin",
+  "commit": "db035b5da415bed61bed08e2b1cac50d8d31f73c",
+  "files": [
+    {
+      "name": "demo_instruments.py",
+      "sha": "71feada3745b08509e089dfee2e7865ee928fba9"
+    },
+    {
+      "name": "btc_sources.py",
+      "sha": "5824cae59dd9e348d085e13206720543c832af64"
+    },
+    {
+      "name": "btc_analysis.py",
+      "sha": "b4046de123ae44999cef71ca9d3fbb349bf39170"
+    },
+    {
+      "name": "control_routes.py",
+      "sha": "937d4546473e09a9e7e4d1d7ef06fb10815ff58e"
+    },
+    {
+      "name": "analysis_budget.py",
+      "sha": "1c3bfe41a5e07fbb7709d8011d1ae554a0f15b18"
+    },
+    {
+      "name": "engine.py",
+      "sha": "8990de9732f8942aab71ca0898804fb8570d5328"
+    },
+    {
+      "name": "btc_news.py",
+      "sha": "ea2654bdf3c4290487edbf39becf906e91cdaea8"
+    }
+  ]
+}

@@ -1,0 +1,306 @@
+{
+  "repository": "IKUS2024/kilas-works-ai-admin",
+  "base_commit": "db035b5da415bed61bed08e2b1cac50d8d31f73c",
+  "destination": "client-hub/tools/kilas_trading_windows/",
+  "files": [
+    {
+      "path": "client-hub/tools/kilas_trading_windows/ai_market_news_contract.py",
+      "bytes": 13021,
+      "lines": 195,
+      "sha256": "a566615c074ad7d246af83cfb9b4282f85a5c0df9824b5086f3343de72a6018f"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/btc_evidence_capture.py",
+      "bytes": 9949,
+      "lines": 200,
+      "sha256": "ebff93aacbe765a266daa675e6c89c35896fe3919f5e23f8f64d4f13c1100748"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/btc_integration_client.py",
+      "bytes": 25551,
+      "lines": 486,
+      "sha256": "2811a8e5877adb9436c07c01204d189f1b711c467e0e0387a375bea8720842d3"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/btc_integration_protocol.py",
+      "bytes": 14198,
+      "lines": 336,
+      "sha256": "9b586af8fa54c69ebb73bd6e2eb0d296679ff07e3b86497d40a8410929fb8cfc"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/btc_server_clock.py",
+      "bytes": 6189,
+      "lines": 125,
+      "sha256": "a50ab905e73e97d6ffa13577961c06f2b3c27c8c5b882cc30013592b5c7ad51c"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/cloud-contract-db035/kilas_trading/analysis_budget.py",
+      "bytes": 8091,
+      "lines": 136,
+      "sha256": "1cc3d7ad605ba616482ebff864db42619e25619bf52c6dcc61f8b4fc83e592ae"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/cloud-contract-db035/kilas_trading/btc_analysis.py",
+      "bytes": 28014,
+      "lines": 331,
+      "sha256": "396d797d08f1925917426cf78174546dec3e5090fc181f5fe8a676e254566cb2"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/cloud-contract-db035/kilas_trading/btc_news.py",
+      "bytes": 3361,
+      "lines": 62,
+      "sha256": "770582ba653e74141e57d5c4976073ee243e8839728cb45025382a34e4006ff2"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/cloud-contract-db035/kilas_trading/btc_sources.py",
+      "bytes": 21825,
+      "lines": 262,
+      "sha256": "6f0780b310be0ef792a1a2d365fa413a342c63a96aaf543572565430350c7709"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/cloud-contract-db035/kilas_trading/control_routes.py",
+      "bytes": 4046,
+      "lines": 74,
+      "sha256": "fcccb843bffdfe1fbb200c411fbfdb81637ace6d42b02247cd2c75676a6582eb"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/cloud-contract-db035/kilas_trading/demo_instruments.py",
+      "bytes": 5526,
+      "lines": 88,
+      "sha256": "fe558a5305c75e435645b1210abf5d5747f75cc6fb5de5fc2d7f1749b1df327a"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/cloud-contract-db035/kilas_trading/engine.py",
+      "bytes": 6198,
+      "lines": 113,
+      "sha256": "db424bff5dbc45866643c7892c220802d9934515d0f223c472fb1562f0324518"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/cloud-contract-db035/manifest.json",
+      "bytes": 837,
+      "lines": 34,
+      "sha256": "80d2cb3565427ba0d240d8aaa46368c3175b981540fd1ea95be2f1072087598d"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/demo_auto_controller.py",
+      "bytes": 19467,
+      "lines": 431,
+      "sha256": "2d8b8bf142d7b19855469341873e72defabdac63adad37a8d30dccf411ad6b21"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/demo_control_v2.py",
+      "bytes": 28815,
+      "lines": 499,
+      "sha256": "9a432a943c6d77fef8580b1ba970ceb22b698e2130e8863ac56e440553195a0a"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/demo_instrument_profiles.py",
+      "bytes": 5171,
+      "lines": 116,
+      "sha256": "342dc0c5587f7bfe2547badc52b361ce73427ab4839ea1fad5c5967435d03e96"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/demo_integration_instruments.py",
+      "bytes": 919,
+      "lines": 29,
+      "sha256": "0b5c15f8b139e86d4fba32e4148448c0287b486077cec6f778b20b523750b001"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/demo_runtime_fixtures.py",
+      "bytes": 3189,
+      "lines": 68,
+      "sha256": "4d718b73dfa739b322bf0f460fbd6e68e0acc13c7e3c66459962bef7119bab46"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/demo_test_policy.unset.json",
+      "bytes": 379,
+      "lines": 16,
+      "sha256": "6436086a55a64aadf71310783630a78e8aeeacabaee44a1786704ab6e039fe89"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/demo_worker_runtime.py",
+      "bytes": 19157,
+      "lines": 342,
+      "sha256": "54b9b91e64eb9eb8fc675f8145a8d1c780673cdd80de994b24e3df5307b3cadd"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/gold_market_readiness.py",
+      "bytes": 6652,
+      "lines": 152,
+      "sha256": "9dce83ad7a554229ac5ade3f21754e08cb1d96f4ac2ae93980c7ee3126d76c46"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/mt5_demo_adapter.py",
+      "bytes": 53434,
+      "lines": 885,
+      "sha256": "1584d2ae529f6cc682733c0be1268956e37fc7e252b56be2ab43a553b42236bd"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/mt5_demo_session.py",
+      "bytes": 2427,
+      "lines": 55,
+      "sha256": "aeb9af43a67a7270ec75179baa09920a593bd2191dd5666807b4771a7ac00678"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/offline-test-result.json",
+      "bytes": 324,
+      "lines": 14,
+      "sha256": "e4ebd5c20152a8b77f84a033cb1361f1949819a1368a7d85fcf6940fc51a6bdc"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/README.md",
+      "bytes": 2865,
+      "lines": 50,
+      "sha256": "58211cb65e7ee3c85c358a2089aaf860677605b9812c2b5a69077a60205270c0"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/run_offline_tests.py",
+      "bytes": 939,
+      "lines": 17,
+      "sha256": "96872369763cf87f188da1f7623106366a30d76cfadfa2719597dc53545de7f6"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/terminal_process_guard.py",
+      "bytes": 2321,
+      "lines": 42,
+      "sha256": "eccb0b7a08a97b2758373851c5252f4708f30090a5a40a643c42586c9d205760"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_ai_market_news_contract.py",
+      "bytes": 8573,
+      "lines": 145,
+      "sha256": "fa57aeee7707dbeafd357256f8641c283e63b2e54d9a49eab223018d49cb1d22"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_btc_control_clock.py",
+      "bytes": 12799,
+      "lines": 266,
+      "sha256": "810938400ed95aff1ad8cee6e97ef81c482cd4e364b253c111bda4778e595adc"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_btc_evidence_capture.py",
+      "bytes": 15606,
+      "lines": 303,
+      "sha256": "57a6d94b7f8088d48b207e29a48af608b2e317f1c24e2731599610d73886f8fb"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_btc_http_transport.py",
+      "bytes": 17550,
+      "lines": 326,
+      "sha256": "27128d2e91c525cb355628fc6ebe9352b6ebd5d1d4e5a3216532eb1d14443dc0"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_btc_integration_client.py",
+      "bytes": 26794,
+      "lines": 534,
+      "sha256": "0aaf0ad431df4e203c807cdb31ba3b0e96dadfd2d23f2bed91a42c20e1fc0586"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_btc_integration_protocol.py",
+      "bytes": 19701,
+      "lines": 346,
+      "sha256": "7d43f694b79879ea9b8eaf436367eff51a8d1ba338cb960ac820993ff9139195"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_btc_worker_assembly.py",
+      "bytes": 2282,
+      "lines": 48,
+      "sha256": "99d714c26fb12e3b372ab2e28aeda73e8b2cd698c0437bc52caa8aaf0b927f82"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_cloud_contract_parity.py",
+      "bytes": 7484,
+      "lines": 139,
+      "sha256": "12694227d61da2c0786db2c7648cf44e0666af9071f0d6cd893f9bc48f217796"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_demo_auto_controller.py",
+      "bytes": 11306,
+      "lines": 272,
+      "sha256": "93a8861a5203f7911c87fd39db646ac33cea7d0f32f15ce9db05eb441ee642aa"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_demo_control_v2.py",
+      "bytes": 14455,
+      "lines": 221,
+      "sha256": "6d23704acc3e9359ce3d187c9b844be476131805c1c433743e663227e0ca74ad"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_demo_instrument_profiles.py",
+      "bytes": 11068,
+      "lines": 196,
+      "sha256": "73de370494c4368d689686da3215a89e1c27d61a461b68bd2592400b02776290"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_demo_worker_runtime.py",
+      "bytes": 11449,
+      "lines": 170,
+      "sha256": "f1344802a077cbf3885bfda6721522d2fe9eadf69a92c7daaba7b05ad946b441"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_gold_integration.py",
+      "bytes": 10303,
+      "lines": 163,
+      "sha256": "d256102fd4e49e85cb574159907838ec584c4e0a34e4f38003f2e8922ca52108"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_gold_market_readiness.py",
+      "bytes": 8303,
+      "lines": 153,
+      "sha256": "8202b47678c9fc98c64624430af6f80fe35b63c44c5eeadedb797c201f80897e"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_gold_readiness.py",
+      "bytes": 12181,
+      "lines": 239,
+      "sha256": "341c24444040c7ecbde1fb76b65b346539bdc76aa6b61ba170d9508a63fb8c0f"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_mt5_demo_adapter.py",
+      "bytes": 14453,
+      "lines": 285,
+      "sha256": "48f082561c7b4292be2f94bbdbf7f45927f7e0aa6af626d625e9ba48fb9cf5b0"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/test_timestamp_guard.py",
+      "bytes": 3560,
+      "lines": 71,
+      "sha256": "b9fa9ab7bd3cf4f50bb659a5cf60daae629be589ae01052221d2e0002904cab7"
+    },
+    {
+      "path": "client-hub/tools/kilas_trading_windows/timestamp_guard.py",
+      "bytes": 2331,
+      "lines": 53,
+      "sha256": "1dc990ea7c892c4c4d6e8e763b1aa1348896d557dc1423532add569ebabcb7f9"
+    }
+  ],
+  "scope": "All additions under one new isolated directory. Existing cloud files unchanged.",
+  "redaction": "Published DATA pin is a nonfunctional placeholder. Private local source unchanged.",
+  "verification": {
+    "packaged": {
+      "offline_only": true,
+      "tests": 323,
+      "successful": true,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 37.911,
+      "native_sdk_attachments": 0,
+      "native_order_checks": 0,
+      "native_order_sends": 0,
+      "paid_model_requests": 0,
+      "cloud_commit": "db035b5da415bed61bed08e2b1cac50d8d31f73c"
+    },
+    "local_full_suite": {
+      "tests": 411,
+      "successful": true,
+      "seconds": 45.59
+    },
+    "post_fixture_lookup_change": {
+      "tests": 21,
+      "successful": true,
+      "seconds": 2.734
+    },
+    "cloud_flask_suite": "Not run locally: Flask/requests unavailable. No installation performed."
+  }
+}
