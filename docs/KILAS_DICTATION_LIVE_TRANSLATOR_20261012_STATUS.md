@@ -118,3 +118,43 @@ non-fatal temporary-file ResourceWarnings; their assertions passed.
 
 No large suite, unrelated architecture review, or browser-security workaround
 was used to complete the independent local work.
+
+## Release preparation update — 2026-10-12
+
+The user explicitly authorized a dormant code release while browser/provider QA
+remains blocked. Do not request the same active Kilas tab again. Both flags were
+set to `false` on Client Hub through Render MCP (merge only, no credentials or
+other environment values changed): `KILAS_VOICE_VIDEO_SCRIPT_ENABLED` and
+`KILAS_LIVE_TRANSLATOR_ENABLED`.
+
+Important connector behavior: updating these two environment variables also
+triggered deploy `dep-db68gvijnfac73cr538g` at existing main
+`83f2e85b24c7df6df7c1c17b112fb6ff73ce4388`, despite Git auto-deploy being disabled.
+The connector has no cancel-deploy tool. This deploy is not evidence that the
+local lifecycle patch shipped. A final patch deployment and exact SHA check
+remain required after CI passes.
+
+Fresh local checks: 88 Python tests PASS when invoked in separate processes as
+in CI; 26 Node tests PASS; Naskah Chromium mock UI PASS at 320/360/390/430/1440.
+An initial combined unittest invocation failed because test modules share global
+fixture/database state; separate-process runs pass without weakening guards.
+The previous main Revisions CI failure was its obsolete disabled-Dikte wording
+assertion; this is already corrected by local code commit `7e6da4c3`.
+No production provider request or hardware microphone QA has been performed.
+
+Official connection recovery reference:
+https://learn.chatgpt.com/docs/chrome-extension#troubleshooting
+Check Settings > Computer Use shows Manage for Chrome and the extension is in
+the active profile. Update desktop apps, restart the browser/app, and use a new
+Work/Codex chat to clear chat-specific connection state if necessary. If that
+fails, reinstall through Settings > Computer Use and use /feedback with the chat
+ID and exact Windows URL-confidence denial. These are connection recovery steps,
+not a documented override of that denial. Do not change blocklists/security
+policy or use another control transport to bypass it. JS reset is documented for
+timeouts, not as a remedy for a security denial. Paid/provider QA and activation
+stay pending until safe URL verification and provider funding gates pass.
+
+The original dirty checkout remains untouched. Only the isolated audio worktree
+is used. Final CI, exact release SHA, deployment status and public endpoint/asset
+verification will be appended after execution; no authenticated production
+feature success is claimed at this checkpoint.
