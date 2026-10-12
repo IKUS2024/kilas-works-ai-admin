@@ -6,15 +6,23 @@ from . import usage, audio_store
 from .autonomous_store import transaction
 
 
+def require_pair(a,b):
+    from .audio_provider import LANGUAGES
+    if not isinstance(a,str) or not isinstance(b,str) or a not in LANGUAGES or b not in LANGUAGES or a==b:
+        raise audio_store.AudioError('Pilih dua bahasa yang berbeda sebelum memulai sesi.','invalid_language_pair',400)
+
+
 def locked(owner, ident, conn):
     suffix=' FOR UPDATE' if db.BACKEND=='postgres' else ''
     row=usage._query(conn,'SELECT status,expires_at,language_a,language_b,voice_alias FROM kilas_live_translator_sessions WHERE id=? AND user_id=?'+suffix,(ident,owner),one=True)
     if not row:raise audio_store.AudioError('Sesi tidak tersedia.','session_unavailable',404)
     if row[0]!='ACTIVE' or usage._as_utc(row[1])<=usage._now():raise audio_store.AudioError('Sesi berakhir. Mulai kembali bila ingin melanjutkan.','session_ended',409)
+    require_pair(row[2],row[3])
     return {'language_a':row[2],'language_b':row[3],'voice_alias':row[4]}
 
 
 def create(owner,a,b,voice):
+    require_pair(a,b)
     now=usage._now();ident=secrets.token_hex(24)
     with transaction() as conn:
         # One session per owner, including double Start from separate tabs.
@@ -47,6 +55,7 @@ def check(owner,ident,key):
     if not row:raise audio_store.AudioError('Sesi tidak tersedia.','session_unavailable',404)
     if row['session_status']!='ACTIVE' or usage._as_utc(row['expires_at'])<=usage._now():raise audio_store.AudioError('Sesi berakhir. Mulai kembali bila ingin melanjutkan.','session_ended',409)
     if row['turn_status']!='PROCESSING':raise audio_store.AudioError('Ucapan dibatalkan.','turn_cancelled',409)
+    require_pair(row['language_a'],row['language_b'])
     return {name:row[name] for name in ('language_a','language_b','voice_alias')}
 
 
@@ -66,8 +75,9 @@ def end(owner,ident):
 
 
 def result(owner,ident,key):
-    row=db.query_one('SELECT t.status,t.audio_job_id,t.error_code,t.created_at,s.status AS session_status,s.expires_at FROM kilas_live_translator_turns t JOIN kilas_live_translator_sessions s ON s.id=t.session_id WHERE s.user_id=? AND s.id=? AND t.operation_key=?',(owner,ident,key))
+    row=db.query_one('SELECT t.status,t.audio_job_id,t.error_code,t.created_at,s.status AS session_status,s.expires_at,s.language_a,s.language_b FROM kilas_live_translator_turns t JOIN kilas_live_translator_sessions s ON s.id=t.session_id WHERE s.user_id=? AND s.id=? AND t.operation_key=?',(owner,ident,key))
     if not row:raise audio_store.AudioError('Ucapan tidak tersedia.','turn_unavailable',404)
     if row['session_status']!='ACTIVE' or usage._as_utc(row['expires_at'])<=usage._now():return {'status':'CANCELLED'}
+    require_pair(row['language_a'],row['language_b'])
     if row['status']=='PROCESSING' and usage._as_utc(row['created_at'])<usage._now()-timedelta(minutes=4):return {'status':'FAILED','error_code':'processing_interrupted'}
     return {'status':row['status'],'audio_job_id':row['audio_job_id'],'error_code':row['error_code']}

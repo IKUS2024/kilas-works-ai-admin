@@ -72,6 +72,62 @@ class LiveTranslatorTests(unittest.TestCase):
             self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
             with patch.dict(os.environ,{'KILAS_LIVE_TRANSLATOR_ENABLED':'false'}):self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
 
+    def test_invalid_language_pair_rejected_before_balance_voice_and_session_writes(self):
+        fields={'csrf_token':'audio-csrf','language_a':'id','language_b':'en','voice':'kilas-male','consent':'yes'}
+        with self.funded(),self.on(),patch.object(branded,'resolve') as voice,patch.object(audio_store,'require_balance') as balance,patch.object(sessions,'create') as create:
+            for a,b in (('id','id'),('en','en'),('id','unknown'),('unknown','en'),('', 'en'),('id',None)):
+                with self.subTest(a=a,b=b):
+                    response=self.client.post('/kilas-translator/live/sessions',data={**fields,'language_a':a,'language_b':b})
+                    self.assertEqual(response.status_code,400)
+                    self.assertIn('dua bahasa yang berbeda',response.json['error'])
+            voice.assert_not_called();balance.assert_not_called();create.assert_not_called()
+
+    def test_direct_session_creation_rejects_invalid_saved_pairs_without_writes(self):
+        for a,b in (('id','id'),('id','missing'),(None,'en'),([], 'en')):
+            with self.subTest(a=a,b=b),patch.object(sessions,'transaction') as transaction:
+                with self.assertRaises(audio_store.AudioError) as error:sessions.create(self.user,a,b,'kilas-male')
+                self.assertEqual(error.exception.code,'invalid_language_pair')
+                transaction.assert_not_called()
+
+    def test_legacy_duplicate_or_removed_pair_blocks_turns_readback_and_providers_but_can_end(self):
+        for index,(a,b) in enumerate((('id','id'),('missing','en')),start=1):
+            with self.subTest(a=a,b=b):
+                ident=self.session();key=self.key(index*3);self.claim(ident,key)
+                audio.f.db.execute('UPDATE kilas_live_translator_sessions SET language_a=?,language_b=? WHERE id=?',(a,b,ident))
+                with self.funded(),self.on(),patch.object(live.stt,'transcribe') as stt,patch.object(providers,'_openai') as ai,patch.object(audio_provider,'speech') as tts,patch.object(live.audio_media,'voice_sample') as decode:
+                    for call in (lambda:self.claim(ident,self.key(2)),lambda:sessions.check(self.user,ident,key),lambda:sessions.result(self.user,ident,key),lambda:live.enqueue(self.user,ident,self.key(2),None)):
+                        with self.assertRaises(audio_store.AudioError) as error:call()
+                        self.assertEqual(error.exception.code,'invalid_language_pair')
+                    for suffix in ('','/audio'):
+                        response=self.client.get('/kilas-translator/live/sessions/'+ident+'/turns/'+key+suffix)
+                        self.assertEqual(response.status_code,400)
+                    stt.assert_not_called();ai.assert_not_called();tts.assert_not_called();decode.assert_not_called()
+                sessions.end(self.user,ident)
+                self.assertEqual(sessions.result(self.user,ident,key),{'status':'CANCELLED'})
+
+    def test_translator_markup_excludes_default_duplicates_and_keeps_privacy_and_feature_tabs(self):
+        from html.parser import HTMLParser
+        class SelectParser(HTMLParser):
+            def __init__(self):super().__init__();self.current=None;self.fields={}
+            def handle_starttag(self,tag,attrs):
+                attrs=dict(attrs)
+                if tag=='select':self.current=attrs['name'];self.fields[self.current]={'attrs':attrs,'options':{}}
+                if tag=='option' and self.current:self.fields[self.current]['options'][attrs['value']]=attrs
+            def handle_endtag(self,tag):
+                if tag=='select':self.current=None
+        with self.funded(),self.on(),patch.object(branded,'public_choices',return_value=[VOICE]):
+            html=self.client.get('/kilas-translator/live').text
+        parser=SelectParser();parser.feed(html)
+        for name,chosen,excluded in (('language_a','id','en'),('language_b','en','id')):
+            field=parser.fields[name]
+            self.assertIn('required',field['attrs']);self.assertEqual(field['attrs']['aria-describedby'],'live-pair-help')
+            self.assertIn('selected',field['options'][chosen]);self.assertIn('disabled',field['options'][excluded])
+            self.assertNotIn('disabled',field['options'][chosen])
+        self.assertIn('class="kilas-live-page"',html)
+        self.assertIn('Privasi &amp; pemrosesan audio',html)
+        self.assertIn('name="consent" value="yes" required',html)
+        for label in ('AI Chat','Translator','Voice Over','Finance'):self.assertIn(label,html)
+
     def test_owner_restricted_preview_propagates_owner_without_opening_other_accounts(self):
         self.credit(300)
         fields={'csrf_token':'audio-csrf','language_a':'id','language_b':'en','voice':'kilas-male','consent':'yes'}

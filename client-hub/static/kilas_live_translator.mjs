@@ -1,10 +1,18 @@
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
 import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=live-owner-20261012';
+import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
 const root=document.querySelector('.kilas-live-translator');
 if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');
  const csrf=form.querySelector('[name=csrf_token]').value,start=form.querySelector('button');let context=null,source=null,analyser=null,interval=null,recorder=null,output=null,playReject=null;
  const showError=text=>{error.textContent=text;error.hidden=false;};
+ const languageA=form.elements.language_a,languageB=form.elements.language_b;
+ const syncLanguages=(changed=languageA)=>syncLanguagePair(languageA,languageB,changed);
+ languageA.addEventListener('change',()=>syncLanguages(languageA));
+ languageB.addEventListener('change',()=>syncLanguages(languageB));
+ window.addEventListener('pageshow',()=>syncLanguages());
+ form.addEventListener('reset',()=>queueMicrotask(()=>syncLanguages()));
+ syncLanguages();
  function monitorStop(){if(interval!==null)clearInterval(interval);interval=null;source?.disconnect();source=null;analyser?.disconnect();analyser=null;}
  const capture={
   async start({level,blob,error:onError}){
@@ -56,7 +64,7 @@ if(root){
   document.querySelector('#live-state').textContent=orb.getAttribute('aria-label');
  }});
  form.addEventListener('submit',event=>{event.preventDefault();if(root.dataset.ready!=='true'||session.state!=='ended')return;if(!form.reportValidity())return;
-  if(form.elements.language_a.value===form.elements.language_b.value){showError('Pilih dua bahasa yang berbeda.');return;}
+  if(!validLanguagePair(languageA,languageB)){showError('Pilih dua bahasa yang berbeda sebelum memulai sesi.');languageB.focus();return;}
   error.hidden=true;document.querySelector('#live-translation').hidden=true;const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext){showError('Browser ini belum mendukung audio sesi.');return;}
   context=new AudioContext();context.resume().catch(()=>{});session.start(new FormData(form));
  });
