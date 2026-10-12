@@ -71,6 +71,21 @@ class RevisionTests(unittest.TestCase):
             self.assertEqual(self.post(csrf_token='wrong').status_code,400)
             decode.assert_not_called();paid.assert_not_called()
 
+    def test_dictation_owner_preview_scope_fences_readiness_claim_and_dispatch(self):
+        raw,ms=stt.normalize(audio.wav());digest=hashlib.sha256(raw).hexdigest()
+        with self.funded():
+            _,foreign=budget.claim(self.other,'foreign-preview-reservation-1234',digest,ms)
+            with patch.dict(os.environ,{'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user)}):
+                self.assertTrue(budget.ready(self.user));self.assertFalse(budget.ready(self.other));self.assertFalse(budget.ready())
+                with self.assertRaises(budget.BudgetError):budget.claim(self.other,'foreign-preview-new-claim-1234',digest,ms)
+                with self.assertRaises(budget.BudgetError):budget.dispatch(foreign,digest,ms)
+                self.assertEqual(budget.owned(self.other,'foreign-preview-reservation-1234')['status'],'RESERVED')
+                with patch.object(stt.requests,'post',return_value=self.response('Owner preview.')) as paid:
+                    self.assertEqual(self.post().json['text'],'Owner preview.');self.assertEqual(paid.call_count,1)
+            budget.cancel(self.other,'foreign-preview-reservation-1234')
+            for invalid in ('', '0', '-1', 'owner', '1000000001'):
+                with patch.dict(os.environ,{'KILAS_VO_STT_ALLOWED_OWNER_ID':invalid}):self.assertFalse(budget.ready(self.user))
+
     def test_dictation_decodes_real_synthetic_wav_and_never_generates_tts(self):
         before=audio.f.db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_jobs')['n']
         with self.funded(),patch.object(stt.requests,'post',return_value=self.response('Ini hasil dikte sintetis.')) as paid,patch.object(provider,'speech') as tts,patch.object(provider,'clone_voice') as clone:

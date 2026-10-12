@@ -36,5 +36,29 @@ The configured `gpt-6-luna` model metadata endpoint returned 200. The restored
 OpenAI browser account only exposes Personal; CV Kilas prepaid funding is
 not verified by that other organization's balance.
 
-Both production feature gates remain OFF. Release/real-provider evidence is
-recorded in the PC task checkpoint after CI and deployment verification.
+The exact-reference commit `06a80e7915682191d237d9462e0d748f126104e3`
+is LIVE in deploy `dep-db64ub942hec73atrhrg` (2026-10-12 03:09:38 UTC).
+Production PNG bytes match the original SHA-256. All ten triggered CI workflows
+passed.
+
+One real `scribe_v2` test processed the 3.115-second synthetic fixture through
+the existing server adapter and persistent finite allowance. Its operation is
+COMPLETED; transcript: “This is a short keyless dictation test”. The brand name
+was transcribed imperfectly and remains editable. No TTS or OpenAI call was
+made. Immediate Creator-credit snapshots both reported 112,036, with usage
+billing disabled. The 191-microUSD reservation is an internal estimate, not
+an observed supplier dollar charge.
+
+The optional `KILAS_VO_STT_ALLOWED_OWNER_ID` constraint limits readiness,
+reservation and dispatch to the existing approved owner. Invalid IDs fail
+closed; pre-existing foreign reservations cannot dispatch after restriction.
+The existing two-attempt daily limit, finite campaign caps/expiry, role checks,
+accounting, consent and cancellation rules remain unchanged.
+
+The owner explicitly deferred Live Translator. It remains gated and no paid
+translation session was started. Its existing code already reuses Kilas AI
+Chat's OpenAI adapter and configuration; no separate credential path is added.
+The exact OpenAI billing-organization association is still unverified.
+
+Owner-only dictation preview rollout and final release evidence are recorded
+in the PC task checkpoint after checks and deployment verification.

@@ -53,7 +53,11 @@ def policy():
         if expiry.tzinfo is None or expiry<=datetime.now(timezone.utc):return None
         if not 1<=account_micro<=global_micro<=1000000000:return None
         if os.environ.get('KILAS_VO_STT_PRICE_VERSION')!=PRICE_VERSION:return None
-        return {'id':campaign,'global_micro':global_micro,'account_micro':account_micro,'expires_at':expiry.astimezone(timezone.utc).isoformat(),'price_version':PRICE_VERSION}
+        allowed_owner=None
+        if 'KILAS_VO_STT_ALLOWED_OWNER_ID' in os.environ:
+            allowed_owner=int(os.environ['KILAS_VO_STT_ALLOWED_OWNER_ID'])
+            if not 1<=allowed_owner<=1000000000:return None
+        return {'id':campaign,'global_micro':global_micro,'account_micro':account_micro,'expires_at':expiry.astimezone(timezone.utc).isoformat(),'price_version':PRICE_VERSION,'allowed_owner':allowed_owner}
     except (KeyError,ValueError,TypeError,OverflowError):return None
 
 
@@ -61,8 +65,9 @@ def configured():
     return bool(os.environ.get('ELEVENLABS_API_KEY','').strip())
 
 
-def ready():
-    return bool(policy() and configured())
+def ready(owner=None):
+    config=policy()
+    return bool(config and configured() and (config['allowed_owner'] is None or config['allowed_owner']==owner))
 
 
 def key_valid(key):
@@ -125,6 +130,7 @@ def claim(owner,key,fingerprint,ms):
     key_valid(key)
     config=policy()
     if not config or not configured():raise BudgetError('budget_unavailable')
+    if config['allowed_owner'] is not None and config['allowed_owner']!=owner:raise BudgetError('not_owned',404)
     if not re.fullmatch(r'[a-f0-9]{64}',fingerprint) or type(ms) is not int or not 0<ms<=600000:raise BudgetError('invalid_audio',400)
     with transaction() as conn:
         _campaign(conn,config);_owner(conn,owner);_expire(conn,campaign=config['id'])
@@ -144,6 +150,7 @@ def dispatch(capability,fingerprint,ms):
     if type(capability) is not Reservation:raise BudgetError('invalid_reservation')
     config=policy()
     if not config or not configured():raise BudgetError('budget_unavailable')
+    if config['allowed_owner'] is not None and config['allowed_owner']!=capability.owner:raise BudgetError('not_owned',404)
     with transaction() as conn:
         _campaign(conn,config);_owner(conn,capability.owner);_expire(conn,campaign=config['id'])
         row=_row(conn,capability.owner,capability.key)
