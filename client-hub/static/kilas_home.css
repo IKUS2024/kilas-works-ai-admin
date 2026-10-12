@@ -144,17 +144,10 @@ body.premium-workspace:has(.kilas-home-workspace)>.wrap{height:100%;padding:12px
 body.kilas-light.premium-workspace:has(.kilas-home-workspace)>.wrap{max-width:none;min-width:0}
 .kilas-light .kilas-home-workspace .ai-main{min-width:0;box-sizing:border-box;margin-inline:auto}
 .kilas-light .kilas-home-workspace :is(.ai-empty h1,.agent-welcome h3){width:100%;max-width:100%;margin-inline:auto;text-align:center;box-sizing:border-box}
-/* Only a new chat groups the welcome, task controls and composer together. */
-.kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome){justify-content:center;overflow-y:auto;padding-block:24px}
-.kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome)>.ai-empty{flex:none;align-items:center;justify-content:flex-start;margin:0 0 32px;padding:0}
-.kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome) #agent-conversation{flex:none;overflow:visible;padding:0;margin:0 0 32px}
-.kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome) .agent-welcome{min-height:0;padding:0;align-items:center}
-.kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome)>.home-tool-selector{margin:0 0 12px}
-.kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome) .home-task-choices{justify-content:center;flex-wrap:wrap;overflow:visible}
-.kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome)>.ai-composer-area{margin:0 auto;padding-top:0}
-body.home-keyboard-open.kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome){justify-content:flex-start;padding-block:8px}
-body.home-keyboard-open.kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome) :is(.ai-empty,.agent-welcome){display:none}
-@media(max-width:760px){
- .kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome){padding-block:16px}
- .kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome)>.ai-empty,.kilas-light .kilas-home-workspace .ai-main.is-empty:has(.ai-empty:not([hidden]),.agent-welcome) #agent-conversation{margin-bottom:24px}
-}
+/* Flexible welcome/transcript space keeps the composer at the viewport bottom. */
+.kilas-light .kilas-home-workspace .ai-main{justify-content:flex-start;overflow:hidden;padding-block:0}
+.kilas-light .kilas-home-workspace .ai-main>.home-tool-selector{margin:auto 0 4px}
+.kilas-light .kilas-home-workspace .home-tool-selector .home-task-choices{flex-wrap:nowrap;justify-content:flex-start;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin}
+.kilas-light .kilas-home-workspace .home-task-choices>:is(a,button,span,form){flex:none}
+.kilas-light .kilas-home-workspace .ai-main>.ai-composer-area{margin:0 auto;padding-top:0}
+body.home-keyboard-open.kilas-light .kilas-home-workspace :is(.ai-empty,.agent-welcome){display:none}

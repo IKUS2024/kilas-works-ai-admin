@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}{{ selected.title if selected else ui_t('Home') }} · Kilas AI{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='home-alignment-20261012') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='bottom-composer-20261012') }}">
 <section class="premium-home">{% include 'kilas_ai/_home_workspace.html' %}</section>
 {% endblock %}
