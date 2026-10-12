@@ -8096,6 +8096,11 @@
     "es": "Termina el chat o elimina los archivos antes de cambiar de tarea.",
     "zh": "切换任务前请完成聊天或移除附件。"
   },
+  "Library saya": {
+    "en": "My Library",
+    "es": "Mi biblioteca",
+    "zh": "我的资料库"
+  },
   "Percakapan": {
     "en": "Conversations",
     "es": "Conversaciones",

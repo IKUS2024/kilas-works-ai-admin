@@ -1,5 +1,6 @@
 """Unified Home presentation and original task handoffs, with no external transport."""
 import os
+import tempfile
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -85,6 +86,43 @@ class HomeTests(unittest.TestCase):
         self.assertIn('action="/kilas-ai/agent/conversations" data-chat-navigation',agent)
         self.assertIn('name="csrf_token" value="work-csrf"',agent)
 
+    def test_sidebar_labels_follow_language_without_translating_history_titles(self):
+        from kilas_ai import store
+        owned=store.create_thread(self.owner)
+        title='Riwayat percakapan <script> My Library'
+        store.rename_thread(self.owner,owned,title)
+        labels={'id':('Chat baru','Library saya','Riwayat percakapan'),
+                'en':('New chat','My Library','Conversation history'),
+                'es':('Nuevo chat','Mi biblioteca','Historial de conversaciones'),
+                'zh':('新对话','我的资料库','对话历史')}
+        client=self.client()
+        for code,(new,library,history) in labels.items():
+            client.set_cookie('kilas_language',code)
+            for route in ('/products/start','/kilas-ai/agent?conversation='+str(self.conversation)):
+                with self.subTest(language=code,route=route):
+                    html=client.get(route).text
+                    self.assertIn('<span>'+new+'</span>',html)
+                    self.assertIn('<span>'+library+'</span>',html)
+                    self.assertIn('<h2>'+history+'</h2>',html)
+                    self.assertIn('title="Riwayat percakapan &lt;script&gt; My Library"',html)
+                    self.assertIn('>Riwayat percakapan &lt;script&gt; My Library</a>',html)
+
+    def test_new_chat_and_existing_thread_keep_separate_layout_state_and_full_content(self):
+        from kilas_ai import store
+        client=self.client()
+        empty=client.get('/products/start').text
+        self.assertIn('class="ai-main is-empty"',empty)
+        self.assertIn('<h1>How can I Help you?</h1>',empty)
+        owned=store.create_thread(self.owner)
+        content='Full readable synthetic transcript '+('long content ' * 90)
+        fixture.base.f.fixture.db.execute("INSERT INTO kilas_ai_messages(thread_id,role,content,created_at) VALUES (?,'user',?,?)",(owned,content,'2026-10-12T17:00:00+00:00'))
+        html=client.get('/kilas-ai/threads/'+str(owned)).text
+        self.assertNotIn('class="ai-main is-empty"',html)
+        self.assertIn(content,html)
+        self.assertIn('id="ai-composer"',html)
+        self.assertIn('id="ai-messages"',html)
+        self.assertIn('class="ai-empty" hidden',html)
+
     def test_sidebar_projection_excludes_finance_and_disabled_accounts(self):
         client=self.client()
         with client.session_transaction() as values:values['active_product']='finance'
@@ -141,7 +179,10 @@ class HomeTests(unittest.TestCase):
 
     def test_project_data_and_routes_remain_accessible(self):
         with patch.dict(os.environ,{'KILAS_CONTENT_PROJECTS_ENABLED':'true'}):
-            content_schema.apply_disposable_sqlite(Path(fixture.base.f.fixture.db.SQLITE_PATH).parent)
+            # This suite already owns a temporary SQLite fixture on Windows and Linux.
+            self.assertEqual(fixture.base.f.fixture.db.BACKEND,'sqlite')
+            self.assertTrue(Path(fixture.base.f.fixture.db.SQLITE_PATH).resolve().is_relative_to(Path(tempfile.gettempdir()).resolve()))
+            content_schema.apply_release()
             ident=content_projects.create(self.owner,'Synthetic retained project','Synthetic brief','home-nav-retained-project')
             client=self.client()
             self.assertEqual(client.get('/products/start').status_code,200)
