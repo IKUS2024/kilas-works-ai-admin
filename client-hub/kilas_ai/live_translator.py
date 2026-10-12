@@ -17,6 +17,7 @@ _SLOTS=BoundedSemaphore(2)
 from . import audio_branded_voices as voices, audio_transcription_budget as budget, audio_transcription_provider as stt
 from . import audio_provider, audio_media, audio_service, audio_store, providers, model_policy, usage
 from . import live_translator_store as sessions
+from . import live_translator_transport as transport
 
 
 @contextmanager
@@ -115,6 +116,12 @@ def translation(owner,key,text,a,b,check,*,timings=None):
 
 
 def process(owner,ident,key,pcm,info,*,timings=None,started=None):
+    # Reuse HTTPS setup for the two fresh credit reads, STT and TTS in this turn.
+    with transport.turn_connection():
+        return _process(owner,ident,key,pcm,info,timings=timings,started=started)
+
+
+def _process(owner,ident,key,pcm,info,*,timings=None,started=None):
     job=None;capability=None;success=False
     timings={} if timings is None else timings
     started=monotonic() if started is None else started

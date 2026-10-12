@@ -6,6 +6,7 @@ import logging
 import re
 import requests
 from urllib.parse import urlsplit
+from . import live_translator_transport as transport
 
 BASE = 'https://api.elevenlabs.io/v1'
 # Base tags verified against the Dubbing v1 language table, 2026-10-04.
@@ -32,7 +33,7 @@ def request(method, path, *, binary=False, private=False, **kwargs):
         raise ProviderError('not_configured')
     try:
         # No automatic retries: POST timeout can mean the provider accepted a paid job.
-        with requests.request(method, BASE+path, headers={'xi-api-key':key},
+        with transport.request(method, BASE+path, headers={'xi-api-key':key},
                               timeout=(5,55 if method=='POST' else 25), stream=True, **kwargs) as response:
             if response.status_code >= 400:
                 # Read only a bounded error body. Never log headers, input, or raw JSON.

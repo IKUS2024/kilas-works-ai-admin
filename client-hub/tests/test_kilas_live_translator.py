@@ -18,6 +18,7 @@ VOICE={'alias':'kilas-male','id':'syntheticMale123','name':'Kilas Male','style':
 class LiveTranslatorTests(unittest.TestCase):
     def setUp(self):
         audio.AudioTests.setUp(self)
+        self.subscription_credit_check=live.stt.require_subscription_credit
         funding=patch.object(live.stt,'require_subscription_credit')
         funding.start();self.addCleanup(funding.stop)
     funded=video.VideoScriptTests.funded
@@ -417,6 +418,50 @@ class LiveTranslatorTests(unittest.TestCase):
                 with self.assertRaises(budget.BudgetError):live.process(self.user,ident,self.key(2),self.signal(),info)
             self.assertEqual(stt.call_count,1);self.assertEqual(ai.call_count,1);tts.assert_not_called()
             self.assertEqual(audio_store.balance(self.user)['available'],300)
+
+    def pooled_response(self,body=None,raw=None):
+        response=MagicMock();response.__enter__.return_value=response;response.status_code=200
+        response.json.return_value=body;response.headers={'request-id':'synthetic-request'}
+        response.iter_content.return_value=[raw if raw is not None else json.dumps(body).encode()]
+        return response
+
+    def subscription(self,used=0):
+        return {'tier':'creator','status':'active','max_credit_limit_extension':0,
+                'allowed_to_extend_character_limit':False,'can_extend_character_limit':False,
+                'character_count':used,'character_limit':100}
+
+    def test_turn_reuses_provider_client_but_reads_credit_fresh_before_each_paid_stage(self):
+        from kilas_ai import live_translator_transport as transport
+        self.credit(300);client=MagicMock()
+        client.get.side_effect=[self.pooled_response(self.subscription()),self.pooled_response(self.subscription())]
+        client.post.return_value=self.pooled_response({'text':'Halo, apa kabar?'})
+        client.request.return_value=self.pooled_response(raw=self.audio)
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'require_subscription_credit',wraps=self.subscription_credit_check),patch.object(providers,'_openai',side_effect=self.stream),patch.object(transport.requests,'Session',return_value=client) as factory:
+            ident=self.session();key=self.key();info=self.claim(ident,key)
+            job=live.process(self.user,ident,key,self.signal(),info)
+            self.assertEqual(audio_store.get(self.user,job)['status'],'COMPLETED')
+            self.assertEqual(sessions.result(self.user,ident,key)['status'],'COMPLETED')
+        factory.assert_called_once();self.assertEqual(client.get.call_count,2)
+        client.post.assert_called_once();client.request.assert_called_once();client.close.assert_called_once()
+        self.assertEqual([call[0] for call in client.method_calls],['get','post','get','request','close'])
+        self.assertEqual(client.request.call_args.args[0],'POST')
+        self.assertEqual(client.request.call_args.kwargs['json']['model_id'],'eleven_multilingual_v2')
+        for call in client.get.call_args_list:
+            self.assertEqual(call.args[0],'https://api.elevenlabs.io/v1/user/subscription')
+            self.assertFalse(call.kwargs['allow_redirects'])
+
+    def test_pooled_credit_exhaustion_after_stt_denies_tts_without_retry_or_cached_approval(self):
+        from kilas_ai import live_translator_transport as transport
+        self.credit(300);client=MagicMock()
+        client.get.side_effect=[self.pooled_response(self.subscription()),self.pooled_response(self.subscription(100))]
+        client.post.return_value=self.pooled_response({'text':'Halo, apa kabar?'})
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'require_subscription_credit',wraps=self.subscription_credit_check),patch.object(providers,'_openai',side_effect=self.stream),patch.object(transport.requests,'Session',return_value=client):
+            ident=self.session();key=self.key();info=self.claim(ident,key)
+            with self.assertRaises(budget.BudgetError) as error:live.process(self.user,ident,key,self.signal(),info)
+            self.assertEqual(error.exception.code,'provider_credit_exhausted')
+        self.assertEqual(client.get.call_count,2);client.post.assert_called_once()
+        client.request.assert_not_called();client.close.assert_called_once()
+        self.assertEqual(audio_store.balance(self.user)['available'],300)
 
     def test_verified_project_is_sent_only_for_explicit_live_translation(self):
         response=MagicMock();response.__enter__.return_value=response

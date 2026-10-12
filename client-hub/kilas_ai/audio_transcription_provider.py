@@ -7,12 +7,13 @@ import wave
 from time import monotonic
 import requests
 from . import audio_transcription_budget as budget
+from . import live_translator_transport as transport
 
 
 def require_subscription_credit():
     """Read the existing Voice Over account; never purchase or enable overage."""
     try:
-        response=requests.get('https://api.elevenlabs.io/v1/user/subscription',
+        response=transport.get('https://api.elevenlabs.io/v1/user/subscription',
                               headers={'xi-api-key':os.environ['ELEVENLABS_API_KEY'].strip()},
                               timeout=(5,10),allow_redirects=False)
         if response.status_code!=200:raise budget.BudgetError('provider_credit_check_failed')
@@ -54,7 +55,7 @@ def transcribe(pcm,capability):
     success=False;text=None
     try:
         deadline=monotonic()+60
-        with requests.post('https://api.elevenlabs.io/v1/speech-to-text',headers={'xi-api-key':os.environ['ELEVENLABS_API_KEY'].strip()},
+        with transport.post('https://api.elevenlabs.io/v1/speech-to-text',headers={'xi-api-key':os.environ['ELEVENLABS_API_KEY'].strip()},
                            files={'file':('recording.wav',raw,'audio/wav')},params={'enable_logging':'true'},
                            data={'model_id':budget.MODEL,'file_format':'other','timestamps_granularity':'none',
                                  'tag_audio_events':'false','diarize':'false','webhook':'false',
