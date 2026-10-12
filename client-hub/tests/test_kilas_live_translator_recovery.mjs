@@ -88,7 +88,7 @@ test('session_busy in the actual page reveals owner recovery without microphone 
   let reads=0,ended=false,audioClosed=0;
   try {
     globalThis.document={querySelector:query=>nodes[query],addEventListener(){}};
-    globalThis.window={addEventListener:(type,handler)=>events.set(type,handler),AudioContext:class{resume(){return Promise.resolve();}close(){audioClosed++;return Promise.resolve();}}};
+    globalThis.window={addEventListener:(type,handler)=>events.set(type,handler),AudioContext:class{state='running';resume(){return Promise.resolve();}close(){audioClosed++;return Promise.resolve();}}};
     globalThis.FormData=class{constructor(){this.entries=new Map();}append(key,value){this.entries.set(key,value);}};
     Object.defineProperty(globalThis,'navigator',{configurable:true,value:{sendBeacon:(url,data)=>{beacons.push({url,data});return true;}}});
     globalThis.fetch=async(url,options={})=>{
@@ -119,4 +119,33 @@ test('session_busy in the actual page reveals owner recovery without microphone 
     for (const [key,value] of Object.entries(original))if(value===undefined)delete globalThis[key];else globalThis[key]=value;
     if(navigatorDescriptor)Object.defineProperty(globalThis,'navigator',navigatorDescriptor);else delete globalThis.navigator;
   }
+});
+
+for(const stalled of ['request','body'])test(`End ${stalled} timeout releases recovery controls and keeps server status unconfirmed`,async()=>{
+  const buttons=()=>({disabled:false,hidden:false,addEventListener(type,handler){this[type]=handler;}});
+  const timers=new Map(),calls=[];let timerId=0,reads=0;
+  const a={value:'id',options:[{value:'id'},{value:'en'}],addEventListener(){}},b={value:'en',options:[{value:'id'},{value:'en'}],addEventListener(){}};
+  const start=buttons(),end=buttons(),check=buttons(),error={hidden:true},panel={hidden:true};
+  const form={elements:{language_a:a,language_b:b},querySelector:q=>q==='button'?start:{value:'synthetic-csrf'},addEventListener(){}};
+  const nodes={'.kilas-live-translator':{dataset:{ready:'true'}},'#live-setup-form':form,'#live-setup':{},'#live-active':{querySelector:()=>({})},'#live-error':error,'#live-end':buttons(),'#live-state':{},'#live-translation':{},'#live-recovery':panel,'#live-recovery-status':{},'#live-recovery-end':end,'#live-recovery-check':check};
+  const original={document:globalThis.document,window:globalThis.window,fetch:globalThis.fetch,FormData:globalThis.FormData,setTimeout:globalThis.setTimeout,clearTimeout:globalThis.clearTimeout};
+  try{
+    globalThis.document={querySelector:q=>nodes[q],addEventListener(){}};globalThis.window={addEventListener(){}};
+    globalThis.FormData=class{append(){}};
+    globalThis.setTimeout=(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;};globalThis.clearTimeout=id=>timers.delete(id);
+    globalThis.fetch=async(url,options={})=>{
+      calls.push(url);
+      if(url.endsWith('/active'))return {ok:true,json:async()=>({session:{session_id:++reads===1?'old':'newer'}})};
+      assert.equal(url,'/kilas-translator/live/sessions/old/end');assert.equal(options.keepalive,true);assert.ok(options.signal);
+      const blocked=new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Synthetic connection stall','AbortError')),{once:true}));
+      return stalled==='request'?blocked:{ok:true,json:()=>blocked};
+    };
+    await import(`../static/kilas_live_translator.mjs?end-timeout-${stalled}`);await new Promise(r=>setImmediate(r));
+    const ending=end.click();assert.equal(end.disabled,true);assert.equal(start.disabled,true);
+    const deadline=[...timers].find(([,timer])=>timer.ms===10000);assert.ok(deadline);timers.delete(deadline[0]);deadline[1].fn();
+    assert.equal(await ending,false);assert.equal(end.disabled,false);assert.equal(check.disabled,false);assert.equal(start.disabled,true);assert.equal(panel.hidden,false);
+    assert.match(error.textContent,/belum terkonfirmasi berakhir/);assert.equal(timers.size,0);
+    await check.click();assert.equal(reads,2);assert.equal(start.disabled,true);
+    assert.equal(calls.filter(url=>url.endsWith('/end')).length,1);assert.equal(calls.some(url=>url.endsWith('/newer/end')),false);
+  }finally{for(const [key,value] of Object.entries(original))if(value===undefined)delete globalThis[key];else globalThis[key]=value;}
 });

@@ -1,6 +1,6 @@
 // Pure, injectable session state. No microphone/network work merely on import.
 export class SilenceGate {
-  constructor({silenceMs=3000,threshold=.015}={}){this.silenceMs=silenceMs;this.threshold=threshold;this.reset();}
+  constructor({silenceMs=2000,threshold=.015}={}){this.silenceMs=silenceMs;this.threshold=threshold;this.reset();}
   reset(){this.lastVoice=null;this.finalized=false;}
   sample(rms,now){
     if(this.finalized)return false;
@@ -19,6 +19,8 @@ export class TranslatorSession {
     if(this.state!=='ended')return;
     const ticket=++this.version;this.controller=new AbortController();this.stateTo('starting');
     try{
+      if(this.playback.prepare)await this.playback.prepare(this.controller.signal,()=>ticket===this.version);
+      if(ticket!==this.version)return;
       const result=await this.api.start(params,this.controller.signal);
       if(ticket!==this.version){await this.api.end(result.session_id).catch(()=>{});return;}
       this.id=result.session_id;await this.listen(ticket);
@@ -48,7 +50,7 @@ export class TranslatorSession {
       if(ticket!==this.version)return;
       await this.listen(ticket);
     }catch(e){
-      if(ticket!==this.version||e.name==='AbortError')return;
+      if(ticket!==this.version||this.controller.signal.aborted)return;
       this.onError(e.message);
       if(e.code==='no_speech'){
         const cycle=this.captureVersion+1;
@@ -57,7 +59,10 @@ export class TranslatorSession {
     }
   }
   end(){
-    const id=this.id;this.id=null;++this.version;this.controller?.abort();this.capture.cancel();this.playback.stop();this.stateTo('ended');
-    if(id)this.api.end(id).catch(()=>{});
+    const id=this.id;this.id=null;++this.version;this.controller?.abort();
+    // A detached recorder/context can throw while stopping. Continue every cleanup
+    // and owner End independently so a device error cannot trap the active UI.
+    try{this.capture.cancel();}catch{}try{this.playback.stop();}catch{}this.stateTo('ended');
+    if(id){try{Promise.resolve(this.api.end(id)).catch(()=>{});}catch{}}
   }
 }
