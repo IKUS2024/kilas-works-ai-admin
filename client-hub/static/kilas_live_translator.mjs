@@ -1,5 +1,5 @@
-import {VoiceRecorder} from './kilas_transcription_recorder.mjs';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs';
+import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=lifecycle-20261012';
 const root=document.querySelector('.kilas-live-translator');
 if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');
@@ -9,7 +9,7 @@ if(root){
  const capture={
   async start({level,blob,error:onError}){
    if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder||!context)throw Error('Browser ini belum mendukung mikrofon.');
-   recorder=new VoiceRecorder({mediaDevices:navigator.mediaDevices,Recorder:window.MediaRecorder,onBlob:raw=>{monitorStop();blob(raw);},onState:state=>{if(state==='error')onError(Error('Mikrofon terputus. Periksa izin browser lalu mulai kembali.'));}});
+   recorder=new VoiceRecorder({mediaDevices:navigator.mediaDevices,Recorder:window.MediaRecorder,onBlob:raw=>{monitorStop();blob(raw);},onState:state=>{if(state==='empty'){monitorStop();blob(new Blob([]));}if(state==='error')onError(Error('Mikrofon terputus. Periksa izin browser lalu mulai kembali.'));}});
    const own=recorder;await own.start({userGesture:true,consent:true,enabled:true});
    if(own!==recorder||!own.stream)return;
    source=context.createMediaStreamSource(own.stream);analyser=context.createAnalyser();analyser.fftSize=2048;source.connect(analyser);
@@ -50,7 +50,7 @@ if(root){
   end(id){const data=new FormData();data.append('csrf_token',csrf);return json('/kilas-translator/live/sessions/'+id+'/end',{method:'POST',body:data,keepalive:true});},
  };
  const session=new TranslatorSession({api,capture,playback,key:()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''),onError:showError,onState:state=>{
-  start.disabled=state!=='ended'||root.dataset.ready!=='true';setup.hidden=!['starting','ended'].includes(state);active.hidden=['starting','ended'].includes(state);orb.dataset.state=state;orb.setAttribute('aria-label',state==='playing'?'Memutar terjemahan':state==='listening'?'Mendengarkan':'Memproses');
+  start.disabled=state!=='ended'||root.dataset.ready!=='true';setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;orb.setAttribute('aria-label',state==='starting'?'Menyiapkan sesi':state==='playing'?'Memutar terjemahan':state==='listening'?'Mendengarkan':'Memproses');
  }});
  form.addEventListener('submit',event=>{event.preventDefault();if(root.dataset.ready!=='true'||session.state!=='ended')return;if(!form.reportValidity())return;
   if(form.elements.language_a.value===form.elements.language_b.value){showError('Pilih dua bahasa yang berbeda.');return;}

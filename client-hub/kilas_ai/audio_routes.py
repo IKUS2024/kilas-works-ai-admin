@@ -368,13 +368,13 @@ def audio_review(ident):
 @audio_bp.get('/live')
 def live_translator_home():
     from . import live_translator as live
-    return render_template('kilas_translator/live.html',live_ready=live.ready(),voices=branded.public_choices(),languages=provider.LANGUAGES),200,{'Cache-Control':'private, no-store'}
+    return render_template('kilas_translator/live.html',live_ready=live.ready(session['user_id']),voices=branded.public_choices(),languages=provider.LANGUAGES),200,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/live/sessions')
 def live_translator_start():
     from . import live_translator as live, live_translator_store as sessions
-    live.require_ready()
+    live.require_ready(session['user_id'])
     if request.form.get('consent')!='yes':raise store.AudioError('Setujui pemrosesan ucapan sebelum mulai.','consent_required',400)
     a,b=request.form.get('language_a'),request.form.get('language_b');voice=request.form.get('voice')
     if a not in provider.LANGUAGES or b not in provider.LANGUAGES or a==b:abort(400)

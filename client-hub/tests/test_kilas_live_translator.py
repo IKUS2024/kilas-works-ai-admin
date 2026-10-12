@@ -68,6 +68,22 @@ class LiveTranslatorTests(unittest.TestCase):
             self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
             with patch.dict(os.environ,{'KILAS_LIVE_TRANSLATOR_ENABLED':'false'}):self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
 
+    def test_owner_restricted_preview_propagates_owner_without_opening_other_accounts(self):
+        self.credit(300)
+        fields={'csrf_token':'audio-csrf','language_a':'id','language_b':'en','voice':'kilas-male','consent':'yes'}
+        with self.funded(),self.on(),patch.dict(os.environ,{'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user)}),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.audio_media,'voice_sample') as decode:
+            self.assertTrue(live.ready(self.user));self.assertFalse(live.ready());self.assertFalse(live.ready(self.other))
+            page=self.client.get('/kilas-translator/live')
+            self.assertIn('data-ready="true"',page.text)
+            self.assertNotIn('kilas-translator-pending',page.text)
+            response=self.client.post('/kilas-translator/live/sessions',data=fields)
+            self.assertEqual(response.status_code,201,response.text)
+            with self.client.session_transaction() as state:state['user_id']=self.other
+            self.assertIn('data-ready="false"',self.client.get('/kilas-translator/live').text)
+            self.assertEqual(self.client.post('/kilas-translator/live/sessions',data=fields).status_code,503)
+            with self.assertRaises(audio_store.AudioError) as error:live.enqueue(self.other,response.json['session_id'],self.key(),None)
+            self.assertEqual(error.exception.code,'translator_unavailable');decode.assert_not_called()
+
     def test_bidirectional_existing_accounting_no_clone_no_ids_or_transcript_response(self):
         self.credit(300)
         with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'transcribe',side_effect=self.transcribe) as stt,patch.object(providers,'_openai',side_effect=self.stream) as ai,patch.object(audio_provider,'speech',return_value=(self.audio,'synthetic-request')) as tts,patch.object(audio_provider,'clone_voice') as clone:
@@ -152,7 +168,7 @@ class LiveTranslatorTests(unittest.TestCase):
         self.credit(300)
         class Inline:
             def submit(self,callback):callback()
-        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'transcribe',side_effect=self.transcribe) as stt,patch.object(providers,'_openai',side_effect=self.stream),patch.object(audio_provider,'speech',return_value=(self.audio,'synthetic-request')),patch.object(live,'_EXECUTOR',Inline()):
+        with self.funded(),self.on(),patch.dict(os.environ,{'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user)}),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'transcribe',side_effect=self.transcribe) as stt,patch.object(providers,'_openai',side_effect=self.stream),patch.object(audio_provider,'speech',return_value=(self.audio,'synthetic-request')),patch.object(live,'_EXECUTOR',Inline()):
             ident=self.session();key=self.key();url='/kilas-translator/live/sessions/'+ident+'/turns/'+key
             def body():return {'csrf_token':'audio-csrf','recording':(io.BytesIO(self.signal()),'recording.wav','audio/wav')}
             self.assertEqual(self.client.post(url,data={'recording':(io.BytesIO(self.signal()),'recording.wav','audio/wav')}).status_code,400)

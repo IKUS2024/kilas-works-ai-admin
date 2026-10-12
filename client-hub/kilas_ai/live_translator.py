@@ -15,22 +15,22 @@ from . import audio_provider, audio_media, audio_service, audio_store, providers
 from . import live_translator_store as sessions
 
 
-def ready():
+def ready(owner=None):
     try:
         if os.environ.get('KILAS_LIVE_TRANSLATOR_ENABLED','').lower() not in ('1','true','on'):return False
         # No provider account verification is inferred from having a key or public docs.
         if os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_MODEL')!=model_policy.luna_model():return False
         if os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_STT')!=budget.MODEL:return False
         if os.environ.get('KILAS_LIVE_TRANSLATOR_REFERENCE_VERIFIED')!='yes':return False
-        if not budget.ready() or not os.environ.get('OPENAI_API_KEY','').strip():return False
+        if not budget.ready(owner) or not os.environ.get('OPENAI_API_KEY','').strip():return False
         if db.BACKEND=='postgres':row=db.query_one("SELECT to_regclass('kilas_live_translator_sessions') AS name")
         else:row=db.query_one("SELECT name FROM sqlite_master WHERE type='table' AND name='kilas_live_translator_sessions'")
         return bool(row and row['name'])
     except ValueError:return False
 
 
-def require_ready():
-    if not ready():raise audio_store.AudioError('Live Translator belum aktif. Dukungan provider dan batas biaya belum terverifikasi.','translator_unavailable',503)
+def require_ready(owner=None):
+    if not ready(owner):raise audio_store.AudioError('Live Translator belum aktif. Dukungan provider dan batas biaya belum terverifikasi.','translator_unavailable',503)
 
 
 def translation(owner,key,text,a,b,check):
@@ -63,7 +63,7 @@ def translation(owner,key,text,a,b,check):
 def process(owner,ident,key,pcm,info):
     job=None;capability=None
     def check():
-        require_ready();return sessions.check(owner,ident,key)
+        require_ready(owner);return sessions.check(owner,ident,key)
     try:
         audio_store.require_balance(owner)
         choice=voices.resolve(info['voice_alias'])
@@ -97,7 +97,7 @@ def process(owner,ident,key,pcm,info):
 
 
 def enqueue(owner,ident,key,recording):
-    require_ready()
+    require_ready(owner)
     if not _SLOTS.acquire(blocking=False):raise audio_store.AudioError('Layanan sedang sibuk. Coba kembali.','service_busy',429)
     claimed=False
     try:

@@ -10,7 +10,7 @@ function fixture(){
  const api={start:async()=>({session_id:'synthetic-session'}),turn:async()=>{turnCalls++;assert.equal(mics,0);return turn.promise;},end:async()=>{ends++;}};
  const playback={play:async()=>{assert.equal(mics,0);playing=true;await play.promise;playing=false;},stop:()=>{playing=false;play.resolve();}};
  const session=new TranslatorSession({api,capture,playback,onState:s=>states.push(s),onError:e=>errors.push(e),now:()=>time,key:()=> 'a'.repeat(32)});
- return {session,api,capture,playback,turn,play,states,errors,level:(r,t)=>{time=t;handlers.level(r);},get mics(){return mics;},get calls(){return turnCalls;},get captureCalls(){return captureCalls;},get playing(){return playing;},get ends(){return ends;}};
+ return {session,api,capture,playback,turn,play,states,errors,level:(r,t)=>{time=t;handlers.level(r);},get handlers(){return handlers;},get mics(){return mics;},get calls(){return turnCalls;},get captureCalls(){return captureCalls;},get playing(){return playing;},get ends(){return ends;}};
 }
 
 test('exact three seconds after last voice; leading silence never finalizes; duplicate samples finalize once',()=>{
@@ -43,4 +43,35 @@ test('no-speech is recoverable with a new utterance; failed request is never res
 });
 test('double Start and duplicate audio callback cannot dispatch duplicate turns',async()=>{
  const f=fixture();await Promise.all([f.session.start({}),f.session.start({})]);assert.equal(f.captureCalls,1);f.level(.1,0);f.level(0,3000);await f.session.utterance(new Blob(['late']),f.session.version);assert.equal(f.calls,1);f.session.end();f.turn.resolve({audio_url:'/synthetic'});
+});
+
+test('empty capture resumes listening locally without any provider turn',async()=>{
+ const f=fixture();f.capture.finalize=()=>{f.capture.cancel();f.handlers.blob(new Blob([]));};
+ await f.session.start({});f.level(.1,0);f.level(0,3000);await tick();
+ assert.equal(f.calls,0);assert.equal(f.captureCalls,2);assert.equal(f.session.state,'listening');assert.equal(f.mics,1);f.session.end();
+});
+
+test('late permission completion from ended session cannot cancel the next session',async()=>{
+ const f=fixture(),permission=deferred();let calls=0,cancels=0;
+ f.capture.start=async()=>{if(++calls===1)await permission.promise;};f.capture.cancel=()=>cancels++;
+ const old=f.session.start({});await tick();f.session.end();await f.session.start({});
+ const before=cancels;permission.resolve();await old;
+ assert.equal(cancels,before);assert.equal(f.session.state,'listening');f.session.end();
+});
+
+test('late previous utterance callbacks cannot supply a newer turn in the same session',async()=>{
+ const f=fixture();await f.session.start({});const old=f.handlers;
+ f.level(.1,0);f.level(0,3000);f.turn.resolve({audio_url:'/synthetic'});await tick();f.play.resolve();await tick();
+ f.capture.finalize=()=>f.capture.cancel();f.level(.1,4000);f.level(0,7000);
+ assert.equal(f.session.state,'finalizing');old.blob(new Blob(['stale']));old.error(Error('stale error'));old.level(.1);
+ assert.equal(f.calls,1);assert.equal(f.session.state,'finalizing');assert.deepEqual(f.errors,[]);f.session.end();
+});
+
+test('old no-speech recovery permission rejection cannot end a restarted session',async()=>{
+ const f=fixture(),permission=deferred(),original=f.capture.start;let calls=0;
+ f.capture.start=async h=>{if(++calls===2)await permission.promise;else await original(h);};
+ await f.session.start({});f.level(.1,0);f.level(0,3000);
+ const error=Error('No speech');error.code='no_speech';f.turn.reject(error);await tick();
+ f.session.end();await f.session.start({});permission.reject(Error('Old permission denied'));await tick();
+ assert.equal(f.session.state,'listening');assert.equal(f.mics,1);assert.deepEqual(f.errors,['No speech']);f.session.end();
 });

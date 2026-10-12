@@ -42,7 +42,7 @@ def chat_sidebar_context():
     from . import live_translator
     user = security.current_user()
     return {'chat_sidebar_enabled': request.blueprint != 'kilas_audio',
-            'kilas_revision_shell': True, 'kilas_live_translator_available': live_translator.ready(), 'kilas_profile_email': user.get('email','') if user else '',
+            'kilas_revision_shell': True, 'kilas_live_translator_available': live_translator.ready(session['user_id']), 'kilas_profile_email': user.get('email','') if user else '',
             'chat_sidebar_history': history}
 
 
