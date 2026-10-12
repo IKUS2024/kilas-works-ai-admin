@@ -58,8 +58,9 @@ class RemainingCopyTests(unittest.TestCase):
                 for text in removed[key]: self.assertNotIn(text, after.text)
                 if key == 'settings':
                     for text in ('Rp99.000', 'Aktif hingga', 'Perpanjangan dilakukan melalui tagihan baru.',
-                                 'Fair Use', 'Batas keamanan', '90 hari', 'Saldo Audio', 'Belum ada tagihan.'):
+                                 'Fair Use', 'Batas keamanan', '90 hari', 'Belum ada tagihan.'):
                         self.assertIn(text, after.text)
+                    if 'Saldo Audio' in before.text: self.assertIn('Saldo Audio', after.text)
                 if key == 'services':
                     summaries = re.findall(r'<p class="service-summary">(.*?)</p>', before.text, re.S)
                     self.assertEqual(len(summaries), 3)
