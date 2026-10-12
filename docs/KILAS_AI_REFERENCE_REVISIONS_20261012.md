@@ -62,3 +62,10 @@ The exact OpenAI billing-organization association is still unverified.
 
 Owner-only dictation preview rollout and final release evidence are recorded
 in the PC task checkpoint after checks and deployment verification.
+
+The owner subsequently requested a simpler dictation interface. The repeated
+app checkbox, Izin dikte panel and inactive funding description are removed.
+One explicit mic click starts the permission/recording flow. Active recording,
+Stop, cancel and undo remain. A short ElevenLabs processing disclosure and
+privacy link are in the existing Naskah Info control. Server consent, browser
+permission, finite admission and owner restriction remain enforced.

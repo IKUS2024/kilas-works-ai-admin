@@ -72,7 +72,9 @@ def main():
                 script=page.locator('#audio-script');expect(script).to_have_value('Naskah lama yang tetap ada.')
                 assert page.locator('#premium-sidebar,[data-chat-sidebar]').count()==0
                 expect(page.locator('.kilas-feature-navigation')).to_be_visible()
-                expect(page.locator('#dictation-start')).to_be_disabled();expect(page.locator('#dictation-status')).to_contain_text('belum aktif')
+                expect(page.locator('#dictation-start')).to_be_disabled()
+                assert page.locator('#dictation-consent').count()==0
+                assert page.get_by_text('Izin dikte',exact=True).count()==0
                 assert page.evaluate('qaMic.calls')==0
                 assert page.locator('#voice-video-file,#voice-video-extract,.audio-balance').count()==0
                 expect(page.locator('[name=voice_kind][value=kilas]')).to_be_checked()
@@ -80,7 +82,9 @@ def main():
                 page.locator('#kilas-voice-choice').select_option('kilas-female');expect(page.locator('#selected-voice')).to_have_value('kilas-female')
                 page.screenshot(path=str(output/f'voice-over-{width}.png'),full_page=True)
                 with patch.object(budget,'ready',return_value=True):page.reload(wait_until='networkidle')
-                script=page.locator('#audio-script');script.fill('Naskah yang sudah ada.');page.locator('#voice-dictation details>summary').click();page.locator('#dictation-consent').check()
+                script=page.locator('#audio-script');script.fill('Naskah yang sudah ada.')
+                expect(page.locator('#dictation-start')).to_be_enabled()
+                assert page.evaluate('qaMic.calls')==0
                 page.route('**/voice-script/dictate',lambda r:r.fulfill(status=200,content_type='application/json',body=json.dumps({'status':'COMPLETED','text':'Ucapan sintetis.'})))
                 page.locator('#dictation-start').click();expect(page.locator('#dictation-status')).to_contain_text('Mikrofon aktif')
                 script.fill('Perubahan saat merekam.');page.locator('#dictation-stop').click();expect(script).to_have_value('Perubahan saat merekam.\nUcapan sintetis.')

@@ -55,3 +55,4 @@
 #voiceover-panel #voice-video-script .voice-consent{margin:8px 0}
 #voice-dictation #dictation-start{display:inline-flex;align-items:center;gap:8px}
 #voice-dictation #dictation-start svg{width:20px;height:20px;flex:none}
+#voice-dictation #dictation-status:empty{display:none}
