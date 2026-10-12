@@ -137,10 +137,10 @@ def _admit(conn,owner,config,reserve=0,key=''):
         if config['allowed_owner']!=owner or mode not in ('qa','owner'):
             raise BudgetError('budget_unavailable')
         daily=4 if mode=='qa' else OWNER_DAILY_ATTEMPTS
-        used=usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE 'live-%' AND created_at>=?",(owner,cutoff),one=True)[0]
+        used=usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?",(owner,'live-%',cutoff),one=True)[0]
         if used>=daily:raise BudgetError('attempt_limit',429)
         hour=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
-        if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE 'live-%' AND created_at>=?",(owner,hour),one=True)[0]>=OWNER_HOURLY_ATTEMPTS:
+        if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?",(owner,'live-%',hour),one=True)[0]>=OWNER_HOURLY_ATTEMPTS:
             raise BudgetError('rate_limit',429)
     else:
         _attempts(conn,owner,config,key,cutoff)

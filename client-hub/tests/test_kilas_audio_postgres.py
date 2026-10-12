@@ -52,7 +52,7 @@ def main():
             with store.locked(0) as conn:
                 user=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
                 admin=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio-admin@example.test','hash','KILAS_ADMIN') RETURNING id",one=True)[0]
-            from kilas_ai import live_translator_store as sessions
+            from kilas_ai import live_translator_store as sessions, live_translator as live
             live_id=sessions.create(user,'id','en','kilas-male')
             def live_claim():
                 try:sessions.claim(user,live_id,'live-'+'1'*32);return True
@@ -80,6 +80,23 @@ def main():
                 stt_budget.dispatch(cap,'a'*64,2000)
                 with patch.dict(os.environ,{'KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):assert stt_budget.finish(cap,True)
                 assert db.query_one('SELECT charge_micro FROM kilas_vo_stt_operations WHERE user_id=?',(cap.owner,))['charge_micro']==stt_budget.reserve_micro(2000)
+            # Real psycopg2 binding: percent wildcards belong in values, not SQL.
+            # Cover both pre-STT allowance and owner-only Live admission queries.
+            with store.locked(0) as conn:
+                live_owner=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('live-pg@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
+            live_funded=dict(funded,KILAS_VO_STT_CAMPAIGN='native-pg-live',KILAS_VO_STT_USAGE_MODE='owner',
+                KILAS_VO_STT_ALLOWED_OWNER_ID=str(live_owner),KILAS_VO_STT_GLOBAL_BUDGET_MICRO_USD='90000',
+                KILAS_VO_STT_ACCOUNT_BUDGET_MICRO_USD='60000',KILAS_LIVE_TRANSLATOR_USAGE_MODE='qa',
+                KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS='120')
+            with patch.dict(os.environ,live_funded):
+                live.require_audio_allowance(live_owner)
+                for number in range(4):
+                    key='live-'+str(number).zfill(32)
+                    _,cap=stt_budget.claim(live_owner,key,'a'*64,2000)
+                    assert cap is not None
+                    stt_budget.cancel(live_owner,key)
+                try:stt_budget.claim(live_owner,'live-'+'9'*32,'a'*64,2000);raise AssertionError('Live QA limit not enforced')
+                except stt_budget.BudgetError as error:assert error.code=='attempt_limit'
             funded.update(KILAS_VO_STT_CAMPAIGN='native-pg-cancel',KILAS_VO_STT_GLOBAL_BUDGET_MICRO_USD='90000',KILAS_VO_STT_ACCOUNT_BUDGET_MICRO_USD='60000')
             with patch.dict(os.environ,funded):
                 def race(action):

@@ -1,3 +1,72 @@
+## Owner real QA FAILED; PostgreSQL binding root cause reproduced - 2026-10-12
+
+Owner reports Chrome Android / Indonesian-English / Kilas Female failed after speech
+with the generic processing error, around 17:36 WIB. The matching latest owned
+session was created at 10:34:12 UTC, turn at 10:34:19 UTC; session ENDED, turn FAILED,
+error processing_failed, no audio_job_id. There were no Live STT operations.
+Actual production two-way text/audio/End QA remains FAILED / not complete.
+
+Root cause reproduced with psycopg2 and an official Render external DB connection,
+read-only session: the old pre-STT output-allowance query includes literal
+LIKE 'live-%-audio' alongside bound parameters; psycopg2.mogrify raises IndexError.
+The fixed bound LIKE pattern query executes successfully against production,
+returning zero Live jobs; fixed admission query returns zero Live STT attempts.
+This reproduction did not execute the invalid query or write production data.
+No STT, OpenAI translation or TTS call was dispatched for this recorded failed turn.
+No automatic paid retry, balance grant, quota reset, top-up or overage change.
+
+Small fix only: bind wildcard patterns as parameter values in the Live output
+allowance query and the two owner-only Live STT rate-limit queries. Naskah admission,
+shared DB adapter, provider credentials and Finance/Trading remain unchanged.
+Add native disposable PostgreSQL regression coverage for the exact allowance query
+and four-turn owner QA admission/denial, using a separate synthetic test owner.
+Local 16 Live backend and 23 Naskah/STT tests PASS after fix; final diff checked.
+CI native PostgreSQL and Client Hub-only fix deployment pending. Preserve owner-only
+QA caps and ask for a fresh real test after the fix is confirmed LIVE.
+
+---
+## Live Translator owner QA enabled; real microphone results pending - 2026-10-12
+
+Configuration-only activation is LIVE on Client Hub deploy
+`dep-db6bd5qjnfac73d58cvg`, source/main SHA
+`ac38b6fe37be50c91aca2b2863b2fac3df25b36d` (unchanged source).
+This deployment was necessary to apply new runtime flags, not a duplicate code release.
+Only owner ID 9 is admitted. Live mode remains QA: 4 dispatched STT attempts per
+rolling 24 hours and 120 seconds of Live output allowance; ledgers remain intact.
+Do not switch to ongoing owner mode until actual two-way text/audio and End PASS.
+
+Owner supplied current account evidence: CV kilas teknologi kreatif,
+organization org-ekWGyVDg3t4B6dUlmSTOuUfv, Default project
+proj_06wlKM58f0JpG6dqDCgBeoAP, USD2.20 prepaid and auto-reload OFF.
+These billing facts are owner-reported, not independently read from the billing UI.
+The existing production AI Chat key returned HTTP200 for gpt-6-luna with the
+specified organization/project headers, and separately with the exact project-only
+header used by the Live adapter. No key, account or AI Chat config was replaced.
+The API response omitted project/org identity headers; recorded evidence is
+acceptance of the explicit requested identifiers, not an admin project metadata read.
+Existing ElevenLabs Voice Over key: Creator active, 111769 credits remaining,
+max extension 0, allowed_to_extend=false, can_extend=false. Both existing Kilas
+Male/Female references were verified through read-only provider GETs; no clone made.
+
+After activation: healthz OK/Postgres; non-secret flags read back correctly;
+no error/fatal Render logs since activation deploy. Naskah remains ON, owner mode,
+allowed owner 9, unchanged. No production paid generation calls by the agent.
+No top-up, upgrade, overage activation, migration, balance grant or ledger reset.
+No Trading, Finance or other feature changes.
+
+Owner instructed to test /kilas-translator/live: Indonesian-English + Kilas Male,
+consent/Start, short Indonesian utterance then 3-second silence, verify English
+text/audio and automatic listening; English utterance -> Indonesian text/audio;
+no output recapture; End stops mic/audio/no late restart; one Kilas Female turn.
+Real production microphone/text/translation/playback/End QA is NOT yet claimed PASS.
+Await the owner's actual results. If any failure, inspect its owned session/ledger
+and fix only the observed path; do not grant more credits or retry paid calls blindly.
+To disable: save KILAS_LIVE_TRANSLATOR_ENABLED=false on Client Hub and apply the
+configuration deployment; leave every Naskah flag unchanged. End is still available
+when Live is disabled. Already dispatched supplier work may still incur usage.
+This is a local checkpoint update pending actual QA, not a new source deployment.
+
+---
 ## Live Translator focused hardening; production activation pending funding evidence — 2026-10-12
 
 Continued the same worktree and main source 4124a831da6dbcf52fdfb9ee9c503ba7b26eb31a.

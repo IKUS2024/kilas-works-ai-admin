@@ -44,7 +44,7 @@ def require_audio_allowance(owner,reserve=1):
     """Bound Live output even for the existing internal QA Audio exemption."""
     now=usage._now()
     start=now.replace(day=1,hour=0,minute=0,second=0,microsecond=0) if os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa')=='owner' else now-timedelta(days=1)
-    rows=db.query_all("SELECT status,actual_ms,original_script FROM kilas_audio_jobs WHERE user_id=? AND operation_key LIKE 'live-%-audio' AND title='Live Translator' AND created_at>=?",(owner,start.isoformat()))
+    rows=db.query_all("SELECT status,actual_ms,original_script FROM kilas_audio_jobs WHERE user_id=? AND operation_key LIKE ? AND title='Live Translator' AND created_at>=?",(owner,'live-%-audio',start.isoformat()))
     used=0
     for row in rows:
         # A failed/dispatched result may still have supplier cost. Do not auto-refund
