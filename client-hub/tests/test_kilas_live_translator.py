@@ -4,6 +4,7 @@ import io
 import json
 import os
 import unittest
+from contextlib import redirect_stdout
 from unittest.mock import patch, MagicMock
 import test_kilas_audio as audio
 import test_kilas_audio_video_script as video
@@ -189,6 +190,148 @@ class LiveTranslatorTests(unittest.TestCase):
         audio.f.db.execute('UPDATE kilas_live_translator_sessions SET expires_at=? WHERE id=?',('2000-01-01T00:00:00+00:00',ident))
         with self.assertRaises(audio_store.AudioError):self.claim(ident,self.key(2))
         self.assertEqual(sessions.result(self.user,ident,self.key())['status'],'CANCELLED')
+
+    def test_read_fence_reuses_connection_and_keeps_owner_turn_expiry_and_end_checks(self):
+        ident=self.session();info=self.claim(ident)
+        with patch.object(usage,'_connect',side_effect=AssertionError('Read fence opened a write connection')),patch.object(audio.f.db,'query_one',wraps=audio.f.db.query_one) as query:
+            for _ in range(20):self.assertEqual(sessions.check(self.user,ident,self.key()),info)
+            self.assertEqual(query.call_count,20)
+            for owner,session_id,key,code in ((self.other,ident,self.key(),'session_unavailable'),(self.user,'missing',self.key(),'session_unavailable'),(self.user,ident,self.key(2),'turn_cancelled')):
+                with self.assertRaises(audio_store.AudioError) as error:sessions.check(owner,session_id,key)
+                self.assertEqual(error.exception.code,code)
+        for status in ('FAILED','COMPLETED','CANCELLED'):
+            audio.f.db.execute('UPDATE kilas_live_translator_turns SET status=? WHERE operation_key=?',(status,self.key()))
+            with self.assertRaises(audio_store.AudioError) as error:sessions.check(self.user,ident,self.key())
+            self.assertEqual(error.exception.code,'turn_cancelled')
+        audio.f.db.execute("UPDATE kilas_live_translator_turns SET status='PROCESSING' WHERE operation_key=?",(self.key(),))
+        # End commits in another worker; the existing read connection sees it immediately.
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=1) as worker:worker.submit(sessions.end,self.user,ident).result(timeout=5)
+        with self.assertRaises(audio_store.AudioError) as error:sessions.check(self.user,ident,self.key())
+        self.assertEqual(error.exception.code,'session_ended')
+
+    def test_active_expired_read_fence_and_single_query_processing_timeout(self):
+        ident=self.session();self.claim(ident)
+        with patch.object(audio.f.db,'query_one',wraps=audio.f.db.query_one) as query:
+            self.assertEqual(sessions.result(self.user,ident,self.key())['status'],'PROCESSING')
+            self.assertEqual(query.call_count,1)
+        audio.f.db.execute('UPDATE kilas_live_translator_turns SET created_at=? WHERE operation_key=?',('2000-01-01T00:00:00+00:00',self.key()))
+        with patch.object(audio.f.db,'query_one',wraps=audio.f.db.query_one) as query:
+            self.assertEqual(sessions.result(self.user,ident,self.key()),{'status':'FAILED','error_code':'processing_interrupted'})
+            self.assertEqual(query.call_count,1)
+        audio.f.db.execute('UPDATE kilas_live_translator_sessions SET expires_at=? WHERE id=?',('2000-01-01T00:00:00+00:00',ident))
+        with self.assertRaises(audio_store.AudioError) as error:sessions.check(self.user,ident,self.key())
+        self.assertEqual(error.exception.code,'session_ended')
+
+    def pg_read_fixture(self,status='ACTIVE'):
+        # Real DB helper/placeholder mapping, fake driver transport: no PG socket.
+        from datetime import timedelta
+        row=(status,(usage._now()+timedelta(minutes=10)).isoformat(),'id','en','kilas-male','PROCESSING')
+        connection=MagicMock();connection.closed=0
+        cursor=connection.cursor.return_value
+        cursor.description=[(name,) for name in ('session_status','expires_at','language_a','language_b','voice_alias','turn_status')]
+        cursor.fetchone.return_value=row
+        return connection
+
+    def test_closed_postgres_cached_read_connection_is_replaced_and_committed(self):
+        import psycopg2
+        from threading import local
+        from types import SimpleNamespace
+        old=self.pg_read_fixture();old.closed=1;fresh=self.pg_read_fixture();cache=local();cache.conn=old
+        driver=SimpleNamespace(connect=MagicMock(return_value=fresh),OperationalError=psycopg2.OperationalError,InterfaceError=psycopg2.InterfaceError)
+        with patch.object(audio.f.db,'BACKEND','postgres'),patch.object(audio.f.db,'_local',cache),patch.object(audio.f.db,'psycopg2',driver,create=True):
+            for _ in range(3):self.assertEqual(sessions.check(self.user,'synthetic',self.key())['voice_alias'],'kilas-male')
+            self.assertIs(cache.conn,fresh)
+        old.close.assert_called_once();driver.connect.assert_called_once()
+        self.assertEqual(fresh.commit.call_count,3);self.assertEqual(fresh.cursor.return_value.close.call_count,3)
+        self.assertIn('t.operation_key=%s',fresh.cursor.return_value.execute.call_args.args[0])
+        self.assertEqual(fresh.cursor.return_value.execute.call_args.args[1],(self.key(),'synthetic',self.user))
+
+    def test_half_open_postgres_read_retries_once_and_sees_committed_end(self):
+        import psycopg2
+        from threading import local
+        from types import SimpleNamespace
+        broken=self.pg_read_fixture();broken.cursor.return_value.execute.side_effect=psycopg2.OperationalError('synthetic disconnected read')
+        ended=self.pg_read_fixture('ENDED');cache=local();cache.conn=broken
+        driver=SimpleNamespace(connect=MagicMock(return_value=ended),OperationalError=psycopg2.OperationalError,InterfaceError=psycopg2.InterfaceError)
+        with patch.object(audio.f.db,'BACKEND','postgres'),patch.object(audio.f.db,'_local',cache),patch.object(audio.f.db,'psycopg2',driver,create=True):
+            with self.assertRaises(audio_store.AudioError) as error:sessions.check(self.user,'synthetic',self.key())
+            self.assertEqual(error.exception.code,'session_ended')
+        broken.rollback.assert_called_once();broken.close.assert_called_once();ended.commit.assert_called_once();driver.connect.assert_called_once()
+        self.assertEqual(broken.cursor.return_value.execute.call_count,1);self.assertEqual(ended.cursor.return_value.execute.call_count,1)
+
+    def test_postgres_read_failure_is_bounded_and_never_retries_non_connection_error(self):
+        import psycopg2
+        from threading import local
+        from types import SimpleNamespace
+        for error,expected_reconnects in ((psycopg2.OperationalError('synthetic read failed'),1),(ValueError('synthetic non-connection error'),0)):
+            with self.subTest(error=type(error).__name__):
+                first=self.pg_read_fixture();second=self.pg_read_fixture();cache=local();cache.conn=first
+                first.cursor.return_value.execute.side_effect=error;second.cursor.return_value.execute.side_effect=error
+                driver=SimpleNamespace(connect=MagicMock(return_value=second),OperationalError=psycopg2.OperationalError,InterfaceError=psycopg2.InterfaceError)
+                with patch.object(audio.f.db,'BACKEND','postgres'),patch.object(audio.f.db,'_local',cache),patch.object(audio.f.db,'psycopg2',driver,create=True):
+                    with self.assertRaises(type(error)):sessions.check(self.user,'synthetic',self.key())
+                self.assertEqual(driver.connect.call_count,expected_reconnects)
+                self.assertEqual(first.cursor.return_value.execute.call_count,1)
+                self.assertEqual(second.cursor.return_value.execute.call_count,expected_reconnects)
+
+    def test_late_old_session_finish_or_end_cannot_mutate_new_active_session(self):
+        old=self.session();self.claim(old);sessions.end(self.user,old)
+        new=self.session();new_key=self.key(2);new_info=self.claim(new,new_key)
+        with self.assertRaises(audio_store.AudioError):sessions.finish(self.user,old,self.key(),True)
+        sessions.finish(self.user,old,self.key(),False,code='late-worker');sessions.end(self.user,old)
+        with self.assertRaises(audio_store.AudioError):sessions.check(self.user,old,self.key())
+        self.assertEqual(sessions.result(self.user,old,self.key())['status'],'CANCELLED')
+        self.assertEqual(sessions.check(self.user,new,new_key),new_info)
+        self.assertEqual(sessions.result(self.user,new,new_key)['status'],'PROCESSING')
+        self.assertFalse(audio.f.db.get_connection().in_transaction)
+
+    def test_end_when_translation_stream_closes_fences_tts_and_keeps_completed_usage(self):
+        self.credit(300)
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'transcribe',side_effect=self.transcribe),patch.object(audio_provider,'speech') as tts:
+            ident=self.session();info=self.claim(ident)
+            def stream(*args,**kwargs):
+                yield from self.stream(*args,**kwargs)
+                sessions.end(self.user,ident)
+            with patch.object(providers,'_openai',side_effect=stream):
+                with self.assertRaises(audio_store.AudioError):live.process(self.user,ident,self.key(),self.signal(),info)
+            tts.assert_not_called();self.assertEqual(audio_store.balance(self.user)['available'],300)
+            self.assertEqual(sessions.result(self.user,ident,self.key())['status'],'CANCELLED')
+            self.assertEqual(audio.f.db.query_one('SELECT status FROM kilas_ai_usage WHERE user_id=?',(self.user,))['status'],'COMPLETE')
+
+    def test_fragmented_translation_checks_every_event_without_per_event_connections(self):
+        ident=self.session();self.claim(ident);payload=json.dumps({'text':'Hello, how are you?','source_language':'id','target_language':'en'});checked=[]
+        def check():
+            live.require_ready(self.user);sessions.check(self.user,ident,self.key());checked.append(True)
+        def fragmented(*args,**kwargs):
+            for char in payload:yield {'type':'delta','text':char}
+            yield {'type':'usage','input_tokens':20,'output_tokens':18}
+            yield {'type':'finish','reason':'stop'}
+        with self.funded(),self.on(),patch.object(providers,'_openai',side_effect=fragmented),patch.object(usage,'_connect',wraps=usage._connect) as connect:
+            self.assertEqual(live.translation(self.user,self.key(),'Halo','id','en',check)['text'],'Hello, how are you?')
+            # Only usage reservation and settlement need fresh write connections.
+            self.assertEqual(connect.call_count,2);self.assertEqual(len(checked),len(payload)+3)
+
+    def test_latency_summary_separates_credit_stt_translation_and_audio_without_content(self):
+        self.credit(300);clock=[0.0];output=io.StringIO();credits=[]
+        def credit():credits.append(True);clock[0]+=.25
+        def transcribe(pcm,cap):clock[0]+=.75;return self.transcribe(pcm,cap)
+        def stream(*args,**kwargs):clock[0]+=1.5;yield from self.stream(*args,**kwargs)
+        def speech(*args,**kwargs):clock[0]+=2.0;return self.audio,'synthetic-request'
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live,'monotonic',side_effect=lambda:clock[0]),patch.object(live.stt,'require_subscription_credit',side_effect=credit),patch.object(live.stt,'transcribe',side_effect=transcribe),patch.object(providers,'_openai',side_effect=stream),patch.object(audio_provider,'speech',side_effect=speech),redirect_stdout(output):
+            ident=self.session();info=self.claim(ident);live.process(self.user,ident,self.key(),self.signal(),info)
+        log=output.getvalue();self.assertEqual(len(credits),2)
+        for part in ('outcome=completed','credit_stt_ms=250.0','stt_ms=750.0','translation_ms=1500.0','translation_first_delta_ms=1500.0','translation_fences_ms=0.0','credit_tts_ms=250.0','audio_submit_ms=2000.0','backend_ms=4750.0'):self.assertIn(part,log)
+        for private in ('Halo','Hello',ident,self.key(),VOICE['id'],'synthetic-only','synthetic-request','proj_synthetic'):self.assertNotIn(private,log)
+
+    def test_failed_stage_is_timed_and_diagnostic_io_cannot_block_processing(self):
+        self.credit(300);clock=[0.0];output=io.StringIO()
+        def deny():clock[0]+=.5;raise budget.BudgetError('provider_credit_exhausted',402)
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live,'monotonic',side_effect=lambda:clock[0]),patch.object(live.stt,'require_subscription_credit',side_effect=deny),patch.object(live.stt,'transcribe') as stt,redirect_stdout(output):
+            ident=self.session();info=self.claim(ident)
+            with self.assertRaises(budget.BudgetError):live.process(self.user,ident,self.key(),self.signal(),info)
+        stt.assert_not_called();self.assertIn('outcome=failed',output.getvalue());self.assertIn('credit_stt_ms=500.0',output.getvalue())
+        with patch('builtins.print',side_effect=BrokenPipeError()):live._log_latency({},0,False)
 
     def test_live_owner_qa_does_not_use_up_dictation_allowance_and_stops_at_four(self):
         with self.funded(),patch.dict(os.environ,{'KILAS_VO_STT_USAGE_MODE':'owner','KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user),'KILAS_LIVE_TRANSLATOR_USAGE_MODE':'qa'}):

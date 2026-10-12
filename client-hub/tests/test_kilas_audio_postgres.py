@@ -58,7 +58,19 @@ def main():
                 try:sessions.claim(user,live_id,'live-'+'1'*32);return True
                 except store.AudioError:return False
             with ThreadPoolExecutor(max_workers=2) as executor:assert sorted(executor.map(lambda _:live_claim(),range(2)))==[False,True]
-            sessions.end(user,live_id)
+            # Read fences must use the cached connection, never a new transaction
+            # per translation token, while still seeing a separate worker's End.
+            with patch.object(usage,'_connect',side_effect=AssertionError('Fresh read-fence connection')):
+                for _ in range(20):assert sessions.check(user,live_id,'live-'+'1'*32)=={'language_a':'id','language_b':'en','voice_alias':'kilas-male'}
+            assert db.get_connection().get_transaction_status()==db.psycopg2.extensions.TRANSACTION_STATUS_IDLE
+            with patch.object(db,'query_one',wraps=db.query_one) as query:
+                assert sessions.result(user,live_id,'live-'+'1'*32)['status']=='PROCESSING'
+                assert query.call_count==1
+            try:sessions.check(admin,live_id,'live-'+'1'*32);raise AssertionError('Foreign read fence accepted')
+            except store.AudioError as error:assert error.code=='session_unavailable'
+            try:sessions.check(user,live_id,'live-'+'2'*32);raise AssertionError('Missing turn accepted')
+            except store.AudioError as error:assert error.code=='turn_cancelled'
+            with ThreadPoolExecutor(max_workers=1) as executor:executor.submit(sessions.end,user,live_id).result(timeout=10)
             assert sessions.result(user,live_id,'live-'+'1'*32)['status']=='CANCELLED'
             try:sessions.check(user,live_id,'live-'+'1'*32);raise AssertionError('Ended session accepted')
             except store.AudioError:pass
