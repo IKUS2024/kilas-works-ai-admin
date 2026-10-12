@@ -5,7 +5,7 @@ import unittest
 from jinja2 import ChoiceLoader, DictLoader
 import test_kilas_tabs_copy as tabs_fixture
 
-BASE = '1ce200a8b7f6df7e51bc2721dc4a5588e5fa0fa0'
+BASE = '1565016fb928a3299a694302c07a861c6087eee2'
 INTRO = 'Kelola profil Pribadi, Bisnis, keamanan, dan data invoice Kilas Works.'
 
 
@@ -20,7 +20,7 @@ class RemainingCopyTests(unittest.TestCase):
                       'services': '/products/services', 'catalog': '/services'}
 
     def old_template(self, name):
-        return subprocess.check_output(['git', 'show', BASE+':client-hub/templates/'+name], text=True)
+        return subprocess.check_output(['git', 'show', BASE+':client-hub/templates/'+name], text=True, encoding='utf-8')
 
     def baseline(self, name, path):
         env = tabs_fixture.fixture.app.app.jinja_env
@@ -41,7 +41,7 @@ class RemainingCopyTests(unittest.TestCase):
         templates = {'settings': 'kilas_ai/usage.html', 'account': 'account.html',
                      'services': 'kilas_services.html', 'catalog': 'service_catalog.html'}
         removed = {'settings': ['Akun, pembelian, dan penggunaan Kilas AI, Video, serta Translator.'],
-                   'account': [INTRO], 'services': ['Ceritakan kebutuhan Anda. Tim kami akan membantu'],
+                   'account': [], 'services': ['Ceritakan kebutuhan Anda. Tim kami akan membantu'],
                    'catalog': ['Pilih kategori dulu, baru lihat layanan di dalamnya.',
                                'Pilih talent dari profil bergambar, lihat niche dan ketersediaannya']}
         for key, path in self.paths.items():
@@ -49,7 +49,12 @@ class RemainingCopyTests(unittest.TestCase):
                 before = self.baseline(templates[key], path)
                 after = self.client.get(path)
                 self.assertEqual((before.status_code, after.status_code), (200, 200))
-                self.assertEqual(self.controls(before.text), self.controls(after.text))
+                if key in ('account','settings'):
+                    # Navigation changed intentionally; profile/security and purchase forms did not.
+                    pattern=r'<form\b.*?</form>'
+                    self.assertEqual(re.findall(pattern,before.text,re.S),re.findall(pattern,after.text,re.S))
+                else:
+                    self.assertEqual(self.controls(before.text), self.controls(after.text))
                 for text in removed[key]: self.assertNotIn(text, after.text)
                 if key == 'settings':
                     for text in ('Rp99.000', 'Aktif hingga', 'Perpanjangan dilakukan melalui tagihan baru.',
@@ -79,8 +84,9 @@ class RemainingCopyTests(unittest.TestCase):
             self.assertIn(INTRO, after.text)
         home = self.client.get('/account?workspace=home')
         self.assertEqual(home.status_code, 200)
-        self.assertNotIn(INTRO, home.text)
-        self.assertIn('Akun saya', home.text)
+        self.assertIn(INTRO, home.text)
+        self.assertNotIn('id="premium-sidebar"', home.text)
+        self.assertIn('class="account-back-finance"', home.text)
         with self.client.session_transaction() as state: self.assertEqual(state['active_product'], 'finance')
 
     def test_inactive_settings_loses_marketing_keeps_purchase_and_fair_use(self):

@@ -36,6 +36,9 @@ jobs:
       - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_chat_sidebar_browser.py
         env:
           KILAS_SIDEBAR_SCREENSHOTS: /tmp/kilas-global-ui-qa/sidebar
+      - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_ui_consistency_browser.py
+        env:
+          KILAS_UI_CONSISTENCY_SCREENSHOTS: /tmp/kilas-global-ui-qa/consistency
       - uses: actions/upload-artifact@v4
         if: always()
         with:

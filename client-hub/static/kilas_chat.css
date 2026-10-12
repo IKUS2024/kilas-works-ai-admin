@@ -65,6 +65,15 @@
 .kilas-home-workspace #agent-chat-form .ai-send{width:44px;min-height:44px;padding:10px;border-radius:50%}
 
 body.home-keyboard-open .kilas-home-workspace .ai-hint{display:none}
+body.home-keyboard-open .kilas-home-workspace .home-workspace-top{display:none}
+body.home-keyboard-open .kilas-home-workspace .home-tool-selector{margin:4px 0}
+body.home-keyboard-open.kilas-light .kilas-home-workspace .home-task-choices{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px}
+body.home-keyboard-open.kilas-light .kilas-home-workspace .home-task-choices :is(a,button,.kilas-translator-pending){width:auto;flex:none;font-size:12px;padding:8px}
+
+/* Chat uses the workspace typeface; bubbles still fit their own content. */
+.kilas-light .ai-shell .ai-message-text,.kilas-light .kilas-home-workspace .agent-message-text{font-family:inherit;line-height:1.6}
+.kilas-light .kilas-home-workspace :is(.ai-copy,.ai-thread-menu>summary){min-width:44px;min-height:44px}
+.kilas-light .kilas-home-workspace .ai-regenerate{min-height:44px;padding:8px 12px;font:inherit;font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:8px;cursor:pointer}
 
 .kilas-home-workspace .home-chat-heading{display:flex;align-items:center;gap:8px;flex:none;min-width:0}
 .kilas-home-workspace .home-chat-heading .ai-conversation-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

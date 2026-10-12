@@ -2,7 +2,7 @@
 <details class="kilas-profile-menu">
   <summary><span class="kilas-profile-avatar" aria-hidden="true">{{ (kilas_profile_email|default('K',true))[0]|upper }}</span><span>{{ ui_t('Profile') }}</span></summary>
   <div class="kilas-profile-options">
-    <a href="{{ url_for('auth.account_page', workspace='home') }}">{{ drawer_icon('account') }}<span><strong>Account</strong><small>{{ kilas_profile_email }}</small></span>{{ drawer_icon('chevron') }}</a>
+    <div class="kilas-profile-identity"><span>{{ kilas_profile_email }}</span></div>
     <a href="{{ url_for('kilas_ai.usage_page') }}">{{ drawer_icon('subscription') }}<span>Subscription</span>{{ drawer_icon('chevron') }}</a>
     <details class="kilas-profile-language"><summary>{{ drawer_icon('language') }}<span>App Language</span>{{ drawer_icon('chevron') }}</summary>{% set language_location='kilas-profile' %}{% include '_language_selector.html' %}</details>
     <a href="{{ url_for('auth.logout_page') }}">{{ drawer_icon('logout') }}<span>Logout</span>{{ drawer_icon('chevron') }}</a>

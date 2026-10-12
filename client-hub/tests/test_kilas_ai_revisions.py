@@ -33,8 +33,9 @@ class RevisionTests(unittest.TestCase):
         self.assertLess(choices.index('Translator'),choices.index('Voice Over'))
         self.assertLess(choices.index('Voice Over'),choices.index('Finance'))
         self.assertNotIn('data-home-task="video"',html);self.assertNotIn('data-home-task="translate"',html)
-        profile=html.split('class="kilas-profile-options"',1)[1].split('</div>',1)[0]
-        self.assertLess(profile.index('Account'),profile.index('Subscription'))
+        profile=html.split('class="kilas-profile-options"',1)[1].split('</div>\n</details>',1)[0]
+        self.assertIn('class="kilas-profile-identity"',profile)
+        self.assertNotIn('/account',profile)
         self.assertLess(profile.index('Subscription'),profile.index('App Language'))
         self.assertLess(profile.index('App Language'),profile.index('Logout'))
         self.assertIn(self.id().lower()+'@example.test',profile)

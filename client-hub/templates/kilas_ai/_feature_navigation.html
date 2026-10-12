@@ -1,3 +1,3 @@
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
+{% if request.blueprint != 'finance' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">{% endif %}
 <nav class="kilas-feature-navigation" aria-label="{{ ui_t('Pilihan tugas Kilas AI') }}" data-feature-url="{{ url_for('kilas_ai.video_home') if selected_feature=='video' else url_for('kilas_audio.home',mode=selected_feature) }}" data-home-handoff="{{ 'true' if home_task else 'false' }}">{% with feature_navigation=true %}{% include 'kilas_ai/_home_task_selector.html' %}{% endwith %}</nav>
 <script src="{{ url_for('static',filename='kilas_feature_navigation.js',v='voice-edit-20261011') }}" defer></script>

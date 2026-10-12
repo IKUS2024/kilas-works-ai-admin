@@ -1,4 +1,8 @@
 /* Finance presentation layer. Ledger, forms, route parameters and calculations are unchanged. */
+body.finance-app.kilas-light .finance-app-sidebar{background:var(--bg-soft);border-color:var(--line);font:600 14px/1.4 Manrope,system-ui,sans-serif}
+body.finance-app.kilas-light .finance-app-sidebar nav :is(a,button){min-height:44px;border-radius:8px;color:var(--muted)}
+body.finance-app.kilas-light .finance-app-sidebar nav :is(a,button):hover{background:var(--neutral-hover,#ececeb);color:var(--text)}
+body.finance-app.kilas-light .finance-app-sidebar nav [aria-current=page]{color:var(--accent);background:var(--premium-selected);border-color:transparent}
 body.finance-app.kilas-light :is(.assistant-brandmark,.assistant-avatar){border:1px solid var(--border);background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.assistant-ready){border:1px solid var(--border);background:var(--bg-soft)}
 body.finance-app.kilas-light :is(.assistant-bubble){box-shadow:0 8px 22px var(--bg-soft)}

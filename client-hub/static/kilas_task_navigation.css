@@ -1,0 +1,17 @@
+/* One task-control treatment across chat, audio and Finance entry. */
+.kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .home-task-choices{display:flex;flex-wrap:wrap;justify-content:flex-start;gap:8px;margin:0;padding:2px;min-width:0;overflow:visible}
+.kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .home-task-choices :is(a,button,.kilas-translator-pending){display:inline-flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box;min-height:44px;max-width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);font:inherit;font-size:14px;font-weight:600;line-height:1.4;text-align:center;text-decoration:none;white-space:nowrap}
+.kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .home-task-choices :is(a,button){font-family:inherit;font-size:14px;font-weight:600;line-height:1.4;cursor:pointer}
+.kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .home-task-choices :is(a,button):hover{background:var(--bg-soft)}
+.kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .home-task-choices :is([aria-current=page],[aria-pressed=true]){background:var(--premium-selected);color:var(--accent);border-color:var(--accent)}
+.kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .home-task-choices [aria-disabled=true]{color:var(--muted);cursor:default}
+.kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .home-task-choices svg{width:18px;height:18px;flex:none}
+.kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .kilas-finance-entry{display:flex;margin:0}
+.kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .home-tool-selector{min-width:0;max-width:100%}
+.kilas-light .kilas-feature-navigation{margin:0 auto 20px;max-width:1440px}
+.kilas-light .kilas-home-workspace .home-tool-selector{margin:8px 0}
+@media(max-width:760px){
+ .kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .home-task-choices{flex-wrap:nowrap;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;gap:6px;scroll-padding:2px}
+ .kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .home-task-choices>:is(a,button,span,form){flex:none}
+ .kilas-light :is(.kilas-home-workspace,.kilas-feature-navigation) .home-task-choices :is(a,button,.kilas-translator-pending){padding:8px 10px;font-size:13px;white-space:nowrap;word-break:normal;overflow-wrap:normal}
+}

@@ -17,7 +17,13 @@ def context(owner):
 @ai_bp.app_context_processor
 def audio_offering_context():
     from .audio_presentation import upload_translation_visible
-    return {'upload_translation_visible': upload_translation_visible(), 'live_translation_visible': False}
+    result = {'upload_translation_visible': upload_translation_visible(), 'live_translation_visible': False}
+    if request.blueprint == 'finance':
+        from flask import session
+        if session.get('role') == 'CLIENT_OWNER' and session.get('user_id'):
+            from . import live_translator
+            result['kilas_live_translator_available'] = live_translator.ready(session['user_id'])
+    return result
 
 
 @ai_bp.app_context_processor

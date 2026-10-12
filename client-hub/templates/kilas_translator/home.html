@@ -5,14 +5,14 @@
 {% if home_task %}{% include 'kilas_ai/_home_handoff.html' %}{% endif %}
 {% include 'kilas_content/_handoff.html' %}
 {% with selected_feature=active_mode %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='dictation-simple-20261012') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='consistent-ui-20261012') }}">
 <section class="audio-studio" id="audio-studio" data-max-seconds="{{ max_seconds }}" data-active-mode="{{ active_mode }}">
 <header class="audio-heading"><div><h1>{{ 'Kilas Translator' if upload_translation_visible else 'Voice Over' }}</h1></div></header>
 <div class="audio-workbench"><main class="audio-primary">
 
 {% if not provider_ready %}<p class="audio-notice" role="status">Layanan audio sedang belum tersedia. Saldo kamu tetap aman.</p>{% endif %}
 <div id="audio-result" data-status-url="{{ url_for('kilas_audio.status',ident=job.id) if job else '' }}" data-job-status="{{ job.status if job else '' }}">{% if job %}{% include 'kilas_translator/_result.html' %}{% endif %}</div>
-<div class="audio-tabs" role="tablist" aria-label="Mode audio">{% if upload_translation_visible %}<button type="button" id="translate-tab" role="tab" aria-selected="{{ 'true' if active_mode=='translate' else 'false' }}" tabindex="{{ 0 if active_mode=='translate' else -1 }}" aria-controls="translate-panel">Translate</button>{% endif %}<button type="button" id="voiceover-tab" role="tab" aria-selected="{{ 'true' if active_mode=='voiceover' else 'false' }}" aria-controls="voiceover-panel" tabindex="{{ 0 if active_mode=='voiceover' else -1 }}">Voice Over</button></div>
+<div class="audio-tabs" role="tablist" aria-label="Mode audio" {% if not upload_translation_visible %}hidden{% endif %}>{% if upload_translation_visible %}<button type="button" id="translate-tab" role="tab" aria-selected="{{ 'true' if active_mode=='translate' else 'false' }}" tabindex="{{ 0 if active_mode=='translate' else -1 }}" aria-controls="translate-panel">Translate</button>{% endif %}<button type="button" id="voiceover-tab" role="tab" aria-selected="{{ 'true' if active_mode=='voiceover' else 'false' }}" aria-controls="voiceover-panel" tabindex="{{ 0 if active_mode=='voiceover' else -1 }}">Voice Over</button></div>
 {% if upload_translation_visible %}<section id="translate-panel" role="tabpanel" aria-labelledby="translate-tab" {{ 'hidden' if active_mode!='translate' }}>
 <form action="{{ url_for('kilas_audio.create') }}" method="post" enctype="multipart/form-data" data-audio-form>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}-t"><input type="hidden" name="mode" value="translate">

@@ -71,7 +71,7 @@ class HomeTests(unittest.TestCase):
         for route in ('/products/start','/account?workspace=home','/kilas-translator?mode=voiceover','/kilas-ai/video','/kilas-ai/usage','/kilas-ai/threads/'+str(owned)):
             response=self.client().get(route);self.assertEqual(response.status_code,200)
             html=response.text
-            if route.startswith('/kilas-translator'):
+            if route.startswith(('/kilas-translator','/account')):
                 self.assertNotIn('data-chat-sidebar',html)
                 self.assertNotIn('My &lt;script&gt; saved title',html)
             else:
@@ -91,7 +91,7 @@ class HomeTests(unittest.TestCase):
         html=client.get('/account').text
         self.assertNotIn('data-chat-sidebar',html)
         self.assertNotIn('kilas_chat_sidebar.',html)
-        self.assertIn('data-chat-sidebar',client.get('/account?workspace=home').text)
+        self.assertNotIn('data-chat-sidebar',client.get('/account?workspace=home').text)
         with patch.dict(os.environ,{'KILAS_AI_ENABLED':'false'}):
             self.assertNotIn('data-chat-sidebar',client.get('/products/start').text)
 
@@ -155,18 +155,16 @@ class HomeTests(unittest.TestCase):
             response=client.get('/products/start')
             self.assertIn(title,response.get_data(as_text=True))
 
-    def test_account_uses_home_navigation_and_existing_destinations(self):
+    def test_account_keeps_finance_forms_without_ai_navigation(self):
         client=self.client();html=client.get('/account').get_data(as_text=True)
-        self.assertIn('account-workspace-access',html)
+        self.assertNotIn('class="account-workspace-access"',html)
+        self.assertNotIn('id="premium-sidebar"',html)
         self.assertNotIn('<span>Video</span>',html)
         self.assertNotIn('<span>Translator</span>',html)
-        self.assertIn('href="/account?workspace=home"',html)
-        self.assertIn('href="/kilas-ai/usage"',html)
+        self.assertIn('class="account-back-finance"',html)
         for anchor in ('offer-title','billing-title'):
-            self.assertIn('href="/kilas-ai/usage#'+anchor+'"',html)
             settings=client.get('/kilas-ai/usage').get_data(as_text=True)
             self.assertIn('id="'+anchor+'"',settings)
-        self.assertIn('href="/kilas-ai/agent?view=settings"',html)
         self.assertEqual(client.get('/kilas-ai/agent?view=settings').status_code,200)
         for action in ('personal_profile','email_change_request','password'):
             # Existing account forms remain available; no replacement account backend.
@@ -179,10 +177,10 @@ class HomeTests(unittest.TestCase):
         self.assertNotIn('account-workspace-access',html)
         for label in ('Video','Translator','Kilas AI'):
             self.assertNotIn('<span>'+label+'</span>',html)
-        self.assertIn('href="/account" aria-current="page"',html)
+        self.assertIn('class="account-back-finance"',html)
+        self.assertNotIn('id="premium-sidebar"',html)
         self.assertIn('history.replaceState',html)
         self.assertNotIn('history.pushState',html)
-        self.assertIn('href="/kilas-ai/usage"',html)
         for action in ('personal_profile','email_change_request','password'):
             self.assertIn('value="'+action+'"',html)
         with client.session_transaction() as values:values['active_product']='kilas_ai'
@@ -192,17 +190,20 @@ class HomeTests(unittest.TestCase):
         with patch.dict(os.environ,{'KILAS_AI_ENABLED':'false'}):
             self.assertNotIn('account-workspace-access',client.get('/account').get_data(as_text=True))
 
-    def test_home_account_entry_overrides_only_presentation_in_finance_session(self):
+    def test_home_profile_is_informational_and_account_hints_cannot_restore_ai_shell(self):
         import re
         client=self.client()
         with client.session_transaction() as values:values['active_product']='finance'
         home=client.get('/products/start').text
         href=re.search(r'kilas-profile-options.*?<a href="([^"]+)"',home,re.S).group(1)
-        self.assertEqual(href,'/account?workspace=home')
-        for route in (href,href+'#security','/account?workspace=home&tab=business'):
+        self.assertEqual(href,'/kilas-ai/usage')
+        self.assertIn('class="kilas-profile-identity"',home)
+        self.assertNotIn('href="/account?workspace=home"',home)
+        for route in ('/account?workspace=home','/account?workspace=home#security','/account?workspace=home&tab=business'):
             html=client.get(route).text
-            self.assertIn('account-workspace-access',html)
-            self.assertIn('<h1>Akun saya</h1>',html)
+            self.assertNotIn('class="account-workspace-access"',html)
+            self.assertNotIn('id="premium-sidebar"',html)
+            self.assertIn('<h1>Akun</h1>',html)
             self.assertNotIn('<span>Video</span>',html)
         for route in ('/account','/account#business','/account?workspace=finance','/account?workspace=HOME','/account?workspace=invalid'):
             html=client.get(route).text

@@ -16,6 +16,7 @@
 .kilas-profile-options :is(a,summary):hover{background:var(--neutral-hover,#ececeb)}
 .kilas-profile-menu :is(a,summary):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .kilas-profile-options small{display:block;color:var(--muted);overflow-wrap:anywhere;font-size:12px}
+.kilas-profile-identity{padding:10px 12px 14px;margin-bottom:4px;border-bottom:1px solid var(--line);color:var(--muted);font-size:14px;line-height:1.5;overflow-wrap:anywhere;cursor:text}
 .kilas-profile-options .language-selector{display:grid;gap:8px;margin:0;padding:4px;border:0}
 .kilas-audio-header{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--line)}
 .kilas-audio-header .kilas-profile-options{position:absolute;right:0;top:100%;width:240px;z-index:50}

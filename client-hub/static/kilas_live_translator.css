@@ -1,11 +1,17 @@
-.kilas-live-translator{max-width:640px;margin:32px auto;padding:16px}
-/* This stylesheet is loaded only by Live Translator. Keep its active link readable. */
-.kilas-feature-navigation [aria-current=page]{display:inline-flex;align-items:center;flex-shrink:0;min-height:44px;padding:6px 12px;border:1px solid #8da393;border-radius:18px;white-space:nowrap;text-decoration:none}
+.kilas-live-translator{max-width:680px;margin:24px auto;padding:0}
+.kilas-live-translator h1{margin:0 0 24px}
 .kilas-live-translator #live-error{color:#b42318;font-size:14px;line-height:1.5}
-#live-setup-form{display:grid;gap:16px}
-#live-setup-form label{display:grid;gap:8px}
-#live-setup-form label:has(input){display:block;line-height:1.6}
+#live-setup-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 20px}
+#live-setup-form label{display:grid;gap:8px;margin:0;color:var(--text);font-size:14px;font-weight:600;min-width:0}
+#live-setup-form select{width:100%;min-width:0;min-height:44px;margin:0;font-size:16px}
+#live-setup-form .live-consent{grid-column:1/-1;display:flex;align-items:flex-start;gap:10px;line-height:1.6;font-weight:400}
+#live-setup-form .live-consent input{flex:none;width:18px;height:18px;min-height:18px;margin:3px 0 0;accent-color:var(--accent)}
+#live-setup-form .live-privacy{grid-column:1/-1;font-size:14px;color:var(--muted)}
+#live-setup-form .live-privacy summary{display:flex;align-items:center;min-height:44px;width:fit-content;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
+#live-setup-form .live-privacy p{margin:8px 0 0}
+#live-setup-form>button{grid-column:1/-1;justify-self:start;min-width:120px;margin:0}
 #live-setup-form p{color:var(--muted);font-size:14px;line-height:1.6}
+@media(max-width:480px){.kilas-live-translator{margin:20px auto}#live-setup-form{grid-template-columns:minmax(0,1fr);gap:16px}#live-setup-form>button{width:100%}}
 #live-active{min-height:60vh;display:grid;place-content:center;justify-items:center;gap:20px}
 #live-active[hidden]{display:none}
 /* Render the supplied sphere pixels; source image is retained without edits. */

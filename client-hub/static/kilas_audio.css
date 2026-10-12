@@ -2,6 +2,16 @@
 
 #audio-result:not(:empty){margin-bottom:28px}
 
+/* Compact Voice Over setup; recording, saved voices and TTS controls stay intact. */
+.audio-studio .audio-heading{gap:16px;margin-bottom:20px}
+.audio-studio .audio-heading h1{font-size:28px;line-height:1.25;margin:0}
+.audio-studio .audio-voices{gap:8px;margin:0}
+.audio-studio .audio-voices legend{padding-bottom:8px}
+.audio-studio .audio-voice{align-items:center;padding:12px;gap:10px;min-height:64px}
+.audio-studio .audio-voice input{margin:0}
+.audio-studio .audio-voice span{gap:2px}
+@media(max-width:600px){.audio-studio .audio-heading h1{font-size:24px}.audio-studio .audio-voice{padding:10px 12px;min-height:60px}.audio-studio .audio-voice strong{font-size:14px}.audio-studio .audio-voice small{font-size:13px}.audio-studio .audio-workbench{gap:24px}}
+
 /* Override legacy customer controls only within this new white Audio surface. */
 .kilas-light .audio-studio input,.kilas-light .audio-studio select,.kilas-light .audio-studio textarea{background:#fff!important;color:#202329!important;color-scheme:light}
 .kilas-light .audio-studio .audio-voice small,.kilas-light .audio-studio input::placeholder,.kilas-light .audio-studio textarea::placeholder{color:#62666f!important}

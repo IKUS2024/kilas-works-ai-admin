@@ -76,21 +76,13 @@ def main():
                 home_nav=page.locator('[data-chat-sidebar]').inner_text()
                 if width<761:page.get_by_role('button',name='Buka navigasi',exact=True).click()
                 page.locator('.kilas-profile-menu>summary').click();page.locator('.kilas-profile-options a').first.click();page.wait_for_load_state('networkidle')
-                assert page.url.endswith('/account?workspace=home')
-                expect(page.locator('.account-workspace-access')).to_be_visible()
-                expect(page.get_by_role('heading',name='Akun saya',exact=True)).to_be_visible()
-                assert page.locator('[data-chat-sidebar]').inner_text()==home_nav
-                if width<761:page.get_by_role('button',name='Buka navigasi',exact=True).click()
-                page.screenshot(path=str(output/f'account-from-finance-home-{width}.png'),full_page=True)
-                if width<761:page.keyboard.press('Escape')
-                page.locator('[data-account-tab=security]').click();page.go_back()
-                assert '?workspace=home' in page.url
-                for suffix in ('','?workspace=finance','?workspace=invalid'):
+                assert page.url.endswith('/kilas-ai/usage')
+                expect(page.get_by_role('heading',name='Settings',exact=True)).to_be_visible()
+                for suffix in ('','?workspace=home','?workspace=finance','?workspace=invalid'):
                     page.goto(origin+'/account'+suffix,wait_until='networkidle')
                     assert page.locator('.account-workspace-access').count()==0
-                    assert page.locator('.premium-navigation').count()==1
+                    assert page.locator('.premium-navigation,aside').count()==0
                     expect(page.locator('.account-back-finance')).to_be_visible()
-                if width<761:page.get_by_role('button',name='Buka navigasi',exact=True).click()
                 page.screenshot(path=str(output/f'account-direct-finance-{width}.png'),full_page=True)
                 session_cookie=next(item['value'] for item in context.cookies() if item['name']=='session')
                 assert app.session_interface.get_signing_serializer(app).loads(session_cookie)['active_product']=='finance'
@@ -183,30 +175,22 @@ def main():
                 expect(page.locator('#ai-send')).to_be_in_viewport()
                 page.goto(origin+'/products/start',wait_until='networkidle')
                 home_nav=page.locator('[data-chat-sidebar]').inner_text()
-                assert page.locator('.kilas-profile-options a').first.get_attribute('href')=='/account?workspace=home'
+                assert page.locator('.kilas-profile-options a').first.get_attribute('href')=='/kilas-ai/usage'
                 if width<761:page.get_by_role('button',name='Buka navigasi',exact=True).click()
                 page.locator('.kilas-profile-menu>summary').click();page.locator('.kilas-profile-options a').first.click()
                 page.wait_for_load_state('networkidle')
-                assert page.locator('[data-chat-sidebar]').inner_text()==home_nav
-                expect(page.locator('.account-workspace-access')).to_be_visible()
-                expect(page.get_by_role('heading',name='Akun saya',exact=True)).to_be_visible()
-                expect(page.locator('.kilas-profile-options a').first).to_have_attribute('href','/account?workspace=home')
-                assert page.locator('.premium-navigation a[aria-current=page]').count()==0
+                expect(page.get_by_role('heading',name='Settings',exact=True)).to_be_visible()
+                page.goto(origin+'/account',wait_until='networkidle')
+                expect(page.get_by_role('heading',name='Akun',exact=True)).to_be_visible()
+                assert page.locator('aside,#premium-sidebar').count()==0
                 page.screenshot(path=str(output/f'account-{width}.png'),full_page=True)
-                if width<761:
-                    page.get_by_role('button',name='Buka navigasi',exact=True).click()
-                    expect(page.locator('.premium-sidebar')).to_be_visible()
-                    page.screenshot(path=str(output/f'account-navigation-{width}.png'))
-                    page.keyboard.press('Escape')
-                    assert page.locator('.premium-sidebar').evaluate('e=>e.inert')
                 page.locator('[data-account-tab=security]').click();expect(page.locator('#account-panel-security')).to_be_visible()
                 page.locator('[data-account-tab=personal]').click();expect(page.locator('#account-panel-personal')).to_be_visible()
-                page.go_back();expect(page.locator('#account-panel-security')).to_be_visible()
-                page.go_back();expect(page.locator('#account-panel-personal')).to_be_visible()
+                page.reload();expect(page.locator('#account-panel-personal')).to_be_visible()
                 assert page.locator('.account-workspace-links a[href$="#audio-settings-title"]').count()==0
                 page.goto(origin+'/kilas-ai/usage',wait_until='networkidle')
                 assert page.locator('form[action="/kilas-translator/checkout"],#audio-settings-title').count()==0
-                page.go_back(wait_until='networkidle');expect(page.locator('.account-workspace-access')).to_be_visible()
+                page.go_back(wait_until='networkidle');expect(page.locator('.account-back-finance')).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 assert not errors,errors
                 report['widths'].append(width);context.close()
@@ -217,7 +201,7 @@ def main():
             choose_task(page,'voiceover');expect(page.locator('#voiceover-panel')).to_be_visible();expect(page.locator('[data-kilas-feature=voiceover]')).to_have_attribute('aria-current','page')
             page.screenshot(path=str(output/'home-en-1440.png'),full_page=True)
             browser.close()
-        report['checks']=['single entry','no optional organization or duplicate Finance','no lower Home clutter; top contextual history; no unavailable placeholder','mobile drawer repeated open/Escape','immediate feature click with target length guard','attachment guard/remove','native handoff CSRF/upload forms','back/forward','translation notes','voiceover draft','real chat mocked provider','saved history/reload/open/return Home/back/forward','stop/blocked task switch','selected locale','spacious viewport canvas and bottom task choices/composer','compact auto-growing icon composer and current feature menu','new/loaded right-user left-AI and copy/options icons','Home account actual click with unchanged Finance session, direct/invalid hints','small-height keyboard layout simulation','independent long-message scroll','MyAccount same Home navigation and active link','account mobile drawer and tab browser back','hidden balance controls','no overflow','no browser JS errors']
+        report['checks']=['single entry','no optional organization or duplicate Finance','no lower Home clutter; top contextual history; no unavailable placeholder','mobile drawer repeated open/Escape','immediate feature click with target length guard','attachment guard/remove','native handoff CSRF/upload forms','back/forward','translation notes','voiceover draft','real chat mocked provider','saved history/reload/open/return Home/back/forward','stop/blocked task switch','selected locale','spacious viewport canvas and bottom task choices/composer','compact auto-growing icon composer and current feature menu','new/loaded right-user left-AI and copy/options icons','Profile Subscription entry preserves Finance session','small-height keyboard layout simulation','independent long-message scroll','Finance Account direct/invalid hints without sidebar','account tabs and refresh','hidden balance controls','no overflow','no browser JS errors']
         (output/'verification.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps(report,indent=2))
     finally:server.shutdown();case.doCleanups()

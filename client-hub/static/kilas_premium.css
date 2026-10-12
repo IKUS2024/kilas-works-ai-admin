@@ -152,6 +152,14 @@ body.kilas-light.premium-workspace>.wrap{margin-left:240px!important;width:calc(
 .kilas-light .subscription-input span{color:var(--muted)}
 body.finance-app.kilas-light{--orange:#a43c00;--accent:#a43c00}
 .kilas-light :is(.account-hero-edit,.account-quick-logout,.account-email-change-btn){font-size:13px;min-height:44px}
+
+/* Full profile/security editor belongs to Finance, without a workspace rail. */
+.account-standalone>.topbar,.account-standalone>.customer-global-shell,.account-standalone>footer{display:none}
+.account-standalone>.wrap{width:100%;max-width:1040px;margin:0 auto;padding:32px 24px}
+.account-standalone .account-page{max-width:960px}
+.account-standalone .account-head p{max-width:none}
+.account-standalone .account-head-actions{flex-wrap:wrap}
+@media(max-width:600px){.account-standalone>.wrap{padding:20px 16px}.account-standalone .account-head{gap:16px}.account-standalone .account-tabs{display:flex;flex-wrap:wrap;gap:8px}.account-standalone .account-tab{min-height:44px}}
 .kilas-light .subscription-capabilities li{padding-left:0}.kilas-light .subscription-capabilities li::before{content:none}
 .kilas-light .auto-top{background:#fff;border-color:var(--line)}
 .kilas-light :is(.auto-usage,.auto-back,.auto-paging a){color:var(--accent)}

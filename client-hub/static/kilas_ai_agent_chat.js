@@ -132,6 +132,7 @@
         throw failure;
       }
       accepted = true;
+      if(input.value===draft){input.value='';input.dispatchEvent(new Event('input'));}
       if (response.headers.get('content-type')?.includes('text/event-stream')) {
         const reader = response.body.getReader(), decoder = new TextDecoder();
         let pending = '', answer, complete = false;
@@ -155,7 +156,7 @@
         }
         if (!complete || !answer?.textContent.trim()) throw new Error('interrupted');
       }
-      await refresh(); if(input.value===draft){input.value='';input.dispatchEvent(new Event('input'));}
+      await refresh();
       form.dispatchEvent(new Event('work:accepted'));
       startDue();
       const sources=form.querySelector('#work-source-files'); if(sources) sources.value='';
