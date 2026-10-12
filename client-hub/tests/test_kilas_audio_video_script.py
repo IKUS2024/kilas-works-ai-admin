@@ -330,7 +330,7 @@ class VideoScriptTests(unittest.TestCase):
                 with self.subTest(code=code),patch.object(stt.requests,'get',return_value=metadata):
                     result=self.dictate();self.assertEqual(result.json['code'],code)
                     self.assertNotIn('synthetic-only',result.text)
-                    if code=='provider_credit_exhausted':self.assertIn('tanpa top-up atau overage',result.json['error'])
+                    if code=='provider_credit_exhausted':self.assertIn('tanpa pembelian tambahan',result.json['error'])
             with patch.object(stt.requests,'get',side_effect=stt.requests.Timeout()):
                 self.assertEqual(self.dictate().json['code'],'provider_credit_check_failed')
             paid.assert_not_called()

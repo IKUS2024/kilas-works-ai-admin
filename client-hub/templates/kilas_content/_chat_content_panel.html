@@ -1,9 +1,9 @@
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_content.css') }}">
 <section class="chat-content-demo" data-chat-content data-conversation="{{ chat_content.conversation_id }}" aria-label="Artefak audio demo dalam chat">
 <details class="chat-content-workspace" {{ 'open' if chat_content.recording else '' }}><summary>Contoh suara <span class="chat-demo-tag">Demo sintetis</span></summary>
-<p>Chat biasa tetap tersedia. Contoh ini menyimpan teks sintetis di percakapan ini, bukan merekam suara. STT, terjemahan provider, audio TTS dan kloning belum dijalankan.</p>
+<p>Contoh ini memakai teks sintetis. Rekaman dan pemrosesan suara nyata belum aktif.</p>
 <p data-demo-status role="status" aria-live="polite"></p><button type="button" data-demo-abort hidden>Batalkan permintaan demo</button>
-<div class="chat-audio-affordances"><button type="button" disabled>Rekam suara · belum diaktifkan</button><button type="button" disabled>Unggah audio · belum diaktifkan</button></div><p class="chat-demo-note">Audio nyata menunggu persetujuan pengujian dan integrasi provider. Tidak ada izin mikrofon yang diminta.</p>
+<div class="chat-audio-affordances"><button type="button" disabled>Rekam suara · belum diaktifkan</button><button type="button" disabled>Unggah audio · belum diaktifkan</button></div><p class="chat-demo-note">Demo ini tidak meminta akses mikrofon.</p>
 <details class="chat-record-create"><summary>Tambahkan rekaman contoh</summary><form data-demo-form method="post" action="{{ url_for('kilas_ai.chat_demo_mutate',conversation_id=chat_content.conversation_id,operation='recording') }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ demo_key }}-record">
 <label>Nama rekaman contoh<input name="label" maxlength="120" value="Rekaman contoh" required></label>

@@ -237,9 +237,9 @@ def dictate():
                  'consent_required':'Setujui pemrosesan rekaman sebelum mulai.',
                  'attempt_limit':'Batas percobaan transkripsi hari ini tercapai. Naskah tetap aman.',
                  'rate_limit':'Terlalu banyak dikte dalam satu jam. Coba lagi nanti; naskah tetap aman.',
-                 'provider_credit_exhausted':'Kredit ElevenLabs tidak cukup. Dikte dihentikan tanpa top-up atau overage; naskah tetap aman.',
-                 'provider_billing_unverified':'Dikte dihentikan karena paket Creator atau pengaturan tanpa overage belum terverifikasi. Naskah tetap aman.',
-                 'provider_credit_check_failed':'Kredit ElevenLabs belum dapat diperiksa. Coba lagi nanti; naskah tetap aman.',
+                 'provider_credit_exhausted':'Kapasitas layanan suara tidak cukup. Dikte dihentikan tanpa pembelian tambahan; naskah tetap aman.',
+                 'provider_billing_unverified':'Status layanan suara belum terverifikasi. Dikte dihentikan; naskah tetap aman.',
+                 'provider_credit_check_failed':'Kapasitas layanan suara belum dapat diperiksa. Coba lagi nanti; naskah tetap aman.',
                  'script_too_long':'Hasil melebihi 4.000 karakter. Rekam ucapan yang lebih pendek.',
                  'budget_limit':'Batas transkripsi tercapai. Naskah tetap aman.'}.get(error.code,
                  'Dikte belum berhasil. Naskah tetap aman. Tidak ada pengulangan otomatis; kamu dapat merekam kembali.')
@@ -421,9 +421,9 @@ def live_translator_turn(ident,key):
     elif state['status']=='FAILED':
         code=state.get('error_code')
         messages={'no_speech':'Ucapan belum terbaca dalam pasangan bahasa ini. Bicara kembali.',
-                  'provider_credit_exhausted':'Kredit ElevenLabs tidak cukup. Sesi dihentikan tanpa top-up atau overage.',
-                  'provider_credit_check_failed':'Kredit ElevenLabs belum dapat diperiksa. Sesi dihentikan sebelum permintaan berikutnya.',
-                  'provider_billing_unverified':'Konfigurasi Creator atau overage berubah. Sesi dihentikan.',
+                  'provider_credit_exhausted':'Kapasitas layanan suara tidak cukup. Sesi dihentikan tanpa pembelian tambahan.',
+                  'provider_credit_check_failed':'Kapasitas layanan suara belum dapat diperiksa. Sesi dihentikan sebelum permintaan berikutnya.',
+                  'provider_billing_unverified':'Status layanan suara belum terverifikasi. Sesi dihentikan.',
                   'attempt_limit':'Batas penggunaan Live Translator tercapai. Sesi dihentikan.',
                   'live_audio_limit':'Batas audio Live Translator tercapai. Sesi dihentikan tanpa pembelian tambahan.',
                   'zero_balance':'Kuota audio Live Translator belum tersedia untuk akun ini.',

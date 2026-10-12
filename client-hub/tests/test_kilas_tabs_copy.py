@@ -35,15 +35,27 @@ class TabsCopyTests(unittest.TestCase):
         self.assertIn('Keep this agent user description verbatim.',responses['agent_chat'].text)
         self.assertIn('Keep this project brief description verbatim.',responses['project'].text)
         self.assertIn('Demonstrasi pemakaian dengan kemasan tetap sama.',responses['video_result'].text)
-        for key,ids in {'home':['ai-input','ai-files','ai-send','ai-stop'],'video_new':['video-idea','video-submit','video-clip-strategy','video-status','video-error'],'voiceover':['audio-script','voice-assist-copy','voice-assist-generate','voice-translate-toggle','voice-estimate','voice-video-consent','voice-generate'],'live_assist':['live-consent','live-provider','live-start','live-stop','live-status']}.items():
+        for key,ids in {'home':['ai-input','ai-files','ai-send','ai-stop'],'video_new':['video-idea','video-submit','video-clip-strategy','video-status','video-error'],'voiceover':['audio-script','voice-assist-copy','voice-assist-generate','voice-translate-toggle','voice-estimate','dictation-start','voice-generate'],'live_assist':['live-consent','live-provider','live-start','live-stop','live-status']}.items():
             for ident in ids:self.assertIn('id="'+ident+'"',responses[key].text)
         self.assertIn('Jawaban AI dapat keliru.',responses['home'].text)
         self.assertIn('Video akhir dibuat di tool pilihanmu.',responses['video_new'].text)
-        self.assertNotIn('ElevenLabs memakai logging bawaan',responses['voiceover'].text)
+        for key in ('home','legacy_chat','agent_chat','voiceover','live_assist'):
+            self.assertNotIn('ElevenLabs',responses[key].text)
+            self.assertNotIn('OpenAI',responses[key].text)
         self.assertIn('href="/privacy#audio-processing"',responses['voiceover'].text)
         self.assertIn('ElevenLabs memakai logging bawaan',self.client.get('/privacy').text)
-        self.assertIn('Pemrosesan provider belum aktif.',responses['live_assist'].text)
+        self.assertIn('Caption, terjemahan dan saran jawaban belum tersedia.',responses['live_assist'].text)
+        policy=self.client.get('/privacy').text
+        for text in ('id="audio-processing"','ElevenLabs','OpenAI','Hasil audio tersimpan di akun pemilik','permintaan provider yang sudah dikirim dapat tetap diproses dan memakai biaya','kapasitas AI dan audio','Transkripsi audio di proyek chat mengirim audio ke OpenAI'):
+            self.assertIn(text,policy)
         self.assertIn('Hubungan versi naskah tidak memverifikasi kecocokan isi audio.',responses['project'].text)
+
+    def test_primary_feature_templates_keep_provider_disclosures_in_privacy_destination(self):
+        root=Path(__file__).resolve().parents[1]/'templates'
+        for name in ('kilas_translator/live.html','kilas_translator/home.html','kilas_ai/home.html','kilas_ai/_home_workspace.html','kilas_ai/_agent_home_chat.html','finance_assistant.html','_finance_home_dashboard.html','kilas_content/_transcription.html','kilas_content/live_assist.html'):
+            with self.subTest(template=name):self.assertNotRegex((root/name).read_text(),r'ElevenLabs|OpenAI')
+        for name in ('kilas_translator/live.html','kilas_translator/home.html','kilas_content/_transcription.html','kilas_content/live_assist.html'):
+            self.assertIn("url_for('privacy_policy')",(root/name).read_text())
 
     def test_translate_rollback_mode_keeps_form_and_validation(self):
         with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'true'}):html=self.client.get('/kilas-translator?mode=translate').text

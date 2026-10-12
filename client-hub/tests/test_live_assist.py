@@ -50,7 +50,7 @@ def test_flag_capture_local_only_and_existing_role_gate(environment,monkeypatch)
     monkeypatch.setenv('KILAS_LIVE_ASSIST_ENABLED','true')
     monkeypatch.setattr(live.stt,'budget_ready',lambda:False)
     body=client.get('/kilas-ai/live-assist').data
-    assert b'data-provider-ready="false"' in body and b'Pemrosesan provider belum aktif' in body
+    assert b'data-provider-ready="false"' in body and b'Caption, terjemahan dan saran jawaban belum tersedia' in body
     assert b'Belum ada caption.' in body and b'Demo sintetis' not in body
     assert start(client).status_code==503
     assert not live._sessions

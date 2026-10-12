@@ -89,7 +89,7 @@ test('submit rejects a stale duplicate before audio context, microphone or netwo
     addEventListener: (type, handler) => listeners.set(type, handler),
   };
   const active = {querySelector: () => ({})};
-  const nodes = {'.kilas-live-translator': {dataset: {ready: 'true'}}, '#live-setup-form': form, '#live-setup': {}, '#live-active': active, '#live-error': error, '#live-end': {addEventListener() {}}, '#live-recovery': {}, '#live-recovery-status': {}, '#live-recovery-end': {addEventListener() {}}, '#live-recovery-check': {addEventListener() {}}};
+  const nodes = {'.kilas-live-translator': {dataset: {ready: 'true'}}, '#live-setup-form': form, '#live-setup': {}, '#live-active': active, '#live-error': error, '#live-end': {addEventListener() {}}, '#live-session-status': {}, '#live-recovery-retry': {addEventListener() {}}, '#live-recovery': {}, '#live-recovery-status': {}, '#live-recovery-end': {addEventListener() {}}, '#live-recovery-check': {addEventListener() {}}};
   const old = {document: globalThis.document, window: globalThis.window, fetch: globalThis.fetch};
   try {
     globalThis.document = {querySelector: query => nodes[query], addEventListener() {}};

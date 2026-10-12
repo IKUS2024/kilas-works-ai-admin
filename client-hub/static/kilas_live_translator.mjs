@@ -11,6 +11,7 @@ if(root){
  const showError=text=>{error.textContent=text;error.hidden=false;};
  let recovery=null,recoverRequested=false,recoveryError=false,recoveryExpiry=null;
  const recoveryPanel=document.querySelector('#live-recovery'),recoveryStatus=document.querySelector('#live-recovery-status'),recoveryEnd=document.querySelector('#live-recovery-end'),recoveryCheck=document.querySelector('#live-recovery-check');
+ const recoveryRetry=document.querySelector('#live-recovery-retry'),sessionStatus=document.querySelector('#live-session-status');
  const languageA=form.elements.language_a,languageB=form.elements.language_b;
  const syncLanguages=(changed=languageA)=>syncLanguagePair(languageA,languageB,changed);
  languageA.addEventListener('change',()=>syncLanguages(languageA));
@@ -69,14 +70,20 @@ if(root){
  }});
  recovery=new TranslatorRecovery({api:{active:()=>json('/kilas-translator/live/sessions/active',{timeoutMs:10000}),end(id){const data=new FormData();data.append('csrf_token',csrf);return json('/kilas-translator/live/sessions/'+encodeURIComponent(id)+'/end',{method:'POST',body:data,keepalive:true,timeoutMs:10000});}},isIdle:()=>session.state==='ended',onError:text=>{recoveryError=true;showError(text);},onChange:state=>{
   start.disabled=session.state!=='ended'||!setupReady||!state.canStart();
-  recoveryPanel.hidden=session.state!=='ended'||state.canStart();
+  const confirmedActive=Boolean(state.active)&&(state.checked||state.ending),idle=session.state==='ended';
+  recoveryPanel.hidden=!idle||!confirmedActive;
+  // Keep initial checks in the existing Start control; no conflict panel or form shift.
+  start.textContent=state.pending&&!confirmedActive?'Memeriksa sesi...':'Start';
+  start.setAttribute?.('aria-busy',String(state.pending));
+  sessionStatus.textContent=idle&&state.pending&&!confirmedActive?'Memeriksa sesi...':'';
+  recoveryRetry.hidden=!idle||state.pending||state.checked||confirmedActive;
   recoveryEnd.hidden=!state.active;recoveryEnd.disabled=state.pending;recoveryCheck.disabled=state.pending;
   recoveryStatus.textContent=state.ending?'Mengakhiri sesi sebelumnya...':state.pending?'Memeriksa sesi...':state.active?'Sesi sebelumnya masih aktif.'+(state.active.processing?' Ada ucapan yang masih diproses.':''):'Status sesi belum terverifikasi. Periksa sesi saat jaringan siap.';
   if(state.canStart()&&recoveryError){error.hidden=true;recoveryError=false;}
   if(recoveryExpiry!==null){clearTimeout(recoveryExpiry);recoveryExpiry=null;}
   if(session.state==='ended'&&!state.pending&&state.active?.expires_in_seconds>0)recoveryExpiry=setTimeout(()=>recovery.refresh(),state.active.expires_in_seconds*1000);
  }});
- recoveryEnd.addEventListener('click',()=>recovery.endPrevious());recoveryCheck.addEventListener('click',()=>recovery.refresh());
+ recoveryEnd.addEventListener('click',()=>recovery.endPrevious());recoveryCheck.addEventListener('click',()=>recovery.refresh());recoveryRetry.addEventListener('click',()=>recovery.refresh());
  window.addEventListener('online',()=>recovery.refresh());recovery.refresh();
  form.addEventListener('submit',event=>{event.preventDefault();if(!setupReady||session.state!=='ended'||!recovery.canStart())return;if(!form.reportValidity())return;
   if(!validLanguagePair(languageA,languageB)){showError('Pilih dua bahasa yang berbeda sebelum memulai sesi.');languageB.focus();return;}

@@ -5,6 +5,8 @@
 .kilas-light .kilas-live-page .home-task-choices :is(a,button,.kilas-translator-pending) span{min-width:0;white-space:normal;overflow-wrap:anywhere}
 .kilas-live-page [data-kilas-feature]{max-width:100%;box-sizing:border-box}
 .kilas-live-translator{margin:0;padding:0;min-width:0}
+.kilas-live-translator [hidden]{display:none!important}
+.kilas-live-translator .live-session-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 .kilas-live-translator .live-heading{margin-bottom:28px}
 .kilas-live-translator .live-heading h1{margin:0 0 8px;font-size:30px;line-height:1.2;letter-spacing:-.025em}
 .kilas-live-translator .live-heading p{margin:0;color:var(--muted);font-size:15px;line-height:1.6}
@@ -17,17 +19,13 @@
 #live-setup-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 #live-setup-form label{display:grid;gap:8px;margin:0;color:var(--text);font-size:14px;font-weight:600;min-width:0}
 #live-setup-form select{width:100%;max-width:100%;min-width:0;min-height:48px;margin:0;font:inherit;font-size:16px;font-weight:400;line-height:1.5;box-sizing:border-box}
-#live-setup-form #live-pair-help{grid-column:1/-1;margin:-8px 0 4px;font-weight:400}
 #live-setup-form .live-consent{grid-column:1/-1;display:flex;align-items:flex-start;gap:10px;line-height:1.6;font-weight:400;border-top:1px solid var(--line);padding-top:20px;overflow-wrap:anywhere}
 #live-setup-form .live-consent input{flex:none;width:18px;height:18px;min-height:18px;margin:3px 0 0;accent-color:var(--accent)}
-#live-setup-form .live-privacy{grid-column:1/-1;min-width:0;font-size:14px;color:var(--muted);overflow-wrap:anywhere}
-#live-setup-form .live-privacy summary{display:flex;align-items:center;min-height:44px;width:fit-content;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
-#live-setup-form .live-privacy p{margin:8px 0 0}
 #live-setup-form>button{grid-column:1/-1;justify-self:start;min-width:120px;margin:0}
 #live-setup-form p{color:var(--muted);font-size:14px;line-height:1.6}
 @media(max-width:1000px){#live-setup-form{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 16px}#live-setup-form .live-voice{grid-column:1/-1}}
 @media(max-width:760px){.kilas-live-page{margin:8px auto 24px}.kilas-live-page>.kilas-feature-navigation{margin-bottom:24px}.kilas-live-translator .live-heading h1{font-size:28px}}
-@media(max-width:480px){.kilas-live-translator .live-heading{margin-bottom:24px}#live-setup-form{grid-template-columns:minmax(0,1fr);gap:16px}#live-setup-form #live-pair-help{margin:0}#live-setup-form>button{width:100%}}
+@media(max-width:480px){.kilas-live-translator .live-heading{margin-bottom:24px}#live-setup-form{grid-template-columns:minmax(0,1fr);gap:16px}#live-setup-form>button{width:100%}}
 #live-active{min-height:60vh;display:grid;place-content:center;justify-items:center;gap:20px}
 #live-active[hidden]{display:none}
 /* Render the supplied sphere pixels; source image is retained without edits. */

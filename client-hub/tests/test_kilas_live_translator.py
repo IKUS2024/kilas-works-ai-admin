@@ -158,11 +158,16 @@ class LiveTranslatorTests(unittest.TestCase):
         parser=SelectParser();parser.feed(html)
         for name,chosen,excluded in (('language_a','id','en'),('language_b','en','id')):
             field=parser.fields[name]
-            self.assertIn('required',field['attrs']);self.assertEqual(field['attrs']['aria-describedby'],'live-pair-help')
+            self.assertIn('required',field['attrs']);self.assertNotIn('aria-describedby',field['attrs'])
             self.assertIn('selected',field['options'][chosen]);self.assertIn('disabled',field['options'][excluded])
             self.assertNotIn('disabled',field['options'][chosen])
         self.assertIn('class="kilas-live-page"',html)
-        self.assertIn('Privasi &amp; pemrosesan audio',html)
+        self.assertNotIn('live-pair-help',html);self.assertNotIn('Privasi &amp; pemrosesan audio',html)
+        self.assertNotIn('ElevenLabs',html);self.assertNotIn('OpenAI',html)
+        self.assertIn('href="/privacy#audio-processing"',html)
+        self.assertLess(html.index('kilas_live_translator.css'),html.index('</head>'))
+        self.assertIn('id="live-recovery" hidden',html)
+        self.assertIn('id="live-session-status" class="live-session-status" role="status" aria-live="polite"',html)
         self.assertIn('name="consent" value="yes" required',html)
         for label in ('AI Chat','Translator','Voice Over','Finance'):self.assertIn(label,html)
 
@@ -449,7 +454,7 @@ class LiveTranslatorTests(unittest.TestCase):
             with patch.object(live.stt,'require_subscription_credit',side_effect=budget.BudgetError('provider_credit_exhausted',402)):
                 with self.assertRaises(budget.BudgetError):live.process(self.user,ident,self.key(),self.signal(),info)
             stt.assert_not_called();ai.assert_not_called();tts.assert_not_called()
-            self.assertIn('Kredit ElevenLabs tidak cukup',self.client.get('/kilas-translator/live/sessions/'+ident+'/turns/'+self.key()).json['error'])
+            self.assertIn('Kapasitas layanan suara tidak cukup',self.client.get('/kilas-translator/live/sessions/'+ident+'/turns/'+self.key()).json['error'])
             info=self.claim(ident,self.key(2))
             with patch.object(live.stt,'require_subscription_credit',side_effect=[None,budget.BudgetError('provider_credit_exhausted',402)]):
                 with self.assertRaises(budget.BudgetError):live.process(self.user,ident,self.key(2),self.signal(),info)
