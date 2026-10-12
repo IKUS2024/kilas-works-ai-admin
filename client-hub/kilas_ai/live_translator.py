@@ -2,9 +2,11 @@
 import hashlib
 import json
 import os
+import re
 import io
 import struct
 import wave
+from datetime import timedelta
 import db
 from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
@@ -22,6 +24,11 @@ def ready(owner=None):
         if os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_MODEL')!=model_policy.luna_model():return False
         if os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_STT')!=budget.MODEL:return False
         if os.environ.get('KILAS_LIVE_TRANSLATOR_REFERENCE_VERIFIED')!='yes':return False
+        if not re.fullmatch(r'proj_[A-Za-z0-9_-]{1,100}',os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT','')):return False
+        allowed=int(os.environ.get('KILAS_LIVE_TRANSLATOR_ALLOWED_OWNER_ID','0'))
+        if allowed<=0 or owner!=allowed:return False
+        if os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa') not in ('qa','owner'):return False
+        if not 1<=int(os.environ.get('KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS','0'))<=3600:return False
         if not budget.ready(owner) or not os.environ.get('OPENAI_API_KEY','').strip():return False
         if db.BACKEND=='postgres':row=db.query_one("SELECT to_regclass('kilas_live_translator_sessions') AS name")
         else:row=db.query_one("SELECT name FROM sqlite_master WHERE type='table' AND name='kilas_live_translator_sessions'")
@@ -33,6 +40,20 @@ def require_ready(owner=None):
     if not ready(owner):raise audio_store.AudioError('Live Translator belum aktif. Dukungan provider dan batas biaya belum terverifikasi.','translator_unavailable',503)
 
 
+def require_audio_allowance(owner,reserve=1):
+    """Bound Live output even for the existing internal QA Audio exemption."""
+    now=usage._now()
+    start=now.replace(day=1,hour=0,minute=0,second=0,microsecond=0) if os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa')=='owner' else now-timedelta(days=1)
+    rows=db.query_all("SELECT status,actual_ms,original_script FROM kilas_audio_jobs WHERE user_id=? AND operation_key LIKE 'live-%-audio' AND title='Live Translator' AND created_at>=?",(owner,start.isoformat()))
+    used=0
+    for row in rows:
+        # A failed/dispatched result may still have supplier cost. Do not auto-refund
+        # this safety allowance or reset historical records to permit another call.
+        used+=(int(row['actual_ms'])+999)//1000 if row['status']=='COMPLETED' else audio_service.estimate(row['original_script'] or '')[1]
+    if used+reserve>int(os.environ['KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS']):
+        raise audio_store.AudioError('Batas audio Live Translator tercapai. Sesi dihentikan tanpa pembelian tambahan.','live_audio_limit',429)
+
+
 def translation(owner,key,text,a,b,check):
     model=model_policy.luna_model()
     system=(f'Translate spoken text faithfully between {audio_provider.LANGUAGES[a]} ({a}) and {audio_provider.LANGUAGES[b]} ({b}). '
@@ -42,9 +63,11 @@ def translation(owner,key,text,a,b,check):
     _,operations=usage.reserve(owner,None,key+'-text','FAST','CHAT',profile=model_policy.chat_profile([{'role':'user','content':text}]))
     if not operations:raise audio_store.AudioError('Terjemahan ini sudah diproses.','duplicate_turn',409)
     complete=False;tokens={};parts=[];success=False
+    stream=None
     try:
         check()
-        for event in providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),[{'role':'user','content':text}],'FAST',system=system):
+        stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),[{'role':'user','content':text}],'FAST',system=system,project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'])
+        for event in stream:
             check()
             if event['type']=='delta':
                 parts.append(event['text'])
@@ -57,7 +80,10 @@ def translation(owner,key,text,a,b,check):
         success=True;result['text']=value.strip();return result
     except (providers.ProviderError,ValueError,KeyError,TypeError):
         raise audio_store.AudioError('Terjemahan belum berhasil. Sesi dihentikan; tidak ada pengulangan otomatis.','translation_failed',503) from None
-    finally:usage.finish(owner,key+'-text',operations,success=success,provider='openai',model=model,usage=tokens)
+    finally:
+        try:
+            if stream is not None:stream.close()
+        finally:usage.finish(owner,key+'-text',operations,success=success,provider='openai',model=model,usage=tokens)
 
 
 def process(owner,ident,key,pcm,info):
@@ -66,19 +92,23 @@ def process(owner,ident,key,pcm,info):
         require_ready(owner);return sessions.check(owner,ident,key)
     try:
         audio_store.require_balance(owner)
+        require_audio_allowance(owner)
         choice=voices.resolve(info['voice_alias'])
         if not choice:raise audio_store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
         check()
         pcm,ms=stt.normalize(pcm)
         with wave.open(io.BytesIO(pcm)) as wav:
             if not any(abs(value[0])>=32 for value in struct.iter_unpack('<h',wav.readframes(wav.getnframes()))):raise audio_store.AudioError('Tidak ada ucapan terbaca. Bicara kembali.','no_speech',422)
+        stt.require_subscription_credit();check()
         _,capability=budget.claim(owner,key,hashlib.sha256(pcm).hexdigest(),ms)
         if not capability:raise audio_store.AudioError('Ucapan ini sudah dikirim; tidak diulang.','duplicate_turn',409)
         check();text=stt.transcribe(pcm,capability);check()
         if not text:raise audio_store.AudioError('Tidak ada ucapan terbaca.','no_speech',422)
         result=translation(owner,key,text,info['language_a'],info['language_b'],check);check()
+        stt.require_subscription_credit();check()
         expected,reserve=audio_service.estimate(result['text'])
-        job,new=audio_store.create(owner,key+'-audio','voiceover','Live Translator',result['source_language'],result['target_language'],choice['id'],choice['name'],result['text'],0,None,expected,reserve)
+        require_audio_allowance(owner,reserve)
+        job,new=audio_store.create(owner,key+'-audio','voiceover','Live Translator',result['source_language'],result['target_language'],choice['id'],choice['name'],result['text'],0,None,expected,reserve,original_script=result['text'])
         check()
         if not new:raise audio_store.AudioError('Audio ini sudah diproses.','duplicate_turn',409)
         # Existing job locks, reservation, output-duration settlement and supplier adapter.

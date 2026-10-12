@@ -407,9 +407,21 @@ def live_translator_turn(ident,key):
         return {'status':'PROCESSING'},202,{'Cache-Control':'private, no-store'}
     state=sessions.result(session['user_id'],ident,key)
     if state['status']=='COMPLETED':
-        state={'status':'COMPLETED','audio_url':url_for('kilas_audio.live_translator_result',ident=ident,key=key)}
+        job=store.get(session['user_id'],state['audio_job_id'])
+        state={'status':'COMPLETED','audio_url':url_for('kilas_audio.live_translator_result',ident=ident,key=key),
+               'translated_text':store.edit_script(session['user_id'],state['audio_job_id']) or '',
+               'source_language':job['source_language'],'target_language':job['target_language']}
     elif state['status']=='FAILED':
-        code=state.get('error_code');state={'status':'FAILED','recoverable':code=='no_speech','error':'Ucapan belum terbaca dalam pasangan bahasa ini. Bicara kembali.' if code=='no_speech' else 'Ucapan belum berhasil diproses. Sesi dihentikan; tidak ada pengulangan otomatis.'}
+        code=state.get('error_code')
+        messages={'no_speech':'Ucapan belum terbaca dalam pasangan bahasa ini. Bicara kembali.',
+                  'provider_credit_exhausted':'Kredit ElevenLabs tidak cukup. Sesi dihentikan tanpa top-up atau overage.',
+                  'provider_credit_check_failed':'Kredit ElevenLabs belum dapat diperiksa. Sesi dihentikan sebelum permintaan berikutnya.',
+                  'provider_billing_unverified':'Konfigurasi Creator atau overage berubah. Sesi dihentikan.',
+                  'attempt_limit':'Batas penggunaan Live Translator tercapai. Sesi dihentikan.',
+                  'live_audio_limit':'Batas audio Live Translator tercapai. Sesi dihentikan tanpa pembelian tambahan.',
+                  'zero_balance':'Kuota audio Live Translator belum tersedia untuk akun ini.',
+                  'insufficient_balance':'Kuota audio tidak cukup untuk ucapan berikutnya.'}
+        state={'status':'FAILED','recoverable':code=='no_speech','error':messages.get(code,'Ucapan belum berhasil diproses. Sesi dihentikan; tidak ada pengulangan otomatis.')}
     else:state={'status':state['status']}
     return state,200,{'Cache-Control':'private, no-store'}
 

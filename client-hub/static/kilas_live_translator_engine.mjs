@@ -11,8 +11,8 @@ export class SilenceGate {
 }
 
 export class TranslatorSession {
-  constructor({api,capture,playback,onState=()=>{},onError=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-','')}){
-    Object.assign(this,{api,capture,playback,onState,onError,now,key});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.gate=new SilenceGate();
+  constructor({api,capture,playback,onState=()=>{},onResult=()=>{},onError=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-','')}){
+    Object.assign(this,{api,capture,playback,onState,onResult,onError,now,key});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.gate=new SilenceGate();
   }
   stateTo(state){this.state=state;this.onState(state);}
   async start(params){
@@ -43,6 +43,7 @@ export class TranslatorSession {
       if(!blob?.size){const error=Error('Rekaman kosong. Silakan bicara kembali.');error.code='no_speech';throw error;}
       const result=await this.api.turn(this.id,'live-'+this.key(),blob,this.controller.signal);
       if(ticket!==this.version)return;
+      this.onResult(result);
       this.stateTo('playing');await this.playback.play(result.audio_url,this.controller.signal,()=>ticket===this.version);
       if(ticket!==this.version)return;
       await this.listen(ticket);

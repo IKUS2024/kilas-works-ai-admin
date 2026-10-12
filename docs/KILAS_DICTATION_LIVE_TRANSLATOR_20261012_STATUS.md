@@ -1,3 +1,73 @@
+## Live Translator focused hardening; production activation pending funding evidence — 2026-10-12
+
+Continued the same worktree and main source 4124a831da6dbcf52fdfb9ee9c503ba7b26eb31a.
+That Naskah release is LIVE on Client Hub deploy dep-db6a3uqd0e5s739vjv9g.
+Naskah owner mode/owner 9/campaign/caps/price version read back unchanged this turn.
+Do not reinterpret the owner's successful dictation test as Translator evidence.
+
+Focused changes only:
+- Live readiness now requires its own explicit owner ID and verified OpenAI
+  Project ID. That project is passed through the existing AI Chat OpenAI adapter
+  using OpenAI-Project; other callers retain their existing headers/behavior.
+- Explicitly close the OpenAI stream when leaving translation, retaining usage
+  settlement even if stream cleanup fails. End fences downstream stages; already
+  dispatched provider work cannot be recalled and can still incur usage.
+- Check the existing Voice Over Creator account/disabled-overage/remaining credits
+  before Live STT and again before Live TTS; stop on denied/unknown/exhausted credit.
+- Owner-mode Live QA admits at most four Live STT attempts/rolling24h independently
+  of the old two-attempt QA restriction. Existing Naskah admission is unchanged.
+  Future owner mode supports 20 Live/hour, 120 Live/rolling24h, with the existing
+  finite monthly STT estimate cap. Do not enable ongoing Live before real QA PASS.
+- Retain translated text in the existing supported audio-job original_script
+  field and return it only through the owned active session; show text and real
+  session state with textContent/aria-live. No new schema or raw source transcript
+  in the session ledger. Existing audio reservations/settlement remain authoritative.
+
+Focused local tests PASS: 16 Live backend tests, 23 Naskah/STT tests, 52 Audio tests,
+12 JS lifecycle tests. Chromium mocked capture/network/playback PASS at widths
+320/360/390/430/820/1440: 3-second silence, no mic during output, automatic resume,
+End, late responses, empty speech, permission refusal, pair/voice selection, text
+and state feedback, no horizontal overflow. No paid call in these tests.
+Impeccable used only on Live presentation; detector advisories concern existing
+palette/radii and static Jinja stylesheet resolution, not a new verified defect.
+No design-system repair, global audit, Finance, Trading or migration changes.
+
+Live remains OFF. No production paid STT/OpenAI/TTS or internal balance grant this
+turn. Existing owner Audio balance is 0; no Live STT operations or active sessions.
+IMPORTANT correction to the earlier handoff: usage._qa_quota_exempt already includes
+the owner's email by default, and that env override is absent in production. Thus
+the existing owner Audio exemption applies despite balance 0. No new balance grant
+or billing exemption is needed or made. Live now has its own required finite output
+allowance, summing existing owned Live audio jobs: completed actual duration and
+conservative reservation for unsuccessful work. Planned QA cap 120 seconds per
+rolling24h; ongoing owner mode, only after PASS, uses a finite UTC monthly cap
+(maximum configurable 3600 seconds). This does not modify shared Audio billing.
+No top-up, upgrade, key creation or overage permitted.
+
+The official connected Chrome browser now works; no URL-security bypass was used.
+The existing OpenAI billing tab shows authentication failure. The existing Kilas
+tab also redirects to login on an authenticated account navigation. Read-only GET
+for gpt-6-luna with the deployed AI Chat key returns 200, but no project identity
+headers: model access does NOT establish project billing or prepaid balance.
+Requested non-secret production Project ID/name and prepaid/auto-recharge evidence;
+previous checkpoint identifies CV Kilas as intended organization. No verification
+markers are set to bypass these missing facts.
+
+After funding evidence and source release checks pass: pin the verified project,
+admit only owner 9, set KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS=120 (not purchase), activate
+Live QA, then ask owner to test /kilas-translator/live with safe short sentences:
+1. Indonesia/English + Kilas Male, consent + Start. Speak Indonesian then stay
+   silent 3 seconds; verify English text/audio and automatic listening resumes.
+2. Speak English in the same session; verify Indonesian text/audio, no echo turn.
+3. End while listening/processing/playback; mic indicator/audio must stop, no
+   late result plays or listening restarts. Test Kilas Female with one short turn.
+4. Report actual results/errors before any real PASS or ongoing-owner activation.
+Disable only KILAS_LIVE_TRANSLATOR_ENABLED if necessary; preserve all Naskah flags.
+
+Source commit/push/CI and Client Hub-only dormant deployment pending below.
+
+---
+
 ## Owner-reported Naskah PASS; normal owner usage release prepared — 2026-10-12
 
 The owner reports that the real Naskah microphone test succeeded. This is an

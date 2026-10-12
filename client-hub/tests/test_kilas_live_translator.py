@@ -4,7 +4,7 @@ import io
 import json
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import test_kilas_audio as audio
 import test_kilas_audio_video_script as video
 from kilas_ai import live_translator as live, live_translator_store as sessions
@@ -15,14 +15,17 @@ VOICE={'alias':'kilas-male','id':'syntheticMale123','name':'Kilas Male','style':
 
 
 class LiveTranslatorTests(unittest.TestCase):
-    setUp=audio.AudioTests.setUp
+    def setUp(self):
+        audio.AudioTests.setUp(self)
+        funding=patch.object(live.stt,'require_subscription_credit')
+        funding.start();self.addCleanup(funding.stop)
     funded=video.VideoScriptTests.funded
     credit=audio.AudioTests.credit
     @classmethod
     def setUpClass(cls):cls.audio=audio.mp3()
 
     def on(self):
-        return patch.dict(os.environ,{'KILAS_LIVE_TRANSLATOR_ENABLED':'true','KILAS_LIVE_TRANSLATOR_VERIFIED_MODEL':model_policy.LUNA,'KILAS_LIVE_TRANSLATOR_VERIFIED_STT':budget.MODEL,'KILAS_LIVE_TRANSLATOR_REFERENCE_VERIFIED':'yes','OPENAI_API_KEY':'synthetic-only'})
+        return patch.dict(os.environ,{'KILAS_LIVE_TRANSLATOR_ENABLED':'true','KILAS_LIVE_TRANSLATOR_VERIFIED_MODEL':model_policy.LUNA,'KILAS_LIVE_TRANSLATOR_VERIFIED_STT':budget.MODEL,'KILAS_LIVE_TRANSLATOR_REFERENCE_VERIFIED':'yes','KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT':'proj_synthetic','KILAS_LIVE_TRANSLATOR_ALLOWED_OWNER_ID':str(self.user),'KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS':'120','KILAS_LIVE_TRANSLATOR_USAGE_MODE':'qa','OPENAI_API_KEY':'synthetic-only'})
 
     def transcribe(self,pcm,capability):
         _,ms=live.stt.normalize(pcm);budget.dispatch(capability,hashlib.sha256(pcm).hexdigest(),ms);budget.finish(capability,True);return 'Halo, apa kabar?'
@@ -48,9 +51,9 @@ class LiveTranslatorTests(unittest.TestCase):
             r=self.client.post('/kilas-translator/live/sessions',data={'csrf_token':'audio-csrf','consent':'yes','language_a':'id','language_b':'en','voice':'kilas-male'})
             self.assertEqual(r.status_code,503);stt.assert_not_called();ai.assert_not_called();tts.assert_not_called()
             with self.funded(),self.on():
-                self.assertTrue(live.ready())
-                for name in ('KILAS_LIVE_TRANSLATOR_VERIFIED_MODEL','KILAS_LIVE_TRANSLATOR_VERIFIED_STT','KILAS_LIVE_TRANSLATOR_REFERENCE_VERIFIED'):
-                    with patch.dict(os.environ,{name:''}):self.assertFalse(live.ready())
+                self.assertTrue(live.ready(self.user));self.assertFalse(live.ready());self.assertFalse(live.ready(self.other))
+                for name in ('KILAS_LIVE_TRANSLATOR_VERIFIED_MODEL','KILAS_LIVE_TRANSLATOR_VERIFIED_STT','KILAS_LIVE_TRANSLATOR_REFERENCE_VERIFIED','KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT','KILAS_LIVE_TRANSLATOR_ALLOWED_OWNER_ID','KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS'):
+                    with patch.dict(os.environ,{name:''}):self.assertFalse(live.ready(self.user))
                 with patch.dict(os.environ,{'KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):self.assertFalse(live.ready())
 
     def test_pair_consent_voice_owner_and_concurrent_session_checks(self):
@@ -90,13 +93,16 @@ class LiveTranslatorTests(unittest.TestCase):
             ident=self.session();key=self.key();info=self.claim(ident,key);job=live.process(self.user,ident,key,self.signal(),info)
             self.assertEqual(sessions.result(self.user,ident,key)['status'],'COMPLETED');self.assertEqual(audio_store.get(self.user,job)['seconds_charged'],2)
             self.assertEqual(tts.call_args.args[1],VOICE['id']);self.assertEqual(tts.call_args.args[2],'en');self.assertEqual(ai.call_args.args[0],model_policy.LUNA)
+            self.assertEqual(ai.call_args.kwargs['project'],'proj_synthetic')
             def reverse(*args,**kwargs):
                 yield {'type':'delta','text':json.dumps({'text':'Selamat pagi.','source_language':'en','target_language':'id'})}
                 yield {'type':'finish','reason':'stop'}
             ai.side_effect=reverse;key2=self.key(2);info=self.claim(ident,key2);live.process(self.user,ident,key2,self.signal(),info)
             self.assertEqual(tts.call_args.args[2],'id');self.assertEqual(stt.call_count,2);clone.assert_not_called()
             response=self.client.get('/kilas-translator/live/sessions/'+ident+'/turns/'+key2)
-            self.assertEqual(set(response.json),{'status','audio_url'});self.assertNotIn(VOICE['id'],response.text)
+            self.assertEqual(set(response.json),{'status','audio_url','translated_text','source_language','target_language'});self.assertNotIn(VOICE['id'],response.text)
+            self.assertEqual(response.json['translated_text'],'Selamat pagi.')
+            self.assertEqual(response.json['source_language'],'en');self.assertEqual(response.json['target_language'],'id')
             self.assertEqual(self.client.get(response.json['audio_url']).status_code,200)
             with self.assertRaises(audio_store.AudioError):self.claim(ident,key)
             self.assertEqual(stt.call_count,2)
@@ -183,6 +189,70 @@ class LiveTranslatorTests(unittest.TestCase):
         audio.f.db.execute('UPDATE kilas_live_translator_sessions SET expires_at=? WHERE id=?',('2000-01-01T00:00:00+00:00',ident))
         with self.assertRaises(audio_store.AudioError):self.claim(ident,self.key(2))
         self.assertEqual(sessions.result(self.user,ident,self.key())['status'],'CANCELLED')
+
+    def test_live_owner_qa_does_not_use_up_dictation_allowance_and_stops_at_four(self):
+        with self.funded(),patch.dict(os.environ,{'KILAS_VO_STT_USAGE_MODE':'owner','KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user),'KILAS_LIVE_TRANSLATOR_USAGE_MODE':'qa'}):
+            pcm=self.signal();digest=hashlib.sha256(pcm).hexdigest();_,ms=live.stt.normalize(pcm)
+            for n in range(2):
+                _,cap=budget.claim(self.user,'dictate-'+str(n).zfill(32),digest,ms)
+                budget.dispatch(cap,digest,ms);budget.finish(cap,True)
+            for n in range(4):
+                _,cap=budget.claim(self.user,self.key(n),digest,ms)
+                budget.dispatch(cap,digest,ms);budget.finish(cap,True)
+            with self.assertRaises(budget.BudgetError) as error:budget.claim(self.user,self.key(9),digest,ms)
+            self.assertEqual(error.exception.code,'attempt_limit')
+            _,cap=budget.claim(self.user,'dictate-normal-use-1234567890',digest,ms)
+            self.assertIsNotNone(cap);budget.cancel(self.user,cap.key)
+            with self.assertRaises(budget.BudgetError):budget.claim(self.other,self.key(8),digest,ms)
+
+    def test_credit_denial_before_stt_and_after_translation_never_dispatches_next_stage(self):
+        self.credit(300)
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'transcribe',side_effect=self.transcribe) as stt,patch.object(providers,'_openai',side_effect=self.stream) as ai,patch.object(audio_provider,'speech') as tts:
+            ident=self.session();info=self.claim(ident)
+            with patch.object(live.stt,'require_subscription_credit',side_effect=budget.BudgetError('provider_credit_exhausted',402)):
+                with self.assertRaises(budget.BudgetError):live.process(self.user,ident,self.key(),self.signal(),info)
+            stt.assert_not_called();ai.assert_not_called();tts.assert_not_called()
+            self.assertIn('Kredit ElevenLabs tidak cukup',self.client.get('/kilas-translator/live/sessions/'+ident+'/turns/'+self.key()).json['error'])
+            info=self.claim(ident,self.key(2))
+            with patch.object(live.stt,'require_subscription_credit',side_effect=[None,budget.BudgetError('provider_credit_exhausted',402)]):
+                with self.assertRaises(budget.BudgetError):live.process(self.user,ident,self.key(2),self.signal(),info)
+            self.assertEqual(stt.call_count,1);self.assertEqual(ai.call_count,1);tts.assert_not_called()
+            self.assertEqual(audio_store.balance(self.user)['available'],300)
+
+    def test_verified_project_is_sent_only_for_explicit_live_translation(self):
+        response=MagicMock();response.__enter__.return_value=response
+        with patch.object(providers.requests,'post',return_value=response) as transport,patch.object(providers,'_events',return_value=iter([])):
+            list(providers._openai(model_policy.LUNA,'synthetic-only',[{'role':'user','content':'Hello'}],'FAST',project='proj_synthetic'))
+            self.assertEqual(transport.call_args.kwargs['headers']['OpenAI-Project'],'proj_synthetic')
+            list(providers._openai(model_policy.LUNA,'synthetic-only',[{'role':'user','content':'Hello'}],'FAST'))
+            self.assertNotIn('OpenAI-Project',transport.call_args.kwargs['headers'])
+
+    def test_end_closes_openai_stream_and_records_cancelled_work(self):
+        closed=[]
+        def stream(*args,**kwargs):
+            try:yield {'type':'delta','text':'{}'}
+            finally:closed.append(True)
+        def check():
+            if closed:raise AssertionError('Unexpected subsequent call')
+            check.calls+=1
+            if check.calls==2:raise audio_store.AudioError('Sesi berakhir.','session_ended',409)
+        check.calls=0
+        with self.on(),patch.object(providers,'_openai',side_effect=stream):
+            with self.assertRaises(audio_store.AudioError):live.translation(self.user,self.key(),'Halo','id','en',check)
+        self.assertEqual(closed,[True])
+        self.assertEqual(audio.f.db.query_one('SELECT status FROM kilas_ai_usage WHERE user_id=?',(self.user,))['status'],'FAILED')
+
+    def test_existing_owner_audio_exemption_still_has_finite_live_output_allowance(self):
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'transcribe',side_effect=self.transcribe) as stt,patch.object(providers,'_openai',side_effect=self.stream),patch.object(audio_provider,'speech',return_value=(self.audio,'synthetic-request')),patch.object(usage,'_qa_quota_exempt',return_value=True):
+            ident=self.session();info=self.claim(ident)
+            job=live.process(self.user,ident,self.key(),self.signal(),info)
+            self.assertEqual(audio_store.get(self.user,job)['seconds_charged'],0)
+            self.assertEqual(audio_store.balance(self.user)['seconds'],0)
+            with patch.dict(os.environ,{'KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS':'1'}):
+                info=self.claim(ident,self.key(2))
+                with self.assertRaises(audio_store.AudioError) as error:live.process(self.user,ident,self.key(2),self.signal(),info)
+                self.assertEqual(error.exception.code,'live_audio_limit')
+            self.assertEqual(stt.call_count,1)
 
 
 if __name__=='__main__':unittest.main()

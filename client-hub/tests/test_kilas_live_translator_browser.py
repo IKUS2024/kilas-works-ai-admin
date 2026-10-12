@@ -42,7 +42,7 @@ def main():
                         if path.endswith('/audio'):r.fulfill(content_type='audio/mpeg',body=b'synthetic')
                         elif r.request.method=='POST':
                             state['posts']+=1;state['sent_at']=page.evaluate('performance.now()-qa.lastVoice');r.fulfill(status=202,content_type='application/json',body='{"status":"PROCESSING"}')
-                        else:r.fulfill(content_type='application/json',body=json.dumps({'status':'COMPLETED','audio_url':path+'/audio'} if state['complete'] else {'status':'PROCESSING'}))
+                        else:r.fulfill(content_type='application/json',body=json.dumps({'status':'COMPLETED','audio_url':path+'/audio','translated_text':'Hello, this is a safe translation test.'} if state['complete'] else {'status':'PROCESSING'}))
                     elif r.request.url.startswith(origin):r.continue_()
                     else:r.abort()
                 page.route('**/*',route)
@@ -63,6 +63,8 @@ def main():
                 page.evaluate('qa.rms=.2');page.wait_for_function('!!qa.lastVoice');page.evaluate('qa.rms=0');page.wait_for_timeout(2800);assert state['posts']==0
                 page.wait_for_function('qa.mics===0',timeout=2000);page.wait_for_timeout(100);assert state['posts']==1 and state['sent_at']>=2990,state
                 state['complete']=True;page.wait_for_function('qa.plays===1');assert page.evaluate('qa.mics')==0
+                expect(page.locator('#live-translation')).to_have_text('Hello, this is a safe translation test.')
+                expect(page.locator('#live-state')).to_have_text('Memutar terjemahan')
                 page.evaluate('qa.rms=.4');page.wait_for_timeout(3200);assert state['posts']==1 and page.evaluate('qa.starts')==1
                 # Playback completion resumes listening; End stops the resumed mic immediately.
                 page.evaluate('qa.audio.onended()');page.wait_for_function('qa.starts===2');page.get_by_role('button',name='End',exact=True).click();expect(page.locator('#live-active')).to_be_hidden();assert page.evaluate('qa.mics')==0

@@ -54,12 +54,12 @@ def _events(response):
             raise ProviderError("bad_provider_stream") from None
 
 
-def _openai(model, key, messages, mode, system=SYSTEM):
+def _openai(model, key, messages, mode, system=SYSTEM, *, project=None):
     profile = model_policy.chat_profile(messages)
     try:
         with requests.post(
             "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
+            headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", **({'OpenAI-Project':project} if project else {})},
             json={"model": model, "messages": [{"role": "system", "content": system}] + messages,
                   "max_completion_tokens": profile["output_tokens"], "reasoning_effort": profile["effort"], "stream": True,
                   "stream_options": {"include_usage": True}, "store": False},

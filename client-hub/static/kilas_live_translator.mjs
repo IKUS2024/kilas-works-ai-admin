@@ -1,5 +1,5 @@
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=lifecycle-20261012';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=live-owner-20261012';
 const root=document.querySelector('.kilas-live-translator');
 if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');
@@ -49,12 +49,15 @@ if(root){
   },
   end(id){const data=new FormData();data.append('csrf_token',csrf);return json('/kilas-translator/live/sessions/'+id+'/end',{method:'POST',body:data,keepalive:true});},
  };
- const session=new TranslatorSession({api,capture,playback,key:()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''),onError:showError,onState:state=>{
+ const session=new TranslatorSession({api,capture,playback,key:()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''),onError:showError,onResult:result=>{
+  const text=document.querySelector('#live-translation');text.textContent=result.translated_text||'';text.hidden=!text.textContent;
+ },onState:state=>{
   start.disabled=state!=='ended'||root.dataset.ready!=='true';setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;orb.setAttribute('aria-label',state==='starting'?'Menyiapkan sesi':state==='playing'?'Memutar terjemahan':state==='listening'?'Mendengarkan':'Memproses');
+  document.querySelector('#live-state').textContent=orb.getAttribute('aria-label');
  }});
  form.addEventListener('submit',event=>{event.preventDefault();if(root.dataset.ready!=='true'||session.state!=='ended')return;if(!form.reportValidity())return;
   if(form.elements.language_a.value===form.elements.language_b.value){showError('Pilih dua bahasa yang berbeda.');return;}
-  error.hidden=true;const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext){showError('Browser ini belum mendukung audio sesi.');return;}
+  error.hidden=true;document.querySelector('#live-translation').hidden=true;const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext){showError('Browser ini belum mendukung audio sesi.');return;}
   context=new AudioContext();context.resume().catch(()=>{});session.start(new FormData(form));
  });
  document.querySelector('#live-end').addEventListener('click',()=>session.end());window.addEventListener('pagehide',()=>session.end());

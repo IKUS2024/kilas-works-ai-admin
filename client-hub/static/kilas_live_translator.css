@@ -6,10 +6,12 @@
 #live-setup-form label{display:grid;gap:8px}
 #live-setup-form label:has(input){display:block;line-height:1.6}
 #live-setup-form p{color:var(--muted);font-size:14px;line-height:1.6}
-#live-active{min-height:60vh;display:grid;place-content:center;justify-items:center;gap:48px}
+#live-active{min-height:60vh;display:grid;place-content:center;justify-items:center;gap:20px}
 #live-active[hidden]{display:none}
 /* Render the supplied sphere pixels; source image is retained without edits. */
 #live-active{background:#000;border-radius:24px;padding:32px 16px;box-sizing:border-box}
+#live-active #live-state,#live-active #live-translation{color:#fff;margin:0;max-width:60ch;line-height:1.6;text-align:center;overflow-wrap:anywhere;min-width:0}
+#live-active #live-translation{max-height:20vh;overflow:auto;width:100%}
 .kilas-live-orb{width:min(55vw,260px);aspect-ratio:1;border-radius:50%;background:#000 url('kilas-live-orb-reference.jpg') 49.9% 39.2% / 190.5% 412.9% no-repeat;animation:kilas-orb-breathe 3s ease-in-out infinite}
 .kilas-live-orb[data-state=processing]{animation-duration:1.5s}
 .kilas-live-orb[data-state=playing]{animation-duration:1s}

@@ -130,17 +130,34 @@ def owned(owner,key):
 
 def _admit(conn,owner,config,reserve=0,key=''):
     cutoff=(datetime.now(timezone.utc)-timedelta(days=1)).isoformat()
+    # Live QA has its own finite allowance; a successful dictation must not
+    # consume the two turns needed to test translation in both directions.
+    if key.startswith('live-') and config['mode']=='owner':
+        mode=os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa')
+        if config['allowed_owner']!=owner or mode not in ('qa','owner'):
+            raise BudgetError('budget_unavailable')
+        daily=4 if mode=='qa' else OWNER_DAILY_ATTEMPTS
+        used=usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE 'live-%' AND created_at>=?",(owner,cutoff),one=True)[0]
+        if used>=daily:raise BudgetError('attempt_limit',429)
+        hour=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
+        if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE 'live-%' AND created_at>=?",(owner,hour),one=True)[0]>=OWNER_HOURLY_ATTEMPTS:
+            raise BudgetError('rate_limit',429)
+    else:
+        _attempts(conn,owner,config,key,cutoff)
+    if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",(owner,),one=True)[0]:raise BudgetError('already_processing',429)
+    if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status IN ('RESERVED','DISPATCHED')",one=True)[0]>=GLOBAL_CONCURRENCY:raise BudgetError('service_busy',429)
+    total=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=?',(config['id'],),one=True)[0]
+    account=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=? AND user_id=?',(config['id'],owner),one=True)[0]
+    if total+reserve>config['global_micro'] or account+reserve>config['account_micro']:raise BudgetError('budget_limit',429)
+
+
+def _attempts(conn,owner,config,key,cutoff):
     normal_dictation=config['mode']=='owner' and key.startswith('dictate-')
     daily_limit=OWNER_DAILY_ATTEMPTS if normal_dictation else DAILY_ATTEMPTS
     if usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,cutoff),one=True)[0]>=daily_limit:raise BudgetError('attempt_limit',429)
     if normal_dictation:
         hour=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
         if usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,hour),one=True)[0]>=OWNER_HOURLY_ATTEMPTS:raise BudgetError('rate_limit',429)
-    if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",(owner,),one=True)[0]:raise BudgetError('already_processing',429)
-    if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status IN ('RESERVED','DISPATCHED')",one=True)[0]>=GLOBAL_CONCURRENCY:raise BudgetError('service_busy',429)
-    total=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=?',(config['id'],),one=True)[0]
-    account=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=? AND user_id=?',(config['id'],owner),one=True)[0]
-    if total+reserve>config['global_micro'] or account+reserve>config['account_micro']:raise BudgetError('budget_limit',429)
 
 
 def claim(owner,key,fingerprint,ms):
