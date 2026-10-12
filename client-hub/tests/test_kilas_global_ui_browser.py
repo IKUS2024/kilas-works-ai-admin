@@ -76,7 +76,9 @@ def main():
                             assert overflow['scroll'] <= width, overflow
                             if name == 'settings':
                                 expect(page.locator('aside')).to_have_count(0)
-                                expect(page.locator('a[href="/products/finance"]')).to_be_visible()
+                                back = page.locator('.account-back-finance')
+                                expect(back).to_be_visible()
+                                assert back.get_attribute('href').startswith(('/business/', '/products/finance'))
                             else:
                                 assert page.locator('a[href="/products/start"]').count() >= 1
                             assert page.locator('a[href*="workspace/more"]').count() == 0
