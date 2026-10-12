@@ -266,4 +266,93 @@ class VideoScriptTests(unittest.TestCase):
             finally:case.doCleanups()
 
 
+    def normal_usage(self):
+        return patch.dict(os.environ,{'KILAS_VO_STT_USAGE_MODE':'owner',
+            'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user),
+            'KILAS_VO_STT_EXPIRES_AT':'2000-01-01T00:00:00Z'})
+
+    def dictate(self,key='dictate-normal-operation-1234'):
+        return self.client.post('/kilas-translator/voice-script/dictate',data={
+            'csrf_token':'audio-csrf','consent':'yes','operation_key':key,
+            'recording':(io.BytesIO(wav()),'recording.wav','audio/wav')})
+
+    def subscription(self,**changes):
+        return Mock(status_code=200,json=Mock(return_value={
+            'tier':'creator','status':'active','character_count':10,'character_limit':10000,
+            'max_credit_limit_extension':0,'allowed_to_extend_character_limit':False,
+            'can_extend_character_limit':False,**changes}))
+
+    def test_owner_usage_ignores_qa_expiry_renews_monthly_requires_allowlist(self):
+        with self.funded(),self.normal_usage(),patch.object(budget,'datetime',wraps=datetime) as clock:
+            clock.now.return_value=datetime(2026,12,31,tzinfo=timezone.utc)
+            first=budget.policy();self.assertTrue(budget.ready(self.user))
+            self.assertFalse(budget.ready(self.other));self.assertFalse(budget.ready())
+            self.assertTrue(first['id'].endswith('-202612'))
+            self.assertEqual(first['expires_at'],'2027-01-01T00:00:00+00:00')
+            clock.now.return_value=datetime(2027,1,1,tzinfo=timezone.utc)
+            second=budget.policy();self.assertNotEqual(first['id'],second['id'])
+            self.assertEqual(second['expires_at'],'2027-02-01T00:00:00+00:00')
+            for owner in ('','0','not-an-owner'):
+                with patch.dict(os.environ,{'KILAS_VO_STT_ALLOWED_OWNER_ID':owner}):self.assertFalse(budget.ready(self.user))
+            with patch.dict(os.environ):
+                os.environ.pop('KILAS_VO_STT_ALLOWED_OWNER_ID');self.assertFalse(budget.ready(self.user))
+            with patch.dict(os.environ,{'KILAS_VO_STT_USAGE_MODE':'unknown'}):self.assertFalse(budget.ready(self.user))
+
+    def test_owner_dictation_more_than_two_no_duplicate_and_abuse_limits_remain(self):
+        with self.funded(),self.normal_usage(),patch.object(stt.requests,'get',return_value=self.subscription()) as metadata,patch.object(stt.requests,'post',return_value=self.response()) as paid:
+            for i in range(3):self.assertEqual(self.dictate('dictate-normal-operation-'+str(i)).status_code,200)
+            self.assertEqual(paid.call_count,3);self.assertEqual(metadata.call_count,3)
+            self.assertEqual(metadata.call_args.args[0],'https://api.elevenlabs.io/v1/user/subscription')
+            self.assertFalse(metadata.call_args.kwargs['allow_redirects'])
+            self.assertEqual(self.dictate('dictate-normal-operation-0').json['status'],'COMPLETED')
+            self.assertEqual(paid.call_count,3)
+            with patch.object(budget,'OWNER_HOURLY_ATTEMPTS',3):
+                self.assertEqual(self.dictate('dictate-hourly-operation-4').json['code'],'rate_limit')
+            with patch.object(budget,'OWNER_DAILY_ATTEMPTS',3):
+                self.assertEqual(self.dictate('dictate-daily-operation-4').json['code'],'attempt_limit')
+            self.assertEqual(paid.call_count,3)
+            with self.assertRaises(budget.BudgetError) as denied:
+                budget.claim(self.user,'video-script-other-operation-1234','a'*64,2000)
+            self.assertEqual(denied.exception.code,'attempt_limit')
+        self.assertIsNone(f.db.query_one('SELECT seconds FROM kilas_audio_balances WHERE user_id=?',(self.user,)))
+        self.assertEqual(f.db.query_one('SELECT COUNT(*) AS n FROM kilas_vo_stt_operations WHERE user_id=?',(self.user,))['n'],3)
+
+    def test_owner_credit_exhaustion_and_unverified_billing_stop_before_stt(self):
+        cases=((self.subscription(character_count=10000),'provider_credit_exhausted'),
+               (self.subscription(max_credit_limit_extension=100),'provider_billing_unverified'),
+               (self.subscription(can_extend_character_limit=True),'provider_billing_unverified'),
+               (self.subscription(tier='free'),'provider_billing_unverified'),
+               (self.subscription(character_limit=None),'provider_credit_check_failed'),
+               (Mock(status_code=403),'provider_credit_check_failed'),
+               (Mock(status_code=302),'provider_credit_check_failed'))
+        with self.funded(),self.normal_usage(),patch.object(stt.requests,'post') as paid:
+            for metadata,code in cases:
+                with self.subTest(code=code),patch.object(stt.requests,'get',return_value=metadata):
+                    result=self.dictate();self.assertEqual(result.json['code'],code)
+                    self.assertNotIn('synthetic-only',result.text)
+                    if code=='provider_credit_exhausted':self.assertIn('tanpa top-up atau overage',result.json['error'])
+            with patch.object(stt.requests,'get',side_effect=stt.requests.Timeout()):
+                self.assertEqual(self.dictate().json['code'],'provider_credit_check_failed')
+            paid.assert_not_called()
+        self.assertEqual(f.db.query_one('SELECT COUNT(*) AS n FROM kilas_vo_stt_operations WHERE user_id=?',(self.user,))['n'],0)
+
+    def test_owner_usage_other_owner_denied_and_monthly_cost_cap_preserved(self):
+        with self.funded(global_micro=1,account_micro=1),self.normal_usage(),patch.object(stt.requests,'get',return_value=self.subscription()) as metadata,patch.object(stt.requests,'post') as paid:
+            self.assertEqual(self.dictate().json['code'],'budget_limit')
+            metadata.reset_mock()
+            with self.client.session_transaction() as session:session['user_id']=self.other
+            self.assertEqual(self.dictate().json['code'],'budget_unavailable')
+            paid.assert_not_called();metadata.assert_not_called()
+
+    def test_owner_late_provider_quota_denial_clear_no_retry_keeps_usage_record(self):
+        rejected=self.response();rejected.__enter__.return_value.status_code=401
+        rejected.__enter__.return_value.iter_content.return_value=[b'{"detail":{"status":"quota_exceeded"}}']
+        with self.funded(),self.normal_usage(),patch.object(stt.requests,'get',return_value=self.subscription()),patch.object(stt.requests,'post',return_value=rejected) as paid:
+            result=self.dictate();self.assertEqual(result.status_code,402)
+            self.assertEqual(result.json['code'],'provider_credit_exhausted')
+            self.assertEqual(self.dictate().json['status'],'FAILED');self.assertEqual(paid.call_count,1)
+        row=f.db.query_one('SELECT status,charge_micro,duration_ms FROM kilas_vo_stt_operations WHERE user_id=?',(self.user,))
+        self.assertEqual(row['status'],'FAILED');self.assertEqual(row['charge_micro'],budget.reserve_micro(row['duration_ms']))
+
+
 if __name__=='__main__':unittest.main()

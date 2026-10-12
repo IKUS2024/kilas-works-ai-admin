@@ -221,10 +221,11 @@ def dictate():
         if not key.startswith('dictate-'):raise video_budget.BudgetError('invalid_operation',400)
         if request.form.get('action')=='cancel':return video_budget.cancel(owner,key),200,headers
         if request.form.get('consent')!='yes':raise video_budget.BudgetError('consent_required',400)
-        # Existing finite campaign gate also guards microphone STT, before decode/IO.
+        # Owner usage renews its finite monthly allowance; QA remains fixed/expiring.
         if not video_budget.ready(owner):raise video_budget.BudgetError('budget_unavailable')
         pcm=media.voice_sample(request.files.get('recording'),sample_rate=16000)
         pcm,ms=video_stt.normalize(pcm)
+        if (video_budget.policy() or {}).get('mode')=='owner':video_stt.require_subscription_credit()
         row,capability=video_budget.claim(owner,key,hashlib.sha256(pcm).hexdigest(),ms)
         if capability:
             text=video_stt.transcribe(pcm,capability)
@@ -235,6 +236,10 @@ def dictate():
         message={'budget_unavailable':'Dikte belum aktif. Batas biaya transkripsi belum terverifikasi; naskah tetap aman.',
                  'consent_required':'Setujui pemrosesan rekaman sebelum mulai.',
                  'attempt_limit':'Batas percobaan transkripsi hari ini tercapai. Naskah tetap aman.',
+                 'rate_limit':'Terlalu banyak dikte dalam satu jam. Coba lagi nanti; naskah tetap aman.',
+                 'provider_credit_exhausted':'Kredit ElevenLabs tidak cukup. Dikte dihentikan tanpa top-up atau overage; naskah tetap aman.',
+                 'provider_billing_unverified':'Dikte dihentikan karena paket Creator atau pengaturan tanpa overage belum terverifikasi. Naskah tetap aman.',
+                 'provider_credit_check_failed':'Kredit ElevenLabs belum dapat diperiksa. Coba lagi nanti; naskah tetap aman.',
                  'script_too_long':'Hasil melebihi 4.000 karakter. Rekam ucapan yang lebih pendek.',
                  'budget_limit':'Batas transkripsi tercapai. Naskah tetap aman.'}.get(error.code,
                  'Dikte belum berhasil. Naskah tetap aman. Tidak ada pengulangan otomatis; kamu dapat merekam kembali.')

@@ -1,6 +1,7 @@
 """Independent VO preview allowance. Never debits Audio credits or commercial plans.
 
-Default OFF; mandatory finite campaign/account caps and expiry. Conservative estimated
+Default OFF; finite campaign/account caps, with explicit owner-only monthly usage.
+QA campaigns still require a fixed expiry. Conservative estimated
 reservation is retained after every dispatch, including timeout/cancel/failure.
 No audio, filenames, transcripts, prompts or API keys enter this ledger.
 """
@@ -26,6 +27,8 @@ def reserve_micro(ms):
         raise BudgetError('invalid_audio', 400)
     return (ms * RATE_MICRO_PER_HOUR + 3599999) // 3600000
 DAILY_ATTEMPTS = 2
+OWNER_DAILY_ATTEMPTS = 120
+OWNER_HOURLY_ATTEMPTS = 20
 GLOBAL_CONCURRENCY = 3
 
 
@@ -49,15 +52,24 @@ def policy():
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',campaign):return None
         global_micro=int(os.environ['KILAS_VO_STT_GLOBAL_BUDGET_MICRO_USD'])
         account_micro=int(os.environ['KILAS_VO_STT_ACCOUNT_BUDGET_MICRO_USD'])
-        expiry=datetime.fromisoformat(os.environ['KILAS_VO_STT_EXPIRES_AT'].replace('Z','+00:00'))
-        if expiry.tzinfo is None or expiry<=datetime.now(timezone.utc):return None
         if not 1<=account_micro<=global_micro<=1000000000:return None
         if os.environ.get('KILAS_VO_STT_PRICE_VERSION')!=PRICE_VERSION:return None
         allowed_owner=None
         if 'KILAS_VO_STT_ALLOWED_OWNER_ID' in os.environ:
             allowed_owner=int(os.environ['KILAS_VO_STT_ALLOWED_OWNER_ID'])
             if not 1<=allowed_owner<=1000000000:return None
-        return {'id':campaign,'global_micro':global_micro,'account_micro':account_micro,'expires_at':expiry.astimezone(timezone.utc).isoformat(),'price_version':PRICE_VERSION,'allowed_owner':allowed_owner}
+        mode=os.environ.get('KILAS_VO_STT_USAGE_MODE','qa')
+        if mode=='owner':
+            if allowed_owner is None:return None
+            now=datetime.now(timezone.utc)
+            campaign+='-'+now.strftime('%Y%m')
+            if len(campaign)>80:return None
+            expiry=datetime(now.year+(now.month==12),now.month%12+1,1,tzinfo=timezone.utc)
+        elif mode=='qa':
+            expiry=datetime.fromisoformat(os.environ['KILAS_VO_STT_EXPIRES_AT'].replace('Z','+00:00'))
+            if expiry.tzinfo is None or expiry<=datetime.now(timezone.utc):return None
+        else:return None
+        return {'id':campaign,'global_micro':global_micro,'account_micro':account_micro,'expires_at':expiry.astimezone(timezone.utc).isoformat(),'price_version':PRICE_VERSION,'allowed_owner':allowed_owner,'mode':mode}
     except (KeyError,ValueError,TypeError,OverflowError):return None
 
 
@@ -116,9 +128,14 @@ def owned(owner,key):
         return {'status':row[3],'operation_key':key} if row else None
 
 
-def _admit(conn,owner,config,reserve=0):
+def _admit(conn,owner,config,reserve=0,key=''):
     cutoff=(datetime.now(timezone.utc)-timedelta(days=1)).isoformat()
-    if usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,cutoff),one=True)[0]>=DAILY_ATTEMPTS:raise BudgetError('attempt_limit',429)
+    normal_dictation=config['mode']=='owner' and key.startswith('dictate-')
+    daily_limit=OWNER_DAILY_ATTEMPTS if normal_dictation else DAILY_ATTEMPTS
+    if usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,cutoff),one=True)[0]>=daily_limit:raise BudgetError('attempt_limit',429)
+    if normal_dictation:
+        hour=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
+        if usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,hour),one=True)[0]>=OWNER_HOURLY_ATTEMPTS:raise BudgetError('rate_limit',429)
     if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",(owner,),one=True)[0]:raise BudgetError('already_processing',429)
     if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status IN ('RESERVED','DISPATCHED')",one=True)[0]>=GLOBAL_CONCURRENCY:raise BudgetError('service_busy',429)
     total=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=?',(config['id'],),one=True)[0]
@@ -139,7 +156,7 @@ def claim(owner,key,fingerprint,ms):
             if old[3]!='CANCELLED' and old[2]!=fingerprint:raise BudgetError('operation_conflict',409)
             return {'status':old[3],'operation_key':key},None
         reserve=reserve_micro(ms)
-        _admit(conn,owner,config,reserve)
+        _admit(conn,owner,config,reserve,key)
         lease=secrets.token_hex(32)
         usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at) VALUES (?,?,?,?,'RESERVED',?,?,?,?)",(owner,key,config['id'],fingerprint,reserve,ms,_hash(lease),datetime.now(timezone.utc).isoformat()))
         return {'status':'RESERVED','operation_key':key},Reservation(owner,key,lease)
@@ -196,7 +213,7 @@ def cancel(owner,key):
         _owner(conn,owner)
         row=_row(conn,owner,key)
         if not row:
-            _expire(conn,campaign=config['id']);_admit(conn,owner,config)
+            _expire(conn,campaign=config['id']);_admit(conn,owner,config,key=key)
             usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at) VALUES (?,?,?,'cancelled-before-start','CANCELLED',0,0,'',?)",(owner,key,config['id'],datetime.now(timezone.utc).isoformat()))
         else:
             # RESERVED has not dispatched; all unknown/provider states retain allowance.
