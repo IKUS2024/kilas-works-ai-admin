@@ -2,7 +2,7 @@ name: Kilas AI Revisions QA
 on:
   push:
     branches: [main]
-    paths: ['client-hub/kilas_ai/**', 'client-hub/static/kilas_*', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/kilas_translator/**', 'client-hub/templates/_premium_workspace.html', 'client-hub/templates/_account_workspace.html', 'client-hub/tests/test_kilas_ai_revisions*', 'client-hub/tests/test_kilas_dictation.mjs', '.github/workflows/kilas-ai-revisions-qa.yml']
+    paths: ['client-hub/kilas_ai/**', 'client-hub/static/kilas_*', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/kilas_translator/**', 'client-hub/templates/_premium_workspace.html', 'client-hub/templates/_account_workspace.html', 'client-hub/tests/test_kilas_ai_revisions*', 'client-hub/tests/test_kilas_audio.py', 'client-hub/tests/test_kilas_dictation.mjs', '.github/workflows/kilas-ai-revisions-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
