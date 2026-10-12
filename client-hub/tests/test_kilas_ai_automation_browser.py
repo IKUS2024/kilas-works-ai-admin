@@ -13,7 +13,7 @@ os.environ.pop("DATABASE_URL", None)
 
 import app  # noqa: E402
 import repo  # noqa: E402
-from playwright.sync_api import sync_playwright  # noqa: E402
+from playwright.sync_api import sync_playwright, expect  # noqa: E402
 from werkzeug.serving import make_server  # noqa: E402
 
 
@@ -59,7 +59,7 @@ def main():
                 page.locator("#auto-run-time").fill("08:00")
                 page.locator("#auto-timezone").fill("Asia/Bangkok")
                 page.get_by_role("button", name="Lihat pratinjau").click()
-                assert page.get_by_text("Periksa sebelum aktif").is_visible()
+                expect(page.get_by_text("Periksa sebelum aktif")).to_be_visible()
                 assert page.get_by_text("Asia/Bangkok", exact=True).is_visible()
                 assert page.get_by_role("button", name="Aktifkan tugas").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "preview overflow")
@@ -68,7 +68,7 @@ def main():
                 assert page.get_by_text("Ingetin gue bayar listrik.").count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "list overflow")
                 page.get_by_role("link", name="Edit", exact=True).click()
-                assert page.get_by_role("heading", name="Edit tugas").is_visible()
+                expect(page.get_by_role("heading", name="Edit tugas")).to_be_visible()
                 assert page.locator("#auto-run-date").input_value() == "2099-10-02"
                 assert page.locator("#auto-run-time").input_value() == "08:00"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "edit overflow")
