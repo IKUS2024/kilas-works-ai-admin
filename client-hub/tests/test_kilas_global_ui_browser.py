@@ -74,7 +74,11 @@ def main():
                             assert page.locator('body').evaluate('e=>getComputedStyle(e).backgroundColor') == 'rgb(255, 255, 255)'
                             overflow = page.evaluate("""() => ({width:innerWidth,scroll:document.documentElement.scrollWidth,items:[...document.querySelectorAll('body *')].filter(e=>e.getClientRects().length&&e.getBoundingClientRect().right>innerWidth+1).slice(0,10).map(e=>({tag:e.tagName,cls:e.className,right:Math.round(e.getBoundingClientRect().right)}))})""")
                             assert overflow['scroll'] <= width, overflow
-                            assert page.locator('a[href="/products/start"]').count() >= 1
+                            if name == 'settings':
+                                expect(page.locator('aside')).to_have_count(0)
+                                expect(page.locator('a[href="/products/finance"]')).to_be_visible()
+                            else:
+                                assert page.locator('a[href="/products/start"]').count() >= 1
                             assert page.locator('a[href*="workspace/more"]').count() == 0
                             if name == 'home':
                                 assert page.locator('.premium-brand[href="/products/start"]').count() == 2

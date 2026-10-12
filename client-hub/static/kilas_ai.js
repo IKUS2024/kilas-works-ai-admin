@@ -30,15 +30,15 @@
     event.preventDefault();if(controller)return;const draft=input.value,content=draft.trim();if(!content&&!selected.length)return;
     controller=new AbortController();if(!canAutoFocus())input.blur();busy(true);notice.textContent=t('Menyiapkan jawaban…');const csrf=document.querySelector('meta[name="csrf-token"]').content;
     let key;const body=new FormData();body.set('csrf_token',csrf);body.set('content',content);selected.forEach(file=>body.append('attachments',file,file.name));
-    let accepted=false,answer=null,userMessage=null;
+    let accepted=false,draftCleared=false,answer=null,userMessage=null;
     try{
       key=operationKey();body.set('operation_key',key);
       if(!shell.dataset.threadId){const started=await fetch('/kilas-ai/threads',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({first_message:content||'Tolong jelaskan lampiran ini.'}),signal:controller.signal});if(!started.ok)throw new Error(t('Chat baru belum dapat dimulai. Coba lagi.'));const created=await started.json();activate(created.thread_id,created.url,content);}
       else if(main.classList.contains('is-empty'))activate(shell.dataset.threadId,null,content);
       userMessage=append('user',content);answer=append('assistant','');const activity=answer.closest('.ai-message').querySelector('.ai-activity');activity.hidden=false;activity.textContent=t('Menyiapkan jawaban…');
-      const response=await fetch(`/kilas-ai/threads/${shell.dataset.threadId}/send`,{method:'POST',headers:{'X-CSRF-Token':csrf},body,signal:controller.signal});if(!response.ok){const problem=await response.json().catch(()=>({}));throw new Error(problem.error||t('AI sedang tidak tersedia. Coba lagi.'));}accepted=true;if(input.value===draft){input.value='';input.dispatchEvent(new Event('input'));}await readStream(response,answer);offerAgent(content,userMessage);selected=[];renderPending();messages.scrollTop=messages.scrollHeight;
+      const response=await fetch(`/kilas-ai/threads/${shell.dataset.threadId}/send`,{method:'POST',headers:{'X-CSRF-Token':csrf},body,signal:controller.signal});if(!response.ok){const problem=await response.json().catch(()=>({}));throw new Error(problem.error||t('AI sedang tidak tersedia. Coba lagi.'));}accepted=true;if(input.value===draft){input.value='';draftCleared=true;input.dispatchEvent(new Event('input'));}await readStream(response,answer);offerAgent(content,userMessage);selected=[];renderPending();messages.scrollTop=messages.scrollHeight;
     }
-    catch(error){notice.textContent=error.name==='AbortError'?t('Jawaban dihentikan.'):error.message;if(!accepted)userMessage?.closest('.ai-message').remove();if(answer&&!answer.textContent)answer.closest('.ai-message').remove();if(!messages.children.length){main.classList.add('is-empty');hero.hidden=false;messages.hidden=true;}}
+    catch(error){if(draftCleared&&!input.value){input.value=draft;input.dispatchEvent(new Event('input'));}notice.textContent=error.name==='AbortError'?t('Jawaban dihentikan.'):error.message;if(!accepted)userMessage?.closest('.ai-message').remove();if(answer&&!answer.textContent)answer.closest('.ai-message').remove();if(!messages.children.length){main.classList.add('is-empty');hero.hidden=false;messages.hidden=true;}}
     finally{document.dispatchEvent(new Event('kilas:request-finished'));controller=null;busy(false);if(canAutoFocus())input.focus({preventScroll:true});else input.blur();}
   });
   stop.addEventListener('click',()=>controller?.abort());

@@ -123,7 +123,7 @@
     thinking.hidden = false;
     thinking.lastElementChild.textContent = /\b(riset|research)\b/i.test(input.value) ? t('Menyiapkan riset…') : /\b(kerjain|kerjakan|pantau|perbaiki|setiap|besok)\b/i.test(input.value) ? t('Menyiapkan pekerjaan…') : t('Menyiapkan jawaban…');
     chat.setAttribute('aria-busy', 'true');
-    let accepted = false;
+    let accepted = false, draftCleared = false;
     try {
       const response = await fetch(form.action, {method:'POST',body:data,headers:{'X-Agent-Chat':'1'},signal:controller.signal});
       if (!response.ok) {
@@ -132,7 +132,7 @@
         throw failure;
       }
       accepted = true;
-      if(input.value===draft){input.value='';input.dispatchEvent(new Event('input'));}
+      if(input.value===draft){input.value='';draftCleared=true;input.dispatchEvent(new Event('input'));}
       if (response.headers.get('content-type')?.includes('text/event-stream')) {
         const reader = response.body.getReader(), decoder = new TextDecoder();
         let pending = '', answer, complete = false;
@@ -162,6 +162,7 @@
       const sources=form.querySelector('#work-source-files'); if(sources) sources.value='';
       form.elements.operation_key.value = Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
     } catch (failure) {
+      if(draftCleared&&!input.value){input.value=draft;input.dispatchEvent(new Event('input'));}
       error.textContent = failure.publicMessage || t('Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.');
       error.hidden = false;
       // Same key is retained after an uncertain outcome: retry cannot create duplicate work.

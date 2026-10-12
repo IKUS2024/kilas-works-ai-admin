@@ -40,6 +40,9 @@ def main():
                     page.get_by_role('button',name='Kirim',exact=True).click()
                     expect(page.locator('.agent-message-user')).to_have_count(count+1)
                     expect(page.locator('#agent-message')).to_have_value('',timeout=15000)
+                    # Accepted drafts collapse before streaming/refresh completes.
+                    # Wait for completion before sending again or editing attachments.
+                    expect(page.get_by_role('button',name='Kirim',exact=True)).to_be_enabled(timeout=15000)
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(width,text)
                     if width<760:assert page.evaluate("document.activeElement.id!=='agent-message'")
                 send('halo')
