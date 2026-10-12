@@ -5,7 +5,7 @@
 {% if home_task %}{% include 'kilas_ai/_home_handoff.html' %}{% endif %}
 {% include 'kilas_content/_handoff.html' %}
 {% with selected_feature=active_mode %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='voice-copy-review-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='voice-reference-20261012') }}">
 <section class="audio-studio" id="audio-studio" data-max-seconds="{{ max_seconds }}" data-active-mode="{{ active_mode }}">
 <header class="audio-heading"><div><h1>{{ 'Kilas Translator' if upload_translation_visible else 'Voice Over' }}</h1></div></header>
 <div class="audio-workbench"><main class="audio-primary">

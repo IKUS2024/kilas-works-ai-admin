@@ -3,10 +3,18 @@
 .kilas-sidebar-profile{position:sticky;bottom:-18px;margin-top:auto;padding:12px 0;background:var(--bg-soft);border-top:1px solid var(--line)}
 .customer-ui .kilas-sidebar-profile{display:block;text-align:left;flex:none}
 .kilas-profile-menu{position:relative;min-width:0}
-.kilas-profile-menu>summary{cursor:pointer;min-height:44px;padding:10px 12px;font-weight:600}
+.kilas-profile-menu>summary{display:flex;align-items:center;gap:12px;cursor:pointer;min-height:44px;padding:10px 12px;font-weight:600;list-style:none}
+.kilas-profile-menu>summary::-webkit-details-marker{display:none}
+.kilas-profile-avatar{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:50%;background:var(--premium-selected,#fff0e5);color:var(--accent);font-size:18px;font-weight:500}
 .kilas-profile-options{display:grid;gap:2px;padding:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--premium-shadow)}
 .kilas-sidebar-profile .kilas-profile-options{position:absolute;bottom:100%;left:0;right:0}
-.kilas-profile-options>a,.kilas-profile-language>summary{display:block;padding:10px 8px;min-height:44px;color:var(--text);text-decoration:none;cursor:pointer}
+.kilas-profile-options>a,.kilas-profile-language>summary{display:flex;align-items:center;gap:12px;box-sizing:border-box;padding:12px;min-height:48px;border-radius:12px;background:var(--bg-soft);color:var(--text);text-decoration:none;cursor:pointer;list-style:none}
+.kilas-profile-options>a>span,.kilas-profile-language>summary>span{flex:1;min-width:0}
+.kilas-profile-options svg{flex:none}
+.kilas-profile-options svg:last-child{width:14px;color:var(--muted)}
+.kilas-profile-language>summary::-webkit-details-marker{display:none}
+.kilas-profile-options :is(a,summary):hover{background:var(--neutral-hover,#ececeb)}
+.kilas-profile-menu :is(a,summary):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .kilas-profile-options small{display:block;color:var(--muted);overflow-wrap:anywhere;font-size:12px}
 .kilas-profile-options .language-selector{display:grid;gap:8px;margin:0;padding:4px;border:0}
 .kilas-audio-header{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--line)}

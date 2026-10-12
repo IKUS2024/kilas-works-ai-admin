@@ -55,6 +55,9 @@
 .kilas-light .kilas-home-workspace .ai-user .ai-message-text,.kilas-light .kilas-home-workspace .agent-message-user .agent-message-text{background:#fff0e5;white-space:pre-wrap}
 .kilas-home-workspace .home-agent-new{margin:0}.kilas-home-workspace .home-agent-new button{margin:0;min-height:36px}
 .kilas-home-workspace .agent-welcome{display:flex;flex-direction:column;justify-content:center;text-align:center;min-height:100%;padding:20px 0;box-sizing:border-box}
+.kilas-home-workspace .kilas-new-chat-logo{display:block;flex:none;width:96px;height:96px;object-fit:contain;margin:0 auto 16px}
+.kilas-home-workspace .ai-empty:has(.kilas-new-chat-logo){text-align:center}
+.kilas-light .kilas-home-workspace .ai-composer{border-radius:28px;background:var(--bg-soft,#f7f7f6);box-shadow:none}
 .kilas-home-workspace .agent-section-head{padding:0;flex:none}.kilas-home-workspace .agent-section-head h2{font-size:16px}
 .kilas-home-workspace #agent-conversation{scroll-padding-block:16px;padding:16px 4px 20px;overscroll-behavior:contain}
 .kilas-home-workspace #ai-messages{scroll-padding-block:16px;overscroll-behavior:contain}

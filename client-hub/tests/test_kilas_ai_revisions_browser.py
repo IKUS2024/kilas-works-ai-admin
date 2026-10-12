@@ -42,11 +42,15 @@ def main():
                 page.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
                 page.goto(origin+'/products/start',wait_until='networkidle')
                 expect(page.get_by_role('heading',name='How can I Help you?',exact=True)).to_be_visible()
+                logo=page.locator('.kilas-new-chat-logo');expect(logo).to_be_visible()
+                assert logo.evaluate('e=>e.complete&&e.naturalWidth===1254&&e.naturalHeight===1254')
+                page.screenshot(path=str(output/f'new-chat-{width}.png'),full_page=True)
                 assert page.locator('[data-home-task]').count()==2
                 expect(page.locator('.kilas-translator-pending')).to_have_attribute('aria-disabled','true')
                 expect(page.locator('#ai-input')).to_be_visible()
                 page.locator('#ai-input').fill('Pesan pertama untuk revisi '+str(width));page.locator('#ai-send').click()
                 expect(page.locator('.ai-assistant')).to_contain_text('Jawaban tersimpan untuk QA sintetis.')
+                expect(logo).not_to_be_visible()
                 old_url=page.url
                 def rail():
                     if page.locator('#premium-sidebar').evaluate('e=>e.inert'):page.locator('[data-premium-menu]').click()
@@ -55,6 +59,7 @@ def main():
                 sidebar.locator('.kilas-profile-menu>summary').click()
                 options=sidebar.locator('.kilas-profile-options');expect(options.get_by_role('link',name='Subscription',exact=True)).to_be_visible()
                 options.locator('.kilas-profile-language>summary').click();expect(options.locator('select[name=language]')).to_be_visible()
+                page.screenshot(path=str(output/f'profile-{width}.png'),full_page=True)
                 sidebar.locator('.kilas-profile-menu>summary').click()
                 sidebar.locator('.ai-new').click();page.wait_for_load_state('networkidle')
                 expect(page.get_by_role('heading',name='How can I Help you?',exact=True)).to_be_visible()

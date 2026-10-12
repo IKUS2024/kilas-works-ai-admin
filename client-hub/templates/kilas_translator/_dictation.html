@@ -1,6 +1,7 @@
+{% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
 <div id="voice-dictation" data-ready="{{ 'true' if video_script_ready else 'false' }}">
   <details><summary>Izin dikte</summary><p>Rekaman dikirim untuk transkripsi sesuai <a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">Kebijakan Privasi</a>. Hasil ditambahkan ke Naskah; dikte tidak membuat Voice Over.</p><label><input type="checkbox" id="dictation-consent" {{ 'disabled' if not video_script_ready }}>Saya memiliki izin dan menyetujui pemrosesan rekaman.</label></details>
-  <button type="button" class="btn secondary" id="dictation-start" aria-label="Dikte Naskah" disabled>🎙 Dikte</button>
+  <button type="button" class="btn secondary" id="dictation-start" aria-label="Dikte Naskah" disabled>{{ drawer_icon('mic') }}<span>Dikte</span></button>
   <button type="button" class="btn secondary" id="dictation-stop" hidden>Stop rekaman</button>
   <button type="button" class="btn secondary" id="dictation-cancel" hidden>Batal dikte</button>
   <button type="button" class="btn secondary" id="dictation-undo" hidden>Urungkan dikte</button>
