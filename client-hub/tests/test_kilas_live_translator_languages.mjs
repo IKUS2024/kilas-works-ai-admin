@@ -89,13 +89,15 @@ test('submit rejects a stale duplicate before audio context, microphone or netwo
     addEventListener: (type, handler) => listeners.set(type, handler),
   };
   const active = {querySelector: () => ({})};
-  const nodes = {'.kilas-live-translator': {dataset: {ready: 'true'}}, '#live-setup-form': form, '#live-setup': {}, '#live-active': active, '#live-error': error, '#live-end': {addEventListener() {}}};
+  const nodes = {'.kilas-live-translator': {dataset: {ready: 'true'}}, '#live-setup-form': form, '#live-setup': {}, '#live-active': active, '#live-error': error, '#live-end': {addEventListener() {}}, '#live-recovery': {}, '#live-recovery-status': {}, '#live-recovery-end': {addEventListener() {}}, '#live-recovery-check': {addEventListener() {}}};
   const old = {document: globalThis.document, window: globalThis.window, fetch: globalThis.fetch};
   try {
     globalThis.document = {querySelector: query => nodes[query], addEventListener() {}};
     globalThis.window = {addEventListener: (type, handler) => windows.set(type, handler), AudioContext: class {constructor() { audioCalls++; }}};
-    globalThis.fetch = () => { networkCalls++; throw Error('No network allowed'); };
+    globalThis.fetch = async url => { networkCalls++; assert.equal(url, '/kilas-translator/live/sessions/active'); return {ok: true, json: async () => ({session: null})}; };
     await import('../static/kilas_live_translator.mjs?source-test');
+    await new Promise(resolve => setImmediate(resolve));
+    networkCalls = 0;
     a.value = b.value;
     listeners.get('submit')({preventDefault() {}});
     assert.equal(focused, true);

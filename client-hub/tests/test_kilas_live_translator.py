@@ -73,6 +73,43 @@ class LiveTranslatorTests(unittest.TestCase):
             self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
             with patch.dict(os.environ,{'KILAS_LIVE_TRANSLATOR_ENABLED':'false'}):self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
 
+    def test_owner_session_discovery_is_read_only_private_and_can_recover_when_flag_off(self):
+        ident=self.session();before=dict(audio.f.db.query_one('SELECT status,expires_at FROM kilas_live_translator_sessions WHERE id=?',(ident,)))
+        with patch.dict(os.environ,{'KILAS_LIVE_TRANSLATOR_ENABLED':'false'}),patch.object(live.stt,'transcribe') as stt,patch.object(audio_provider,'speech') as tts:
+            response=self.client.get('/kilas-translator/live/sessions/active')
+            self.assertEqual(response.status_code,200);self.assertEqual(response.headers['Cache-Control'],'private, no-store')
+            self.assertEqual(response.json['session']['session_id'],ident)
+            self.assertFalse(response.json['session']['processing'])
+            self.assertGreater(response.json['session']['expires_in_seconds'],0)
+            self.assertEqual(set(response.json['session']),{'session_id','expires_at','expires_in_seconds','processing'})
+            with self.client.session_transaction() as state:state['user_id']=self.other
+            self.assertEqual(self.client.get('/kilas-translator/live/sessions/active').json,{'session':None})
+            self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,404)
+            stt.assert_not_called();tts.assert_not_called()
+        self.assertEqual(dict(audio.f.db.query_one('SELECT status,expires_at FROM kilas_live_translator_sessions WHERE id=?',(ident,))),before)
+
+    def test_explicit_recovery_end_is_csrf_protected_idempotent_cancels_turn_without_new_dispatch(self):
+        ident=self.session();key=self.key();self.claim(ident,key)
+        self.assertTrue(self.client.get('/kilas-translator/live/sessions/active').json['session']['processing'])
+        with patch.object(live.stt,'transcribe') as stt,patch.object(audio_provider,'speech') as tts:
+            self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end').status_code,400)
+            self.assertEqual(sessions.result(self.user,ident,key)['status'],'PROCESSING')
+            for _ in range(2):self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
+            self.assertEqual(self.client.get('/kilas-translator/live/sessions/active').json,{'session':None})
+            self.assertEqual(sessions.result(self.user,ident,key),{'status':'CANCELLED'})
+            stt.assert_not_called();tts.assert_not_called()
+        self.assertEqual(audio.f.db.query_one('SELECT status FROM kilas_live_translator_sessions WHERE id=?',(ident,))['status'],'ENDED')
+        newer=self.session();self.assertNotEqual(newer,ident)
+        sessions.end(self.user,ident)
+        self.assertEqual(self.client.get('/kilas-translator/live/sessions/active').json['session']['session_id'],newer)
+
+    def test_expired_session_discovery_allows_fresh_admission_without_deleting_history(self):
+        ident=self.session()
+        audio.f.db.execute('UPDATE kilas_live_translator_sessions SET expires_at=? WHERE id=?',('2000-01-01T00:00:00+00:00',ident))
+        self.assertIsNone(sessions.active(self.user))
+        newer=self.session();self.assertNotEqual(newer,ident)
+        self.assertEqual(audio.f.db.query_one('SELECT status FROM kilas_live_translator_sessions WHERE id=?',(ident,))['status'],'ACTIVE')
+
     def test_invalid_language_pair_rejected_before_balance_voice_and_session_writes(self):
         fields={'csrf_token':'audio-csrf','language_a':'id','language_b':'en','voice':'kilas-male','consent':'yes'}
         with self.funded(),self.on(),patch.object(branded,'resolve') as voice,patch.object(audio_store,'require_balance') as balance,patch.object(sessions,'create') as create:

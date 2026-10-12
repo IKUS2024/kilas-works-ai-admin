@@ -12,6 +12,12 @@ def require_pair(a,b):
         raise audio_store.AudioError('Pilih dua bahasa yang berbeda sebelum memulai sesi.','invalid_language_pair',400)
 
 
+def active(owner):
+    # Read only: an idle row is not proof that another tab has stopped listening.
+    row=db.query_one("SELECT s.id,s.expires_at,EXISTS(SELECT 1 FROM kilas_live_translator_turns t WHERE t.session_id=s.id AND t.status='PROCESSING') AS processing FROM kilas_live_translator_sessions s WHERE s.user_id=? AND s.status='ACTIVE' AND s.expires_at>? ORDER BY s.created_at DESC LIMIT 1",(owner,usage._now().isoformat()))
+    return {'session_id':row['id'],'expires_at':row['expires_at'],'expires_in_seconds':max(0,int((usage._as_utc(row['expires_at'])-usage._now()).total_seconds())+1),'processing':bool(row['processing'])} if row else None
+
+
 def locked(owner, ident, conn):
     suffix=' FOR UPDATE' if db.BACKEND=='postgres' else ''
     row=usage._query(conn,'SELECT status,expires_at,language_a,language_b,voice_alias FROM kilas_live_translator_sessions WHERE id=? AND user_id=?'+suffix,(ident,owner),one=True)

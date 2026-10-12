@@ -397,6 +397,13 @@ def live_translator_end(ident):
     return {'status':'ENDED'},200,{'Cache-Control':'private, no-store'}
 
 
+@audio_bp.get('/live/sessions/active')
+def live_translator_active():
+    # Like End, owner recovery remains available when rollout readiness is off.
+    from . import live_translator_store as sessions
+    return {'session':sessions.active(session['user_id'])},200,{'Cache-Control':'private, no-store'}
+
+
 @audio_bp.route('/live/sessions/<ident>/turns/<key>',methods=['GET','POST'])
 def live_translator_turn(ident,key):
     from . import live_translator as live, live_translator_store as sessions
