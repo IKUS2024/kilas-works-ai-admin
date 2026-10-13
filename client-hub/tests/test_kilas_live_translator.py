@@ -501,6 +501,50 @@ class LiveTranslatorTests(unittest.TestCase):
         stt.assert_not_called();self.assertIn('outcome=failed',output.getvalue());self.assertIn('credit_stt_ms=500.0',output.getvalue())
         with patch('builtins.print',side_effect=BrokenPipeError()):live._log_latency({},0,False)
 
+    def test_translation_validation_failures_are_settled_once_with_private_safe_diagnostics(self):
+        self.credit(300)
+        valid={'text':'private-translated-phrase','source_language':'id','target_language':'en'}
+        cases=[('invalid_json','private invalid json','stop'),('invalid_shape',json.dumps([valid]),'stop'),
+               ('invalid_shape','null','stop'),('invalid_text',json.dumps({**valid,'text':['private']}),'stop'),
+               ('invalid_language_pair',json.dumps({**valid,'source_language':['private']}),'stop'),
+               ('invalid_language_pair',json.dumps({**valid,'source_language':'fr'}),'stop'),
+               ('incomplete_response',json.dumps(valid),'length')]
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(segments,'speech') as tts,patch.object(live.stt,'transcribe') as stt:
+            ident=self.session()
+            for index,(reason,payload,finish) in enumerate(cases,100):
+                key=self.key(index);info=self.claim(ident,key);output=io.StringIO()
+                events=[{'type':'delta','text':payload},{'type':'usage','input_tokens':21,'output_tokens':19},{'type':'finish','reason':finish}]
+                with patch.object(providers,'_openai',return_value=(event for event in events)) as provider,redirect_stdout(output):
+                    with self.assertRaises(audio_store.AudioError) as failed:live.process(self.user,ident,key,None,info,committed_text='private-source-phrase',whole_output=True)
+                self.assertEqual(failed.exception.code,'translation_failed');self.assertEqual(provider.call_count,1)
+                self.assertEqual(sessions.result(self.user,ident,key)['error_code'],'translation_failed')
+                record=audio.f.db.query_one('SELECT status,input_tokens,output_tokens FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.user,key+'-text'))
+                self.assertEqual((record['status'],record['input_tokens'],record['output_tokens']),('FAILED',21,19))
+                log=output.getvalue();self.assertIn('failure_stage=translation_ms',log);self.assertIn('failure_code=translation_failed',log)
+                self.assertIn('translation_failure_reason='+reason,log);self.assertIn('translation_events=3.0',log)
+                self.assertIn('translation_settlement_ms=',log)
+                for private in ('private',ident,key,VOICE['id'],'proj_synthetic','synthetic-only'):self.assertNotIn(private,log)
+            tts.assert_not_called();stt.assert_not_called()
+
+    def test_provider_and_accounting_failures_have_distinct_safe_stages_without_retries(self):
+        self.credit(300)
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(segments,'speech') as tts:
+            ident=self.session();key=self.key();info=self.claim(ident,key);output=io.StringIO()
+            with patch.object(providers,'_openai',side_effect=providers.ProviderError('private-provider-body')) as provider,redirect_stdout(output):
+                with self.assertRaises(audio_store.AudioError):live.process(self.user,ident,key,None,info,committed_text='private-source')
+            self.assertEqual(provider.call_count,1);self.assertIn('translation_failure_reason=provider_error',output.getvalue());self.assertNotIn('private',output.getvalue())
+            key=self.key(2);info=self.claim(ident,key);output=io.StringIO()
+            with patch.object(providers,'_openai',side_effect=self.stream) as provider,patch.object(usage,'finish',side_effect=RuntimeError('private-accounting-body')),redirect_stdout(output):
+                with self.assertRaises(RuntimeError):live.process(self.user,ident,key,None,info,committed_text='private-source')
+            self.assertEqual(provider.call_count,1);tts.assert_not_called()
+            self.assertIn('failure_stage=translation_settlement_ms',output.getvalue());self.assertIn('translation_failure_reason=accounting_error',output.getvalue())
+            self.assertNotIn('private',output.getvalue());self.assertEqual(sessions.result(self.user,ident,key)['status'],'FAILED')
+
+    def test_diagnostics_never_echo_arbitrary_error_codes_or_reasons(self):
+        output=io.StringIO()
+        with redirect_stdout(output):live._log_latency({'failure_stage':'private-stage','translation_failure_reason':'private-body'},0,False,'private-code')
+        self.assertIn('failure_stage=between_stages failure_code=other_failure',output.getvalue());self.assertNotIn('private',output.getvalue())
+
     def test_live_owner_qa_does_not_use_up_dictation_allowance_and_stops_at_four(self):
         with self.funded(),patch.dict(os.environ,{'KILAS_VO_STT_USAGE_MODE':'owner','KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user),'KILAS_LIVE_TRANSLATOR_USAGE_MODE':'qa'}):
             pcm=self.signal();digest=hashlib.sha256(pcm).hexdigest();_,ms=live.stt.normalize(pcm)

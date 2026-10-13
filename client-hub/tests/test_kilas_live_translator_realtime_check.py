@@ -47,6 +47,23 @@ class Checks(unittest.TestCase):
   with self.funded(),self.on(),self.owner(),patch.object(check,'quiet',return_value=False),patch.object(check,'wire') as wire:
    with self.assertRaises(ValueError):check.claim({'used':100,'limit':200})
    self.assertIsNone(self.row());wire.assert_not_called()
+ def test_proof_reads_reuse_connection_and_observe_revocation_and_all_bindings(self):
+  with self.funded(),self.on(),self.owner():
+   owner=check.claim({'used':100,'limit':200})
+   check.finish(owner,{'accepted':True,'result':'committed','wire_process_ms':4000,'sent_pcm_ms':5000},{'used':101,'limit':200},True)
+   wrong_campaign={**check.budget.policy(),'id':check.budget.policy()['id']+'-other'}
+   with check.transaction() as conn:check.budget._campaign(conn,wrong_campaign)
+   with patch.object(usage,'_connect',side_effect=AssertionError('Read proof opened a write connection')),patch.object(check.db,'query_one',wraps=check.db.query_one) as read,patch.object(check,'wire') as wire:
+    for _ in range(20):self.assertTrue(check.verified())
+    self.assertEqual(read.call_count,20);wire.assert_not_called()
+    for field,value in [('status','UNKNOWN'),('user_id',self.other),('key_digest','changed'),('source_digest','changed'),('model','changed'),('campaign',wrong_campaign['id']),('accepted',0),('attributed',0)]:
+     previous=self.row()[field]
+     check.db.execute('UPDATE kilas_realtime_checks SET '+field+'=? WHERE approval=?',(value,check.APPROVAL))
+     self.assertFalse(check.verified(),field)
+     check.db.execute('UPDATE kilas_realtime_checks SET '+field+'=? WHERE approval=?',(previous,check.APPROVAL))
+     self.assertTrue(check.verified(),field)
+    with patch.dict(os.environ,{'ELEVENLABS_API_KEY':'changed-key'}):self.assertFalse(check.verified())
+   with patch.object(check.db,'query_one',side_effect=RuntimeError('private-database-error')):self.assertFalse(check.verified())
  def test_default_off_no_flag_only_activation(self):
   with patch.dict(os.environ,{'KILAS_REALTIME_CHECK_ONCE':'off'}),patch.object(check,'Thread') as thread:check.startup();thread.assert_not_called()
   self.assertFalse(check.verified())

@@ -24,19 +24,34 @@ from . import live_translator_transport as transport, free_test
 def _timed(timings,name):
     started=monotonic()
     try:yield
+    except Exception:
+        timings.setdefault('failure_stage',name)
+        raise
     finally:timings[name]=timings.get(name,0)+(monotonic()-started)*1000
 
 
-def _log_latency(timings,started,success):
-    # Numeric durations only: no audio, transcript, translation, owner/session/key,
+def _log_latency(timings,started,success,code=None):
+    # Numeric durations and fixed diagnostic enums only: no audio, text, owner/session/key,
     # provider response, credential or new persisted diagnostic data.
     stages=('admission_ms','decode_ms','queue_ms','preflight_ms','credit_stt_ms',
             'stt_claim_ms','stt_ms','translation_ms','translation_first_delta_ms',
-            'translation_fences_ms','credit_tts_ms',
+            'translation_fences_ms','translation_settlement_ms','translation_events','credit_tts_ms',
             'audio_reserve_ms','audio_submit_ms','completion_ms')
+    stages+=('tts_receive_ms','audio_measure_ms','audio_settlement_ms')
     stages+=('first_tts_byte_ms','first_published_clip_ms')
     stages+=('realtime_input_ms','realtime_transport_ms','realtime_finalize_ms','realtime_commits')
     values=' '.join(f'{name}={timings[name]:.1f}' for name in stages if name in timings)
+    if not success:
+        stage=timings.get('failure_stage')
+        stage=stage if isinstance(stage,str) and stage in stages else 'between_stages'
+        known_codes={'no_speech','translation_failed','transcription_failed','speech_failed','processing_failed','turn_timeout',
+                     'session_ended','turn_cancelled','translator_unavailable','provider_credit_exhausted','provider_credit_check_failed',
+                     'provider_billing_unverified','duplicate_turn','zero_balance','insufficient_balance','live_audio_limit','stream_unavailable'}
+        safe_code=code if isinstance(code,str) and code in known_codes else 'other_failure'
+        reason=timings.get('translation_failure_reason')
+        known_reasons={'provider_error','invalid_json','invalid_shape','incomplete_response','invalid_text','invalid_language_pair','accounting_error'}
+        values+=f' failure_stage={stage} failure_code={safe_code}'
+        if isinstance(reason,str) and reason in known_reasons:values+=f' translation_failure_reason={reason}'
     try:print(f'KILAS_LIVE_LATENCY outcome={"completed" if success else "failed"} {values} backend_ms={(monotonic()-started)*1000:.1f}',flush=True)
     except OSError:pass  # Diagnostic output must never change accounting or End.
 
@@ -105,6 +120,7 @@ def translation(owner,key,text,a,b,check,*,timings=None):
         stream_started=monotonic();first_delta=True
         stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),[{'role':'user','content':text}],'FAST',system=system,project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'],profile=profile)
         for event in stream:
+            if timings is not None:timings['translation_events']=timings.get('translation_events',0)+1
             checked()
             if event['type']=='delta':
                 if first_delta:
@@ -114,16 +130,35 @@ def translation(owner,key,text,a,b,check,*,timings=None):
                 if sum(map(len,parts))>24000:raise ValueError()
             elif event['type']=='usage':tokens=event
             elif event['type']=='finish':complete=event['reason']=='stop'
-        result=json.loads(''.join(parts));value=result.get('text')
+        def invalid(reason):
+            if timings is not None:timings['translation_failure_reason']=reason
+            raise ValueError()
+        if not complete:invalid('incomplete_response')
+        try:result=json.loads(''.join(parts))
+        except ValueError:invalid('invalid_json')
+        if not isinstance(result,dict):invalid('invalid_shape')
+        value=result.get('text')
         if complete and value=='':raise audio_store.AudioError('Ucapan belum terbaca dalam pasangan bahasa ini. Silakan bicara kembali.','no_speech',422)
-        if not complete or not isinstance(value,str) or not 1<=len(value.strip())<=4000 or {result.get('source_language'),result.get('target_language')}!={a,b}:raise ValueError()
+        if not isinstance(value,str) or not 1<=len(value.strip())<=4000:invalid('invalid_text')
+        source,target=result.get('source_language'),result.get('target_language')
+        if not isinstance(source,str) or not isinstance(target,str) or {source,target}!={a,b}:invalid('invalid_language_pair')
         success=True;result['text']=value.strip();return result
-    except (providers.ProviderError,ValueError,KeyError,TypeError):
+    except providers.ProviderError:
+        if timings is not None:timings['translation_failure_reason']='provider_error'
+        raise audio_store.AudioError('Terjemahan belum berhasil. Sesi dihentikan; tidak ada pengulangan otomatis.','translation_failed',503) from None
+    except (ValueError,KeyError,TypeError):
         raise audio_store.AudioError('Terjemahan belum berhasil. Sesi dihentikan; tidak ada pengulangan otomatis.','translation_failed',503) from None
     finally:
         try:
             if stream is not None:stream.close()
-        finally:usage.finish(owner,key+'-text',operations,success=success,provider='openai',model=model,usage=tokens)
+        finally:
+            try:
+                if timings is None:usage.finish(owner,key+'-text',operations,success=success,provider='openai',model=model,usage=tokens)
+                else:
+                    with _timed(timings,'translation_settlement_ms'):usage.finish(owner,key+'-text',operations,success=success,provider='openai',model=model,usage=tokens)
+            except Exception:
+                if timings is not None:timings['translation_failure_reason']='accounting_error'
+                raise
 
 
 def process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False,whole_output=False,committed_text=None):
@@ -133,7 +168,7 @@ def process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=F
 
 
 def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False,whole_output=False,committed_text=None):
-    job=None;capability=None;success=False
+    job=None;capability=None;success=False;failure_code=None
     timings={} if timings is None else timings
     started=monotonic() if started is None else started
     def check():
@@ -184,12 +219,12 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
                 # One complete script, one encoder and one billed result. Keep the
                 # existing per-read End fence, but publish no playable prefix.
                 if not audio_store.start(owner,job):raise audio_store.AudioError('Audio ini sudah diproses.','duplicate_turn',409)
-                raw=segments.speech(result['text'],choice['id'],stream_check,first_byte)
+                with _timed(timings,'tts_receive_ms'):raw=segments.speech(result['text'],choice['id'],stream_check,first_byte)
                 # Once the complete paid response returned, settle its valid
                 # measured output even if End wins before publication. The
                 # following session check keeps that cancelled result private.
-                duration=audio_media.mp3_duration(raw)
-                audio_store.finish(owner,job,raw,duration)
+                with _timed(timings,'audio_measure_ms'):duration=audio_media.mp3_duration(raw)
+                with _timed(timings,'audio_settlement_ms'):audio_store.finish(owner,job,raw,duration)
             elif len(parts)>1:
                 segments.attach(owner,ident,key,job,len(parts),reserve)
                 for index,part in enumerate(parts):
@@ -211,6 +246,7 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
         success=True
         return job
     except Exception as error:
+        failure_code=getattr(error,'code','processing_failed')
         # A reservation that did not dispatch can be cancelled; dispatched cost stays recorded.
         if capability and budget.owned(owner,key)['status']=='RESERVED':budget.cancel(owner,key)
         # End never refunds dispatched supplier cost or rewrites audio accounting.
@@ -218,7 +254,7 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
             audio_store.fail(owner,job,getattr(error,'code','processing_failed'))
         sessions.finish(owner,ident,key,False,job,getattr(error,'code','processing_failed'))
         raise
-    finally:_log_latency(timings,started,success)
+    finally:_log_latency(timings,started,success,failure_code)
 
 
 def enqueue(owner,ident,key,recording,*,stream_output=False,whole_output=True):

@@ -1,5 +1,6 @@
 """Explicit one-attempt qualification. No flag-only activation or automatic retry."""
 import hashlib,json,os,secrets,subprocess,sys,time
+import db
 from urllib.parse import parse_qs,urlsplit
 from datetime import datetime,timezone
 from threading import Thread,Timer
@@ -166,9 +167,11 @@ def verified():
     try:
         base=budget.policy()
         if not base or base['allowed_owner'] is None:return False
-        with transaction() as conn:
-            row=usage._query(conn,"SELECT user_id,key_digest,source_digest,model,campaign FROM kilas_realtime_checks WHERE approval=? AND status='VERIFIED' AND accepted=1 AND attributed=1 AND after_used>before_used AND after_limit=before_limit AND prepaid_guard=1 AND actual_wire_ms BETWEEN 0 AND 10000 AND sent_pcm_ms BETWEEN 0 AND 5000 AND result IN ('committed','deadline_unknown')",(APPROVAL,),one=True)
-            return bool(row and row[0]==base['allowed_owner'] and row[1]==digest() and row[2]==SOURCE and row[3]==account.MODEL and row[4]==base['id']+'-rt-check')
+        # This proof is a single read, including on every streamed translation
+        # fence. Reuse the thread's read connection rather than opening a fresh
+        # write transaction per event. Never cache the proof or its revocation.
+        row=db.query_one("SELECT user_id,key_digest,source_digest,model,campaign FROM kilas_realtime_checks WHERE approval=? AND status='VERIFIED' AND accepted=1 AND attributed=1 AND after_used>before_used AND after_limit=before_limit AND prepaid_guard=1 AND actual_wire_ms BETWEEN 0 AND 10000 AND sent_pcm_ms BETWEEN 0 AND 5000 AND result IN ('committed','deadline_unknown')",(APPROVAL,))
+        return bool(row and row['user_id']==base['allowed_owner'] and row['key_digest']==digest() and row['source_digest']==SOURCE and row['model']==account.MODEL and row['campaign']==base['id']+'-rt-check')
     except Exception:return False
 
 def readiness():

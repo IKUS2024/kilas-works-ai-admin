@@ -1,5 +1,6 @@
 """Shared fixed-end sponsorship with synthetic accounts/media and zero provider IO."""
 import hashlib
+import json
 import os
 import unittest
 from datetime import datetime, timezone, timedelta
@@ -16,6 +17,24 @@ NOW=datetime(2026,10,13,12,tzinfo=timezone.utc)
 
 
 class FreeTestTests(unittest.TestCase):
+    def test_streamed_translator_trial_reads_proof_without_per_event_write_connections(self):
+        from kilas_ai import providers, live_translator_store as sessions
+        with self.trial():
+            self.verified()
+            ident=sessions.create(self.user,'id','en','kilas-male');key='live-'+str(self.user).zfill(32)
+            sessions.claim(self.user,ident,key)
+            payload=json.dumps({'text':'Hello.','source_language':'id','target_language':'en'})
+            def stream(*args,**kwargs):
+                for character in payload:yield {'type':'delta','text':character}
+                yield {'type':'finish','reason':'stop'}
+            def fence():live.require_ready(self.user);sessions.check(self.user,ident,key)
+            with patch.object(providers,'_openai',side_effect=stream) as provider,patch.object(usage,'_connect',wraps=usage._connect) as connection:
+                self.assertEqual(live.translation(self.user,key,'Halo.','id','en',fence)['text'],'Hello.')
+                self.assertEqual(connection.call_count,2,'Only reservation and settlement open write connections, never streamed proof reads.')
+                provider.assert_called_once()
+            db.execute("UPDATE kilas_realtime_checks SET status='UNKNOWN' WHERE approval=?",(proof.APPROVAL,))
+            self.assertFalse(live.ready(self.user))
+
     def setUp(self):
         fixture.LearningTests.setUp(self)
         self.addCleanup(self.cleanup_journals)
