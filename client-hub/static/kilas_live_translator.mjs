@@ -1,8 +1,8 @@
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=output-prefetch-20261013';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=startup-bounded-20261013';
 import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=output-prefetch-20261013';
 import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=output-prefetch-20261013';
-import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=realtime-input-20261013';
+import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=startup-bounded-20261013';
 import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=realtime-input-20261013';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=owner-recovery-20261012';
@@ -11,7 +11,9 @@ if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');
  const csrf=form.querySelector('[name=csrf_token]').value,start=form.querySelector('button');let context=null,source=null,analyser=null,interval=null,recorder=null;
  const setupReady=root.dataset.ready==='true'&&!start.disabled;
- const showError=text=>{error.textContent=text;error.hidden=false;};
+ const showError=(text,detail)=>{error.textContent=text;error.hidden=false;
+  if(detail?.startupStage){if(detail.startupStage==='session_admission')recoverRequested=true;try{console.info('KILAS_LIVE_STARTUP_FAILURE stage='+detail.startupStage+' code='+(detail.code||'startup_failed'));}catch{}}
+ };
  let recovery=null,recoverRequested=false,recoveryError=false,recoveryExpiry=null;
  const recoveryPanel=document.querySelector('#live-recovery'),recoveryStatus=document.querySelector('#live-recovery-status'),recoveryEnd=document.querySelector('#live-recovery-end'),recoveryCheck=document.querySelector('#live-recovery-check');
  const recoveryRetry=document.querySelector('#live-recovery-retry'),sessionStatus=document.querySelector('#live-session-status');
@@ -24,11 +26,11 @@ if(root){
  syncLanguages();
  function monitorStop(){if(interval!==null)clearInterval(interval);interval=null;source?.disconnect();source=null;analyser?.disconnect();analyser=null;}
  const batchCapture={
-  async start({level,blob,error:onError}){
+  async start({level,blob,error:onError,ready}){
    if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder||!context)throw Error('Browser ini belum mendukung mikrofon.');
    recorder=new VoiceRecorder({mediaDevices:navigator.mediaDevices,Recorder:window.MediaRecorder,onBlob:raw=>{if(own!==recorder)return;monitorStop();if(own.translatorFinalized)blob(raw);else onError(Object.assign(Error('Ucapan terlalu panjang untuk satu rekaman. Jeda sebentar lalu tekan Lanjutkan; ucapan ini tidak diproses sebagian.'),{code:'utterance_limit'}));},onState:state=>{if(own!==recorder)return;if(state==='empty'){monitorStop();blob(new Blob([]));}if(state==='error')onError(Object.assign(Error('Mikrofon terputus. Periksa izin browser lalu tekan Lanjutkan.'),{code:'microphone_unavailable'}));}});
    const own=recorder;await own.start({userGesture:true,consent:true,enabled:true});
-   if(own!==recorder||!own.stream)return;
+   if(own!==recorder)return;if(!own.stream)throw Object.assign(Error('Mikrofon belum siap. Periksa izin browser lalu tekan Lanjutkan.'),{code:'microphone_unavailable'});
    source=context.createMediaStreamSource(own.stream);analyser=context.createAnalyser();analyser.fftSize=2048;source.connect(analyser);
    const samples=new Float32Array(analyser.fftSize);let began=performance.now(),heard=false;
    interval=setInterval(()=>{if(!analyser)return;analyser.getFloatTimeDomainData(samples);const rms=Math.sqrt(samples.reduce((sum,v)=>sum+v*v,0)/samples.length);if(rms>=.015)heard=true;level(rms);
@@ -37,6 +39,7 @@ if(root){
     // submitting truncated speech; ordinary utterances still wait for 2s silence.
     if(!heard&&performance.now()-began>=60000)onError(Object.assign(Error(''),{code:'capture_idle',recoverable:true,silent:true}));
    },50);
+   ready?.();
   },
   finalize(){monitorStop();if(recorder)recorder.translatorFinalized=true;recorder?.stop();},
   cancel(){monitorStop();recorder?.cancel();recorder=null;},
@@ -72,10 +75,10 @@ if(root){
   const text=document.querySelector('#live-translation');text.textContent=result.translated_text||'';text.hidden=!text.textContent;
  },onState:state=>{
   start.disabled=state!=='ended'||!setupReady||!recovery?.canStart();setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;
-  const label={starting:'Menyiapkan sesi',resuming:'Menyiapkan audio',recovering:'Memulihkan sesi',paused:'Sesi dijeda',playing:'Memutar terjemahan',listening:session.inputMode==='realtime-v1'?'Mendengarkan realtime':'Mendengarkan mode rekaman'}[state]||'Memproses';orb.setAttribute('aria-label',label);
+  const label={preparing:'Menyiapkan audio',starting:'Menyiapkan sesi',opening:'Menyiapkan mikrofon',resuming:'Menyiapkan audio',recovering:'Memulihkan sesi',paused:'Sesi dijeda',playing:'Memutar terjemahan',listening:session.inputMode==='realtime-v1'?'Mendengarkan realtime':'Mendengarkan mode rekaman'}[state]||'Memproses';orb.setAttribute('aria-label',label);
   document.querySelector('#live-resume').hidden=state!=='paused';
   document.querySelector('#live-state').textContent=orb.getAttribute('aria-label');
-  if(state==='ended'&&recoverRequested){recoverRequested=false;recovery.refresh();}
+  if(state==='ended'&&(recoverRequested||session.admissionPending)){recoverRequested=false;recovery.checked=false;recovery.refresh();}
  }});
  recovery=new TranslatorRecovery({api:{active:()=>json('/kilas-translator/live/sessions/active',{timeoutMs:10000}),end(id){const data=new FormData();data.append('csrf_token',csrf);return json('/kilas-translator/live/sessions/'+encodeURIComponent(id)+'/end',{method:'POST',body:data,keepalive:true,timeoutMs:10000});}},isIdle:()=>session.state==='ended',onError:text=>{recoveryError=true;showError(text);},onChange:state=>{
   start.disabled=session.state!=='ended'||!setupReady||!state.canStart();

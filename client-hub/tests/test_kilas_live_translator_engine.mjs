@@ -7,7 +7,7 @@ function fixture(){
  let time=0,handlers,mics=0,captureCalls=0,turnCalls=0,playing=false,ends=0,states=[],errors=[];
  const turn=deferred(),play=deferred();
  const capture={start:async h=>{handlers=h;mics++;captureCalls++;},finalize:()=>{mics--;handlers.blob(new Blob(['synthetic']));},cancel:()=>{mics=0;}};
- const api={start:async()=>({session_id:'synthetic-session'}),turn:async()=>{turnCalls++;assert.equal(mics,0);return turn.promise;},end:async()=>{ends++;}};
+ const api={start:async()=>({session_id:'a'.repeat(48)}),turn:async()=>{turnCalls++;assert.equal(mics,0);return turn.promise;},end:async()=>{ends++;}};
  const playback={play:async()=>{assert.equal(mics,0);playing=true;await play.promise;playing=false;},cancel:()=>{playing=false;},stop:()=>{playing=false;play.resolve();}};
  const session=new TranslatorSession({api,capture,playback,onState:s=>states.push(s),onError:e=>errors.push(e),now:()=>time,key:()=> 'a'.repeat(32)});
  return {session,api,capture,playback,turn,play,states,errors,level:(r,t)=>{time=t;handlers.level(r);},get handlers(){return handlers;},get mics(){return mics;},get calls(){return turnCalls;},get captureCalls(){return captureCalls;},get playing(){return playing;},get ends(){return ends;}};
@@ -32,7 +32,7 @@ test('End during playback stops audio and never resumes capture',async()=>{
  const f=fixture();await f.session.start({});f.level(.1,0);f.level(0,2000);f.turn.resolve({audio_url:'/synthetic'});await tick();f.session.end();await tick();assert.equal(f.playing,false);assert.equal(f.mics,0);assert.equal(f.captureCalls,1);
 });
 test('End during session admission cancels the late admitted server session',async()=>{
- const f=fixture(),pending=deferred();f.api.start=()=>pending.promise;const started=f.session.start({});f.session.end();pending.resolve({session_id:'late'});await started;assert.equal(f.mics,0);assert.equal(f.ends,1);
+ const f=fixture(),pending=deferred();f.api.start=()=>pending.promise;const started=f.session.start({});f.session.end();pending.resolve({session_id:'b'.repeat(48)});await started;assert.equal(f.mics,0);assert.equal(f.ends,1);
 });
 test('unconfirmed network and permission failure pause resources without retry or End',async()=>{
  const f=fixture();await f.session.start({});f.level(.1,0);f.level(0,2000);f.turn.reject(Error('Synthetic network unavailable'));await tick();assert.deepEqual(f.errors,['Synthetic network unavailable']);assert.equal(f.mics,0);assert.equal(f.calls,1);assert.equal(f.session.state,'paused');assert.equal(f.ends,0);f.session.end();
@@ -91,7 +91,7 @@ test('End while audio preparation is pending never admits or captures when it co
 for(const name of ['Error','AbortError'])test(`playback ${name} recovers listening in the same session without regeneration`,async()=>{
  const f=fixture();await f.session.start({});f.level(.1,0);f.level(0,2000);f.turn.resolve({audio_url:'/synthetic'});await tick();
  const error=Error('Audio unavailable');error.name=name;f.play.reject(error);await tick();
- assert.equal(f.session.state,'listening');assert.equal(f.mics,1);assert.equal(f.playing,false);assert.equal(f.captureCalls,2);assert.equal(f.calls,1);assert.equal(f.ends,0);assert.equal(f.session.id,'synthetic-session');assert.deepEqual(f.errors,['Audio unavailable']);f.session.end();
+ assert.equal(f.session.state,'listening');assert.equal(f.mics,1);assert.equal(f.playing,false);assert.equal(f.captureCalls,2);assert.equal(f.calls,1);assert.equal(f.ends,0);assert.equal(f.session.id,'a'.repeat(48));assert.deepEqual(f.errors,['Audio unavailable']);f.session.end();
 });
 
 for(const adapter of ['capture','playback'])test(`End stays responsive when ${adapter} cleanup throws`,async()=>{
@@ -103,11 +103,11 @@ for(const adapter of ['capture','playback'])test(`End stays responsive when ${ad
 test('idle buffer renewal keeps the session listening without error, End or provider work',async()=>{
  const f=fixture();await f.session.start({});const old=f.handlers;
  old.error(Object.assign(Error(''),{code:'capture_idle',silent:true,recoverable:true}));await tick();
- assert.equal(f.session.state,'listening');assert.equal(f.session.id,'synthetic-session');assert.equal(f.captureCalls,2);assert.equal(f.calls,0);assert.equal(f.ends,0);assert.deepEqual(f.errors,[]);old.blob(new Blob(['stale']));assert.equal(f.calls,0);f.session.end();
+ assert.equal(f.session.state,'listening');assert.equal(f.session.id,'a'.repeat(48));assert.equal(f.captureCalls,2);assert.equal(f.calls,0);assert.equal(f.ends,0);assert.deepEqual(f.errors,[]);old.blob(new Blob(['stale']));assert.equal(f.calls,0);f.session.end();
 });
 
 test('confirmed turn timeout recovers listening in the owned session without resubmission',async()=>{
- const f=fixture();let checks=0;f.api.resume=async(id,key)=>{checks++;assert.equal(id,'synthetic-session');assert.equal(key,null);};
+ const f=fixture();let checks=0;f.api.resume=async(id,key)=>{checks++;assert.equal(id,'a'.repeat(48));assert.equal(key,null);};
  await f.session.start({});f.level(.1,0);f.level(0,2000);f.turn.reject(Object.assign(Error('Turn timeout'),{code:'turn_timeout',recoverable:true,turnSettled:true}));await tick();
  assert.equal(f.session.state,'listening');assert.equal(f.mics,1);assert.equal(f.calls,1);assert.equal(f.ends,0);assert.equal(checks,1);f.session.end();
 });
@@ -128,7 +128,7 @@ test('End during uncertain-turn resume invalidates late verification and never c
 
 test('hidden page pauses local media while retaining the session; old provider response cannot play',async()=>{
  const f=fixture();await f.session.start({});f.level(.1,0);f.level(0,2000);f.session.suspend();
- assert.equal(f.session.state,'paused');assert.equal(f.session.id,'synthetic-session');assert.equal(f.mics,0);assert.equal(f.ends,0);
+ assert.equal(f.session.state,'paused');assert.equal(f.session.id,'a'.repeat(48));assert.equal(f.mics,0);assert.equal(f.ends,0);
  f.turn.resolve({audio_url:'/synthetic'});await tick();assert.equal(f.playing,false);assert.equal(f.captureCalls,1);f.session.end();
 });
 

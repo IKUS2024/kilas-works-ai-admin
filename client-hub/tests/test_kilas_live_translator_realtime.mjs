@@ -62,10 +62,11 @@ test('settled realtime output polls existing turn with no admission/paidSTTPOST'
 function captureFixture(){
  let now=0,next=0;const timers=new Map(),events=new Map(),track={stops:0,stop(){this.stops++;},addEventListener(name,fn){events.set(name,fn);}};
  const node={port:{onmessage:null,postMessage(message){node.message=message;}},connect(){},disconnect(){node.detached=true;}},stream={getTracks:()=>[track]};
- const context={audioWorklet:{addModule:async()=>{}},destination:{},createMediaStreamSource:()=>({connect(){},disconnect(){}})};
+ const context={state:'running',audioWorklet:{addModule:async()=>{}},destination:{},createMediaStreamSource:()=>({connect(){},disconnect(){}})};
  const output=[],levels=[],errors=[],blobs=[];
  const capture=new RealtimeCapture({getContext:()=>context,mediaDevices:{getUserMedia:async()=>stream},createNode:()=>node,schedule:(fn,ms)=>{const id=++next;timers.set(id,{at:now+ms,fn});return id;},clear:id=>timers.delete(id)});
- const start=()=>capture.start({level:value=>levels.push(value),pcm:value=>output.push(value),blob:value=>blobs.push(value),error:value=>errors.push(value)});
+ const begin=()=>capture.start({level:value=>levels.push(value),pcm:value=>output.push(value),blob:value=>blobs.push(value),error:value=>errors.push(value)});
+ const start=async()=>{const work=begin();await tick();frame(0);await work;levels.length=0;};
  const frame=(rms=.1,length=6400)=>node.port.onmessage({data:{bytes:new ArrayBuffer(length),rms}});
  async function advance(ms){now+=ms;for(const [id,timer] of [...timers])if(timer.at<=now){timers.delete(id);timer.fn();}await tick();}
  return {capture,context,node,track,events,timers,output,levels,errors,blobs,start,frame,advance};
@@ -86,7 +87,7 @@ test('End cleans up and late worklet frames cannot reach a newer capture',async(
  const f=captureFixture();await f.start();const old=f.node.port.onmessage;f.capture.cancel();old({data:{bytes:new ArrayBuffer(6400),rms:.1}});assert.equal(f.output.length,0);assert.equal(f.blobs.length,0);assert.equal(f.timers.size,0);assert.equal(f.track.stops,1);
 });
 test('ended track during module load is not ignored by previous finalizing state',async()=>{
- const f=captureFixture(),held=deferred();f.capture.finalizing=true;f.context.audioWorklet.addModule=()=>held.promise;const work=f.start();await tick();f.events.get('ended')();held.resolve();await work;assert.equal(f.errors[0].code,'microphone_unavailable');assert.equal(f.node.port.onmessage,null);
+ const f=captureFixture(),held=deferred();f.capture.finalizing=true;f.context.audioWorklet.addModule=()=>held.promise;const work=f.capture.start({level(){},pcm(){},blob(){},error(){}}),failed=assert.rejects(work,e=>e.code==='microphone_unavailable');await tick();f.events.get('ended')();held.resolve();await failed;assert.equal(f.errors.length,0);assert.equal(f.node.port.onmessage,null);
 });
 test('realtime session waits tail/commit plus backend and complete playback before mic resume',async()=>{
  const committed=deferred(),lastPlay=deferred(),producer=deferred();let handlers,mics=0,now=0;const calls=[],plays=[],timings=[];
