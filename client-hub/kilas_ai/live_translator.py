@@ -125,13 +125,13 @@ def translation(owner,key,text,a,b,check,*,timings=None):
         finally:usage.finish(owner,key+'-text',operations,success=success,provider='openai',model=model,usage=tokens)
 
 
-def process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False,committed_text=None):
+def process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False,whole_output=False,committed_text=None):
     # Reuse HTTPS setup for the two fresh credit reads, STT and TTS in this turn.
     with transport.turn_connection():
-        return _process(owner,ident,key,pcm,info,timings=timings,started=started,stream_output=stream_output,committed_text=committed_text)
+        return _process(owner,ident,key,pcm,info,timings=timings,started=started,stream_output=stream_output,whole_output=whole_output,committed_text=committed_text)
 
 
-def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False,committed_text=None):
+def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False,whole_output=False,committed_text=None):
     job=None;capability=None;success=False
     timings={} if timings is None else timings
     started=monotonic() if started is None else started
@@ -171,16 +171,26 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
         check()
         if not new:raise audio_store.AudioError('Audio ini sudah diproses.','duplicate_turn',409)
         from . import live_translator_segments as segments
-        parts=segments.sentences(result['text']) if stream_output else []
+        parts=segments.sentences(result['text']) if stream_output and not whole_output else []
+        def stream_check():
+            if monotonic()-started>180:raise audio_store.AudioError('Audio melewati batas waktu.','turn_timeout',503)
+            return check()
+        def first_byte():
+            if 'first_tts_byte_ms' not in timings:timings['first_tts_byte_ms']=(monotonic()-started)*1000
         # Fallback is chosen BEFORE dispatch: old client or one stable clip.
         with _timed(timings,'audio_submit_ms'):
-            if len(parts)>1:
+            if whole_output:
+                # One complete script, one encoder and one billed result. Keep the
+                # existing per-read End fence, but publish no playable prefix.
+                if not audio_store.start(owner,job):raise audio_store.AudioError('Audio ini sudah diproses.','duplicate_turn',409)
+                raw=segments.speech(result['text'],choice['id'],stream_check,first_byte)
+                # Once the complete paid response returned, settle its valid
+                # measured output even if End wins before publication. The
+                # following session check keeps that cancelled result private.
+                duration=audio_media.mp3_duration(raw)
+                audio_store.finish(owner,job,raw,duration)
+            elif len(parts)>1:
                 segments.attach(owner,ident,key,job,len(parts),reserve)
-                def stream_check():
-                    if monotonic()-started>180:raise audio_store.AudioError('Audio melewati batas waktu.','turn_timeout',503)
-                    return check()
-                def first_byte():
-                    if 'first_tts_byte_ms' not in timings:timings['first_tts_byte_ms']=(monotonic()-started)*1000
                 for index,part in enumerate(parts):
                     stream_check()
                     if index:
@@ -210,7 +220,7 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
     finally:_log_latency(timings,started,success)
 
 
-def enqueue(owner,ident,key,recording,*,stream_output=False):
+def enqueue(owner,ident,key,recording,*,stream_output=False,whole_output=True):
     require_ready(owner)
     if not _SLOTS.acquire(blocking=False):raise audio_store.AudioError('Layanan sedang sibuk. Coba kembali.','service_busy',429)
     claimed=False;timings={};started=monotonic()
@@ -223,7 +233,7 @@ def enqueue(owner,ident,key,recording,*,stream_output=False):
         queued_at=monotonic()
         def run():
             timings['queue_ms']=round((monotonic()-queued_at)*1000,1)
-            try:process(owner,ident,key,pcm,info,timings=timings,started=started,stream_output=stream_output)
+            try:process(owner,ident,key,pcm,info,timings=timings,started=started,stream_output=stream_output,whole_output=whole_output)
             except Exception:pass  # persisted status, no raw audio/text/provider error logging
             finally:_SLOTS.release()
         _EXECUTOR.submit(run)

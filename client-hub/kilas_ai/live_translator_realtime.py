@@ -175,9 +175,9 @@ class Relay:
             success=True;self.close()
             self.deadline.cancel()  # Output has its separate180s processing window.
             # No microphone/paid STT fallback; the existing complete translation
-            # and billed sentence output pipeline consumes this stable whole text.
+            # and one billed whole-utterance output consume this stable whole text.
             finalized=monotonic()
-            live.process(self.owner,self.ident,self.key,None,self.info,stream_output=True,committed_text=text,
+            live.process(self.owner,self.ident,self.key,None,self.info,whole_output=True,committed_text=text,
                 started=self.final_at,timings={'realtime_input_ms':self.sent/32,
                     'realtime_transport_ms':(finalized-self.started)*1000,
                     'realtime_finalize_ms':(finalized-self.final_at)*1000,

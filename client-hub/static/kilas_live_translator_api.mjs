@@ -29,8 +29,8 @@ export async function requestJSON(url,{csrf,fetcher=(...args)=>fetch(...args),sc
 }
 
 export class TranslatorTurns {
-  constructor({json,csrf,now=()=>performance.now(),schedule=scheduleNative,clear=clearNative,pollMs=250,turnMs=180000}){
-    Object.assign(this,{json,csrf,now,schedule,clear,pollMs,turnMs});
+  constructor({json,csrf,now=()=>performance.now(),schedule=scheduleNative,clear=clearNative,pollMs=250,turnMs=180000,wholeUtterance=false}){
+    Object.assign(this,{json,csrf,now,schedule,clear,pollMs,turnMs,wholeUtterance});
   }
   path(id,key){return '/kilas-translator/live/sessions/'+encodeURIComponent(id)+'/turns/'+encodeURIComponent(key);}
   pause(signal){return new Promise((resolve,reject)=>{
@@ -46,6 +46,9 @@ export class TranslatorTurns {
   }
   async turn(id,key,blob,signal,onSegment=null,onPrefetch=null){
     const url=this.path(id,key),data=new FormData();if(blob!==null)data.append('recording',blob,'recording');data.append('csrf_token',this.csrf);
+    // Wait for one full result, including any already-running legacy segmented
+    // turn. Never play a prefix or submit a second job to assemble its output.
+    if(this.wholeUtterance)onSegment=null;
     // A definite unsupported endpoint disables streaming for NEW speech in this
     // session. An uncertain paid request never triggers an alternate submission.
     if(this.disabledStreamSession===id)onSegment=null;

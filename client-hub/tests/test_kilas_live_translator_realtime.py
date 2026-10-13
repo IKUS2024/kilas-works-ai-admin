@@ -70,6 +70,7 @@ class RealtimeTests(unittest.TestCase):
    while socket.commits<3 and time.monotonic()<limit:time.sleep(.001)
    self.assertEqual(socket.commits,3);process.assert_not_called();final.set();worker.join(3);self.assertFalse(worker.is_alive())
    self.assertEqual(b''.join(socket.sent),raw);self.assertTrue(socket.closed);self.assertEqual(process.call_args.kwargs['committed_text'],'Repeat this. Repeat this. 最后一句。')
+   self.assertTrue(process.call_args.kwargs['whole_output']);self.assertFalse(process.call_args.kwargs.get('stream_output',False))
    self.assertEqual(process.call_args.kwargs['timings']['realtime_input_ms'],len(raw)/32);self.assertGreaterEqual(process.call_args.kwargs['started'],relay.started);self.assertEqual(self.row()['status'],'COMPLETED')
  def test_chunk_indices_lengths_queue_and_final_count_are_strict(self):
   with self.funded(),self.on(),self.owner():

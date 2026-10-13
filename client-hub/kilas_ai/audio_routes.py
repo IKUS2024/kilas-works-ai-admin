@@ -473,7 +473,9 @@ def live_translator_turn(ident,key):
     video_budget.key_valid(key)
     if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
     if request.method=='POST':
-        live.enqueue(session['user_id'],ident,key,request.files.get('recording'),stream_output=request.form.get('stream_output')=='sentences-v1')
+        # Cached clients may still request sentence prefixes. Every new utterance
+        # now produces one complete output; existing segment GETs remain readable.
+        live.enqueue(session['user_id'],ident,key,request.files.get('recording'),whole_output=True)
         return {'status':'PROCESSING'},202,{'Cache-Control':'private, no-store'}
     state=sessions.result(session['user_id'],ident,key)
     from . import live_translator_segments as segments
@@ -500,7 +502,7 @@ def live_translator_turn(ident,key):
                   'live_audio_limit':'Batas audio Live Translator tercapai. Sesi dijeda tanpa pembelian tambahan.',
                   'zero_balance':'Kuota audio Live Translator belum tersedia untuk akun ini.',
                   'insufficient_balance':'Kuota audio tidak cukup untuk ucapan berikutnya.',
-                  'stream_unavailable':'Audio streaming belum tersedia. Tekan Lanjutkan untuk mode standar pada ucapan baru; ucapan ini tidak diulang.'}
+                  'stream_unavailable':'Audio belum tersedia. Sesi dijeda; ucapan ini tidak diulang otomatis.'}
         state={'status':'FAILED','code':code,'recoverable':code in ('no_speech','translation_failed','transcription_failed','speech_failed','processing_failed','processing_interrupted'),
                'error':messages.get(code,'Ucapan belum berhasil diproses. Ucapan ini tidak diulang otomatis.')}
     else:state={'status':state['status']}

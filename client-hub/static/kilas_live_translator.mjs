@@ -1,7 +1,7 @@
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=startup-bounded-20261013';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=whole-utterance-20261013';
 import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=output-prefetch-20261013';
-import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=output-prefetch-20261013';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=whole-utterance-20261013';
 import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=startup-bounded-20261013';
 import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=realtime-input-20261013';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
@@ -66,7 +66,7 @@ if(root){
  async function json(url,options={}){
   try{return await requestJSON(url,{...options,csrf});}catch(e){if(e.code==='session_busy'){recoverRequested=true;recoveryError=true;}throw e;}
  }
- const turns=new TranslatorTurns({json,csrf});
+ const turns=new TranslatorTurns({json,csrf,wholeUtterance:true});
  const api={
   input:new RealtimeInput({json,csrf}),
   async start(data,signal){try{return await json('/kilas-translator/live/sessions',{method:'POST',body:data,signal,timeoutMs:30000});}catch(e){recoverRequested=true;throw e;}},

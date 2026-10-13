@@ -11,6 +11,7 @@ import test_kilas_audio_video_script as video
 from kilas_ai import live_translator as live, live_translator_store as sessions
 from kilas_ai import audio_branded_voices as branded, audio_transcription_budget as budget, audio_store
 from kilas_ai import audio_provider, model_policy, providers, usage
+from kilas_ai import live_translator_segments as segments
 
 VOICE={'alias':'kilas-male','id':'syntheticMale123','name':'Kilas Male','style':'Natural'}
 
@@ -341,13 +342,14 @@ class LiveTranslatorTests(unittest.TestCase):
         self.credit(300)
         class Inline:
             def submit(self,callback):callback()
-        with self.funded(),self.on(),patch.dict(os.environ,{'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user)}),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'transcribe',side_effect=self.transcribe) as stt,patch.object(providers,'_openai',side_effect=self.stream),patch.object(audio_provider,'speech',return_value=(self.audio,'synthetic-request')),patch.object(live,'_EXECUTOR',Inline()):
+        with self.funded(),self.on(),patch.dict(os.environ,{'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user)}),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'transcribe',side_effect=self.transcribe) as stt,patch.object(providers,'_openai',side_effect=self.stream),patch.object(segments,'speech',return_value=self.audio) as tts,patch.object(live,'_EXECUTOR',Inline()):
             ident=self.session();key=self.key();url='/kilas-translator/live/sessions/'+ident+'/turns/'+key
             def body():return {'csrf_token':'audio-csrf','recording':(io.BytesIO(self.signal()),'recording.wav','audio/wav')}
             self.assertEqual(self.client.post(url,data={'recording':(io.BytesIO(self.signal()),'recording.wav','audio/wav')}).status_code,400)
             response=self.client.post(url,data=body());self.assertEqual(response.status_code,202,response.text)
             result=self.client.get(url);self.assertEqual(result.json['status'],'COMPLETED',result.text)
             self.assertEqual(self.client.post(url,data=body()).status_code,409);self.assertEqual(stt.call_count,1)
+            tts.assert_called_once();self.assertEqual(tts.call_args.args[0],'Hello, how are you?')
             self.assertEqual(self.client.get(result.json['audio_url']).mimetype,'audio/mpeg')
 
     def test_expired_session_and_foreign_turn_are_rejected(self):
