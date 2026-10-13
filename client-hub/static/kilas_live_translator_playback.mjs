@@ -1,6 +1,6 @@
 // Bounded Web Audio playback. No microphone, provider calls or automatic replay.
 const abortError=()=>new DOMException('Sesi berakhir.','AbortError');
-const failure=(code,message)=>Object.assign(Error(message+' Sesi dihentikan; audio tidak dibuat ulang otomatis.'),{code});
+const failure=(code,message)=>Object.assign(Error(message+' Audio ini tidak dibuat ulang otomatis.'),{code});
 const MAX_BYTES=20*1024*1024;
 
 export class TranslatorPlayback {
@@ -26,12 +26,12 @@ export class TranslatorPlayback {
     this.cancel();
     const op={controller:new AbortController(),context:this.getContext(),isCurrent};this.operation=op;
     const cancel=()=>op.controller.abort();signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
-    try{this.check(op);if(!op.context||op.context.state==='closed')throw failure('audio_context','Audio tidak tersedia. Mulai kembali melalui Start.');return await work(op);}
+    try{this.check(op);if(!op.context||op.context.state==='closed')throw failure('audio_context','Audio tidak tersedia. Periksa audio browser.');return await work(op);}
     finally{op.controller.abort();signal.removeEventListener('abort',cancel);if(this.operation===op)this.operation=null;}
   }
   async resume(op){
     if(op.context.state==='running')return;
-    const error=failure('audio_resume','Audio belum diizinkan atau terputus. Periksa audio browser lalu tekan Start kembali.');
+    const error=failure('audio_resume','Audio belum diizinkan atau terputus. Periksa audio browser lalu tekan Lanjutkan.');
     try{await this.bounded(op,()=>op.context.resume(),5000,error);}catch(e){if(this.cancelled(op,e))throw e;throw error;}
     this.check(op);if(op.context.state!=='running')throw error;
   }
@@ -39,7 +39,7 @@ export class TranslatorPlayback {
   play(url,signal,isCurrent){
     return this.run(signal,isCurrent,async op=>{
       if(typeof url!=='string'||!/^\/kilas-translator\/live\/sessions\/[a-f0-9]{48}\/turns\/live-[a-f0-9]{32}\/audio$/.test(url))throw failure('audio_url','Hasil audio tidak tersedia.');
-      const loadError=failure('audio_fetch','Audio belum dapat dimuat. Periksa koneksi lalu mulai kembali.');
+      const loadError=failure('audio_fetch','Audio belum dapat dimuat. Periksa koneksi.');
       let raw;
       try{
         raw=await this.bounded(op,async()=>{

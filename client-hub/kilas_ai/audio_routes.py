@@ -10,7 +10,7 @@ import security
 import payment_service
 from .routes import enabled
 from .billing_routes import admin_bp
-from . import audio_store as store, audio_provider as provider, audio_service as service, audio_media as media, audio_billing as billing
+from . import audio_store as store, audio_provider as provider, audio_service as service, audio_media as media, audio_billing as billing, usage
 from . import audio_personal_voice as personal
 from . import audio_branded_voices as branded
 from . import audio_voice_script as voice_script
@@ -404,6 +404,19 @@ def live_translator_active():
     return {'session':sessions.active(session['user_id'])},200,{'Cache-Control':'private, no-store'}
 
 
+@audio_bp.get('/live/sessions/<ident>')
+def live_translator_session_status(ident):
+    from . import live_translator_store as sessions
+    return sessions.status(session['user_id'],ident),200,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.post('/live/sessions/<ident>/turns/<key>/cancel')
+def live_translator_cancel_turn(ident,key):
+    from . import live_translator_store as sessions
+    if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
+    return {'status':sessions.cancel_turn(session['user_id'],ident,key)},200,{'Cache-Control':'private, no-store'}
+
+
 @audio_bp.route('/live/sessions/<ident>/turns/<key>',methods=['GET','POST'])
 def live_translator_turn(ident,key):
     from . import live_translator as live, live_translator_store as sessions
@@ -414,21 +427,24 @@ def live_translator_turn(ident,key):
         return {'status':'PROCESSING'},202,{'Cache-Control':'private, no-store'}
     state=sessions.result(session['user_id'],ident,key)
     if state['status']=='COMPLETED':
-        job=store.get(session['user_id'],state['audio_job_id'])
+        # Avoid loading/inspecting audio blobs merely to return completed metadata.
+        job=db.query_one("SELECT source_language,target_language,original_script FROM kilas_audio_jobs WHERE id=? AND user_id=? AND status='COMPLETED' AND mode='voiceover'",(state['audio_job_id'],session['user_id']))
+        if not job:abort(404)
         state={'status':'COMPLETED','audio_url':url_for('kilas_audio.live_translator_result',ident=ident,key=key),
-               'translated_text':store.edit_script(session['user_id'],state['audio_job_id']) or '',
+               'translated_text':job['original_script'] or '',
                'source_language':job['source_language'],'target_language':job['target_language']}
     elif state['status']=='FAILED':
         code=state.get('error_code')
         messages={'no_speech':'Ucapan belum terbaca dalam pasangan bahasa ini. Bicara kembali.',
-                  'provider_credit_exhausted':'Kapasitas layanan suara tidak cukup. Sesi dihentikan tanpa pembelian tambahan.',
-                  'provider_credit_check_failed':'Kapasitas layanan suara belum dapat diperiksa. Sesi dihentikan sebelum permintaan berikutnya.',
-                  'provider_billing_unverified':'Status layanan suara belum terverifikasi. Sesi dihentikan.',
-                  'attempt_limit':'Batas penggunaan Live Translator tercapai. Sesi dihentikan.',
-                  'live_audio_limit':'Batas audio Live Translator tercapai. Sesi dihentikan tanpa pembelian tambahan.',
+                  'provider_credit_exhausted':'Kapasitas layanan suara tidak cukup. Sesi dijeda tanpa pembelian tambahan.',
+                  'provider_credit_check_failed':'Kapasitas layanan suara belum dapat diperiksa. Sesi dijeda sebelum permintaan berikutnya.',
+                  'provider_billing_unverified':'Status layanan suara belum terverifikasi. Sesi dijeda.',
+                  'attempt_limit':'Batas penggunaan Live Translator tercapai. Sesi dijeda.',
+                  'live_audio_limit':'Batas audio Live Translator tercapai. Sesi dijeda tanpa pembelian tambahan.',
                   'zero_balance':'Kuota audio Live Translator belum tersedia untuk akun ini.',
                   'insufficient_balance':'Kuota audio tidak cukup untuk ucapan berikutnya.'}
-        state={'status':'FAILED','recoverable':code=='no_speech','error':messages.get(code,'Ucapan belum berhasil diproses. Sesi dihentikan; tidak ada pengulangan otomatis.')}
+        state={'status':'FAILED','code':code,'recoverable':code in ('no_speech','translation_failed','transcription_failed','speech_failed','processing_failed','processing_interrupted'),
+               'error':messages.get(code,'Ucapan belum berhasil diproses. Ucapan ini tidak diulang otomatis.')}
     else:state={'status':state['status']}
     return state,200,{'Cache-Control':'private, no-store'}
 
@@ -436,6 +452,16 @@ def live_translator_turn(ident,key):
 @audio_bp.get('/live/sessions/<ident>/turns/<key>/audio')
 def live_translator_result(ident,key):
     from . import live_translator_store as sessions
-    state=sessions.result(session['user_id'],ident,key)
-    if state['status']!='COMPLETED':abort(404)
-    return result(state['audio_job_id'])
+    # One snapshot binds the owner, active session, completed turn and billed result.
+    # Ordinary Voice Over downloads retain their existing route and accounting.
+    row=db.query_one("SELECT s.language_a,s.language_b,j.title,j.target_language,CASE WHEN t.status='COMPLETED' AND j.status='COMPLETED' AND j.mode='voiceover' THEN j.result_content ELSE NULL END AS result_content FROM kilas_live_translator_sessions s LEFT JOIN kilas_live_translator_turns t ON t.session_id=s.id AND t.operation_key=? LEFT JOIN kilas_audio_jobs j ON j.id=t.audio_job_id AND j.user_id=s.user_id WHERE s.id=? AND s.user_id=? AND s.status='ACTIVE' AND (s.expires_at='' OR s.expires_at>?)",(key,ident,session['user_id'],usage._now().isoformat()))
+    if not row:abort(404)
+    sessions.require_pair(row['language_a'],row['language_b'])
+    if row['result_content'] is None:abort(404)
+    from werkzeug.utils import secure_filename
+    raw=bytes(row['result_content']);wav=request.args.get('format')=='wav'
+    if wav:raw=media.download_wav(raw)
+    name=(secure_filename(row['title']).rsplit('.',1)[0][:80] or 'audio')+'-'+provider.LANGUAGES.get(row['target_language'],'Voice Over').split(' / ')[0]+('.wav' if wav else '.mp3')
+    response=send_file(io.BytesIO(raw),mimetype='audio/wav' if wav else 'audio/mpeg',download_name=name,as_attachment=request.args.get('download')=='1')
+    response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
+    return response

@@ -81,7 +81,7 @@ test('session_busy in the actual page reveals owner recovery without microphone 
   const start=button(),end=button(),check=button(),error={hidden:true},panel={hidden:true};
   const form={elements:{language_a:a,language_b:b},querySelector:query=>query==='button'?start:{value:'synthetic-csrf'},addEventListener:(type,handler)=>formEvents.set(type,handler),reportValidity:()=>true};
   const orb={dataset:{},setAttribute(key,value){this[key]=value;},getAttribute(key){return this[key];}};
-  const nodes={'.kilas-live-translator':{dataset:{ready:'true'}},'#live-setup-form':form,'#live-setup':{},'#live-active':{querySelector:()=>orb},'#live-error':error,'#live-end':button(),'#live-state':{},'#live-translation':{},'#live-session-status': {}, '#live-recovery-retry': {addEventListener() {}}, '#live-recovery':panel,'#live-recovery-status':{},'#live-recovery-end':end,'#live-recovery-check':check};
+  const nodes={'.kilas-live-translator':{dataset:{ready:'true'}},'#live-setup-form':form,'#live-setup':{},'#live-active':{querySelector:()=>orb},'#live-error':error,'#live-resume': {hidden:true,addEventListener() {}}, '#live-end':button(),'#live-state':{},'#live-translation':{},'#live-session-status': {}, '#live-recovery-retry': {addEventListener() {}}, '#live-recovery':panel,'#live-recovery-status':{},'#live-recovery-end':end,'#live-recovery-check':check};
   const original={document:globalThis.document,window:globalThis.window,fetch:globalThis.fetch,FormData:globalThis.FormData};
   const navigatorDescriptor=Object.getOwnPropertyDescriptor(globalThis,'navigator');
   const endResponse=deferred(),beacons=[];
@@ -127,7 +127,7 @@ for(const stalled of ['request','body'])test(`End ${stalled} timeout releases re
   const a={value:'id',options:[{value:'id'},{value:'en'}],addEventListener(){}},b={value:'en',options:[{value:'id'},{value:'en'}],addEventListener(){}};
   const start=buttons(),end=buttons(),check=buttons(),error={hidden:true},panel={hidden:true};
   const form={elements:{language_a:a,language_b:b},querySelector:q=>q==='button'?start:{value:'synthetic-csrf'},addEventListener(){}};
-  const nodes={'.kilas-live-translator':{dataset:{ready:'true'}},'#live-setup-form':form,'#live-setup':{},'#live-active':{querySelector:()=>({})},'#live-error':error,'#live-end':buttons(),'#live-state':{},'#live-translation':{},'#live-session-status': {}, '#live-recovery-retry': {addEventListener() {}}, '#live-recovery':panel,'#live-recovery-status':{},'#live-recovery-end':end,'#live-recovery-check':check};
+  const nodes={'.kilas-live-translator':{dataset:{ready:'true'}},'#live-setup-form':form,'#live-setup':{},'#live-active':{querySelector:()=>({})},'#live-error':error,'#live-resume': {hidden:true,addEventListener() {}}, '#live-end':buttons(),'#live-state':{},'#live-translation':{},'#live-session-status': {}, '#live-recovery-retry': {addEventListener() {}}, '#live-recovery':panel,'#live-recovery-status':{},'#live-recovery-end':end,'#live-recovery-check':check};
   const original={document:globalThis.document,window:globalThis.window,fetch:globalThis.fetch,FormData:globalThis.FormData,setTimeout:globalThis.setTimeout,clearTimeout:globalThis.clearTimeout};
   try{
     globalThis.document={querySelector:q=>nodes[q],addEventListener(){}};globalThis.window={addEventListener(){}};
@@ -141,7 +141,7 @@ for(const stalled of ['request','body'])test(`End ${stalled} timeout releases re
       return stalled==='request'?blocked:{ok:true,json:()=>blocked};
     };
     await import(`../static/kilas_live_translator.mjs?end-timeout-${stalled}`);await new Promise(r=>setImmediate(r));
-    const ending=end.click();assert.equal(end.disabled,true);assert.equal(start.disabled,true);
+    const ending=end.click();assert.equal(end.disabled,true);assert.equal(start.disabled,true);await new Promise(r=>setImmediate(r));
     const deadline=[...timers].find(([,timer])=>timer.ms===10000);assert.ok(deadline);timers.delete(deadline[0]);deadline[1].fn();
     assert.equal(await ending,false);assert.equal(end.disabled,false);assert.equal(check.disabled,false);assert.equal(start.disabled,true);assert.equal(panel.hidden,false);
     assert.match(error.textContent,/belum terkonfirmasi berakhir/);assert.equal(timers.size,0);
@@ -157,7 +157,7 @@ for(const outcome of ['no-session','active','error','malformed'])test(`initial p
   const start=button(),retry=button(),check=button(),end=button(),status={textContent:''},error={hidden:true};
   const visibility=[];let hidden=true;const panel={get hidden(){return hidden;},set hidden(value){visibility.push(value);hidden=value;}};
   const form={elements:{language_a:a,language_b:b},querySelector:q=>q==='button'?start:{value:'synthetic-csrf'},addEventListener(){}};
-  const nodes={'.kilas-live-translator':{dataset:{ready:'true'}},'#live-setup-form':form,'#live-setup':{},'#live-active':{querySelector:()=>({})},'#live-end':button(),'#live-state':{},'#live-translation':{},'#live-error':error,'#live-recovery':panel,'#live-recovery-status':{},'#live-recovery-end':end,'#live-recovery-check':check,'#live-recovery-retry':retry,'#live-session-status':status};
+  const nodes={'.kilas-live-translator':{dataset:{ready:'true'}},'#live-setup-form':form,'#live-setup':{},'#live-active':{querySelector:()=>({})},'#live-resume': {hidden:true,addEventListener() {}}, '#live-end':button(),'#live-state':{},'#live-translation':{},'#live-error':error,'#live-recovery':panel,'#live-recovery-status':{},'#live-recovery-end':end,'#live-recovery-check':check,'#live-recovery-retry':retry,'#live-session-status':status};
   const original={document:globalThis.document,window:globalThis.window,fetch:globalThis.fetch};
   try{
     globalThis.document={querySelector:q=>nodes[q],addEventListener(){}};globalThis.window={addEventListener:(type,handler)=>events.set(type,handler)};

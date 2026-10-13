@@ -12,19 +12,19 @@ export class SilenceGate {
 
 export class TranslatorSession {
   constructor({api,capture,playback,onState=()=>{},onResult=()=>{},onError=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-','')}){
-    Object.assign(this,{api,capture,playback,onState,onResult,onError,now,key});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.gate=new SilenceGate();
+    Object.assign(this,{api,capture,playback,onState,onResult,onError,now,key});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.pendingKey=null;this.gate=new SilenceGate();this.suspended=false;
   }
   stateTo(state){this.state=state;this.onState(state);}
   async start(params){
     if(this.state!=='ended')return;
-    const ticket=++this.version;this.controller=new AbortController();this.stateTo('starting');
+    const ticket=++this.version;this.suspended=false;this.controller=new AbortController();this.stateTo('starting');
     try{
       if(this.playback.prepare)await this.playback.prepare(this.controller.signal,()=>ticket===this.version);
       if(ticket!==this.version)return;
       const result=await this.api.start(params,this.controller.signal);
       if(ticket!==this.version){await this.api.end(result.session_id).catch(()=>{});return;}
-      this.id=result.session_id;await this.listen(ticket);
-    }catch(e){if(ticket===this.version){this.onError(e.message);this.end();}}
+      this.id=result.session_id;if(this.suspended){this.pause(Error('Sesi dijeda saat halaman ditinggalkan. Tekan Lanjutkan.'));return;}await this.listen(ticket);
+    }catch(e){if(ticket===this.version){this.onError(e.message);if(this.id)this.pause(e);else this.end();}}
   }
   async listen(ticket){
     if(ticket!==this.version)return;
@@ -33,7 +33,7 @@ export class TranslatorSession {
     await this.capture.start({
       level:rms=>{if(current()&&this.state==='listening'&&this.gate.sample(rms,this.now())){this.stateTo('finalizing');this.capture.finalize();}},
       blob:blob=>{if(current())this.utterance(blob,ticket);},
-      error:e=>{if(current()){this.onError(e.message);this.end();}},
+      error:e=>{if(current())this.recover(e,ticket);},
     });
     // The adapter owns late permission cleanup; never cancel a newer session here.
   }
@@ -43,23 +43,54 @@ export class TranslatorSession {
     this.stateTo('processing');
     try{
       if(!blob?.size){const error=Error('Rekaman kosong. Silakan bicara kembali.');error.code='no_speech';throw error;}
-      const result=await this.api.turn(this.id,'live-'+this.key(),blob,this.controller.signal);
+      this.pendingKey='live-'+this.key();
+      const result=await this.api.turn(this.id,this.pendingKey,blob,this.controller.signal);
       if(ticket!==this.version)return;
+      this.pendingKey=null;
       this.onResult(result);
       this.stateTo('playing');await this.playback.play(result.audio_url,this.controller.signal,()=>ticket===this.version);
       if(ticket!==this.version)return;
       await this.listen(ticket);
     }catch(e){
       if(ticket!==this.version||this.controller.signal.aborted)return;
-      this.onError(e.message);
-      if(e.code==='no_speech'){
-        const cycle=this.captureVersion+1;
-        await this.listen(ticket).catch(error=>{if(ticket===this.version&&cycle===this.captureVersion){this.onError(error.message);this.end();}});
-      }else this.end();
+      if(this.state==='playing'&&e.recoverable!==false)e.recoverable=true;
+      await this.recover(e,ticket);
     }
   }
+  async recover(error,ticket){
+    if(ticket!==this.version)return;
+    if(error.turnSettled)this.pendingKey=null;
+    try{this.capture.cancel();}catch{}try{this.playback.cancel?.();}catch{}
+    if(!error.recoverable&&error.code!=='no_speech'){this.pause(error);return;}
+    if(!error.silent)this.onError(error.message);
+    this.stateTo('recovering');
+    try{
+      if(!error.silent&&this.api.resume)await this.api.resume(this.id,this.pendingKey,this.controller.signal);
+      if(ticket!==this.version)return;this.pendingKey=null;
+      if(this.playback.recover)await this.playback.recover(error,this.controller.signal,()=>ticket===this.version);
+      if(ticket!==this.version)return;await this.listen(ticket);
+    }catch(e){if(ticket===this.version)this.pause(e);}
+  }
+  pause(error){
+    if(!this.id){this.suspended=true;return;}
+    ++this.version;++this.captureVersion;this.controller?.abort();this.pauseReason=error;
+    try{this.capture.cancel();}catch{}try{this.playback.cancel?.();}catch{}
+    if(error?.message)this.onError(error.message);this.stateTo('paused');
+  }
+  suspend(){if(this.state!=='ended')this.pause(Error('Sesi dijeda saat halaman ditinggalkan. Tekan Lanjutkan.'));}
+  async resume(){
+    if(this.state!=='paused'||!this.id)return;
+    const ticket=++this.version;this.suspended=false;this.controller=new AbortController();this.stateTo('resuming');
+    try{
+      // Resume audio synchronously from the Lanjutkan click before network work.
+      if(this.playback.recover)await this.playback.recover(this.pauseReason,this.controller.signal,()=>ticket===this.version);
+      else if(this.playback.prepare)await this.playback.prepare(this.controller.signal,()=>ticket===this.version);
+      if(ticket!==this.version)return;if(this.api.resume)await this.api.resume(this.id,this.pendingKey,this.controller.signal);
+      if(ticket!==this.version)return;this.pendingKey=null;await this.listen(ticket);
+    }catch(e){if(ticket===this.version)this.pause(e);}
+  }
   end(){
-    const id=this.id;this.id=null;++this.version;this.controller?.abort();
+    const id=this.id;this.id=null;this.pendingKey=null;++this.version;this.controller?.abort();
     // A detached recorder/context can throw while stopping. Continue every cleanup
     // and owner End independently so a device error cannot trap the active UI.
     try{this.capture.cancel();}catch{}try{this.playback.stop();}catch{}this.stateTo('ended');

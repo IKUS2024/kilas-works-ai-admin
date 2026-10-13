@@ -1,6 +1,7 @@
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=bounded-audio-20261012';
-import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=bounded-audio-20261012';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=session-continuity-20261013';
+import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=session-continuity-20261013';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=session-continuity-20261013';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=owner-recovery-20261012';
 const root=document.querySelector('.kilas-live-translator');
@@ -23,48 +24,48 @@ if(root){
  const capture={
   async start({level,blob,error:onError}){
    if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder||!context)throw Error('Browser ini belum mendukung mikrofon.');
-   recorder=new VoiceRecorder({mediaDevices:navigator.mediaDevices,Recorder:window.MediaRecorder,onBlob:raw=>{monitorStop();blob(raw);},onState:state=>{if(state==='empty'){monitorStop();blob(new Blob([]));}if(state==='error')onError(Error('Mikrofon terputus. Periksa izin browser lalu mulai kembali.'));}});
+   recorder=new VoiceRecorder({mediaDevices:navigator.mediaDevices,Recorder:window.MediaRecorder,onBlob:raw=>{if(own!==recorder)return;monitorStop();if(own.translatorFinalized)blob(raw);else onError(Object.assign(Error('Ucapan terlalu panjang untuk satu rekaman. Jeda sebentar lalu tekan Lanjutkan; ucapan ini tidak diproses sebagian.'),{code:'utterance_limit'}));},onState:state=>{if(own!==recorder)return;if(state==='empty'){monitorStop();blob(new Blob([]));}if(state==='error')onError(Object.assign(Error('Mikrofon terputus. Periksa izin browser lalu tekan Lanjutkan.'),{code:'microphone_unavailable'}));}});
    const own=recorder;await own.start({userGesture:true,consent:true,enabled:true});
    if(own!==recorder||!own.stream)return;
    source=context.createMediaStreamSource(own.stream);analyser=context.createAnalyser();analyser.fftSize=2048;source.connect(analyser);
    const samples=new Float32Array(analyser.fftSize);let began=performance.now(),heard=false;
    interval=setInterval(()=>{if(!analyser)return;analyser.getFloatTimeDomainData(samples);const rms=Math.sqrt(samples.reduce((sum,v)=>sum+v*v,0)/samples.length);if(rms>=.015)heard=true;level(rms);
-    // Silence never dispatches STT. A continuous/idle recording has a bounded lifetime.
-    if(performance.now()-began>=60000)onError(Error(heard?'Ucapan terlalu panjang. Akhiri kalimat dengan jeda lalu mulai kembali.':'Tidak ada ucapan terbaca. Mulai kembali saat siap.'));
+    // Rotate an idle local buffer without ending the session or sending silence.
+    // The shared recorder's 179s safety cap pauses a long utterance without
+    // submitting truncated speech; ordinary utterances still wait for 2s silence.
+    if(!heard&&performance.now()-began>=60000)onError(Object.assign(Error(''),{code:'capture_idle',recoverable:true,silent:true}));
    },50);
   },
-  finalize(){monitorStop();recorder?.stop();},
+  finalize(){monitorStop();if(recorder)recorder.translatorFinalized=true;recorder?.stop();},
   cancel(){monitorStop();recorder?.cancel();recorder=null;},
  };
  const player=new TranslatorPlayback({getContext:()=>context});
+ const closeAudio=()=>{const own=context;context=null;if(own){try{own.close().catch(()=>{});}catch{}}};
  const playback={prepare:(...args)=>player.prepare(...args),play:(...args)=>player.play(...args),
-  stop(){player.cancel();const own=context;context=null;if(own){try{own.close().catch(()=>{});}catch{}}},
+  cancel:()=>player.cancel(),
+  recover(error,signal,isCurrent){
+   player.cancel();if(!context||context.state==='closed'||/^audio_(stalled|timeout|context|resume|start)$/.test(error?.code||'')){
+    closeAudio();const AudioContext=window.AudioContext||window.webkitAudioContext;context=new AudioContext();
+   }
+   return player.prepare(signal,isCurrent);
+  },
+  stop(){player.cancel();closeAudio();},
  };
  async function json(url,options={}){
-  const {timeoutMs,...requestOptions}=options,controller=timeoutMs?new AbortController():null;
-  const timer=controller?setTimeout(()=>controller.abort(),timeoutMs):null;
-  try{
-   const response=await fetch(url,{...requestOptions,...(controller?{signal:controller.signal}:{}),credentials:'same-origin',cache:'no-store',headers:{'X-CSRF-Token':csrf}});
-   if(response.redirected)throw Error('Sesi akun berakhir. Masuk kembali.');
-   let body;try{body=await response.json();}catch{throw Error('Layanan belum tersedia. Mulai kembali bila jaringan siap.');}
-   if(!response.ok){if(body.code==='session_busy'){recoverRequested=true;recoveryError=true;}const failure=Error(body.error||'Layanan belum tersedia.');failure.code=body.code;throw failure;}return body;
-  }finally{if(timer!==null)clearTimeout(timer);}
+  try{return await requestJSON(url,{...options,csrf});}catch(e){if(e.code==='session_busy'){recoverRequested=true;recoveryError=true;}throw e;}
  }
- const pause=signal=>new Promise((resolve,reject)=>{const cancel=()=>{clearTimeout(timer);reject(new DOMException('Ended','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',cancel);resolve();},500);signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();});
+ const turns=new TranslatorTurns({json,csrf});
  const api={
-  start:(data,signal)=>json('/kilas-translator/live/sessions',{method:'POST',body:data,signal}),
-  async turn(id,key,blob,signal){
-   const url='/kilas-translator/live/sessions/'+id+'/turns/'+key,data=new FormData();data.append('recording',blob,'recording');data.append('csrf_token',csrf);
-   await json(url,{method:'POST',body:data,signal});const deadline=performance.now()+180000;
-   while(!signal.aborted){const result=await json(url,{signal});if(result.status==='COMPLETED')return result;if(result.status==='FAILED'){const e=Error(result.error);if(result.recoverable)e.code='no_speech';throw e;}if(result.status==='CANCELLED')throw Error('Sesi sudah berakhir.');if(performance.now()>deadline)throw Error('Pemrosesan belum selesai. Sesi dihentikan; tidak diulang otomatis.');await pause(signal);}
-   throw new DOMException('Ended','AbortError');
-  },
+  async start(data,signal){try{return await json('/kilas-translator/live/sessions',{method:'POST',body:data,signal,timeoutMs:30000});}catch(e){recoverRequested=true;throw e;}},
+  turn:(...args)=>turns.turn(...args),resume:(...args)=>turns.resume(...args),
   end:id=>recovery.endKnown(id),
  };
  const session=new TranslatorSession({api,capture,playback,key:()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''),onError:showError,onResult:result=>{
   const text=document.querySelector('#live-translation');text.textContent=result.translated_text||'';text.hidden=!text.textContent;
  },onState:state=>{
-  start.disabled=state!=='ended'||!setupReady||!recovery?.canStart();setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;orb.setAttribute('aria-label',state==='starting'?'Menyiapkan sesi':state==='playing'?'Memutar terjemahan':state==='listening'?'Mendengarkan':'Memproses');
+  start.disabled=state!=='ended'||!setupReady||!recovery?.canStart();setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;
+  const label={starting:'Menyiapkan sesi',resuming:'Menyiapkan audio',recovering:'Memulihkan sesi',paused:'Sesi dijeda',playing:'Memutar terjemahan',listening:'Mendengarkan'}[state]||'Memproses';orb.setAttribute('aria-label',label);
+  document.querySelector('#live-resume').hidden=state!=='paused';
   document.querySelector('#live-state').textContent=orb.getAttribute('aria-label');
   if(state==='ended'&&recoverRequested){recoverRequested=false;recovery.refresh();}
  }});
@@ -90,6 +91,13 @@ if(root){
   error.hidden=true;document.querySelector('#live-translation').hidden=true;const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext){showError('Browser ini belum mendukung audio sesi.');return;}
   context=new AudioContext();session.start(new FormData(form));
  });
- document.querySelector('#live-end').addEventListener('click',()=>session.end());window.addEventListener('pagehide',()=>{const id=session.id||(recovery.ending?recovery.active?.session_id:null);session.end();if(id&&typeof navigator!=='undefined'&&typeof navigator.sendBeacon==='function'){const data=new FormData();data.append('csrf_token',csrf);try{navigator.sendBeacon('/kilas-translator/live/sessions/'+encodeURIComponent(id)+'/end',data);}catch{}}});
- document.addEventListener('visibilitychange',()=>{if(document.hidden&&session.state!=='ended'){showError('Sesi berakhir saat halaman ditinggalkan.');session.end();}});
+ document.querySelector('#live-resume').addEventListener('click',()=>{error.hidden=true;session.resume();});
+ document.querySelector('#live-end').addEventListener('click',()=>session.end());window.addEventListener('pagehide',()=>{
+  const id=session.id,key=session.pendingKey,ending=recovery.ending?recovery.active?.session_id:null;session.suspend();
+  if(typeof navigator!=='undefined'&&typeof navigator.sendBeacon==='function'){
+   const url=ending?'/kilas-translator/live/sessions/'+encodeURIComponent(ending)+'/end':id&&key?turns.path(id,key)+'/cancel':null;
+   if(url){const data=new FormData();data.append('csrf_token',csrf);try{navigator.sendBeacon(url,data);}catch{}}
+  }
+ });
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)session.suspend();});
 }

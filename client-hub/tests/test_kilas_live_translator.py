@@ -80,13 +80,80 @@ class LiveTranslatorTests(unittest.TestCase):
             self.assertEqual(response.status_code,200);self.assertEqual(response.headers['Cache-Control'],'private, no-store')
             self.assertEqual(response.json['session']['session_id'],ident)
             self.assertFalse(response.json['session']['processing'])
-            self.assertGreater(response.json['session']['expires_in_seconds'],0)
+            self.assertIsNone(response.json['session']['expires_in_seconds']);self.assertIsNone(response.json['session']['expires_at'])
             self.assertEqual(set(response.json['session']),{'session_id','expires_at','expires_in_seconds','processing'})
             with self.client.session_transaction() as state:state['user_id']=self.other
             self.assertEqual(self.client.get('/kilas-translator/live/sessions/active').json,{'session':None})
             self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,404)
             stt.assert_not_called();tts.assert_not_called()
         self.assertEqual(dict(audio.f.db.query_one('SELECT status,expires_at FROM kilas_live_translator_sessions WHERE id=?',(ident,))),before)
+
+    def test_new_session_has_no_age_limit_and_still_requires_explicit_owner_end(self):
+        from datetime import timedelta
+        ident=self.session();now=usage._now()
+        self.assertEqual(audio.f.db.query_one('SELECT expires_at FROM kilas_live_translator_sessions WHERE id=?',(ident,))['expires_at'],'')
+        with patch.object(usage,'_now',return_value=now+timedelta(days=365)):
+            self.assertEqual(sessions.active(self.user)['session_id'],ident)
+            self.assertIsNone(sessions.active(self.user)['expires_in_seconds'])
+            self.claim(ident);self.assertEqual(sessions.check(self.user,ident,self.key())['language_a'],'id')
+            self.assertEqual(sessions.status(self.user,ident),{'status':'ACTIVE','processing':True})
+            with self.assertRaises(audio_store.AudioError) as duplicate:self.session()
+            self.assertEqual(duplicate.exception.code,'session_busy')
+        sessions.end(self.user,ident);self.assertEqual(sessions.status(self.user,ident)['status'],'ENDED')
+
+    def test_turn_cancel_is_owner_csrf_scoped_idempotent_and_blocks_late_admission(self):
+        ident=self.session();key=self.key();url='/kilas-translator/live/sessions/'+ident+'/turns/'+key+'/cancel'
+        with patch.object(live.stt,'transcribe') as stt,patch.object(audio_provider,'speech') as tts:
+            self.assertEqual(self.client.post(url).status_code,400)
+            with self.client.session_transaction() as state:state['user_id']=self.other
+            self.assertEqual(self.client.post(url,data={'csrf_token':'audio-csrf'}).status_code,404)
+            with self.client.session_transaction() as state:state['user_id']=self.user
+            for _ in range(2):
+                response=self.client.post(url,data={'csrf_token':'audio-csrf'});self.assertEqual(response.status_code,200)
+                self.assertEqual(response.json,{'status':'CANCELLED'});self.assertEqual(response.headers['Cache-Control'],'private, no-store')
+            with self.assertRaises(audio_store.AudioError) as late:self.claim(ident,key)
+            self.assertEqual(late.exception.code,'duplicate_turn')
+            self.assertEqual(sessions.status(self.user,ident),{'status':'ACTIVE','processing':False})
+            self.claim(ident,self.key(2));stt.assert_not_called();tts.assert_not_called()
+
+    def test_turn_cancel_during_dispatched_stt_keeps_accounting_and_blocks_later_paid_stages(self):
+        self.credit(300);ident=self.session();info=self.claim(ident)
+        def cancel_after_stt(pcm,capability):
+            text=self.transcribe(pcm,capability);sessions.cancel_turn(self.user,ident,self.key());return text
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'transcribe',side_effect=cancel_after_stt),patch.object(providers,'_openai') as ai,patch.object(audio_provider,'speech') as tts:
+            with self.assertRaises(audio_store.AudioError) as stopped:live.process(self.user,ident,self.key(),self.signal(),info)
+            self.assertEqual(stopped.exception.code,'turn_cancelled');ai.assert_not_called();tts.assert_not_called()
+        self.assertEqual(sessions.result(self.user,ident,self.key())['status'],'CANCELLED')
+        self.assertEqual(budget.owned(self.user,self.key())['status'],'COMPLETED')
+        self.assertEqual(sessions.status(self.user,ident)['status'],'ACTIVE')
+        self.assertEqual(audio_store.balance(self.user)['available'],300)
+
+    def test_completed_turn_cancel_preserves_output_and_lightweight_private_reads(self):
+        self.credit(300);ident=self.session();info=self.claim(ident)
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'transcribe',side_effect=self.transcribe),patch.object(providers,'_openai',side_effect=self.stream),patch.object(audio_provider,'speech',return_value=(self.audio,'synthetic-request')):
+            job=live.process(self.user,ident,self.key(),self.signal(),info)
+        before=audio_store.get(self.user,job);self.assertEqual(sessions.cancel_turn(self.user,ident,self.key()),'COMPLETED')
+        self.assertEqual(audio_store.get(self.user,job),before)
+        prefix='/kilas-translator/live/sessions/'+ident+'/turns/'+self.key()
+        statements=[]
+        original=audio.f.db.query_one
+        def query(sql,*args,**kwargs):statements.append(sql);return original(sql,*args,**kwargs)
+        with patch.object(audio.f.db,'query_one',side_effect=query):
+            response=self.client.get(prefix);self.assertEqual(response.status_code,200);self.assertEqual(response.json['translated_text'],'Hello, how are you?')
+            download=self.client.get(response.json['audio_url']);self.assertEqual(download.status_code,200)
+        self.assertEqual(download.data,self.audio);self.assertEqual(download.headers['Cache-Control'],'private, no-store')
+        live_reads=[s for s in statements if 'kilas_live_translator' in s or s.startswith('SELECT source_language,target_language,original_script')]
+        self.assertEqual(len(live_reads),3,'Completed metadata + audio use three bounded reads, formerly six.')
+        self.assertNotIn('result_content',live_reads[1])
+        audio.f.db.execute('UPDATE kilas_audio_jobs SET user_id=? WHERE id=?',(self.other,job))
+        self.assertEqual(self.client.get(prefix).status_code,404);self.assertEqual(self.client.get(prefix+'/audio').status_code,404)
+
+    def test_session_status_never_exposes_another_owner_or_dispatches_providers(self):
+        ident=self.session();url='/kilas-translator/live/sessions/'+ident
+        with patch.object(live.stt,'transcribe') as stt,patch.object(audio_provider,'speech') as tts:
+            response=self.client.get(url);self.assertEqual(response.json,{'status':'ACTIVE','processing':False});self.assertEqual(response.headers['Cache-Control'],'private, no-store')
+            with self.client.session_transaction() as state:state['user_id']=self.other
+            self.assertEqual(self.client.get(url).status_code,404);stt.assert_not_called();tts.assert_not_called()
 
     def test_explicit_recovery_end_is_csrf_protected_idempotent_cancels_turn_without_new_dispatch(self):
         ident=self.session();key=self.key();self.claim(ident,key)
