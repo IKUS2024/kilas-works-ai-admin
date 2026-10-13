@@ -60,6 +60,13 @@ def _analytics():
             'analytics_credit_units':bool(credit_columns),'analytics_usd_units':bool(usd_columns)}
 
 
+def zero_overage(value):
+    # Modern subscription schema is CurrencyAmount {amount:string,currency:usd}.
+    # Numeric zero is retained for the previously observed legacy schema.
+    if type(value) in (int,float):return value==0
+    return isinstance(value,dict) and value.get('currency')=='usd' and isinstance(value.get('amount'),str) and re.fullmatch(r'0(?:\.0+)?',value['amount']) is not None
+
+
 def probe():
     result={'key_present':bool(os.environ.get('ELEVENLABS_API_KEY','').strip()),
             'subscription_read':False,'models_read':False,'prepaid_only':False,
@@ -112,4 +119,5 @@ def startup_probe():
 
 
 def verified():
-    with _lock:return bool(_snapshot and _snapshot['activation_ready'])
+    from . import live_translator_realtime_check
+    return live_translator_realtime_check.verified()

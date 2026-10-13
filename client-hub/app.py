@@ -288,7 +288,10 @@ def create_app():
         audio_schema.apply_release('0092_kilas_live_translator')  # Default-off owner session/turn fences; no provider activation.
         if os.environ.get('KILAS_LIVE_TRANSLATOR_ENABLED','').lower() in ('1','true','on'):
             from kilas_ai import live_translator_realtime_account
-            live_translator_realtime_account.startup_probe()  # Bounded harmless GETs; cannot activate paid transport.
+            audio_schema.apply_release('0094_kilas_realtime_check')
+            live_translator_realtime_account.startup_probe()  # Harmless account reads.
+            from kilas_ai import live_translator_realtime_check
+            live_translator_realtime_check.startup()  # Explicit one-shot approval gate; durable no-retry marker.
         from kilas_ai import learning_schema
         learning_schema.apply_release()  # Independent additive Learning tables only.
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp

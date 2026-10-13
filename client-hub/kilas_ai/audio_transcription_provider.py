@@ -19,9 +19,13 @@ def require_subscription_credit():
         if response.status_code!=200:raise budget.BudgetError('provider_credit_check_failed')
         subscription=response.json()
         if (subscription.get('tier')!='creator' or subscription.get('status')!='active'
+                or type(subscription.get('max_credit_limit_extension')) is not int
                 or subscription.get('max_credit_limit_extension')!=0
                 or subscription.get('allowed_to_extend_character_limit') is not False
                 or subscription.get('can_extend_character_limit') is not False):
+            raise budget.BudgetError('provider_billing_unverified')
+        from .live_translator_realtime_account import zero_overage
+        if 'current_overage' in subscription and not zero_overage(subscription['current_overage']):
             raise budget.BudgetError('provider_billing_unverified')
         used,limit=subscription.get('character_count'),subscription.get('character_limit')
         if type(used) is not int or type(limit) is not int or used<0 or limit<0:

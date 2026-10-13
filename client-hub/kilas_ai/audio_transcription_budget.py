@@ -152,8 +152,8 @@ def _admit(conn,owner,config,reserve=0,key=''):
     if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",(owner,),one=True)[0]:raise BudgetError('already_processing',429)
     if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status IN ('RESERVED','DISPATCHED')",one=True)[0]>=GLOBAL_CONCURRENCY:raise BudgetError('service_busy',429)
     base=config.get('base_id',config['id'])
-    total=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign IN (?,?)',(base,base+'-rt'),one=True)[0]
-    account=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign IN (?,?) AND user_id=?',(base,base+'-rt',owner),one=True)[0]
+    total=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign IN (?,?,?)',(base,base+'-rt',base+'-rt-check'),one=True)[0]
+    account=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign IN (?,?,?) AND user_id=?',(base,base+'-rt',base+'-rt-check',owner),one=True)[0]
     if total+reserve>config['global_micro'] or account+reserve>config['account_micro']:raise BudgetError('budget_limit',429)
 
 

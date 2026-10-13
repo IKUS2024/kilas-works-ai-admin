@@ -140,3 +140,56 @@ test('premature source end fails truthfully without reporting full playback',asy
 test('natural end accepts at most 50 ms of decoded audio clock rounding',async()=>{
  const f=fixture(),p=f.play();await tick();f.context.currentTime=1.96;f.nodes[0].onended();await p;assert.equal(f.timers.size,0);
 });
+
+test('one decoded successor is prefetched during playback and consumed once without another fetch or overlap',async()=>{
+ const f=fixture(),nextURL=URL+'/segments/1',current=f.play();await tick();
+ f.player.prefetch(nextURL,f.controller.signal,()=>true);f.player.prefetch(nextURL,f.controller.signal,()=>true);await tick();
+ assert.equal(f.requests.length,2);assert.equal(f.stats.decoded,2);assert.equal(f.stats.started,1);
+ f.context.currentTime=2;f.nodes[0].onended();await current;
+ const next=f.player.play(nextURL,f.controller.signal,()=>true);await tick();
+ assert.equal(f.requests.length,2);assert.equal(f.stats.decoded,2);assert.equal(f.stats.started,2);assert.equal(f.stats.stopped,1);assert.equal(f.player.prefetched,null);
+ f.context.currentTime=4;f.nodes[1].onended();await next;assert.equal(f.timers.size,0);
+});
+
+test('failed successor prefetch leaves current audio intact and fails once when consumed without download retry',async()=>{
+ const f=fixture(),current=f.play();await tick();f.response={ok:false};
+ f.player.prefetch(URL+'/segments/1',f.controller.signal,()=>true);await tick();
+ assert.equal(f.stats.started,1);assert.equal(f.stats.stopped,0);
+ f.context.currentTime=2;f.nodes[0].onended();await current;
+ await assert.rejects(f.player.play(URL+'/segments/1',f.controller.signal,()=>true),e=>e.code==='audio_fetch');
+ assert.equal(f.requests.length,2);assert.equal(f.stats.started,1);assert.equal(f.timers.size,0);
+});
+
+test('End cancels current source and pending prefetch; late download cannot decode or start another source',async()=>{
+ const f=fixture(),pending=deferred(),current=f.play(),failed=assert.rejects(current,{name:'AbortError'});await tick();
+ f.player.fetchAudio=(_url,options)=>{f.requests.push({options});return pending.promise;};
+ f.player.prefetch(URL+'/segments/1',f.controller.signal,()=>true);await tick();
+ f.controller.abort();f.player.cancel();await failed;assert.equal(f.player.prefetched,null);assert.equal(f.requests[1].options.signal.aborted,true);assert.equal(f.timers.size,0);
+ pending.resolve({ok:true,arrayBuffer:async()=>new ArrayBuffer(32)});await tick();assert.equal(f.stats.decoded,1);assert.equal(f.stats.started,1);
+});
+
+test('a consumed prefetch with blocked decode still stops immediately on End and never starts late audio',async()=>{
+ const f=fixture(),pending=deferred();f.context.decodeAudioData=()=>pending.promise;
+ f.player.prefetch(URL+'/segments/1',f.controller.signal,()=>true);await tick();
+ const next=f.player.play(URL+'/segments/1',f.controller.signal,()=>true),failed=assert.rejects(next,{name:'AbortError'});await tick();
+ f.controller.abort();f.player.cancel();await failed;assert.equal(f.timers.size,0);
+ pending.resolve({duration:2});await tick();assert.equal(f.stats.started,0);assert.equal(f.requests.length,1);
+});
+
+test('a prefetched buffer is never reused across a different session signal or closed audio context',async()=>{
+ for(const changed of ['signal','context']){
+  const f=fixture();f.player.prefetch(URL+'/segments/1',f.controller.signal,()=>true);await tick();
+  const nextSignal=changed==='signal'?new AbortController().signal:f.controller.signal;
+  if(changed==='context'){f.context.state='closed';await assert.rejects(f.player.play(URL+'/segments/1',nextSignal,()=>true),e=>e.code==='audio_context');}
+  else{const playing=f.player.play(URL+'/segments/1',nextSignal,()=>true);await tick();assert.equal(f.requests.length,2);f.context.currentTime=2;f.nodes[0].onended();await playing;}
+  assert.equal(f.player.prefetched,null);assert.equal(f.timers.size,0);
+ }
+});
+
+test('playback reports residual buffer preparation wait without conflating it with provider or device latency',async()=>{
+ const f=fixture(),download=deferred();let timing;
+ f.player.fetchAudio=()=>download.promise;
+ const playing=f.player.play(URL,f.controller.signal,()=>true,info=>{timing=info;});await tick();await f.advance(300);
+ assert.equal(f.stats.started,0);download.resolve({ok:true,arrayBuffer:async()=>new ArrayBuffer(32)});await tick();
+ assert.deepEqual(timing,{buffer_wait_ms:300});f.context.currentTime=2.3;f.nodes[0].onended();await playing;assert.equal(f.timers.size,0);
+});

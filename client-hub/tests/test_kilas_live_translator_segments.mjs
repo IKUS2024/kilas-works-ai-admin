@@ -45,7 +45,7 @@ test('changed total or earlier clip identity is rejected without replaying heard
 test('End during early playback aborts transport; late output cannot start the next clip',async()=>{
  const playing=deferred(),controller=new AbortController(),f=transport([progress(),progress('COMPLETED',[part(0),part(1)])]);
  const p=f.turn(async clip=>{f.played.push(clip.index);await playing.promise;},controller.signal),failed=assert.rejects(p,{name:'AbortError'});await tick();controller.abort();playing.resolve();await failed;
- assert.deepEqual(f.played,[0]);assert.equal(f.reads,1);assert.equal(f.requests.filter(r=>r.path.endsWith('/cancel')).length,0);
+ assert.deepEqual(f.played,[0]);assert.equal(f.reads,2);assert.equal(f.requests.filter(r=>r.path.endsWith('/cancel')).length,0);
 });
 
 test('a failed early playback cannot return completed whole audio for replay or regeneration',async()=>{
@@ -69,20 +69,20 @@ test('non-streaming completed fallback remains one playback without incremental 
  const old=transport([{status:'COMPLETED',audio_url:url+'/audio'}]);await old.api.turn(id,key,new Blob(['synthetic']),new AbortController().signal);assert.equal(old.requests[0].body.get('stream_output'),null);
 });
 
-function sessionFixture({throwsTiming=false}={}){
+function sessionFixture({throwsTiming=false,bufferWaitMs=null}={}){
  const later=deferred(),firstPlay=deferred(),f=transport([progress(),()=>later.promise]);let mics=0,handlers,now=0,producerDone=false,activePlayer=0;
  const timing=[],played=[],states=[];
  const api={start:async()=>({session_id:id}),turn:(...args)=>f.api.turn(...args),end:async()=>({})};
  const capture={start:async h=>{handlers=h;mics++;},finalize(){mics=0;handlers.blob(new Blob(['synthetic']));},cancel(){mics=0;}};
- const playback={async play(audio,signal,isCurrent,onStarted){assert.equal(mics,0);assert.equal(activePlayer,0);activePlayer++;assert.equal(isCurrent(),true);onStarted();played.push(audio);if(played.length===1)await firstPlay.promise;activePlayer--;},cancel(){firstPlay.resolve();},stop(){firstPlay.resolve();}};
+ const playback={async play(audio,signal,isCurrent,onStarted){assert.equal(mics,0);assert.equal(activePlayer,0);activePlayer++;assert.equal(isCurrent(),true);onStarted(bufferWaitMs===null?undefined:{buffer_wait_ms:bufferWaitMs});played.push(audio);if(played.length===1)await firstPlay.promise;activePlayer--;},cancel(){firstPlay.resolve();},stop(){firstPlay.resolve();}};
  const session=new TranslatorSession({api,capture,playback,now:()=>now,key:()=> 'b'.repeat(32),onTiming:value=>{if(throwsTiming)throw Error('Diagnostics unavailable');timing.push(value);},onState:value=>states.push(value)});
- return {session,f,later,firstPlay,played,timing,states,get mics(){return mics;},get producerDone(){return producerDone;},level(r,time){now=time;handlers.level(r);},finishProducer(){producerDone=true;later.resolve(progress('COMPLETED',[part(0),part(1)]));}};
+ return {session,f,later,firstPlay,played,timing,states,get mics(){return mics;},get producerDone(){return producerDone;},setNow:n=>{now=n;},level(r,time){now=time;handlers.level(r);},finishProducer(){producerDone=true;later.resolve(progress('COMPLETED',[part(0),part(1)]));}};
 }
 
 test('session starts first playback before producer completion, keeps mic off, then resumes after last clip',async()=>{
  const f=sessionFixture();await f.session.start({});f.level(.1,0);f.level(0,2000);await tick();assert.equal(f.played.length,1);assert.equal(f.producerDone,false);assert.equal(f.mics,0);assert.equal(f.session.state,'playing');
  f.firstPlay.resolve();await tick();assert.equal(f.mics,0);f.finishProducer();await tick();assert.equal(f.played.length,2);assert.equal(f.mics,1);assert.equal(f.session.state,'listening');
- assert.equal(f.timing[0].speech_end_to_submit_ms,2000);assert.equal(f.timing[1].speech_end_to_first_playback_ms,2000);assert.equal(f.timing.length,2);f.session.end();
+ assert.equal(f.timing[0].speech_end_to_submit_ms,2000);assert.equal(f.timing[1].speech_end_to_first_playback_ms,2000);assert.deepEqual(f.timing[2],{interclip_gap_ms:0});assert.equal(f.timing.length,3);f.session.end();
 });
 
 test('End during first streamed clip stops media immediately and ignores late producer completion',async()=>{
@@ -145,4 +145,35 @@ test('mixed protocol after first heard clip pauses session without whole replay 
  const f=sessionFixture();await f.session.start({});f.level(.1,0);f.level(0,2000);await tick();f.firstPlay.resolve();await tick();
  f.later.resolve({status:'COMPLETED',audio_url:url+'/audio',translated_text:'Hello. Goodbye.'});await tick();
  assert.equal(f.played.length,1);assert.equal(f.mics,0);assert.equal(f.session.state,'paused');f.session.end();
+});
+
+test('progress polling discovers successors during a held clip; only one next clip is prefetched and playback stays serial',async()=>{
+ const first=deferred(),second=deferred(),final=deferred(),seen=[],prefetched=[];let active=0,done=false;
+ const clips=[part(0),part(1),part(2,{translated_text:'Hello. Goodbye. Complete tail.'})];
+ const meta=(status,parts)=>progress(status,parts,{total_segments:3,translated_text:clips[2].translated_text});
+ const f=transport([meta('PROCESSING',clips.slice(0,1)),meta('PROCESSING',clips),()=>final.promise]);
+ const result=f.api.turn(id,key,new Blob(['synthetic']),new AbortController().signal,async (clip,playSignal)=>{
+  assert.equal(playSignal.aborted,false);assert.equal(active,0);active++;seen.push(clip.index);
+  if(clip.index===0)await first.promise;if(clip.index===1)await second.promise;active--;
+ },clip=>prefetched.push(clip.index)).then(r=>{done=true;return r;});
+ await tick();assert.equal(f.reads,3);assert.deepEqual(seen,[0]);assert.deepEqual(prefetched,[1]);assert.equal(done,false);
+ first.resolve();await tick();assert.deepEqual(seen,[0,1]);assert.deepEqual(prefetched,[1,2]);
+ final.resolve(meta('COMPLETED',clips));await tick();assert.equal(done,false);assert.deepEqual(seen,[0,1]);
+ second.resolve();assert.equal((await result).streamed,true);assert.deepEqual(seen,[0,1,2]);assert.equal(active,0);assert.equal(f.reads,3);assert.equal(f.requests.filter(r=>r.method==='POST').length,1);
+});
+
+test('poll failure while a clip has started cancels its scoped audio and cannot recover whole audio for replay',async()=>{
+ const seen=[];let playSignal;
+ const f=transport([progress(),Object.assign(Error('Lost progress'),{code:'request_timeout'})],{cancelStatus:'COMPLETED'});
+ await assert.rejects(f.turn((clip,signal)=>{
+  seen.push(clip.index);playSignal=signal;
+  return new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('Stopped','AbortError')),{once:true}));
+ }),e=>e.code==='request_timeout'&&e.turnSettled);
+ assert.deepEqual(seen,[0]);assert.equal(playSignal.aborted,true);assert.equal(f.reads,2);assert.equal(f.requests.filter(r=>r.path.endsWith('/cancel')).length,1);
+});
+
+test('numeric gap diagnostics separate the time between clips from residual buffer wait',async()=>{
+ const f=sessionFixture({bufferWaitMs:40});await f.session.start({});f.level(.1,0);f.level(0,2000);await tick();
+ f.setNow(3000);f.firstPlay.resolve();await tick();f.setNow(3120);f.finishProducer();await tick();
+ assert.equal(f.session.state,'listening');assert.deepEqual(f.timing.slice(2),[{interclip_gap_ms:120},{buffer_starvation_ms:40}]);f.session.end();
 });

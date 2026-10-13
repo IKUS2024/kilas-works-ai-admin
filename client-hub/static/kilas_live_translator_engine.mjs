@@ -53,16 +53,27 @@ export class TranslatorSession {
       const realtime=this.inputMode==='realtime-v1';
       if(realtime?!this.pendingKey:!blob?.size){const error=Error('Rekaman kosong. Silakan bicara kembali.');error.code='no_speech';throw error;}
       if(!realtime)this.pendingKey='live-'+this.key();
-      const speechEnd=this.gate.lastVoice??this.now();let first=false;
+      const speechEnd=this.gate.lastVoice??this.now();let first=false,previousClipEnd=null;
       this.timing({speech_end_to_submit_ms:Math.max(0,this.now()-speechEnd)});
       const onStarted=()=>{if(first||ticket!==this.version)return;first=true;this.timing({speech_end_to_first_playback_ms:Math.max(0,this.now()-speechEnd)});};
       if(realtime)await this.api.input.finish(this.id,this.pendingKey,this.controller.signal,()=>this.timing({speech_end_to_commit_request_ms:Math.max(0,this.now()-speechEnd)}));
-      const result=await this.api.turn(this.id,this.pendingKey,blob,this.controller.signal,async part=>{
+      const result=await this.api.turn(this.id,this.pendingKey,blob,this.controller.signal,async (part,playSignal=this.controller.signal)=>{
         if(ticket!==this.version||this.controller.signal.aborted)throw new DOMException('Sesi dijeda.','AbortError');
         this.onResult(part);this.stateTo('playing');
-        await this.playback.play(part.audio_url,this.controller.signal,()=>ticket===this.version,onStarted);
+        await this.playback.play(part.audio_url,playSignal,()=>ticket===this.version,info=>{
+          onStarted();
+          if(ticket===this.version&&previousClipEnd!==null){
+            const gap=Math.max(0,this.now()-previousClipEnd);
+            this.timing({interclip_gap_ms:gap});
+            // Residual fetch/decode wait after the prior clip ended. Provider
+            // publication delay and device resume are included only in gap.
+            if(Number.isFinite(info?.buffer_wait_ms))this.timing({buffer_starvation_ms:Math.max(0,info.buffer_wait_ms)});
+          }
+        });
         if(ticket!==this.version||this.controller.signal.aborted)throw new DOMException('Sesi dijeda.','AbortError');
-        this.stateTo('processing');
+        previousClipEnd=this.now();this.stateTo('processing');
+      },(part,playSignal)=>{
+        if(ticket===this.version&&!this.controller.signal.aborted)this.playback.prefetch?.(part.audio_url,playSignal,()=>ticket===this.version);
       });
       if(ticket!==this.version)return;
       this.pendingKey=null;

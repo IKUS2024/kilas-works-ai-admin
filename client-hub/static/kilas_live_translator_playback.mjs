@@ -5,9 +5,10 @@ const MAX_BYTES=20*1024*1024;
 
 export class TranslatorPlayback {
   constructor({getContext,fetchAudio=(...args)=>globalThis.fetch(...args),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id),now=()=>performance.now()}){
-    Object.assign(this,{getContext,fetchAudio,schedule,clear,now});this.operation=null;
+    Object.assign(this,{getContext,fetchAudio,schedule,clear,now});this.operation=null;this.prefetched=null;
   }
-  cancel(){this.operation?.controller.abort();}
+  discardPrefetch(){this.prefetched?.controller.abort();this.prefetched?.cleanup?.();this.prefetched=null;}
+  cancel(){this.operation?.controller.abort();this.operation?.prefetch?.controller.abort();this.discardPrefetch();}
   check(op){if(op.controller.signal.aborted||!op.isCurrent())throw abortError();}
   cancelled(op,error){return error.name==='AbortError'&&(op.controller.signal.aborted||!op.isCurrent());}
   bounded(op,work,ms,error){
@@ -22,12 +23,12 @@ export class TranslatorPlayback {
       try{Promise.resolve(work()).then(value=>{try{this.check(op);finish(resolve,value);}catch(e){finish(reject,e);}},e=>finish(reject,e));}catch(e){finish(reject,e);}
     });
   }
-  async run(signal,isCurrent,work){
-    this.cancel();
-    const op={controller:new AbortController(),context:this.getContext(),isCurrent};this.operation=op;
+  async run(signal,isCurrent,work,prefetch=null){
+    this.operation?.controller.abort();
+    const op={controller:new AbortController(),context:this.getContext(),isCurrent,prefetch};this.operation=op;
     const cancel=()=>op.controller.abort();signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
     try{this.check(op);if(!op.context||op.context.state==='closed')throw failure('audio_context','Audio tidak tersedia. Periksa audio browser.');return await work(op);}
-    finally{op.controller.abort();signal.removeEventListener('abort',cancel);if(this.operation===op)this.operation=null;}
+    finally{op.controller.abort();op.prefetch?.controller.abort();op.prefetch?.cleanup?.();signal.removeEventListener('abort',cancel);if(this.operation===op)this.operation=null;}
   }
   async resume(op){
     if(op.context.state==='running')return;
@@ -35,9 +36,8 @@ export class TranslatorPlayback {
     try{await this.bounded(op,()=>op.context.resume(),5000,error);}catch(e){if(this.cancelled(op,e))throw e;throw error;}
     this.check(op);if(op.context.state!=='running')throw error;
   }
-  prepare(signal,isCurrent){return this.run(signal,isCurrent,op=>this.resume(op));}
-  play(url,signal,isCurrent,onStarted=()=>{}){
-    return this.run(signal,isCurrent,async op=>{
+  prepare(signal,isCurrent){this.discardPrefetch();return this.run(signal,isCurrent,op=>this.resume(op));}
+  async load(op,url){
       if(typeof url!=='string'||!/^\/kilas-translator\/live\/sessions\/[a-f0-9]{48}\/turns\/live-[a-f0-9]{32}\/audio(?:\/segments\/[0-7])?$/.test(url))throw failure('audio_url','Hasil audio tidak tersedia.');
       const loadError=failure('audio_fetch','Audio belum dapat dimuat. Periksa koneksi.');
       let raw;
@@ -54,10 +54,39 @@ export class TranslatorPlayback {
       const decodeError=failure('audio_decode','Format audio belum dapat dibaca.');let buffer;
       try{buffer=await this.bounded(op,()=>op.context.decodeAudioData(raw),10000,decodeError);}catch(e){if(this.cancelled(op,e))throw e;throw decodeError;}
       if(!Number.isFinite(buffer?.duration)||buffer.duration<=0||buffer.duration>600)throw decodeError;
+      return buffer;
+  }
+  // At most one successor is downloaded/decoded. This never starts a source or
+  // resumes the audio context, and a failed download is consumed without retry.
+  prefetch(url,signal,isCurrent){
+    if(this.prefetched?.url===url&&this.prefetched.signal===signal)return;
+    this.discardPrefetch();
+    const op={url,signal,controller:new AbortController(),context:this.getContext(),isCurrent};
+    const cancel=()=>{op.controller.abort();if(this.prefetched===op)this.prefetched=null;};
+    op.cleanup=()=>signal.removeEventListener('abort',cancel);
+    this.prefetched=op;
+    signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
+    op.promise=(async()=>{
+      try{this.check(op);if(!op.context||op.context.state==='closed')throw failure('audio_context','Audio tidak tersedia. Periksa audio browser.');return {buffer:await this.load(op,url)};}
+      catch(error){return {error};}
+    })();
+  }
+  play(url,signal,isCurrent,onStarted=()=>{}){
+    const slot=this.prefetched?.url===url&&this.prefetched.signal===signal&&this.prefetched.context===this.getContext()?this.prefetched:null;
+    if(slot)this.prefetched=null;else this.discardPrefetch();
+    return this.run(signal,isCurrent,async op=>{
+      const waitBegan=this.now();let buffer;
+      if(slot){
+        op.controller.signal.addEventListener('abort',()=>slot.controller.abort(),{once:true});
+        const loaded=await this.bounded(op,()=>slot.promise,25000,failure('audio_fetch','Audio belum dapat dimuat. Periksa koneksi.'));
+        this.check(op);if(loaded.error)throw loaded.error;buffer=loaded.buffer;
+      }
+      else buffer=await this.load(op,url);
+      const bufferWaitMs=Math.max(0,this.now()-waitBegan);
       // Android may suspend the context while network/provider work is in flight.
       await this.resume(op);this.check(op);
-      await this.bounded(op,()=>this.playBuffer(op,buffer,onStarted),buffer.duration*1000+10000,failure('audio_timeout','Pemutaran audio melewati batas waktu.'));
-    });
+      await this.bounded(op,()=>this.playBuffer(op,buffer,()=>onStarted({buffer_wait_ms:bufferWaitMs})),buffer.duration*1000+10000,failure('audio_timeout','Pemutaran audio melewati batas waktu.'));
+    },slot);
   }
   playBuffer(op,buffer,onStarted){
     return new Promise((resolve,reject)=>{

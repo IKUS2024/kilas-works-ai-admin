@@ -1,7 +1,7 @@
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=realtime-input-20261013';
-import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=translation-integrity-20261013';
-import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=realtime-input-20261013';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=output-prefetch-20261013';
+import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=output-prefetch-20261013';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=output-prefetch-20261013';
 import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=realtime-input-20261013';
 import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=realtime-input-20261013';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
@@ -48,7 +48,7 @@ if(root){
  };
  const player=new TranslatorPlayback({getContext:()=>context});
  const closeAudio=()=>{const own=context;context=null;if(own){try{own.close().catch(()=>{});}catch{}}};
- const playback={prepare:(...args)=>player.prepare(...args),play:(...args)=>player.play(...args),
+ const playback={prepare:(...args)=>player.prepare(...args),play:(...args)=>player.play(...args),prefetch:(...args)=>player.prefetch(...args),
   cancel:()=>player.cancel(),
   recover(error,signal,isCurrent){
    player.cancel();if(!context||context.state==='closed'||/^audio_(stalled|timeout|context|resume|start)$/.test(error?.code||'')){
