@@ -129,6 +129,14 @@ def create():
     return {'url':url_for('kilas_audio.home',ident=ident),'id':ident},201 if new else 200
 
 
+@audio_bp.post('/personal-voice/inspect')
+def inspect_personal_voice():
+    # Local decoder only: no clone, provider request, voice mutation or balance deduction.
+    store.require_balance(session['user_id'])
+    ms,_=media.voice_sample(request.files.get('recording'),with_duration=True)
+    return {'duration_ms':ms},200,{'Cache-Control':'private, no-store'}
+
+
 @audio_bp.post('/personal-voice')
 def create_personal_voice():
     if request.form.get('consent')!='yes':raise store.AudioError('Setujui izin penggunaan suara sebelum melanjutkan.','consent_required')

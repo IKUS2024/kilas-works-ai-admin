@@ -125,21 +125,29 @@ def download_wav(raw):
             raise MediaError('Unduhan WAV belum dapat disiapkan. MP3 tetap tersedia.') from None
 
 
-def voice_sample(item, *, sample_rate=44100):
-    """Decode browser WebM/MP4 microphone audio in a private, short-lived directory."""
-    allowed={'audio/webm','video/webm','audio/ogg','audio/mp4','video/mp4','audio/wav','audio/x-wav'}
-    if not item or item.mimetype not in allowed:raise MediaError('Rekaman belum dapat dibaca. Rekam ulang lalu coba lagi.')
+def voice_sample(item, *, sample_rate=44100, with_duration=False):
+    """Validate microphone/upload bytes and normalize to the existing clone WAV input."""
+    mimes={'audio/mpeg':'mp3','audio/mp3':'mp3','audio/wav':'wav','audio/x-wav':'wav','audio/vnd.wave':'wav',
+           'audio/mp4':'m4a','audio/x-m4a':'m4a','video/mp4':'m4a','audio/ogg':'ogg',
+           'audio/webm':'webm','video/webm':'webm'}
+    extensions={'mp3':'mp3','wav':'wav','m4a':'m4a','mp4':'m4a','ogg':'ogg','webm':'webm'}
+    kind=mimes.get(item.mimetype) if item else None
+    # Some file pickers omit a MIME. Only a known extension plus verified bytes may fill it in.
+    if item and item.mimetype in ('','application/octet-stream'):
+        kind=extensions.get((item.filename or '').rsplit('.',1)[-1].lower())
+    if not kind:raise MediaError('Format tidak didukung. Pilih MP3, WAV, M4A, OGG, atau WebM yang valid.')
     raw=item.stream.read(10*1024*1024+1)
-    if not raw or len(raw)>10*1024*1024:raise MediaError('Rekaman terlalu besar. Gunakan rekaman maksimal 3 menit.')
-    headers={'audio/webm':raw[:4]==b'\x1aE\xdf\xa3','video/webm':raw[:4]==b'\x1aE\xdf\xa3',
-             'audio/ogg':raw[:4]==b'OggS','audio/mp4':raw[4:8]==b'ftyp','video/mp4':raw[4:8]==b'ftyp',
-             'audio/wav':raw[:4]==b'RIFF' and raw[8:12]==b'WAVE','audio/x-wav':raw[:4]==b'RIFF' and raw[8:12]==b'WAVE'}
-    if not headers[item.mimetype]:raise MediaError('Rekaman belum dapat dibaca. Rekam ulang lalu coba lagi.')
+    if not raw:raise MediaError('File audio kosong. Pilih file lain atau rekam ulang.')
+    if len(raw)>10*1024*1024:raise MediaError('Audio maksimal 10 MB dan 3 menit. Pilih file yang lebih kecil atau rekam ulang.')
+    headers={'webm':raw[:4]==b'\x1aE\xdf\xa3','ogg':raw[:4]==b'OggS','m4a':raw[4:8]==b'ftyp',
+             'wav':raw[:4]==b'RIFF' and raw[8:12]==b'WAVE',
+             'mp3':raw[:3]==b'ID3' or (len(raw)>1 and raw[0]==255 and raw[1]&224==224)}
+    if not headers[kind]:raise MediaError('Isi file tidak cocok dengan format audio. Pilih file audio yang valid.')
     with tempfile.TemporaryDirectory(prefix='kilas-voice-') as folder:
         source=Path(folder)/'recording';source.write_bytes(raw)
         ms,pcm=_decode_source(source,folder,sample_rate=sample_rate,max_seconds=180)
-    if ms>180000:raise MediaError('Gunakan rekaman maksimal 3 menit.')
-    return pcm
+    if ms>180000:raise MediaError('Audio maksimal 3 menit. Pilih file yang lebih singkat atau rekam ulang.')
+    return (ms,pcm) if with_duration else pcm
 
 
 def personal_preview(pcm):

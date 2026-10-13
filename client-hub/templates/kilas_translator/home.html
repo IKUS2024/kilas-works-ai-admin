@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
-{% block title %}{{ 'Kilas Translator' if upload_translation_visible else 'Voice Over' }} · Kilas Works
+{% block title %}{{ 'Kilas Translator' if active_mode=='translate' else 'Voice Over' }} · Kilas Works
 {% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='voice-upload-20261013') }}">{% endblock %}
 {% block content %}
 {% if home_task %}{% include 'kilas_ai/_home_handoff.html' %}{% endif %}
 {% include 'kilas_content/_handoff.html' %}
 {% with selected_feature=active_mode %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='consistent-ui-20261012') }}">
 <section class="audio-studio" id="audio-studio" data-max-seconds="{{ max_seconds }}" data-active-mode="{{ active_mode }}">
-<header class="audio-heading"><div><h1>{{ 'Kilas Translator' if upload_translation_visible else 'Voice Over' }}</h1></div></header>
+<header class="audio-heading"><div><h1>{{ 'Kilas Translator' if active_mode=='translate' else 'Voice Over' }}</h1></div></header>
 <div class="audio-workbench"><main class="audio-primary">
 
 {% if not provider_ready %}<p class="audio-notice" role="status">Layanan audio sedang belum tersedia. Saldo kamu tetap aman.</p>{% endif %}
@@ -30,7 +30,7 @@
 <label class="audio-voice"><input type="radio" name="voice_kind" value="kilas" checked><span><strong>Suara Kilas</strong><small>Pilihan suara siap pakai</small></span></label>
 </fieldset>
 <input type="hidden" name="voice" id="selected-voice" value="kilas-male">
-<section id="personal-voice-setup" class="personal-voice-setup" data-ready="{{ 'true' if personal_voice else 'false' }}" data-operation-key="{{ voice_operation_key }}">
+<section id="personal-voice-setup" class="personal-voice-setup" data-ready="{{ 'true' if personal_voice else 'false' }}" data-operation-key="{{ voice_operation_key }}" hidden>
 <div id="personal-ready">
 <label for="saved-voice-choice">Suara tersimpan</label>
 <select id="saved-voice-choice">{% for voice in saved_voices %}<option value="{{ voice.id }}" data-preview="{{ 'true' if voice.has_preview else 'false' }}">{{ voice.name }}</option>{% else %}<option value="">Belum ada suara tersimpan</option>{% endfor %}</select>
@@ -38,7 +38,7 @@
 <div class="voice-preview-actions">
 <button type="button" class="btn secondary" id="play-personal-preview" {{ 'hidden' if not saved_voices or not saved_voices[0].has_preview }}>Putar Contoh Suara</button>
 <button type="button" class="btn secondary" id="add-saved-voice" {{ 'disabled' if not provider_ready or (not balance.exempt and not balance.available) }}>Tambah Suara</button>
-<button type="button" class="btn secondary" id="open-recorder" {{ 'disabled' if not saved_voices }}>Rekam Ulang Suara</button>
+<button type="button" class="btn secondary" id="open-recorder" {{ 'disabled' if not saved_voices }}>Ganti Contoh Suara</button>
 <button type="button" class="btn secondary" id="rename-saved-voice" {{ 'disabled' if not saved_voices }}>Ubah Nama</button>
 <button type="button" class="btn secondary" id="delete-saved-voice" {{ 'disabled' if not saved_voices }}>Hapus Suara</button>
 </div>
@@ -48,7 +48,9 @@
 <p id="voice-preview-missing" {{ 'hidden' if not saved_voices or saved_voices[0].has_preview }}>Contoh rekaman belum tersedia. Rekam ulang jika ingin menyimpan contoh suara.</p>
 <audio id="personal-preview" controls preload="none" {{ 'hidden' if not saved_voices or not saved_voices[0].has_preview }} {% if saved_voices and saved_voices[0].has_preview %}src="{{ url_for('kilas_audio.saved_voice_preview',ident=saved_voices[0].id) }}"{% endif %} aria-label="Contoh rekaman asli suara tersimpan"></audio><p id="voice-preview-error" role="alert" hidden></p>
 <div id="voice-recorder" hidden>
-<h3>Rekam contoh suara</h3><label for="record-voice-name">Nama suara</label><input type="text" id="record-voice-name" maxlength="60" placeholder="Contoh: Suara Irvan"><details class="voice-record-guide"><summary>Tips rekaman</summary><p>Rekam 60-120 detik dengan suara natural di ruangan tenang. Satu pembicara, tanpa musik, dengan jarak mikrofon tetap. Variasikan kalimat dan intonasi secara wajar; rekaman lebih singkat tetap dapat dicoba.</p>
+<h3>Tambah contoh suara</h3><label for="record-voice-name">Nama suara</label><input type="text" id="record-voice-name" maxlength="60" placeholder="Contoh: Suara Irvan">
+<label for="voice-sample-file">Upload audio</label><input type="file" id="voice-sample-file" accept=".mp3,.wav,.m4a,.ogg,.webm,audio/mpeg,audio/wav,audio/mp4,audio/ogg,audio/webm" aria-describedby="voice-sample-limit"><p id="voice-sample-limit">MP3, WAV, M4A, OGG, WebM · maks. 10 MB dan 3 menit. Atau gunakan mikrofon di bawah.</p><p id="voice-sample-selection" role="status" hidden></p>
+<details class="voice-record-guide"><summary>Tips rekaman</summary><p>Rekam 60-120 detik dengan suara natural di ruangan tenang. Satu pembicara, tanpa musik, dengan jarak mikrofon tetap. Variasikan kalimat dan intonasi secara wajar; rekaman lebih singkat tetap dapat dicoba.</p>
 <p class="voice-sample-script">Halo, ini adalah contoh suara saya. Hari ini saya mencoba rekaman dengan suara yang natural dan jelas. Pagi tadi, saya membuka jendela dan menikmati udara yang segar. Saya punya beberapa rencana: menyelesaikan pekerjaan, berbincang dengan teman, dan belajar sesuatu yang baru. Apa hal menarik yang ingin kamu lakukan hari ini? Bagi saya, setiap langkah kecil punya arti. Saat menjelaskan sesuatu, saya berbicara dengan tenang. Saat menyampaikan kabar baik, suara saya terdengar lebih bersemangat. Sekarang saya akan bercerita tentang kegiatan sehari-hari, makanan favorit, atau rencana akhir pekan dengan suara saya sendiri.</p></details>
 <div class="voice-record-controls"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2m-7 9v3m-4 0h8"/></svg><span id="record-state" role="status">Siap merekam</span><time id="record-timer">0:00</time></div>
 <div class="voice-record-actions"><button type="button" class="btn" id="record-start">Mulai Rekam</button><button type="button" class="btn secondary" id="record-stop" hidden>Stop Rekaman</button><button type="button" class="btn secondary" id="record-again" hidden>Rekam Ulang</button><button type="button" class="btn secondary" id="record-cancel">Batal</button></div>
@@ -56,7 +58,7 @@
 <label class="voice-consent"><input type="checkbox" id="voice-consent"><span>Saya menyatakan bahwa suara ini adalah suara saya sendiri atau saya memiliki izin untuk menggunakannya.</span></label>
 <button type="button" class="btn" id="save-personal-voice" disabled>Simpan Suara</button><p id="record-error" role="alert" hidden></p>
 </div></section>
-<div id="kilas-voice-options" hidden><label for="kilas-voice-choice">Suara Kilas</label><select id="kilas-voice-choice">{% if voices and not voices|selectattr('alias','equalto','kilas-male')|list %}<option value="" selected disabled>Kilas Male belum tersedia</option>{% endif %}{% for voice in voices %}<option value="{{ voice.alias }}">{{ voice.name }}</option>{% else %}<option value="">Suara belum tersedia</option>{% endfor %}</select></div>
+<div id="kilas-voice-options"><label for="kilas-voice-choice">Suara Kilas</label><select id="kilas-voice-choice">{% if voices and not voices|selectattr('alias','equalto','kilas-male')|list %}<option value="" selected disabled>Kilas Male belum tersedia</option>{% endif %}{% for voice in voices %}<option value="{{ voice.alias }}">{{ voice.name }}</option>{% else %}<option value="">Suara belum tersedia</option>{% endfor %}</select></div>
 {% from 'kilas_ai/_chat_icons.html' import chat_icon %}
 <div class="voice-script-workspace">
 <div class="voice-script-label"><label for="audio-script">Naskah</label><div class="voice-script-tools"><details class="voice-script-info"><summary aria-label="Info naskah" title="Info naskah">Info</summary><div><p class="audio-script-retention">Naskah Voice Over baru disimpan di riwayat, termasuk saat proses gagal, untuk diedit kembali.</p><p id="voice-language-status" role="status">Bahasa mengikuti naskah.</p><p id="dictation-disclosure"><a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">Privasi</a>.</p></div></details><button type="button" class="btn secondary" id="voice-assist-copy" aria-label="Salin naskah" title="Salin naskah">{{ chat_icon('copy') }}</button></div></div><textarea id="audio-script" name="script" maxlength="4000" rows="7" required placeholder="Tulis apa yang ingin diucapkan..." aria-describedby="voice-language-status voice-estimate">{{ initial_brief if home_task=='voiceover' and initial_brief is not none else content_draft.script if content_draft and not job else '' }}</textarea>
@@ -72,9 +74,9 @@
 </form></section>
 <p id="audio-progress" role="status" aria-live="polite" hidden></p><p id="audio-error" role="alert" hidden></p><span id="audio-error-purchase" hidden></span>
 
-</main><aside class="audio-history"><h2>Recent</h2>{% if history %}<ul>{% for item in history %}<li><a href="{{ url_for('kilas_audio.home',ident=item.id) }}" data-audio-history="{{ item.id }}" {{ 'aria-current=page' if job and job.id==item.id }}><strong title="{{ item.title }}">{{ item.title }}</strong><span>{{ 'Translate' if item.mode=='translate' else 'Voice Over' }} · <span data-audio-history-status>{{ {'QUEUED':'Menunggu','PROCESSING':'Diproses','COMPLETED':'Selesai','FAILED':'Belum berhasil'}[item.status] }}</span></span><span>{{ languages.get(item.source_language,'Auto Detect') }} → {{ languages.get(item.target_language,'Bahasa naskah') }}{% if item.mode=='voiceover' %} · {{ item.voice_name }}{% endif %}</span><small><span data-audio-history-duration>{{ seconds(((item.source_ms if item.mode=='translate' else item.actual_ms)+999)//1000) }}</span> · <time datetime="{{ item.created_at }}">{{ item.created_at[:16].replace('T',' ') }} UTC</time></small></a>{% if item.mode=='voiceover' and item.status in ['COMPLETED','FAILED'] %}{% if item.has_original_script %}<button type="button" class="btn secondary audio-edit-script" data-audio-edit="{{ url_for('kilas_audio.script_for_edit',ident=item.id) }}">Edit naskah</button>{% else %}<small>Naskah asli tidak tersedia untuk hasil lama ini.</small>{% with reconstruct_job=item %}{% include 'kilas_translator/_reconstruct.html' %}{% endwith %}{% endif %}{% endif %}</li>{% endfor %}</ul>{% endif %}<nav aria-label="Halaman riwayat">{% if page>1 %}<a href="{{ url_for('kilas_audio.home',page=page-1) }}">Sebelumnya</a>{% endif %}{% if more %}<a href="{{ url_for('kilas_audio.home',page=page+1) }}">Berikutnya</a>{% endif %}</nav></aside></div>
-</section>{% include '_generation_feedback.html' %}<script src="{{ url_for('static',filename='kilas_audio.js',v='revisions-20261011') }}" defer></script>
-<script src="{{ url_for('static',filename='kilas_personal_voice.js',v='branded-20261011') }}" defer></script>
+</main><aside class="audio-history"><h2>Recent</h2>{% if history %}<ul>{% for item in history %}<li><a href="{{ url_for('kilas_audio.home',ident=item.id) }}" data-audio-history="{{ item.id }}" {{ 'aria-current=page' if job and job.id==item.id }}><strong title="{{ item.title }}">{{ item.title }}</strong><span>{{ 'Translate' if item.mode=='translate' else 'Voice Over' }} · <span data-audio-history-status>{{ {'QUEUED':'Menunggu','PROCESSING':'Diproses','COMPLETED':'Selesai','FAILED':'Belum berhasil'}[item.status] }}</span></span><span>{{ languages.get(item.source_language,'Auto Detect') }} → {{ languages.get(item.target_language,'Bahasa naskah') }}{% if item.mode=='voiceover' %} · {{ item.voice_name }}{% endif %}</span><small><span data-audio-history-duration>{{ seconds(((item.source_ms if item.mode=='translate' else item.actual_ms)+999)//1000) }}</span> · <time datetime="{{ item.created_at }}">{{ item.created_at[:16].replace('T',' ') }} UTC</time></small></a>{% if item.mode=='voiceover' and item.status in ['COMPLETED','FAILED'] %}{% if item.has_original_script %}<button type="button" class="btn secondary audio-edit-script" data-audio-edit="{{ url_for('kilas_audio.script_for_edit',ident=item.id) }}">Edit naskah</button>{% else %}<small>Naskah asli tidak tersedia untuk hasil lama ini.</small>{% with reconstruct_job=item %}{% include 'kilas_translator/_reconstruct.html' %}{% endwith %}{% endif %}{% endif %}</li>{% endfor %}</ul>{% endif %}<nav aria-label="Halaman riwayat">{% if page>1 %}<a href="{{ url_for('kilas_audio.home',page=page-1,mode=active_mode) }}">Sebelumnya</a>{% endif %}{% if more %}<a href="{{ url_for('kilas_audio.home',page=page+1,mode=active_mode) }}">Berikutnya</a>{% endif %}</nav></aside></div>
+</section>{% include '_generation_feedback.html' %}<script src="{{ url_for('static',filename='kilas_audio.js',v='initial-mode-20261013') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_personal_voice.js',v='upload-20261013') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_voice_script.js',v='revisions-20261011') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_video_script.js',v='reconstruction-20261011') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_script_assist.js',v='revisions-20261011') }}" defer></script>
