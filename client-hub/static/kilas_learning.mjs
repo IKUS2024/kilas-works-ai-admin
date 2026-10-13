@@ -1,7 +1,7 @@
-import {LearningCall} from './kilas_learning_engine.mjs?v=learning-choice-v4-20261013';
-import {RealtimeMic,microphone} from './kilas_learning_realtime.mjs?v=learning-choice-v4-20261013';
-import {LearningPlayer} from './kilas_learning_player.mjs?v=learning-choice-v4-20261013';
-import {learningRequest} from './kilas_learning_transport.mjs?v=learning-choice-v4-20261013';
+import {LearningCall} from './kilas_learning_engine.mjs?v=learning-device-v5-20261013';
+import {RealtimeMic,microphone} from './kilas_learning_realtime.mjs?v=learning-device-v5-20261013';
+import {LearningPlayer} from './kilas_learning_player.mjs?v=learning-device-v5-20261013';
+import {learningRequest} from './kilas_learning_transport.mjs?v=learning-device-v5-20261013';
 
 const mounted=new WeakMap();
 export function mountLearning(root,options={}){
@@ -39,7 +39,7 @@ export function mountLearning(root,options={}){
   const save=value=>{try{value?window.sessionStorage.setItem('kilas-learning-session',JSON.stringify(value)):window.sessionStorage.removeItem('kilas-learning-session');}catch{}};
   const capture=options.capture||new RealtimeMic({api,session:()=>call.session,id,openMicrophone:microphone,onOpened:turn=>call.beginInput(turn)});
   let permitted=form.dataset.ready==='true',gateMessage='Learning belum tersedia untuk akun ini. Periksa aktivasi atau masuk kembali.';
-  const updateStart=()=>{start.disabled=!permitted||!field('consent').checked||call.active;if(resumePrevious)resumePrevious.disabled=!permitted||call.active;};
+  const updateStart=()=>{start.disabled=!permitted||!field('consent').checked||call.active||call.cleanupFailed;if(resumePrevious)resumePrevious.disabled=!permitted||call.active||call.cleanupFailed;};
   const setupMessage=()=>!permitted?gateMessage:field('consent').checked?'Siap. Tekan '+start.textContent+' untuk mengaktifkan mikrofon dan audio.':'Setujui pemrosesan suara untuk mengaktifkan Mulai belajar.';
   const call=new LearningCall({api,capture,player,id,save,onSettings:settings=>{
     if(settings)for(const name of ['target','native','level','voice'])if([...field(name).options].some(option=>option.value===settings[name]))field(name).value=settings[name];
@@ -49,17 +49,23 @@ export function mountLearning(root,options={}){
     if(previous)previous.hidden=state!=='ended'||!candidate;
     const wasActive=root.dataset.active==='true',inCall=state!=='ended';root.dataset.active=String(inCall);setup.hidden=inCall;active.hidden=!inCall;orb.dataset.state=state;
     const labels={preparing:'Tutor sedang menyiapkan jawaban…',speaking:'Tutor berbicara',listening:'Giliran kamu. Silakan bicara.',muted:'Mikrofon dinonaktifkan',paused:'Sesi dijeda',ended:'Sesi berakhir'};
-    status.textContent=message||labels[state];resume.hidden=state!=='paused';mute.disabled=state==='paused';updateStart();
+    status.textContent=message||labels[state];resume.hidden=state!=='paused';resume.disabled=!!call.cleanupFailed;mute.disabled=state==='paused';updateStart();
     if(inCall&&!wasActive)end.focus({preventScroll:true});
     if(state==='paused')resume.focus({preventScroll:true});
     if(state==='ended'){start.focus({preventScroll:true});mute.setAttribute('aria-pressed','false');mute.textContent='Matikan mikrofon';}
   }});
   const run=task=>{
+    let operationVersion=call.version;
     const failed=()=>{
-      const message=call.active?'Learning terhenti. Tekan Lanjutkan untuk memeriksa sesi atau Akhiri sesi.':'Learning belum dapat dimulai. Periksa izin mikrofon dan audio browser, lalu coba Mulai belajar.';
-      if(call.active)call.pause(message);else status.textContent=message;
+      if(call.version!==operationVersion)return;
+      if(call.active){call.pause('Kontrol sesi terhenti. Tekan Lanjutkan untuk memeriksa sesi tanpa mengirim ulang.');return;}
+      // Even an unexpected cleanup exception must not strand the call layout.
+      root.dataset.active='false';setup.hidden=false;active.hidden=true;resume.hidden=true;
+      if(previous)previous.hidden=!candidate;
+      updateStart();status.textContent='Kontrol Learning terhenti. Periksa koneksi browser, lalu coba Mulai belajar.';
+      start.focus({preventScroll:true});
     };
-    try{Promise.resolve(task()).catch(failed);}catch{failed();}
+    try{const result=task();operationVersion=call.version;Promise.resolve(result).catch(failed);}catch{operationVersion=call.version;failed();}
   };
   form.addEventListener('submit',event=>{
     event.preventDefault();

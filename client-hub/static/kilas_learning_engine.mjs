@@ -54,8 +54,8 @@ export class LearningCall {
       if(!this.valid(ticket))return;
       if(dispatched)this.pause(error.message);
       else {
-        this.active=false;this.control.abort();++this.version;this.capture.cancel();this.player.stop();this.startKey=null;this.save(this.previous||null);this.previous=null;
-        this.state('ended',error.name==='NotAllowedError'?'Izin mikrofon ditolak. Izinkan mikrofon di pengaturan browser, lalu Mulai belajar.':error.message);
+        this.active=false;++this.version;this.stopLocal();this.startKey=null;this.save(this.previous||null);this.previous=null;
+        this.state('ended',this.cleanupFailed?'Kontrol audio belum berhenti bersih. Tutup tab ini, lalu buka Learning kembali.':error.name==='NotAllowedError'?'Izin mikrofon ditolak. Izinkan mikrofon di pengaturan browser, lalu Mulai belajar.':error.message);
       }
     }
   }
@@ -151,15 +151,24 @@ export class LearningCall {
     else if(!this.busy)void this.listen();
     return this.muted;
   }
+  stopLocal() {
+    let clean=true;
+    // One failed device cleanup must not prevent the other resources stopping.
+    for(const stop of [()=>this.control?.abort(),()=>this.capture.cancel(),()=>this.player.stop()]){
+      try{stop();}catch{clean=false;}
+    }
+    this.cleanupFailed=!clean;return clean;
+  }
   pause(message='Sesi dijeda. Tekan Lanjutkan saat siap.') {
     if(!this.active)return;
-    this.control?.abort();++this.version;this.capture.cancel();this.player.stop();this.state('paused',message);
+    ++this.version;this.stopLocal();this.state('paused',this.cleanupFailed?'Kontrol audio belum berhenti bersih. Akhiri sesi atau tutup tab ini.':message);
   }
   end() {
     const session=this.session||this.previous?.session,startKey=this.session?this.startKey:this.previous?.startKey||this.startKey;
-    this.active=false;const endedVersion=++this.version;this.control?.abort();this.capture.cancel();this.player.stop();
-    this.session=null;this.turn=null;this.next=0;this.busy=false;this.muted=false;this.input=false;this.recoverInput=false;this.previous=null;this.startKey=null;this.save(null);this.state('ended');
+    this.active=false;const endedVersion=++this.version;const clean=this.stopLocal();
+    this.session=null;this.turn=null;this.next=0;this.busy=false;this.muted=false;this.input=false;this.recoverInput=false;this.previous=null;this.startKey=null;this.save(null);this.state('ended',clean?'Sesi berakhir. Pilih pengaturan untuk pelajaran berikutnya.':'Kontrol audio belum berhenti bersih. Tutup tab ini, lalu buka Learning kembali.');
     // Separate best-effort control request survives cancellation of data requests.
-    return this.api.end(session,startKey).then(()=>true).catch(()=>{if(!this.active&&this.version===endedVersion)this.state('ended','Mikrofon dan audio berhenti. Konfirmasi akhir sesi server belum diterima; periksa sesi sebelum mulai lagi.');return false;});
+    let closing;try{closing=this.api.end(session,startKey);}catch(error){closing=Promise.reject(error);}
+    return Promise.resolve(closing).then(()=>clean).catch(()=>{if(!this.active&&this.version===endedVersion)this.state('ended',clean?'Mikrofon dan audio berhenti. Konfirmasi akhir sesi server belum diterima; periksa sesi sebelum mulai lagi.':'Kontrol audio dan konfirmasi akhir sesi belum berhasil. Tutup tab ini, lalu buka Learning kembali.');return false;});
   }
 }

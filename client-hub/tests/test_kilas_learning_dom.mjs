@@ -6,6 +6,7 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {pathToFileURL} from 'node:url';
+import {RealtimeMic} from '../static/kilas_learning_realtime.mjs';
 import {mountLearning} from '../static/kilas_learning.mjs';
 
 const directory=process.env.KILAS_LEARNING_DOM_TOOLS||join(tmpdir(),'kilas-learning-dom');
@@ -85,7 +86,7 @@ test('expired login from read-only discovery leaves an actionable status and pre
 });
 test('unexpected rejected Start promise gets visible feedback without native navigation',async t=>{
   const f=fixture(t),call=f.mount();await tick();f.check();call.start=async()=>{throw Error('synthetic internal exception');};
-  f.start.click();await tick();assert.match(f.status.textContent,/belum dapat dimulai/);assert.doesNotMatch(f.status.textContent,/internal exception/);
+  f.start.click();await tick();assert.match(f.status.textContent,/Kontrol Learning terhenti/);assert.doesNotMatch(f.status.textContent,/internal exception/);
   assert.equal(f.requested.filter(x=>x.url==='/kilas-learning/sessions').length,0);
 });
 test('module resource failure is visible and native form fallback stays blocked',t=>{
@@ -134,4 +135,47 @@ test('new lesson ends the discovered old session before one consented new Start 
   const call=f.mount();await tick();f.form.elements.namedItem('target').value='es';f.check();f.start.click();await tick();
   const posts=f.requested.filter(x=>x.options?.method==='POST');assert.deepEqual(posts.map(x=>x.url),['/kilas-learning/cancel-start','/kilas-learning/sessions']);
   assert.equal(posts[0].options.body.get('session_id'),'old-session');assert.equal(posts[1].options.body.get('target'),'es');assert.equal(posts[1].options.body.get('consent'),'yes');assert.equal(call.phase,'listening');
+});
+
+test('real microphone controller and browser timer receivers poll pending greeting; End restores setup and fences late result',async t=>{
+  const f=fixture(t),nativeSet=globalThis.setTimeout,nativeClear=globalThis.clearTimeout;
+  for(const [name,native]of [['setTimeout',nativeSet],['clearTimeout',nativeClear]])t.mock.method(globalThis,name,function(...args){
+    if(this!==undefined&&this!==globalThis)throw new TypeError('Illegal invocation');
+    return Reflect.apply(native,globalThis,args);
+  });
+  let release,opens=0,stops=0;
+  f.window.fetch=async(url,options)=>{
+    f.requested.push({url,options});
+    const response=value=>({ok:true,status:200,json:async()=>value,arrayBuffer:async()=>new ArrayBuffer(4)});
+    if(url==='/kilas-learning/session')return response({session_id:null});
+    if(url==='/kilas-learning/sessions')return response({...f.completed,status:'PROCESSING',clips:[]});
+    if(url==='/kilas-learning/cancel-start')return response({ended:true});
+    return new Promise(resolve=>{release=()=>resolve(response(f.completed));});
+  };
+  let call;
+  const mic=new RealtimeMic({api:{cancel:async()=>{}},session:()=>call.session,id:()=> 'synthetic-mic-turn',onOpened:()=>{},
+    openMicrophone:async()=>{opens++;return ()=>{stops++;};}});
+  call=mountLearning(f.root,{capture:mic,player:f.player,id:()=> 'synthetic-start-1234567890'});call.wait=async()=>{};
+  await tick();f.check();f.start.click();await tick();assert.ok(release,'status polled after real Mic.cancel');assert.equal(opens,1);
+  f.root.querySelector('[data-end]').click();await tick();
+  assert.equal(call.active,false);assert.equal(f.root.querySelector('[data-setup]').hidden,false);assert.equal(f.root.querySelector('[data-call]').hidden,true);
+  assert.equal(f.start.disabled,false);assert.match(f.status.textContent,/Sesi berakhir/);assert.doesNotMatch(f.status.textContent,/izin mikrofon/);
+  release();await tick();assert.equal(f.played.length,0);assert.equal(call.phase,'ended');assert.equal(stops,1);
+  assert.equal(f.requested.filter(x=>x.url==='/kilas-learning/sessions').length,1);
+  assert.equal(f.requested.filter(x=>x.url==='/kilas-learning/cancel-start').length,1);
+});
+test('failed local cleanup still restores setup, stops remaining resources and closes server session without claiming stopped audio',async t=>{
+  const f=fixture(t),call=f.mount();await tick();f.check();f.start.click();await tick();let playerStops=0;
+  f.capture.cancel=()=>{throw new TypeError('synthetic cleanup fault');};f.player.stop=()=>{playerStops++;};
+  f.root.querySelector('[data-end]').click();await tick();
+  assert.equal(playerStops,1);assert.equal(call.active,false);assert.equal(call.phase,'ended');
+  assert.equal(f.root.querySelector('[data-setup]').hidden,false);assert.equal(f.root.querySelector('[data-call]').hidden,true);
+  assert.equal(f.start.disabled,true);assert.match(f.status.textContent,/belum berhenti bersih/);assert.doesNotMatch(f.status.textContent,/synthetic/);
+  assert.equal(f.requested.filter(x=>x.url==='/kilas-learning/cancel-start').length,1);
+});
+test('late rejected control operation cannot overwrite a later End or new call',async t=>{
+  const f=fixture(t),call=f.mount();await tick();f.check();let reject;
+  call.start=()=>{call.active=true;call.version++;call.state('preparing');return new Promise((_r,j)=>{reject=j;});};
+  f.start.click();f.root.querySelector('[data-end]').click();await tick();reject(Error('late synthetic startup failure'));await tick();
+  assert.equal(call.phase,'ended');assert.match(f.status.textContent,/Sesi berakhir/);assert.equal(f.root.querySelector('[data-setup]').hidden,false);
 });

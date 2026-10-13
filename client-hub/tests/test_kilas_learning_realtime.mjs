@@ -98,3 +98,19 @@ test('real microphone adapter stops a late permission grant after End before cre
     if(oldWindow===undefined)delete globalThis.window;else globalThis.window=oldWindow;
   }
 });
+
+test('default microphone timers preserve the browser global receiver during start, speech and cancel',async()=>{
+  // HTML timers operate on Window/WorkerGlobalScope, not a RealtimeMic instance.
+  // Node timers and the old arrow-function stubs accepted the wrong receiver.
+  const originalSet=globalThis.setTimeout,originalClear=globalThis.clearTimeout;
+  let chunk,timers=0,clears=0,stops=0;
+  globalThis.setTimeout=function(fn,ms){assert.equal(this,globalThis,'native timer receiver');timers++;return 23;};
+  globalThis.clearTimeout=function(id){assert.equal(this,globalThis,'native timer receiver');clears++;};
+  try{
+    const mic=new RealtimeMic({api:{begin:async()=>{},chunk:async()=>{},cancel:async()=>{}},session:()=> 'session',id:()=> 'synthetic-native-timer',onOpened:()=>{},
+      openMicrophone:async callback=>{chunk=callback;return ()=>{stops++;};}});
+    mic.cancel();await mic.start(()=>{},()=>{});assert.equal(timers,1);
+    chunk({pcm:new Uint8Array([1,0]),rms:.03});mic.cancel();await tick();
+    assert.ok(clears>=3);assert.equal(stops,1);
+  }finally{globalThis.setTimeout=originalSet;globalThis.clearTimeout=originalClear;}
+});

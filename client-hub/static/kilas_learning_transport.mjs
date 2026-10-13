@@ -1,4 +1,4 @@
-import {within} from './kilas_learning_engine.mjs?v=learning-choice-v4-20261013';
+import {within} from './kilas_learning_engine.mjs?v=learning-device-v5-20261013';
 
 export function learningRequest({csrf,fetcher=fetch,timeout=15000}){
   return async(path,{data,signal,binary=false,keepalive=false}={})=>{

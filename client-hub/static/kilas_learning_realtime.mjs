@@ -1,9 +1,9 @@
-import {SilenceGate} from './kilas_learning_engine.mjs?v=learning-choice-v4-20261013';
+import {SilenceGate} from './kilas_learning_engine.mjs?v=learning-device-v5-20261013';
 
 // Server owns the paid WebSocket. This client sends PCM as the learner speaks,
 // never a completed recording, never a provider API key or a reusable token.
 export class RealtimeMic {
-  constructor({api,session,id,openMicrophone,onOpened,now=()=>performance.now(),setTimer=setTimeout,clearTimer=clearTimeout}) {
+  constructor({api,session,id,openMicrophone,onOpened,now=()=>performance.now(),setTimer=(fn,ms)=>globalThis.setTimeout(fn,ms),clearTimer=timer=>globalThis.clearTimeout(timer)}) {
     Object.assign(this,{api,session,id,openMicrophone,onOpened,now,setTimer,clearTimer});this.generation=0;
   }
   async permission(signal){
