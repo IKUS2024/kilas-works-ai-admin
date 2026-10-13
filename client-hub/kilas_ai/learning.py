@@ -41,6 +41,37 @@ def require_ready(owner):
         raise store.Error('Learning belum tersedia untuk akun ini. Konfigurasi dan batas biaya perlu diverifikasi.', 'learning_unavailable',503)
 
 
+def readiness():
+    """Nonconsuming startup evidence; never returns keys, project IDs or owners.
+
+    This reports the existing gates. It neither verifies new billing evidence nor
+    activates the feature, creates sessions, reads provider APIs or changes caps.
+    """
+    config=budget.policy()
+    owner=config['allowed_owner'] if config else None
+    try:
+        cap=int(os.environ.get('KILAS_LEARNING_REALTIME_BUDGET_MICRO_USD','0'))
+    except ValueError:
+        cap=None
+    return {
+        'learning_enabled':os.environ.get('KILAS_LEARNING_ENABLED','true').lower() in ('true','1','on'),
+        'realtime_enabled':os.environ.get('KILAS_LEARNING_REALTIME_ENABLED','false').lower() in ('true','1','on'),
+        'billing_marker_verified':os.environ.get('KILAS_LEARNING_REALTIME_BILLING_VERIFIED')=='creator-included-scribe-realtime-20261013',
+        'shared_policy_valid':bool(config),
+        'owner_allowlisted':owner is not None,
+        'learning_budget_valid':bool(config and cap is not None and 4875<=cap<=config['account_micro']),
+        'learning_budget_micro':cap,
+        'existing_account_budget_micro':config['account_micro'] if config else None,
+        'shared_stt_ready':bool(owner is not None and budget.ready(owner)),
+        'openai_key_present':bool(os.environ.get('OPENAI_API_KEY','').strip()),
+        'verified_tutor_model':os.environ.get('KILAS_AI_CHAT_MODEL',model_policy.LUNA).strip()==model_policy.LUNA and os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_MODEL')==model_policy.LUNA,
+        'verified_stt':os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_STT')==budget.MODEL,
+        'reference_verified':os.environ.get('KILAS_LIVE_TRANSLATOR_REFERENCE_VERIFIED')=='yes',
+        'project_verified':bool(re.fullmatch(r'proj_[A-Za-z0-9_-]{1,100}',os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT',''))),
+        'ready':bool(owner is not None and ready(owner)),
+    }
+
+
 def instructions(settings, greeting):
     target = {'en':'English','zh':'Mandarin Chinese','es':'Spanish'}[settings['target']]
     native = store.NATIVES[settings['native']]

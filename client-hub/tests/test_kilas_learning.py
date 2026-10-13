@@ -367,6 +367,27 @@ class LearningTests(unittest.TestCase):
                         self.assertIn(store.NATIVES[native],learning.instructions(settings,True))
                         store.end(self.user,ident)
 
+    def test_readiness_report_is_nonconsuming_boolean_evidence_without_secrets(self):
+        with self.funded(),self.on(),patch.object(providers,'_openai') as tutor,patch.object(learning.requests,'post') as tts,patch.object(realtime.websocket,'create_connection') as stt:
+            report=learning.readiness()
+            self.assertTrue(report['ready']);self.assertTrue(all(type(value) is bool for key,value in report.items() if key not in ('learning_budget_micro','existing_account_budget_micro')))
+            self.assertEqual(report['learning_budget_micro'],60000)
+            self.assertNotIn('synthetic',json.dumps(report));self.assertNotIn(str(self.user),json.dumps(report))
+            for env,gate in [('KILAS_LEARNING_REALTIME_ENABLED','realtime_enabled'),('KILAS_LEARNING_REALTIME_BILLING_VERIFIED','billing_marker_verified'),('KILAS_LEARNING_REALTIME_BUDGET_MICRO_USD','learning_budget_valid')]:
+                with patch.dict(os.environ,{env:''}):
+                    report=learning.readiness();self.assertFalse(report[gate]);self.assertFalse(report['ready'])
+            with patch.object(learning_schema,'print',create=True) as output:
+                learning_schema.report_readiness()
+                self.assertTrue(output.call_args.args[0].startswith('KILAS_LEARNING_READINESS '))
+            tutor.assert_not_called();tts.assert_not_called();stt.assert_not_called()
+
+    def test_readiness_diagnostic_failure_cannot_interrupt_service_startup(self):
+        with patch.object(learning,'readiness',side_effect=ValueError('synthetic')),patch.object(learning_schema,'print',create=True) as output:
+            learning_schema.report_readiness()
+            self.assertIn('"report_available": false',output.call_args.args[0])
+        with patch.object(learning_schema,'print',side_effect=OSError('closed output'),create=True):
+            learning_schema.report_readiness()
+
 
 class PhraseTests(unittest.TestCase):
     def test_every_character_survives_arbitrary_deltas_and_stable_boundaries(self):

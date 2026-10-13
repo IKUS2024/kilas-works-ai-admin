@@ -1,5 +1,6 @@
 """Additive Learning-only schema, independent of Translator releases."""
 import hashlib
+import json
 from pathlib import Path
 import db
 
@@ -14,6 +15,7 @@ def apply_release():
             conn.executescript(script)
         finally:
             conn.close()
+        report_readiness()
         return
     conn = db.psycopg2.connect(db.DATABASE_URL, **db._postgres_connect_kwargs())
     try:
@@ -34,3 +36,17 @@ def apply_release():
         raise
     finally:
         conn.close()
+    report_readiness()
+
+
+def report_readiness():
+    # Learning-only configuration reads after schema setup; no provider dispatch.
+    from . import learning
+    try:
+        report=learning.readiness()
+    except Exception:
+        report={'report_available':False}
+    try:
+        print('KILAS_LEARNING_READINESS '+json.dumps(report,sort_keys=True),flush=True)
+    except OSError:
+        pass  # A diagnostic output failure must not interrupt the working service.
