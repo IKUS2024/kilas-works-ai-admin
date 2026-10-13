@@ -1,6 +1,9 @@
 """Learning-only authenticated API; no provider secrets or transcripts in responses."""
-from flask import Blueprint, request, session, jsonify, render_template, abort, redirect, url_for, Response
+from flask import Blueprint, request, g, session, jsonify, render_template, abort, redirect, url_for, Response
 import security
+import json
+import re
+from time import monotonic
 from . import routes, learning, learning_store as store, audio_branded_voices as voices, audio_media
 from .audio_transcription_budget import BudgetError
 from .usage import UsageLimit
@@ -15,6 +18,7 @@ def navigation():
 
 @learning_bp.before_request
 def access():
+    g.learning_started=monotonic()
     if not routes.enabled():
         abort(404)
     if not session.get('user_id'):
@@ -31,6 +35,17 @@ def access():
 def private(response):
     response.headers['Cache-Control']='private, no-store'
     response.headers['X-Content-Type-Options']='nosniff'
+    # Safe control/status diagnostics: no identities, paths, prompts or audio.
+    action=(request.endpoint or '').removeprefix('kilas_learning.')
+    if action in ('current','status','turn_status','audio','start','input_start','cancel_start'):
+        report={'action':action,'http_status':response.status_code,
+                'duration_ms':round((monotonic()-g.get('learning_started',monotonic()))*1000)}
+        if action in ('current','status','turn_status') and response.is_json:
+            state=response.get_json(silent=True) or {}
+            report.update(turn_status=state.get('status'),clips=len(state.get('clips') or []))
+            code=state.get('error_code') or state.get('code')
+            if code and re.fullmatch(r'[a-z_0-9]{1,80}',str(code)):report['error_code']=code
+        print('KILAS_LEARNING_HTTP '+json.dumps(report,sort_keys=True),flush=True)
     return response
 
 

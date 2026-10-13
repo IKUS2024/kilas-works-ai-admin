@@ -1,4 +1,4 @@
-import {within} from './kilas_learning_engine.mjs';
+import {within} from './kilas_learning_engine.mjs?v=learning-choice-v4-20261013';
 
 // Local ownership fences late decode/resume/end callbacks from a newer call.
 export class LearningPlayer {

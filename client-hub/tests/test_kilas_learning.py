@@ -414,6 +414,35 @@ class LearningTests(unittest.TestCase):
             self.assertEqual(response.json['code'],'learning_unavailable')
 
 
+    def test_stale_restored_turn_reports_timeout_read_only_without_replaying_generation(self):
+        ident=self.session();key=self.turn(ident)
+        db.execute('UPDATE kilas_learning_turns SET created_at=? WHERE id=?',((usage._now()-timedelta(minutes=4)).isoformat(),key))
+        with patch.object(learning,'queue') as paid:
+            response=self.client.get('/kilas-learning/sessions/'+ident)
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.json['status'],'FAILED')
+            self.assertEqual(response.json['error_code'],'processing_timeout')
+            paid.assert_not_called()
+        self.assertEqual(db.query_one('SELECT status FROM kilas_learning_turns WHERE id=?',(key,))['status'],'PROCESSING')
+
+    def test_closing_old_lesson_preserves_audio_history_and_new_lesson_requires_consent(self):
+        self.credit(500);ident=self.session();key=self.turn(ident);self.run_tutor(ident,key)
+        job=db.query_one('SELECT audio_job_id FROM kilas_learning_turns WHERE id=?',(key,))['audio_job_id']
+        original=dict(db.query_one('SELECT result_content,status,actual_ms,seconds_charged FROM kilas_audio_jobs WHERE id=?',(job,)))
+        response=self.client.post('/kilas-learning/cancel-start',data={'csrf_token':'audio-csrf','session_id':ident,'start_key':''})
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(dict(db.query_one('SELECT result_content,status,actual_ms,seconds_charged FROM kilas_audio_jobs WHERE id=?',(job,))),original)
+        fields={'csrf_token':'audio-csrf','start_key':'new-learning-after-old-123','target':'es','native':'zh','level':'advanced','voice':'kilas-female','consent':'no'}
+        with self.funded(),self.on(),patch.object(learning.voices,'resolve',return_value={**VOICE,'alias':'kilas-female'}),patch.object(learning,'queue') as paid:
+            self.assertEqual(self.client.post('/kilas-learning/sessions',data=fields).status_code,400);paid.assert_not_called()
+            response=self.client.post('/kilas-learning/sessions',data={**fields,'consent':'yes'})
+            self.assertEqual(response.status_code,201);paid.assert_called_once()
+            self.assertEqual((response.json['target'],response.json['native'],response.json['level'],response.json['voice']),('es','zh','advanced','kilas-female'))
+        self.assertNotEqual(response.json['session_id'],ident)
+        self.assertEqual(db.query_one('SELECT status FROM kilas_learning_sessions WHERE id=?',(ident,))['status'],'ENDED')
+        with self.assertRaises(store.Error):store.cancel_start(self.other,'',response.json['session_id'])
+
+
 class PhraseTests(unittest.TestCase):
     def test_every_character_survives_arbitrary_deltas_and_stable_boundaries(self):
         text='Hello, Dr. Irvan. This costs 3.50. 你好！¿Cómo estás? Bien.'

@@ -158,11 +158,13 @@ def state(owner, ident, turn=None):
         raise Error('Ucapan tidak ditemukan.', 'not_found', 404)
     ended = s['status'] != 'ACTIVE'
     status = row['status'] if row else None
+    error_code = row['error_code'] if row else None
     if status == 'PROCESSING' and usage._now()-usage._as_utc(row['created_at']) > timedelta(minutes=3):
         status = 'FAILED'  # Read-only recovery; never enqueue a paid retry.
+        error_code = error_code or 'processing_timeout'
     clips = [] if ended or not row else db.query_all('SELECT sequence,duration_ms FROM kilas_learning_clips WHERE turn_id=? AND audio IS NOT NULL ORDER BY sequence', (turn,))
     return {'session_id':ident,'ended':ended,'target':s['target'],'native':s['native'],'level':s['level'],'voice':s['voice'],
-            'turn':turn,'status':status,'error_code':row['error_code'] if row else None,
+            'turn':turn,'status':status,'error_code':error_code,
             'clips':[{'index':c['sequence'],'duration_ms':c['duration_ms']} for c in clips],
             'timings':json.loads(row['timings']) if row else {}}
 

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Learning · Kilas Works{% endblock %}
-{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_learning.css',v='learning-v2-20261013') }}">{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_learning.css',v='learning-choice-v4-20261013') }}">{% endblock %}
 {% block content %}
 <main class="kilas-learning-page" data-learning>
 {% set selected_feature='learning' %}{% include 'kilas_ai/_feature_navigation.html' %}
@@ -14,6 +14,7 @@
     <label class="learning-consent"><input type="checkbox" name="consent" value="yes" required><span>Saya menyetujui pemrosesan suara untuk pelajaran ini sesuai <a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">Kebijakan Privasi</a>.</span></label>
     <div class="learning-start"><button class="btn" type="submit" data-learning-start disabled aria-describedby="learning-status">Mulai belajar</button><p>Tutor menyapa lebih dulu. Pakai headphone untuk percakapan yang lebih nyaman.</p></div>
   </form>
+  <aside class="learning-previous" data-previous hidden><p>Sesi belajar sebelumnya masih tersimpan. Lanjutkan sesi itu, atau mulai pelajaran baru dengan pilihan di atas.</p><button class="btn secondary" type="button" data-resume-previous>Lanjutkan sesi sebelumnya</button></aside>
   {% if not learning_ready %}<p class="learning-notice" role="status">Learning belum aktif untuk akun ini. Hubungi pengelola akun untuk memeriksa aktivasi.</p>{% elif not voices %}<p class="learning-notice" role="status">Suara tutor belum tersedia. Coba lagi nanti.</p>{% endif %}
 </section>
 <p class="learning-status" id="learning-status" data-status role="status" aria-live="polite">Menyiapkan kontrol Learning…</p>
@@ -25,6 +26,6 @@
 <noscript><p>Aktifkan JavaScript di browser untuk menggunakan Learning.</p></noscript>
 <details class="learning-details"><summary>Tentang sesi &amp; penggunaan</summary><p>Tutor menyapa dalam bahasa asli dan menanyakan bahasa penjelasan yang kamu inginkan. Ucapan dikirim sambil kamu berbicara; diam 3 detik menandai akhir giliran. Satu ucapan maksimal sekitar 23 detik termasuk jeda. Mikrofon dijeda selama tutor berbicara. Gunakan Akhiri sesi untuk menghentikan mikrofon dan audio.</p><p>{% if kilas_free_test_active %}Uji coba gratis sampai 11 Desember 2026, pukul 23.59 WIB. Saldo aplikasi dan kuota paket tidak membatasi pelajaran selama uji coba. Pendanaan transkripsi suara saat ini tersedia sampai 1 November 2026, pukul 07.00 WIB; percakapan suara memerlukan pendanaan aktif. Batas keamanan dan ketersediaan kredit layanan tetap berlaku.{% else %}Pelajaran berlangsung sampai kamu mengakhirinya, selama saldo dan batas penggunaan tersedia. Suara Learning dibatasi 6.000 karakter per 24 jam; batas transkripsi dan kuota AI tetap berlaku.{% endif %} Pemakaian yang sudah diproses tetap tercatat saat koneksi terputus. Tidak ada pembelian atau pengiriman ulang otomatis. Konteks pelajaran disimpan privat dan dibersihkan saat sesi diakhiri.</p></details>
 </main>
-<script src="{{ url_for('static',filename='kilas_learning_boot.js',v='learning-start-v3-20261013') }}"></script>
-<script type="module" data-learning-module src="{{ url_for('static',filename='kilas_learning.mjs',v='learning-start-v3-20261013') }}"></script>
+<script src="{{ url_for('static',filename='kilas_learning_boot.js',v='learning-choice-v4-20261013') }}"></script>
+<script type="module" data-learning-module src="{{ url_for('static',filename='kilas_learning.mjs',v='learning-choice-v4-20261013') }}"></script>
 {% endblock %}

@@ -30,15 +30,21 @@ export class LearningCall {
   settingsFrom(values) { this.settings=values?Object.fromEntries(['target','native','level','voice'].map(name=>[name,values[name]])):null;this.onSettings(this.settings); }
   fresh() { this.control?.abort();this.control=new AbortController();return {ticket:++this.version,signal:this.control.signal}; }
   valid(ticket) { return this.active&&ticket===this.version; }
-  async start(settings) {
+  async start(settings,previous=null) {
     if(this.active)return;
-    this.active=true;const {ticket,signal}=this.fresh();let dispatched=false;
+    this.active=true;this.previous=previous;const {ticket,signal}=this.fresh();let dispatched=false;
     try {
       this.state('preparing','Meminta izin mikrofon dan mengaktifkan audio…');
       this.settingsFrom(settings);this.startKey=this.id();
       // Permission and playback unlock happen in the Start gesture, before paid requests.
       // Both start synchronously in the user's gesture, before either permission await.
       await Promise.all([within(()=>this.player.unlock(signal),signal,this.startupMs),within(()=>this.capture.permission(signal),signal,this.startupMs)]);if(!this.valid(ticket))return;
+      if(previous?.session||previous?.startKey){
+        this.state('preparing','Mengakhiri sesi sebelumnya sebelum pelajaran baru…');
+        await within(()=>this.api.end(previous.session,previous.startKey),signal,this.startupMs);
+        if(!this.valid(ticket))return;
+        this.previous=null;
+      }
       this.state('preparing','Tutor sedang menyiapkan sapaan…');
       this.persist();dispatched=true;
       const state=await this.api.start({...settings,start_key:this.startKey},signal);
@@ -48,22 +54,23 @@ export class LearningCall {
       if(!this.valid(ticket))return;
       if(dispatched)this.pause(error.message);
       else {
-        this.active=false;this.control.abort();++this.version;this.capture.cancel();this.player.stop();this.startKey=null;this.save(null);
+        this.active=false;this.control.abort();++this.version;this.capture.cancel();this.player.stop();this.startKey=null;this.save(this.previous||null);this.previous=null;
         this.state('ended',error.name==='NotAllowedError'?'Izin mikrofon ditolak. Izinkan mikrofon di pengaturan browser, lalu Mulai belajar.':error.message);
       }
     }
   }
   async restore(saved) {
     if(this.active)return;
-    this.active=true;this.session=saved?.session||null;this.turn=saved?.turn||null;this.next=saved?.next||0;this.startKey=saved?.startKey||null;
+    this.active=true;this.session=saved?.session||null;this.turn=saved?.turn||null;this.next=Number.isInteger(saved?.next)&&saved.next>=0?saved.next:0;this.startKey=saved?.startKey||null;
     this.settingsFrom(saved?.settings);
     this.state('paused','Sesi sebelumnya ditemukan. Tekan Lanjutkan untuk mengaktifkan mikrofon dan audio.');
   }
   async resume() {
     if(!this.active||this.phase!=='paused')return;
-    const {ticket,signal}=this.fresh();this.busy=true;this.state('preparing');
+    const {ticket,signal}=this.fresh();this.busy=true;this.state('preparing','Meminta izin mikrofon dan mengaktifkan audio…');
     try {
       await Promise.all([within(()=>this.player.unlock(signal),signal,this.startupMs),within(()=>this.capture.permission(signal),signal,this.startupMs)]);if(!this.valid(ticket))return;
+      this.state('preparing','Memeriksa sesi sebelumnya…');
       let state;
       try{state=this.session?await this.api.status(this.session,this.turn,signal):await this.api.current(signal);}
       catch(error){
@@ -84,6 +91,8 @@ export class LearningCall {
     if(initial.turn!==this.turn){this.turn=initial.turn;this.next=0;}
     this.persist();let state=initial;
     while(this.valid(ticket)) {
+      if(!state||!['PROCESSING','COMPLETED','FAILED','CANCELLED',null].includes(state.status??null)||!Array.isArray(state.clips))throw Error('Status sesi belum terbaca. Tekan Lanjutkan untuk memeriksa tanpa mengirim ulang.');
+      if(state.turn&&state.status==null)throw Error('Status jawaban belum terbaca. Tekan Lanjutkan untuk memeriksa tanpa mengirim ulang.');
       if(state.ended){this.end();return;}
       const clips=state.clips||[];let played=false;
       let prefetched;
@@ -147,10 +156,10 @@ export class LearningCall {
     this.control?.abort();++this.version;this.capture.cancel();this.player.stop();this.state('paused',message);
   }
   end() {
-    const session=this.session,startKey=this.startKey;
+    const session=this.session||this.previous?.session,startKey=this.session?this.startKey:this.previous?.startKey||this.startKey;
     this.active=false;const endedVersion=++this.version;this.control?.abort();this.capture.cancel();this.player.stop();
-    this.session=null;this.turn=null;this.next=0;this.busy=false;this.muted=false;this.input=false;this.recoverInput=false;this.startKey=null;this.save(null);this.state('ended');
+    this.session=null;this.turn=null;this.next=0;this.busy=false;this.muted=false;this.input=false;this.recoverInput=false;this.previous=null;this.startKey=null;this.save(null);this.state('ended');
     // Separate best-effort control request survives cancellation of data requests.
-    return this.api.end(session,startKey).catch(()=>{if(!this.active&&this.version===endedVersion)this.state('ended','Mikrofon dan audio berhenti. Konfirmasi akhir sesi server belum diterima; periksa sesi sebelum mulai lagi.');});
+    return this.api.end(session,startKey).then(()=>true).catch(()=>{if(!this.active&&this.version===endedVersion)this.state('ended','Mikrofon dan audio berhenti. Konfirmasi akhir sesi server belum diterima; periksa sesi sebelum mulai lagi.');return false;});
   }
 }

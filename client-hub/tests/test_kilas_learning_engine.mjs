@@ -182,3 +182,27 @@ test('early startup ID errors are caught, shown and leave another deliberate Sta
   const f=fixture();f.call.id=()=>{throw Error('Secure randomness unavailable');};await f.call.start({});
   assert.equal(f.call.active,false);assert.equal(f.events.at(-1)[0],'ended');assert.match(f.events.at(-1)[1],/Secure randomness/);assert.equal(f.counts().starts,0);
 });
+
+test('new lesson cleanup failure admits no provider work and leaves editable setup available',async()=>{
+  const f=fixture();f.api.end=async()=>{throw Error('Old session closure unconfirmed');};
+  await f.call.start({target:'es'},{session:'old',startKey:'old-key'});
+  assert.equal(f.call.active,false);assert.equal(f.counts().starts,0);assert.equal(f.events.at(-1)[0],'ended');assert.match(f.events.at(-1)[1],/unconfirmed/);
+});
+test('resume distinguishes local permission from reading server state and rejects unknown state instead of polling forever',async()=>{
+  const f=fixture();await f.call.restore({session:'session'});f.api.status=async()=>({...f.completed,status:'unexpected'});
+  await f.call.resume();assert.equal(f.events.at(-1)[0],'paused');assert.match(f.events.at(-1)[1],/Status sesi/);
+  assert.ok(f.events.some(([_,message])=>message.includes('izin mikrofon')));assert.ok(f.events.some(([_,message])=>message.includes('Memeriksa sesi')));
+  assert.equal(f.counts().starts,0);assert.equal(f.counts().listen,0);
+});
+
+test('End during old-session closure targets that session and fences late closure from new admission',async()=>{
+  const f=fixture();let release,attempts=[];
+  f.api.end=(sid,key)=>{attempts.push([sid,key]);return attempts.length===1?new Promise(resolve=>{release=resolve;}):Promise.resolve();};
+  const pending=f.call.start({},{session:'old-session',startKey:'old-key'});await tick();assert.ok(release);
+  await f.call.end();release();await pending;
+  assert.deepEqual(attempts,[['old-session','old-key'],['old-session','old-key']]);assert.equal(f.counts().starts,0);assert.equal(f.call.active,false);
+});
+test('new-start permission rejection retains old saved cursor and never closes its session',async()=>{
+  const f=fixture(),previous={session:'old-session',turn:'old-turn',next:2};f.capture.permission=async()=>{throw new DOMException('denied','NotAllowedError');};
+  await f.call.start({},previous);assert.deepEqual(f.saved.at(-1),previous);assert.equal(f.counts().ends,0);assert.equal(f.counts().starts,0);
+});

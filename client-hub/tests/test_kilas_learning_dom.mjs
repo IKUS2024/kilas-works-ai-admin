@@ -30,7 +30,7 @@ function fixture(t,{ready=true}={}){
   const player={unlock:async()=>{unlocks++;events.push('unlock');},stop:()=>{},play:async()=>{played.push(0);events.push('played');}};
   const mount=()=>mountLearning(root,{capture,player,id:()=> 'synthetic-start-1234567890'});
   const check=()=>consent.click();
-  return {dom,window,document,root,form,consent,start,status,capture,player,mount,check,requested,events,played,counts:()=>({permissions,unlocks,listens})};
+  return {dom,window,document,root,form,consent,start,status,capture,player,mount,check,requested,events,played,completed,counts:()=>({permissions,unlocks,listens})};
 }
 
 test('rendered Finance-first DOM binds Start to the lesson and sends checked consent/settings/CSRF',async t=>{
@@ -110,4 +110,28 @@ test('actual module entry exposes malformed-control startup errors instead of si
   Object.defineProperty(globalThis,'document',{value:f.document,configurable:true});
   try{await import('../static/kilas_learning.mjs?dom-failed-entry');assert.equal(f.root.dataset.boot,'failed');assert.match(f.status.textContent,/Kontrol Learning/);assert.equal(f.start.disabled,true);}
   finally{if(previous)Object.defineProperty(globalThis,'document',previous);else delete globalThis.document;}
+});
+
+test('opening with saved session leaves settings editable, mic silent and resume optional',async t=>{
+  const f=fixture(t);f.window.sessionStorage.setItem('kilas-learning-session',JSON.stringify({session:'old-session',turn:'old-turn',next:1,settings:{target:'zh',native:'es',level:'advanced',voice:'kilas-female'}}));
+  f.window.fetch=async(url,options)=>{f.requested.push({url,options});return {ok:true,status:200,json:async()=>({...f.completed,session_id:'old-session'}),arrayBuffer:async()=>new ArrayBuffer(4)};};
+  const call=f.mount();f.form.elements.namedItem('target').value='es';await tick();
+  assert.equal(call.active,false);assert.equal(f.root.querySelector('[data-setup]').hidden,false);assert.equal(f.root.querySelector('[data-call]').hidden,true);
+  assert.equal(f.form.elements.namedItem('target').value,'es');assert.equal(f.root.querySelector('[data-previous]').hidden,false);
+  assert.equal(f.start.textContent,'Mulai pelajaran baru');assert.deepEqual(f.counts(),{permissions:0,unlocks:0,listens:0});
+  assert.equal(f.requested.filter(x=>x.options?.method==='POST').length,0);
+});
+test('explicit previous resume consumes completed stored clips without generating a new greeting',async t=>{
+  const f=fixture(t);f.window.fetch=async(url,options)=>{f.requested.push({url,options});return {ok:true,status:200,json:async()=>({...f.completed,target:'en',native:'id',level:'beginner',voice:'kilas-male'}),arrayBuffer:async()=>new ArrayBuffer(4)};};
+  const call=f.mount();await tick();assert.equal(call.active,false);
+  f.root.querySelector('[data-resume-previous]').click();await tick();
+  assert.equal(call.phase,'listening');assert.equal(f.played.length,1);assert.equal(f.counts().listens,1);
+  assert.equal(f.requested.filter(x=>x.options?.method==='POST').length,0);
+  f.root.querySelector('[data-end]').click();await tick();assert.equal(f.root.querySelector('[data-setup]').hidden,false);
+});
+test('new lesson ends the discovered old session before one consented new Start and preserves choices',async t=>{
+  const f=fixture(t);f.window.fetch=async(url,options)=>{f.requested.push({url,options});return {ok:true,status:200,json:async()=>url==='/kilas-learning/session'?{...f.completed,session_id:'old-session'}:url==='/kilas-learning/cancel-start'?{ended:true}:f.completed,arrayBuffer:async()=>new ArrayBuffer(4)};};
+  const call=f.mount();await tick();f.form.elements.namedItem('target').value='es';f.check();f.start.click();await tick();
+  const posts=f.requested.filter(x=>x.options?.method==='POST');assert.deepEqual(posts.map(x=>x.url),['/kilas-learning/cancel-start','/kilas-learning/sessions']);
+  assert.equal(posts[0].options.body.get('session_id'),'old-session');assert.equal(posts[1].options.body.get('target'),'es');assert.equal(posts[1].options.body.get('consent'),'yes');assert.equal(call.phase,'listening');
 });

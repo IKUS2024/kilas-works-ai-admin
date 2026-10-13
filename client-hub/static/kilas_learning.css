@@ -45,3 +45,6 @@
 .kilas-learning-page .learning-start .btn{flex:none}
 @media(max-width:480px){.kilas-learning-page .learning-start{gap:8px}.kilas-learning-page .learning-start .btn{width:100%}.kilas-learning-page .learning-consent{font-size:13px}.kilas-learning-page .learning-details{margin-top:20px;padding-top:12px}}
 @media(max-width:340px){.kilas-learning-page .learning-setup{grid-template-columns:minmax(0,1fr)}}
+
+.kilas-learning-page .learning-previous{max-width:720px;margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}
+.kilas-learning-page .learning-previous p{margin:0 0 12px;font-size:14px;color:var(--muted)}

@@ -1,4 +1,4 @@
-import {SilenceGate} from './kilas_learning_engine.mjs';
+import {SilenceGate} from './kilas_learning_engine.mjs?v=learning-choice-v4-20261013';
 
 // Server owns the paid WebSocket. This client sends PCM as the learner speaks,
 // never a completed recording, never a provider API key or a reusable token.
