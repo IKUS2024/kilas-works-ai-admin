@@ -94,6 +94,21 @@ class LearningTests(unittest.TestCase):
             learning._slots.release() # Mock executor did not run its finally.
             self.assertEqual(self.client.post('/kilas-learning/sessions',data={**fields,'level':'advanced'}).status_code,409)
 
+    def test_shared_navigation_does_not_require_an_unregistered_learning_route(self):
+        from flask import render_template
+        from unittest.mock import Mock
+        app=fixture.f.app.app
+        original=app.jinja_env.globals['url_for']
+        def isolated_url(endpoint,**values):
+            if endpoint.startswith('kilas_learning.'):
+                raise AssertionError('Unregistered Learning endpoint must not be resolved')
+            return original(endpoint,**values)
+        with app.test_request_context('/products/start'):
+            with patch.dict(app.jinja_env.globals,{'url_for':isolated_url}):
+                html=render_template('kilas_ai/_home_task_selector.html',kilas_learning_registered=False,ui_t=lambda text:text,request=Mock(blueprint='kilas_ai'))
+            self.assertNotIn('<span>Learning</span>',html)
+            self.assertIn('AI Chat',html);self.assertIn('Voice Over',html)
+
     def test_early_phrase_streaming_full_order_private_output_and_accounting(self):
         self.credit(500);ident=self.session();key=self.turn(ident);spoken=[]
         def stream(*args,**kwargs):

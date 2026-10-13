@@ -7,6 +7,11 @@ from .usage import UsageLimit
 
 learning_bp=Blueprint('kilas_learning',__name__,url_prefix='/kilas-learning')
 
+@learning_bp.app_context_processor
+def navigation():
+    # Shared templates are also used by isolated apps without this blueprint.
+    return {'kilas_learning_registered':True}
+
 
 @learning_bp.before_request
 def access():
