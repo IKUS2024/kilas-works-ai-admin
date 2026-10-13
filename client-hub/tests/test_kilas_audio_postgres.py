@@ -24,7 +24,7 @@ def main():
         values=original();return dict(values,options=values['options']+' -c search_path='+isolated)
     try:
         with patch.object(db,'_postgres_connect_kwargs',side_effect=options):
-            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_','0090_','0091_','0092_'))]):db.init_schema()
+            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_','0090_','0091_','0092_','0095_'))]):db.init_schema()
             before={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert schema.apply_release()==[schema.NAME];assert schema.apply_release()==[]
             after={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
@@ -49,6 +49,8 @@ def main():
             assert after_stt-before_stt=={'kilas_vo_stt_campaigns','kilas_vo_stt_operations'}
             assert schema.apply_release('0092_kilas_live_translator')==['0092_kilas_live_translator']
             assert schema.apply_release('0092_kilas_live_translator')==[]
+            assert schema.apply_release('0095_kilas_free_test')==['0095_kilas_free_test']
+            assert schema.apply_release('0095_kilas_free_test')==[]
             with store.locked(0) as conn:
                 user=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
                 admin=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio-admin@example.test','hash','KILAS_ADMIN') RETURNING id",one=True)[0]
