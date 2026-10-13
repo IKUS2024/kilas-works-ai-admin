@@ -78,7 +78,7 @@ def wire():
     finally:
         kill();timer.cancel()
 
-def attributed(start_ms,end_ms):
+def attributed(start_ms,end_ms,committed=False):
     # Sanitized shape evidence only; raw values/rows/IDs never leave the server.
     flags={'row_count':0,'readonly_row_count':0,'candidate_count':0}
     def outcome(reason,accepted=False):
@@ -94,7 +94,7 @@ def attributed(start_ms,end_ms):
             if len(raw)>262144 or time.monotonic()>deadline:return outcome('analytics_bounds')
         value=json.loads(raw)
     cols,rows=value.get('columns'),value.get('rows')
-    if not isinstance(cols,list) or not isinstance(rows,list) or len(rows)>100 or len(cols)>64 or any(not isinstance(c,str) for c in cols) or len(set(cols))!=len(cols):return outcome('analytics_schema')
+    if not isinstance(cols,list) or not isinstance(rows,list) or len(rows)>=100 or len(cols)>64 or any(not isinstance(c,str) for c in cols) or len(set(cols))!=len(cols):return outcome('analytics_schema')
     flags['row_count']=len(rows)
     if any(not isinstance(r,list) or len(r)!=len(cols) for r in rows):return outcome('analytics_schema')
     if not all(c in cols for c in ('path','query','timestamp','response_code')):return outcome('required_columns_missing')
@@ -115,7 +115,7 @@ def attributed(start_ms,end_ms):
     if len(records)!=1:return outcome('candidate_count')
     row=records[0];when=row['timestamp'];query=row['query'];path=row['path']
     kind=lambda x:'string' if isinstance(x,str) else 'integer' if type(x) is int else 'float' if type(x) is float else 'object' if isinstance(x,dict) else 'array' if isinstance(x,list) else 'null' if x is None else 'other'
-    flags.update(timestamp_type=kind(when),query_type=kind(query),response_code_type=kind(row['response_code']),exact_path=path=='/v1/speech-to-text/realtime',response_http=row['response_code'] if type(row['response_code']) is int and 100<=row['response_code']<=599 else 0)
+    flags.update(timestamp_type=kind(when),query_type=kind(query),response_code_type=kind(row['response_code']),exact_path=path=='/v1/speech-to-text/realtime',response_http=row['response_code'] if type(row['response_code']) is int and 100<=row['response_code']<=599 else 0,response_code=row['response_code'] if type(row['response_code']) is int and -999<=row['response_code']<=4999 else None,committed_wire=committed is True)
     if isinstance(path,str):
         parsed=urlsplit(path);flags['fixed_origin_realtime_path']=parsed.scheme in ('https','wss') and parsed.netloc=='api.elevenlabs.io' and parsed.path=='/v1/speech-to-text/realtime'
     flags['query_model_key']=isinstance(query,str) and 'model_id' in parse_qs(query.lstrip('?'))
@@ -142,7 +142,14 @@ def attributed(start_ms,end_ms):
     if not flags['timestamp_window_match']:return outcome('timestamp_outside_window')
     if not flags['exact_path']:return outcome('path_mismatch')
     if not flags['query_model_match']:return outcome('model_query_mismatch')
-    if type(row['response_code']) is not int or row['response_code'] not in (101,200):return outcome('response_status')
+    code=row['response_code']
+    if type(code) is not int or not -999<=code<=4999:return outcome('response_status')
+    if code not in (101,200):
+        # REST status conventions do not define WSS analytics sentinels. They
+        # prove no success alone; only private accepted+committed wire evidence
+        # permits a non-HTTP sentinel. HTTPdenials remain authoritative.
+        if 100<=code<=599 or committed is not True:return outcome('response_status')
+        return outcome('verified_committed_wire_sentinel',True)
     return outcome('verified',True)
 
 def finish(owner,result,after,attribution):
@@ -178,7 +185,7 @@ def reconcile(owner,result,before,start):
         try:
             after=subscription();comparison_end=int(datetime.now(timezone.utc).timestamp()*1000)
             # Entire interval between before/after snapshots, not just WSS time.
-            attribution=attributed(start,comparison_end)
+            attribution=attributed(start,comparison_end,committed=result['accepted'] is True and result['result']=='committed')
             with transaction() as conn:usage._query(conn,'UPDATE kilas_realtime_checks SET comparison_end_ms=? WHERE approval=?',(comparison_end,APPROVAL))
         except Exception:continue
         if after['used']>before['used'] and attribution:break

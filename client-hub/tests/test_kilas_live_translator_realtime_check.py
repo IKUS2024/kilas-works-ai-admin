@@ -105,4 +105,12 @@ class Checks(unittest.TestCase):
    for ms,sent,result in [(True,5000,'committed'),(10001,5000,'committed'),(5000,5001,'committed'),(5000,5000,'config_invalid')]:
     if sent>5000:continue # Database CHECK itself rejects an invalid persisted count.
     active,_=check.finish(owner,{'accepted':True,'result':result,'wire_process_ms':ms,'sent_pcm_ms':sent},{'used':101,'limit':200},True);self.assertFalse(active);self.assertFalse(check.verified())
+ def test_wss_analytics_sentinel_requires_private_committed_evidence_and_no_saturation(self):
+  from kilas_ai import live_translator_transport
+  value={'columns':['path','query','timestamp','response_code'],'column_units':[None,None,'ms',None],'rows':[['/v1/speech-to-text/realtime','model_id=scribe_v2_realtime',1700000000000,0]]}
+  response=Mock();response.status_code=200;response.__enter__=Mock(return_value=response);response.__exit__=Mock(return_value=False)
+  with patch.dict(os.environ,{'ELEVENLABS_API_KEY':'private'}),patch.object(live_translator_transport,'post',return_value=response):
+   for code,committed,expected in [(101,False,True),(200,False,True),(0,True,True),(0,False,False),(1000,True,True),(401,True,False),(500,True,False),(20000,True,False)]:
+    value['rows'][0][3]=code;response.iter_content.return_value=[json.dumps(value).encode()];self.assertEqual(check.attributed(1699999999999,1700000000001,committed),expected)
+   value['rows']=[['/v1/speech-to-text/realtime','model_id=scribe_v2_realtime',1700000000000,101]]+[['/v1/user/subscription','',1700000000000,200]]*99;response.iter_content.return_value=[json.dumps(value).encode()];self.assertFalse(check.attributed(1699999999999,1700000000001,True))
 if __name__=='__main__':unittest.main()
