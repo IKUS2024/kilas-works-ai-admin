@@ -100,8 +100,18 @@ def attributed(start_ms,end_ms):
     if not all(c in cols for c in ('path','query','timestamp','response_code')):return outcome('required_columns_missing')
     records=[dict(zip(cols,r)) for r in rows]
     readonly={'/v1/user/subscription','/v1/models','/v1/workspace/analytics/requests'}
-    flags['readonly_row_count']=sum(r['path'] in readonly for r in records)
-    records=[r for r in records if r['path'] not in readonly];flags['candidate_count']=len(records)
+    flags['readonly_row_count']=sum(isinstance(r['path'],str) and r['path'] in readonly for r in records)
+    flags['exact_realtime_count']=sum(r['path']=='/v1/speech-to-text/realtime' for r in records)
+    flags['fixed_origin_realtime_count']=0;flags['parsed_readonly_path_count']=0
+    for record in records:
+        if not isinstance(record['path'],str):continue
+        try:
+            parsed=urlsplit(record['path'])
+            fixed=parsed.scheme in ('https','wss') and parsed.netloc=='api.elevenlabs.io'
+            flags['fixed_origin_realtime_count']+=int(fixed and parsed.path=='/v1/speech-to-text/realtime')
+            flags['parsed_readonly_path_count']+=int((fixed or not parsed.scheme and not parsed.netloc) and parsed.path in readonly)
+        except ValueError:pass
+    records=[r for r in records if not isinstance(r['path'],str) or r['path'] not in readonly];flags['candidate_count']=len(records)
     if len(records)!=1:return outcome('candidate_count')
     row=records[0];when=row['timestamp'];query=row['query'];path=row['path']
     kind=lambda x:'string' if isinstance(x,str) else 'integer' if type(x) is int else 'float' if type(x) is float else 'object' if isinstance(x,dict) else 'array' if isinstance(x,list) else 'null' if x is None else 'other'
