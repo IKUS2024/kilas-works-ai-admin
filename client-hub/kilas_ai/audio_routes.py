@@ -431,9 +431,16 @@ def live_translator_turn(ident,key):
     video_budget.key_valid(key)
     if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
     if request.method=='POST':
-        live.enqueue(session['user_id'],ident,key,request.files.get('recording'))
+        live.enqueue(session['user_id'],ident,key,request.files.get('recording'),stream_output=request.form.get('stream_output')=='sentences-v1')
         return {'status':'PROCESSING'},202,{'Cache-Control':'private, no-store'}
     state=sessions.result(session['user_id'],ident,key)
+    from . import live_translator_segments as segments
+    progress=segments.progress(session['user_id'],ident,key,state)
+    if progress:
+        for part in progress['segments']:
+            part['audio_url']=url_for('kilas_audio.live_translator_segment',ident=ident,key=key,index=part['index'])
+        if state['status']=='COMPLETED':progress['audio_url']=url_for('kilas_audio.live_translator_result',ident=ident,key=key)
+        return {'status':state['status'],'stream_output':'sentences-v1',**progress},200,{'Cache-Control':'private, no-store'}
     if state['status']=='COMPLETED':
         # Avoid loading/inspecting audio blobs merely to return completed metadata.
         job=db.query_one("SELECT source_language,target_language,original_script FROM kilas_audio_jobs WHERE id=? AND user_id=? AND status='COMPLETED' AND mode='voiceover'",(state['audio_job_id'],session['user_id']))
@@ -450,11 +457,20 @@ def live_translator_turn(ident,key):
                   'attempt_limit':'Batas penggunaan Live Translator tercapai. Sesi dijeda.',
                   'live_audio_limit':'Batas audio Live Translator tercapai. Sesi dijeda tanpa pembelian tambahan.',
                   'zero_balance':'Kuota audio Live Translator belum tersedia untuk akun ini.',
-                  'insufficient_balance':'Kuota audio tidak cukup untuk ucapan berikutnya.'}
+                  'insufficient_balance':'Kuota audio tidak cukup untuk ucapan berikutnya.',
+                  'stream_unavailable':'Audio streaming belum tersedia. Tekan Lanjutkan untuk mode standar pada ucapan baru; ucapan ini tidak diulang.'}
         state={'status':'FAILED','code':code,'recoverable':code in ('no_speech','translation_failed','transcription_failed','speech_failed','processing_failed','processing_interrupted'),
                'error':messages.get(code,'Ucapan belum berhasil diproses. Ucapan ini tidak diulang otomatis.')}
     else:state={'status':state['status']}
     return state,200,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.get('/live/sessions/<ident>/turns/<key>/audio/segments/<int:index>')
+def live_translator_segment(ident,key,index):
+    if not re.fullmatch(r'live-[a-f0-9]{32}',key) or not 0<=index<8:abort(404)
+    from . import live_translator_segments as segments
+    raw=segments.clip(session['user_id'],ident,key,index)
+    return raw,200,{'Content-Type':'audio/mpeg','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}
 
 
 @audio_bp.get('/live/sessions/<ident>/turns/<key>/audio')

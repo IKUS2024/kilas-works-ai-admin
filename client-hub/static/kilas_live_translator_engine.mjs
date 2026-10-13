@@ -11,10 +11,11 @@ export class SilenceGate {
 }
 
 export class TranslatorSession {
-  constructor({api,capture,playback,onState=()=>{},onResult=()=>{},onError=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-','')}){
-    Object.assign(this,{api,capture,playback,onState,onResult,onError,now,key});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.pendingKey=null;this.gate=new SilenceGate();this.suspended=false;
+  constructor({api,capture,playback,onState=()=>{},onResult=()=>{},onError=()=>{},onTiming=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-','')}){
+    Object.assign(this,{api,capture,playback,onState,onResult,onError,onTiming,now,key});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.pendingKey=null;this.gate=new SilenceGate();this.suspended=false;
   }
   stateTo(state){this.state=state;this.onState(state);}
+  timing(values){try{this.onTiming(values);}catch{}}
   async start(params){
     if(this.state!=='ended')return;
     const ticket=++this.version;this.suspended=false;this.controller=new AbortController();this.stateTo('starting');
@@ -44,11 +45,20 @@ export class TranslatorSession {
     try{
       if(!blob?.size){const error=Error('Rekaman kosong. Silakan bicara kembali.');error.code='no_speech';throw error;}
       this.pendingKey='live-'+this.key();
-      const result=await this.api.turn(this.id,this.pendingKey,blob,this.controller.signal);
+      const speechEnd=this.gate.lastVoice??this.now();let first=false;
+      this.timing({speech_end_to_submit_ms:Math.max(0,this.now()-speechEnd)});
+      const onStarted=()=>{if(first||ticket!==this.version)return;first=true;this.timing({speech_end_to_first_playback_ms:Math.max(0,this.now()-speechEnd)});};
+      const result=await this.api.turn(this.id,this.pendingKey,blob,this.controller.signal,async part=>{
+        if(ticket!==this.version||this.controller.signal.aborted)throw new DOMException('Sesi dijeda.','AbortError');
+        this.onResult(part);this.stateTo('playing');
+        await this.playback.play(part.audio_url,this.controller.signal,()=>ticket===this.version,onStarted);
+        if(ticket!==this.version||this.controller.signal.aborted)throw new DOMException('Sesi dijeda.','AbortError');
+        this.stateTo('processing');
+      });
       if(ticket!==this.version)return;
       this.pendingKey=null;
       this.onResult(result);
-      this.stateTo('playing');await this.playback.play(result.audio_url,this.controller.signal,()=>ticket===this.version);
+      if(!result.streamed){this.stateTo('playing');await this.playback.play(result.audio_url,this.controller.signal,()=>ticket===this.version,onStarted);}
       if(ticket!==this.version)return;
       await this.listen(ticket);
     }catch(e){

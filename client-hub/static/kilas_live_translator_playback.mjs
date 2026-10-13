@@ -36,9 +36,9 @@ export class TranslatorPlayback {
     this.check(op);if(op.context.state!=='running')throw error;
   }
   prepare(signal,isCurrent){return this.run(signal,isCurrent,op=>this.resume(op));}
-  play(url,signal,isCurrent){
+  play(url,signal,isCurrent,onStarted=()=>{}){
     return this.run(signal,isCurrent,async op=>{
-      if(typeof url!=='string'||!/^\/kilas-translator\/live\/sessions\/[a-f0-9]{48}\/turns\/live-[a-f0-9]{32}\/audio$/.test(url))throw failure('audio_url','Hasil audio tidak tersedia.');
+      if(typeof url!=='string'||!/^\/kilas-translator\/live\/sessions\/[a-f0-9]{48}\/turns\/live-[a-f0-9]{32}\/audio(?:\/segments\/[0-7])?$/.test(url))throw failure('audio_url','Hasil audio tidak tersedia.');
       const loadError=failure('audio_fetch','Audio belum dapat dimuat. Periksa koneksi.');
       let raw;
       try{
@@ -56,10 +56,10 @@ export class TranslatorPlayback {
       if(!Number.isFinite(buffer?.duration)||buffer.duration<=0||buffer.duration>600)throw decodeError;
       // Android may suspend the context while network/provider work is in flight.
       await this.resume(op);this.check(op);
-      await this.bounded(op,()=>this.playBuffer(op,buffer),buffer.duration*1000+10000,failure('audio_timeout','Pemutaran audio melewati batas waktu.'));
+      await this.bounded(op,()=>this.playBuffer(op,buffer,onStarted),buffer.duration*1000+10000,failure('audio_timeout','Pemutaran audio melewati batas waktu.'));
     });
   }
-  playBuffer(op,buffer){
+  playBuffer(op,buffer,onStarted){
     return new Promise((resolve,reject)=>{
       const context=op.context;let node=null,timer=null,settled=false,recovered=false;
       let lastTime=context.currentTime,lastProgress=this.now(),audioStart=context.currentTime;
@@ -85,7 +85,7 @@ export class TranslatorPlayback {
           timer=this.schedule(watch,250);
         }catch(e){finish(e);}
       };
-      try{this.check(op);node=context.createBufferSource();node.buffer=buffer;node.connect(context.destination);node.onended=()=>{try{this.check(op);finish();}catch(e){finish(e);}};node.start();timer=this.schedule(watch,250);}
+      try{this.check(op);node=context.createBufferSource();node.buffer=buffer;node.connect(context.destination);node.onended=()=>{try{this.check(op);finish();}catch(e){finish(e);}};node.start();try{onStarted();}catch{}timer=this.schedule(watch,250);}
       catch(e){finish(e.name==='AbortError'?e:failure('audio_start','Audio belum dapat diputar.'));}
     });
   }

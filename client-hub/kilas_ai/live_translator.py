@@ -34,6 +34,7 @@ def _log_latency(timings,started,success):
             'stt_claim_ms','stt_ms','translation_ms','translation_first_delta_ms',
             'translation_fences_ms','credit_tts_ms',
             'audio_reserve_ms','audio_submit_ms','completion_ms')
+    stages+=('first_tts_byte_ms','first_published_clip_ms')
     values=' '.join(f'{name}={timings[name]:.1f}' for name in stages if name in timings)
     try:print(f'KILAS_LIVE_LATENCY outcome={"completed" if success else "failed"} {values} backend_ms={(monotonic()-started)*1000:.1f}',flush=True)
     except OSError:pass  # Diagnostic output must never change accounting or End.
@@ -115,13 +116,13 @@ def translation(owner,key,text,a,b,check,*,timings=None):
         finally:usage.finish(owner,key+'-text',operations,success=success,provider='openai',model=model,usage=tokens)
 
 
-def process(owner,ident,key,pcm,info,*,timings=None,started=None):
+def process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False):
     # Reuse HTTPS setup for the two fresh credit reads, STT and TTS in this turn.
     with transport.turn_connection():
-        return _process(owner,ident,key,pcm,info,timings=timings,started=started)
+        return _process(owner,ident,key,pcm,info,timings=timings,started=started,stream_output=stream_output)
 
 
-def _process(owner,ident,key,pcm,info,*,timings=None,started=None):
+def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False):
     job=None;capability=None;success=False
     timings={} if timings is None else timings
     started=monotonic() if started is None else started
@@ -156,8 +157,28 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None):
             job,new=audio_store.create(owner,key+'-audio','voiceover','Live Translator',result['source_language'],result['target_language'],choice['id'],choice['name'],result['text'],0,None,expected,reserve,original_script=result['text'])
         check()
         if not new:raise audio_store.AudioError('Audio ini sudah diproses.','duplicate_turn',409)
-        # Existing job locks, reservation, output-duration settlement and supplier adapter.
-        with _timed(timings,'audio_submit_ms'):audio_service.submit(owner,job)
+        from . import live_translator_segments as segments
+        parts=segments.sentences(result['text']) if stream_output else []
+        # Fallback is chosen BEFORE dispatch: old client or one stable clip.
+        with _timed(timings,'audio_submit_ms'):
+            if len(parts)>1:
+                segments.attach(owner,ident,key,job,len(parts),reserve)
+                def stream_check():
+                    if monotonic()-started>180:raise audio_store.AudioError('Audio melewati batas waktu.','turn_timeout',503)
+                    return check()
+                def first_byte():
+                    if 'first_tts_byte_ms' not in timings:timings['first_tts_byte_ms']=(monotonic()-started)*1000
+                for index,part in enumerate(parts):
+                    stream_check()
+                    if index:
+                        with _timed(timings,'credit_tts_ms'):stt.require_subscription_credit()
+                    segments.dispatch(owner,ident,key,job,index)
+                    raw=segments.speech(part.strip(),choice['id'],stream_check,first_byte,previous=''.join(parts[:index]),following=''.join(parts[index+1:]))
+                    segments.commit_clip(owner,job,index,raw)
+                    if index==0:timings['first_published_clip_ms']=(monotonic()-started)*1000
+                    stream_check()
+                segments.complete(owner,job,stream_check)
+            else:audio_service.submit(owner,job)
         check()
         with _timed(timings,'completion_ms'):
             output=audio_store.get(owner,job)
@@ -169,13 +190,14 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None):
         # A reservation that did not dispatch can be cancelled; dispatched cost stays recorded.
         if capability and budget.owned(owner,key)['status']=='RESERVED':budget.cancel(owner,key)
         # End never refunds dispatched supplier cost or rewrites audio accounting.
-        if job and audio_store.get(owner,job)['status']=='QUEUED':audio_store.fail(owner,job,'session_ended')
+        if job and audio_store.get(owner,job)['status'] in ('QUEUED','PROCESSING'):
+            audio_store.fail(owner,job,getattr(error,'code','processing_failed'))
         sessions.finish(owner,ident,key,False,job,getattr(error,'code','processing_failed'))
         raise
     finally:_log_latency(timings,started,success)
 
 
-def enqueue(owner,ident,key,recording):
+def enqueue(owner,ident,key,recording,*,stream_output=False):
     require_ready(owner)
     if not _SLOTS.acquire(blocking=False):raise audio_store.AudioError('Layanan sedang sibuk. Coba kembali.','service_busy',429)
     claimed=False;timings={};started=monotonic()
@@ -188,7 +210,7 @@ def enqueue(owner,ident,key,recording):
         queued_at=monotonic()
         def run():
             timings['queue_ms']=round((monotonic()-queued_at)*1000,1)
-            try:process(owner,ident,key,pcm,info,timings=timings,started=started)
+            try:process(owner,ident,key,pcm,info,timings=timings,started=started,stream_output=stream_output)
             except Exception:pass  # persisted status, no raw audio/text/provider error logging
             finally:_SLOTS.release()
         _EXECUTOR.submit(run)

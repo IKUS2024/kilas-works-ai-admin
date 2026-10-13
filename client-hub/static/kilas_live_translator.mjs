@@ -1,7 +1,7 @@
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=session-continuity-20261013';
-import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=session-continuity-20261013';
-import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=native-timers-20261013';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=sentence-output-20261013';
+import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=sentence-output-20261013';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=sentence-output-20261013';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=owner-recovery-20261012';
 const root=document.querySelector('.kilas-live-translator');
@@ -60,7 +60,7 @@ if(root){
   turn:(...args)=>turns.turn(...args),resume:(...args)=>turns.resume(...args),
   end:id=>recovery.endKnown(id),
  };
- const session=new TranslatorSession({api,capture,playback,key:()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''),onError:showError,onResult:result=>{
+ const session=new TranslatorSession({api,capture,playback,onTiming:values=>{try{console.info('KILAS_LIVE_CLIENT_LATENCY '+Object.entries(values).filter(([,v])=>Number.isFinite(v)&&v>=0).map(([k,v])=>k+'='+v.toFixed(1)).join(' '));}catch{}},key:()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''),onError:showError,onResult:result=>{
   const text=document.querySelector('#live-translation');text.textContent=result.translated_text||'';text.hidden=!text.textContent;
  },onState:state=>{
   start.disabled=state!=='ended'||!setupReady||!recovery?.canStart();setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;
