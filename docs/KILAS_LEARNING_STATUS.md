@@ -1,5 +1,17 @@
 # Kilas Learning status — 2026-10-13
 
+## Learning Start repair — 2026-10-13
+
+Owner reported Start still failing after consent/microphone steps. Source and a browser-free execution of the old entry module against the Flask-rendered DOM reproduced a concrete defect: `root.querySelector('form')` selected the preceding Finance navigation form. The actual lesson submit was not intercepted, no `/sessions` POST occurred, and status did not change. Production had no Learning sessions created in the 08:30–09:00 UTC reporting window. Request/app logs supplied no additional client error evidence; no phone console capture or browser QA was performed. This is a reproduced code defect, not a claim that readiness proved usable UI or that the owner's exact phone event was observed.
+
+The repair binds only `[data-learning-form]`, leaving Finance navigation untouched. Native DOM consent changes gate only the correctly marked Start button together with owner-specific server readiness. The real checked form supplies settings, consent and CSRF; unchecked consent is never overwritten with `yes`. Start gives immediate microphone/audio feedback, and audio unlock begins synchronously with microphone permission in the click gesture; paid admission waits for both. Early initialization/ID errors are caught and leave deliberate retry available. Login/account denial and unexpected rejected operations now produce visible recovery guidance. Status precedes the call view so startup feedback stays near the active controls.
+
+An independent small classic-script watchdog reports module loading errors/timeouts, and blocks native form fallback before successful module boot. Start is initially disabled until its handlers and consent state are ready, preventing a default GET containing CSRF/settings if the module fails. The entry module also catches initialization errors. The test-only DOM utility (`jsdom@26.1.0`) runs in an isolated `/tmp` npm prefix; no production dependency or browser engine was added.
+
+Verification: 72 Python Learning/Home/unified tests, 59 Node tests (including 12 DOM tests against generated Flask markup), Ruff E9/F, JavaScript syntax and diff checks PASS. DOM checks cover Finance-first selection, real submit/click/checkbox events, checked and unchecked consent, owner readiness denial, module auto-boot, resource failure/watchdog, pending/rejected permission, late End, backend errors, CSRF/settings payload and unexpected rejected Start. Python fixture/network access is isolated and providers are mocked; Node IO is mocked. The existing ordered playback, cancellation, accounting and PostgreSQL suites remain release gates. Deployment receipt and final CI are reported after observation.
+
+No Translator/shared navigation/global CSS, backend billing, provider keys, allowlist or activated runtime settings changed. The approved `48750` monthly Learning reserve remains for owner use; no paid automated STT/TTS/model call occurred. Real phone behavior remains unverified.
+
 ## Continuation checkpoint — 2026-10-13 after owner resume
 
 Owner resumed Learning through main deployment after the Translator release `5eeb3878daced6192e7bd7d18843a924197a8a47`. The saved four-file checkpoint was reviewed and completed on top of that main SHA with no Translator edits. The older release receipts below remain historical evidence; the new deployment receipt and CI links are reported in the task handoff after observation.

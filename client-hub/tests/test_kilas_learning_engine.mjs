@@ -73,11 +73,11 @@ test('late End failure cannot hide a newer call',async()=>{
   const ending=f.call.end();await f.call.start({});reject(Error('late'));await ending;
   assert.equal(f.events.at(-1)[0],'listening');assert.equal(f.call.active,true);
 });
-test('End while resume permission pending never unlocks audio or calls API',async()=>{
+test('End during resumed permission stops pre-unlocked audio and never plays or admits API work',async()=>{
   const f=fixture();await f.call.restore({session:'session',turn:'greeting',next:0});let release,unlocks=0;
   f.capture.permission=()=>new Promise(resolve=>{release=resolve;});f.player.unlock=async()=>{unlocks++;};
   const pending=f.call.resume();await f.call.end();release();await pending;
-  assert.equal(unlocks,0);assert.deepEqual(f.played,[]);
+  assert.equal(unlocks,1);assert.deepEqual(f.played,[]);
 });
 test('unknown non-admitted upload resumes listening without replaying greeting',async()=>{
   const f=fixture();await f.call.restore({session:'session',turn:'unknown',next:0});
@@ -172,4 +172,13 @@ test('late cancelled listen cannot close microphone permission in a newer Start'
   f.capture.cancel=()=>{if(newPermission&&f.call.phase==='preparing'&&!f.call.session)cancelledNewPermission++;};
   const current=f.call.start({});await Promise.all([old,ending,current]);
   assert.equal(cancelledNewPermission,0);assert.equal(f.call.phase,'listening');assert.equal(openings,2);
+});
+test('gesture audio unlock begins before awaiting microphone consent and all admission waits for both',async()=>{
+  const f=fixture(),events=[];let release;
+  f.player.unlock=async()=>{events.push('unlock');};f.capture.permission=()=>{events.push('permission');return new Promise(r=>{release=r;});};
+  const pending=f.call.start({});assert.deepEqual(events,['unlock','permission']);assert.equal(f.counts().starts,0);release();await pending;assert.equal(f.counts().starts,1);
+});
+test('early startup ID errors are caught, shown and leave another deliberate Start available',async()=>{
+  const f=fixture();f.call.id=()=>{throw Error('Secure randomness unavailable');};await f.call.start({});
+  assert.equal(f.call.active,false);assert.equal(f.events.at(-1)[0],'ended');assert.match(f.events.at(-1)[1],/Secure randomness/);assert.equal(f.counts().starts,0);
 });

@@ -5,6 +5,7 @@ import json
 import os
 import unittest
 from datetime import timedelta
+from pathlib import Path
 from unittest.mock import patch
 import test_kilas_audio as fixture
 import test_kilas_audio_video_script as video_fixture
@@ -387,6 +388,30 @@ class LearningTests(unittest.TestCase):
             self.assertIn('"report_available": false',output.call_args.args[0])
         with patch.object(learning_schema,'print',side_effect=OSError('closed output'),create=True):
             learning_schema.report_readiness()
+
+    def test_dom_fixture_has_distinct_navigation_and_learning_forms(self):
+        voices=[VOICE,{**VOICE,'alias':'kilas-female','name':'Kilas Female'}]
+        with patch.object(learning,'ready',return_value=True),patch.object(learning.voices,'public_choices',return_value=voices):
+            html=self.client.get('/kilas-learning').text
+        self.assertLess(html.index('<form class="kilas-finance-entry"'),html.index('data-learning-form'))
+        self.assertIn('data-ready="true"',html)
+        self.assertIn('data-learning-start disabled',html)
+        self.assertIn('data-learning-module',html)
+        target=os.environ.get('KILAS_LEARNING_DOM_FIXTURE_PATH')
+        if target:
+            path=Path(target);path.parent.mkdir(parents=True,exist_ok=True);path.write_text(html,encoding='utf-8')
+
+    def test_page_readiness_remains_owner_specific_and_start_denial_is_visible(self):
+        self.credit(500)
+        with self.funded(),self.on(),patch.object(learning.voices,'public_choices',return_value=[VOICE]):
+            self.assertIn('data-ready="true"',self.client.get('/kilas-learning').text)
+            with self.client.session_transaction() as state:state['user_id']=self.other
+            html=self.client.get('/kilas-learning').text
+            self.assertIn('data-ready="false"',html)
+            self.assertIn('Learning belum aktif untuk akun ini.',html)
+            response=self.client.post('/kilas-learning/sessions',data={'csrf_token':'audio-csrf','consent':'yes'})
+            self.assertEqual(response.status_code,503)
+            self.assertEqual(response.json['code'],'learning_unavailable')
 
 
 class PhraseTests(unittest.TestCase):

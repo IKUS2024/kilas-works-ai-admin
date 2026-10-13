@@ -17,11 +17,13 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - run: pip install -r client-hub/requirements.txt ruff
+      - name: Install isolated browser-free DOM test utility
+        run: npm install --prefix /tmp/kilas-learning-dom --cache /tmp/kilas-learning-npm-cache --no-audit --no-fund --save-exact jsdom@26.1.0
       - run: python -m compileall -q client-hub/kilas_ai/learning.py client-hub/kilas_ai/learning_realtime.py client-hub/kilas_ai/learning_store.py client-hub/kilas_ai/learning_routes.py client-hub/kilas_ai/learning_schema.py client-hub/kilas_ai/learning_phrases.py
       - run: ruff check --select E9,F client-hub/kilas_ai/learning*.py client-hub/tests/test_kilas_learning.py
       - run: python -m unittest test_kilas_learning test_kilas_home test_kilas_ai_unified -q
         working-directory: client-hub
-        env: {PYTHONPATH: '.:tests', PYTHONDONTWRITEBYTECODE: '1'}
+        env: {PYTHONPATH: '../scripts/offline_tests:.:tests', PYTHONDONTWRITEBYTECODE: '1', KILAS_LEARNING_DOM_FIXTURE_PATH: '/tmp/kilas-learning-dom/rendered-home.html'}
       - run: node --test client-hub/tests/test_kilas_learning*.mjs
   postgres:
     runs-on: ubuntu-latest

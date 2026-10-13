@@ -32,11 +32,14 @@ export class LearningCall {
   valid(ticket) { return this.active&&ticket===this.version; }
   async start(settings) {
     if(this.active)return;
-    this.active=true;this.settingsFrom(settings);this.startKey=this.id();const {ticket,signal}=this.fresh();this.state('preparing');let dispatched=false;
+    this.active=true;const {ticket,signal}=this.fresh();let dispatched=false;
     try {
+      this.state('preparing','Meminta izin mikrofon dan mengaktifkan audio…');
+      this.settingsFrom(settings);this.startKey=this.id();
       // Permission and playback unlock happen in the Start gesture, before paid requests.
-      await within(()=>this.capture.permission(signal),signal,this.startupMs);if(!this.valid(ticket))return;
-      await within(()=>this.player.unlock(signal),signal,this.startupMs);if(!this.valid(ticket))return;
+      // Both start synchronously in the user's gesture, before either permission await.
+      await Promise.all([within(()=>this.player.unlock(signal),signal,this.startupMs),within(()=>this.capture.permission(signal),signal,this.startupMs)]);if(!this.valid(ticket))return;
+      this.state('preparing','Tutor sedang menyiapkan sapaan…');
       this.persist();dispatched=true;
       const state=await this.api.start({...settings,start_key:this.startKey},signal);
       if(!this.valid(ticket))return;
@@ -60,7 +63,7 @@ export class LearningCall {
     if(!this.active||this.phase!=='paused')return;
     const {ticket,signal}=this.fresh();this.busy=true;this.state('preparing');
     try {
-      await within(()=>this.capture.permission(signal),signal,this.startupMs);if(!this.valid(ticket))return;await within(()=>this.player.unlock(signal),signal,this.startupMs);if(!this.valid(ticket))return;
+      await Promise.all([within(()=>this.player.unlock(signal),signal,this.startupMs),within(()=>this.capture.permission(signal),signal,this.startupMs)]);if(!this.valid(ticket))return;
       let state;
       try{state=this.session?await this.api.status(this.session,this.turn,signal):await this.api.current(signal);}
       catch(error){

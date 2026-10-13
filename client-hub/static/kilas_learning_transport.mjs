@@ -7,7 +7,7 @@ export function learningRequest({csrf,fetcher=fetch,timeout=15000}){
     try{
       return await within(async()=>{
         const response=await fetcher('/kilas-learning'+path,{method:data?'POST':'GET',body:data,signal:control.signal,credentials:'same-origin',headers:data?{'X-CSRF-Token':csrf}:{},cache:'no-store',keepalive});
-        if(!response.ok){const result=await response.json().catch(()=>({}));const error=Error(result.error||'Sesi belum dapat diperiksa. Tekan Lanjutkan.');error.code=result.code;throw error;}
+        if(!response.ok){const result=await response.json().catch(()=>({}));const fallback=response.status===401?'Sesi login berakhir. Masuk kembali lalu mulai belajar.':response.status===403?'Learning tidak tersedia untuk akun yang sedang masuk.':'Sesi belum dapat diperiksa. Tekan Lanjutkan.';const error=Error(result.error||fallback);error.code=result.code;error.httpStatus=response.status;throw error;}
         return binary?response.arrayBuffer():response.json();
       },control.signal,timeout);
     }finally{signal?.removeEventListener('abort',abort);control.abort();}
