@@ -17,7 +17,7 @@ _SLOTS=BoundedSemaphore(2)
 from . import audio_branded_voices as voices, audio_transcription_budget as budget, audio_transcription_provider as stt
 from . import audio_provider, audio_media, audio_service, audio_store, providers, model_policy, usage
 from . import live_translator_store as sessions
-from . import live_translator_transport as transport
+from . import live_translator_transport as transport, free_test
 
 
 @contextmanager
@@ -50,7 +50,7 @@ def ready(owner=None):
         if os.environ.get('KILAS_LIVE_TRANSLATOR_REFERENCE_VERIFIED')!='yes':return False
         if not re.fullmatch(r'proj_[A-Za-z0-9_-]{1,100}',os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT','')):return False
         allowed=int(os.environ.get('KILAS_LIVE_TRANSLATOR_ALLOWED_OWNER_ID','0'))
-        if allowed<=0 or owner!=allowed:return False
+        if allowed<=0 or (owner!=allowed and not free_test.eligible(owner)):return False
         if os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa') not in ('qa','owner'):return False
         if not 1<=int(os.environ.get('KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS','0'))<=3600:return False
         if not budget.ready(owner) or not os.environ.get('OPENAI_API_KEY','').strip():return False
@@ -66,6 +66,7 @@ def require_ready(owner=None):
 
 def require_audio_allowance(owner,reserve=1):
     """Bound Live output even for the existing internal QA Audio exemption."""
+    if free_test.eligible(owner):return
     now=usage._now()
     start=now.replace(day=1,hour=0,minute=0,second=0,microsecond=0) if os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa')=='owner' else now-timedelta(days=1)
     rows=db.query_all("SELECT status,actual_ms,original_script FROM kilas_audio_jobs WHERE user_id=? AND operation_key LIKE ? AND title='Live Translator' AND created_at>=?",(owner,'live-%-audio',start.isoformat()))

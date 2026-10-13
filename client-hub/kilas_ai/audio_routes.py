@@ -7,6 +7,7 @@ import secrets
 from flask import Blueprint, abort, redirect, render_template, request, send_file, session, url_for
 import db
 import security
+from . import free_test
 import payment_service
 from .routes import enabled
 from .billing_routes import admin_bp
@@ -24,7 +25,7 @@ def access():
     if not enabled():abort(404)
     if not session.get('user_id'):return redirect(url_for('auth.login_page'))
     user=security.current_user()
-    if not user or user['role']!='CLIENT_OWNER':abort(404)
+    if not user or session.get('role')!=user['role'] or (user['role']!='CLIENT_OWNER' and not free_test.eligible(session["user_id"])):abort(404)
 
 
 @audio_bp.errorhandler(store.AudioError)

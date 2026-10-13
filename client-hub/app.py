@@ -294,6 +294,9 @@ def create_app():
             live_translator_realtime_check.startup()  # Explicit one-shot approval gate; durable no-retry marker.
         from kilas_ai import learning_schema
         learning_schema.apply_release()  # Independent additive Learning tables only.
+        audio_schema.apply_release('0095_kilas_free_test')
+        from kilas_ai import free_test
+        free_test.report()
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)

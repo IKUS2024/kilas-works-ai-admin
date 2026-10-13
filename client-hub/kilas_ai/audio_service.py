@@ -2,6 +2,7 @@
 import math
 from datetime import timedelta
 from . import audio_store as store, audio_provider as provider, audio_media as media, usage
+from . import audio_transcription_provider as stt, audio_transcription_budget as budget, free_test
 
 
 def estimate(script):
@@ -16,6 +17,9 @@ def submit(user,ident):
     if not store.start(user,ident):return
     job=store.get(user,ident);payload=store.payload(user,ident)
     try:
+        with store.locked(user) as conn:
+            sponsored=free_test.sponsored_audio(conn,user,ident)
+        if sponsored:stt.require_subscription_credit()
         if job['mode']=='translate':
             ident_provider=provider.dub(bytes(payload['source_content']),job['source_language'],job['target_language'],ident)
             store.submitted(user,ident,ident_provider,retain_video=bytes(payload['source_content'])[4:8]==b'ftyp')
@@ -24,7 +28,7 @@ def submit(user,ident):
             options={'personal':True} if job['voice_name']=='Suara Saya' or personal.owns(user,job['voice_id']) else {}
             raw,request_id=provider.speech(payload['script'],job['voice_id'],job['target_language'],**options)
             store.finish(user,ident,raw,media.mp3_duration(raw),request_id)
-    except (provider.ProviderError,media.MediaError,store.AudioError) as error:
+    except (provider.ProviderError,media.MediaError,store.AudioError,budget.BudgetError) as error:
         store.fail(user,ident,getattr(error,'code','invalid_audio'))
     except Exception:
         store.fail(user,ident,'processing_failed')

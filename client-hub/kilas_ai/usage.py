@@ -32,6 +32,9 @@ class UsageLimit(ValueError):
 
 # Server-owned allowlist; never accepted from a request, user field or plan record.
 def _qa_quota_exempt(conn, user_id, now):
+    from . import free_test
+    if free_test.eligible(user_id, conn, now):
+        return True
     allowed = {v.strip().casefold() for v in os.environ.get(
         'KILAS_AI_INTERNAL_QA_EMAILS', 'irvankarnavi@gmail.com').split(',') if v.strip()}
     row = _query(conn, "SELECT email FROM users WHERE id=?", (user_id,), one=True)

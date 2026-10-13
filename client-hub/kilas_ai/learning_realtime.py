@@ -10,7 +10,8 @@ from datetime import timedelta
 from time import monotonic, sleep
 import websocket
 import db
-from . import learning, learning_store as store, usage, audio_store
+from . import learning, learning_store as store, usage, audio_store, billing, free_test
+from .autonomous_store import transaction
 from . import audio_transcription_budget as budget, audio_transcription_provider as stt
 
 MODEL='scribe_v2_realtime'
@@ -44,18 +45,27 @@ def begin(owner,ident,turn):
             learning._slots.release()
             return False
         config=budget.policy()
-        with audio_store.locked(owner) as conn:
+        if not config:raise budget.BudgetError('budget_unavailable')
+        with transaction() as conn:
+            # Match the shared STT lock order: global funding, then account.
+            budget._global_lock(conn);billing._lock_user(conn,owner)
+            budget._campaign(conn,config)
             store._session(conn,owner,ident)
             current=usage._query(conn,'SELECT status FROM kilas_learning_turns WHERE id=? AND session_id=?',(turn,ident),one=True)
             if not current or current[0]!='PROCESSING':
                 raise store.Error('Stream sudah dibatalkan.', 'cancelled',409)
-            if db.BACKEND=='postgres':
-                usage._query(conn,'SELECT pg_advisory_xact_lock(74109302)')
             month=usage._now().replace(day=1,hour=0,minute=0,second=0,microsecond=0).isoformat()
             own=usage._query(conn,'SELECT COALESCE(SUM(i.charge_micro),0) FROM kilas_learning_inputs i JOIN kilas_learning_turns t ON t.id=i.turn_id JOIN kilas_learning_sessions s ON s.id=t.session_id WHERE s.user_id=? AND i.created_at>=?',(owner,month),one=True)[0]
             total=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_learning_inputs WHERE created_at>=?',(month,),one=True)[0]
             cap=int(os.environ.get('KILAS_LEARNING_REALTIME_BUDGET_MICRO_USD','0'))
-            if not config or not 1<=cap<=config['account_micro'] or int(own)+RESERVE_MICRO>cap or int(total)+RESERVE_MICRO>config['global_micro']:
+            trial=free_test.eligible(owner,conn)
+            if trial:
+                budget._expire(conn,campaign=config["id"])
+                budget.trial_admit(conn,owner)
+            account_cap=config['account_micro'] if trial else cap
+            shared=budget.journal_spend(conn,config) if trial else 0
+            shared_own=budget.journal_spend(conn,config,owner) if trial else 0
+            if not config or not 1<=account_cap<=config['account_micro'] or int(own)+shared_own+RESERVE_MICRO>account_cap or int(total)+shared+RESERVE_MICRO>config['global_micro']:
                 raise store.Error('Batas transkripsi Learning tercapai. Tidak ada pembelian otomatis.', 'learning_stt_limit',429)
             count=usage._query(conn,'SELECT COUNT(*) FROM kilas_learning_inputs i JOIN kilas_learning_turns t ON t.id=i.turn_id JOIN kilas_learning_sessions s ON s.id=t.session_id WHERE s.user_id=? AND i.created_at>?',(owner,(usage._now()-timedelta(hours=1)).isoformat()),one=True)[0]
             if count>=20:

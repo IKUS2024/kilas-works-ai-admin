@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from datetime import timedelta
 
 import db
-from . import usage, billing
+from . import usage, billing, free_test
 
 PACKS = {'MINUTE': (60,19000), 'FIVE': (300,89000), 'TEN': (600,169000)}
 log = logging.getLogger(__name__)
@@ -97,7 +97,8 @@ def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,p
         if active:raise AudioError('Audio sebelumnya masih diproses. Buka hasilnya di riwayat.','busy',409)
         recent = usage._query(conn,'SELECT COUNT(*) FROM kilas_audio_jobs WHERE user_id=? AND created_at>?',(user,(usage._now()-timedelta(minutes=1)).isoformat()),one=True)[0]
         if recent>=5:raise AudioError('Tunggu sebentar sebelum membuat audio berikutnya.','rate_limit',429)
-        exempt = usage._qa_quota_exempt(conn,user,usage._now())
+        admitted_at = usage._now()
+        exempt = usage._qa_quota_exempt(conn,user,admitted_at)
         available = _balance(conn,user)
         if not exempt and available<reserve:
             raise AudioError(f'Saldo tidak cukup. Estimasi {estimated}s; perlu mencadangkan hingga {reserve}s. Saldo tersedia {available}s. Sisa reservasi dikembalikan setelah durasi aktual dihitung.','insufficient_balance',402)
@@ -107,6 +108,7 @@ def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,p
         params = (user,key,fingerprint,mode,title,source,target,voice,voice_name,script,original_script,source_ms,pcm,estimated,reserve,'QUEUED',now,now)
         if db.BACKEND=='postgres':ident=usage._query(conn,sql+' RETURNING id',params,one=True)[0]
         else:ident=conn.execute(sql,params).lastrowid
+        free_test.mark_audio(conn,user,ident,admitted_at)
     log.info('KILAS_AUDIO job=%s user=%s mode=%s status=QUEUED reserved_seconds=%s',ident,user,mode,reserve)
     return ident,True
 
@@ -137,7 +139,7 @@ def finish(user,ident,raw,actual_ms,provider_id=''):
     with locked(user) as conn:
         row=usage._query(conn,'SELECT mode,source_ms,reserved_seconds,status FROM kilas_audio_jobs WHERE id=? AND user_id=?',(ident,user),one=True)
         if not row or row[3]!='PROCESSING':return False
-        exempt=usage._qa_quota_exempt(conn,user,usage._now())
+        exempt=free_test.sponsored_audio(conn,user,ident) or usage._qa_quota_exempt(conn,user,usage._now())
         charge=0 if exempt else math.ceil((row[1] if row[0]=='translate' else actual_ms)/1000)
         if charge>row[2] or charge>_balance(conn,user):
             if not exempt:raise AudioError('Durasi hasil melebihi saldo yang dapat dicadangkan. Saldo tidak dipotong. Gunakan naskah lebih pendek.','output_exceeds_reservation',402)

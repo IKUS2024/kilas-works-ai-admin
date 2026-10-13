@@ -8,7 +8,11 @@ from .routes import ai_bp, automation_enabled
 def _enabled():
     if not automation_enabled():
         abort(404)
-    return session["user_id"]  # Existing Kilas AI blueprint gate checks CLIENT_OWNER.
+    import security
+    user = security.current_user()
+    if not user or user["role"] != "CLIENT_OWNER":
+        abort(404)
+    return session["user_id"]
 
 
 @ai_bp.post("/agent/connections/google/<service>", endpoint="connector_google_begin")

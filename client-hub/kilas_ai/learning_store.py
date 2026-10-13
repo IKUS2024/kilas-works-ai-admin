@@ -5,7 +5,7 @@ import re
 import uuid
 from datetime import timedelta
 import db
-from . import audio_store, audio_service, audio_media, usage
+from . import audio_store, audio_service, audio_media, usage, free_test
 
 TARGETS = {'en': 'Inggris', 'zh': 'Mandarin', 'es': 'Spanyol'}
 NATIVES = {'id': 'Indonesia', 'en': 'English', 'zh': 'Mandarin', 'es': 'Español'}
@@ -189,7 +189,7 @@ def dispatch_clip(owner, ident, turn, index, phrase, job):
             raise Error('Urutan audio tidak valid.', 'segment_limit', 409)
         # Finite additional provider-cost guard also applies to internal QA owners.
         used = usage._query(conn, 'SELECT COALESCE(SUM(c.chars),0) FROM kilas_learning_clips c JOIN kilas_learning_turns t ON t.id=c.turn_id JOIN kilas_learning_sessions s ON s.id=t.session_id WHERE s.user_id=? AND c.dispatched_at>=?', (owner,(usage._now()-timedelta(days=1)).isoformat()),one=True)[0]
-        if int(used)+len(phrase)>6000:
+        if int(used)+len(phrase)>6000 and not free_test.eligible(owner,conn):
             raise Error('Batas suara Learning harian tercapai. Coba lagi besok.', 'learning_audio_limit',429)
         ledger = usage._query(conn,'SELECT status FROM kilas_audio_jobs WHERE id=? AND user_id=?',(job,owner),one=True)
         if not ledger or ledger[0]!='PROCESSING':
@@ -214,7 +214,7 @@ def commit_clip(owner, ident, turn, index, job, raw, ms):
         if not cliprow or cliprow[0]:
             raise Error('Audio sudah dicatat.', 'duplicate_clip',409)
         total=int(row[0])+ms
-        exempt=usage._qa_quota_exempt(conn,owner,usage._now())
+        exempt=free_test.sponsored_audio(conn,owner,job) or usage._qa_quota_exempt(conn,owner,usage._now())
         charge=0 if exempt else math.ceil(total/1000)
         delta=charge-int(row[1])
         if delta<0 or (not exempt and (delta>int(row[2]) or delta>audio_store._balance(conn,owner))):

@@ -6,6 +6,7 @@ from flask import Blueprint, Response, abort, redirect, render_template, request
 import io
 
 import security
+from . import free_test
 
 ai_bp = Blueprint("kilas_ai", __name__, url_prefix="/kilas-ai")
 
@@ -18,6 +19,11 @@ def enabled():
     return os.environ.get("KILAS_AI_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 
 
+@ai_bp.app_context_processor
+def trial_context():
+    return {'kilas_free_test_active':bool(session.get('user_id') and free_test.eligible(session['user_id']))}
+
+
 @ai_bp.before_request
 def require_access():
     if not enabled():
@@ -27,7 +33,7 @@ def require_access():
     if not session.get("user_id"):
         return redirect(url_for("auth.login_page"))
     user = security.current_user()
-    if not user or user["role"] != "CLIENT_OWNER":
+    if not user or session.get("role")!=user["role"] or (user["role"] != "CLIENT_OWNER" and not free_test.eligible(session["user_id"])):
         abort(404)
 
 

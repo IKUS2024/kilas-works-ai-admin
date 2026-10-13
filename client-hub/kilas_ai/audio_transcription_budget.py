@@ -12,7 +12,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import db
-from . import usage
+from . import usage, free_test
 from .autonomous_store import transaction
 
 MODEL = 'scribe_v2'
@@ -59,6 +59,7 @@ def policy():
         if 'KILAS_VO_STT_ALLOWED_OWNER_ID' in os.environ:
             allowed_owner=int(os.environ['KILAS_VO_STT_ALLOWED_OWNER_ID'])
             if not 1<=allowed_owner<=1000000000:return None
+        if free_test.active() and datetime.now(timezone.utc)>=free_test.STT_END_AT:return None
         mode=os.environ.get('KILAS_VO_STT_USAGE_MODE','qa')
         if mode=='owner':
             if allowed_owner is None:return None
@@ -80,7 +81,7 @@ def configured():
 
 def ready(owner=None):
     config=policy()
-    return bool(config and configured() and (config['allowed_owner'] is None or config['allowed_owner']==owner))
+    return bool(config and configured() and free_test.speech_audience(owner,config))
 
 
 def key_valid(key):
@@ -104,10 +105,10 @@ def _campaign(conn, config):
     if tuple(row[:4])!=tuple(config[k] for k in ('global_micro','account_micro','expires_at','price_version')):raise BudgetError('campaign_policy_changed')
 
 
-def _owner(conn,owner):
+def _owner(conn,owner,settlement=False):
     lock=' FOR UPDATE' if db.BACKEND=='postgres' else ''
     row=usage._query(conn,'SELECT role FROM users WHERE id=?'+lock,(owner,),one=True)
-    if not row or row[0]!='CLIENT_OWNER':raise BudgetError('not_owned',404)
+    if not row or (not settlement and row[0]!='CLIENT_OWNER' and not free_test.eligible(owner,conn)):raise BudgetError('not_owned',404)
 
 
 def _expire(conn,owner=None,campaign=None):
@@ -135,15 +136,16 @@ def owned(owner,key):
 
 def _admit(conn,owner,config,reserve=0,key=''):
     cutoff=(datetime.now(timezone.utc)-timedelta(days=1)).isoformat()
+    if free_test.eligible(owner,conn):trial_admit(conn,owner)
     # Live QA has its own finite allowance; a successful dictation must not
     # consume the two turns needed to test translation in both directions.
     if key.startswith('live-') and config['mode']=='owner':
         mode=os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa')
-        if config['allowed_owner']!=owner or mode not in ('qa','owner'):
+        if (config['allowed_owner']!=owner and not free_test.eligible(owner,conn)) or mode not in ('qa','owner'):
             raise BudgetError('budget_unavailable')
         daily=4 if mode=='qa' else OWNER_DAILY_ATTEMPTS
         used=usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?",(owner,'live-%',cutoff),one=True)[0]
-        if used>=daily:raise BudgetError('attempt_limit',429)
+        if used>=daily and not free_test.eligible(owner,conn):raise BudgetError('attempt_limit',429)
         hour=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
         if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?",(owner,'live-%',hour),one=True)[0]>=OWNER_HOURLY_ATTEMPTS:
             raise BudgetError('rate_limit',429)
@@ -154,14 +156,14 @@ def _admit(conn,owner,config,reserve=0,key=''):
     base=config.get('base_id',config['id'])
     total=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign IN (?,?,?)',(base,base+'-rt',base+'-rt-check'),one=True)[0]
     account=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign IN (?,?,?) AND user_id=?',(base,base+'-rt',base+'-rt-check',owner),one=True)[0]
-    if total+reserve>config['global_micro'] or account+reserve>config['account_micro']:raise BudgetError('budget_limit',429)
+    if total+learning_spend(conn)+reserve>config['global_micro'] or account+learning_spend(conn,owner)+reserve>config['account_micro']:raise BudgetError('budget_limit',429)
 
 
 def _attempts(conn,owner,config,key,cutoff):
     normal_dictation=config['mode']=='owner' and key.startswith('dictate-')
     daily_limit=OWNER_DAILY_ATTEMPTS if normal_dictation else DAILY_ATTEMPTS
-    if usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,cutoff),one=True)[0]>=daily_limit:raise BudgetError('attempt_limit',429)
-    if normal_dictation:
+    if not free_test.eligible(owner,conn) and usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,cutoff),one=True)[0]>=daily_limit:raise BudgetError('attempt_limit',429)
+    if normal_dictation or free_test.eligible(owner,conn):
         hour=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
         if usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,hour),one=True)[0]>=OWNER_HOURLY_ATTEMPTS:raise BudgetError('rate_limit',429)
 
@@ -170,7 +172,7 @@ def claim(owner,key,fingerprint,ms):
     key_valid(key)
     config=policy()
     if not config or not configured():raise BudgetError('budget_unavailable')
-    if config['allowed_owner'] is not None and config['allowed_owner']!=owner:raise BudgetError('not_owned',404)
+    if not free_test.speech_audience(owner,config):raise BudgetError('not_owned',404)
     if not re.fullmatch(r'[a-f0-9]{64}',fingerprint) or type(ms) is not int or not 0<ms<=600000:raise BudgetError('invalid_audio',400)
     with transaction() as conn:
         _campaign(conn,config);_owner(conn,owner);_expire(conn,campaign=config['id'])
@@ -190,7 +192,7 @@ def dispatch(capability,fingerprint,ms):
     if type(capability) is not Reservation:raise BudgetError('invalid_reservation')
     config=policy()
     if not config or not configured():raise BudgetError('budget_unavailable')
-    if config['allowed_owner'] is not None and config['allowed_owner']!=capability.owner:raise BudgetError('not_owned',404)
+    if not free_test.speech_audience(capability.owner,config):raise BudgetError('not_owned',404)
     with transaction() as conn:
         _campaign(conn,config);_owner(conn,capability.owner);_expire(conn,campaign=config['id'])
         row=_row(conn,capability.owner,capability.key)
@@ -212,7 +214,7 @@ def finish(capability,success):
     # Scribe's response is NOT an invoice. Keep the duration allowance on every
     # dispatch outcome, with no token conversion, credit deduction or refund.
     with transaction() as conn:
-        _lock_existing_campaign(conn,capability.owner,capability.key);_owner(conn,capability.owner)
+        _lock_existing_campaign(conn,capability.owner,capability.key);_owner(conn,capability.owner,settlement=True)
         row=_row(conn,capability.owner,capability.key)
         if not row or row[5]!=_hash(capability.lease):raise BudgetError('invalid_reservation')
         version=usage._query(conn,'SELECT price_version FROM kilas_vo_stt_campaigns WHERE id=?',(row[1],),one=True)[0]
@@ -242,3 +244,38 @@ def cancel(owner,key):
             # RESERVED has not dispatched; all unknown/provider states retain allowance.
             usage._query(conn,"UPDATE kilas_vo_stt_operations SET charge_micro=CASE WHEN status='RESERVED' THEN 0 ELSE charge_micro END,status='CANCELLED',finished_at=? WHERE id=? AND status IN ('RESERVED','DISPATCHED','UNKNOWN')",(datetime.now(timezone.utc).isoformat(),row[0]))
         return {'status':_row(conn,owner,key)[3],'operation_key':key}
+
+
+def learning_spend(conn, owner=None):
+    if not free_test.active():return 0
+    month=datetime.now(timezone.utc).replace(day=1,hour=0,minute=0,second=0,microsecond=0).isoformat()
+    sql='SELECT COALESCE(SUM(i.charge_micro),0) FROM kilas_learning_inputs i JOIN kilas_learning_turns t ON t.id=i.turn_id JOIN kilas_learning_sessions s ON s.id=t.session_id WHERE i.created_at>=?'
+    params=(month,)
+    if owner is not None:
+        sql+=' AND s.user_id=?';params+=(owner,)
+    return int(usage._query(conn,sql,params,one=True)[0])
+
+
+def journal_spend(conn, config, owner=None):
+    base=config.get('base_id',config['id'])
+    sql='SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign IN (?,?,?)'
+    params=(base,base+'-rt',base+'-rt-check')
+    if owner is not None:
+        sql+=' AND user_id=?';params+=(owner,)
+    return int(usage._query(conn,sql,params,one=True)[0])
+
+
+def trial_admit(conn, owner):
+    """Combined STT anti-abuse admission under the existing global funding lock."""
+    hour=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
+    learning_count=usage._query(conn,'SELECT COUNT(*) FROM kilas_learning_inputs i JOIN kilas_learning_turns t ON t.id=i.turn_id JOIN kilas_learning_sessions s ON s.id=t.session_id WHERE s.user_id=? AND i.created_at>=?',(owner,hour),one=True)[0]
+    other_count=usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,hour),one=True)[0]
+    if learning_count+other_count>=OWNER_HOURLY_ATTEMPTS:raise BudgetError('rate_limit',429)
+    recent=(datetime.now(timezone.utc)-timedelta(seconds=240)).isoformat()
+    sql="SELECT COUNT(*) FROM kilas_learning_inputs i JOIN kilas_learning_turns t ON t.id=i.turn_id JOIN kilas_learning_sessions s ON s.id=t.session_id WHERE i.status IN ('WAITING','STREAMING','COMMITTING') AND t.status='PROCESSING' AND i.created_at>=?"
+    own=usage._query(conn,sql+' AND s.user_id=?',(recent,owner),one=True)[0]
+    other_own=usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",(owner,),one=True)[0]
+    if own+other_own:raise BudgetError('already_processing',429)
+    total=usage._query(conn,sql,(recent,),one=True)[0]
+    other_total=usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status IN ('RESERVED','DISPATCHED')",one=True)[0]
+    if total+other_total>=GLOBAL_CONCURRENCY:raise BudgetError('service_busy',429)

@@ -22,7 +22,8 @@ def access():
             return redirect(url_for('auth.login_page'))
         abort(401)
     user=security.current_user()
-    if not user or user['role']!='CLIENT_OWNER' or session.get('role')!='CLIENT_OWNER':
+    from . import free_test
+    if not user or session.get('role')!=user['role'] or (user['role']!='CLIENT_OWNER' and not free_test.eligible(session['user_id'])):
         abort(403)
 
 

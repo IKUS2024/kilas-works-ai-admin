@@ -7,7 +7,7 @@ from threading import BoundedSemaphore
 from time import monotonic
 import requests
 import db
-from . import learning_store as store, learning_phrases
+from . import learning_store as store, learning_phrases, free_test
 from . import audio_branded_voices as voices, audio_transcription_budget as budget
 from . import audio_transcription_provider as stt, audio_media, audio_store, usage, providers, model_policy
 
@@ -25,8 +25,8 @@ def ready(owner):
         return (os.environ.get('KILAS_LEARNING_ENABLED','true').lower() in ('true','1','on')
                 and os.environ.get('KILAS_LEARNING_REALTIME_ENABLED','false').lower() in ('true','1','on')
                 and os.environ.get('KILAS_LEARNING_REALTIME_BILLING_VERIFIED') == 'creator-included-scribe-realtime-20261013'
-                and bool(config) and config['allowed_owner']==owner
-                and 4875<=cap<=config['account_micro']
+                and bool(config) and free_test.speech_audience(owner,config,allow_unscoped=False)
+                and (free_test.eligible(owner) or 4875<=cap<=config['account_micro'])
                 and budget.ready(owner) and bool(os.environ.get('OPENAI_API_KEY','').strip())
                 and os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_MODEL') == model_policy.luna_model()
                 and os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_STT') == budget.MODEL
