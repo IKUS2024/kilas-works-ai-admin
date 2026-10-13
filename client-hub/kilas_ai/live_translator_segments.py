@@ -180,7 +180,13 @@ def complete(owner,job,check=lambda:None):
 
 def speech(text,voice,check,on_first_byte,*,previous='',following=''):
     """One documented HTTP stream; never retry or switch endpoints after dispatch."""
-    payload={'text':text,'model_id':'eleven_multilingual_v2'}
+    # Translator-only request overrides: moderate expressive variation while
+    # retaining the approved voice's identity and normal speaking speed. Do not
+    # edit saved voice defaults, exaggerate style, add tags or rewrite the text.
+    payload={'text':text,'model_id':'eleven_multilingual_v2',
+             'voice_settings':{'stability':0.4,'similarity_boost':0.75,'style':0.0,
+                               'use_speaker_boost':True,'speed':1.0},
+             'apply_text_normalization':'auto'}
     if previous:payload['previous_text']=previous[-1000:]
     if following:payload['next_text']=following[:1000]
     check();deadline=monotonic()+60;raw=bytearray();first=True

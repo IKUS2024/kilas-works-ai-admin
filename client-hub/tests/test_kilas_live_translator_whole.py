@@ -50,6 +50,27 @@ class WholeTests(unittest.TestCase):
    with patch.object(segments.transport,'request',return_value=response) as request:
     thread=Thread(target=worker);thread.start();self.assertTrue(available.wait(2));progress=self.client.get(self.path(ident,key)).json;self.assertEqual(progress,{'status':'PROCESSING'});self.assertEqual(self.client.get(self.path(ident,key)+'/audio').status_code,404);self.assertEqual(self.client.get(self.path(ident,key)+'/audio/segments/0').status_code,404);self.assertEqual(request.call_count,1);release.set();thread.join(3);self.assertFalse(thread.is_alive());self.assertEqual(errors,[]);request.assert_called_once()
    self.assertEqual(len(jobs),1);self.assertEqual(self.client.get(self.path(ident,key)).json['translated_text'],text)
+ def test_conversational_request_keeps_each_approved_voice_and_complete_text_without_global_voice_edits(self):
+  samples=[('kilas-male','syntheticMale123','en','id','Tidak, jangan kirim 2 kg tanggal 03/04. Nama saya Dr. Arif. Benar?'),
+           ('kilas-female','syntheticFemale456','id','en','No, I didn’t say $1,250.50—I said €15.20, twice. Really?')]
+  self.credit(300)
+  for index,(alias,voice,source,target,text) in enumerate(samples,5):
+   with self.context(text,source,target),patch.object(fixture.branded,'resolve',return_value={'id':voice,'name':alias,'alias':alias}):
+    ident=sessions.create(self.user,'id','en',alias);key=self.key(index);info=sessions.claim(self.user,ident,key)
+    before=[dict(row) for row in audio.f.db.query_all('SELECT * FROM kilas_audio_saved_voices')]
+    response=self.response(lambda:iter([self.raw]))
+    with patch.object(segments.transport,'request',return_value=response) as request,patch.object(live.audio_provider,'speech') as shared_speech,patch.object(live.audio_provider,'clone_voice') as clone:
+     job=self.process(ident,key,info)
+    request.assert_called_once();shared_speech.assert_not_called();clone.assert_not_called()
+    self.assertIn('/text-to-speech/'+voice+'/stream',request.call_args.args[1])
+    payload=request.call_args.kwargs['json'];self.assertEqual(payload['text'],text);self.assertEqual(payload['model_id'],'eleven_multilingual_v2')
+    self.assertEqual(payload['voice_settings'],{'stability':0.4,'similarity_boost':0.75,'style':0.0,'use_speaker_boost':True,'speed':1.0})
+    self.assertEqual(payload['apply_text_normalization'],'auto')
+    for unsupported in ('language_code','previous_text','next_text','seed','use_pvc_as_ivc','audio_effects'):self.assertNotIn(unsupported,payload)
+    self.assertNotIn('optimize_streaming_latency',request.call_args.kwargs['params'])
+    row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(job,));self.assertEqual(row['voice_id'],voice);self.assertEqual(row['original_script'],text);self.assertEqual(bytes(row['result_content']),self.raw)
+    self.assertEqual(row['seconds_charged'],math.ceil(row['actual_ms']/1000));self.assertEqual(self.client.get(self.path(ident,key)).json['translated_text'],text)
+    self.assertEqual([dict(row) for row in audio.f.db.query_all('SELECT * FROM kilas_audio_saved_voices')],before);sessions.end(self.user,ident)
  def test_end_during_transport_read_closes_response_without_audio_publication_or_second_request(self):
   available,release=Event(),Event();errors=[]
   def chunks():

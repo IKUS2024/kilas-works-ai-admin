@@ -674,6 +674,11 @@ class LiveTranslatorTests(unittest.TestCase):
         profile=reserve.call_args.kwargs['profile'];body=request.call_args.kwargs['json']
         self.assertEqual(body['model'],profile['model']);self.assertEqual(body['reasoning_effort'],profile['effort']);self.assertEqual(body['max_completion_tokens'],profile['output_tokens'])
         self.assertEqual(body['messages'][1]['content'],text);self.assertIn('faithfully',body['messages'][0]['content']);self.assertEqual(request.call_count,1)
+        instruction=body['messages'][0]['content']
+        for requirement in ('idiomatic spoken wording','formality and emotional tone','natural sentence and question punctuation',
+                            'complete meaning, facts, names, numbers, dates, units, negations and repetitions',
+                            'never summarize or embellish','Do not add fillers','audio tags or SSML'):
+            self.assertIn(requirement,instruction)
         row=audio.f.db.query_one('SELECT mode,status,model FROM kilas_ai_usage WHERE user_id=?',(self.user,))
         self.assertEqual(row['mode'],'FAST');self.assertEqual(row['status'],'COMPLETE');self.assertEqual(row['model'],model_policy.LUNA)
 
