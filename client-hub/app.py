@@ -284,6 +284,9 @@ def create_app():
         audio_schema.apply_release('0090_kilas_audio_script_edit')  # New VoiceOver originals only; existing rows remain NULL.
         audio_schema.apply_release('0091_kilas_voice_script_transcription')  # Independent default-off STT accounting; never customer credits.
         audio_schema.apply_release('0092_kilas_live_translator')  # Default-off owner session/turn fences; no provider activation.
+        if os.environ.get('KILAS_LIVE_TRANSLATOR_ENABLED','').lower() in ('1','true','on'):
+            from kilas_ai import live_translator_realtime_account
+            live_translator_realtime_account.startup_probe()  # Bounded harmless GETs; cannot activate paid transport.
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)
