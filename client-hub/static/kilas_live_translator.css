@@ -37,3 +37,18 @@
 .kilas-live-orb[data-state=playing]{animation-duration:1s}
 @keyframes kilas-orb-breathe{50%{transform:scale(1.03)}}
 @media(prefers-reduced-motion:reduce){.kilas-live-orb{animation:none}}
+
+/* Only the active Translator surface fills the viewport; other routes keep their shell. */
+body.kilas-translator-call-active{overflow:hidden}
+body.kilas-translator-call-active>[data-kilas-translator-call-background]{display:none!important}
+body.kilas-translator-call-active>.kilas-live-translator{position:fixed;inset:0;z-index:1500;width:100%;height:100vh;height:100dvh;max-width:none;margin:0;display:flex;flex-direction:column;box-sizing:border-box;background:#000;color:#fff;padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+body.kilas-translator-call-active .kilas-live-translator #live-active{flex:1;min-height:0;width:100%;padding:8px;border-radius:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:24px;overflow:hidden}
+.kilas-live-translator .live-call-body{min-height:0;min-width:0;width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;overflow:auto;overscroll-behavior:contain;padding:8px}
+.kilas-live-translator .live-call-controls{display:flex;align-items:center;justify-content:center;gap:24px;padding:8px;flex-shrink:0}
+body.kilas-translator-call-active .kilas-live-orb{flex-shrink:0;width:min(60vw,32vh,320px);width:min(60vw,32dvh,320px)}
+body.kilas-translator-call-active #live-translation{max-height:28vh;max-height:28dvh;flex-shrink:0}
+body.kilas-translator-call-active .kilas-live-translator #live-error{flex-shrink:0;margin:12px auto 0;max-width:60ch;max-height:30vh;max-height:30dvh;overflow:auto;color:#ffafb6;text-align:center;overflow-wrap:anywhere}
+.kilas-live-translator #live-end.live-hangup{width:64px;height:64px;min-width:64px;min-height:64px;display:grid;place-items:center;padding:0;margin:0;border:0;border-radius:50%;background:#dc2626;color:#fff;cursor:pointer;touch-action:manipulation}
+.kilas-live-translator #live-end.live-hangup:hover{background:#b91c1c}
+.kilas-live-translator #live-end.live-hangup:focus-visible{outline:3px solid #fff;outline-offset:4px}
+body.kilas-translator-call-active #live-resume{min-height:48px;background:#23262b;color:#fff;border:1px solid #666}

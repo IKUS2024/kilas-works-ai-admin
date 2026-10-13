@@ -6,10 +6,12 @@ import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=st
 import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=realtime-input-20261013';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=owner-recovery-20261012';
+import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
 const root=document.querySelector('.kilas-live-translator');
 if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');
  const csrf=form.querySelector('[name=csrf_token]').value,start=form.querySelector('button');let context=null,source=null,analyser=null,interval=null,recorder=null;
+ const callLayout=new TranslatorCallLayout({document,root,endButton:document.querySelector('#live-end')});
  const setupReady=root.dataset.ready==='true'&&!start.disabled;
  const showError=(text,detail)=>{error.textContent=text;error.hidden=false;
   if(detail?.startupStage){if(detail.startupStage==='session_admission')recoverRequested=true;try{console.info('KILAS_LIVE_STARTUP_FAILURE stage='+detail.startupStage+' code='+(detail.code||'startup_failed'));}catch{}}
@@ -78,6 +80,7 @@ if(root){
   const label={preparing:'Menyiapkan audio',starting:'Menyiapkan sesi',opening:'Menyiapkan mikrofon',resuming:'Menyiapkan audio',recovering:'Memulihkan sesi',paused:'Sesi dijeda',playing:'Memutar terjemahan',listening:session.inputMode==='realtime-v1'?'Mendengarkan realtime':'Mendengarkan mode rekaman'}[state]||'Memproses';orb.setAttribute('aria-label',label);
   document.querySelector('#live-resume').hidden=state!=='paused';
   document.querySelector('#live-state').textContent=orb.getAttribute('aria-label');
+  callLayout.setActive(state!=='ended');
   if(state==='ended'&&(recoverRequested||session.admissionPending)){recoverRequested=false;recovery.checked=false;recovery.refresh();}
  }});
  recovery=new TranslatorRecovery({api:{active:()=>json('/kilas-translator/live/sessions/active',{timeoutMs:10000}),end(id){const data=new FormData();data.append('csrf_token',csrf);return json('/kilas-translator/live/sessions/'+encodeURIComponent(id)+'/end',{method:'POST',body:data,keepalive:true,timeoutMs:10000});}},isIdle:()=>session.state==='ended',onError:text=>{recoveryError=true;showError(text);},onChange:state=>{
