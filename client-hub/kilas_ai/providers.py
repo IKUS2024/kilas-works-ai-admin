@@ -54,8 +54,9 @@ def _events(response):
             raise ProviderError("bad_provider_stream") from None
 
 
-def _openai(model, key, messages, mode, system=SYSTEM, *, project=None):
-    profile = model_policy.chat_profile(messages)
+def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=None):
+    # Private server-selected profile; public chat callers retain their routing.
+    profile = model_policy.chat_profile(messages) if profile is None else profile
     try:
         with requests.post(
             "https://api.openai.com/v1/chat/completions",

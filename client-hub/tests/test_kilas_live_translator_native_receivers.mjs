@@ -37,7 +37,7 @@ test('default JSON fetch and deadline cleanup preserve native receiver',()=>nati
 
 test('existing playback wrappers retain context/decode and native timer/fetch receivers',()=>nativeGlobals(async({timers,calls})=>{
  const context={state:'running',currentTime:0,resume(){assert.equal(this,context);return Promise.resolve();},decodeAudioData(){assert.equal(this,context);return Promise.resolve({duration:1});},createBufferSource(){assert.equal(this,context);return source;},destination:{}};
- const source={connect(){assert.equal(this,source);},disconnect(){assert.equal(this,source);},start(){assert.equal(this,source);queueMicrotask(()=>source.onended());},stop(){assert.equal(this,source);}};
+ const source={connect(){assert.equal(this,source);},disconnect(){assert.equal(this,source);},start(){assert.equal(this,source);queueMicrotask(()=>{context.currentTime=1;source.onended();});},stop(){assert.equal(this,source);}};
  const player=new TranslatorPlayback({getContext:()=>context});await player.prepare(new AbortController().signal,()=>true);await player.play('/kilas-translator/live/sessions/'+ 'a'.repeat(48)+'/turns/live-'+ 'b'.repeat(32)+'/audio',new AbortController().signal,()=>true);
  assert.equal(timers.size,0);assert.equal(calls.filter(c=>c[0]==='fetch').length,1);
 }));

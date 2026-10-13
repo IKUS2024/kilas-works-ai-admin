@@ -35,7 +35,7 @@ test('prepare resumes synchronously in Start gesture; normal onended releases al
   assert.equal(f.stats.resumed,1);await ready;assert.equal(f.timers.size,0);
   const p=f.play();await tick();assert.equal(f.stats.started,1);
   assert.equal(f.requests[0].options.credentials,'same-origin');assert.equal(f.requests[0].options.redirect,'error');
-  f.nodes[0].onended();await p;assert.equal(f.stats.disconnected,1);assert.equal(f.timers.size,0);
+  f.context.currentTime=2;f.nodes[0].onended();await p;assert.equal(f.stats.disconnected,1);assert.equal(f.timers.size,0);
 });
 
 for(const stage of ['fetch','body','decode','resume'])test(`${stage} never settles: deadline rejects and End can clean up without replay`,async()=>{
@@ -86,7 +86,7 @@ test('decode rejection, invalid duration, failed resume and source start rejecti
 test('suspended context after download and one interruption during playback recover on the same buffer',async()=>{
   const f=fixture();f.context.decodeAudioData=async()=>{f.context.state='suspended';return {duration:2};};
   const p=f.play();await tick();assert.equal(f.stats.resumed,1);f.context.state='suspended';await f.advance(250);assert.equal(f.stats.resumed,2);
-  f.nodes[0].onended();await p;assert.equal(f.requests.length,1);assert.equal(f.stats.started,1);assert.equal(f.timers.size,0);
+  f.context.currentTime=2;f.nodes[0].onended();await p;assert.equal(f.requests.length,1);assert.equal(f.stats.started,1);assert.equal(f.timers.size,0);
 });
 
 test('repeated suspension stops without replay; a frozen audio clock cannot leave playing indefinitely',async()=>{
@@ -111,7 +111,7 @@ test('End during playback rejects, removes callbacks and timers; stale operation
   const f=fixture();const p=f.play(),rejected=assert.rejects(p,{name:'AbortError'});await tick();const old=f.nodes[0].onended;
   f.controller.abort();f.player.cancel();await rejected;assert.equal(f.nodes[0].onended,null);assert.equal(f.timers.size,0);
   const newController=new AbortController(),next=f.player.play(URL,newController.signal,()=>true);await tick();old();
-  assert.equal(f.stats.started,2);assert.equal(f.stats.stopped,1);f.nodes[1].onended();await next;assert.equal(f.stats.stopped,2);assert.equal(f.timers.size,0);
+  assert.equal(f.stats.started,2);assert.equal(f.stats.stopped,1);f.context.currentTime=2;f.nodes[1].onended();await next;assert.equal(f.stats.stopped,2);assert.equal(f.timers.size,0);
 });
 
 test('a stale session after decode never starts a source or resumes audio',async()=>{
@@ -129,4 +129,14 @@ test('End during interruption recovery stops the old source even when resume nev
   const f=fixture(),ready=deferred();const p=f.play(),rejected=assert.rejects(p,{name:'AbortError'});await tick();
   f.context.state='suspended';f.context.resume=()=>ready.promise;await f.advance(250);f.controller.abort();await rejected;
   assert.equal(f.stats.stopped,1);assert.equal(f.timers.size,0);ready.resolve();await tick();assert.equal(f.stats.started,1);assert.equal(f.timers.size,0);
+});
+
+
+test('premature source end fails truthfully without reporting full playback',async()=>{
+ const f=fixture(),p=f.play(),failed=assert.rejects(p,e=>e.code==='audio_stalled');await tick();f.context.currentTime=.4;f.nodes[0].onended();await failed;assert.equal(f.timers.size,0);assert.equal(f.stats.stopped,1);
+});
+
+
+test('natural end accepts at most 50 ms of decoded audio clock rounding',async()=>{
+ const f=fixture(),p=f.play();await tick();f.context.currentTime=1.96;f.nodes[0].onended();await p;assert.equal(f.timers.size,0);
 });

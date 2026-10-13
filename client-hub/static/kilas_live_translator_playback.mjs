@@ -85,7 +85,10 @@ export class TranslatorPlayback {
           timer=this.schedule(watch,250);
         }catch(e){finish(e);}
       };
-      try{this.check(op);node=context.createBufferSource();node.buffer=buffer;node.connect(context.destination);node.onended=()=>{try{this.check(op);finish();}catch(e){finish(e);}};node.start();try{onStarted();}catch{}timer=this.schedule(watch,250);}
+      try{
+        this.check(op);node=context.createBufferSource();node.buffer=buffer;node.connect(context.destination);
+        // Allow 50 ms of audio-clock rounding at the natural end, never a wall-time success.
+        node.onended=()=>{try{this.check(op);if(context.currentTime-audioStart<buffer.duration-.05)throw failure('audio_stalled','Pemutaran audio berakhir sebelum ucapan selesai.');finish();}catch(e){finish(e);}};node.start();try{onStarted();}catch{}timer=this.schedule(watch,250);}
       catch(e){finish(e.name==='AbortError'?e:failure('audio_start','Audio belum dapat diputar.'));}
     });
   }

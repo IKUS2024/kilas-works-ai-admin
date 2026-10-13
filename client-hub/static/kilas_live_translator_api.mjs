@@ -49,23 +49,28 @@ export class TranslatorTurns {
     // A definite unsupported endpoint disables streaming for NEW speech in this
     // session. An uncertain paid request never triggers an alternate submission.
     if(this.disabledStreamSession===id)onSegment=null;
-    if(onSegment)data.append('stream_output','sentences-v1');let played=0,announced=null;const identities=[];
+    if(onSegment)data.append('stream_output','sentences-v1');let played=0,announced=null,translationIdentity=null;const identities=[];
     const controller=new AbortController(),cancel=()=>controller.abort();signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
     try{
       await this.json(url,{method:'POST',body:data,signal:controller.signal,timeoutMs:30000});const deadline=this.now()+this.turnMs;let playbackMs=0;
       while(!controller.signal.aborted){
         const result=await this.json(url,{signal:controller.signal,timeoutMs:15000});
         if(onSegment&&result.stream_output==='sentences-v1'&&['PROCESSING','COMPLETED'].includes(result.status)){
-          let newlyPlayed=false,totalMs=0;
+          let newlyPlayed=false,totalMs=0,previousText='';
+          if(typeof result.translated_text!=='string'||!result.translated_text.trim()||result.translated_text.length>4000||typeof result.source_language!=='string'||typeof result.target_language!=='string'||!result.source_language||!result.target_language||result.source_language===result.target_language)throw error('stream_invalid','Terjemahan audio tidak valid.');
+          const translated=JSON.stringify([result.translated_text,result.source_language,result.target_language]);
+          if(translationIdentity!==null&&translationIdentity!==translated)throw error('stream_invalid','Terjemahan audio berubah.');translationIdentity=translated;
           if(!Number.isInteger(result.total_segments)||result.total_segments<1||result.total_segments>8||!Array.isArray(result.segments)||result.segments.length>result.total_segments||result.segments.length<played)throw error('stream_invalid','Urutan audio tidak valid.');
           if(announced!==null&&announced!==result.total_segments)throw error('stream_invalid','Jumlah segmen berubah.');announced=result.total_segments;
           for(let index=0;index<result.segments.length;index++){
             const part=result.segments[index];
             if(part.index!==index||part.audio_url!==url+'/audio/segments/'+index||!Number.isInteger(part.duration_ms)||part.duration_ms<=0||part.duration_ms>600000||typeof part.translated_text!=='string'||part.translated_text.length>4000)throw error('stream_invalid','Segmen audio tidak valid.');
+            if(!part.translated_text.trim()||!part.translated_text.startsWith(previousText)||part.translated_text.length<=previousText.length||!result.translated_text.startsWith(part.translated_text))throw error('stream_invalid','Teks segmen tidak lengkap.');previousText=part.translated_text;
             totalMs+=part.duration_ms;if(totalMs>600000)throw error('stream_invalid','Audio melebihi batas durasi.');
             const identity=JSON.stringify([part.audio_url,part.duration_ms,part.translated_text]);
             if(identities[index]&&identities[index]!==identity)throw error('stream_invalid','Segmen audio berubah.');identities[index]=identity;
           }
+          if(result.status==='COMPLETED'&&(result.segments.length!==result.total_segments||previousText!==result.translated_text))throw error('stream_invalid','Audio belum mencakup seluruh terjemahan.');
           for(let index=played;index<result.segments.length;index++){
             const part=result.segments[index];if(controller.signal.aborted)throw aborted();
             const began=this.now();try{await onSegment(part);}catch(e){e.segmentPlayback=true;throw e;}finally{playbackMs+=Math.max(0,this.now()-began);}
@@ -79,7 +84,10 @@ export class TranslatorTurns {
           // Playback may outlive the old PROCESSING snapshot. Re-read completion
           // before timing out; audio already heard is never replayed.
           if(newlyPlayed)continue;
-        }else if(result.status==='COMPLETED')return result;
+        }else if(result.status==='COMPLETED'){
+          if(announced!==null)throw error('stream_invalid','Format audio berubah sebelum seluruh ucapan selesai.');
+          return result;
+        }else if(announced!==null&&result.status==='PROCESSING')throw error('stream_invalid','Format audio streaming berubah.');
         if(result.status==='FAILED'){
           if(result.code==='stream_unavailable')this.disabledStreamSession=id;
           const failure=error(result.code||'processing_failed',result.error||'Ucapan belum berhasil diproses.');
@@ -97,7 +105,7 @@ export class TranslatorTurns {
         try{
           const state=await this.cancel(id,key);if(signal.aborted)throw aborted();
           if(!['CANCELLED','FAILED','COMPLETED'].includes(state.status))throw error('cancel_unconfirmed','Pembatalan ucapan belum terkonfirmasi.');
-          if(state.status==='COMPLETED'&&!e.segmentPlayback&&!played){
+          if(state.status==='COMPLETED'&&!e.segmentPlayback&&!played&&e.code!=='stream_invalid'){
             const completed=await this.json(url,{signal:controller.signal,timeoutMs:15000});
             if(completed.status==='COMPLETED')return completed;
           }

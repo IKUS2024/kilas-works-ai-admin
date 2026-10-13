@@ -608,4 +608,47 @@ class LiveTranslatorTests(unittest.TestCase):
             self.assertEqual(stt.call_count,1)
 
 
+    def test_translation_profile_is_purpose_bound_without_smaller_output_budget(self):
+        for text in ('Halo','Please give a brief answer','SQL debug architecture analysis without budget must only maximum ' * 80,'你好' * 1900):
+            with self.subTest(text=text[:30]):
+                original=model_policy.chat_profile([{'role':'user','content':text}])
+                profile=live.translation_profile(text)
+                self.assertEqual(profile['model'],model_policy.LUNA)
+                self.assertEqual(profile['effort'],'low')
+                self.assertGreaterEqual(profile['output_tokens'],max(3500,original['output_tokens']))
+                self.assertEqual(model_policy.chat_profile([{'role':'user','content':text}]),original)
+
+    def test_translation_reservation_and_actual_request_share_same_private_profile(self):
+        text='Please analyze SQL strategy without risk must only use this budget.'
+        payload=json.dumps({'text':'Hello, how are you?','source_language':'id','target_language':'en'})
+        response=MagicMock();response.__enter__.return_value=response
+        events=[{'choices':[{'delta':{'content':payload},'finish_reason':'stop'}]}, {'usage':{'prompt_tokens':20,'completion_tokens':18}}]
+        with self.funded(),self.on(),patch.object(usage,'reserve',wraps=usage.reserve) as reserve,patch.object(providers.requests,'post',return_value=response) as request,patch.object(providers,'_events',return_value=iter(events)):
+            self.assertEqual(live.translation(self.user,self.key(),text,'id','en',lambda:None)['text'],'Hello, how are you?')
+        profile=reserve.call_args.kwargs['profile'];body=request.call_args.kwargs['json']
+        self.assertEqual(body['model'],profile['model']);self.assertEqual(body['reasoning_effort'],profile['effort']);self.assertEqual(body['max_completion_tokens'],profile['output_tokens'])
+        self.assertEqual(body['messages'][1]['content'],text);self.assertIn('faithfully',body['messages'][0]['content']);self.assertEqual(request.call_count,1)
+        row=audio.f.db.query_one('SELECT mode,status,model FROM kilas_ai_usage WHERE user_id=?',(self.user,))
+        self.assertEqual(row['mode'],'FAST');self.assertEqual(row['status'],'COMPLETE');self.assertEqual(row['model'],model_policy.LUNA)
+
+    def test_regular_chat_keeps_original_reasoning_profile(self):
+        messages=[{'role':'user','content':'Discuss my vacation.'}];original=model_policy.chat_profile(messages)
+        response=MagicMock();response.__enter__.return_value=response
+        with patch.object(providers.requests,'post',return_value=response) as request,patch.object(providers,'_events',return_value=iter([])):
+            list(providers._openai(model_policy.LUNA,'synthetic-only',messages,'FAST'))
+        self.assertEqual(request.call_args.kwargs['json']['reasoning_effort'],original['effort'])
+        self.assertEqual(request.call_args.kwargs['json']['max_completion_tokens'],original['output_tokens'])
+
+
+    def test_long_translation_is_returned_in_full_with_stop_and_language_validation(self):
+        translated='你好。مرحبا؟ Words without punctuation ' * 100
+        def stream(*args,**kwargs):
+            value=json.dumps({'text':translated,'source_language':'id','target_language':'en'})
+            for index in range(0,len(value),17):yield {'type':'delta','text':value[index:index+17]}
+            yield {'type':'finish','reason':'stop'}
+        with self.funded(),self.on(),patch.object(providers,'_openai',side_effect=stream):
+            result=live.translation(self.user,self.key(),'Long speech about SQL strategy without risk','id','en',lambda:None)
+        self.assertEqual(result['text'],translated.strip())
+
+
 if __name__=='__main__':unittest.main()

@@ -7,7 +7,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const id='a'.repeat(48),key='live-'+'b'.repeat(32),url='/kilas-translator/live/sessions/'+id+'/turns/'+key;
 const part=(index,changes={})=>({index,duration_ms:600,audio_url:url+'/audio/segments/'+index,translated_text:index?'Hello. Goodbye.':'Hello.',...changes});
-const progress=(status='PROCESSING',segments=[part(0)],changes={})=>({status,stream_output:'sentences-v1',total_segments:2,segments,...changes});
+const progress=(status='PROCESSING',segments=[part(0)],changes={})=>({status,stream_output:'sentences-v1',total_segments:2,segments,translated_text:'Hello. Goodbye.',source_language:'id',target_language:'en',...changes});
 function transport(sequence,{cancelStatus='CANCELLED'}={}){
  const requests=[],played=[];let now=0,reads=0;
  const api=new TranslatorTurns({csrf:'synthetic',now:()=>now,schedule:fn=>{queueMicrotask(fn);return 1;},clear:()=>{},json:async(path,options={})=>{
@@ -33,7 +33,7 @@ test('repeated progress never replays a published clip and completion waits for 
 test('foreign turn URL, duplicate index, oversized total duration and missing final clip reject before playback',async()=>{
  const bad=[progress('COMPLETED',[part(0,{audio_url:url.replace(id,'c'.repeat(48))+'/audio/segments/0'}),part(1)]),progress('COMPLETED',[part(0),part(1,{audio_url:url+'/audio/segments/0'})]),progress('COMPLETED',[part(1),part(0)]),progress('COMPLETED',[part(0,{duration_ms:400000}),part(1,{duration_ms:400000})])];
  for(const data of bad){const f=transport([data]);await assert.rejects(f.turn(),e=>e.code==='stream_invalid');assert.deepEqual(f.played,[]);assert.equal(f.requests.filter(r=>r.path.endsWith('/cancel')).length,1);}
- const missing=transport([progress('COMPLETED',[part(0)])]);await assert.rejects(missing.turn(),e=>e.code==='stream_invalid');assert.deepEqual(missing.played,[0]);
+ const missing=transport([progress('COMPLETED',[part(0)])]);await assert.rejects(missing.turn(),e=>e.code==='stream_invalid');assert.deepEqual(missing.played,[]);
 });
 
 test('changed total or earlier clip identity is rejected without replaying heard output',async()=>{
@@ -112,4 +112,37 @@ test('lost acknowledgement followed by confirmed unsupported failure also disabl
  const f=transport([Object.assign(Error('Lost acknowledgement'),{code:'request_timeout'}),{status:'FAILED',code:'stream_unavailable',recoverable:false,error:'Unavailable'},{status:'COMPLETED',audio_url:url+'/audio'}],{cancelStatus:'FAILED'});
  await assert.rejects(f.turn(),e=>e.code==='stream_unavailable'&&e.turnSettled);await f.api.turn(id,'live-'+'c'.repeat(32),new Blob(['fresh speech']),new AbortController().signal,async()=>{});
  const posts=f.requests.filter(r=>r.method==='POST'&&!r.path.endsWith('/cancel'));assert.equal(posts.length,2);assert.equal(posts[1].body.get('stream_output'),null);assert.notEqual(posts[0].path,posts[1].path);
+});
+
+
+test('stream protocol cannot switch to whole completion after a heard prefix',async()=>{
+ const f=transport([progress(),{status:'COMPLETED',audio_url:url+'/audio',translated_text:'Hello. Goodbye.'}],{cancelStatus:'COMPLETED'});
+ await assert.rejects(f.turn(),e=>e.code==='stream_invalid');assert.deepEqual(f.played,[0]);assert.equal(f.reads,2);
+});
+
+test('stream full text, cumulative prefixes and distinct language pair are stable and complete',async()=>{
+ for(const next of [progress('COMPLETED',[part(0),part(1)],{translated_text:'Hello. Goodbye. More.'}),progress('COMPLETED',[part(0),part(1,{translated_text:'Goodbye.'})]),progress('COMPLETED',[part(0),part(1)],{target_language:'id'}),progress('COMPLETED',[part(0),part(1)],{source_language:'fr'})]){
+  const f=transport([progress(),next]);await assert.rejects(f.turn(),e=>e.code==='stream_invalid');assert.deepEqual(f.played,[0]);
+ }
+});
+
+test('long multilingual text plays every segment once; empty temporary queue and delayed final playback are unfinished',async()=>{
+ const texts=['你好。','مرحبا؟ ','Unpunctuated tail '+ 'words '.repeat(300)],full=texts.join(''),last=deferred(),produced=deferred(),seen=[];let done=false;
+ const clips=texts.map((_,index)=>part(index,{translated_text:texts.slice(0,index+1).join('')}));
+ const meta=(status,segments)=>progress(status,segments,{total_segments:3,translated_text:full,source_language:'zh',target_language:'ar'});
+ const f=transport([meta('PROCESSING',[]),meta('PROCESSING',clips.slice(0,2)),()=>produced.promise]);
+ const turn=f.turn(async p=>{seen.push(p.translated_text);if(p.index===2)await last.promise;}).then(r=>{done=true;return r;});await tick();assert.equal(done,false);assert.equal(seen.length,2);
+ produced.resolve(meta('COMPLETED',clips));await tick();assert.equal(done,false);assert.equal(seen.length,3);last.resolve();assert.equal((await turn).streamed,true);assert.equal(seen.at(-1),full);
+});
+
+test('provider failure after a played prefix never reports completed or returns whole audio',async()=>{
+ const f=transport([progress(),{status:'FAILED',code:'speech_failed',recoverable:true,error:'Synthetic partial failure'}]);
+ await assert.rejects(f.turn(),e=>e.code==='speech_failed'&&e.turnSettled);assert.deepEqual(f.played,[0]);assert.equal(f.requests.filter(r=>r.method==='POST').length,1);
+});
+
+
+test('mixed protocol after first heard clip pauses session without whole replay or mic resumption',async()=>{
+ const f=sessionFixture();await f.session.start({});f.level(.1,0);f.level(0,2000);await tick();f.firstPlay.resolve();await tick();
+ f.later.resolve({status:'COMPLETED',audio_url:url+'/audio',translated_text:'Hello. Goodbye.'});await tick();
+ assert.equal(f.played.length,1);assert.equal(f.mics,0);assert.equal(f.session.state,'paused');f.session.end();
 });
