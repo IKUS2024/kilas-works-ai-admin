@@ -1,29 +1,14 @@
 import {LearningCall} from './kilas_learning_engine.mjs';
 import {RealtimeMic,microphone} from './kilas_learning_realtime.mjs';
+import {LearningPlayer} from './kilas_learning_player.mjs';
+import {learningRequest} from './kilas_learning_transport.mjs';
 
 const root=document.querySelector('[data-learning]');
 if(root){
   const form=root.querySelector('form'),status=root.querySelector('[data-status]'),active=root.querySelector('[data-call]'),setup=root.querySelector('[data-setup]');
   const resume=root.querySelector('[data-resume]'),mute=root.querySelector('[data-mute]'),orb=root.querySelector('[data-orb]');
-  const csrf=form.elements.csrf_token.value,base='/kilas-learning';let context,source,stopPlayback;
-  const connect=()=>{context??=new(window.AudioContext||window.webkitAudioContext)();return context;};
-  const player={
-    async unlock(){await connect().resume();},
-    async play(raw,signal,started){
-      const ctx=connect(),buffer=await ctx.decodeAudioData(raw.slice(0));if(signal.aborted)throw new DOMException('Aborted','AbortError');
-      await ctx.resume();if(signal.aborted)throw new DOMException('Aborted','AbortError');
-      return new Promise((resolve,reject)=>{let settled=false;source=ctx.createBufferSource();source.buffer=buffer;source.connect(ctx.destination);
-        const finish=error=>{if(settled)return;settled=true;signal.removeEventListener('abort',abort);source?.disconnect();source=null;stopPlayback=null;error?reject(error):resolve();};
-        const abort=()=>{try{source?.stop();}finally{finish(new DOMException('Aborted','AbortError'));}};
-        stopPlayback=abort;source.onended=()=>finish();signal.addEventListener('abort',abort,{once:true});source.start();started();});
-    },
-    stop(){stopPlayback?.();stopPlayback=null;if(context){void context.close().catch(()=>{});context=null;}}
-  };
-  const request=async(path,{data,signal,binary=false,keepalive=false}={})=>{
-    const response=await fetch(base+path,{method:data?'POST':'GET',body:data,signal,credentials:'same-origin',headers:data?{'X-CSRF-Token':csrf}:{},cache:'no-store',keepalive});
-    if(!response.ok){const result=await response.json().catch(()=>({}));const error=Error(result.error||'Sesi belum dapat diperiksa. Coba Lanjutkan.');error.code=result.code;throw error;}
-    return binary?response.arrayBuffer():response.json();
-  };
+  const csrf=form.elements.csrf_token.value,player=new LearningPlayer();
+  const request=learningRequest({csrf});
   const fields=values=>{const body=new FormData();body.set('csrf_token',csrf);for(const [key,value]of Object.entries(values))body.set(key,value);return body;};
   const api={
     start:(settings,signal)=>request('/sessions',{data:fields(settings),signal}),
@@ -39,11 +24,16 @@ if(root){
   };
   const save=value=>{try{value?sessionStorage.setItem('kilas-learning-session',JSON.stringify(value)):sessionStorage.removeItem('kilas-learning-session');}catch{}};
   const capture=new RealtimeMic({api,session:()=>call.session,id:()=>crypto.randomUUID().replaceAll('-',''),openMicrophone:microphone,onOpened:turn=>call.beginInput(turn)});
-  const call=new LearningCall({api,capture,player,save,onState:(state,message)=>{
-    const inCall=state!=='ended';setup.hidden=inCall;active.hidden=!inCall;orb.dataset.state=state;
+  const call=new LearningCall({api,capture,player,save,onSettings:settings=>{
+    if(settings)for(const name of ['target','native','level','voice'])if([...form.elements[name].options].some(option=>option.value===settings[name]))form.elements[name].value=settings[name];
+    root.querySelector('[data-call-settings]').textContent=settings?['target','level','voice'].map(name=>form.elements[name].selectedOptions[0]?.textContent).filter(Boolean).join(' · '):'Sesi tersimpan';
+  },onState:(state,message)=>{
+    const wasActive=root.dataset.active==='true',inCall=state!=='ended';root.dataset.active=String(inCall);setup.hidden=inCall;active.hidden=!inCall;orb.dataset.state=state;
     const labels={preparing:'Tutor sedang menyiapkan jawaban…',speaking:'Tutor berbicara',listening:'Giliran kamu. Silakan bicara.',muted:'Mikrofon dinonaktifkan',paused:'Sesi dijeda',ended:'Sesi berakhir'};
     status.textContent=message||labels[state];resume.hidden=state!=='paused';mute.disabled=state==='paused';
-    if(state==='ended'){mute.setAttribute('aria-pressed','false');mute.textContent='Matikan mikrofon';}
+    if(inCall&&!wasActive)root.querySelector('[data-end]').focus({preventScroll:true});
+    if(state==='paused')resume.focus({preventScroll:true});
+    if(state==='ended'){root.querySelector('button[type=submit]').focus({preventScroll:true});mute.setAttribute('aria-pressed','false');mute.textContent='Matikan mikrofon';}
   }});
   form.addEventListener('submit',event=>{event.preventDefault();if(!form.reportValidity())return;const values=Object.fromEntries(new FormData(form));values.consent='yes';void call.start(values);});
   mute.addEventListener('click',()=>{const value=call.mute();mute.setAttribute('aria-pressed',String(value));mute.textContent=value?'Aktifkan mikrofon':'Matikan mikrofon';});

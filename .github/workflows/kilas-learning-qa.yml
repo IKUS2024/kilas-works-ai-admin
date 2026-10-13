@@ -22,7 +22,7 @@ jobs:
       - run: python -m unittest test_kilas_learning test_kilas_home test_kilas_ai_unified -q
         working-directory: client-hub
         env: {PYTHONPATH: '.:tests', PYTHONDONTWRITEBYTECODE: '1'}
-      - run: node --test client-hub/tests/test_kilas_learning_engine.mjs client-hub/tests/test_kilas_learning_realtime.mjs
+      - run: node --test client-hub/tests/test_kilas_learning*.mjs
   postgres:
     runs-on: ubuntu-latest
     timeout-minutes: 10

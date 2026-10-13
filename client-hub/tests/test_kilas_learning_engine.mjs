@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LearningCall,SilenceGate} from '../static/kilas_learning_engine.mjs';
+import {LearningCall,SilenceGate,within} from '../static/kilas_learning_engine.mjs';
 import {readFileSync} from 'node:fs';
 
 function fixture(){
@@ -42,7 +42,7 @@ test('muting while tutor speaks never records over tutor audio',async()=>{
 test('End immediately aborts request, player, mic, and invalidates pending results',async()=>{
   const f=fixture();let release;
   f.api.start=async(_settings,signal)=>{assert.equal(signal.aborted,false);return new Promise(resolve=>{release=resolve;});};
-  const pending=f.call.start({});await Promise.resolve();await Promise.resolve();await Promise.resolve();
+  const pending=f.call.start({});for(let i=0;i<20&&!release;i++)await Promise.resolve();assert.ok(release,'Start reached request admission');
   await f.call.end();release(f.completed);await pending;
   assert.deepEqual(f.played,[]);assert.equal(f.counts().listen,0);assert.equal(f.call.control.signal.aborted,true);assert.equal(f.counts().ends,1);assert.equal(f.saved.at(-1),null);
 });
@@ -100,4 +100,76 @@ test('Learning code remains isolated, responsive constraints and no transcript D
   assert.ok(css.includes('minmax(0,1fr)'));assert.ok(css.includes('max-width:480px'));assert.ok(css.includes('max-width:760px'));assert.ok(css.includes('prefers-reduced-motion'));
   const nav=readFileSync(new URL('../templates/kilas_ai/_home_task_selector.html',import.meta.url),'utf8');
   assert.ok(nav.indexOf("('translate'")<nav.indexOf("('learning'"));assert.ok(nav.indexOf("('learning'")<nav.indexOf("('voiceover'"));
+});
+
+const tick=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
+test('permission rejection returns to setup without provider admission and Start works again',async()=>{
+  const f=fixture();f.capture.permission=async()=>{throw new DOMException('denied','NotAllowedError');};
+  await f.call.start({});assert.equal(f.call.active,false);assert.equal(f.events.at(-1)[0],'ended');assert.match(f.events.at(-1)[1],/Izin mikrofon/);
+  assert.equal(f.counts().starts,0);f.capture.permission=async()=>{};await f.call.start({});assert.equal(f.counts().starts,1);
+});
+test('repeated Start during pending permission admits exactly once and preserves settings',async()=>{
+  const f=fixture();let release,settings;
+  f.capture.permission=()=>new Promise(r=>{release=r;});f.api.start=async values=>{settings=values;return f.completed;};
+  const pending=f.call.start({target:'zh',native:'es',level:'advanced',voice:'kilas-female',consent:'yes'});
+  await f.call.start({target:'en'});release();await pending;
+  assert.deepEqual({...settings,start_key:undefined},{target:'zh',native:'es',level:'advanced',voice:'kilas-female',consent:'yes',start_key:undefined});
+});
+test('startup timeout closes local resources and admits no server session',async()=>{
+  const f=fixture();f.call.startupMs=5;f.capture.permission=()=>new Promise(()=>{});
+  await f.call.start({});assert.equal(f.call.active,false);assert.equal(f.call.control.signal.aborted,true);assert.equal(f.counts().starts,0);assert.equal(f.events.at(-1)[0],'ended');
+});
+test('End during permission settles startup immediately even before permission resolves',async()=>{
+  const f=fixture();f.capture.permission=()=>new Promise(()=>{});
+  const pending=f.call.start({});await f.call.end();await pending;
+  assert.equal(f.counts().starts,0);assert.equal(f.call.active,false);
+});
+test('ambiguous Start saves cancellation identity and resume only discovers existing session',async()=>{
+  const f=fixture();f.api.start=async()=>{throw Error('lost response');};
+  await f.call.start({});assert.equal(f.events.at(-1)[0],'paused');assert.ok(f.saved.at(-1).startKey);assert.equal(f.saved.at(-1).session,null);
+  let discoveries=0;f.api.current=async()=>{discoveries++;return f.completed;};await f.call.resume();assert.equal(discoveries,1);assert.deepEqual(f.played,[0,1]);
+});
+test('repeated resume during pending permission cannot cancel the first resume',async()=>{
+  const f=fixture();let release,permissions=0;
+  await f.call.restore({session:'session',turn:'greeting',next:1});
+  f.capture.permission=()=>{permissions++;return new Promise(r=>{release=r;});};
+  const pending=f.call.resume();await f.call.resume();assert.equal(permissions,1);release();await pending;assert.deepEqual(f.played,[1]);
+});
+test('unmute after cancelled realtime input checks status then starts a new listen',async()=>{
+  const f=fixture();await f.call.start({});f.call.beginInput('learner-input');
+  let polls=0;f.api.status=async(_sid,turn)=>{polls++;assert.equal(turn,'learner-input');return {...f.completed,turn,status:'CANCELLED',clips:[]};};
+  f.call.mute();assert.equal(f.call.mute(),false);await tick();assert.equal(polls,1);assert.equal(f.events.at(-1)[0],'listening');
+});
+test('next known complete clip is fetched during playback and never played out of order',async()=>{
+  const f=fixture(),fetched=[];let release;
+  f.api.clip=async(_s,_t,index)=>{fetched.push(index);return index;};
+  f.player.play=async index=>{f.played.push(index);if(index===0)await new Promise(r=>{release=r;});};
+  const pending=f.call.start({});await tick();assert.deepEqual(fetched,[0,1]);assert.deepEqual(f.played,[0]);
+  release();await pending;assert.deepEqual(f.played,[0,1]);assert.equal(f.counts().listen,1);
+});
+test('completed response with a missing audio segment pauses without reopening the mic',async()=>{
+  const f=fixture();f.api.start=async()=>({...f.completed,clips:[{index:0},{index:2}]});
+  await f.call.start({});assert.deepEqual(f.played,[0]);assert.equal(f.events.at(-1)[0],'paused');assert.equal(f.counts().listen,0);
+});
+test('startup wrapper calls gesture task synchronously and cleans timeout after completion',async()=>{
+  let called=false,timer,cleared=false;const control=new AbortController();
+  const pending=within(()=>{called=true;return 'ok';},control.signal,30,{setTimer:fn=>{timer=fn;return 1;},clearTimer:()=>{cleared=true;}});
+  assert.equal(called,true);assert.equal(await pending,'ok');assert.equal(cleared,true);timer();
+});
+
+test('restored call settings come from server state and persist the actual language and voice',async()=>{
+  const f=fixture(),choices=[];f.call.onSettings=value=>choices.push(value);
+  await f.call.restore({session:'session',turn:'greeting',next:2});assert.equal(choices.at(-1),null);
+  f.api.status=async()=>({...f.completed,target:'es',native:'zh',level:'intermediate',voice:'kilas-female'});
+  await f.call.resume();assert.deepEqual(choices.at(-1),{target:'es',native:'zh',level:'intermediate',voice:'kilas-female'});
+  assert.deepEqual(f.saved.at(-1).settings,choices.at(-1));
+});
+test('late cancelled listen cannot close microphone permission in a newer Start',async()=>{
+  const f=fixture();let openings=0,cancelledNewPermission=0,newPermission=false;
+  f.capture.start=async()=>{openings++;if(openings===1)return new Promise(()=>{});};
+  const old=f.call.start({});await tick();assert.equal(openings,1);
+  const ending=f.call.end();f.capture.permission=async()=>{newPermission=true;};
+  f.capture.cancel=()=>{if(newPermission&&f.call.phase==='preparing'&&!f.call.session)cancelledNewPermission++;};
+  const current=f.call.start({});await Promise.all([old,ending,current]);
+  assert.equal(cancelledNewPermission,0);assert.equal(f.call.phase,'listening');assert.equal(openings,2);
 });

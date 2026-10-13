@@ -6,7 +6,12 @@ export class RealtimeMic {
   constructor({api,session,id,openMicrophone,onOpened,now=()=>performance.now(),setTimer=setTimeout,clearTimer=clearTimeout}) {
     Object.assign(this,{api,session,id,openMicrophone,onOpened,now,setTimer,clearTimer});this.generation=0;
   }
-  async permission(){this.permissionController=new AbortController();const stop=await this.openMicrophone(null,this.permissionController.signal);stop();}
+  async permission(signal){
+    this.permissionController?.abort();const control=new AbortController();this.permissionController=control;
+    const abort=()=>control.abort();signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
+    try{const stop=await this.openMicrophone(null,control.signal);stop();}
+    finally{signal?.removeEventListener('abort',abort);}
+  }
   async start(onResult,onError){
     this.cancel();const ticket=this.generation;this.onResult=onResult;this.onError=onError;this.queue=[];this.pre=[];this.index=0;this.turn=null;this.finishing=false;this.open=false;this.pumping=false;
     this.controller=new AbortController();this.gate=new SilenceGate(this.now);this.firstSpeech=null;

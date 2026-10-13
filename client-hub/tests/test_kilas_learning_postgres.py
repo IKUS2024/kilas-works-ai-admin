@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 
 if os.environ.get('KILAS_AI_POSTGRES_QA')!='1' or urlsplit(os.environ.get('DATABASE_URL','')).hostname not in ('localhost','127.0.0.1'):
     raise SystemExit('Explicit disposable loopback PostgreSQL required')
@@ -39,11 +40,25 @@ def main():
                 finally:db._discard_cached_connection()
             with ThreadPoolExecutor(max_workers=2) as executor:
                 assert sorted(executor.map(lambda _:claim(),range(2)))==[False,True]
+            store.finish(owner,sid,'learning-pg-turn-1234','Explain in Spanish','example',{})
+            db.execute('UPDATE kilas_learning_sessions SET expires_at=? WHERE id=?',((usage._now()-timedelta(days=1)).isoformat(),sid))
+            for index in range(44):
+                key='learning-pg-long-turn-'+str(index)
+                assert store.claim(owner,sid,key,'realtime')
+                store.finish(owner,sid,key,'practice','example',{})
+            assert not store.state(owner,sid)['ended']
+            assert store.current(owner)==sid
+            assert store.context(owner,sid)[0]['content']=='Explain in Spanish'
+            assert len(store.context(owner,sid))==18
+            assert store.claim(owner,sid,'learning-pg-stale-turn','realtime')
+            db.execute('UPDATE kilas_learning_turns SET created_at=? WHERE id=?',((usage._now()-timedelta(minutes=4)).isoformat(),'learning-pg-stale-turn'))
+            assert store.claim(owner,sid,'learning-pg-recovered-turn','realtime')
+            assert store.state(owner,sid,'learning-pg-stale-turn')['status']=='FAILED'
             try:store.state(other,sid);raise AssertionError('Foreign session accepted')
             except store.Error as error:assert error.status==404
             store.end(owner,sid)
             assert store.state(owner,sid)['status']=='CANCELLED'
-            print('PASS: Learning PostgreSQL additive/idempotent schema, concurrent claim, owner fences, End')
+            print('PASS: Learning PostgreSQL additive/idempotent schema, concurrent claim, continued sessions, bounded context, stale recovery, owner fences, End')
     finally:
         db._discard_cached_connection()
         with control.cursor() as cur:cur.execute('DROP SCHEMA '+isolated+' CASCADE')

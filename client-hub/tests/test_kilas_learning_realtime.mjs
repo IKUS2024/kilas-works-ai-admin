@@ -83,3 +83,18 @@ test('acquired microphone is stopped immediately if End interrupts worklet initi
     if(oldWindow===undefined)delete globalThis.window;else globalThis.window=oldWindow;
   }
 });
+
+test('real microphone adapter stops a late permission grant after End before creating audio context',async()=>{
+  const oldNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator'),oldWindow=globalThis.window;
+  let release,stops=0,contexts=0;
+  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{mediaDevices:{getUserMedia:()=>new Promise(r=>{release=r;})}}});
+  globalThis.window={AudioWorkletNode:class{},AudioContext:class{constructor(){contexts++;}}};
+  try{
+    const control=new AbortController(),pending=microphone(()=>{},control.signal);control.abort();
+    release({getTracks:()=>[{stop:()=>{stops++;}}]});await assert.rejects(pending,{name:'AbortError'});
+    assert.equal(stops,1);assert.equal(contexts,0);
+  }finally{
+    if(oldNavigator)Object.defineProperty(globalThis,'navigator',oldNavigator);else delete globalThis.navigator;
+    if(oldWindow===undefined)delete globalThis.window;else globalThis.window=oldWindow;
+  }
+});

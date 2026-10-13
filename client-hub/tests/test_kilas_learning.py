@@ -297,6 +297,76 @@ class LearningTests(unittest.TestCase):
             for values in ({'KILAS_LEARNING_ENABLED':'false'},{'KILAS_LEARNING_REALTIME_ENABLED':'false'},{'KILAS_LEARNING_REALTIME_BUDGET_MICRO_USD':'0'},{'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.other)},{'KILAS_LEARNING_REALTIME_BILLING_VERIFIED':''}):
                 with patch.dict(os.environ,values):self.assertFalse(learning.ready(self.user))
 
+    def test_session_continues_past_old_expiry_and_forty_turns(self):
+        ident=self.session()
+        db.execute('UPDATE kilas_learning_sessions SET expires_at=? WHERE id=?',((usage._now()-timedelta(days=1)).isoformat(),ident))
+        for index in range(45):
+            key='learning-long-turn-'+str(index)
+            self.assertTrue(store.claim(self.user,ident,key,'realtime'))
+            store.finish(self.user,ident,key,'practice','example',{})
+        self.assertEqual(store.current(self.user),ident)
+        self.assertFalse(store.state(self.user,ident)['ended'])
+        self.assertLessEqual(len(store.context(self.user,ident)),18)
+        store.end(self.user,ident)
+        self.assertIsNone(store.current(self.user))
+        with self.assertRaises(store.Error):store.claim(self.user,ident,'learning-ended-turn','realtime')
+
+    def test_initial_explanation_choice_survives_rolling_context_without_duplicates(self):
+        ident=self.session()
+        for index in range(12):
+            key='learning-memory-turn-'+str(index)
+            store.claim(self.user,ident,key,'realtime')
+            store.finish(self.user,ident,key,'Explain in Spanish' if index==0 else 'practice '+str(index),'example',{})
+        messages=store.context(self.user,ident)
+        self.assertEqual(messages[0],{'role':'user','content':'Explain in Spanish'})
+        self.assertEqual(sum(m['content']=='Explain in Spanish' for m in messages),1)
+        self.assertEqual(len(messages),18)
+        self.assertIn('latest preference',learning.instructions(store.session(self.user,ident),False))
+
+    def test_stale_input_recovery_clears_pcm_without_refunding_dispatched_cost(self):
+        ident=self.session();old='learning-stale-turn-1234'
+        store.claim(self.user,ident,old,'realtime')
+        stamp=(usage._now()-timedelta(minutes=4)).isoformat()
+        db.execute('UPDATE kilas_learning_turns SET created_at=? WHERE id=?',(stamp,old))
+        db.execute("INSERT INTO kilas_learning_inputs(turn_id,status,dispatched,charge_micro,created_at) VALUES (?,'STREAMING',1,4875,?)",(old,stamp))
+        db.execute('INSERT INTO kilas_learning_input_chunks VALUES (?,0,?,?)',(old,'synthetic',b'00'))
+        self.assertEqual(store.state(self.user,ident,old)['status'],'FAILED')
+        self.assertTrue(store.claim(self.user,ident,'learning-recovery-turn','realtime'))
+        row=db.query_one('SELECT status,charge_micro FROM kilas_learning_inputs WHERE turn_id=?',(old,))
+        self.assertEqual(row['status'],'FAILED');self.assertEqual(row['charge_micro'],4875)
+        self.assertIsNone(db.query_one('SELECT pcm FROM kilas_learning_input_chunks WHERE turn_id=?',(old,))['pcm'])
+
+    def test_cancelled_tts_turn_cannot_publish_late_audio_but_preserves_charge(self):
+        self.credit(500);ident=self.session();key=self.turn(ident)
+        def cancel(text,*args):
+            realtime.cancel(self.user,ident,key)
+            return self.audio
+        self.run_tutor(ident,key,speech=cancel)
+        self.assertEqual(store.state(self.user,ident,key)['status'],'CANCELLED')
+        self.assertEqual(store.state(self.user,ident,key)['clips'],[])
+        self.assertLess(audio_store.balance(self.user)['seconds'],500)
+
+    def test_compact_call_ui_preserves_consent_and_has_no_provider_description(self):
+        with patch.object(learning.voices,'public_choices',return_value=[VOICE]):
+            html=self.client.get('/kilas-learning').text
+        self.assertIn('aria-label="Akhiri sesi"',html)
+        self.assertIn('name="consent" value="yes" required',html)
+        self.assertIn('/privacy#audio-processing',html)
+        self.assertNotIn('ElevenLabs',html);self.assertNotIn('OpenAI',html)
+        self.assertNotIn('30 menit',html);self.assertNotIn('40 giliran',html)
+
+    def test_independent_language_level_and_branded_voice_choices(self):
+        for target in store.TARGETS:
+            for native in store.NATIVES:
+                for level in store.LEVELS:
+                    for voice in ('kilas-male','kilas-female'):
+                        start='learning-choices-'+target+'-'+native+'-'+level+'-'+voice
+                        ident,_=store.create(self.user,start,target,native,level,voice)
+                        settings=store.session(self.user,ident)
+                        self.assertEqual((settings['target'],settings['native'],settings['level'],settings['voice']),(target,native,level,voice))
+                        self.assertIn(store.NATIVES[native],learning.instructions(settings,True))
+                        store.end(self.user,ident)
+
 
 class PhraseTests(unittest.TestCase):
     def test_every_character_survives_arbitrary_deltas_and_stable_boundaries(self):

@@ -23,7 +23,7 @@ def _session(conn, owner, ident, active=True):
     row = usage._query(conn, 'SELECT id,target,native,level,voice,status,expires_at FROM kilas_learning_sessions WHERE id=? AND user_id=?', (ident, owner), one=True)
     if not row:
         raise Error('Sesi tidak ditemukan.', 'not_found', 404)
-    if active and (row[5] != 'ACTIVE' or usage._as_utc(row[6]) <= usage._now()):
+    if active and row[5] != 'ACTIVE':
         raise Error('Sesi sudah berakhir. Mulai sesi baru.', 'session_ended', 409)
     return dict(zip(('id','target','native','level','voice','status','expires_at'), row))
 
@@ -46,16 +46,17 @@ def create(owner, start_key, target, native, level, voice):
                 raise Error('Pilihan sesi berubah. Mulai sesi baru.', 'idempotency_conflict', 409)
             return old[0], False
         now = usage._now()
-        usage._query(conn, "UPDATE kilas_learning_sessions SET status='ENDED' WHERE user_id=? AND expires_at<=?", (owner,now.isoformat()))
         if usage._query(conn, "SELECT 1 FROM kilas_learning_sessions WHERE user_id=? AND status='ACTIVE'", (owner,), one=True):
             raise Error('Sesi Learning masih aktif. Lanjutkan atau akhiri dahulu.', 'active_session', 409)
         ident = uuid.uuid4().hex
-        usage._query(conn, "INSERT INTO kilas_learning_sessions VALUES (?,?,?,?,?,?,?,'ACTIVE',?,?)", (ident,owner,start_key,target,native,level,voice,now.isoformat(),(now+timedelta(minutes=30)).isoformat()))
+        # Legacy NOT NULL expires_at is retained for schema/checksum compatibility.
+        # Session lifetime is now explicit End; dispatch/cost ceilings still apply.
+        usage._query(conn, "INSERT INTO kilas_learning_sessions VALUES (?,?,?,?,?,?,?,'ACTIVE',?,?)", (ident,owner,start_key,target,native,level,voice,now.isoformat(),now.isoformat()))
         return ident, True
 
 
 def current(owner):
-    row = db.query_one("SELECT id FROM kilas_learning_sessions WHERE user_id=? AND status='ACTIVE' AND expires_at>? ORDER BY created_at DESC LIMIT 1", (owner,usage._now().isoformat()))
+    row = db.query_one("SELECT id FROM kilas_learning_sessions WHERE user_id=? AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1", (owner,))
     return row['id'] if row else None
 
 
@@ -68,11 +69,14 @@ def claim(owner, ident, turn, fingerprint):
             if old != (ident,fingerprint):
                 raise Error('Permintaan berubah.', 'idempotency_conflict', 409)
             return False
+        # A dead worker must not leave this session permanently busy. Retain all
+        # dispatched cost markers; recovery never repeats an old paid operation.
+        cutoff = (usage._now()-timedelta(minutes=3)).isoformat()
+        usage._query(conn, "UPDATE kilas_learning_turns SET status='FAILED',error_code='processing_timeout' WHERE session_id=? AND status='PROCESSING' AND created_at<?", (ident,cutoff))
+        usage._query(conn, "UPDATE kilas_learning_inputs SET status='FAILED' WHERE turn_id IN (SELECT id FROM kilas_learning_turns WHERE session_id=? AND status='FAILED') AND status IN ('WAITING','STREAMING','COMMITTING')", (ident,))
+        usage._query(conn, "UPDATE kilas_learning_input_chunks SET pcm=NULL WHERE turn_id IN (SELECT id FROM kilas_learning_turns WHERE session_id=? AND status='FAILED')", (ident,))
         if usage._query(conn, "SELECT 1 FROM kilas_learning_turns WHERE session_id=? AND status='PROCESSING'", (ident,), one=True):
             raise Error('Tutor masih menyiapkan jawaban.', 'busy', 409)
-        count = usage._query(conn, 'SELECT COUNT(*) FROM kilas_learning_turns WHERE session_id=?', (ident,), one=True)[0]
-        if count >= 40:
-            raise Error('Batas sesi tercapai. Akhiri lalu mulai sesi baru.', 'session_limit', 429)
         usage._query(conn, "INSERT INTO kilas_learning_turns(id,session_id,fingerprint,status,created_at) VALUES (?,?,?,'PROCESSING',?)", (turn,ident,fingerprint,usage._now().isoformat()))
         return True
 
@@ -88,9 +92,15 @@ def check(owner, ident, turn):
 
 def context(owner, ident):
     session(owner,ident)
-    rows = db.query_all("SELECT input_text,output_text FROM kilas_learning_turns WHERE session_id=? AND status='COMPLETED' ORDER BY created_at DESC LIMIT 8", (ident,))
+    rows = db.query_all("SELECT id,input_text,output_text FROM kilas_learning_turns WHERE session_id=? AND status='COMPLETED' ORDER BY created_at DESC LIMIT 8", (ident,))
+    # Retain the initial explanation-language choice after the rolling window
+    # moves on. Later preferences in recent dialogue take precedence in the prompt.
+    first = db.query_one("SELECT id,input_text,output_text FROM kilas_learning_turns WHERE session_id=? AND status='COMPLETED' AND input_text IS NOT NULL ORDER BY created_at LIMIT 1", (ident,))
+    ordered = list(reversed(rows))
+    if first and not any(row['id']==first['id'] for row in rows):
+        ordered.insert(0,first)
     messages = []
-    for row in reversed(rows):
+    for row in ordered:
         if row['input_text']:
             messages.append({'role':'user','content':row['input_text']})
         messages.append({'role':'assistant','content':row['output_text']})
@@ -101,7 +111,7 @@ def finish(owner, ident, turn, text, output, timings, error=None):
     with audio_store.locked(owner) as conn:
         s = _session(conn,owner,ident,False)
         # End never resurrects a turn or stores late transcripts.
-        if s['status'] != 'ACTIVE' or usage._as_utc(s['expires_at']) <= usage._now():
+        if s['status'] != 'ACTIVE':
             error = 'cancelled'
         usage._query(conn, "UPDATE kilas_learning_turns SET status=?,input_text=?,output_text=?,error_code=?,timings=? WHERE id=? AND session_id=? AND status='PROCESSING'", ('FAILED' if error else 'COMPLETED',None if error else text,None if error else output,error,json.dumps(timings),turn,ident))
 
@@ -146,7 +156,7 @@ def state(owner, ident, turn=None):
     row = db.query_one('SELECT id,status,error_code,created_at,timings FROM kilas_learning_turns WHERE id=? AND session_id=?', (turn,ident)) if turn else None
     if turn and not row:
         raise Error('Ucapan tidak ditemukan.', 'not_found', 404)
-    ended = s['status'] != 'ACTIVE' or usage._as_utc(s['expires_at']) <= usage._now()
+    ended = s['status'] != 'ACTIVE'
     status = row['status'] if row else None
     if status == 'PROCESSING' and usage._now()-usage._as_utc(row['created_at']) > timedelta(minutes=3):
         status = 'FAILED'  # Read-only recovery; never enqueue a paid retry.
@@ -213,7 +223,8 @@ def commit_clip(owner, ident, turn, index, job, raw, ms):
             usage._query(conn,'UPDATE kilas_audio_balances SET seconds=seconds-? WHERE user_id=? AND seconds>=?',(delta,owner,delta))
         usage._query(conn,'UPDATE kilas_audio_jobs SET actual_ms=?,seconds_charged=?,reserved_seconds=reserved_seconds-?,updated_at=? WHERE id=? AND user_id=?',(total,charge,delta,usage._now().isoformat(),job,owner))
         s=_session(conn,owner,ident,False)
-        active=s['status']=='ACTIVE' and usage._as_utc(s['expires_at'])>usage._now()
+        turn_state=usage._query(conn,'SELECT status FROM kilas_learning_turns WHERE id=? AND session_id=?',(turn,ident),one=True)
+        active=s['status']=='ACTIVE' and turn_state and turn_state[0]=='PROCESSING'
         usage._query(conn,'UPDATE kilas_learning_clips SET duration_ms=?,audio=? WHERE turn_id=? AND sequence=?',(ms,raw if active else None,turn,index))
 
 
