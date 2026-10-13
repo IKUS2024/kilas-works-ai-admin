@@ -127,7 +127,7 @@ def input_chunk(ident,turn,index):
     from . import learning_realtime
     item=request.files.get('chunk')
     if not item:raise store.Error('Potongan audio tidak tersedia.')
-    learning_realtime.append(session['user_id'],ident,turn,index,item.read(8193))
+    learning_realtime.append(session['user_id'],ident,turn,index,item.read(learning_realtime.MAX_CHUNK_BYTES+1))
     return jsonify(accepted=index)
 
 

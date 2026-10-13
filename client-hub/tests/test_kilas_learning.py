@@ -110,14 +110,14 @@ class LearningTests(unittest.TestCase):
             self.assertNotIn('<span>Learning</span>',html)
             self.assertIn('AI Chat',html);self.assertIn('Voice Over',html)
 
-    def test_early_phrase_streaming_full_order_private_output_and_accounting(self):
+    def test_complete_reply_single_synthesis_private_output_and_accounting(self):
         self.credit(500);ident=self.session();key=self.turn(ident);spoken=[]
         def stream(*args,**kwargs):
             self.assertIn('FIRST greeting only',kwargs['system'])
             self.assertEqual(kwargs['project'],'proj_synthetic')
             yield {'type':'delta','text':'Halo. '}
-            # The first clip is already published while the model answer is unfinished.
-            self.assertEqual(len(store.state(self.user,ident,key)['clips']),1)
+            # No audible prefix or paid TTS while model text is unfinished.
+            self.assertEqual(len(store.state(self.user,ident,key)['clips']),0)
             self.assertEqual(store.state(self.user,ident,key)['status'],'PROCESSING')
             yield {'type':'delta','text':'Mari belajar. '}
             yield {'type':'usage','input_tokens':20,'output_tokens':12}
@@ -125,8 +125,9 @@ class LearningTests(unittest.TestCase):
         self.run_tutor(ident,key,stream=stream,speech=lambda text,*a:spoken.append(text) or self.audio)
         state=store.state(self.user,ident,key)
         self.assertEqual(state['status'],'COMPLETED')
-        self.assertEqual(''.join(spoken),'Halo. Mari belajar.')
-        self.assertEqual([c['index'] for c in state['clips']],[0,1])
+        self.assertEqual(spoken,['Halo. Mari belajar.'])
+        self.assertEqual([c['index'] for c in state['clips']],[0])
+        self.assertIn('text_ready_ms',state['timings'])
         self.assertNotIn('Halo',str(state))
         self.assertLess(state['timings']['first_published_audio_ms'],state['timings']['completed_ms'])
         ledger=db.query_one('SELECT j.* FROM kilas_audio_jobs j JOIN kilas_learning_turns t ON t.audio_job_id=j.id WHERE t.id=?',(key,))
@@ -442,6 +443,34 @@ class LearningTests(unittest.TestCase):
         self.assertEqual(db.query_one('SELECT status FROM kilas_learning_sessions WHERE id=?',(ident,))['status'],'ENDED')
         with self.assertRaises(store.Error):store.cancel_start(self.other,'',response.json['session_id'])
 
+
+    def test_one_second_pcm_packets_preserve_order_and_three_second_server_backlog(self):
+        ident=self.session();key='learn-batched-pcm-synthetic'
+        with self.funded(),self.on():
+            self.admit(ident,key)
+            for index in range(3):realtime.append(self.user,ident,key,index,bytes([index,0])*16000)
+            self.assertEqual(db.query_one('SELECT audio_bytes FROM kilas_learning_inputs WHERE turn_id=?',(key,))['audio_bytes'],96000)
+            with self.assertRaises(store.Error) as error:realtime.append(self.user,ident,key,3,b'00')
+            self.assertEqual(error.exception.code,'stream_limit')
+            for index in range(3):
+                raw,done=realtime.take(self.user,ident,key)
+                self.assertEqual(raw,bytes([index,0])*16000);self.assertFalse(done)
+            realtime.append(self.user,ident,key,3,b'00')
+            self.assertEqual(realtime.take(self.user,ident,key),(b'00',False))
+            with self.assertRaises(store.Error):realtime.append(self.user,ident,key,4,b'00'*16001)
+            realtime.cancel(self.user,ident,key)
+
+    def test_end_during_text_collection_dispatches_no_incomplete_voice(self):
+        self.credit(500);ident=self.session();key=self.turn(ident);spoken=[]
+        def stream(*args,**kwargs):
+            yield {'type':'delta','text':'Halo. '}
+            store.end(self.user,ident)
+            yield {'type':'delta','text':'Mari belajar. '}
+            yield {'type':'finish','reason':'stop'}
+        self.run_tutor(ident,key,stream=stream,speech=lambda text,*args:spoken.append(text) or self.audio)
+        self.assertEqual(spoken,[]);self.assertTrue(store.state(self.user,ident,key)['ended'])
+        self.assertIsNone(db.query_one('SELECT audio_job_id FROM kilas_learning_turns WHERE id=?',(key,))['audio_job_id'])
+        self.assertEqual(audio_store.balance(self.user)['seconds'],500)
 
 class PhraseTests(unittest.TestCase):
     def test_every_character_survives_arbitrary_deltas_and_stable_boundaries(self):

@@ -58,6 +58,27 @@ def main():
             except store.Error as error:assert error.status==404
             store.end(owner,sid)
             assert store.state(owner,sid)['status']=='CANCELLED'
+            # Native BYTEA batching keeps exactly the existing three-second queue.
+            from kilas_ai import learning_realtime as realtime, learning
+            sid2=store.create(owner,'learning-pg-batched-start','es','id','beginner','kilas-male')[0]
+            turn2='learning-pg-batched-input'
+            assert store.claim(owner,sid2,turn2,'realtime')
+            db.execute("INSERT INTO kilas_learning_inputs(turn_id,status,charge_micro,created_at) VALUES (?,'WAITING',4875,?)",(turn2,usage._now().isoformat()))
+            with patch.object(learning,'require_ready'):
+                for index in range(3):realtime.append(owner,sid2,turn2,index,bytes([index,0])*16000)
+                realtime.append(owner,sid2,turn2,0,b'\x00\x00'*16000)  # Same fingerprint never requeues.
+                try:realtime.append(owner,sid2,turn2,3,b'00');raise AssertionError('Backlog exceeded')
+                except store.Error as error:assert error.code=='stream_limit'
+                assert realtime.take(owner,sid2,turn2)==(b'\x00\x00'*16000,False)
+                realtime.append(owner,sid2,turn2,3,b'00')
+                try:realtime.append(other,sid2,turn2,4,b'00');raise AssertionError('Foreign PCM accepted')
+                except store.Error as error:assert error.status==404
+            store.end(owner,sid2)
+            assert db.query_one('SELECT COUNT(*) AS n FROM kilas_learning_input_chunks WHERE turn_id=? AND pcm IS NOT NULL',(turn2,))['n']==0
+            # This synthetic input never dispatched; simulate the worker's final
+            # release before the independent100-microUSD funding race below.
+            db.execute('UPDATE kilas_learning_inputs SET charge_micro=0 WHERE turn_id=? AND dispatched=0',(turn2,))
+            print('PASS: native PostgreSQL one-second PCM packets, unchanged backlog, duplicate/tenant fences and End cleanup')
             # Fixed-end shared sponsorship: additive checksum + zero-balance job,
             # expiry settlement and a simultaneous service-funding admission.
             from kilas_ai import free_test, audio_transcription_budget as budget

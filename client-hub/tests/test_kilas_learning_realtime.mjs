@@ -7,7 +7,7 @@ const tick=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
 function fixture(){
   let callback,clock=0,stopped=0,idle;
   const sent=[],results=[],errors=[],opened=[],cancels=[];
-  const api={begin:async()=>{opened.push(true);},chunk:async(_s,_t,i,pcm)=>{sent.push([i,pcm[0]]);},
+  const api={begin:async()=>{opened.push(true);},chunk:async(_s,_t,i,pcm)=>{sent.push([i,...pcm.filter((_,index)=>index%2===0)]);},
     commit:async()=>({status:'PROCESSING',turn:'learn-synthetic-1234567890'}),cancel:async(_s,t)=>{cancels.push(t);}};
   const mic=new RealtimeMic({api,session:()=> 'session',id:()=> 'synthetic-1234567890',onOpened:()=>{},
     now:()=>clock,setTimer:fn=>{idle=fn;return 1;},clearTimer:()=>{},
@@ -28,12 +28,13 @@ test('PCM encoder preserves sample count and phase across browser sample rates',
 test('PCM uploads during speech, stable commit only after three seconds of silence',async()=>{
   const f=fixture();await f.start();
   f.chunk(0,1);f.chunk(.03,2);await tick();
-  assert.deepEqual(f.sent,[[0,1],[1,2]]);assert.equal(f.results.length,0);
+  assert.deepEqual(f.sent,[[0,1,2]]);assert.equal(f.results.length,0);
   f.chunk(.03,3);await tick();
   for(let i=0;i<11;i++){f.chunk(0,4);await tick();}
   assert.equal(f.results.length,0);f.chunk(0,5);await tick();
   assert.equal(f.results.length,1);assert.equal(f.opened.length,1);
-  assert.deepEqual(f.sent.map(x=>x[0]),Array.from({length:15},(_,i)=>i));
+  assert.deepEqual(f.sent.map(x=>x[0]),Array.from({length:f.sent.length},(_,i)=>i));
+  assert.deepEqual(f.sent.flatMap(x=>x.slice(1)),[1,2,3,...Array(11).fill(4),5]);
   assert.equal(f.stopped(),1);assert.equal(f.cancels.length,0);
 });
 test('idle silence never opens a paid stream and stops microphone',async()=>{
@@ -113,4 +114,22 @@ test('default microphone timers preserve the browser global receiver during star
     chunk({pcm:new Uint8Array([1,0]),rms:.03});mic.cancel();await tick();
     assert.ok(clears>=3);assert.equal(stops,1);
   }finally{globalThis.setTimeout=originalSet;globalThis.clearTimeout=originalClear;}
+});
+
+test('quarter-second live PCM keeps up with 750ms ACKs using bounded coalescing, preserves samples and commits once',async()=>{
+  let clock=0,onChunk,stops=0,commits=0;const pending=[],uploads=[],results=[],errors=[],captured=[];
+  const api={begin:async()=>{},chunk:async(_s,_t,index,pcm)=>{uploads.push({index,pcm:[...pcm]});await new Promise(resolve=>pending.push({at:clock+750,resolve}));},
+    commit:async()=>{commits++;return {status:'PROCESSING'};},cancel:async()=>{}};
+  const mic=new RealtimeMic({api,session:()=> 'session',id:()=> 'latency-synthetic-123',now:()=>clock,setTimer:()=>1,clearTimer:()=>{},onOpened:()=>{},
+    openMicrophone:async callback=>{onChunk=callback;return ()=>{stops++;};}});
+  await mic.start(state=>results.push(state),error=>errors.push(error));
+  async function advance(){clock+=250;for(const item of pending.filter(x=>x.at<=clock)){pending.splice(pending.indexOf(item),1);item.resolve();}await tick();}
+  for(let frame=0;frame<84;frame++){
+    await advance();const pcm=new Uint8Array(8000).fill(frame);captured.push(...pcm);onChunk({pcm,rms:frame<72?.03:0});await tick();
+  }
+  for(let n=0;n<30&&!results.length;n++)await advance();
+  assert.deepEqual(errors,[]);assert.equal(commits,1);assert.equal(stops,1);assert.equal(results.length,1);
+  assert.ok(uploads.every(x=>x.pcm.length<=32000));assert.ok(uploads.some(x=>x.pcm.length>8000));
+  assert.deepEqual(uploads.map(x=>x.index),Array.from({length:uploads.length},(_,i)=>i));
+  assert.deepEqual(uploads.flatMap(x=>x.pcm),captured);
 });

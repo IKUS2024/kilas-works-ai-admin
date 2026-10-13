@@ -1,4 +1,4 @@
-import {SilenceGate} from './kilas_learning_engine.mjs?v=learning-device-v5-20261013';
+import {SilenceGate} from './kilas_learning_engine.mjs?v=learning-continuity-v6-20261013';
 
 // Server owns the paid WebSocket. This client sends PCM as the learner speaks,
 // never a completed recording, never a provider API key or a reusable token.
@@ -30,7 +30,7 @@ export class RealtimeMic {
       const sid=this.session(),turn=this.turn;
       this.api.begin(sid,turn,this.controller.signal).then(()=>{if(ticket!==this.generation)return;this.open=true;void this.pump(ticket);}).catch(error=>{if(ticket===this.generation)this.fail(error.message);});
     }else this.queue.push(pcm);
-    if(this.queue.length>12){this.fail('Koneksi audio terlalu lambat. Stream dijeda tanpa mengulang audio.');return;}
+    if(this.queue.length>12){this.fail('Pengiriman audio tertunda terlalu lama. Stream dijeda tanpa mengulang audio.');return;}
     if(end||this.now()-this.firstSpeech>=23000){
       this.finishing=true;this.stopMicrophone?.();this.stopMicrophone=null;
     }
@@ -39,7 +39,14 @@ export class RealtimeMic {
   async pump(ticket){
     if(this.pumping||ticket!==this.generation)return;this.pumping=true;
     try{
-      while(this.queue.length&&ticket===this.generation){const pcm=this.queue.shift();await this.api.chunk(this.session(),this.turn,this.index++,pcm,this.controller.signal);}
+      while(this.queue.length&&ticket===this.generation){
+        // Coalesce only PCM already captured: 1–4 quarter-second frames per ACK.
+        // This drains normal HTTP round-trip latency without waiting for a whole
+        // recording, changing sample order, retries, or the three-second queue cap.
+        const parts=this.queue.splice(0,4),pcm=new Uint8Array(parts.reduce((n,part)=>n+part.length,0));let offset=0;
+        for(const part of parts){pcm.set(part,offset);offset+=part.length;}
+        await this.api.chunk(this.session(),this.turn,this.index++,pcm,this.controller.signal);
+      }
       if(this.finishing&&ticket===this.generation){
         const state=await this.api.commit(this.session(),this.turn,this.controller.signal);
         if(ticket!==this.generation)return;

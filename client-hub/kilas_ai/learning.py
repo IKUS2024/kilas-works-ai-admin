@@ -169,7 +169,7 @@ def run(owner, ident, turn, transcript=None, input_timings=None):
         if not operations:
             raise store.Error('Respons ini sudah diproses.', 'duplicate_response',409)
         check()
-        phrases=learning_phrases.Phrases();index=0;complete=False
+        phrases=learning_phrases.Phrases();index=0;complete=False;reply=[]
         stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),messages,'FAST',
                                  system=instructions(settings,transcript is None),project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'])
         def publish(phrase):
@@ -194,15 +194,18 @@ def run(owner, ident, turn, transcript=None, input_timings=None):
             check()
             if event['type']=='delta':
                 for phrase in phrases.feed(event['text']):
-                    publish(phrase)
+                    mark('first_phrase_ms');reply.append(phrase)
             elif event['type']=='usage':
                 tokens.update({k:event[k] for k in ('input_tokens','output_tokens','cached_input_tokens') if k in event})
             elif event['type']=='finish':
                 complete=event.get('reason')=='stop'
         if not complete:
             raise store.Error('Jawaban belum lengkap. Tidak diulang otomatis.', 'incomplete_response',503)
-        for phrase in phrases.feed('',final=True):
-            publish(phrase)
+        reply.extend(phrases.feed('',final=True));mark('text_ready_ms')
+        # One bounded tutor response is one synthesis request. Sentence-by-sentence
+        # requests serialized network/synthesis delays between already played clips.
+        # Collect all text before paid TTS so prosody and playback stay continuous.
+        publish(''.join(reply).strip())
         if not output.strip() or not index:
             raise store.Error('Tutor belum menghasilkan suara.', 'empty_response',503)
         check();success=True;mark('completed_ms')

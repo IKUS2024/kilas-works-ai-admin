@@ -17,6 +17,8 @@ from . import audio_transcription_budget as budget, audio_transcription_provider
 MODEL='scribe_v2_realtime'
 PRICE_VERSION='elevenlabs-scribe-realtime-039usd-hour-20261013'
 MAX_AUDIO_BYTES=25*16000*2
+MAX_CHUNK_BYTES=16000*2  # At most one second, still live PCM streaming.
+MAX_PENDING_BYTES=3*16000*2  # Preserve the original three-second server backlog.
 MAX_CONNECTION_SECONDS=45
 # Reserve the full bounded connection time, including possible silence, even
 # though public API pricing meters audio minutes. Never claim this is an invoice.
@@ -81,7 +83,7 @@ def begin(owner,ident,turn):
 
 def append(owner,ident,turn,index,pcm):
     learning.require_ready(owner)
-    if not pcm or len(pcm)>8192 or len(pcm)%2 or not 0<=index<200:
+    if not pcm or len(pcm)>MAX_CHUNK_BYTES or len(pcm)%2 or not 0<=index<200:
         raise store.Error('Potongan PCM tidak valid.', 'invalid_audio')
     digest=hashlib.sha256(pcm).hexdigest()
     with audio_store.locked(owner) as conn:
@@ -90,7 +92,8 @@ def append(owner,ident,turn,index,pcm):
         if old:
             if old[0]!=digest:raise store.Error('Potongan audio berubah.', 'idempotency_conflict',409)
             return
-        if row[0]=='COMMITTING' or index!=row[1] or row[1]-row[2]>=12 or row[3]+len(pcm)>MAX_AUDIO_BYTES:
+        pending=usage._query(conn,'SELECT COALESCE(SUM(length(pcm)),0) FROM kilas_learning_input_chunks WHERE turn_id=?',(turn,),one=True)[0]
+        if row[0]=='COMMITTING' or index!=row[1] or row[1]-row[2]>=12 or int(pending)+len(pcm)>MAX_PENDING_BYTES or row[3]+len(pcm)>MAX_AUDIO_BYTES:
             raise store.Error('Urutan atau batas stream tidak valid. Tidak ada audio yang dikirim ulang.', 'stream_limit',409)
         usage._query(conn,'INSERT INTO kilas_learning_input_chunks VALUES (?,?,?,?)',(turn,index,digest,pcm))
         usage._query(conn,'UPDATE kilas_learning_inputs SET next_chunk=next_chunk+1,audio_bytes=audio_bytes+? WHERE turn_id=?',(len(pcm),turn))
