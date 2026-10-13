@@ -134,7 +134,7 @@ export class LearningCall {
   }
   beginInput(turn) {
     if(!this.active||this.muted)return;
-    this.turn=turn;this.next=0;this.input=true;this.busy=true;this.persist();
+    this.turn=turn;this.next=0;this.input=true;this.busy=true;this.persist();this.state('listening','Mendengarkan ucapanmu…');
   }
   async submit(state) {
     if(!this.active||this.muted)return;

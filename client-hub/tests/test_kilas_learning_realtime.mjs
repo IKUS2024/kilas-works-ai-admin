@@ -37,9 +37,9 @@ test('PCM uploads during speech, stable commit only after three seconds of silen
   assert.deepEqual(f.sent.flatMap(x=>x.slice(1)),[1,2,3,...Array(11).fill(4),5]);
   assert.equal(f.stopped(),1);assert.equal(f.cancels.length,0);
 });
-test('idle silence never opens a paid stream and stops microphone',async()=>{
-  const f=fixture();await f.start();f.chunk(0);f.idle();await tick();
-  assert.equal(f.opened.length,0);assert.equal(f.stopped(),1);assert.equal(f.errors.length,1);
+test('silent thinking never opens a paid stream or forces Continue; explicit cancel stops mic',async()=>{
+  const f=fixture();await f.start();for(let i=0;i<240;i++)f.chunk(0);await tick();
+  assert.equal(f.opened.length,0);assert.equal(f.stopped(),0);assert.equal(f.errors.length,0);f.mic.cancel();assert.equal(f.stopped(),1);
 });
 test('End during pending admission aborts and fences late responses',async()=>{
   const f=fixture();let release,signal;
@@ -110,7 +110,7 @@ test('default microphone timers preserve the browser global receiver during star
   try{
     const mic=new RealtimeMic({api:{begin:async()=>{},chunk:async()=>{},cancel:async()=>{}},session:()=> 'session',id:()=> 'synthetic-native-timer',onOpened:()=>{},
       openMicrophone:async callback=>{chunk=callback;return ()=>{stops++;};}});
-    mic.cancel();await mic.start(()=>{},()=>{});assert.equal(timers,1);
+    mic.cancel();await mic.start(()=>{},()=>{});assert.equal(timers,0);
     chunk({pcm:new Uint8Array([1,0]),rms:.03});mic.cancel();await tick();
     assert.ok(clears>=3);assert.equal(stops,1);
   }finally{globalThis.setTimeout=originalSet;globalThis.clearTimeout=originalClear;}

@@ -206,3 +206,17 @@ test('new-start permission rejection retains old saved cursor and never closes i
   const f=fixture(),previous={session:'old-session',turn:'old-turn',next:2};f.capture.permission=async()=>{throw new DOMException('denied','NotAllowedError');};
   await f.call.start({},previous);assert.deepEqual(f.saved.at(-1),previous);assert.equal(f.counts().ends,0);assert.equal(f.counts().starts,0);
 });
+
+test('one explicit Start supports three normal voice turns and returns to listening without manual Continue',async()=>{
+  const f=fixture();let sequence=0;
+  f.api.status=async(_session,turn)=>({...f.completed,turn,status:'COMPLETED',clips:[{index:0}]});
+  await f.call.start({target:'en',native:'id',level:'beginner',voice:'kilas-male',consent:'yes'});
+  for(let round=0;round<3;round++){
+    assert.equal(f.call.phase,'listening');const turn='learn-repeat-normal-'+(++sequence);
+    f.call.beginInput(turn);await f.call.submit({...f.completed,turn,status:'PROCESSING',clips:[]});
+    assert.equal(f.call.phase,'listening');assert.equal(f.call.active,true);
+  }
+  assert.equal(f.counts().starts,1);assert.equal(f.counts().listen,4);
+  assert.equal(f.events.filter(([state])=>state==='paused').length,0);assert.deepEqual(f.played,[0,1,0,0,0]);
+  await f.call.end();assert.equal(f.call.phase,'ended');
+});

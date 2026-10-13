@@ -7,7 +7,7 @@ from threading import BoundedSemaphore
 from time import monotonic
 import requests
 import db
-from . import learning_store as store, learning_phrases, free_test
+from . import learning_store as store, learning_phrases, learning_greeting, free_test
 from . import audio_branded_voices as voices, audio_transcription_budget as budget
 from . import audio_transcription_provider as stt, audio_media, audio_store, usage, providers, model_policy
 
@@ -161,17 +161,19 @@ def run(owner, ident, turn, transcript=None, input_timings=None):
         if not voice:
             raise store.Error('Suara pilihan tidak tersedia.', 'voice_unavailable',503)
         audio_store.require_balance(owner)
-        stt.require_subscription_credit();check()
-        messages=store.context(owner,ident)
-        messages.append({'role':'user','content':text or 'Begin the lesson with the first greeting.'})
-        model=model_policy.luna_model()
-        _,operations=usage.reserve(owner,None,turn+'-text','FAST','CHAT',profile=model_policy.chat_profile(messages))
-        if not operations:
-            raise store.Error('Respons ini sudah diproses.', 'duplicate_response',409)
-        check()
-        phrases=learning_phrases.Phrases();index=0;complete=False;reply=[]
-        stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),messages,'FAST',
-                                 system=instructions(settings,transcript is None),project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'])
+        index=0;complete=False;reply=[]
+        if transcript is None:
+            reply=[learning_greeting.text(settings)];complete=True;mark('text_ready_ms')
+        else:
+            stt.require_subscription_credit();check()
+            messages=store.context(owner,ident)
+            messages.append({'role':'user','content':text})
+            model=model_policy.luna_model()
+            _,operations=usage.reserve(owner,None,turn+'-text','FAST','CHAT',profile=model_policy.chat_profile(messages))
+            if not operations:raise store.Error('Respons ini sudah diproses.', 'duplicate_response',409)
+            check();phrases=learning_phrases.Phrases()
+            stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),messages,'FAST',
+                                     system=instructions(settings,False),project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'])
         def publish(phrase):
             nonlocal job,index,output
             # Whitespace is retained in semantic context, never sent as an empty paid request.
@@ -190,18 +192,19 @@ def run(owner, ident, turn, transcript=None, input_timings=None):
             ms=audio_media.mp3_duration(raw)
             store.commit_clip(owner,ident,turn,index,job,raw,ms)
             check();mark('first_published_audio_ms');output+=phrase;index+=1
-        for event in stream:
-            check()
-            if event['type']=='delta':
-                for phrase in phrases.feed(event['text']):
-                    mark('first_phrase_ms');reply.append(phrase)
-            elif event['type']=='usage':
-                tokens.update({k:event[k] for k in ('input_tokens','output_tokens','cached_input_tokens') if k in event})
-            elif event['type']=='finish':
-                complete=event.get('reason')=='stop'
-        if not complete:
-            raise store.Error('Jawaban belum lengkap. Tidak diulang otomatis.', 'incomplete_response',503)
-        reply.extend(phrases.feed('',final=True));mark('text_ready_ms')
+        if stream is not None:
+            for event in stream:
+                check()
+                if event['type']=='delta':
+                    for phrase in phrases.feed(event['text']):
+                        mark('first_phrase_ms');reply.append(phrase)
+                elif event['type']=='usage':
+                    tokens.update({k:event[k] for k in ('input_tokens','output_tokens','cached_input_tokens') if k in event})
+                elif event['type']=='finish':
+                    complete=event.get('reason')=='stop'
+            if not complete:
+                raise store.Error('Jawaban belum lengkap. Tidak diulang otomatis.', 'incomplete_response',503)
+            reply.extend(phrases.feed('',final=True));mark('text_ready_ms')
         # One bounded tutor response is one synthesis request. Sentence-by-sentence
         # requests serialized network/synthesis delays between already played clips.
         # Collect all text before paid TTS so prosody and playback stay continuous.

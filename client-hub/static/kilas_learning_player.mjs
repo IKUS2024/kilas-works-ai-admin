@@ -1,4 +1,4 @@
-import {within} from './kilas_learning_engine.mjs?v=learning-continuity-v6-20261013';
+import {within} from './kilas_learning_engine.mjs?v=learning-conversation-v7-20261013';
 
 // Local ownership fences late decode/resume/end callbacks from a newer call.
 export class LearningPlayer {

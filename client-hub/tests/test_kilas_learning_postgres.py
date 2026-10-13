@@ -64,6 +64,7 @@ def main():
             turn2='learning-pg-batched-input'
             assert store.claim(owner,sid2,turn2,'realtime')
             db.execute("INSERT INTO kilas_learning_inputs(turn_id,status,charge_micro,created_at) VALUES (?,'WAITING',4875,?)",(turn2,usage._now().isoformat()))
+            db.execute('UPDATE kilas_learning_inputs SET provider_ready_at=? WHERE turn_id=?',((usage._now()-timedelta(seconds=11)).isoformat(),turn2))
             with patch.object(learning,'require_ready'):
                 for index in range(3):realtime.append(owner,sid2,turn2,index,bytes([index,0])*16000)
                 realtime.append(owner,sid2,turn2,0,b'\x00\x00'*16000)  # Same fingerprint never requeues.
@@ -78,6 +79,14 @@ def main():
             # This synthetic input never dispatched; simulate the worker's final
             # release before the independent100-microUSD funding race below.
             db.execute('UPDATE kilas_learning_inputs SET charge_micro=0 WHERE turn_id=? AND dispatched=0',(turn2,))
+            sid3=store.create(other,'learning-pg-startup-spool','en','id','beginner','kilas-female')[0]
+            turn3='learning-pg-startup-input';assert store.claim(other,sid3,turn3,'realtime')
+            db.execute("INSERT INTO kilas_learning_inputs(turn_id,status,charge_micro,created_at) VALUES (?,'WAITING',4875,?)",(turn3,usage._now().isoformat()))
+            with patch.object(learning,'require_ready'):
+                for index in range(6):realtime.append(other,sid3,turn3,index,bytes([index,0])*16000)
+                assert db.query_one('SELECT provider_ready_at FROM kilas_learning_inputs WHERE turn_id=?',(turn3,))['provider_ready_at'] is None
+            store.end(other,sid3)
+            db.execute('UPDATE kilas_learning_inputs SET charge_micro=0 WHERE turn_id=? AND dispatched=0',(turn3,))
             print('PASS: native PostgreSQL one-second PCM packets, unchanged backlog, duplicate/tenant fences and End cleanup')
             # Fixed-end shared sponsorship: additive checksum + zero-balance job,
             # expiry settlement and a simultaneous service-funding admission.

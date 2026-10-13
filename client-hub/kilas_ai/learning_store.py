@@ -163,8 +163,9 @@ def state(owner, ident, turn=None):
         status = 'FAILED'  # Read-only recovery; never enqueue a paid retry.
         error_code = error_code or 'processing_timeout'
     clips = [] if ended or not row else db.query_all('SELECT sequence,duration_ms FROM kilas_learning_clips WHERE turn_id=? AND audio IS NOT NULL ORDER BY sequence', (turn,))
+    input_row=db.query_one('SELECT status,provider_ready_at FROM kilas_learning_inputs WHERE turn_id=?',(turn,)) if turn else None
     return {'session_id':ident,'ended':ended,'target':s['target'],'native':s['native'],'level':s['level'],'voice':s['voice'],
-            'turn':turn,'status':status,'error_code':error_code,
+            'turn':turn,'status':status,'error_code':error_code,'input_status':input_row['status'] if input_row else None,'input_ready':bool(input_row and input_row['provider_ready_at']),
             'clips':[{'index':c['sequence'],'duration_ms':c['duration_ms']} for c in clips],
             'timings':json.loads(row['timings']) if row else {}}
 

@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 import test_kilas_audio as fixture
 import test_kilas_audio_video_script as video_fixture
-from kilas_ai import learning, learning_store as store, learning_phrases, learning_schema, learning_realtime as realtime
+from kilas_ai import learning, learning_store as store, learning_phrases, learning_greeting, learning_schema, learning_realtime as realtime
 from kilas_ai import audio_store, audio_transcription_budget as budget, usage, providers, model_policy
 
 VOICE={'alias':'kilas-male','id':'syntheticMale123','name':'Kilas Male','style':'Natural'}
@@ -47,6 +47,7 @@ class LearningTests(unittest.TestCase):
         yield {'type':'finish','reason':'stop'}
 
     def run_tutor(self,ident,key,transcript=None,stream=None,speech=None):
+        if stream is not None and transcript is None:transcript='Ucapan latihan sintetis'
         with self.funded(),self.on(),patch.object(learning.voices,'resolve',return_value=VOICE),patch.object(learning.stt,'require_subscription_credit'),patch.object(providers,'_openai',side_effect=stream or self.stream),patch.object(learning,'speech',side_effect=speech or (lambda *a,**k:self.audio)):
             learning.run(self.user,ident,key,transcript)
 
@@ -113,7 +114,7 @@ class LearningTests(unittest.TestCase):
     def test_complete_reply_single_synthesis_private_output_and_accounting(self):
         self.credit(500);ident=self.session();key=self.turn(ident);spoken=[]
         def stream(*args,**kwargs):
-            self.assertIn('FIRST greeting only',kwargs['system'])
+            self.assertNotIn('FIRST greeting only',kwargs['system'])
             self.assertEqual(kwargs['project'],'proj_synthetic')
             yield {'type':'delta','text':'Halo. '}
             # No audible prefix or paid TTS while model text is unfinished.
@@ -144,7 +145,7 @@ class LearningTests(unittest.TestCase):
         def stream(*args,**kwargs):
             self.assertNotIn('FIRST greeting',kwargs['system'])
             self.assertIn('Saya ingin belajar sapaan.',str(args[2]))
-            self.assertIn('Halo.',str(args[2]))
+            self.assertIn('tutor bahasa Inggris',str(args[2]))
             yield from self.stream()
         self.run_tutor(ident,key,'Saya ingin belajar sapaan.',stream=stream)
         self.assertEqual(store.state(self.user,ident,key)['status'],'COMPLETED')
@@ -448,6 +449,7 @@ class LearningTests(unittest.TestCase):
         ident=self.session();key='learn-batched-pcm-synthetic'
         with self.funded(),self.on():
             self.admit(ident,key)
+            db.execute('UPDATE kilas_learning_inputs SET provider_ready_at=? WHERE turn_id=?',((usage._now()-timedelta(seconds=11)).isoformat(),key))
             for index in range(3):realtime.append(self.user,ident,key,index,bytes([index,0])*16000)
             self.assertEqual(db.query_one('SELECT audio_bytes FROM kilas_learning_inputs WHERE turn_id=?',(key,))['audio_bytes'],96000)
             with self.assertRaises(store.Error) as error:realtime.append(self.user,ident,key,3,b'00')
@@ -471,6 +473,79 @@ class LearningTests(unittest.TestCase):
         self.assertEqual(spoken,[]);self.assertTrue(store.state(self.user,ident,key)['ended'])
         self.assertIsNone(db.query_one('SELECT audio_job_id FROM kilas_learning_turns WHERE id=?',(key,))['audio_job_id'])
         self.assertEqual(audio_store.balance(self.user)['seconds'],500)
+
+    def test_public_native_greeting_is_bounded_and_uses_no_model_or_chat_charge(self):
+        for native in store.NATIVES:
+            for target in store.TARGETS:
+                message=learning_greeting.text({'native':native,'target':target})
+                self.assertTrue(message.strip());self.assertLessEqual(len(message),120)
+                self.assertIn(learning_greeting.TARGETS[native][target],message)
+        self.credit(500);ident=self.session();key=self.turn(ident)
+        with self.funded(),self.on(),patch.object(learning.voices,'resolve',return_value=VOICE),patch.object(learning.stt,'require_subscription_credit'),patch.object(providers,'_openai') as model,patch.object(learning,'speech',return_value=self.audio) as voice:
+            learning.run(self.user,ident,key)
+            model.assert_not_called();voice.assert_called_once()
+            self.assertIn('bahasa Indonesia atau Inggris',voice.call_args.args[0])
+        self.assertEqual(store.state(self.user,ident,key)['status'],'COMPLETED')
+        self.assertIsNone(db.query_one('SELECT id FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.user,key+'-text')))
+
+    def test_complete_three_voice_turns_with_cold_connection_spooling_and_single_response_playback(self):
+        # Real routes, state, admission, transcriber and tutor; only suppliers and
+        # time are synthetic. Models never see partial recognition messages.
+        self.credit(500);tasks=[];spoken=[];models=[];now=[usage._now()]
+        def enqueue(fn,*args):tasks.append((fn,args))
+        def model(*args,**kwargs):
+            models.append(args[2]);yield from self.stream()
+        def speech(text,*args):spoken.append(text);return self.audio
+        native_transcribe=realtime.transcribe
+        def recognize(owner,ident,turn,metrics=None):
+            sent=[]
+            class Socket:
+                def settimeout(inner,value):pass
+                def close(inner):pass
+                def send(inner,value):sent.append(json.loads(value))
+                def recv(inner):return json.dumps({'message_type':'committed_transcript','text':'Use English explanations' if len(models)==0 else 'Hello, how do I practise?'} if sent[-1].get('commit') else {'message_type':'partial_transcript','text':'UNSTABLE'})
+            def connect(*args,**kwargs):
+                now[0]+=timedelta(seconds=6)
+                # More than the old3s limit arrives while the socket is opening.
+                for index in range(1,6):
+                    response=self.client.post('/kilas-learning/sessions/'+ident+'/input/'+turn+'/chunks/'+str(index),data={'csrf_token':'audio-csrf','chunk':(io.BytesIO(bytes([index,0])*16000),'synthetic.pcm')})
+                    self.assertEqual(response.status_code,200,response.text)
+                self.assertEqual(self.client.post('/kilas-learning/sessions/'+ident+'/input/'+turn+'/commit',data={'csrf_token':'audio-csrf'}).status_code,202)
+                return Socket()
+            text,timings=native_transcribe(owner,ident,turn,connect=connect,metrics=metrics)
+            import base64
+            self.assertEqual(b''.join(base64.b64decode(packet['audio_base_64']) for packet in sent),b''.join(bytes([index,0])*16000 for index in range(6)))
+            self.assertEqual(sum(bool(packet.get('commit')) for packet in sent),1)
+            return text,timings
+        with self.funded(global_micro=1000000,account_micro=1000000),self.on(),patch.object(usage,'_now',side_effect=lambda:now[0]),patch.object(learning._executor,'submit',side_effect=enqueue),patch.object(learning.voices,'resolve',return_value=VOICE),patch.object(learning.stt,'require_subscription_credit'),patch.object(providers,'_openai',side_effect=model),patch.object(learning,'speech',side_effect=speech),patch.object(realtime,'transcribe',side_effect=recognize):
+            start=self.client.post('/kilas-learning/sessions',data={'csrf_token':'audio-csrf','consent':'yes','start_key':'three-turns-start-synthetic','target':'en','native':'id','level':'beginner','voice':'kilas-male'})
+            self.assertEqual(start.status_code,201);ident=start.json['session_id']
+            fn,args=tasks.pop(0);fn(*args)
+            self.assertEqual(store.state(self.user,ident)['status'],'COMPLETED');self.assertEqual(models,[])
+            for number in range(3):
+                turn='learn-multi-voice-synthetic-'+str(number)
+                self.assertEqual(self.client.post('/kilas-learning/sessions/'+ident+'/input',data={'csrf_token':'audio-csrf','operation_key':turn}).status_code,202)
+                realtime.append(self.user,ident,turn,0,b'\x00\x00'*16000)
+                fn,args=tasks.pop(0);fn(*args)
+                state=self.client.get('/kilas-learning/sessions/'+ident+'/turns/'+turn).json
+                self.assertEqual(state['status'],'COMPLETED',state);self.assertTrue(state['input_ready'])
+                self.assertEqual(len(state['clips']),1)
+                self.assertEqual(self.client.get('/kilas-learning/sessions/'+ident+'/turns/'+turn+'/clips/0').status_code,200)
+            self.assertEqual(len(spoken),4);self.assertEqual(len(models),3)
+            self.assertTrue(all('UNSTABLE' not in str(messages) for messages in models))
+            self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_learning_inputs i JOIN kilas_learning_turns t ON t.id=i.turn_id WHERE t.session_id=? AND i.status='DONE'",(ident,))['n'],3)
+            self.assertEqual(audio_store.balance(self.user)['seconds'],496)
+            store.end(self.user,ident)
+
+    def test_startup_spool_is_bounded_and_steady_sequence_guards_stay_strict(self):
+        ident=self.session();key='learn-bounded-startup-pcm'
+        with self.funded(global_micro=1000000,account_micro=1000000),self.on():
+            self.admit(ident,key)
+            for index in range(10):realtime.append(self.user,ident,key,index,bytes([index,0])*16000)
+            with self.assertRaises(store.Error) as error:realtime.append(self.user,ident,key,10,b'00')
+            self.assertEqual(error.exception.code,'stream_limit')
+            self.assertEqual(db.query_one('SELECT audio_bytes FROM kilas_learning_inputs WHERE turn_id=?',(key,))['audio_bytes'],320000)
+            realtime.cancel(self.user,ident,key)
 
 class PhraseTests(unittest.TestCase):
     def test_every_character_survives_arbitrary_deltas_and_stable_boundaries(self):

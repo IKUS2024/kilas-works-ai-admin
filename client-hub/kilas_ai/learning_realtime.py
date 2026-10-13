@@ -6,6 +6,7 @@ Only stable committed provider text reaches the tutor. No batch STT fallback.
 import hashlib
 import json
 import os
+import re
 from datetime import timedelta
 from time import monotonic, sleep
 import websocket
@@ -19,6 +20,9 @@ PRICE_VERSION='elevenlabs-scribe-realtime-039usd-hour-20261013'
 MAX_AUDIO_BYTES=25*16000*2
 MAX_CHUNK_BYTES=16000*2  # At most one second, still live PCM streaming.
 MAX_PENDING_BYTES=3*16000*2  # Preserve the original three-second server backlog.
+STARTUP_SECONDS=10
+DRAIN_SECONDS=10
+MAX_STARTUP_PENDING_BYTES=STARTUP_SECONDS*16000*2
 MAX_CONNECTION_SECONDS=45
 # Reserve the full bounded connection time, including possible silence, even
 # though public API pricing meters audio minutes. Never claim this is an invoice.
@@ -27,7 +31,7 @@ RESERVE_MICRO=(MAX_CONNECTION_SECONDS*390000+3599)//3600
 
 def _owned(conn,owner,ident,turn):
     store._session(conn,owner,ident)
-    row=usage._query(conn,'SELECT i.status,i.next_chunk,i.sent_chunk,i.audio_bytes,i.dispatched,i.created_at,t.status FROM kilas_learning_inputs i JOIN kilas_learning_turns t ON t.id=i.turn_id WHERE i.turn_id=? AND t.session_id=?',(turn,ident),one=True)
+    row=usage._query(conn,'SELECT i.status,i.next_chunk,i.sent_chunk,i.audio_bytes,i.dispatched,i.created_at,t.status,i.provider_ready_at FROM kilas_learning_inputs i JOIN kilas_learning_turns t ON t.id=i.turn_id WHERE i.turn_id=? AND t.session_id=?',(turn,ident),one=True)
     if not row:
         raise store.Error('Stream tidak ditemukan.', 'not_found',404)
     if row[0] not in ('WAITING','STREAMING','COMMITTING') or row[6]!='PROCESSING':
@@ -93,7 +97,15 @@ def append(owner,ident,turn,index,pcm):
             if old[0]!=digest:raise store.Error('Potongan audio berubah.', 'idempotency_conflict',409)
             return
         pending=usage._query(conn,'SELECT COALESCE(SUM(length(pcm)),0) FROM kilas_learning_input_chunks WHERE turn_id=?',(turn,),one=True)[0]
-        if row[0]=='COMMITTING' or index!=row[1] or row[1]-row[2]>=12 or int(pending)+len(pcm)>MAX_PENDING_BYTES or row[3]+len(pcm)>MAX_AUDIO_BYTES:
+        age=(usage._now()-usage._as_utc(row[5])).total_seconds()
+        starting=(not row[7] and age<=STARTUP_SECONDS) or (row[7] and (usage._now()-usage._as_utc(row[7])).total_seconds()<=DRAIN_SECONDS)
+        byte_limit=MAX_STARTUP_PENDING_BYTES if starting else MAX_PENDING_BYTES
+        chunk_limit=40 if starting else 12
+        reason=('committing' if row[0]=='COMMITTING' else 'sequence' if index!=row[1] else
+                'pending_chunks' if row[1]-row[2]>=chunk_limit else 'pending_bytes' if int(pending)+len(pcm)>byte_limit else
+                'utterance_bytes' if row[3]+len(pcm)>MAX_AUDIO_BYTES else None)
+        if reason:
+            print('KILAS_LEARNING_STREAM '+json.dumps({'stage':'admission','reason':reason,'pending_bytes':int(pending),'age_ms':round(age*1000),'provider_ready':bool(row[7])}),flush=True)
             raise store.Error('Urutan atau batas stream tidak valid. Tidak ada audio yang dikirim ulang.', 'stream_limit',409)
         usage._query(conn,'INSERT INTO kilas_learning_input_chunks VALUES (?,?,?,?)',(turn,index,digest,pcm))
         usage._query(conn,'UPDATE kilas_learning_inputs SET next_chunk=next_chunk+1,audio_bytes=audio_bytes+? WHERE turn_id=?',(len(pcm),turn))
@@ -133,9 +145,9 @@ def take(owner,ident,turn):
         return bytes(chunk[0]),False
 
 
-def transcribe(owner,ident,turn,connect=websocket.create_connection,now=monotonic,wait=sleep):
+def transcribe(owner,ident,turn,connect=websocket.create_connection,now=monotonic,wait=sleep,metrics=None):
     import base64
-    started=now();sock=None;last_audio=started;committed=False;finals=[];timings={}
+    started=now();sock=None;last_audio=started;committed=False;finals=[];timings=metrics if metrics is not None else {}
     try:
         # Do not open a paid connection until actual microphone PCM is present.
         first=None
@@ -144,12 +156,17 @@ def transcribe(owner,ident,turn,connect=websocket.create_connection,now=monotoni
             if done or now()-started>8:
                 raise store.Error('Belum terdengar ucapan. Stream tidak dibuka.', 'empty_speech',422)
             if first is None:wait(.08)
-        stt.require_subscription_credit()
+        credit_started=now();stt.require_subscription_credit();timings['credit_ms']=round((now()-credit_started)*1000,1)
         with audio_store.locked(owner) as conn:
             _owned(conn,owner,ident,turn)
-            usage._query(conn,"UPDATE kilas_learning_inputs SET dispatched=1,status=CASE WHEN status='COMMITTING' THEN status ELSE 'STREAMING' END WHERE turn_id=?",(turn,))
+            usage._query(conn,'UPDATE kilas_learning_inputs SET dispatched=1 WHERE turn_id=?',(turn,))
+        connect_started=now()
         sock=connect('wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id='+MODEL+'&audio_format=pcm_16000&commit_strategy=manual',
                      header=['xi-api-key: '+os.environ['ELEVENLABS_API_KEY'].strip()],timeout=5,redirect_limit=0)
+        timings['connect_ms']=round((now()-connect_started)*1000,1)
+        with audio_store.locked(owner) as conn:
+            _owned(conn,owner,ident,turn)
+            usage._query(conn,"UPDATE kilas_learning_inputs SET provider_ready_at=?,status=CASE WHEN status='WAITING' THEN 'STREAMING' ELSE status END WHERE turn_id=?",(usage._now().isoformat(),turn))
         sock.settimeout(.1)
         def send(pcm,final=False):
             learning.require_ready(owner);store.check(owner,ident,turn)
@@ -195,9 +212,9 @@ def transcribe(owner,ident,turn,connect=websocket.create_connection,now=monotoni
 
 
 def _work(owner,ident,turn):
-    success=False;error='stt_failed'
+    success=False;error='stt_failed';timings={}
     try:
-        text,timings=transcribe(owner,ident,turn)
+        text,timings=transcribe(owner,ident,turn,metrics=timings)
         with audio_store.locked(owner) as conn:
             _owned(conn,owner,ident,turn)
             usage._query(conn,"UPDATE kilas_learning_inputs SET status='DONE',first_final_ms=? WHERE turn_id=?",(round(timings['stt_result_ms']),turn))
@@ -212,4 +229,5 @@ def _work(owner,ident,turn):
             # an ambiguous provider connection. Never change Voice Over's ledger.
             usage._query(conn,"UPDATE kilas_learning_inputs SET status=CASE WHEN status='CANCELLED' THEN status ELSE ? END,charge_micro=CASE WHEN dispatched=0 THEN 0 ELSE charge_micro END WHERE turn_id=?",('DONE' if success else 'FAILED',turn))
             usage._query(conn,'UPDATE kilas_learning_input_chunks SET pcm=NULL WHERE turn_id=?',(turn,))
+        print('KILAS_LEARNING_STREAM '+json.dumps({'stage':'finished','outcome':'completed' if success else str(error) if re.fullmatch(r'[a-z_0-9]{1,80}',str(error)) else 'failed','timings':timings},sort_keys=True),flush=True)
         learning._slots.release();db._discard_cached_connection()

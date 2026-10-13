@@ -1,7 +1,7 @@
-import {LearningCall} from './kilas_learning_engine.mjs?v=learning-continuity-v6-20261013';
-import {RealtimeMic,microphone} from './kilas_learning_realtime.mjs?v=learning-continuity-v6-20261013';
-import {LearningPlayer} from './kilas_learning_player.mjs?v=learning-continuity-v6-20261013';
-import {learningRequest} from './kilas_learning_transport.mjs?v=learning-continuity-v6-20261013';
+import {LearningCall} from './kilas_learning_engine.mjs?v=learning-conversation-v7-20261013';
+import {RealtimeMic,microphone} from './kilas_learning_realtime.mjs?v=learning-conversation-v7-20261013';
+import {LearningPlayer} from './kilas_learning_player.mjs?v=learning-conversation-v7-20261013';
+import {learningRequest} from './kilas_learning_transport.mjs?v=learning-conversation-v7-20261013';
 
 const mounted=new WeakMap();
 export function mountLearning(root,options={}){

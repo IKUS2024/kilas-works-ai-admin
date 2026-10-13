@@ -1,4 +1,4 @@
-import {SilenceGate} from './kilas_learning_engine.mjs?v=learning-continuity-v6-20261013';
+import {SilenceGate} from './kilas_learning_engine.mjs?v=learning-conversation-v7-20261013';
 
 // Server owns the paid WebSocket. This client sends PCM as the learner speaks,
 // never a completed recording, never a provider API key or a reusable token.
@@ -15,7 +15,8 @@ export class RealtimeMic {
   async start(onResult,onError){
     this.cancel();const ticket=this.generation;this.onResult=onResult;this.onError=onError;this.queue=[];this.pre=[];this.index=0;this.turn=null;this.finishing=false;this.open=false;this.pumping=false;
     this.controller=new AbortController();this.gate=new SilenceGate(this.now);this.firstSpeech=null;
-    this.idle=this.setTimer(()=>this.fail('Belum terdengar ucapan. Mikrofon dijeda tanpa membuka stream berbayar.'),15000);
+    // An explicitly started voice call can wait for the learner indefinitely.
+    // Silence creates no paid stream; End, mute and page-hide still stop capture.
     const stop=await this.openMicrophone(chunk=>this.chunk(chunk,ticket),this.controller.signal);
     if(ticket!==this.generation||this.finishing){stop();return;}this.stopMicrophone=stop;
   }

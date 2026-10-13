@@ -1,4 +1,4 @@
-import {within} from './kilas_learning_engine.mjs?v=learning-continuity-v6-20261013';
+import {within} from './kilas_learning_engine.mjs?v=learning-conversation-v7-20261013';
 
 export function learningRequest({csrf,fetcher=fetch,timeout=15000}){
   return async(path,{data,signal,binary=false,keepalive=false}={})=>{
