@@ -24,15 +24,22 @@ export class TranslatorSession {
       if(ticket!==this.version)return;
       const result=await this.api.start(params,this.controller.signal);
       if(ticket!==this.version){await this.api.end(result.session_id).catch(()=>{});return;}
-      this.id=result.session_id;if(this.suspended){this.pause(Error('Sesi dijeda saat halaman ditinggalkan. Tekan Lanjutkan.'));return;}await this.listen(ticket);
+      this.id=result.session_id;this.inputMode=result.input_mode==='realtime-v1'?'realtime-v1':'batch';if(this.suspended){this.pause(Error('Sesi dijeda saat halaman ditinggalkan. Tekan Lanjutkan.'));return;}await this.listen(ticket);
     }catch(e){if(ticket===this.version){this.onError(e.message);if(this.id)this.pause(e);else this.end();}}
   }
   async listen(ticket){
     if(ticket!==this.version)return;
     const cycle=++this.captureVersion,current=()=>ticket===this.version&&cycle===this.captureVersion;
     this.gate.reset();this.stateTo('listening');
+    if(this.inputMode==='realtime-v1')this.api.input.reset();
     await this.capture.start({
+      inputMode:this.inputMode,
       level:rms=>{if(current()&&this.state==='listening'&&this.gate.sample(rms,this.now())){this.stateTo('finalizing');this.capture.finalize();}},
+      pcm:bytes=>{
+        if(!current()||this.inputMode!=='realtime-v1'||!['listening','finalizing'].includes(this.state))return;
+        if(!this.pendingKey)this.pendingKey='live-'+this.key();
+        this.api.input.push(this.id,this.pendingKey,bytes,this.controller.signal).catch(e=>{if(current())this.pause(e);});
+      },
       blob:blob=>{if(current())this.utterance(blob,ticket);},
       error:e=>{if(current())this.recover(e,ticket);},
     });
@@ -43,11 +50,13 @@ export class TranslatorSession {
     // Capture adapter releases every mic track before delivering the blob.
     this.stateTo('processing');
     try{
-      if(!blob?.size){const error=Error('Rekaman kosong. Silakan bicara kembali.');error.code='no_speech';throw error;}
-      this.pendingKey='live-'+this.key();
+      const realtime=this.inputMode==='realtime-v1';
+      if(realtime?!this.pendingKey:!blob?.size){const error=Error('Rekaman kosong. Silakan bicara kembali.');error.code='no_speech';throw error;}
+      if(!realtime)this.pendingKey='live-'+this.key();
       const speechEnd=this.gate.lastVoice??this.now();let first=false;
       this.timing({speech_end_to_submit_ms:Math.max(0,this.now()-speechEnd)});
       const onStarted=()=>{if(first||ticket!==this.version)return;first=true;this.timing({speech_end_to_first_playback_ms:Math.max(0,this.now()-speechEnd)});};
+      if(realtime)await this.api.input.finish(this.id,this.pendingKey,this.controller.signal,()=>this.timing({speech_end_to_commit_request_ms:Math.max(0,this.now()-speechEnd)}));
       const result=await this.api.turn(this.id,this.pendingKey,blob,this.controller.signal,async part=>{
         if(ticket!==this.version||this.controller.signal.aborted)throw new DOMException('Sesi dijeda.','AbortError');
         this.onResult(part);this.stateTo('playing');

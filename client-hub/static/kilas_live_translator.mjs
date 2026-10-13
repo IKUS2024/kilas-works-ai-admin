@@ -1,7 +1,9 @@
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=sentence-output-20261013';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=realtime-input-20261013';
 import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=translation-integrity-20261013';
-import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=translation-integrity-20261013';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=realtime-input-20261013';
+import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=realtime-input-20261013';
+import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=realtime-input-20261013';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=owner-recovery-20261012';
 const root=document.querySelector('.kilas-live-translator');
@@ -21,7 +23,7 @@ if(root){
  form.addEventListener('reset',()=>queueMicrotask(()=>syncLanguages()));
  syncLanguages();
  function monitorStop(){if(interval!==null)clearInterval(interval);interval=null;source?.disconnect();source=null;analyser?.disconnect();analyser=null;}
- const capture={
+ const batchCapture={
   async start({level,blob,error:onError}){
    if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder||!context)throw Error('Browser ini belum mendukung mikrofon.');
    recorder=new VoiceRecorder({mediaDevices:navigator.mediaDevices,Recorder:window.MediaRecorder,onBlob:raw=>{if(own!==recorder)return;monitorStop();if(own.translatorFinalized)blob(raw);else onError(Object.assign(Error('Ucapan terlalu panjang untuk satu rekaman. Jeda sebentar lalu tekan Lanjutkan; ucapan ini tidak diproses sebagian.'),{code:'utterance_limit'}));},onState:state=>{if(own!==recorder)return;if(state==='empty'){monitorStop();blob(new Blob([]));}if(state==='error')onError(Object.assign(Error('Mikrofon terputus. Periksa izin browser lalu tekan Lanjutkan.'),{code:'microphone_unavailable'}));}});
@@ -38,6 +40,11 @@ if(root){
   },
   finalize(){monitorStop();if(recorder)recorder.translatorFinalized=true;recorder?.stop();},
   cancel(){monitorStop();recorder?.cancel();recorder=null;},
+ };
+ const realtimeCapture=new RealtimeCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices});let activeCapture=batchCapture;
+ const capture={
+  start(options){activeCapture=options.inputMode==='realtime-v1'?realtimeCapture:batchCapture;return activeCapture.start(options);},
+  finalize(){activeCapture.finalize();},cancel(){batchCapture.cancel();realtimeCapture.cancel();},
  };
  const player=new TranslatorPlayback({getContext:()=>context});
  const closeAudio=()=>{const own=context;context=null;if(own){try{own.close().catch(()=>{});}catch{}}};
@@ -56,6 +63,7 @@ if(root){
  }
  const turns=new TranslatorTurns({json,csrf});
  const api={
+  input:new RealtimeInput({json,csrf}),
   async start(data,signal){try{return await json('/kilas-translator/live/sessions',{method:'POST',body:data,signal,timeoutMs:30000});}catch(e){recoverRequested=true;throw e;}},
   turn:(...args)=>turns.turn(...args),resume:(...args)=>turns.resume(...args),
   end:id=>recovery.endKnown(id),
@@ -64,7 +72,7 @@ if(root){
   const text=document.querySelector('#live-translation');text.textContent=result.translated_text||'';text.hidden=!text.textContent;
  },onState:state=>{
   start.disabled=state!=='ended'||!setupReady||!recovery?.canStart();setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;
-  const label={starting:'Menyiapkan sesi',resuming:'Menyiapkan audio',recovering:'Memulihkan sesi',paused:'Sesi dijeda',playing:'Memutar terjemahan',listening:'Mendengarkan'}[state]||'Memproses';orb.setAttribute('aria-label',label);
+  const label={starting:'Menyiapkan sesi',resuming:'Menyiapkan audio',recovering:'Memulihkan sesi',paused:'Sesi dijeda',playing:'Memutar terjemahan',listening:session.inputMode==='realtime-v1'?'Mendengarkan realtime':'Mendengarkan mode rekaman'}[state]||'Memproses';orb.setAttribute('aria-label',label);
   document.querySelector('#live-resume').hidden=state!=='paused';
   document.querySelector('#live-state').textContent=orb.getAttribute('aria-label');
   if(state==='ended'&&recoverRequested){recoverRequested=false;recovery.refresh();}

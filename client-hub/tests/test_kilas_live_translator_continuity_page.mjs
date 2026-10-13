@@ -60,7 +60,7 @@ async function page(name){
 }
 
 test('real page adapter rotates a minute of idle synthetic capture without End or provider submission',async()=>{
- const f=await page('idle');try{f.stats.now=60001;f.monitor();await tick();assert.equal(f.stats.captures,2);assert.equal(f.stats.mics,1);assert.equal(f.nodes['#live-state'].textContent,'Mendengarkan');assert.equal(f.nodes['#live-active'].hidden,false);assert.equal(f.nodes['#live-error'].hidden,true);assert.equal(f.stats.requests.filter(r=>r.method==='POST').length,1);await f.finish();}finally{f.restore();}
+ const f=await page('idle');try{f.stats.now=60001;f.monitor();await tick();assert.equal(f.stats.captures,2);assert.equal(f.stats.mics,1);assert.equal(f.nodes['#live-state'].textContent,'Mendengarkan mode rekaman');assert.equal(f.nodes['#live-active'].hidden,false);assert.equal(f.nodes['#live-error'].hidden,true);assert.equal(f.stats.requests.filter(r=>r.method==='POST').length,1);await f.finish();}finally{f.restore();}
 });
 
 test('two seconds after voice sends the full synthetic recording once, with capture off during playback',async()=>{
@@ -86,7 +86,7 @@ test('hidden/unloaded page cancels only its turn; explicit Resume checks it with
   globalThis.document.hidden=true;f.docEvents.get('visibilitychange')();f.events.get('pagehide')();assert.equal(f.stats.mics,0);assert.equal(f.nodes['#live-state'].textContent,'Sesi dijeda');
   assert.equal(f.stats.beacons.length,1);assert.ok(f.stats.beacons[0].endsWith('/cancel'));assert.equal(f.stats.requests.some(r=>r.url.endsWith('/end')),false);
   f.stats.deferTurn.resolve();await tick();assert.equal(f.stats.plays,0);
-  globalThis.document.hidden=false;f.nodes['#live-resume'].click();await tick();assert.equal(f.stats.mics,1);assert.equal(f.nodes['#live-state'].textContent,'Mendengarkan');
+  globalThis.document.hidden=false;f.nodes['#live-resume'].click();await tick();assert.equal(f.stats.mics,1);assert.equal(f.nodes['#live-state'].textContent,'Mendengarkan mode rekaman');
   assert.equal(f.stats.requests.filter(r=>r.method==='POST'&&r.url.includes('/turns/')&&!r.url.endsWith('/cancel')).length,1);await f.finish();
  }finally{f.restore();}
 });

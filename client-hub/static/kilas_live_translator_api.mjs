@@ -45,14 +45,15 @@ export class TranslatorTurns {
     if(state.processing)throw error('turn_busy','Ucapan sebelumnya belum terkonfirmasi selesai. Periksa lagi saat koneksi siap.');
   }
   async turn(id,key,blob,signal,onSegment=null){
-    const url=this.path(id,key),data=new FormData();data.append('recording',blob,'recording');data.append('csrf_token',this.csrf);
+    const url=this.path(id,key),data=new FormData();if(blob!==null)data.append('recording',blob,'recording');data.append('csrf_token',this.csrf);
     // A definite unsupported endpoint disables streaming for NEW speech in this
     // session. An uncertain paid request never triggers an alternate submission.
     if(this.disabledStreamSession===id)onSegment=null;
     if(onSegment)data.append('stream_output','sentences-v1');let played=0,announced=null,translationIdentity=null;const identities=[];
     const controller=new AbortController(),cancel=()=>controller.abort();signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
     try{
-      await this.json(url,{method:'POST',body:data,signal:controller.signal,timeoutMs:30000});const deadline=this.now()+this.turnMs;let playbackMs=0;
+      // A settled realtime input uses poll-only output, never another STT POST.
+      if(blob!==null)await this.json(url,{method:'POST',body:data,signal:controller.signal,timeoutMs:30000});const deadline=this.now()+this.turnMs;let playbackMs=0;
       while(!controller.signal.aborted){
         const result=await this.json(url,{signal:controller.signal,timeoutMs:15000});
         if(onSegment&&result.stream_output==='sentences-v1'&&['PROCESSING','COMPLETED'].includes(result.status)){

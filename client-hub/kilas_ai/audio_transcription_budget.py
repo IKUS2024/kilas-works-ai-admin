@@ -17,6 +17,7 @@ from .autonomous_store import transaction
 
 MODEL = 'scribe_v2'
 PRICE_VERSION = 'elevenlabs-scribe-v2-20261011-base-022usd-hour'
+REALTIME_LEASE_PRICE_VERSION = 'elevenlabs-realtime-public-039usd-hour-200s-lease-unverified-v1'
 # Public base estimate $0.22/hour, rounded UP to integer microUSD.
 # This is an internal allowance, not observed supplier billing or a credit guarantee.
 RATE_MICRO_PER_HOUR = 220000
@@ -113,7 +114,11 @@ def _expire(conn,owner=None,campaign=None):
     cutoff=(datetime.now(timezone.utc)-timedelta(seconds=120)).isoformat()
     # Unknown dispatch spend remains fully reserved; never auto-retry.
     suffix=' AND campaign=?' if campaign else ' AND user_id=?'
-    usage._query(conn,"UPDATE kilas_vo_stt_operations SET status='UNKNOWN' WHERE status IN ('RESERVED','DISPATCHED') AND created_at<?"+suffix,(cutoff,campaign if campaign else owner))
+    # Realtime has a separately typed 200s transport lease/expiry. It remains in
+    # the same admission ledger and cannot be expired by this batch 120s rule.
+    usage._query(conn,"UPDATE kilas_vo_stt_operations SET status='UNKNOWN' WHERE status IN ('RESERVED','DISPATCHED') AND campaign NOT IN (SELECT id FROM kilas_vo_stt_campaigns WHERE price_version=?) AND created_at<?"+suffix,(REALTIME_LEASE_PRICE_VERSION,cutoff,campaign if campaign else owner))
+    rt_cutoff=(datetime.now(timezone.utc)-timedelta(seconds=240)).isoformat()
+    usage._query(conn,"UPDATE kilas_vo_stt_operations SET status='UNKNOWN' WHERE status IN ('RESERVED','DISPATCHED') AND campaign IN (SELECT id FROM kilas_vo_stt_campaigns WHERE price_version=?) AND created_at<?"+suffix,(REALTIME_LEASE_PRICE_VERSION,rt_cutoff,campaign+'-rt' if campaign else owner))
 
 
 def _row(conn,owner,key):
@@ -146,8 +151,9 @@ def _admit(conn,owner,config,reserve=0,key=''):
         _attempts(conn,owner,config,key,cutoff)
     if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",(owner,),one=True)[0]:raise BudgetError('already_processing',429)
     if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status IN ('RESERVED','DISPATCHED')",one=True)[0]>=GLOBAL_CONCURRENCY:raise BudgetError('service_busy',429)
-    total=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=?',(config['id'],),one=True)[0]
-    account=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=? AND user_id=?',(config['id'],owner),one=True)[0]
+    base=config.get('base_id',config['id'])
+    total=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign IN (?,?)',(base,base+'-rt'),one=True)[0]
+    account=usage._query(conn,'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign IN (?,?) AND user_id=?',(base,base+'-rt',owner),one=True)[0]
     if total+reserve>config['global_micro'] or account+reserve>config['account_micro']:raise BudgetError('budget_limit',429)
 
 

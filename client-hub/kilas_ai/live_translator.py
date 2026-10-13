@@ -35,6 +35,7 @@ def _log_latency(timings,started,success):
             'translation_fences_ms','credit_tts_ms',
             'audio_reserve_ms','audio_submit_ms','completion_ms')
     stages+=('first_tts_byte_ms','first_published_clip_ms')
+    stages+=('realtime_input_ms','realtime_transport_ms','realtime_finalize_ms','realtime_commits')
     values=' '.join(f'{name}={timings[name]:.1f}' for name in stages if name in timings)
     try:print(f'KILAS_LIVE_LATENCY outcome={"completed" if success else "failed"} {values} backend_ms={(monotonic()-started)*1000:.1f}',flush=True)
     except OSError:pass  # Diagnostic output must never change accounting or End.
@@ -124,13 +125,13 @@ def translation(owner,key,text,a,b,check,*,timings=None):
         finally:usage.finish(owner,key+'-text',operations,success=success,provider='openai',model=model,usage=tokens)
 
 
-def process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False):
+def process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False,committed_text=None):
     # Reuse HTTPS setup for the two fresh credit reads, STT and TTS in this turn.
     with transport.turn_connection():
-        return _process(owner,ident,key,pcm,info,timings=timings,started=started,stream_output=stream_output)
+        return _process(owner,ident,key,pcm,info,timings=timings,started=started,stream_output=stream_output,committed_text=committed_text)
 
 
-def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False):
+def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False,committed_text=None):
     job=None;capability=None;success=False
     timings={} if timings is None else timings
     started=monotonic() if started is None else started
@@ -143,16 +144,20 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
             choice=voices.resolve(info['voice_alias'])
             if not choice:raise audio_store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
             check()
-            pcm,ms=stt.normalize(pcm)
-            with wave.open(io.BytesIO(pcm)) as wav:
-                if not any(abs(value[0])>=32 for value in struct.iter_unpack('<h',wav.readframes(wav.getnframes()))):raise audio_store.AudioError('Tidak ada ucapan terbaca. Bicara kembali.','no_speech',422)
-        with _timed(timings,'credit_stt_ms'):stt.require_subscription_credit()
-        check()
-        with _timed(timings,'stt_claim_ms'):
-            _,capability=budget.claim(owner,key,hashlib.sha256(pcm).hexdigest(),ms)
-            if not capability:raise audio_store.AudioError('Ucapan ini sudah dikirim; tidak diulang.','duplicate_turn',409)
-        check()
-        with _timed(timings,'stt_ms'):text=stt.transcribe(pcm,capability)
+            if committed_text is None:
+                pcm,ms=stt.normalize(pcm)
+                with wave.open(io.BytesIO(pcm)) as wav:
+                    if not any(abs(value[0])>=32 for value in struct.iter_unpack('<h',wav.readframes(wav.getnframes()))):raise audio_store.AudioError('Tidak ada ucapan terbaca. Bicara kembali.','no_speech',422)
+            elif not isinstance(committed_text,str) or not 1<=len(committed_text)<=4000:raise audio_store.AudioError('Ucapan realtime belum lengkap.','realtime_response_invalid',503)
+        if committed_text is None:
+            with _timed(timings,'credit_stt_ms'):stt.require_subscription_credit()
+            check()
+            with _timed(timings,'stt_claim_ms'):
+                _,capability=budget.claim(owner,key,hashlib.sha256(pcm).hexdigest(),ms)
+                if not capability:raise audio_store.AudioError('Ucapan ini sudah dikirim; tidak diulang.','duplicate_turn',409)
+            check()
+            with _timed(timings,'stt_ms'):text=stt.transcribe(pcm,capability)
+        else:text=committed_text  # Internal settled relay only; never client-supplied text.
         check()
         if not text:raise audio_store.AudioError('Tidak ada ucapan terbaca.','no_speech',422)
         with _timed(timings,'translation_ms'):result=translation(owner,key,text,info['language_a'],info['language_b'],check,timings=timings)

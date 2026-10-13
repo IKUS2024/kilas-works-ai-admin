@@ -394,7 +394,8 @@ def live_translator_start():
     if not branded.resolve(voice):raise store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
     store.require_balance(session['user_id'])
     ident=sessions.create(session['user_id'],a,b,voice)
-    return {'session_id':ident},201,{'Cache-Control':'private, no-store'}
+    from . import live_translator_realtime as realtime
+    return {'session_id':ident,'input_mode':'realtime-v1' if realtime.ready(session['user_id']) else 'batch'},201,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/live/sessions/<ident>/end')
@@ -402,6 +403,8 @@ def live_translator_end(ident):
     # End remains allowed when a rollout flag/campaign expires or is switched off.
     from . import live_translator_store as sessions
     sessions.end(session['user_id'],ident)
+    from . import live_translator_realtime
+    live_translator_realtime.cancel(session['user_id'],ident)
     return {'status':'ENDED'},200,{'Cache-Control':'private, no-store'}
 
 
@@ -422,7 +425,46 @@ def live_translator_session_status(ident):
 def live_translator_cancel_turn(ident,key):
     from . import live_translator_store as sessions
     if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
-    return {'status':sessions.cancel_turn(session['user_id'],ident,key)},200,{'Cache-Control':'private, no-store'}
+    status=sessions.cancel_turn(session['user_id'],ident,key)
+    from . import live_translator_realtime
+    live_translator_realtime.cancel(session['user_id'],ident,key)
+    return {'status':status},200,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.post('/live/sessions/<ident>/turns/<key>/input/start')
+def live_realtime_start(ident,key):
+    from . import live_translator_realtime as realtime
+    if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
+    realtime.start(session['user_id'],ident,key)
+    return {'status':'LISTENING','input_mode':'realtime-v1'},202,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.post('/live/sessions/<ident>/turns/<key>/input/chunks/<int:index>')
+def live_realtime_chunk(ident,key,index):
+    from . import live_translator_realtime as realtime
+    if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
+    relay=realtime.owned(session['user_id'],ident,key)
+    try:
+        sample=request.files.get('pcm')
+        if not sample or sample.mimetype!='application/octet-stream':raise realtime.failure('realtime_chunk_invalid')
+        relay.accept(index,sample.stream.read(32001))
+    except Exception as error:
+        relay.close(error);raise
+    return {'accepted_index':index},202,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.post('/live/sessions/<ident>/turns/<key>/input/commit')
+def live_realtime_commit(ident,key):
+    from . import live_translator_realtime as realtime
+    if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
+    relay=realtime.owned(session['user_id'],ident,key)
+    try:
+        value=request.form.get('count','')
+        if not re.fullmatch(r'[0-9]{1,4}',value):raise realtime.failure('realtime_chunk_invalid')
+        relay.commit(int(value))
+    except Exception as error:
+        relay.close(error);raise
+    return {'status':'PROCESSING'},202,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.route('/live/sessions/<ident>/turns/<key>',methods=['GET','POST'])
