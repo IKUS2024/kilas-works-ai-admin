@@ -22,3 +22,5 @@ psycopg2-binary
 
 # Bounded local audio-track extraction; wheel includes FFmpeg, no system install.
 imageio-ffmpeg>=0.6,<0.7
+
+websocket-client>=1.8,<2

@@ -35,7 +35,7 @@ def chat_sidebar_context():
     home_account = (endpoint == 'auth.account_page' and
                     (request.args.get('workspace') == 'home' or session.get('active_product') != 'finance'))
     surface = (endpoint == 'products.product_start' or home_account or
-               request.blueprint in ('kilas_ai', 'kilas_audio'))
+               request.blueprint in ('kilas_ai', 'kilas_audio', 'kilas_learning'))
     if request.endpoint in ('kilas_ai.shared','kilas_ai.share') or not (surface and enabled() and session.get('user_id') and session.get('role') == 'CLIENT_OWNER'):
         return {}
 
@@ -47,7 +47,7 @@ def chat_sidebar_context():
     import security
     from . import live_translator
     user = security.current_user()
-    return {'chat_sidebar_enabled': request.blueprint != 'kilas_audio',
+    return {'chat_sidebar_enabled': request.blueprint not in ('kilas_audio', 'kilas_learning'),
             'kilas_revision_shell': True, 'kilas_live_translator_available': live_translator.ready(session['user_id']), 'kilas_profile_email': user.get('email','') if user else '',
             'chat_sidebar_history': history}
 

@@ -257,6 +257,8 @@ def create_app():
     from kilas_ai import connector_routes  # Owner-only OAuth and exact-payload approval routes.
     from kilas_ai.audio_routes import audio_bp
     app.register_blueprint(audio_bp)
+    from kilas_ai.learning_routes import learning_bp
+    app.register_blueprint(learning_bp)
     from kilas_ai import video_routes  # Isolated, metered Video planning; no video inference.
     from kilas_ai import home_tasks  # Scoped Home entry reuses existing task workspaces.
     from kilas_ai import content_routes  # Default-off metadata; guarded additive schema below.
@@ -287,6 +289,8 @@ def create_app():
         if os.environ.get('KILAS_LIVE_TRANSLATOR_ENABLED','').lower() in ('1','true','on'):
             from kilas_ai import live_translator_realtime_account
             live_translator_realtime_account.startup_probe()  # Bounded harmless GETs; cannot activate paid transport.
+        from kilas_ai import learning_schema
+        learning_schema.apply_release()  # Independent additive Learning tables only.
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)
@@ -406,6 +410,7 @@ def create_app():
             or endpoint.startswith("workspace.")
             or endpoint.startswith("kilas_ai.")
             or endpoint.startswith("kilas_audio.")
+            or endpoint.startswith("kilas_learning.")
             or endpoint.startswith("kilas_trading.")
             # Authorized direct AI links must leave the Finance workspace too.
             # Each destination still enforces its own membership/product/CSRF gates.

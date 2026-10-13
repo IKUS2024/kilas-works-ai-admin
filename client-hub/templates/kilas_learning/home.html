@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Learning · Kilas Works{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_learning.css',v='learning-v1-20261013') }}">{% endblock %}
+{% block content %}
+<main class="kilas-learning-page" data-learning>
+{% set selected_feature='learning' %}{% include 'kilas_ai/_feature_navigation.html' %}
+<header class="learning-heading"><h1>Learning</h1><p>Belajar bahasa lewat percakapan. Dengarkan, coba, lalu berkembang bersama tutor kamu.</p></header>
+<section data-setup aria-label="Pengaturan belajar">
+  <form class="learning-setup"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Bahasa yang dipelajari<select name="target" required>{% for code,label in targets.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></label>
+    <label>Bahasa asli / penjelasan<select name="native" required>{% for code,label in natives.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></label>
+    <label>Level awal<select name="level" required>{% for code,label in levels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></label>
+    <label>Suara tutor<select name="voice" required>{% for voice in voices %}<option value="{{ voice.alias }}">{{ voice.name }}</option>{% endfor %}</select></label>
+    <label class="learning-consent"><input type="checkbox" name="consent" value="yes" required><span>Saya menyetujui pemrosesan suara untuk pelajaran ini sesuai <a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">Kebijakan Privasi</a>.</span></label>
+    <div class="learning-start"><button class="btn" type="submit" {% if not learning_ready or not voices %}disabled{% endif %}>Mulai belajar</button><p>Tutor menyapa lebih dulu. Pakai headphone untuk percakapan yang lebih nyaman.</p></div>
+  </form>
+  {% if not learning_ready %}<p class="learning-notice" role="status">Learning belum tersedia untuk akun ini. Aktivasi transkripsi realtime dan pendanaan akun masih perlu diverifikasi. Tidak ada layanan berbayar yang dibuka dari halaman ini sebelum aktivasi.</p>{% elif not voices %}<p class="learning-notice" role="status">Suara tutor belum tersedia. Coba lagi nanti.</p>{% endif %}
+</section>
+<section class="learning-call" data-call hidden aria-label="Panggilan tutor">
+  <div class="learning-orb" data-orb data-state="preparing" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M24 12v26M24 12c-5-4-12-4-18-2v25c7-2 13-1 18 3 5-4 11-5 18-3V10c-6-2-13-2-18 2Z"/></svg></div>
+  <div class="learning-call-actions"><button class="btn secondary" type="button" data-mute aria-pressed="false">Matikan mikrofon</button><button class="btn secondary" type="button" data-resume hidden>Lanjutkan</button><button class="btn learning-end" type="button" data-end>End</button></div>
+</section>
+<p class="learning-status" data-status role="status" aria-live="polite"></p>
+<details class="learning-details"><summary>Tentang sesi &amp; penggunaan</summary><p>Ucapan ditranskripsikan sambil kamu berbicara. Setelah diam 3 detik, hasil final diteruskan ke tutor. Satu jawaban maksimal sekitar 24 detik termasuk jeda. Suara tutor diputar bertahap per kalimat. Mikrofon dijeda selama tutor berbicara; interupsi suara belum tersedia. Pelajaran tidak menampilkan transkrip dan tidak memberi skor pelafalan.</p><p>Sesi maksimal 30 menit / 40 giliran. Suara Learning dibatasi 6.000 karakter per 24 jam, selain batas saldo dan kuota AI. Transkripsi realtime memiliki batas biaya bulanan tersendiri yang diverifikasi sebelum aktivasi; nilai cadangan konservatif bukan invoice provider. Kredit provider yang sudah dipakai saat proses terputus tetap tercatat; tidak ada retry atau pembelian otomatis.</p><p>Suara diproses oleh ElevenLabs dan teks pelajaran oleh OpenAI. Konteks sesi disimpan privat untuk kelanjutan pelajaran dan dibersihkan saat End. Biaya audio mengikuti durasi hasil yang berhasil dicatat.</p></details>
+</main>
+<script type="module" src="{{ url_for('static',filename='kilas_learning.mjs',v='learning-v1-20261013') }}"></script>
+{% endblock %}
