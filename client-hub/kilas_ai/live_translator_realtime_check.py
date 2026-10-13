@@ -1,6 +1,6 @@
 """Explicit one-attempt qualification. No flag-only activation or automatic retry."""
 import hashlib,json,os,secrets,subprocess,sys,time
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs,urlsplit
 from datetime import datetime,timezone
 from threading import Thread,Timer
 from . import audio_transcription_budget as budget,live_translator_realtime_account as account,usage
@@ -79,35 +79,61 @@ def wire():
         kill();timer.cancel()
 
 def attributed(start_ms,end_ms):
-    # Documented read-only query. No guessed key hash matching, IDs or raw rows
-    # are logged/persisted. Missing WSS analytics remains an unknown outcome.
+    # Sanitized shape evidence only; raw values/rows/IDs never leave the server.
+    flags={'row_count':0,'readonly_row_count':0,'candidate_count':0}
+    def outcome(reason,accepted=False):
+        print('KILAS_REALTIME_ATTRIBUTION '+json.dumps({**flags,'reason':reason,'attributed':accepted},sort_keys=True),flush=True)
+        return accepted
     from . import live_translator_transport as transport
     with transport.post('https://api.elevenlabs.io/v1/workspace/analytics/requests',headers={'xi-api-key':os.environ['ELEVENLABS_API_KEY'].strip()},json={'start_time':start_ms,'end_time':end_ms,'limit':100},timeout=(2,3),stream=True,allow_redirects=False) as response:
-        if response.status_code!=200:return False
+        flags['http_status']=response.status_code if type(response.status_code) is int and 100<=response.status_code<=599 else 0
+        if response.status_code!=200:return outcome('analytics_http')
         raw=bytearray();deadline=time.monotonic()+6
         for part in response.iter_content(8192):
             raw.extend(part)
-            if len(raw)>262144 or time.monotonic()>deadline:return False
+            if len(raw)>262144 or time.monotonic()>deadline:return outcome('analytics_bounds')
         value=json.loads(raw)
     cols,rows=value.get('columns'),value.get('rows')
-    if not isinstance(cols,list) or not isinstance(rows,list) or len(rows)>100 or len(cols)>64 or len(set(cols))!=len(cols):return False
-    if any(not isinstance(r,list) or len(r)!=len(cols) for r in rows):return False
-    if not all(c in cols for c in ('path','query','timestamp','response_code')):return False
+    if not isinstance(cols,list) or not isinstance(rows,list) or len(rows)>100 or len(cols)>64 or any(not isinstance(c,str) for c in cols) or len(set(cols))!=len(cols):return outcome('analytics_schema')
+    flags['row_count']=len(rows)
+    if any(not isinstance(r,list) or len(r)!=len(cols) for r in rows):return outcome('analytics_schema')
+    if not all(c in cols for c in ('path','query','timestamp','response_code')):return outcome('required_columns_missing')
     records=[dict(zip(cols,r)) for r in rows]
     readonly={'/v1/user/subscription','/v1/models','/v1/workspace/analytics/requests'}
-    records=[r for r in records if r['path'] not in readonly]
-    if len(records)!=1:return False
-    row=records[0];when=row['timestamp']
-    # Only provider timestamp with an unambiguous ISO UTC representation.
+    flags['readonly_row_count']=sum(r['path'] in readonly for r in records)
+    records=[r for r in records if r['path'] not in readonly];flags['candidate_count']=len(records)
+    if len(records)!=1:return outcome('candidate_count')
+    row=records[0];when=row['timestamp'];query=row['query'];path=row['path']
+    kind=lambda x:'string' if isinstance(x,str) else 'integer' if type(x) is int else 'float' if type(x) is float else 'object' if isinstance(x,dict) else 'array' if isinstance(x,list) else 'null' if x is None else 'other'
+    flags.update(timestamp_type=kind(when),query_type=kind(query),response_code_type=kind(row['response_code']),exact_path=path=='/v1/speech-to-text/realtime',response_http=row['response_code'] if type(row['response_code']) is int and 100<=row['response_code']<=599 else 0)
+    if isinstance(path,str):
+        parsed=urlsplit(path);flags['fixed_origin_realtime_path']=parsed.scheme in ('https','wss') and parsed.netloc=='api.elevenlabs.io' and parsed.path=='/v1/speech-to-text/realtime'
+    flags['query_model_key']=isinstance(query,str) and 'model_id' in parse_qs(query.lstrip('?'))
+    flags['query_model_match']=isinstance(query,str) and parse_qs(query.lstrip('?')).get('model_id')==[account.MODEL]
+    flags['query_json_object']=False;flags['query_json_model_match']=False
+    if isinstance(query,str):
+        try:
+            q=json.loads(query);flags['query_json_object']=isinstance(q,dict);flags['query_json_model_match']=isinstance(q,dict) and q.get('model_id')==account.MODEL
+        except (ValueError,TypeError):pass
+    units=value.get('column_units');unit=units[cols.index('timestamp')] if isinstance(units,list) and len(units)==len(cols) else None
+    flags['timestamp_unit']=unit if unit in ('ms','s','us',None) else 'other'
+    types=value.get('column_types');typ=types[cols.index('timestamp')] if isinstance(types,list) and len(types)==len(cols) else None
+    flags['timestamp_column_type']=typ if typ in ('String','DateTime','DateTime64','Int64','Float64',None) else 'other'
+    flags['timestamp_iso_timezone']=False;flags['timestamp_window_match']=False
     try:
         if isinstance(when,str):
-            parsed=datetime.fromisoformat(when.replace('Z','+00:00'))
-            if parsed.tzinfo is None:return False
+            parsed=datetime.fromisoformat(when.replace('Z','+00:00'));flags['timestamp_iso_timezone']=parsed.tzinfo is not None
+            if parsed.tzinfo is None:return outcome('timestamp_timezone_missing')
             ms=int(parsed.timestamp()*1000)
-        elif type(when) is int and isinstance(value.get('column_units'),list) and len(value['column_units'])==len(cols) and value['column_units'][cols.index('timestamp')]=='ms':ms=when
-        else:return False
-    except (ValueError,TypeError,OverflowError):return False
-    return start_ms<=ms<=end_ms and row['path']=='/v1/speech-to-text/realtime' and isinstance(row['query'],str) and parse_qs(row['query'].lstrip('?')).get('model_id')==[account.MODEL] and type(row['response_code']) is int and row['response_code'] in (101,200)
+        elif type(when) is int and unit=='ms':ms=when
+        else:return outcome('timestamp_format')
+    except (ValueError,TypeError,OverflowError):return outcome('timestamp_format')
+    flags['timestamp_window_match']=start_ms<=ms<=end_ms
+    if not flags['timestamp_window_match']:return outcome('timestamp_outside_window')
+    if not flags['exact_path']:return outcome('path_mismatch')
+    if not flags['query_model_match']:return outcome('model_query_mismatch')
+    if type(row['response_code']) is not int or row['response_code'] not in (101,200):return outcome('response_status')
+    return outcome('verified',True)
 
 def finish(owner,result,after,attribution):
     with transaction() as conn:
