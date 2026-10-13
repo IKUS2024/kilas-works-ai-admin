@@ -44,6 +44,15 @@ def apply_release():
 def report_readiness():
     # Learning-only configuration reads after schema setup; no provider dispatch.
     from . import learning
+    if not learning.PRODUCT_ACTIVE:
+        # Idempotent process startup fences old workers. Their settlement path
+        # remains responsible for already incurred usage, without replay.
+        from . import learning_store
+        count=learning_store.deactivate_sessions()
+        try:
+            print('KILAS_LEARNING_DEACTIVATION '+json.dumps({'active':False,'sessions_ended':count,'history_retained':True}),flush=True)
+        except OSError:
+            pass
     try:
         report=learning.readiness()
     except Exception:

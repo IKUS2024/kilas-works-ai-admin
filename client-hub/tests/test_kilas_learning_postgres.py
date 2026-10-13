@@ -129,6 +129,21 @@ def main():
                     assert len(leases)==1 and 'budget_limit' in results,results
                     budget.cancel(leases[0].owner,leases[0].key)
                 print('PASS: shared PostgreSQL checksum-idempotent sponsorship, zero balance, post-expiry settlement, tenant fences, atomic funding admission')
+            archive=store.create(owner,'learning-pg-deactivate','en','id','beginner','kilas-male')[0]
+            archive_turn='learning-pg-retained-history'
+            assert store.claim(owner,archive,archive_turn,'realtime')
+            store.finish(owner,archive,archive_turn,'Retained question','Retained answer',{})
+            pending_turn='learning-pg-deactivate-pending'
+            assert store.claim(owner,archive,pending_turn,'realtime')
+            db.execute("INSERT INTO kilas_learning_inputs(turn_id,status,charge_micro,created_at,dispatched) VALUES (?,'STREAMING',4875,?,1)",(pending_turn,usage._now().isoformat()))
+            db.execute('INSERT INTO kilas_learning_input_chunks VALUES (?,0,?,?)',(pending_turn,'fingerprint',b'00'))
+            schema.apply_release();schema.apply_release()
+            assert store.session(owner,archive,False)['status']=='ENDED'
+            assert db.query_one('SELECT output_text FROM kilas_learning_turns WHERE id=?',(archive_turn,))['output_text']=='Retained answer'
+            assert db.query_one('SELECT charge_micro FROM kilas_learning_inputs WHERE turn_id=?',(pending_turn,))['charge_micro']==4875
+            assert db.query_one('SELECT pcm FROM kilas_learning_input_chunks WHERE turn_id=?',(pending_turn,))['pcm'] is None
+            assert store.deactivate_sessions()==0
+            print('PASS: Learning PostgreSQL reversible deactivation, retained history/cost, cancelled PCM and idempotent startup')
             print('PASS: Learning PostgreSQL additive/idempotent schema, concurrent claim, continued sessions, bounded context, stale recovery, owner fences, End')
     finally:
         db._discard_cached_connection()

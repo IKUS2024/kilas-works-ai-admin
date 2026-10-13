@@ -116,16 +116,26 @@ def finish(owner, ident, turn, text, output, timings, error=None):
         usage._query(conn, "UPDATE kilas_learning_turns SET status=?,input_text=?,output_text=?,error_code=?,timings=? WHERE id=? AND session_id=? AND status='PROCESSING'", ('FAILED' if error else 'COMPLETED',None if error else text,None if error else output,error,json.dumps(timings),turn,ident))
 
 
-def end(owner, ident):
-    with audio_store.locked(owner) as conn:
-        _session(conn,owner,ident,False)
-        usage._query(conn, "UPDATE kilas_learning_sessions SET status='ENDED' WHERE id=? AND user_id=?", (ident,owner))
+def _end(conn, owner, ident, retain_history=False):
+    _session(conn,owner,ident,False)
+    usage._query(conn, "UPDATE kilas_learning_sessions SET status='ENDED' WHERE id=? AND user_id=?", (ident,owner))
+    if retain_history:
+        usage._query(conn, "UPDATE kilas_learning_turns SET status='CANCELLED',error_code='learning_disabled' WHERE session_id=? AND status='PROCESSING'", (ident,))
+        # Dispatched/ambiguous cost remains reserved. Retain every journal row,
+        # completed transcript and historical audio; no supplier retry/refund.
+        usage._query(conn, 'UPDATE kilas_learning_inputs SET charge_micro=0 WHERE turn_id IN (SELECT id FROM kilas_learning_turns WHERE session_id=?) AND dispatched=0', (ident,))
+    else:
         usage._query(conn, "UPDATE kilas_learning_turns SET status=CASE WHEN status='PROCESSING' THEN 'CANCELLED' ELSE status END,input_text=NULL,output_text=NULL WHERE session_id=?", (ident,))
         usage._query(conn, 'UPDATE kilas_learning_clips SET audio=NULL WHERE turn_id IN (SELECT id FROM kilas_learning_turns WHERE session_id=?)', (ident,))
-        _clear_inputs(conn,ident)
+    _clear_inputs(conn,ident)
 
 
-def cancel_start(owner, start_key, ident=None):
+def end(owner, ident, retain_history=False):
+    with audio_store.locked(owner) as conn:
+        _end(conn,owner,ident,retain_history)
+
+
+def cancel_start(owner, start_key, ident=None, retain_history=False):
     # A tombstone fences End racing a delayed Start before its session exists.
     if start_key:
         key(start_key)
@@ -137,10 +147,24 @@ def cancel_start(owner, start_key, ident=None):
             _session(conn,owner,ident,False)
         chosen=ident or (row[0] if row else None)
         if chosen:
-            usage._query(conn,"UPDATE kilas_learning_sessions SET status='ENDED' WHERE id=? AND user_id=?",(chosen,owner))
-            usage._query(conn,"UPDATE kilas_learning_turns SET status=CASE WHEN status='PROCESSING' THEN 'CANCELLED' ELSE status END,input_text=NULL,output_text=NULL WHERE session_id=?",(chosen,))
-            usage._query(conn,'UPDATE kilas_learning_clips SET audio=NULL WHERE turn_id IN (SELECT id FROM kilas_learning_turns WHERE session_id=?)',(chosen,))
-            _clear_inputs(conn,chosen)
+            _end(conn,owner,chosen,retain_history)
+
+
+def deactivate_sessions():
+    """Fence old calls; retain history and existing worker cost finalization.
+
+    Stranded audio reservations keep the existing expiry path. Never retry or
+    change financial journals to infer unknown supplier costs.
+    """
+    owners=db.query_all("SELECT DISTINCT user_id FROM kilas_learning_sessions WHERE status='ACTIVE'")
+    count=0
+    for row in owners:
+        owner=row['user_id']
+        with audio_store.locked(owner) as conn:
+            sessions=usage._rows(conn,"SELECT id FROM kilas_learning_sessions WHERE user_id=? AND status='ACTIVE'",(owner,))
+            for item in sessions:
+                _end(conn,owner,item[0],retain_history=True);count+=1
+    return count
 
 
 def _clear_inputs(conn,ident):

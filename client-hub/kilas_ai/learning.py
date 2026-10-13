@@ -14,11 +14,16 @@ from . import audio_transcription_provider as stt, audio_media, audio_store, usa
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='kilas-learning')
 _slots = BoundedSemaphore(2)
 log = logging.getLogger(__name__)
+# Owner-requested reversible deactivation; retained production flags and keys
+# cannot reactivate the product without an intentional source change.
+PRODUCT_ACTIVE = False
 
 
 def ready(owner):
     # Read-only reuse of the existing verified AI Chat project and STT funding.
     # No new key, owner exemption, provider, or Translator flag is introduced.
+    if not PRODUCT_ACTIVE:
+        return False
     try:
         config=budget.policy()
         cap=int(os.environ.get('KILAS_LEARNING_REALTIME_BUDGET_MICRO_USD','0'))
@@ -37,6 +42,8 @@ def ready(owner):
 
 
 def require_ready(owner):
+    if not PRODUCT_ACTIVE:
+        raise store.Error('Learning telah dinonaktifkan.', 'learning_disabled',410)
     if not ready(owner):
         raise store.Error('Learning belum tersedia untuk akun ini. Konfigurasi dan batas biaya perlu diverifikasi.', 'learning_unavailable',503)
 
@@ -54,7 +61,8 @@ def readiness():
     except ValueError:
         cap=None
     return {
-        'learning_enabled':os.environ.get('KILAS_LEARNING_ENABLED','true').lower() in ('true','1','on'),
+        'product_active':PRODUCT_ACTIVE,
+        'learning_enabled':PRODUCT_ACTIVE and os.environ.get('KILAS_LEARNING_ENABLED','true').lower() in ('true','1','on'),
         'realtime_enabled':os.environ.get('KILAS_LEARNING_REALTIME_ENABLED','false').lower() in ('true','1','on'),
         'billing_marker_verified':os.environ.get('KILAS_LEARNING_REALTIME_BILLING_VERIFIED')=='creator-included-scribe-realtime-20261013',
         'shared_policy_valid':bool(config),

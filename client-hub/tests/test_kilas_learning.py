@@ -17,7 +17,12 @@ db=fixture.f.db
 
 
 class LearningTests(unittest.TestCase):
-    setUp=fixture.AudioTests.setUp
+    def setUp(self):
+        fixture.AudioTests.setUp(self)
+        # Retained implementation regressions run only under an explicit local
+        # synthetic reactivation. Production remains source-deactivated.
+        activation=patch.object(learning,'PRODUCT_ACTIVE',True)
+        activation.start();self.addCleanup(activation.stop)
     credit=fixture.AudioTests.credit
     funded=video_fixture.VideoScriptTests.funded
 
@@ -546,6 +551,105 @@ class LearningTests(unittest.TestCase):
             self.assertEqual(error.exception.code,'stream_limit')
             self.assertEqual(db.query_one('SELECT audio_bytes FROM kilas_learning_inputs WHERE turn_id=?',(key,))['audio_bytes'],320000)
             realtime.cancel(self.user,ident,key)
+
+class LearningDeactivationTests(unittest.TestCase):
+    setUp=fixture.AudioTests.setUp
+    credit=fixture.AudioTests.credit
+    session=LearningTests.session
+    turn=LearningTests.turn
+    funded=LearningTests.funded
+    on=LearningTests.on
+
+    @classmethod
+    def setUpClass(cls):cls.audio=fixture.mp3(.4)
+
+    def test_default_deactivation_hides_navigation_despite_old_enable_flags(self):
+        self.assertFalse(learning.PRODUCT_ACTIVE)
+        with self.on(),patch.object(learning.budget,'policy') as policy,patch.object(learning,'queue') as paid:
+            self.assertFalse(learning.ready(self.user));policy.assert_not_called()
+            self.assertEqual(self.client.get('/kilas-learning').status_code,404)
+            html=self.client.get('/products/start').text
+            self.assertNotIn('href="/kilas-learning"',html)
+            self.assertNotIn('<span>Learning</span>',html)
+            for label in ('AI Chat','Translator','Voice Over','Finance'):
+                self.assertIn('<span>'+label+'</span>',html)
+            paid.assert_not_called()
+
+    def test_direct_apis_block_start_upload_commit_status_and_audio_without_dispatch(self):
+        ident=self.session();turn=self.turn(ident)
+        paths=[('POST','/sessions'),('POST','/sessions/'+ident+'/input'),
+               ('POST','/sessions/'+ident+'/input/'+turn+'/chunks/0'),
+               ('POST','/sessions/'+ident+'/input/'+turn+'/commit'),
+               ('GET','/session'),('GET','/sessions/'+ident),
+               ('GET','/sessions/'+ident+'/turns/'+turn),
+               ('GET','/sessions/'+ident+'/turns/'+turn+'/clips/0')]
+        with self.on(),patch.object(learning._executor,'submit') as executor,patch.object(providers,'_openai') as model,patch.object(learning,'speech') as speech:
+            for method,path in paths:
+                response=self.client.open('/kilas-learning'+path,method=method,data={'csrf_token':'audio-csrf'})
+                self.assertEqual(response.status_code,410,(path,response.text))
+                self.assertEqual(response.json['code'],'learning_disabled')
+                self.assertTrue(response.json['ended'])
+                self.assertIn('no-store',response.headers['Cache-Control'])
+            for operation in (lambda:learning.queue(self.user,ident,turn),lambda:realtime.begin(self.user,ident,turn)):
+                with self.assertRaises(store.Error) as failure:operation()
+                self.assertEqual(failure.exception.code,'learning_disabled')
+            learning.run(self.user,ident,turn)
+            with patch.object(learning.stt,'require_subscription_credit') as credit,patch.object(realtime.websocket,'create_connection') as socket:
+                with self.assertRaises(store.Error) as failure:realtime.transcribe(self.user,ident,turn)
+                self.assertEqual(failure.exception.code,'learning_disabled')
+                credit.assert_not_called();socket.assert_not_called()
+            executor.assert_not_called();model.assert_not_called();speech.assert_not_called()
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kilas_learning_inputs WHERE turn_id=?',(turn,))['n'],0)
+
+    def test_deactivation_is_idempotent_retains_history_and_dispatched_cost(self):
+        ident=self.session();completed=self.turn(ident)
+        store.finish(self.user,ident,completed,'Retained learner question','Retained answer',{})
+        db.execute('INSERT INTO kilas_learning_clips(turn_id,sequence,chars,dispatched_at,duration_ms,audio) VALUES (?,0,4,?,400,?)',(completed,usage._now().isoformat(),self.audio))
+        turn=self.turn(ident,False)
+        db.execute("INSERT INTO kilas_learning_inputs(turn_id,status,charge_micro,created_at,dispatched) VALUES (?,'STREAMING',4875,?,1)",(turn,usage._now().isoformat()))
+        db.execute('INSERT INTO kilas_learning_input_chunks VALUES (?,0,?,?)',(turn,'fingerprint',b'00'))
+        balance_before=db.query_one('SELECT seconds FROM kilas_audio_balances WHERE user_id=?',(self.user,))
+        self.assertGreaterEqual(store.deactivate_sessions(),1)
+        self.assertEqual(store.deactivate_sessions(),0)
+        self.assertEqual(store.session(self.user,ident,False)['status'],'ENDED')
+        history=db.query_one('SELECT status,input_text,output_text FROM kilas_learning_turns WHERE id=?',(completed,))
+        self.assertEqual(dict(history),{'status':'COMPLETED','input_text':'Retained learner question','output_text':'Retained answer'})
+        self.assertEqual(bytes(db.query_one('SELECT audio FROM kilas_learning_clips WHERE turn_id=?',(completed,))['audio']),self.audio)
+        inputs=db.query_one('SELECT status,charge_micro,dispatched FROM kilas_learning_inputs WHERE turn_id=?',(turn,))
+        self.assertEqual(dict(inputs),{'status':'CANCELLED','charge_micro':4875,'dispatched':1})
+        self.assertIsNone(db.query_one('SELECT pcm FROM kilas_learning_input_chunks WHERE turn_id=?',(turn,))['pcm'])
+        self.assertEqual(balance_before,db.query_one('SELECT seconds FROM kilas_audio_balances WHERE user_id=?',(self.user,)))
+        for route,fields in [('/sessions/'+ident+'/end',{}),('/cancel-start',{'session_id':ident,'start_key':'start-synthetic-'+str(self.user)})]:
+            response=self.client.post('/kilas-learning'+route,data={'csrf_token':'audio-csrf',**fields})
+            self.assertEqual(response.status_code,200)
+        self.assertEqual(db.query_one('SELECT output_text FROM kilas_learning_turns WHERE id=?',(completed,))['output_text'],'Retained answer')
+        with self.client.session_transaction() as state:state['user_id']=self.other
+        self.assertEqual(self.client.post('/kilas-learning/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,404)
+
+    def test_undispatched_cost_is_zero_and_cleanup_remains_csrf_guarded(self):
+        ident=self.session();turn=self.turn(ident)
+        db.execute("INSERT INTO kilas_learning_inputs(turn_id,status,charge_micro,created_at) VALUES (?,'WAITING',4875,?)",(turn,usage._now().isoformat()))
+        self.assertEqual(self.client.post('/kilas-learning/sessions/'+ident+'/end',data={'csrf_token':'wrong'}).status_code,400)
+        self.assertEqual(store.session(self.user,ident)['status'],'ACTIVE')
+        self.assertEqual(self.client.post('/kilas-learning/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
+        self.assertEqual(db.query_one('SELECT charge_micro FROM kilas_learning_inputs WHERE turn_id=?',(turn,))['charge_micro'],0)
+
+    def test_inflight_validated_audio_still_settles_after_deactivation(self):
+        self.credit(500);ident=self.session();turn=self.turn(ident)
+        def already_dispatched(*args):
+            store.deactivate_sessions()
+            learning.PRODUCT_ACTIVE=False
+            return self.audio
+        with patch.object(learning,'PRODUCT_ACTIVE',True),self.on(),self.funded(),patch.object(learning.voices,'resolve',return_value=VOICE),patch.object(learning.stt,'require_subscription_credit'),patch.object(learning,'speech',side_effect=already_dispatched):
+            learning.run(self.user,ident,turn)
+        job=db.query_one('SELECT j.* FROM kilas_audio_jobs j JOIN kilas_learning_turns t ON t.audio_job_id=j.id WHERE t.id=?',(turn,))
+        self.assertGreater(job['actual_ms'],0)
+        self.assertEqual(job['seconds_charged'],(job['actual_ms']+999)//1000)
+        self.assertEqual(job['reserved_seconds'],0)
+        self.assertEqual(audio_store.balance(self.user)['seconds'],500-job['seconds_charged'])
+        self.assertEqual(store.session(self.user,ident,False)['status'],'ENDED')
+        self.assertFalse(learning.PRODUCT_ACTIVE)
+
 
 class PhraseTests(unittest.TestCase):
     def test_every_character_survives_arbitrary_deltas_and_stable_boundaries(self):

@@ -13,7 +13,7 @@ learning_bp=Blueprint('kilas_learning',__name__,url_prefix='/kilas-learning')
 @learning_bp.app_context_processor
 def navigation():
     # Shared templates are also used by isolated apps without this blueprint.
-    return {'kilas_learning_registered':True}
+    return {'kilas_learning_registered':learning.PRODUCT_ACTIVE}
 
 
 @learning_bp.before_request
@@ -29,6 +29,11 @@ def access():
     from . import free_test
     if not user or session.get('role')!=user['role'] or (user['role']!='CLIENT_OWNER' and not free_test.eligible(session['user_id'])):
         abort(403)
+    if not learning.PRODUCT_ACTIVE:
+        if request.endpoint not in ('kilas_learning.end','kilas_learning.cancel_start','kilas_learning.input_cancel'):
+            if request.endpoint=='kilas_learning.home':
+                abort(404)
+            return jsonify(error='Learning telah dinonaktifkan.',code='learning_disabled',ended=True),410
 
 
 @learning_bp.after_request
@@ -104,13 +109,14 @@ def audio(ident,turn,index):
 
 @learning_bp.post('/sessions/<ident>/end')
 def end(ident):
-    store.end(session['user_id'],ident)
+    store.end(session['user_id'],ident,retain_history=not learning.PRODUCT_ACTIVE)
     return jsonify(ended=True)
 
 
 @learning_bp.post('/cancel-start')
 def cancel_start():
-    store.cancel_start(session['user_id'],request.form.get('start_key',''),request.form.get('session_id') or None)
+    store.cancel_start(session['user_id'],request.form.get('start_key',''),request.form.get('session_id') or None,
+                       retain_history=not learning.PRODUCT_ACTIVE)
     return jsonify(ended=True)
 
 
