@@ -100,9 +100,13 @@ def probe():
             try:
                 result.update(_analytics());result['analytics_read']=True;result['analytics_http_status']=200
             except Exception as error:result['analytics_http_status']=getattr(error,'status',0)
-    # These documented GET schemas cannot establish STT key scope, credit rate,
-    # silence/minimum/rounding/session bounds. Flags and model presence do NOT
-    # substitute for authenticated proof; this release cannot activate paid IO.
+    # Readonly model/subscription fields alone never activate paid IO. Separately
+    # report the owner-bound durable approved wire/debit proof after restarts.
+    try:
+        from . import live_translator_realtime_check
+        result.update(live_translator_realtime_check.readiness())
+        result['activation_ready']=result['owner_realtime_ready']
+    except Exception:pass
     global _snapshot
     with _lock:_snapshot=dict(result)
     try:print('KILAS_REALTIME_ACCOUNT '+json.dumps(result,sort_keys=True),flush=True)

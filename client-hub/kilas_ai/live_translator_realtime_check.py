@@ -171,6 +171,16 @@ def verified():
             return bool(row and row[0]==base['allowed_owner'] and row[1]==digest() and row[2]==SOURCE and row[3]==account.MODEL and row[4]==base['id']+'-rt-check')
     except Exception:return False
 
+def readiness():
+    value={'persisted_realtime_proof':False,'owner_realtime_ready':False}
+    try:
+        value['persisted_realtime_proof']=verified()
+        from . import live_translator_realtime as realtime
+        policy=budget.policy()
+        value['owner_realtime_ready']=bool(policy and policy['allowed_owner'] is not None and realtime.ready(policy['allowed_owner']))
+    except Exception:pass
+    return value
+
 def save_wire(owner,result,end_ms):
     # Preserve received proof before slow/deferred subscription reconciliation.
     # Child has already exited; this DB work cannot extend its socket lifetime.
@@ -190,7 +200,7 @@ def reconcile(owner,result,before,start):
         except Exception:continue
         if after['used']>before['used'] and attribution:break
     active,used=finish(owner,result,after,attribution)
-    print('KILAS_REALTIME_CHECK '+json.dumps({'approval':APPROVAL,'source':'synthetic_pcm','pcm_ms':5000,'maximum_connection_ms':10000,'accepted':result['accepted'],'result':result['result'],'stable_characters':result.get('stable_characters',0),'before_used':used,'after_used':after['used'] if after else None,'credit_delta':after['used']-used if after else None,'positive_credit_delta':bool(after and after['used']>used),'wire_process_ms':result['wire_process_ms'],'sent_pcm_ms':result['sent_pcm_ms'],'overage_zero_before':before.get('overage_zero',False),'overage_zero_after':after['overage_zero'] if after else False,'overage_currency_before':before.get('overage_currency','not_supplied'),'overage_currency_after':after['overage_currency'] if after else 'unverified','zero_extension_before':True,'extensions_disabled_before':True,'zero_extension_after':after is not None,'extensions_disabled_after':after is not None,'attributed':attribution,'activation_ready':active},sort_keys=True),flush=True)
+    print('KILAS_REALTIME_CHECK '+json.dumps({'approval':APPROVAL,'source':'synthetic_pcm','pcm_ms':5000,'maximum_connection_ms':10000,'accepted':result['accepted'],'result':result['result'],'stable_characters':result.get('stable_characters',0),'before_used':used,'after_used':after['used'] if after else None,'credit_delta':after['used']-used if after else None,'positive_credit_delta':bool(after and after['used']>used),'wire_process_ms':result['wire_process_ms'],'sent_pcm_ms':result['sent_pcm_ms'],'overage_zero_before':before.get('overage_zero',False),'overage_zero_after':after['overage_zero'] if after else False,'overage_currency_before':before.get('overage_currency','not_supplied'),'overage_currency_after':after['overage_currency'] if after else 'unverified','zero_extension_before':True,'extensions_disabled_before':True,'zero_extension_after':after is not None,'extensions_disabled_after':after is not None,'attributed':attribution,'activation_ready':active,**readiness()},sort_keys=True),flush=True)
 
 def reconcile_existing():
     with transaction() as conn:
