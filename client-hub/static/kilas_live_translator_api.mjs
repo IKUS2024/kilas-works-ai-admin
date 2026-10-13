@@ -2,7 +2,11 @@
 const aborted=()=>new DOMException('Sesi dijeda.','AbortError');
 const error=(code,message)=>Object.assign(Error(message),{code});
 
-export async function requestJSON(url,{csrf,fetcher=(...args)=>fetch(...args),schedule=setTimeout,clear=clearTimeout,...options}){
+// Window timers need their native receiver, even when stored on an adapter instance.
+const scheduleNative=(fn,ms)=>globalThis.setTimeout(fn,ms);
+const clearNative=id=>globalThis.clearTimeout(id);
+
+export async function requestJSON(url,{csrf,fetcher=(...args)=>fetch(...args),schedule=scheduleNative,clear=clearNative,...options}){
   const {signal,timeoutMs=15000,...rest}=options,controller=new AbortController();
   if(signal?.aborted)throw aborted();
   return new Promise((resolve,reject)=>{
@@ -25,7 +29,7 @@ export async function requestJSON(url,{csrf,fetcher=(...args)=>fetch(...args),sc
 }
 
 export class TranslatorTurns {
-  constructor({json,csrf,now=()=>performance.now(),schedule=setTimeout,clear=clearTimeout,pollMs=250,turnMs=180000}){
+  constructor({json,csrf,now=()=>performance.now(),schedule=scheduleNative,clear=clearNative,pollMs=250,turnMs=180000}){
     Object.assign(this,{json,csrf,now,schedule,clear,pollMs,turnMs});
   }
   path(id,key){return '/kilas-translator/live/sessions/'+encodeURIComponent(id)+'/turns/'+encodeURIComponent(key);}

@@ -1,7 +1,7 @@
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
 import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=session-continuity-20261013';
 import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=session-continuity-20261013';
-import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=session-continuity-20261013';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=native-timers-20261013';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=owner-recovery-20261012';
 const root=document.querySelector('.kilas-live-translator');
