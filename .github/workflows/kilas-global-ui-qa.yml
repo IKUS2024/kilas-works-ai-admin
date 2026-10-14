@@ -28,6 +28,7 @@ jobs:
       - run: pip install -r client-hub/requirements.txt playwright
       - run: python -m playwright install --with-deps chromium
       - run: cd client-hub/tests && python -m unittest test_kilas_home
+      - run: python -B scripts/run_offline_tests.py --only test_kilas_logo_asset.py
       - run: python -B scripts/run_offline_tests.py --only test_kilas_sidebar_history.py
       - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_sidebar_history_browser.py
         env:

@@ -58,6 +58,29 @@ class HomeTests(unittest.TestCase):
         self.assertNotIn('Belum tersedia untuk akun ini',html)
         self.assertIn('name="product" value="finance"',html)
 
+    def test_landing_logo_is_available_without_javascript_and_prioritized_in_both_chat_surfaces(self):
+        from html.parser import HTMLParser
+
+        class Logos(HTMLParser):
+            def __init__(self):
+                super().__init__(); self.images=[]
+
+            def handle_starttag(self,tag,attrs):
+                attrs=dict(attrs)
+                if tag=='img' and attrs.get('class')=='kilas-new-chat-logo':self.images.append(attrs)
+
+        client=self.client()
+        for path in ('/products/start','/kilas-ai/agent?conversation='+str(self.conversation)):
+            response=client.get(path);self.assertEqual(response.status_code,200)
+            logos=Logos();logos.feed(response.text);self.assertEqual(len(logos.images),1)
+            image=logos.images[0]
+            self.assertEqual((image['width'],image['height'],image['alt']),('1254','1254','Kilas'))
+            self.assertEqual((image['loading'],image['fetchpriority'],image['decoding']),('eager','high','async'))
+            asset=client.get(image['src'])
+            self.assertEqual(asset.status_code,200)
+            self.assertEqual(asset.mimetype,'image/webp')
+            self.assertLess(len(asset.data),960239*.55)
+
     def test_available_live_access_is_preserved_without_enabling_it(self):
         from kilas_ai import live_assist, live_qa_budget
         for ready in (False,True):
