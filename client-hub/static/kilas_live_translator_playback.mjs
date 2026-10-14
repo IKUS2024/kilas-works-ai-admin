@@ -80,15 +80,21 @@ export class TranslatorPlayback {
     const slot=this.prefetched?.url===url&&this.prefetched.signal===signal&&this.prefetched.context===this.getContext()?this.prefetched:null;
     if(slot)this.prefetched=null;else this.discardPrefetch();
     return this.run(signal,isCurrent,async op=>{
-      const waitBegan=this.now();let buffer;
-      if(slot){
-        op.controller.signal.addEventListener('abort',()=>slot.controller.abort(),{once:true});
-        const loaded=await this.bounded(op,()=>slot.promise,25000,failure('audio_fetch','Audio belum dapat dimuat. Periksa koneksi.'));
-        this.check(op);if(loaded.error)throw loaded.error;buffer=loaded.buffer;
-      }
-      else buffer=await this.load(op,url);
-      const bufferWaitMs=Math.max(0,this.now()-waitBegan);
-      this.timing({audio_buffer_wait_ms:bufferWaitMs});
+      const waitBegan=this.now();
+      const buffered=(async()=>{
+        let buffer;
+        if(slot){
+          op.controller.signal.addEventListener('abort',()=>slot.controller.abort(),{once:true});
+          const loaded=await this.bounded(op,()=>slot.promise,25000,failure('audio_fetch','Audio belum dapat dimuat. Periksa koneksi.'));
+          this.check(op);if(loaded.error)throw loaded.error;buffer=loaded.buffer;
+        }
+        else buffer=await this.load(op,url);
+        const bufferWaitMs=Math.max(0,this.now()-waitBegan);
+        this.timing({audio_buffer_wait_ms:bufferWaitMs});return {buffer,bufferWaitMs};
+      })();
+      // Device preparation can overlap loading the same complete, owned result.
+      // Observe both promises; either failure cancels the scoped sibling work.
+      const [{buffer,bufferWaitMs}]=await Promise.all([buffered,this.resume(op)]);
       // Android may suspend the context while network/provider work is in flight.
       await this.resume(op);this.check(op);
       const readyAt=this.now();

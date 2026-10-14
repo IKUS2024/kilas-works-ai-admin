@@ -1,6 +1,6 @@
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
 import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=latency-stages-20261014';
-import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=latency-stages-20261014';
+import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=overlap-audio-ready-20261014';
 import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=whole-utterance-20261013';
 import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=plain-status-20261014';
 import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=plain-status-20261014';

@@ -204,6 +204,30 @@ test('numeric timings separate full download, decode, device resume and start wi
  download.resolve({ok:true,arrayBuffer:async()=>new ArrayBuffer(32)});await tick();assert.equal(f.stats.started,0);
  await f.advance(80);decode.resolve({duration:2});await tick();assert.equal(f.stats.started,0);
  await f.advance(40);resume.resolve();await tick();assert.equal(f.stats.started,1);
- assert.deepEqual(timings,[{audio_download_ms:120},{audio_decode_ms:80},{audio_buffer_wait_ms:200},{audio_resume_ms:40},{audio_start_ms:0}]);
+ assert.deepEqual(timings,[{audio_download_ms:120},{audio_decode_ms:80},{audio_buffer_wait_ms:200},{audio_resume_ms:240},{audio_start_ms:0}]);
  f.context.currentTime=2;f.nodes[0].onended();await playing;assert.equal(f.requests.length,1);assert.equal(f.timers.size,0);
+});
+
+test('device resume overlaps full audio loading; no source starts on a playable prefix',async()=>{
+ const f=fixture(),download=deferred(),resume=deferred(),timings=[];let resumes=0;
+ f.clock=false;f.context.state='suspended';f.player.onTiming=value=>timings.push(value);
+ f.player.fetchAudio=()=>download.promise;
+ f.context.resume=async()=>{resumes++;await resume.promise;f.context.state='running';};
+ const playing=f.play();await tick();assert.equal(resumes,1);assert.equal(f.stats.started,0);
+ await f.advance(40);resume.resolve();await tick();assert.equal(f.stats.started,0);
+ await f.advance(160);download.resolve({ok:true,arrayBuffer:async()=>new ArrayBuffer(32)});await tick();
+ assert.equal(f.stats.started,1);assert.equal(resumes,1);
+ assert.deepEqual(timings,[{audio_resume_ms:40},{audio_download_ms:200},{audio_decode_ms:0},{audio_buffer_wait_ms:200},{audio_start_ms:0}]);
+ f.context.currentTime=2;f.nodes[0].onended();await playing;assert.equal(f.timers.size,0);
+});
+
+test('End while resume and download are pending cancels both without late playback or retry',async()=>{
+ const f=fixture(),download=deferred(),resume=deferred();f.context.state='suspended';
+ f.player.fetchAudio=(_url,options)=>{f.requests.push({options});return download.promise;};
+ f.context.resume=()=>resume.promise;
+ const playing=f.play(),failed=assert.rejects(playing,{name:'AbortError'});await tick();
+ f.controller.abort();f.player.cancel();await failed;
+ assert.equal(f.requests[0].options.signal.aborted,true);assert.equal(f.timers.size,0);
+ download.resolve({ok:true,arrayBuffer:async()=>new ArrayBuffer(32)});resume.resolve();await tick();
+ assert.equal(f.stats.started,0);assert.equal(f.requests.length,1);
 });

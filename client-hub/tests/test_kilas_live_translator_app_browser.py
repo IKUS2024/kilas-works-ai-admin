@@ -12,6 +12,7 @@ import os
 import socket
 import tempfile
 import threading
+import time
 import unittest
 from contextlib import contextmanager
 from io import BytesIO
@@ -191,7 +192,12 @@ class BrowserApplicationFlowTests(unittest.TestCase):
                 page.wait_for_timeout(150)
                 page.evaluate('qa.rms=0')
                 expect(page.locator('#live-state')).to_have_text('Memproses', timeout=4000)
-                self.assertTrue(received.wait(3), 'Browser did not reach actual speech supplier boundary')
+                # Keep dispatching Playwright routes while the realtime input's
+                # last chunk and commit complete; Event.wait can block those callbacks.
+                deadline=time.monotonic()+3
+                while not received.is_set() and time.monotonic()<deadline:
+                    page.wait_for_timeout(10)
+                self.assertTrue(received.is_set(), 'Browser did not reach actual speech supplier boundary')
                 self.assertEqual(page.evaluate('qa.mics'), 0)
                 self.assertEqual(page.evaluate('qa.plays'), 0)
                 turn = audio.f.db.query_one('SELECT operation_key,status FROM kilas_live_translator_turns WHERE session_id=?', (ident,))

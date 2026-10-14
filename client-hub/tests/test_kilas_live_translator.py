@@ -671,7 +671,7 @@ class LiveTranslatorTests(unittest.TestCase):
                 original=model_policy.chat_profile([{'role':'user','content':text}])
                 profile=live.translation_profile(text)
                 self.assertEqual(profile['model'],model_policy.LUNA)
-                self.assertEqual(profile['effort'],'low')
+                self.assertEqual(profile['effort'],'none')
                 self.assertGreaterEqual(profile['output_tokens'],max(3500,original['output_tokens']))
                 self.assertEqual(model_policy.chat_profile([{'role':'user','content':text}]),original)
 
