@@ -145,15 +145,21 @@ def work_requested(text):
     return bool(substantial or (re.search(r'\b(?:pantau|monitor|watch)\b|\b(?:sampai|until)\b.{0,35}\b(?:selesai|berubah|pass|complete)\b|\b(?:setiap|tiap|every)\b.{0,25}\b(?:jam|hari|hour|day)\b',text) and re.search(r'\b(?:riset|research|pantau|monitor|watch|perbaiki|fix|kerjakan|buat)\b',text)))
 
 
+_NO_SEARCH = re.compile(r"\b(?:jangan|tanpa|tidak (?:perlu|usah)|gak usah|ga usah|nggak usah|do not|don't|without|no)\s+(?:melakukan\s+)?(?:(?:web\s+)?search|browse|browsing|pencarian(?:\s+web)?|penelusuran(?:\s+web)?|internet|(?:men)?cari(?:kan)?\s+(?:di\s+)?(?:web|internet))\b")
+
+
 def no_search_requested(text):
     text = _normalize(text).replace('’', "'")
-    return bool(re.search(r"\b(?:jangan|tanpa|tidak (?:perlu|usah)|gak usah|ga usah|nggak usah|do not|don't|without|no)\s+(?:melakukan\s+)?(?:(?:web\s+)?search|browse|browsing|pencarian(?:\s+web)?|penelusuran(?:\s+web)?|internet|(?:men)?cari(?:kan)?\s+(?:di\s+)?(?:web|internet))\b", text))
+    return bool(_NO_SEARCH.search(text))
 
 
 def fresh_information(text, *, respect_no_search=True):
-    text = _normalize(text)
+    text = _normalize(text).replace('’', "'")
     if respect_no_search and no_search_requested(text):
         return False
+    # A negated lookup is a transport constraint, not evidence of a current-fact task.
+    # Keep the question itself, so currency/current/high-stakes gates still apply.
+    text = _NO_SEARCH.sub(' ', text).strip()
     # Quoted text transformations do not authorize lookup of their source claims.
     if re.match(r'^(?:tolong )?(?:translate|terjemah(?:kan)?|rewrite|tulis ulang|benerin typo|perbaiki typo|ubah kalimat)\b', text):
         return False
@@ -200,6 +206,10 @@ def high_stakes(text):
 
 def fresh_followup(text, previous_request, *, respect_no_search=True):
     """Retain lookup intent only for a short, referential factual follow-up."""
+    # Explicit standalone exercises/arithmetic introduce their own subject.
+    # They must not inherit a previous exchange-rate or news lookup.
+    if re.search(r'(?i)\b(?:soal logika|soal matematika|teka[- ]?teki|sintetis|synthetic|logic puzzle|math puzzle)\b|\b\d+(?:[.,]\d+)?\s*[+*/=−-]\s*\d+\b',text):
+        return False
     return ((not respect_no_search or not no_search_requested(text)) and len(text)<180 and not re.search(r'(?i)\b(?:translate|terjemah|rewrite|buat|bikin|create|generate)\b',text)
             and bool(re.match(r'(?i)^(?:masih|sekarang|saat ini|per |berapa|yang|yg|kalau|bagaimana|gimana|what about|still|and |how about|why|kenapa)\b',text.strip()))
             and fresh_information(previous_request))

@@ -24,6 +24,11 @@ def rate(**changes):
     return json.dumps(item)
 
 
+LOGIC_QUESTION = ('Soal logika sintetis, jangan cari web: tepat satu dari A, B, C mencuri. '
+    'A berkata “B yang mencuri.” B berkata “Saya tidak mencuri.” C berkata “A tidak mencuri.” '
+    'Tepat satu pernyataan benar. Siapa pencurinya? Buktikan dengan memeriksa semua kemungkinan.')
+
+
 class AutoSearchTests(unittest.TestCase):
     client = fixture.HomeTests.client
 
@@ -72,6 +77,49 @@ class AutoSearchTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(routing.tool_for(text), 'CHAT')
                 self.assertEqual(fixture.fixture.unified_runtime.intent(text), 'CHAT')
+
+    def test_no_browse_reasoning_does_not_become_a_current_information_request(self):
+        questions=(LOGIC_QUESTION,
+            'Susun urutan jadwal sintetis: A sebelum B, C sesudah B. Jangan cari web.',
+            'Hitung 17 x 23, tanpa pencarian web.',
+            'Buat caption kopi, do not search.',
+            'Explain this logical implication, don’t browse.',
+            'Halo, jangan melakukan pencarian web.',
+            'Sort these supplied tasks A and B, without internet.')
+        for question in questions:
+            with self.subTest(question=question):
+                self.assertTrue(routing.no_search_requested(question))
+                self.assertFalse(routing.fresh_information(question,respect_no_search=False))
+                self.assertEqual(routing.tool_for(question,search=True),'CHAT')
+                self.assertEqual(fixture.fixture.unified_runtime.intent(question),'CHAT')
+        for agent in (False,True):
+            for previous in (None,'1 USD berapa rupiah'):
+                for question in (LOGIC_QUESTION,'Bagaimana membuktikan 2 + 2 = 4? Jangan cari web.'):
+                    with self.subTest(agent=agent,previous_currency=bool(previous),question=question), \
+                        patch.object(tools,'_request',side_effect=AssertionError('No search allowed')), \
+                        patch.object(providers,'stream',side_effect=lambda *a,**k:fixture.fixture.answer('Jawaban sintetis: A adalah pencuri.')) as chat:
+                        result=self.submit_chat(question,agent,previous_request=previous)
+                        text=agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['content'] if agent else result.get_data(as_text=True)
+                        self.assertIn('A adalah pencuri',text)
+                        self.assertNotIn('Informasi terkini belum terverifikasi',text)
+                        self.assertEqual(chat.call_count,1)
+
+    def test_no_browse_still_limits_current_facts_and_preserves_schedule_intent(self):
+        for question in ('1 USD berapa rupiah, jangan cari web',
+                         'Harga emas hari ini, tanpa pencarian web',
+                         'Siapa presiden Indonesia sekarang? Do not search.',
+                         'Aturan pajak terbaru apa? Jangan melakukan pencarian web.'):
+            with self.subTest(question=question):
+                self.assertTrue(routing.fresh_information(question,respect_no_search=False))
+            for agent in (False,True):
+                with self.subTest(agent=agent,question=question),patch.object(tools,'_request',side_effect=AssertionError('No browsing')), \
+                        patch.object(providers,'stream',side_effect=AssertionError('No current-fact guessing')):
+                    result=self.submit_chat(question,agent)
+                    text=agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['content'] if agent else result.get_data(as_text=True)
+                    self.assertIn('Informasi terkini belum terverifikasi',text)
+        self.assertEqual(fixture.fixture.unified_runtime.intent('Ingatkan saya minum air besok jam 9, jangan cari web'),'SCHEDULE')
+        self.assertTrue(routing.fresh_information('Berita ekonomi terbaru'))
+        self.assertEqual(routing.tool_for('Berita ekonomi terbaru'),'WEB')
 
     def test_no_browse_wins_over_manual_api_flag_and_fresh_followups(self):
         for text in ('600 RMB ke IDR, jangan browsing', 'Harga emas hari ini, tanpa search',
