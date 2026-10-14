@@ -33,8 +33,8 @@ class AgentTests(unittest.TestCase):
 
     def client_for(self, user_id):
         client = self.app.test_client()
-        with client.session_transaction() as state:
-            state.update(user_id=user_id, role="CLIENT_OWNER", _csrf_token="agent-csrf")
+        from auth_test_helpers import authenticate
+        authenticate(client,repo.get_user_by_id(user_id),_csrf_token='agent-csrf')
         return client
 
     def test_empty_work_and_hidden_connections(self):

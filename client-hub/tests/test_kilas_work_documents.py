@@ -39,7 +39,8 @@ class WorkTests(unittest.TestCase):
 
     def client(self,owner=None):
         client=fixture.app.app.test_client()
-        with client.session_transaction() as state:state.update(user_id=owner or self.owner,role='CLIENT_OWNER',agent_conversation_id=self.conversation,_csrf_token='work-csrf')
+        from auth_test_helpers import authenticate
+        authenticate(client,fixture.repo.get_user_by_id(owner or self.owner),agent_conversation_id=self.conversation,_csrf_token='work-csrf')
         return client
 
     def complete(self,request=REQUEST,source=SOURCE,checkpoint=None):

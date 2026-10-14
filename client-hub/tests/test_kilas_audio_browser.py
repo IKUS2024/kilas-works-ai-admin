@@ -223,7 +223,8 @@ def main():
                 expect(page.locator('#audio-settings-title,form[action="/kilas-translator/checkout"]')).to_have_count(0)
                 # Existing checkout accounting stays covered server-side by test_kilas_audio.py.
                 zero=f.repo.create_user(f'audio-zero-{width}@example.test','hash');client=f.app.app.test_client()
-                with client.session_transaction() as s:s.update(user_id=zero,role='CLIENT_OWNER',_csrf_token='zero-csrf')
+                from auth_test_helpers import authenticate
+                authenticate(client,f.repo.get_user_by_id(zero),_csrf_token='zero-csrf')
                 cookie=client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
                 page.goto(origin+'/kilas-translator',wait_until='networkidle');expect(page.locator('.audio-balance,.audio-notice')).to_have_count(0);expect(page.locator('#translate-panel button[type=submit]')).to_be_disabled();check('paywall')
                 clean_workbench()

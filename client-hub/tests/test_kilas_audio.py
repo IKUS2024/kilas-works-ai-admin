@@ -39,7 +39,8 @@ class AudioTests(unittest.TestCase):
         self.user=f.repo.create_user(self.id()+'@example.test','hash')
         self.other=f.repo.create_user(self.id()+'-other@example.test','hash')
         self.client=f.app.app.test_client()
-        with self.client.session_transaction() as s:s.update(user_id=self.user,role='CLIENT_OWNER',_csrf_token='audio-csrf')
+        from auth_test_helpers import authenticate
+        authenticate(self.client,f.repo.get_user_by_id(self.user),_csrf_token='audio-csrf')
         self.voices=[{'id':'actualVoice123','name':'QA Calm','style':'Female · Calm'}]
         self.env=patch.dict(os.environ,{'ELEVENLABS_API_KEY':'synthetic-only','KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'true'});self.env.start();self.addCleanup(self.env.stop)
         self.transport=patch.object(provider.requests,'request',side_effect=provider.requests.ConnectionError('offline provider mock'))
@@ -102,7 +103,8 @@ class AudioTests(unittest.TestCase):
                 self.assertIn('id="voiceover-panel" role="tabpanel" aria-labelledby="voiceover-tab" >',html)
             self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/result').status_code,200)
             other=f.app.app.test_client()
-            with other.session_transaction() as session:session.update(user_id=self.other,role='CLIENT_OWNER')
+            from auth_test_helpers import authenticate
+            authenticate(other,f.repo.get_user_by_id(self.other))
             self.assertEqual(other.get(f'/kilas-translator/jobs/{ident}').status_code,404)
             self.assertEqual(other.get(f'/kilas-translator/jobs/{ident}/result').status_code,404)
             self.assertEqual(self.client.get('/kilas-translator/jobs/99999999').status_code,404)
@@ -136,7 +138,8 @@ class AudioTests(unittest.TestCase):
         html=self.client.get(f'/kilas-translator/jobs/{ident}').get_data(as_text=True)
         self.assertIn('data-audio-edit=',html);self.assertNotIn(original,html)
         other=f.app.app.test_client()
-        with other.session_transaction() as session:session.update(user_id=self.other,role='CLIENT_OWNER')
+        from auth_test_helpers import authenticate
+        authenticate(other,f.repo.get_user_by_id(self.other))
         self.assertEqual(other.get(f'/kilas-translator/jobs/{ident}/script').status_code,404)
         self.assertEqual(f.app.app.test_client().get(f'/kilas-translator/jobs/{ident}/script').status_code,302)
         f.db.execute('UPDATE kilas_audio_jobs SET original_script=NULL WHERE id=?',(ident,))
@@ -174,7 +177,9 @@ class AudioTests(unittest.TestCase):
         self.assertEqual(self.client.get('/kilas-translator').status_code,200)
         self.assertEqual(self.client.post('/kilas-translator/jobs',data={'operation_key':'audio-key-1234567890'}).status_code,400)
         f.db.execute("UPDATE users SET role='KILAS_ADMIN' WHERE id=?",(self.user,))
-        self.assertEqual(self.client.get('/kilas-translator').status_code,404)
+        changed=self.client.get('/kilas-translator')
+        self.assertEqual(changed.status_code,303)
+        self.assertEqual(changed.location,'/login')
 
     def test_zero_no_provider_or_decode(self):
         with patch.object(provider,'request') as paid,patch.object(media,'upload') as decode:
@@ -317,7 +322,8 @@ class AudioTests(unittest.TestCase):
         self.credit();r,_,_=self.create();ident=r.json['id']
         self.assertEqual(self.client.get(r.json['url']).status_code,200)
         result=self.client.get(f'/kilas-translator/jobs/{ident}/result?download=1');self.assertEqual(result.status_code,200);self.assertEqual(result.mimetype,'audio/mpeg');self.assertEqual(result.data,self.audio)
-        with self.client.session_transaction() as s:s['user_id']=self.other
+        from auth_test_helpers import authenticate
+        authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
         for path in (r.json['url'],f'/kilas-translator/jobs/{ident}/result',f'/kilas-translator/jobs/{ident}/status'):self.assertEqual(self.client.get(path).status_code,404)
         self.assertNotIn('safe synthetic audio test',self.client.get('/kilas-translator').text)
 
@@ -337,7 +343,8 @@ class AudioTests(unittest.TestCase):
             self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/result?download=1').data,self.audio)
             self.assertEqual(store.balance(self.user),before)
             paid.assert_not_called();dub.assert_not_called()
-        with self.client.session_transaction() as state:state['user_id']=self.other
+        from auth_test_helpers import authenticate
+        authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
         self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/result?format=wav').status_code,404)
 
     def test_wav_conversion_failure_does_not_change_completed_job(self):
@@ -375,7 +382,8 @@ class AudioTests(unittest.TestCase):
             self.assertIn('cached',cached.text);call.assert_called_once()
         self.assertEqual(store.history(self.user,1),[])
         self.assertEqual(self.client.post(path,json={**body,'content':'x'*4001},headers=headers).status_code,400)
-        with self.client.session_transaction() as state:state['user_id']=self.other
+        from auth_test_helpers import authenticate
+        authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
         self.assertEqual(self.client.post(path,json=body,headers=headers).status_code,404)
 
     def test_script_tidy_accepts_full_script_and_validates_mode(self):
@@ -508,7 +516,8 @@ class AudioTests(unittest.TestCase):
         downloaded=self.client.get(f'/kilas-translator/jobs/{ident}/result?download=1')
         self.assertEqual(downloaded.mimetype,'video/mp4');self.assertEqual(downloaded.data[4:8],b'ftyp')
         self.assertIn('.mp4',downloaded.headers['Content-Disposition'])
-        with self.client.session_transaction() as state:state['user_id']=self.other
+        from auth_test_helpers import authenticate
+        authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
         self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/result').status_code,404)
 
     def test_multipart_translator_files_are_disk_backed(self):
@@ -624,7 +633,8 @@ class AudioTests(unittest.TestCase):
         ident=billing.create(self.user,'MINUTE')
         with self.assertRaises(store.AudioError):billing.review(ident,self.user,'VERIFIED')
         self.assertEqual(store.balance(self.user)['seconds'],0)
-        with self.client.session_transaction() as s:s['user_id']=self.other
+        from auth_test_helpers import authenticate
+        authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
         self.assertEqual(self.client.get(f'/kilas-translator/orders/{ident}').status_code,404)
 
     def test_poll_failure_then_success_without_second_submission(self):

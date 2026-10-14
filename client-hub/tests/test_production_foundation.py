@@ -457,7 +457,7 @@ def test_login_rate_limiting_after_repeated_failures():
     print("test_login_rate_limiting_after_repeated_failures OK")
 
 
-def test_client_owner_session_expires_after_idle_timeout():
+def test_client_owner_session_retained_after_long_inactivity():
     reset_db()
     c = fresh_client()
     c.post("/register", data={
@@ -467,14 +467,14 @@ def test_client_owner_session_expires_after_idle_timeout():
     })
     with c.session_transaction() as sess:
         assert sess.get("user_id")
-        sess["_last_activity_at"] = int(time.time()) - security.client_session_idle_seconds() - 1
+        sess["_last_activity_at"] = int(time.time()) - 365 * 86400
 
     response = c.get("/", follow_redirects=False)
-    assert response.status_code == 303
-    assert response.headers["Location"].endswith("/login")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/products/start")
     with c.session_transaction() as sess:
-        assert sess.get("user_id") is None
-    print("test_client_owner_session_expires_after_idle_timeout OK")
+        assert sess.get("user_id") and sess.get("_customer_session")
+    print("test_client_owner_session_retained_after_long_inactivity OK")
 
 
 def test_active_client_owner_session_is_refreshed_not_logged_out():
@@ -496,7 +496,7 @@ def test_active_client_owner_session_is_refreshed_not_logged_out():
     assert not response.headers["Location"].endswith("/login")
     with c.session_transaction() as sess:
         assert sess.get("user_id") == owner_id
-        assert int(sess.get("_last_activity_at") or 0) > before
+        assert sess.get("_customer_session") and sess.permanent
     print("test_active_client_owner_session_is_refreshed_not_logged_out OK")
 
 

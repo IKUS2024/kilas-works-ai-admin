@@ -86,7 +86,8 @@ class SegmentTests(unittest.TestCase):
         sample=self.client.get(self.url(ident,key,0));self.assertEqual(sample.status_code,200);self.assertEqual(sample.data,self.audio);self.assertEqual(sample.headers['Cache-Control'],'private, no-store')
         self.assertEqual(self.client.get(self.url(ident,key,1)).status_code,404)
         self.assertEqual(self.client.get(self.url(ident,key)+'/audio').status_code,404)
-        with self.client.session_transaction() as state:state['user_id']=self.other
+        from auth_test_helpers import authenticate
+        authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
         self.assertEqual(self.client.get(self.url(ident,key,0)).status_code,404)
 
     def test_cancel_after_paid_clip_keeps_charge_releases_tail_and_blocks_further_dispatch(self):

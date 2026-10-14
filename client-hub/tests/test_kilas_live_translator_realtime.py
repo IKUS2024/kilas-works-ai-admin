@@ -137,7 +137,8 @@ class RealtimeTests(unittest.TestCase):
    ident=self.session();url='/kilas-translator/live/sessions/'+ident+'/turns/'+self.key()
    self.assertEqual(self.client.post(url+'/input/start',data={'csrf_token':'audio-csrf','text':'injected transcript'}).status_code,503);connect.assert_not_called()
    self.assertEqual(self.client.post(url+'/input/start').status_code,400)
-   with self.client.session_transaction() as state:state['user_id']=self.other
+   from auth_test_helpers import authenticate
+   authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
    self.assertEqual(self.client.post(url+'/input/start',data={'csrf_token':'audio-csrf'}).status_code,503)
 
  def test_provider_quota_closes_without_batch_fallback_or_translation(self):

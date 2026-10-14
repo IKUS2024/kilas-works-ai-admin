@@ -240,14 +240,14 @@ class ApplicationFlowTests(unittest.TestCase):
             release.set()
             self.assert_complete(ident, text, request)
             before = dict(audio.f.db.query_one('SELECT * FROM kilas_audio_balances WHERE user_id=?', (self.user,)))
-            with self.client.session_transaction() as state:
-                state['user_id'] = self.other
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
             self.assertEqual(self.client.get(self.path(ident)).status_code, 404)
             self.assertEqual(self.client.get(self.path(ident) + '/audio').status_code, 404)
             self.assertEqual(self.client.post('/kilas-translator/live/sessions/' + ident + '/end',
                 data={'csrf_token': 'audio-csrf'}).status_code, 404)
-            with self.client.session_transaction() as state:
-                state['user_id'] = self.user
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.user),_csrf_token='audio-csrf')
             self.assertEqual(self.post_batch(ident).status_code, 409)
             self.assertEqual(self.client.post('/kilas-translator/live/sessions/' + ident + '/end').status_code, 400)
             self.assertEqual(self.client.post('/kilas-translator/live/sessions/' + ident + '/end',

@@ -68,9 +68,11 @@ class LiveTranslatorTests(unittest.TestCase):
             response=self.client.post('/kilas-translator/live/sessions',data=fields);self.assertEqual(response.status_code,201)
             ident=response.json['session_id'];self.assertNotIn(VOICE['id'],response.text)
             self.assertEqual(self.client.post('/kilas-translator/live/sessions',data=fields).status_code,409)
-            with self.client.session_transaction() as state:state['user_id']=self.other
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
             self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,404)
-            with self.client.session_transaction() as state:state['user_id']=self.user
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.user),_csrf_token='audio-csrf')
             self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
             with patch.dict(os.environ,{'KILAS_LIVE_TRANSLATOR_ENABLED':'false'}):self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
 
@@ -83,7 +85,8 @@ class LiveTranslatorTests(unittest.TestCase):
             self.assertFalse(response.json['session']['processing'])
             self.assertIsNone(response.json['session']['expires_in_seconds']);self.assertIsNone(response.json['session']['expires_at'])
             self.assertEqual(set(response.json['session']),{'session_id','expires_at','expires_in_seconds','processing'})
-            with self.client.session_transaction() as state:state['user_id']=self.other
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
             self.assertEqual(self.client.get('/kilas-translator/live/sessions/active').json,{'session':None})
             self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,404)
             stt.assert_not_called();tts.assert_not_called()
@@ -106,9 +109,11 @@ class LiveTranslatorTests(unittest.TestCase):
         ident=self.session();key=self.key();url='/kilas-translator/live/sessions/'+ident+'/turns/'+key+'/cancel'
         with patch.object(live.stt,'transcribe') as stt,patch.object(audio_provider,'speech') as tts:
             self.assertEqual(self.client.post(url).status_code,400)
-            with self.client.session_transaction() as state:state['user_id']=self.other
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
             self.assertEqual(self.client.post(url,data={'csrf_token':'audio-csrf'}).status_code,404)
-            with self.client.session_transaction() as state:state['user_id']=self.user
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.user),_csrf_token='audio-csrf')
             for _ in range(2):
                 response=self.client.post(url,data={'csrf_token':'audio-csrf'});self.assertEqual(response.status_code,200)
                 self.assertEqual(response.json,{'status':'CANCELLED'});self.assertEqual(response.headers['Cache-Control'],'private, no-store')
@@ -153,7 +158,8 @@ class LiveTranslatorTests(unittest.TestCase):
         ident=self.session();url='/kilas-translator/live/sessions/'+ident
         with patch.object(live.stt,'transcribe') as stt,patch.object(audio_provider,'speech') as tts:
             response=self.client.get(url);self.assertEqual(response.json,{'status':'ACTIVE','processing':False});self.assertEqual(response.headers['Cache-Control'],'private, no-store')
-            with self.client.session_transaction() as state:state['user_id']=self.other
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
             self.assertEqual(self.client.get(url).status_code,404);stt.assert_not_called();tts.assert_not_called()
 
     def test_explicit_recovery_end_is_csrf_protected_idempotent_cancels_turn_without_new_dispatch(self):
@@ -249,7 +255,8 @@ class LiveTranslatorTests(unittest.TestCase):
             self.assertNotIn('kilas-translator-pending',page.text)
             response=self.client.post('/kilas-translator/live/sessions',data=fields)
             self.assertEqual(response.status_code,201,response.text)
-            with self.client.session_transaction() as state:state['user_id']=self.other
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
             self.assertIn('data-ready="false"',self.client.get('/kilas-translator/live').text)
             self.assertEqual(self.client.post('/kilas-translator/live/sessions',data=fields).status_code,503)
             with self.assertRaises(audio_store.AudioError) as error:live.enqueue(self.other,response.json['session_id'],self.key(),None)

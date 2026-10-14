@@ -29,7 +29,8 @@ class ReceivablesTests(unittest.TestCase):
         self.oc=f.create_customer(self.other,'PRIVATE CUSTOMER')
         self.a=f.list_accounts(self.b)[0]['id'];self.cat=f.list_categories(self.b,'INCOME')[0]['id']
         self.client=app.test_client()
-        with self.client.session_transaction() as session: session['user_id']=self.uid
+        from auth_test_helpers import authenticate
+        authenticate(self.client,repo.get_user_by_id(self.uid))
         self.url=f'/business/{self.b}/finance'
         app.config['CLIENT_HUB_FORCE_CSRF_IN_TESTS']=False
         self.addCleanup(lambda: app.config.update(CLIENT_HUB_FORCE_CSRF_IN_TESTS=False))

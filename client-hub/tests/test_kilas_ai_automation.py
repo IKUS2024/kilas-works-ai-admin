@@ -134,8 +134,8 @@ class AutomationFlowTests(unittest.TestCase):
 
     def client_for(self, user_id):
         client = self.app.test_client()
-        with client.session_transaction() as user_session:
-            user_session.update(user_id=user_id, role="CLIENT_OWNER", _csrf_token="automation-csrf")
+        from auth_test_helpers import authenticate
+        authenticate(client,repo.get_user_by_id(user_id),_csrf_token='automation-csrf')
         return client
 
     def setUp(self):

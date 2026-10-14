@@ -58,8 +58,7 @@ class SidebarHistoryTests(unittest.TestCase):
     def test_cursor_cannot_be_tampered_or_used_by_another_owner(self):
         self.seed(25,1);client=self.client();token=client.get('/kilas-ai/sidebar/history').json['next_cursor']
         for bad in ('',token+'x','x'*2049):self.assertEqual(client.get('/kilas-ai/sidebar/history',query_string={'cursor':bad}).status_code,400)
-        foreign=self.client()
-        with foreign.session_transaction() as state:state.update(user_id=self.other,role='CLIENT_OWNER')
+        foreign=self.client(self.other)
         self.assertEqual(foreign.get('/kilas-ai/sidebar/history',query_string={'cursor':token}).status_code,400)
 
     def test_existing_access_and_feature_gates_apply(self):
@@ -68,9 +67,10 @@ class SidebarHistoryTests(unittest.TestCase):
         self.assertEqual(anonymous.get('/kilas-ai/sidebar/history').status_code,302)
         forged=self.client()
         with forged.session_transaction() as state:state['role']='KILAS_ADMIN'
-        self.assertEqual(forged.get('/kilas-ai/sidebar/history').status_code,404)
+        self.assertEqual(forged.get('/kilas-ai/sidebar/history').status_code,303)
+        from auth_test_helpers import authenticate
+        authenticate(forged,fixture.fixture.base.f.fixture.repo.get_user_by_id(self.owner),_csrf_token='work-csrf')
         with patch.dict(os.environ,{'KILAS_AI_ENABLED':'false'}):self.assertEqual(self.client().get('/kilas-ai/sidebar/history').status_code,404)
-        with forged.session_transaction() as state:state['role']='CLIENT_OWNER'
         token=self.client().get('/kilas-ai/sidebar/history').json['next_cursor']
         with patch.dict(os.environ,{'KILAS_AI_AUTOMATION_ENABLED':'false'}):
             self.assertTrue(all(item['kind']=='thread' for item in self.walk()))

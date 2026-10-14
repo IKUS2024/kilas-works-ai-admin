@@ -179,52 +179,20 @@ def current_user():
     return db.query_one("SELECT * FROM users WHERE id = ?", (user_id,))
 
 
-def client_session_idle_seconds():
-    """Customer idle timeout in seconds; configurable but bounded to a safe range."""
-    try:
-        value = int(os.environ.get("CLIENT_SESSION_IDLE_SECONDS", "1800"))
-    except (TypeError, ValueError):
-        value = 1800
-    return min(max(value, 300), 86400)
-
-
 def login_user(user_row):
+    import customer_auth
+    customer_auth.revoke_current()
+    token=customer_auth.create(user_row) if user_row['role']!='KILAS_ADMIN' else None
     session.clear()
     session["user_id"] = user_row["id"]
     session["role"] = user_row["role"]
-    # Customer logins use a browser-session cookie plus a server-enforced inactivity timeout.
-    # This avoids a mobile/browser restored session keeping customer access indefinitely.
-    session.permanent = user_row["role"] != "CLIENT_OWNER"
-    if user_row["role"] == "CLIENT_OWNER":
-        session["_last_activity_at"] = int(time.time())
-
-
-def enforce_client_session_timeout():
-    """Clear an idle CLIENT_OWNER session. Returns True only when it expired."""
-    if not session.get("user_id") or session.get("role") != "CLIENT_OWNER":
-        return False
-
-    now = int(time.time())
-    raw_last = session.get("_last_activity_at")
-    try:
-        last = int(raw_last)
-    except (TypeError, ValueError):
-        # Existing signed sessions from before this release get a fresh timer once.
-        last = now
-
-    if now - last >= client_session_idle_seconds():
-        session.clear()
-        return True
-
-    # Avoid rewriting the signed cookie on every request while still keeping an accurate
-    # inactivity window. One minute is enough granularity for a 30-minute default timeout.
-    if now - last >= 60 or raw_last is None:
-        session["_last_activity_at"] = now
-        session.modified = True
-    return False
+    session.permanent = True
+    if token:session[customer_auth.SID]=token
 
 
 def logout_user():
+    import customer_auth
+    customer_auth.revoke_current()
     session.clear()
 
 

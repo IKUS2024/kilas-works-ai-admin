@@ -884,6 +884,8 @@ def get_user_by_id(user_id):
 
 def update_user_password(user_id, new_password_hash):
     db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_password_hash, user_id))
+    import customer_auth
+    customer_auth.revoke_all(user_id)
 
 
 def create_password_reset_token(user_id, token_hash, expires_at, requested_ip=None):

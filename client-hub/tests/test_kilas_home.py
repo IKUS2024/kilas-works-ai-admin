@@ -198,7 +198,9 @@ class HomeTests(unittest.TestCase):
         self.assertEqual(app.test_client().post('/kilas-ai/home-task',data={'task':'video'}).status_code,400)
         client=self.client()
         fixture.base.f.fixture.db.execute('UPDATE users SET role=? WHERE id=?',('KILAS_ADMIN',self.owner))
-        self.assertEqual(client.post('/kilas-ai/home-task',data={'csrf_token':'work-csrf','task':'video'}).status_code,404)
+        response=client.post('/kilas-ai/home-task',data={'csrf_token':'work-csrf','task':'video'})
+        self.assertEqual(response.status_code,303)
+        self.assertEqual(response.location,'/login')
 
     def test_old_routes_still_render(self):
         for route in ('/kilas-ai?attachments=1','/kilas-ai/agent?view=history','/kilas-ai/video','/kilas-translator'):

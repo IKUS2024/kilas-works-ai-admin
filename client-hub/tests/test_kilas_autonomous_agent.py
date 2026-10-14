@@ -57,8 +57,8 @@ class AutonomousTests(unittest.TestCase):
     def client(self, owner=None):
         app.app.config.update(TESTING=True, CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)
         client = app.app.test_client()
-        with client.session_transaction() as session:
-            session.update(user_id=owner or self.owner, role='CLIENT_OWNER', _csrf_token='autonomous-csrf')
+        from auth_test_helpers import authenticate
+        authenticate(client,repo.get_user_by_id(owner or self.owner),_csrf_token='autonomous-csrf')
         return client
 
     def test_persistent_create_and_owner_boundary(self):

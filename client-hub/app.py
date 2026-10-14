@@ -71,6 +71,8 @@ def create_app():
         secret_key = "dev-only-insecure-secret-key-do-not-use-in-production"
         print("WARNING: SECRET_KEY not set — using an insecure dev-only default. Set SECRET_KEY before deploying.")
     app.secret_key = secret_key
+    from customer_auth import CustomerCookieSessionInterface
+    app.session_interface = CustomerCookieSessionInterface()
 
     app.config.update(
         SESSION_COOKIE_HTTPONLY=True,
@@ -127,6 +129,10 @@ def create_app():
                 "already-migrated schema; set RUN_MIGRATIONS_ON_BOOT=true for one deploy after "
                 "adding a new migration file)"
             )
+
+        import customer_auth_schema
+        customer_auth_schema.apply()
+        print('CUSTOMER_AUTH_READY server_revocation=true idle_logout=false legacy_relogin=true')
 
         # Kilas Core schemas 0055+ are intentionally installed out-of-band rather than through
         # db.MIGRATIONS. Keep this one-time production extension equally explicit and opt-in.
@@ -364,15 +370,24 @@ def create_app():
             request.max_content_length = MAX_BYTES + 64 * 1024
 
     @app.before_request
-    def _expire_idle_customer_session():
-        # CLIENT_OWNER sessions are browser-session cookies, but mobile browsers may restore
-        # those cookies after the app/browser is reopened. Enforce inactivity on the server too.
-        if not security.enforce_client_session_timeout():
+    def _validate_customer_session():
+        if request.endpoint in ('static','healthz'):return None
+        if not session.get('user_id'):
             return None
+        if session.get('role')=='KILAS_ADMIN':
+            user=security.current_user()
+            if user and user['role']=='KILAS_ADMIN':return None
+            session.clear()
+            return redirect(url_for('auth.login_page'),code=303)
+        import customer_auth
+        try:
+            if customer_auth.validate():return None
+        except Exception:
+            abort(503,description='Login sementara belum dapat diperiksa. Coba lagi nanti.')
+        # Legacy cookies cannot establish revocable identity or password-change validity.
+        session.clear()
         if request.path.startswith("/api/") or request.is_json:
             abort(401)
-        if request.endpoint == "static":
-            return None
         return redirect(url_for("auth.login_page"), code=303)
 
     def _finance_session_destination():

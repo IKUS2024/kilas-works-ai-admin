@@ -124,7 +124,8 @@ class VideoScriptTests(unittest.TestCase):
             self.assertEqual(self.post(video=(io.BytesIO(wav()),'source.wav','audio/wav')).status_code,400)
             paid.assert_not_called()
         other=f.app.app.test_client()
-        with other.session_transaction() as s:s.update(user_id=self.other,role='CLIENT_OWNER')
+        from auth_test_helpers import authenticate
+        authenticate(other,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
         self.assertEqual(other.get('/kilas-translator/voice-script/video?operation_key=video-script-operation-1234').status_code,404)
         self.assertEqual(f.app.app.test_client().get('/kilas-translator/voice-script/video?operation_key=video-script-operation-1234').status_code,302)
 
@@ -340,7 +341,8 @@ class VideoScriptTests(unittest.TestCase):
         with self.funded(global_micro=1,account_micro=1),self.normal_usage(),patch.object(stt.requests,'get',return_value=self.subscription()) as metadata,patch.object(stt.requests,'post') as paid:
             self.assertEqual(self.dictate().json['code'],'budget_limit')
             metadata.reset_mock()
-            with self.client.session_transaction() as session:session['user_id']=self.other
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
             self.assertEqual(self.dictate().json['code'],'budget_unavailable')
             paid.assert_not_called();metadata.assert_not_called()
 

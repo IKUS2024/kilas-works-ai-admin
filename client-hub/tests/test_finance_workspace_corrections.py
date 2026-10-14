@@ -101,7 +101,8 @@ class WorkspaceCorrectionTests(unittest.TestCase):
         category=f.list_categories(self.other,'INCOME',actor_user_id=self.other_uid)[0]['id']
         tx=f.create_transaction(self.other,'INCOME',90,other_account,category,'2026-09-10',actor_user_id=self.other_uid)
         branch=branches.list_branches(self.other,self.other_uid)[0]['id']
-        with self.client.session_transaction() as session:session['user_id']=self.other_uid
+        from auth_test_helpers import authenticate
+        authenticate(self.client,__import__('repo').get_user_by_id(self.other_uid))
         before=self.dump()
         with patch.object(f,'_workspace_move_revision',side_effect=RuntimeError('late failure')),self.assertRaises(RuntimeError):
             self.client.post(f'/business/{self.other}/finance/transactions/{tx}/move-workspace',data={'branch_id':str(branch)})

@@ -438,7 +438,7 @@ class FinalFlowTests(unittest.TestCase):
         with app.test_request_context():
             from flask import session
             session.update(product_intent='finance',_csrf_token='old',unsafe='removed')
-            security.login_user(repo.get_user_by_id(self.uid));self.assertNotIn('product_intent',session);self.assertNotIn('_csrf_token',session);self.assertNotIn('unsafe',session);self.assertFalse(session.get('_permanent'))
+            security.login_user(repo.get_user_by_id(self.uid));self.assertNotIn('product_intent',session);self.assertNotIn('_csrf_token',session);self.assertNotIn('unsafe',session);self.assertTrue(session.get('_permanent'));self.assertTrue(session.get('_customer_session'))
     def test_create_business_idempotent(self):
         identity=uuid.uuid4().hex
         self.assertEqual(product_flow.create_business(self.uid,'New',identity),product_flow.create_business(self.uid,'New',identity))

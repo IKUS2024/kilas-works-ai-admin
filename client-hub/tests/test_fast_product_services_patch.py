@@ -31,11 +31,11 @@ class FastProductServicesPatchTests(unittest.TestCase):
 
     def logged_in(self, uid):
         client=app.test_client()
-        with client.session_transaction() as session:
-            session.update(user_id=uid,role='CLIENT_OWNER')
+        from auth_test_helpers import authenticate
+        authenticate(client,repo.get_user_by_id(uid))
         return client
 
-    def test_fresh_customer_login_is_session_only_clears_product_state_and_opens_picker(self):
+    def test_fresh_customer_login_persists_clears_product_state_and_opens_picker(self):
         uid,_,password=self.owner('fresh-login@example.test')
         client=app.test_client()
         with client.session_transaction() as session:
@@ -43,11 +43,12 @@ class FastProductServicesPatchTests(unittest.TestCase):
         response=client.post('/login',data={'email':'fresh-login@example.test','password':password})
         self.assertTrue(response.location.endswith('/products/start'))
         session_cookie=next(value for value in response.headers.getlist('Set-Cookie') if value.startswith('session='))
-        self.assertNotIn('Expires=',session_cookie)
+        self.assertIn('Expires=',session_cookie)
         self.assertNotIn('Max-Age=',session_cookie)
         with client.session_transaction() as session:
             self.assertEqual(session['user_id'],uid)
-            self.assertFalse(session.get('_permanent'))
+            self.assertTrue(session.get('_permanent'))
+            self.assertTrue(session.get('_customer_session'))
             for stale in ('active_product','product_intent','workspace_ai_business'):
                 self.assertNotIn(stale,session)
         page=client.get('/products/start')
@@ -56,14 +57,15 @@ class FastProductServicesPatchTests(unittest.TestCase):
         for number in ('01','02','03'):
             self.assertIn(f'<p class="kw-eyebrow">{number}</p>',page.text)
 
-    def test_existing_authorized_permanent_browser_session_is_not_invalidated(self):
+    def test_legacy_permanent_browser_session_requires_one_relogin(self):
         uid,_,_=self.owner('trusted-work-browser@example.test')
         client=app.test_client()
         with client.session_transaction() as session:
             session.update(user_id=uid,role='CLIENT_OWNER',_permanent=True)
-        self.assertEqual(client.get('/products/start').status_code,200)
+        response=client.get('/products/start')
+        self.assertEqual(response.status_code,303);self.assertTrue(response.location.endswith('/login'))
         with client.session_transaction() as session:
-            self.assertTrue(session.get('_permanent'))
+            self.assertNotIn('user_id',session)
 
     def test_existing_assist_and_finance_entries_reuse_owned_businesses(self):
         assist_uid,assist_bid,_=self.owner('assist-existing@example.test','Assist Existing','AI_ADMIN')

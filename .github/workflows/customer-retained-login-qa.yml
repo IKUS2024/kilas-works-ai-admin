@@ -1,0 +1,46 @@
+name: Customer Retained Login QA
+on:
+  push:
+    branches: [main, 'feature/customer-retained-login-*']
+    paths: ['client-hub/customer_auth*.py', 'client-hub/security.py', 'client-hub/app.py', 'client-hub/db.py', 'client-hub/repo.py', 'client-hub/routes_auth.py', 'client-hub/migrations/0097_*', 'client-hub/tests/test_customer_auth*', 'client-hub/tests/auth_test_helpers.py', '.github/workflows/customer-retained-login-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lifecycle-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python -B scripts/run_offline_tests.py --only test_customer_auth_sessions.py
+      - run: PYTHONPATH=client-hub:client-hub/tests python -B client-hub/tests/test_customer_auth_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: customer-auth-browser
+          path: /tmp/customer-auth-qa/
+  native-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: disposable-auth-qa
+          POSTGRES_DB: auth_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d auth_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python -B client-hub/tests/test_customer_auth_postgres.py
+        env:
+          DATABASE_URL: postgresql://postgres:disposable-auth-qa@127.0.0.1:5432/auth_qa

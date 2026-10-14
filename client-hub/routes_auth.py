@@ -279,7 +279,12 @@ def login_page():
         return render_template(template, email=email)
 
     security.clear_login_attempts(email)
-    security.login_user(user)
+    from customer_auth import AccountDisabled
+    try:
+        security.login_user(user)
+    except AccountDisabled:
+        flash("Email atau password salah.", "error")
+        return render_template(template, email=email)
     if user["role"] == "KILAS_ADMIN":
         return redirect(url_for("admin.dashboard"))
     session.pop("product_intent", None)
@@ -732,8 +737,9 @@ def account_page():
         repo.invalidate_all_reset_tokens_for_user(user["id"], _now_iso())
         security.clear_login_attempts(user["email"])
         repo.write_audit_no_business(user["id"], "PASSWORD_CHANGED", "password changed and persistence verified")
-        flash("Password berhasil diubah dan sudah aktif untuk login berikutnya.", "success")
-        return redirect(url_for("auth.account_page"))
+        security.logout_user()
+        flash("Password berhasil diubah. Silakan login dengan password baru.", "success")
+        return redirect(url_for("auth.login_page"))
 
     flash("Aksi akun tidak dikenali.", "error")
     return redirect(url_for("auth.account_page"))
@@ -822,6 +828,6 @@ def reset_password_page(token):
     # email in an inbox can't be used after the password has already changed.
     repo.invalidate_all_reset_tokens_for_user(user["id"], now)
     repo.write_audit_no_business(user["id"], "PASSWORD_RESET_COMPLETED", "password reset via emailed link")
-
+    security.logout_user()
     flash("Password berhasil diubah. Silakan login dengan password baru.", "success")
     return redirect(url_for("auth.login_page"))
