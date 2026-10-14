@@ -29,6 +29,10 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: cd client-hub/tests && python -m unittest test_kilas_home
       - run: python -B scripts/run_offline_tests.py --only test_kilas_logo_asset.py
+      - name: Streaming Markdown and math regression
+        run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_chat_markdown_browser.py
+        env:
+          KILAS_MARKDOWN_QA_DIR: /tmp/kilas-global-ui-qa/chat-markdown
       - run: python -B scripts/run_offline_tests.py --only test_kilas_sidebar_history.py
       - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_sidebar_history_browser.py
         env:

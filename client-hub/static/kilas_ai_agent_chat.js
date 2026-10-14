@@ -62,7 +62,7 @@
     if(!copyIcon||article.querySelector('.ai-copy'))return;
     const button=document.createElement('button');button.type='button';button.className='ai-copy';
     const state=copied=>{button.replaceChildren(copyIcon.content.cloneNode(true));button.setAttribute('aria-label',t(copied?'Tersalin':'Salin'));button.title=t(copied?'Tersalin':'Salin');if(copied)button.querySelector('path').setAttribute('d','m5 12 4 4L19 6');};state(false);
-    button.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(article.querySelector('.agent-message-text').textContent);state(true);setTimeout(()=>state(false),1500);}catch(_){error.textContent=t('Tidak dapat menyalin. Pilih teks lalu salin.');error.hidden=false;}});article.append(button);
+    button.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(window.KilasMarkdown.source(article.querySelector('.agent-message-text')));state(true);setTimeout(()=>state(false),1500);}catch(_){error.textContent=t('Tidak dapat menyalin. Pilih teks lalu salin.');error.hidden=false;}});article.append(button);
   }
   const copyAnswers=()=>chat.querySelectorAll('.agent-message-assistant').forEach(copyButton);copyAnswers();
   let busy = false;
@@ -76,7 +76,7 @@
     const speaker = document.createElement('div'); speaker.className = 'agent-speaker';
     speaker.textContent = role === 'user' ? t('Kamu') : t('Kilas');
     const content = document.createElement('div'); content.className = 'agent-message-text'; content.textContent = text;
-    article.append(speaker, content); chat.append(article);
+    article.append(speaker, content); if(role==='assistant')content.addEventListener('kilas:rendered',()=>{chat.scrollTop=chat.scrollHeight;});chat.append(article);
     chat.scrollTop = chat.scrollHeight;
     return content;
   }
@@ -123,7 +123,7 @@
     thinking.hidden = false;
     thinking.lastElementChild.textContent = /\b(riset|research)\b/i.test(input.value) ? t('Menyiapkan riset…') : /\b(kerjain|kerjakan|pantau|perbaiki|setiap|besok)\b/i.test(input.value) ? t('Menyiapkan pekerjaan…') : t('Menyiapkan jawaban…');
     chat.setAttribute('aria-busy', 'true');
-    let accepted = false, draftCleared = false;
+    let accepted = false, draftCleared = false, answer;
     try {
       const response = await fetch(form.action, {method:'POST',body:data,headers:{'X-Agent-Chat':'1'},signal:controller.signal});
       if (!response.ok) {
@@ -135,7 +135,7 @@
       if(input.value===draft){input.value='';draftCleared=true;input.dispatchEvent(new Event('input'));}
       if (response.headers.get('content-type')?.includes('text/event-stream')) {
         const reader = response.body.getReader(), decoder = new TextDecoder();
-        let pending = '', answer, complete = false;
+        let pending = '', complete = false;
         while (true) {
           const {value,done} = await reader.read();
           pending += decoder.decode(value || new Uint8Array(), {stream: !done});
@@ -145,12 +145,12 @@
             if (!block.startsWith('data: ')) continue;
             const update = JSON.parse(block.slice(6));
             if (update.type === 'delta') {
-              answer ||= message('assistant', ''); answer.textContent += update.text;
+              answer ||= message('assistant', ''); window.KilasMarkdown.stream(answer,update.text);
               chat.scrollTop = chat.scrollHeight;
             } else if (update.type === 'activity') thinking.lastElementChild.textContent = update.label;
-            else if (update.type === 'reset') { if(answer) answer.textContent=''; }
+            else if (update.type === 'reset') { if(answer) window.KilasMarkdown.render(answer,''); }
             else if (update.type === 'error') throw new Error('provider');
-            else if (update.type === 'done') { complete = true; if (answer) { answer.classList.add('ai-markdown'); window.KilasMarkdown.render(answer,answer.textContent); } }
+            else if (update.type === 'done') { complete = true; if (answer) { answer.classList.add('ai-markdown'); window.KilasMarkdown.finish(answer); } }
           }
           if (done) break;
         }
@@ -162,6 +162,7 @@
       const sources=form.querySelector('#work-source-files'); if(sources) sources.value='';
       form.elements.operation_key.value = Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
     } catch (failure) {
+      if(answer)window.KilasMarkdown.finish(answer);
       if(draftCleared&&!input.value){input.value=draft;input.dispatchEvent(new Event('input'));}
       error.textContent = failure.publicMessage || t('Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.');
       error.hidden = false;

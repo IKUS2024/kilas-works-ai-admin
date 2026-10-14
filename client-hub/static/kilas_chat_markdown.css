@@ -1,0 +1,8 @@
+/* Scoped rendering only; no app-shell or Finance rules. */
+.ai-markdown .ai-math-display{display:block;max-width:100%;overflow-x:auto;overflow-y:hidden;margin:12px 0;padding:4px 0}
+.ai-markdown .ai-math-display>.katex-display{margin:0}
+.ai-markdown .ai-math-inline{max-width:100%}
+.ai-markdown [data-math-pending],.ai-markdown [data-math-incomplete]{color:inherit;min-height:1em}
+.ai-markdown [data-math-error]{white-space:pre-wrap;overflow-wrap:anywhere}
+.ai-markdown blockquote{margin:12px 0;padding:0 16px;color:inherit}
+.ai-markdown .ai-math-inline{display:inline-block;max-width:100%;overflow-x:auto;overflow-y:hidden;vertical-align:middle;padding:3px 0}
