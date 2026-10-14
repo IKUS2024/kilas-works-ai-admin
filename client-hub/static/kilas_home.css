@@ -150,4 +150,23 @@ body.kilas-light.premium-workspace:has(.kilas-home-workspace)>.wrap{max-width:no
 .kilas-light .kilas-home-workspace .home-tool-selector .home-task-choices{flex-wrap:nowrap;justify-content:flex-start;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin}
 .kilas-light .kilas-home-workspace .home-task-choices>:is(a,button,span,form){flex:none}
 .kilas-light .kilas-home-workspace .ai-main>.ai-composer-area{margin:0 auto;padding-top:0}
-body.home-keyboard-open.kilas-light .kilas-home-workspace :is(.ai-empty,.agent-welcome){display:none}
+/* Keyboard space changes the welcome layout, never the empty-chat state. */
+body.home-keyboard-open.kilas-light .kilas-home-workspace .kilas-new-chat-logo{width:56px;height:56px;margin-bottom:8px}
+body.home-keyboard-open.kilas-light .kilas-home-workspace :is(.ai-empty h1,.agent-welcome h3){font-size:20px;line-height:1.25;margin:0}
+body.home-keyboard-open.kilas-light .kilas-home-workspace .ai-empty{padding:4px 0;overflow-y:auto;justify-content:flex-start}
+body.home-keyboard-open.kilas-light .kilas-home-workspace .ai-empty .kilas-new-chat-logo{margin-top:auto}
+body.home-keyboard-open.kilas-light .kilas-home-workspace .ai-empty h1{margin-bottom:auto}
+body.home-keyboard-open.kilas-light .kilas-home-workspace .agent-welcome{margin:0 auto;padding:4px 0}
+body.home-keyboard-open.kilas-light .kilas-home-workspace #agent-conversation{padding-block:8px}
+body.home-keyboard-open.kilas-light .kilas-home-workspace .agent-section-head{margin-bottom:8px}
+/* Layout-viewport resize needs the same fit even without a visual/layout gap. */
+@media(max-height:540px){
+ .kilas-light .kilas-home-workspace .kilas-new-chat-logo{width:56px;height:56px;margin-bottom:8px}
+ .kilas-light .kilas-home-workspace :is(.ai-empty h1,.agent-welcome h3){font-size:20px;line-height:1.25;margin:0}
+ .kilas-light .kilas-home-workspace .ai-empty{padding:4px 0;overflow-y:auto;justify-content:flex-start}
+ .kilas-light .kilas-home-workspace .ai-empty .kilas-new-chat-logo{margin-top:auto}
+ .kilas-light .kilas-home-workspace .ai-empty h1{margin-bottom:auto}
+ .kilas-light .kilas-home-workspace .agent-welcome{margin:0 auto;padding:4px 0}
+ .kilas-light .kilas-home-workspace #agent-conversation{padding-block:8px}
+ .kilas-light .kilas-home-workspace .agent-section-head{margin-bottom:8px}
+}

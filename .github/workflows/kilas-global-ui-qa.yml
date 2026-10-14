@@ -31,6 +31,9 @@ jobs:
       - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_chat_disclosure_browser.py
         env:
           KILAS_DISCLOSURE_SCREENSHOTS: /tmp/kilas-global-ui-qa/chat-disclosure
+      - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_chat_focus_browser.py
+        env:
+          KILAS_FOCUS_SCREENSHOTS: /tmp/kilas-global-ui-qa/chat-focus
       - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_global_ui_browser.py
       - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_drawer_browser.py
       - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_home_browser.py
