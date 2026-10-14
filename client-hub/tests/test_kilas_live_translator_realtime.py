@@ -95,9 +95,18 @@ class RealtimeTests(unittest.TestCase):
  def test_queue_overflow_cannot_submit_a_partial_prefix(self):
   with self.funded(),self.on(),self.owner():
    relay=self.make()
-   for index in range(4):relay.accept(index,b'1'*32000)
-   with self.assertRaises(audio.store.AudioError) as error:relay.accept(4,b'1'*32000)
+   for index in range(8):relay.accept(index,b'1'*32000)
+   with self.assertRaises(audio.store.AudioError) as error:relay.accept(8,b'1'*32000)
    self.assertEqual(error.exception.code,'realtime_queue_full');budget.finish(relay.capability,False)
+ def test_input_diagnostics_keep_fixed_codes_and_numeric_stages_without_private_content(self):
+  from contextlib import redirect_stdout
+  for code in ('realtime_queue_full','realtime_commit_timeout','PRIVATE_INPUT',[]):
+   output=io.StringIO();error=Exception('PRIVATE_AUDIO_TEXT');error.code=code
+   with redirect_stdout(output):rt.log_input(False,error,time.monotonic(),{'credit_stt_ms':12.5})
+   value=output.getvalue();self.assertIn('KILAS_LIVE_INPUT outcome=failed',value)
+   self.assertIn('credit_stt_ms=12.5',value);self.assertNotIn('PRIVATE',value)
+   self.assertIn('code='+('other_failure' if not isinstance(code,str) or code=='PRIVATE_INPUT' else code),value)
+
  def test_unexpected_commit_and_delayed_timestamp_events_do_not_duplicate_text(self):
   with self.funded(),self.on(),self.owner():
    relay=self.make();socket=Socket([]);socket.queue.get();relay.ws=socket

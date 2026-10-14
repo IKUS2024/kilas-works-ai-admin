@@ -3,7 +3,7 @@ import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=latency-st
 import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=translator-recovery-20261014';
 import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=whole-utterance-20261013';
 import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=plain-status-20261014';
-import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=plain-status-20261014';
+import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=input-buffer-20261014';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=owner-recovery-20261012';
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
@@ -15,6 +15,7 @@ if(root){
  const setupReady=root.dataset.ready==='true'&&!start.disabled;
  const showError=(text,detail)=>{error.textContent=text;error.hidden=false;
   if(detail?.startupStage){if(detail.startupStage==='session_admission')recoverRequested=true;try{console.info('KILAS_LIVE_STARTUP_FAILURE stage='+detail.startupStage+' code='+(detail.code||'startup_failed'));}catch{}}
+  if(detail?.inputStage&&['realtime_queue_full','realtime_protocol','realtime_turn_busy','realtime_chunk_invalid','realtime_no_speech'].includes(detail.code)){try{console.info('KILAS_LIVE_INPUT_FAILURE code='+detail.code);}catch{}}
  };
  let recovery=null,recoverRequested=false,recoveryError=false,recoveryExpiry=null;
  const recoveryPanel=document.querySelector('#live-recovery'),recoveryStatus=document.querySelector('#live-recovery-status'),recoveryEnd=document.querySelector('#live-recovery-end'),recoveryCheck=document.querySelector('#live-recovery-check');

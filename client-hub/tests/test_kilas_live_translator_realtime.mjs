@@ -46,8 +46,20 @@ test('healthy350ms serialHTTP sustains200ms PCM production over a long utterance
 });
 test('bounded upload overflow cancels rather than translating accepted prefix',async()=>{
  const held=deferred(),f=inputFixture({delay:()=>held.promise}),pending=[];
- for(let i=0;i<4;i++)pending.push(f.push(new Uint8Array(32000)).catch(e=>e));
+ for(let i=0;i<8;i++)pending.push(f.push(new Uint8Array(32000)).catch(e=>e));
  await assert.rejects(f.push(new Uint8Array(2)),e=>e.code==='realtime_queue_full');const done=assert.rejects(f.finish(),e=>e.code==='realtime_queue_full');held.resolve();await Promise.all(pending);await done;assert.equal(f.requests.some(r=>r.path.endsWith('/input/commit')),false);assert.equal(f.requests.filter(r=>r.path.endsWith('/cancel')).length,1);
+});
+test('six seconds of startup backlog drains every byte in order before one final commit',async()=>{
+ const held=deferred(),f=inputFixture({delay:()=>held.promise}),pending=[],original=[];
+ for(let i=0;i<6;i++){const bytes=new Uint8Array(32000).fill(i+1);original.push(bytes);pending.push(f.push(bytes));}
+ const tail=new Uint8Array(138).fill(71);original.push(tail);pending.push(f.push(tail));
+ const finished=f.finish();await tick();assert.equal(f.accepted.length,0);
+ held.resolve();await Promise.all(pending);await finished;
+ assert.deepEqual(Buffer.concat(f.accepted.map(p=>Buffer.from(p.bytes))),Buffer.concat(original.map(p=>Buffer.from(p))));
+ assert.deepEqual(f.accepted.map(p=>p.index),[0,1,2,3,4,5,6]);
+ assert.equal(f.requests.filter(r=>r.path.endsWith('/input/start')).length,1);
+ assert.equal(f.requests.filter(r=>r.path.endsWith('/input/commit')).length,1);
+ assert.equal(f.requests.filter(r=>r.path.endsWith('/cancel')).length,0);
 });
 test('End abort cancels scoped input and late start acknowledgement cannot send buffered PCM',async()=>{
  const held=deferred(),f=inputFixture({delay:()=>held.promise}),work=f.push(new Uint8Array(32000)),failed=assert.rejects(work,{name:'AbortError'});f.controller.abort();held.resolve();await failed;assert.equal(f.accepted.length,0);assert.equal(f.requests.filter(r=>r.path.endsWith('/cancel')).length,1);f.input.reset();

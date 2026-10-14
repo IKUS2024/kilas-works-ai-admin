@@ -19,12 +19,27 @@ from . import live_translator_realtime_account as account,live_translator_realti
 
 _lock=Lock();_relays={};_slots=BoundedSemaphore(2)
 MAX_AUDIO_BYTES=180*32000  #179s capture plus<=400ms retained voice pre-roll.
-QUEUE_BYTES=128000
+QUEUE_BYTES=8*32000  # Match the bounded client startup/jitter buffer; no additional paid dispatch.
 COMMIT_BYTES=20*32000
 
 
 def failure(code='realtime_failed'):
     return audio_store.AudioError('Input suara belum berhasil. Sesi dijeda; ucapan ini tidak diulang dalam mode lain.',code,503)
+
+
+def log_input(success,error,started,timings):
+    known={'turn_cancelled','session_ended','no_speech','realtime_input_idle','realtime_queue_full',
+        'realtime_commit_timeout','realtime_commit_unexpected','realtime_response_invalid',
+        'realtime_transport','realtime_deadline','realtime_text_limit','realtime_provider_error',
+        'realtime_quota','provider_credit_check_failed','provider_credit_exhausted',
+        'realtime_budget_unsettled'}
+    code=getattr(error,'code',None)
+    code='none' if success else code if isinstance(code,str) and code in known else 'other_failure'
+    stages=' '.join(f'{name}={timings[name]:.1f}' for name in
+        ('credit_stt_ms','input_connect_ms','input_finalize_ms') if name in timings)
+    # Fixed enums/numeric timings only; never text, audio, IDs, keys or provider errors.
+    try:print(f'KILAS_LIVE_INPUT outcome={"completed" if success else "failed"} code={code} {stages} elapsed_ms={(monotonic()-started)*1000:.1f}',flush=True)
+    except OSError:pass
 
 
 def ready(owner):
@@ -139,16 +154,19 @@ class Relay:
         self.since_commit=0
 
     def run(self):
-        success=False;connection=ExitStack()
+        success=False;connection=ExitStack();timings={};input_error=None
         try:
             # Keep both fresh credit reads on one relay-owned HTTPS connection.
             # Setup belongs inside the same failure/ledger/slot cleanup as STT.
             connection.enter_context(transport.turn_connection())
             self.arm_deadline()
             Thread(target=self.watch,name='kilas-realtime-fence',daemon=True).start()
-            self.check();stt.require_subscription_credit();self.check()
+            self.check()
+            with live._timed(timings,'credit_stt_ms'):stt.require_subscription_credit()
+            self.check()
             budget.dispatch(self.capability)  # Unknown handshake cost is durable.
-            self.ws=connect();self.check();self.ws.settimeout(8)
+            with live._timed(timings,'input_connect_ms'):self.ws=connect()
+            self.check();self.ws.settimeout(8)
             raw=self.ws.recv()
             if not isinstance(raw,str) or len(raw)>65536:raise failure('realtime_response_invalid')
             started=json.loads(raw)
@@ -181,16 +199,20 @@ class Relay:
             # No microphone/paid STT fallback; the existing complete translation
             # and one billed whole-utterance output consume this stable whole text.
             finalized=monotonic()
+            timings['input_finalize_ms']=(finalized-self.final_at)*1000
+            log_input(True,None,self.started,timings)
             live.process(self.owner,self.ident,self.key,None,self.info,whole_output=True,committed_text=text,
                 started=self.final_at,timings={'realtime_input_ms':self.sent/32,
                     'realtime_transport_ms':(finalized-self.started)*1000,
                     'realtime_finalize_ms':(finalized-self.final_at)*1000,
                     'realtime_commits':len(self.pieces)})
         except Exception as error:
+            input_error=error
             self.close(error)
             if not success:budget.finish(self.capability,False)
             sessions.finish(self.owner,self.ident,self.key,False,code=getattr(error,'code','realtime_failed'))
         finally:
+            if not success:log_input(False,input_error,self.started,timings)
             self.close();self.finished=True
             if self.deadline:self.deadline.cancel()
             with _lock:_relays.pop((self.owner,self.ident,self.key),None)

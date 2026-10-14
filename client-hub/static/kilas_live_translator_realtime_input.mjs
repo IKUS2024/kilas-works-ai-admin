@@ -1,4 +1,12 @@
-const failure=code=>Object.assign(Error('Input suara terputus. Ucapan ini tidak diulang dalam mode lain.'),{code});
+const failure=code=>{
+  const detail={realtime_queue_full:'Koneksi input tertinggal terlalu lama. Sesi dijeda agar ucapan tidak dipotong.',
+    realtime_protocol:'Layanan belum mengonfirmasi input suara.',
+    realtime_turn_busy:'Ucapan sebelumnya belum selesai dikirim.',
+    realtime_chunk_invalid:'Urutan input suara belum terkonfirmasi.',
+    realtime_no_speech:'Input ucapan belum lengkap.'}[code]||'Input suara terputus.';
+  return Object.assign(Error(detail+' Ucapan ini tidak diulang dalam mode lain.'),{code,inputStage:'upload'});
+};
+const MAX_BACKLOG_BYTES=8*32000; // Bounded startup/jitter buffer; total utterance cap is unchanged.
 const abort=()=>new DOMException('Sesi dijeda.','AbortError');
 export class RealtimeInput {
   constructor({json,csrf}){Object.assign(this,{json,csrf});this.current=null;}
@@ -15,7 +23,7 @@ export class RealtimeInput {
       turn.chain=this.json(this.path(id,key)+'/input/start',{method:'POST',body:this.form(),signal,timeoutMs:15000}).then(result=>{if(result.input_mode!=='realtime-v1')throw failure('realtime_protocol');});
     }
     if(turn.id!==id||turn.key!==key||turn.signal!==signal||turn.finishing)return Promise.reject(failure('realtime_turn_busy'));
-    if(turn.queued+bytes.byteLength>128000||turn.total+bytes.byteLength>180*32000||turn.index>=2000){turn.failure=failure('realtime_queue_full');turn.cancel();return Promise.reject(turn.failure);}
+    if(turn.queued+bytes.byteLength>MAX_BACKLOG_BYTES||turn.total+bytes.byteLength>180*32000||turn.index>=2000){turn.failure=failure('realtime_queue_full');turn.cancel();return Promise.reject(turn.failure);}
     turn.queued+=bytes.byteLength;turn.total+=bytes.byteLength;
     let offset=0;
     while(offset<bytes.byteLength){const length=Math.min(bytes.byteLength-offset,32000-turn.length);turn.pending.set(bytes.subarray(offset,offset+length),turn.length);turn.length+=length;offset+=length;if(turn.length===32000)this.flush(turn);}
