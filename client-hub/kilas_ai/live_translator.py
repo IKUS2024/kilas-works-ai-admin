@@ -111,9 +111,7 @@ def translation_profile(text):
     # The task is faithful translation, even when quoted speech says SQL, strategy
     # or "brief". Keep its full output budget; never request a shorter answer.
     profile=model_policy.chat_profile([{'role':'user','content':text}])
-    # Luna supports none: this is a complete, schema-validated translation,
-    # not a reasoning task. Keep the model and full text/output budget.
-    return {**profile,'model':model_policy.luna_model(),'effort':'none',
+    return {**profile,'model':model_policy.luna_model(),'effort':'low',
             'output_tokens':max(3500,profile['output_tokens'])}
 
 
