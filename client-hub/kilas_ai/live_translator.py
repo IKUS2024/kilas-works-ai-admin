@@ -37,7 +37,7 @@ def _log_latency(timings,started,success,code=None):
             'stt_claim_ms','stt_ms','translation_ms','translation_first_delta_ms',
             'translation_fences_ms','translation_settlement_ms','translation_events','credit_tts_ms',
             'audio_reserve_ms','audio_submit_ms','completion_ms')
-    stages+=('tts_receive_ms','audio_measure_ms','audio_settlement_ms')
+    stages+=('tts_receive_ms','tts_fences_ms','audio_measure_ms','audio_settlement_ms')
     stages+=('first_tts_byte_ms','first_published_clip_ms')
     stages+=('realtime_input_ms','realtime_transport_ms','realtime_finalize_ms','realtime_commits')
     values=' '.join(f'{name}={timings[name]:.1f}' for name in stages if name in timings)
@@ -121,7 +121,7 @@ def translation(owner,key,text,a,b,check,*,timings=None):
     try:
         checked()
         stream_started=monotonic();first_delta=True
-        stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),[{'role':'user','content':text}],'FAST',system=system,project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'],profile=profile)
+        stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),[{'role':'user','content':text}],'FAST',system=system,project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'],profile=profile,event_chunk_size=1)
         for event in stream:
             if timings is not None:timings['translation_events']=timings.get('translation_events',0)+1
             checked()
@@ -166,7 +166,7 @@ def translation(owner,key,text,a,b,check,*,timings=None):
 
 def process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False,whole_output=False,committed_text=None):
     # Reuse HTTPS setup for the two fresh credit reads, STT and TTS in this turn.
-    with transport.turn_connection():
+    with transport.turn_connection(reuse=True):
         return _process(owner,ident,key,pcm,info,timings=timings,started=started,stream_output=stream_output,whole_output=whole_output,committed_text=committed_text)
 
 
@@ -187,7 +187,7 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
                 pcm,ms=stt.normalize(pcm)
                 with wave.open(io.BytesIO(pcm)) as wav:
                     if not any(abs(value[0])>=32 for value in struct.iter_unpack('<h',wav.readframes(wav.getnframes()))):raise audio_store.AudioError('Tidak ada ucapan terbaca. Bicara kembali.','no_speech',422)
-            elif not isinstance(committed_text,str) or not 1<=len(committed_text)<=4000:raise audio_store.AudioError('Ucapan realtime belum lengkap.','realtime_response_invalid',503)
+            elif not isinstance(committed_text,str) or not 1<=len(committed_text)<=4000:raise audio_store.AudioError('Ucapan belum lengkap.','realtime_response_invalid',503)
         if committed_text is None:
             with _timed(timings,'credit_stt_ms'):stt.require_subscription_credit()
             check()
@@ -213,7 +213,7 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
         parts=segments.sentences(result['text']) if stream_output and not whole_output else []
         def stream_check():
             if monotonic()-started>180:raise audio_store.AudioError('Audio melewati batas waktu.','turn_timeout',503)
-            return check()
+            with _timed(timings,'tts_fences_ms'):return check()
         def first_byte():
             if 'first_tts_byte_ms' not in timings:timings['first_tts_byte_ms']=(monotonic()-started)*1000
         # Fallback is chosen BEFORE dispatch: old client or one stable clip.

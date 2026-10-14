@@ -19,12 +19,21 @@ jobs:
       - run: pip install -r client-hub/requirements.txt playwright
       - run: python -m playwright install --with-deps chromium
       - run: python client-hub/tests/test_kilas_live_translator.py
-      - run: node --test client-hub/tests/test_kilas_live_translator_engine.mjs
+      - run: |
+          for suite in test_kilas_live_translator_transport.py test_kilas_live_translator_sse.py test_kilas_live_translator_whole.py test_kilas_live_translator_realtime.py test_kilas_live_translator_flow.py; do
+            python -B scripts/run_offline_tests.py --only "$suite" || exit 1
+          done
+      - run: node --test client-hub/tests/test_kilas_live_translator*.mjs
       - run: python client-hub/tests/test_kilas_live_translator_browser.py
+      - run: python -B client-hub/tests/test_kilas_live_translator_app_browser.py
       - run: python client-hub/tests/test_kilas_ai_unified_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: kilas-live-translator-synthetic, path: /tmp/kilas-live-translator-browser/}
+        with:
+          name: kilas-live-translator-synthetic
+          path: |
+            /tmp/kilas-live-translator-browser/
+            /tmp/kilas-live-translator-app-browser/
   postgres:
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -64,7 +64,7 @@ class WholeTests(unittest.TestCase):
     request.assert_called_once();shared_speech.assert_not_called();clone.assert_not_called()
     self.assertIn('/text-to-speech/'+voice+'/stream',request.call_args.args[1])
     payload=request.call_args.kwargs['json'];self.assertEqual(payload['text'],text);self.assertEqual(payload['model_id'],'eleven_multilingual_v2')
-    self.assertEqual(payload['voice_settings'],{'stability':0.4,'similarity_boost':0.75,'style':0.0,'use_speaker_boost':True,'speed':1.0})
+    self.assertEqual(payload['voice_settings'],{'stability':0.4,'similarity_boost':0.75,'style':0.0,'use_speaker_boost':False,'speed':1.0})
     self.assertEqual(payload['apply_text_normalization'],'auto')
     for unsupported in ('language_code','previous_text','next_text','seed','use_pvc_as_ivc','audio_effects'):self.assertNotIn(unsupported,payload)
     self.assertNotIn('optimize_streaming_latency',request.call_args.kwargs['params'])

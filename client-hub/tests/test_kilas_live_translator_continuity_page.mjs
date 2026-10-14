@@ -61,7 +61,7 @@ async function page(name,{pendingAdmission=false,invalidAdmission=false,pendingA
 
 for(const mode of ['End','timeout'])test('ambiguous admission '+mode+' requires owner status verification before another Start',async()=>{
  const f=await page('admission-'+mode,{pendingAdmission:true});try{
-  assert.equal(f.nodes['#live-state'].textContent,'Menyiapkan sesi');const verified=deferred();f.stats.deferActive=verified;
+  assert.equal(f.nodes['#live-state'].textContent,'Memproses');const verified=deferred();f.stats.deferActive=verified;
   if(mode==='End')f.nodes['#live-end'].click();else {[...f.timers.values()].find(t=>t.ms===32000).fn();}
   await tick();assert.equal(f.start.disabled,true);assert.equal(f.stats.captures,0);assert.equal(f.stats.requests.filter(r=>r.url==='/kilas-translator/live/sessions').length,1);
   verified.resolve({session_id:id,processing:false});await tick();assert.equal(f.start.disabled,true);assert.equal(f.nodes['#live-recovery'].hidden,false);
@@ -74,20 +74,20 @@ test('empty admission response exposes an error and verifies status without micr
   assert.equal(f.nodes['#live-error'].hidden,false);assert.match(f.nodes['#live-error'].textContent,/sesi yang valid/);assert.equal(f.stats.captures,0);assert.equal(f.stats.requests.filter(r=>r.url.endsWith('/active')).length,2);assert.equal(f.stats.requests.filter(r=>r.method==='POST').length,1);await f.finish();
  }finally{f.restore();}
 });
-test('audio preparation has a distinct label and a finite failure before any admission',async()=>{
+test('audio preparation keeps Memproses and a finite typed failure before any admission',async()=>{
  const f=await page('prepare-timeout',{pendingAudio:true});try{
-  assert.equal(f.nodes['#live-state'].textContent,'Menyiapkan audio');[...f.timers.values()].find(t=>t.ms===5000).fn();await tick();assert.equal(f.nodes['#live-error'].hidden,false);assert.equal(f.nodes['#live-active'].hidden,true);assert.equal(f.stats.requests.filter(r=>r.method==='POST').length,0);f.stats.deferAudio.resolve();await tick();await f.finish();
+  assert.equal(f.nodes['#live-state'].textContent,'Memproses');[...f.timers.values()].find(t=>t.ms===5000).fn();await tick();assert.equal(f.nodes['#live-error'].hidden,false);assert.equal(f.nodes['#live-active'].hidden,true);assert.equal(f.stats.requests.filter(r=>r.method==='POST').length,0);f.stats.deferAudio.resolve();await tick();await f.finish();
  }finally{f.restore();}
 });
 
 test('real page adapter rotates a minute of idle synthetic capture without End or provider submission',async()=>{
- const f=await page('idle');try{f.stats.now=60001;f.monitor();await tick();assert.equal(f.stats.captures,2);assert.equal(f.stats.mics,1);assert.equal(f.nodes['#live-state'].textContent,'Mendengarkan mode rekaman');assert.equal(f.nodes['#live-active'].hidden,false);assert.equal(f.nodes['#live-error'].hidden,true);assert.equal(f.stats.requests.filter(r=>r.method==='POST').length,1);await f.finish();}finally{f.restore();}
+ const f=await page('idle');try{f.stats.now=60001;f.monitor();await tick();assert.equal(f.stats.captures,2);assert.equal(f.stats.mics,1);assert.equal(f.nodes['#live-state'].textContent,'Mendengarkan');assert.equal(f.nodes['#live-active'].hidden,false);assert.equal(f.nodes['#live-error'].hidden,true);assert.equal(f.stats.requests.filter(r=>r.method==='POST').length,1);await f.finish();}finally{f.restore();}
 });
 
 test('two seconds after voice sends the full synthetic recording once, with capture off during playback',async()=>{
  const f=await page('speech');try{
   f.stats.now=1000;f.stats.rms=.1;f.monitor();f.stats.rms=0;f.stats.now=2999;f.monitor();assert.equal(f.stats.requests.filter(r=>r.url.includes('/turns/')&&r.method==='POST').length,0);
-  f.stats.now=3000;f.monitor();await tick();assert.equal(f.stats.plays,1);assert.equal(f.stats.mics,0);assert.equal(f.nodes['#live-state'].textContent,'Memutar terjemahan');
+  f.stats.now=3000;f.monitor();await tick();assert.equal(f.stats.plays,1);assert.equal(f.stats.mics,0);assert.equal(f.nodes['#live-state'].textContent,'Hasil');
   const posts=f.stats.requests.filter(r=>r.url.includes('/turns/')&&r.method==='POST');assert.equal(posts.length,1);assert.equal(await posts[0].body.get('recording').text(),'complete synthetic recording');
   f.sources[0].onended();await tick();assert.equal(f.stats.mics,1);assert.equal(f.stats.captures,2);await f.finish();
  }finally{f.restore();}
@@ -107,7 +107,7 @@ test('hidden/unloaded page cancels only its turn; explicit Resume checks it with
   globalThis.document.hidden=true;f.docEvents.get('visibilitychange')();f.events.get('pagehide')();assert.equal(f.stats.mics,0);assert.equal(f.nodes['#live-state'].textContent,'Sesi dijeda');
   assert.equal(f.stats.beacons.length,1);assert.ok(f.stats.beacons[0].endsWith('/cancel'));assert.equal(f.stats.requests.some(r=>r.url.endsWith('/end')),false);
   f.stats.deferTurn.resolve();await tick();assert.equal(f.stats.plays,0);
-  globalThis.document.hidden=false;f.nodes['#live-resume'].click();await tick();assert.equal(f.stats.mics,1);assert.equal(f.nodes['#live-state'].textContent,'Mendengarkan mode rekaman');
+  globalThis.document.hidden=false;f.nodes['#live-resume'].click();await tick();assert.equal(f.stats.mics,1);assert.equal(f.nodes['#live-state'].textContent,'Mendengarkan');
   assert.equal(f.stats.requests.filter(r=>r.method==='POST'&&r.url.includes('/turns/')&&!r.url.endsWith('/cancel')).length,1);await f.finish();
  }finally{f.restore();}
 });

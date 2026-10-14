@@ -13,7 +13,7 @@
 <label>Bahasa pertama<select name="language_a" required>{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='id' }} {{ 'disabled' if code=='en' }}>{{ label }}</option>{% endfor %}</select></label>
 <label>Bahasa kedua<select name="language_b" required>{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }} {{ 'disabled' if code=='id' }}>{{ label }}</option>{% endfor %}</select></label>
 <label class="live-voice">Suara<select name="voice">{% for voice in voices %}<option value="{{ voice.alias }}" {{ 'selected' if voice.alias=='kilas-male' }}>{{ voice.name }}</option>{% endfor %}</select></label>
-<label class="live-consent"><input type="checkbox" name="consent" value="yes" required><span>Saya punya izin dan menyetujui pemrosesan ucapan menurut <a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">Kebijakan Privasi</a>. Saat mode realtime aktif, audio dikirim selagi saya berbicara.</span></label>
+<label class="live-consent"><input type="checkbox" name="consent" value="yes" required><span>Saya punya izin dan menyetujui pemrosesan ucapan menurut <a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">Kebijakan Privasi</a>. Audio dapat dikirim selagi saya berbicara.</span></label>
 <button type="submit" class="btn" {{ 'disabled' if not live_ready or not voices }}>Start</button></form></section>
 <section id="live-active" hidden aria-label="Sesi Translator"><div class="live-call-body"><div class="kilas-live-orb" role="img" aria-label="Mendengarkan" data-state="listening"></div><p id="live-state" role="status" aria-live="polite"></p><p id="live-translation" hidden aria-label="Hasil terjemahan" aria-live="polite"></p></div><div class="live-call-controls"><button type="button" id="live-resume" class="btn secondary" hidden>Lanjutkan</button><button type="button" id="live-end" class="live-hangup" aria-label="Akhiri sesi" title="Akhiri sesi"><svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .41-.24.76-.58.92-.98.49-1.88 1.12-2.68 1.85-.18.18-.43.29-.71.29-.28 0-.53-.11-.71-.29L.29 13.16C.11 12.98 0 12.73 0 12.45c0-.28.11-.53.29-.71C3.34 8.89 7.46 7 12 7s8.66 1.89 11.71 4.74c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.43 2.43c-.18.18-.43.29-.71.29-.28 0-.53-.11-.71-.29-.8-.74-1.7-1.37-2.68-1.85-.34-.16-.58-.51-.58-.92v-3.1C15.15 9.25 13.6 9 12 9z"/></svg></button></div></section>
 <p id="live-error" role="alert" hidden></p>
@@ -21,5 +21,5 @@
 <button type="button" id="live-recovery-retry" class="btn secondary" hidden>Periksa sesi</button>
 </section>
 </div>
-<script type="module" src="{{ url_for('static',filename='kilas_live_translator.mjs',v='whole-utterance-20261013') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_live_translator.mjs',v='status-latency-20261014') }}"></script>
 {% endblock %}

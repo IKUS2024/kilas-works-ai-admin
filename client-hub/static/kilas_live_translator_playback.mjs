@@ -4,9 +4,10 @@ const failure=(code,message)=>Object.assign(Error(message+' Audio ini tidak dibu
 const MAX_BYTES=20*1024*1024;
 
 export class TranslatorPlayback {
-  constructor({getContext,fetchAudio=(...args)=>globalThis.fetch(...args),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id),now=()=>performance.now()}){
-    Object.assign(this,{getContext,fetchAudio,schedule,clear,now});this.operation=null;this.prefetched=null;
+  constructor({getContext,fetchAudio=(...args)=>globalThis.fetch(...args),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id),now=()=>performance.now(),onTiming=()=>{}}){
+    Object.assign(this,{getContext,fetchAudio,schedule,clear,now,onTiming});this.operation=null;this.prefetched=null;
   }
+  timing(values){try{this.onTiming(values);}catch{}}
   discardPrefetch(){this.prefetched?.controller.abort();this.prefetched?.cleanup?.();this.prefetched=null;}
   cancel(){this.operation?.controller.abort();this.operation?.prefetch?.controller.abort();this.discardPrefetch();}
   check(op){if(op.controller.signal.aborted||!op.isCurrent())throw abortError();}
@@ -33,14 +34,16 @@ export class TranslatorPlayback {
   async resume(op){
     if(op.context.state==='running')return;
     const error=failure('audio_resume','Audio belum diizinkan atau terputus. Periksa audio browser lalu tekan Lanjutkan.');
+    const began=this.now();
     try{await this.bounded(op,()=>op.context.resume(),5000,error);}catch(e){if(this.cancelled(op,e))throw e;throw error;}
     this.check(op);if(op.context.state!=='running')throw error;
+    this.timing({audio_resume_ms:Math.max(0,this.now()-began)});
   }
   prepare(signal,isCurrent){this.discardPrefetch();return this.run(signal,isCurrent,op=>this.resume(op));}
   async load(op,url){
       if(typeof url!=='string'||!/^\/kilas-translator\/live\/sessions\/[a-f0-9]{48}\/turns\/live-[a-f0-9]{32}\/audio(?:\/segments\/[0-7])?$/.test(url))throw failure('audio_url','Hasil audio tidak tersedia.');
       const loadError=failure('audio_fetch','Audio belum dapat dimuat. Periksa koneksi.');
-      let raw;
+      const downloadBegan=this.now();let raw;
       try{
         raw=await this.bounded(op,async()=>{
           const response=await this.fetchAudio(url,{credentials:'same-origin',signal:op.controller.signal,cache:'no-store',redirect:'error'});
@@ -51,9 +54,11 @@ export class TranslatorPlayback {
           return data;
         },15000,loadError);
       }catch(e){if(this.cancelled(op,e)||typeof e.code==='string')throw e;throw loadError;}
-      const decodeError=failure('audio_decode','Format audio belum dapat dibaca.');let buffer;
+      this.timing({audio_download_ms:Math.max(0,this.now()-downloadBegan)});
+      const decodeBegan=this.now(),decodeError=failure('audio_decode','Format audio belum dapat dibaca.');let buffer;
       try{buffer=await this.bounded(op,()=>op.context.decodeAudioData(raw),10000,decodeError);}catch(e){if(this.cancelled(op,e))throw e;throw decodeError;}
       if(!Number.isFinite(buffer?.duration)||buffer.duration<=0||buffer.duration>600)throw decodeError;
+      this.timing({audio_decode_ms:Math.max(0,this.now()-decodeBegan)});
       return buffer;
   }
   // At most one successor is downloaded/decoded. This never starts a source or
@@ -83,9 +88,11 @@ export class TranslatorPlayback {
       }
       else buffer=await this.load(op,url);
       const bufferWaitMs=Math.max(0,this.now()-waitBegan);
+      this.timing({audio_buffer_wait_ms:bufferWaitMs});
       // Android may suspend the context while network/provider work is in flight.
       await this.resume(op);this.check(op);
-      await this.bounded(op,()=>this.playBuffer(op,buffer,()=>onStarted({buffer_wait_ms:bufferWaitMs})),buffer.duration*1000+10000,failure('audio_timeout','Pemutaran audio melewati batas waktu.'));
+      const readyAt=this.now();
+      await this.bounded(op,()=>this.playBuffer(op,buffer,()=>{this.timing({audio_start_ms:Math.max(0,this.now()-readyAt)});onStarted({buffer_wait_ms:bufferWaitMs});}),buffer.duration*1000+10000,failure('audio_timeout','Pemutaran audio melewati batas waktu.'));
     },slot);
   }
   playBuffer(op,buffer,onStarted){

@@ -181,11 +181,13 @@ def complete(owner,job,check=lambda:None):
 def speech(text,voice,check,on_first_byte,*,previous='',following=''):
     """One documented HTTP stream; never retry or switch endpoints after dispatch."""
     # Translator-only request overrides: moderate expressive variation while
-    # retaining the approved voice's identity and normal speaking speed. Do not
-    # edit saved voice defaults, exaggerate style, add tags or rewrite the text.
+    # retaining the approved voice and normal speaking speed. Optional speaker
+    # boost adds provider computation/latency for a subtle similarity effect;
+    # keep similarity .75 and omit that extra processing for live conversation.
+    # Do not edit saved voice defaults, add tags or rewrite the text.
     payload={'text':text,'model_id':'eleven_multilingual_v2',
              'voice_settings':{'stability':0.4,'similarity_boost':0.75,'style':0.0,
-                               'use_speaker_boost':True,'speed':1.0},
+                               'use_speaker_boost':False,'speed':1.0},
              'apply_text_normalization':'auto'}
     if previous:payload['previous_text']=previous[-1000:]
     if following:payload['next_text']=following[:1000]

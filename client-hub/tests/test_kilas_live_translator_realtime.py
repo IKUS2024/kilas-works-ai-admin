@@ -61,6 +61,15 @@ class RealtimeTests(unittest.TestCase):
   with self.funded(),self.on(),self.owner(),patch.object(rt,'connect') as connect:
    relay=self.make();sessions.cancel_turn(self.user,relay.ident,relay.key);relay.run()
    self.assertEqual(self.row()['status'],'CANCELLED');self.assertEqual(self.row()['charge_micro'],0);connect.assert_not_called()
+ def test_https_session_setup_failure_settles_reservation_and_releases_relay_slot(self):
+  with self.funded(),self.on(),self.owner(),patch.object(rt.transport.requests,'Session',side_effect=RuntimeError('synthetic session setup')),patch.object(rt,'connect') as connect:
+   relay=self.make()
+   with rt._lock:rt._relays[(self.user,relay.ident,relay.key)]=relay
+   relay.run()
+   self.assertTrue(relay.finished);self.assertTrue(relay.closed.is_set());self.assertEqual(self.row()['status'],'CANCELLED');self.assertEqual(self.row()['charge_micro'],0)
+   self.assertEqual(sessions.result(self.user,relay.ident,relay.key)['status'],'FAILED');connect.assert_not_called()
+   with rt._lock:self.assertNotIn((self.user,relay.ident,relay.key),rt._relays)
+   self.assertTrue(rt._slots.acquire(blocking=False));rt._slots.release()
  def test_long_more_than_36s_stable_pieces_and_identical_words_all_reach_translation_after_final_ack(self):
   final=Event();socket=Socket(['Repeat this.','Repeat this.','最后一句。'],final)
   raw=b'\x01\x00'*(50*16000+137)

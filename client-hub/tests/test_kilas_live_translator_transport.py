@@ -56,6 +56,43 @@ class TurnTransportTests(unittest.TestCase):
         self.assertIsNot(first,second)
         for client in clients:client.get.assert_called_once();client.close.assert_called_once()
 
+    def test_realtime_output_reuses_connection_but_reads_fresh_credit_twice(self):
+        from kilas_ai import live_translator as live,audio_transcription_provider as stt
+        client=MagicMock();client.get.return_value.status_code=200
+        client.get.return_value.json.return_value={'tier':'creator','status':'active',
+            'max_credit_limit_extension':0,'allowed_to_extend_character_limit':False,
+            'can_extend_character_limit':False,'character_count':3,'character_limit':100}
+        def output(*args,**kwargs):
+            stt.require_subscription_credit()
+            transport.request('POST','https://api.elevenlabs.io/v1/text-to-speech/synthetic/stream')
+        with patch.dict('os.environ',{'ELEVENLABS_API_KEY':'synthetic-key'}),patch.object(transport.requests,'Session',return_value=client) as factory,patch.object(live,'_process',side_effect=output):
+            with transport.turn_connection():
+                stt.require_subscription_credit()
+                live.process(1,'synthetic-id','synthetic-key',None,{})
+                client.close.assert_not_called()
+            factory.assert_called_once();self.assertEqual(client.get.call_count,2)
+            client.request.assert_called_once();client.close.assert_called_once()
+        self.assertIs(transport._client(URL),transport.requests)
+
+    def test_reused_credit_connection_does_not_reuse_success_after_revocation(self):
+        from kilas_ai import audio_transcription_provider as stt,audio_transcription_budget as budget
+        good={'tier':'creator','status':'active','max_credit_limit_extension':0,
+            'allowed_to_extend_character_limit':False,'can_extend_character_limit':False,
+            'character_count':3,'character_limit':100}
+        client=MagicMock();client.get.return_value.status_code=200
+        client.get.return_value.json.side_effect=[good,{**good,'allowed_to_extend_character_limit':True}]
+        with patch.dict('os.environ',{'ELEVENLABS_API_KEY':'synthetic-key'}),patch.object(transport.requests,'Session',return_value=client) as factory:
+            with self.assertRaises(budget.BudgetError) as rejected:
+                with transport.turn_connection():
+                    stt.require_subscription_credit()
+                    with transport.turn_connection(reuse=True):
+                        stt.require_subscription_credit()
+                        transport.request('POST',URL)
+            self.assertEqual(rejected.exception.code,'provider_billing_unverified')
+            factory.assert_called_once();self.assertEqual(client.get.call_count,2)
+            client.request.assert_not_called();client.close.assert_called_once()
+        self.assertIs(transport._client(URL),transport.requests)
+
     def test_real_session_retains_zero_automatic_http_retries(self):
         with transport.turn_connection():
             client=transport._client(URL)

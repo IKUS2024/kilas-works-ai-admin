@@ -84,7 +84,12 @@ export class TranslatorSession {
       const speechEnd=this.gate.lastVoice??this.now();let first=false,previousClipEnd=null;
       this.timing({speech_end_to_submit_ms:Math.max(0,this.now()-speechEnd)});
       const onStarted=()=>{if(first||ticket!==this.version)return;first=true;this.timing({speech_end_to_first_playback_ms:Math.max(0,this.now()-speechEnd)});};
-      if(realtime)await this.api.input.finish(this.id,this.pendingKey,this.controller.signal,()=>this.timing({speech_end_to_commit_request_ms:Math.max(0,this.now()-speechEnd)}));
+      if(realtime){
+        const finalizeBegan=this.now();
+        await this.api.input.finish(this.id,this.pendingKey,this.controller.signal,()=>this.timing({speech_end_to_commit_request_ms:Math.max(0,this.now()-speechEnd)}));
+        this.timing({input_finalize_ms:Math.max(0,this.now()-finalizeBegan)});
+      }
+      const outputBegan=this.now();
       const result=await this.api.turn(this.id,this.pendingKey,blob,this.controller.signal,async (part,playSignal=this.controller.signal)=>{
         if(ticket!==this.version||this.controller.signal.aborted)throw new DOMException('Sesi dijeda.','AbortError');
         this.onResult(part);this.stateTo('playing');
@@ -104,9 +109,13 @@ export class TranslatorSession {
         if(ticket===this.version&&!this.controller.signal.aborted)this.playback.prefetch?.(part.audio_url,playSignal,()=>ticket===this.version);
       });
       if(ticket!==this.version)return;
+      if(!result.streamed)this.timing({output_ready_ms:Math.max(0,this.now()-outputBegan)});
       this.pendingKey=null;
       this.onResult(result);
-      if(!result.streamed){this.stateTo('playing');await this.playback.play(result.audio_url,this.controller.signal,()=>ticket===this.version,onStarted);}
+      if(!result.streamed){
+        const readyAt=this.now();this.stateTo('playing');
+        await this.playback.play(result.audio_url,this.controller.signal,()=>ticket===this.version,()=>{this.timing({result_to_audio_start_ms:Math.max(0,this.now()-readyAt)});onStarted();});
+      }
       if(ticket!==this.version)return;
       await this.listen(ticket);
     }catch(e){

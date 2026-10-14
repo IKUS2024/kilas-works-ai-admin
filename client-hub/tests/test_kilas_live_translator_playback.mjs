@@ -193,3 +193,17 @@ test('playback reports residual buffer preparation wait without conflating it wi
  assert.equal(f.stats.started,0);download.resolve({ok:true,arrayBuffer:async()=>new ArrayBuffer(32)});await tick();
  assert.deepEqual(timing,{buffer_wait_ms:300});f.context.currentTime=2.3;f.nodes[0].onended();await playing;assert.equal(f.timers.size,0);
 });
+
+test('numeric timings separate full download, decode, device resume and start without affecting playback',async()=>{
+ const f=fixture(),download=deferred(),decode=deferred(),resume=deferred(),timings=[];
+ f.clock=false;f.context.state='suspended';f.player.onTiming=values=>{timings.push(values);throw Error('Synthetic diagnostic sink');};
+ f.player.fetchAudio=(_url,options)=>{f.requests.push({options});return download.promise;};
+ f.context.decodeAudioData=()=>decode.promise;
+ f.context.resume=async()=>{await resume.promise;f.context.state='running';};
+ const playing=f.play();await tick();await f.advance(120);
+ download.resolve({ok:true,arrayBuffer:async()=>new ArrayBuffer(32)});await tick();assert.equal(f.stats.started,0);
+ await f.advance(80);decode.resolve({duration:2});await tick();assert.equal(f.stats.started,0);
+ await f.advance(40);resume.resolve();await tick();assert.equal(f.stats.started,1);
+ assert.deepEqual(timings,[{audio_download_ms:120},{audio_decode_ms:80},{audio_buffer_wait_ms:200},{audio_resume_ms:40},{audio_start_ms:0}]);
+ f.context.currentTime=2;f.nodes[0].onended();await playing;assert.equal(f.requests.length,1);assert.equal(f.timers.size,0);
+});

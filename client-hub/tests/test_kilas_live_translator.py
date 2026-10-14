@@ -669,9 +669,10 @@ class LiveTranslatorTests(unittest.TestCase):
         payload=json.dumps({'text':'Hello, how are you?','source_language':'id','target_language':'en'})
         response=MagicMock();response.__enter__.return_value=response
         events=[{'choices':[{'delta':{'content':payload},'finish_reason':'stop'}]}, {'usage':{'prompt_tokens':20,'completion_tokens':18}}]
-        with self.funded(),self.on(),patch.object(usage,'reserve',wraps=usage.reserve) as reserve,patch.object(providers.requests,'post',return_value=response) as request,patch.object(providers,'_events',return_value=iter(events)):
+        with self.funded(),self.on(),patch.object(usage,'reserve',wraps=usage.reserve) as reserve,patch.object(providers.requests,'post',return_value=response) as request,patch.object(providers,'_events',return_value=iter(events)) as parsed:
             self.assertEqual(live.translation(self.user,self.key(),text,'id','en',lambda:None)['text'],'Hello, how are you?')
         profile=reserve.call_args.kwargs['profile'];body=request.call_args.kwargs['json']
+        self.assertEqual(parsed.call_args.kwargs,{'chunk_size':1})
         self.assertEqual(body['model'],profile['model']);self.assertEqual(body['reasoning_effort'],profile['effort']);self.assertEqual(body['max_completion_tokens'],profile['output_tokens'])
         self.assertEqual(body['messages'][1]['content'],text);self.assertIn('faithfully',body['messages'][0]['content']);self.assertEqual(request.call_count,1)
         instruction=body['messages'][0]['content']
@@ -685,10 +686,27 @@ class LiveTranslatorTests(unittest.TestCase):
     def test_regular_chat_keeps_original_reasoning_profile(self):
         messages=[{'role':'user','content':'Discuss my vacation.'}];original=model_policy.chat_profile(messages)
         response=MagicMock();response.__enter__.return_value=response
-        with patch.object(providers.requests,'post',return_value=response) as request,patch.object(providers,'_events',return_value=iter([])):
+        with patch.object(providers.requests,'post',return_value=response) as request,patch.object(providers,'_events',return_value=iter([])) as parsed:
             list(providers._openai(model_policy.LUNA,'synthetic-only',messages,'FAST'))
+        self.assertEqual(parsed.call_args.kwargs,{})
         self.assertEqual(request.call_args.kwargs['json']['reasoning_effort'],original['effort'])
         self.assertEqual(request.call_args.kwargs['json']['max_completion_tokens'],original['output_tokens'])
+
+    def test_one_byte_sse_complete_text_without_finish_never_dispatches_tts(self):
+        import requests
+        from urllib3.response import HTTPResponse
+        payload=json.dumps({'text':'Repeated words. 最后一句 كاملة.','source_language':'id','target_language':'en'},ensure_ascii=False)
+        event=json.dumps({'choices':[{'delta':{'content':payload},'finish_reason':None}]},ensure_ascii=False)
+        response=requests.Response();response.status_code=200;response.encoding='ISO-8859-1'
+        response.raw=HTTPResponse(body=io.BytesIO(('data: '+event+'\n\ndata: [DONE]\n\n').encode()),preload_content=False)
+        self.credit(300)
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(providers.requests,'post',return_value=response) as request,patch.object(segments,'speech') as whole_tts,patch.object(audio_provider,'speech') as alternate:
+            ident=self.session();info=self.claim(ident)
+            with self.assertRaises(audio_store.AudioError) as error:live.process(self.user,ident,self.key(),None,info,committed_text='Stable complete source.',whole_output=True)
+            self.assertEqual(error.exception.code,'translation_failed');request.assert_called_once();whole_tts.assert_not_called();alternate.assert_not_called()
+        self.assertTrue(response.raw.closed);self.assertEqual(audio_store.balance(self.user)['available'],300)
+        self.assertEqual(sessions.result(self.user,ident,self.key())['status'],'FAILED')
+        self.assertEqual(audio.f.db.query_one('SELECT status FROM kilas_ai_usage WHERE user_id=?',(self.user,))['status'],'FAILED')
 
 
     def test_long_translation_is_returned_in_full_with_stop_and_language_validation(self):

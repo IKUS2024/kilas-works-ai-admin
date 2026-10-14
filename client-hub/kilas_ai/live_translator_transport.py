@@ -7,8 +7,14 @@ _turn_client = ContextVar('kilas_live_http_client', default=None)
 
 
 @contextmanager
-def turn_connection():
+def turn_connection(*,reuse=False):
     # A client belongs to one turn, never another owner, thread or later session.
+    # A realtime relay already opened this turn's client for its first fresh
+    # credit read. Its output may reuse that connection, never the read result.
+    existing=_turn_client.get()
+    if reuse and existing is not None:
+        yield
+        return
     client = requests.Session()
     token = _turn_client.set(client)
     try:

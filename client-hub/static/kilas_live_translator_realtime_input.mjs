@@ -1,4 +1,4 @@
-const failure=code=>Object.assign(Error('Input realtime terputus. Ucapan ini tidak diulang dalam mode lain.'),{code});
+const failure=code=>Object.assign(Error('Input suara terputus. Ucapan ini tidak diulang dalam mode lain.'),{code});
 const abort=()=>new DOMException('Sesi dijeda.','AbortError');
 export class RealtimeInput {
   constructor({json,csrf}){Object.assign(this,{json,csrf});this.current=null;}

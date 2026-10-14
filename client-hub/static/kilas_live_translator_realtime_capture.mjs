@@ -27,7 +27,7 @@ export class RealtimeCapture {
     this.cancel();this.error=error;this.finalizing=false;const ticket=this.version,context=this.getContext(),controller=new AbortController();this.startupController=controller;let heard=false,preRoll=[],ready=false,resolveReady;
     const fail=e=>{if(ticket!==this.version)return;this.cancel(e);if(ready)error(e);};
     try{
-      if(!context?.audioWorklet||!this.mediaDevices?.getUserMedia)throw failure('realtime_capture_unavailable','Input realtime belum didukung browser ini.');
+      if(!context?.audioWorklet||!this.mediaDevices?.getUserMedia)throw failure('realtime_capture_unavailable','Input suara belum didukung browser ini.');
       if(context.state!=='running'){
         await this.bounded(controller.signal,()=>context.resume(),5000,failure('audio_resume','Audio belum berjalan. Tekan Lanjutkan untuk menyiapkan audio.'));
         if(context.state!=='running')throw failure('audio_resume','Audio belum berjalan. Tekan Lanjutkan untuk menyiapkan audio.');
@@ -47,12 +47,12 @@ export class RealtimeCapture {
       const firstFrame=this.bounded(controller.signal,()=>new Promise(resolve=>{resolveReady=resolve;}),5000,failure('realtime_input_timeout','Input mikrofon belum mengirim audio. Periksa mikrofon lalu tekan Lanjutkan.'));
       // Observe immediately: a synchronous node/connect failure must not leave a rejection unhandled.
       firstFrame.catch(()=>{});
-      node.onprocessorerror=()=>fail(Object.assign(Error('Input audio realtime terputus.'),{code:'realtime_capture_failed'}));
+      node.onprocessorerror=()=>fail(Object.assign(Error('Input suara terputus.'),{code:'realtime_capture_failed'}));
       node.port.onmessage=event=>{
         if(ticket!==this.version)return;
         if(event.data?.finished){this.done();return;}
         const {bytes,rms}=event.data||{};
-        if(!(bytes instanceof ArrayBuffer)||!bytes.byteLength||bytes.byteLength>6400||bytes.byteLength%2||!Number.isFinite(rms)){fail(Object.assign(Error('Input audio realtime tidak valid.'),{code:'realtime_capture_failed'}));return;}
+        if(!(bytes instanceof ArrayBuffer)||!bytes.byteLength||bytes.byteLength>6400||bytes.byteLength%2||!Number.isFinite(rms)){fail(Object.assign(Error('Input suara tidak valid.'),{code:'realtime_capture_failed'}));return;}
         if(!ready){ready=true;notifyReady();resolveReady();}
         if(heard||rms>=.015){
           if(!heard){heard=true;this.timer=this.schedule(()=>fail(Object.assign(Error('Ucapan terlalu panjang. Sesi dijeda tanpa menerjemahkan sebagian.'),{code:'utterance_limit'})),179000);for(const previous of preRoll)pcm(new Uint8Array(previous));preRoll=[];}

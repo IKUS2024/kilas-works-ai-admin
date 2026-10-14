@@ -5,6 +5,7 @@ fences prevent duplicate dispatch; a different HTTP worker fails/pauses instead
 of opening another supplier socket. A500ms watcher closes cross-worker End.
 """
 import base64
+from contextlib import ExitStack
 import json
 import os
 from queue import Queue,Empty,Full
@@ -13,7 +14,7 @@ from time import monotonic
 from urllib.parse import urlencode
 import db
 from . import live_translator as live,live_translator_store as sessions
-from . import audio_store, audio_transcription_provider as stt
+from . import audio_store, audio_transcription_provider as stt, live_translator_transport as transport
 from . import live_translator_realtime_account as account,live_translator_realtime_budget as budget
 
 _lock=Lock();_relays={};_slots=BoundedSemaphore(2)
@@ -23,7 +24,7 @@ COMMIT_BYTES=20*32000
 
 
 def failure(code='realtime_failed'):
-    return audio_store.AudioError('Input realtime belum berhasil. Sesi dijeda; ucapan ini tidak diulang dalam mode lain.',code,503)
+    return audio_store.AudioError('Input suara belum berhasil. Sesi dijeda; ucapan ini tidak diulang dalam mode lain.',code,503)
 
 
 def ready(owner):
@@ -138,8 +139,11 @@ class Relay:
         self.since_commit=0
 
     def run(self):
-        success=False
+        success=False;connection=ExitStack()
         try:
+            # Keep both fresh credit reads on one relay-owned HTTPS connection.
+            # Setup belongs inside the same failure/ledger/slot cleanup as STT.
+            connection.enter_context(transport.turn_connection())
             self.arm_deadline()
             Thread(target=self.watch,name='kilas-realtime-fence',daemon=True).start()
             self.check();stt.require_subscription_credit();self.check()
@@ -190,7 +194,8 @@ class Relay:
             self.close();self.finished=True
             if self.deadline:self.deadline.cancel()
             with _lock:_relays.pop((self.owner,self.ident,self.key),None)
-            _slots.release();db._discard_cached_connection()
+            try:_slots.release();db._discard_cached_connection()
+            finally:connection.close()
 
 
 def start(owner,ident,key):
@@ -210,7 +215,7 @@ def start(owner,ident,key):
         if claimed:sessions.finish(owner,ident,key,False,code=getattr(error,'code','realtime_failed'))
         _slots.release()
         if isinstance(error,budget.batch.BudgetError):
-            raise audio_store.AudioError('Batas input realtime belum mengizinkan ucapan berikutnya. Sesi dijeda.',error.code,error.status) from None
+            raise audio_store.AudioError('Batas input suara belum mengizinkan ucapan berikutnya. Sesi dijeda.',error.code,error.status) from None
         raise
 
 

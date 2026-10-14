@@ -31,10 +31,11 @@ def candidates(mode, messages=None):
         yield "openai", model, key
 
 
-def _events(response):
+def _events(response,*,chunk_size=None):
     """Parse provider SSE payloads; both APIs use data lines with JSON objects."""
     parts = []
-    for raw in response.iter_lines(decode_unicode=True):
+    options={} if chunk_size is None else {'chunk_size':chunk_size}
+    for raw in response.iter_lines(decode_unicode=True,**options):
         line = raw.decode("utf-8") if isinstance(raw, bytes) else (raw or "")
         if line.startswith("data:"):
             parts.append(line[5:].strip())
@@ -54,7 +55,7 @@ def _events(response):
             raise ProviderError("bad_provider_stream") from None
 
 
-def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=None):
+def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=None,event_chunk_size=None):
     # Private server-selected profile; public chat callers retain their routing.
     profile = model_policy.chat_profile(messages) if profile is None else profile
     try:
@@ -67,7 +68,11 @@ def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=
             stream=True, timeout=(10, 90),
         ) as response:
             response.raise_for_status()
-            for event in _events(response):
+            # Translator can observe complete SSE frames without Requests'
+            # default 512-byte fill delay. Existing Chat keeps its transport.
+            if event_chunk_size is not None:response.encoding='utf-8'
+            event_options={} if event_chunk_size is None else {'chunk_size':event_chunk_size}
+            for event in _events(response,**event_options):
                 usage = event.get("usage") or {}
                 if usage:
                     yield {"type": "usage", "input_tokens": usage.get("prompt_tokens", 0),
