@@ -109,7 +109,8 @@ def main():
                     assert user.evaluate('e=>e.getBoundingClientRect().right>=e.parentElement.getBoundingClientRect().right-4')
                     assert assistant.evaluate('e=>e.getBoundingClientRect().left<=e.parentElement.getBoundingClientRect().left+4')
                     copy=assistant.locator('..').locator('.ai-copy');assert copy.inner_text()=='' and copy.locator('svg').count()==1
-                    page.evaluate('navigator.clipboard.writeText=async text=>window.qaCopied=text');copy.click();expect(copy).to_have_attribute('aria-label','Tersalin');assert page.evaluate('qaCopied')==assistant.text_content()
+                    # Copy retains the original Markdown, including code fences, after reload.
+                    page.evaluate('navigator.clipboard.writeText=async text=>window.qaCopied=text');copy.click();expect(copy).to_have_attribute('aria-label','Tersalin');assert page.evaluate('qaCopied')==ANSWER
                     keyboard(page,selector,420,0);keyboard(page,selector,390,60)
                     page.locator(selector).fill('Keyboard draft\n'*15);keyboard(page,selector,420,20)
                     page.locator(selector).fill('');page.evaluate('qaViewport.height=innerHeight;qaViewport.offsetTop=0;qaViewport.dispatchEvent(new Event("resize"))')

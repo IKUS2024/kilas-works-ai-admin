@@ -42,6 +42,28 @@ class NaturalResponseStyleTests(unittest.TestCase):
                        "preserve constraints that still apply"):
             self.assertIn(phrase, style)
 
+    def test_real_chat_payload_includes_bounded_provisional_experiment_guidance(self):
+        class OfflineResponse:
+            def __enter__(self): return self
+            def __exit__(self,*args): return False
+            def raise_for_status(self): pass
+            def iter_lines(self,**kwargs): return iter(())
+        messages=[{'role':'user','content':'Susun uji promosi toko dari data yang belum lengkap; jangan menjamin hasil.'}]
+        with patch.object(providers.requests,'post',return_value=OfflineResponse()) as transport:
+            list(providers._openai('gpt-6-luna','synthetic-only',messages,'FAST'))
+        payload=transport.call_args.kwargs['json']
+        self.assertEqual(payload['messages'][1:],messages)
+        system=payload['messages'][0]['content']
+        for phrase in ('clearly labeled provisional protocol','duration, initial sample/allocation',
+                       'success metric and a stop/loss-cap rule','supplied facts',
+                       'adjustable assumptions','Respect stated budget and risk constraints',
+                       'make the protocol conditional','essential missing',
+                       'invent business data','guarantees profit','proves significance'):
+            self.assertIn(phrase,system)
+        self.assertEqual(payload['model'],'gpt-6-luna')
+        self.assertFalse(payload['store'])
+        self.assertEqual(transport.call_count,1)
+
     def test_actual_search_and_research_payloads_use_same_policy(self):
         payloads = []
         def fake_request(payload):
