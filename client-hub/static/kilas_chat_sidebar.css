@@ -17,6 +17,10 @@
 .kilas-chat-sidebar .ai-history [aria-current=page]{background:var(--premium-selected);color:var(--accent);font-weight:600}
 .kilas-chat-sidebar .chat-history-all{display:flex;align-items:center;min-height:44px;padding:8px 12px;color:var(--muted);font-size:12px;line-height:1.5;text-decoration:none}
 .kilas-chat-sidebar .chat-history-all:hover{text-decoration:underline;text-underline-offset:4px}
+.kilas-chat-sidebar :is(.chat-history-expand,.chat-history-more){width:100%;border:0;background:transparent;text-align:left;font-family:inherit;cursor:pointer}
+.kilas-chat-sidebar .chat-history-status{margin:4px 12px;font-size:12px;line-height:1.5;color:var(--muted)}
+.kilas-chat-sidebar :is(.chat-history-more,.chat-history-status)[hidden]{display:none}
+.kilas-chat-sidebar .chat-history-more:disabled{cursor:wait}
 .kilas-chat-sidebar .chat-library-entry{gap:12px;margin-top:12px;padding:12px;color:var(--text);font-size:14px;font-weight:600}
 .kilas-chat-sidebar .chat-library-entry span{flex:1}
 .kilas-chat-sidebar .chat-library-entry svg{flex:none}

@@ -92,7 +92,7 @@
     window.KilasAttachmentPreview?.clear();
     window.KilasMarkdown.hydrate(chat);copyAnswers();
     const history=doc.querySelector('[data-chat-sidebar] .ai-history'),currentHistory=document.querySelector('[data-chat-sidebar] .ai-history');
-    if(history&&currentHistory)currentHistory.replaceChildren(...history.childNodes);
+    if(history&&currentHistory){if(window.KilasChatHistory)window.KilasChatHistory.replaceRecent(history);else currentHistory.replaceChildren(...history.childNodes);}
     const chats = doc.querySelector('.agent-chats');
     if (chats) document.querySelector('.agent-chats')?.replaceChildren(...chats.childNodes);
     const heading = doc.querySelector('.agent-section-head h2');

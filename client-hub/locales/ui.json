@@ -66,6 +66,31 @@
     "es": "Ver todo",
     "zh": "查看全部"
   },
+  "See less": {
+    "en": "See less",
+    "es": "Ver menos",
+    "zh": "收起"
+  },
+  "Muat chat berikutnya": {
+    "en": "Load more chats",
+    "es": "Cargar más chats",
+    "zh": "加载更多对话"
+  },
+  "Coba muat riwayat lagi": {
+    "en": "Try again",
+    "es": "Reintentar",
+    "zh": "重试"
+  },
+  "Memuat riwayat chat…": {
+    "en": "Loading chat history…",
+    "es": "Cargando el historial de chats…",
+    "zh": "正在加载对话历史…"
+  },
+  "Riwayat chat belum dapat dimuat. Coba lagi.": {
+    "en": "Chat history could not be loaded. Try again.",
+    "es": "No se pudo cargar el historial de chats. Inténtalo de nuevo.",
+    "zh": "暂时无法加载对话历史。请重试。"
+  },
   "Search": {
     "en": "Search",
     "es": "Buscar",

@@ -7,6 +7,91 @@
     if(!expanded&&history.contains(document.activeElement))toggle.focus();
     history.hidden=!expanded;toggle.setAttribute('aria-expanded',String(expanded));
   });
+  const list=rail.querySelector('.ai-history'),all=rail.querySelector('[data-chat-history-expand]'),more=rail.querySelector('[data-chat-history-more]'),status=rail.querySelector('[data-chat-history-status]');
+  if(list&&all&&more&&status){
+    const rows=source=>[...source.children].filter(node=>node.matches('a,.ai-sidebar-empty')).map(node=>node.cloneNode(true));
+    const address=node=>new URL(node.getAttribute('href'),location.origin).href;
+    let recent=rows(list),full=[],cursor=null,loaded=false,cacheValid=true,expanded=false,busy=false,version=0,request=null,scroll=0;
+    const initialCurrent=list.querySelector('[aria-current=page]')?.getAttribute('href');
+    function markCurrent(){
+      const agent=document.querySelector('#agent-chat-form [name=conversation_id]')?.value;
+      const thread=document.querySelector('[data-ai-shell]')?.dataset.threadId;
+      for(const link of list.querySelectorAll('a')){
+        const url=new URL(link.href,location.origin);
+        const current=agent?url.pathname==='/kilas-ai/agent'&&url.searchParams.get('conversation')===agent:
+          thread?url.pathname==='/kilas-ai/threads/'+thread:link.getAttribute('href')===initialCurrent;
+        if(current)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
+        link.classList.toggle('is-current',link.classList.contains('ai-history-item')&&current);
+      }
+    }
+    const message=text=>{status.textContent=text;status.hidden=!text;};
+    function stop(){version++;request?.abort();request=null;busy=false;list.setAttribute('aria-busy','false');more.disabled=false;}
+    function recentView(){
+      if(list.contains(document.activeElement))all.focus();
+      more.hidden=true;list.replaceChildren(...recent.map(node=>node.cloneNode(true)),more);list.scrollTop=0;markCurrent();message('');
+    }
+    function savedView(){
+      more.hidden=!cursor;more.textContent=all.dataset.more;
+      list.replaceChildren(...full.map(node=>node.cloneNode(true)),more);list.scrollTop=scroll;markCurrent();
+    }
+    function anchor(item){
+      if(!item||!Number.isSafeInteger(item.id)||item.id<=0||typeof item.title!=='string'||!['conversation','thread'].includes(item.kind)||typeof item.href!=='string')throw Error('history');
+      const url=new URL(item.href,location.origin);
+      if(url.origin!==location.origin||(item.kind==='conversation'?(url.pathname!=='/kilas-ai/agent'||url.searchParams.get('conversation')!==String(item.id)):url.pathname!=='/kilas-ai/threads/'+item.id))throw Error('history');
+      const node=document.createElement('a');node.href=item.href;node.title=item.title;node.textContent=item.title;node.dataset.chatNavigation='';
+      if(item.kind==='thread')node.className='ai-history-item';return node;
+    }
+    async function load(){
+      if(!expanded||busy)return;
+      const first=!loaded,id=version,focusMore=document.activeElement===more,controller=new AbortController();request=controller;busy=true;more.disabled=true;let focusNext=null;
+      list.setAttribute('aria-busy','true');message(all.dataset.loading);
+      const timeout=setTimeout(()=>controller.abort(),10000);
+      try{
+        const url=new URL(all.dataset.historyUrl,location.origin);if(cursor)url.searchParams.set('cursor',cursor);
+        const response=await fetch(url,{credentials:'same-origin',cache:'no-store',signal:controller.signal});
+        if(!response.ok||response.redirected)throw Error('history');
+        const data=await response.json();
+        if(!Array.isArray(data.items)||data.items.length>20||!(data.next_cursor===null||(typeof data.next_cursor==='string'&&data.next_cursor.length>0&&data.next_cursor.length<=2048)))throw Error('history');
+        const incoming=data.items.map(anchor);
+        if(!expanded||id!==version)return;
+        if(first){list.replaceChildren(more);full=[];loaded=true;}
+        const seen=new Set([...list.querySelectorAll('a')].map(node=>node.href));
+        const added=[];
+        for(const node of incoming)if(!seen.has(node.href)){seen.add(node.href);list.insertBefore(node,more);added.push(node);focusNext=focusNext||node;}
+        if(!list.querySelector('a')){const empty=document.createElement('p');empty.className='ai-sidebar-empty';empty.textContent=all.dataset.empty;list.insertBefore(empty,more);added.push(empty);}
+        cursor=data.next_cursor;more.hidden=!cursor;more.textContent=all.dataset.more;markCurrent();full.push(...added.map(node=>node.cloneNode(true)));message('');
+      }catch(error){
+        if(expanded&&id===version){message(all.dataset.error);more.hidden=false;more.textContent=all.dataset.retry;}
+      }finally{
+        clearTimeout(timeout);
+        if(id===version){busy=false;request=null;more.disabled=false;list.setAttribute('aria-busy','false');}
+        if(expanded&&id===version&&focusMore&&!history.hidden&&(document.activeElement===more||document.activeElement===document.body))(focusNext||more).focus();
+      }
+    }
+    all.addEventListener('click',()=>{
+      if(expanded){scroll=list.scrollTop;stop();expanded=false;all.textContent=all.dataset.seeAll;all.setAttribute('aria-expanded','false');recentView();}
+      else{recent=rows(list);expanded=true;all.textContent=all.dataset.seeLess;all.setAttribute('aria-expanded','true');
+        if(loaded&&cacheValid)savedView();else{stop();loaded=false;cursor=null;full=[];cacheValid=true;load();}}
+    });
+    more.addEventListener('click',load);
+    window.KilasChatHistory={
+      replaceRecent(source){
+        recent=rows(source);cacheValid=false;
+        if(!expanded)recentView();else{
+          const fresh=new Map(recent.filter(node=>node.matches('a')).map(node=>[address(node),node]));
+          for(const node of list.querySelectorAll('a')){const updated=fresh.get(node.href);if(updated){node.textContent=updated.textContent;node.title=updated.title;}}
+          markCurrent();
+        }
+      },
+      upsert(link){
+        if(!expanded)recent=rows(list);else{
+          const old=recent.findIndex(node=>node.matches('a')&&address(node)===link.href);
+          if(old>=0)recent[old]=link.cloneNode(true);else recent.unshift(link.cloneNode(true));
+          recent=recent.filter(node=>!node.matches('.ai-sidebar-empty'));cacheValid=false;
+        }
+      }
+    };
+  }
   const sidebar=rail.closest('#premium-sidebar');let leaving=false,carrying=false;
   const t=message=>window.KilasUI?window.KilasUI.t(message):message;
   function chatDirty(){

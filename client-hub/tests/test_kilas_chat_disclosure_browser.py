@@ -54,9 +54,9 @@ def main():
                 for agent in (False,True):
                     page.goto(origin+('/kilas-ai/agent?conversation='+str(case.conversation) if agent else '/products/start'),wait_until='networkidle')
                     rail=open_chat_sidebar(page);toggle=rail.get_by_role('button',name='Chat',exact=True)
-                    panel=rail.locator('[data-chat-history-content]');history=panel.locator('.ai-history');see_all=panel.get_by_role('link',name='See all',exact=True)
+                    panel=rail.locator('[data-chat-history-content]');history=panel.locator('.ai-history');see_all=panel.get_by_role('button',name='See all',exact=True)
                     expect(toggle).to_have_attribute('aria-expanded','true');expect(toggle).to_have_attribute('aria-controls','kilas-chat-history')
-                    expect(panel).to_be_visible();expect(see_all).to_have_attribute('href','/kilas-ai?attachments=1')
+                    expect(panel).to_be_visible();expect(see_all).to_have_attribute('aria-expanded','false')
                     expect(rail.locator('h2')).to_have_count(1)
                     expect(rail.locator('a[href="/kilas-ai/agent?view=history"]')).to_have_count(0)
                     expect(rail.get_by_role('link',name='My Library',exact=True)).to_be_visible()
@@ -106,9 +106,13 @@ def main():
                     assert page.url==origin+'/kilas-ai/threads/'+str(thread)
                     rail=open_chat_sidebar(page)
                     expect(rail.locator('.ai-history a[aria-current=page]')).to_have_attribute('href','/kilas-ai/threads/'+str(thread))
-                    rail.get_by_role('link',name='See all',exact=True).click();page.wait_for_load_state('networkidle')
-                    assert ('GET',origin+'/kilas-ai?attachments=1') in requests
-                    assert page.url.startswith(origin+'/kilas-ai')
+                    before_url=page.url
+                    rail.get_by_role('button',name='See all',exact=True).click()
+                    expect(rail.get_by_role('button',name='See less',exact=True)).to_be_visible()
+                    expect(rail.locator('.ai-history')).to_have_attribute('aria-busy','false')
+                    rail.get_by_role('button',name='See less',exact=True).click()
+                    expect(rail.get_by_role('button',name='See all',exact=True)).to_be_visible()
+                    assert page.url==before_url
                     assert not errors,errors
                     results.append({'width':width,'height':height,'shell':'agent' if agent else 'home','disclosure_keyboard_touch_hidden_focus_history_new_chat_navigation':'PASS'})
                 context.close()

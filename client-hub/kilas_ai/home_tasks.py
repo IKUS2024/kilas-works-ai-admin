@@ -98,6 +98,13 @@ def library():
                            artifacts=work_artifacts.listing(owner) if automation_enabled() else [])
 
 
+@ai_bp.get('/sidebar/history')
+def sidebar_history():
+    from flask import session
+    from .sidebar_history import page
+    return page(session['user_id'],request.args.get('cursor'),include_conversations=automation_enabled()),200,{'Cache-Control':'private, no-store','Vary':'Cookie'}
+
+
 @ai_bp.post('/video', endpoint='video_home_handoff')
 def open_video_task():
     if request.form.get('task')!='video':abort(400)
