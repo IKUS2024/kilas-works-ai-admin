@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
 from threading import Event
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 def loopback_only(event, args):
@@ -362,6 +362,130 @@ class BrowserApplicationFlowTests(unittest.TestCase):
 
     def test_bounded_known_regions_are_canonicalized_in_actual_realtime_app_flow(self):
         self.browser_flow('realtime-v1', provider_languages=('ID-id', 'EN-us'))
+
+    def test_two_successive_valid_realtime_utterances_complete_once_then_end_blocks_late_work(self):
+        self.credit(300)
+        sources = ['Ucapan pertama lengkap. Pertama, pertama.',
+                   'Ucapan kedua lengkap. Kedua, kedua.']
+        translations = ['First complete utterance. First, first.',
+                        'Second complete utterance. Second, second.']
+        raws = [self.raw, audio.mp3(2.1)]
+        self.assertNotEqual(raws[0], raws[1])
+        seen, sockets, responses = [], [], []
+
+        def connect():
+            socket = AutomaticSocket(sources[len(sockets)])
+            sockets.append(socket)
+            return socket
+
+        def translate(*args, **kwargs):
+            seen.append(args[2][0]['content'])
+            index = len(seen) - 1
+            yield {'type': 'delta', 'text': json.dumps({
+                'text': translations[index], 'source_language': 'id', 'target_language': 'en',
+            })}
+            yield {'type': 'usage', 'input_tokens': 20 + index, 'output_tokens': 18 + index}
+            yield {'type': 'finish', 'reason': 'stop'}
+
+        def speech_response(*args, **kwargs):
+            raw = raws[len(responses)]
+            response = MagicMock(status_code=200)
+            response.__enter__.return_value = response
+            response.iter_content.side_effect = lambda size: iter([raw[:80], raw[80:]])
+            responses.append(response)
+            return response
+
+        with self.context(realtime_on=True), patch.object(realtime, 'connect', side_effect=connect) as connection, \
+                patch.object(providers, '_openai', side_effect=translate) as translation, \
+                patch.object(segments.transport, 'request', side_effect=speech_response) as speech, \
+                patch.object(usage, 'finish', wraps=usage.finish) as settle, self.actual_browser() as (page, requests, errors):
+            page.evaluate("""()=>{qa.overlaps=0;
+                const create=AudioContext.prototype.createBufferSource;
+                AudioContext.prototype.createBufferSource=function(){const node=create.call(this),start=node.start;
+                  node.start=function(){if(qa.audio){qa.overlaps++;throw Error('Overlapping translated audio');}return start.call(this);};return node;};}""")
+            page.locator('[name=consent]').check()
+            page.get_by_role('button', name='Start', exact=True).click()
+            expect(page.locator('#live-state')).to_have_text('Mendengarkan')
+            ident = audio.f.db.query_one('SELECT id FROM kilas_live_translator_sessions WHERE user_id=?', (self.user,))['id']
+            keys = []
+            for index in range(2):
+                self.speak(page)
+                page.wait_for_function('qa.plays===' + str(index + 1), timeout=5000)
+                expect(page.locator('#live-state')).to_have_text('Hasil')
+                expect(page.locator('#live-translation')).to_have_text(translations[index])
+                expect(page.locator('#live-error')).to_be_hidden()
+                self.assertEqual(page.evaluate('qa.mics'), 0)
+                self.assertEqual(page.evaluate('qa.starts'), index + 1)
+                self.assertEqual(page.evaluate('qa.decoded.length'), index + 1)
+                self.assertEqual(bytes(page.evaluate('qa.decoded[' + str(index) + ']')), raws[index])
+                turns = audio.f.db.query_all('SELECT operation_key,status FROM kilas_live_translator_turns WHERE session_id=? ORDER BY created_at', (ident,))
+                self.assertEqual(len(turns), index + 1)
+                self.assertEqual([turn['status'] for turn in turns], ['COMPLETED'] * (index + 1))
+                key = turns[index]['operation_key']
+                keys.append(key)
+                path = '/kilas-translator/live/sessions/' + ident + '/turns/' + key
+                metadata = self.client.get(path).json
+                self.assertEqual((metadata['source_language'], metadata['target_language']), ('id', 'en'))
+                self.assertEqual(metadata['translated_text'], translations[index])
+                self.assertNotIn('segments', metadata)
+                self.assertEqual(sum(method == 'GET' and url == path + '/audio' for method, url in requests), 1)
+                self.assertEqual(sum(method == 'POST' and url == path for method, url in requests), 0)
+                self.assertEqual(sum(method == 'POST' and url == path + '/input/start' for method, url in requests), 1)
+                self.assertEqual(sum(method == 'POST' and url == path + '/input/commit' for method, url in requests), 1)
+                self.assertEqual(speech.call_args.kwargs['json']['text'], translations[index])
+                self.assertEqual(translation.call_count, index + 1)
+                self.assertEqual(speech.call_count, index + 1)
+                self.assertEqual(settle.call_count, index + 1)
+                # Voice-like input while output plays cannot start another turn.
+                page.evaluate('()=>{qa.rms=.4;qa.lateEnded=qa.audio.onended;}')
+                page.wait_for_timeout(300)
+                self.assertEqual(page.evaluate('qa.mics'), 0)
+                self.assertEqual(page.evaluate('qa.plays'), index + 1)
+                self.assertEqual(connection.call_count, index + 1)
+                page.evaluate('qa.rms=0;qaFinishAudio()')
+                page.wait_for_function('qa.starts===' + str(index + 2) + ' && qa.mics===1')
+                expect(page.locator('#live-state')).to_have_text('Mendengarkan')
+            self.assertNotEqual(keys[0], keys[1])
+            self.assertEqual(seen, sources)
+            self.assertEqual(page.evaluate('qa.overlaps'), 0)
+            self.batch_mock.assert_not_called()
+            for key in keys:
+                self.assertEqual(sum(call.args[1] == key + '-text' for call in settle.call_args_list), 1)
+            jobs = audio.f.db.query_all('SELECT operation_key,status,original_script,result_content,actual_ms,seconds_charged FROM kilas_audio_jobs WHERE user_id=? ORDER BY created_at', (self.user,))
+            self.assertEqual(len(jobs), 2)
+            for index, job in enumerate(jobs):
+                self.assertEqual(job['operation_key'], keys[index] + '-audio')
+                self.assertEqual(job['status'], 'COMPLETED')
+                self.assertEqual(job['original_script'], translations[index])
+                self.assertEqual(bytes(job['result_content']), raws[index])
+                self.assertGreater(job['seconds_charged'], 0)
+                self.assertEqual(job['seconds_charged'], (job['actual_ms'] + 999) // 1000)
+            self.assertEqual(audio.f.db.query_one('SELECT seconds FROM kilas_audio_balances WHERE user_id=?', (self.user,))['seconds'], 300 - sum(job['seconds_charged'] for job in jobs))
+            usage_rows = audio.f.db.query_all('SELECT operation_key,status FROM kilas_ai_usage WHERE user_id=?', (self.user,))
+            self.assertEqual({row['operation_key'] for row in usage_rows}, {key + '-text' for key in keys})
+            self.assertEqual([row['status'] for row in usage_rows], ['COMPLETE', 'COMPLETE'])
+            stt_rows = audio.f.db.query_all('SELECT operation_key,status,charge_micro FROM kilas_vo_stt_operations WHERE user_id=?', (self.user,))
+            self.assertEqual({row['operation_key'] for row in stt_rows}, {flow.realtime_budget.ledger_key(key) for key in keys})
+            self.assertEqual([row['status'] for row in stt_rows], ['COMPLETED', 'COMPLETED'])
+            self.assertEqual([row['charge_micro'] for row in stt_rows], [flow.realtime_budget.RESERVE_MICRO] * 2)
+            # Capture a stale callback, then End both locally and in the real app.
+            page.evaluate('()=>{qa.latePCM=qa.worklets.at(-1).port.onmessage;}')
+            page.locator('#live-end').click()
+            expect(page.locator('#live-active')).to_be_hidden()
+            self.wait(lambda: audio.f.db.query_one('SELECT status FROM kilas_live_translator_sessions WHERE id=?', (ident,))['status'] == 'ENDED', 'End was not persisted')
+            page.evaluate('qa.latePCM({data:{bytes:new Int16Array(800).buffer,rms:.5}});qa.lateEnded();qa.rms=.5')
+            page.wait_for_timeout(300)
+            self.assertEqual(page.evaluate('qa.mics'), 0)
+            self.assertEqual(page.evaluate('qa.starts'), 3)
+            self.assertEqual(page.evaluate('qa.plays'), 2)
+            self.assertEqual(page.evaluate('qa.decoded.length'), 2)
+            late = self.client.post('/kilas-translator/live/sessions/' + ident + '/turns/live-' + 'c' * 32 + '/input/start', data={'csrf_token': 'audio-csrf'})
+            self.assertEqual(late.status_code, 409)
+            self.assertEqual(connection.call_count, 2)
+            self.assertEqual(translation.call_count, 2)
+            self.assertEqual(speech.call_count, 2)
+            self.assertEqual(settle.call_count, 2)
+            self.assertFalse(errors, errors)
 
 
 if __name__ == '__main__':
