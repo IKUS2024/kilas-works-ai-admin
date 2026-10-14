@@ -13,6 +13,16 @@ on:
 permissions:
   contents: read
 jobs:
+  search-grounding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - name: Offline general search, currency provenance, failures and quota regressions
+        run: python -B scripts/run_offline_tests.py --only test_kilas_chat_auto_search.py
   chat:
     runs-on: ubuntu-latest
     timeout-minutes: 15

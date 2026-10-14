@@ -58,7 +58,7 @@ class AutoSearchTests(unittest.TestCase):
         return result
 
     def test_currency_news_prices_and_verification_route_automatically(self):
-        for text in ('600 RMB berapa rupiah?', '600RMB to IDR', '600RMBtoIDR', '100 USD ke IDR', 'USD 100 ke IDR',
+        for text in ('1 USD berapa rupiah', '600 RMB berapa rupiah?', '600RMB to IDR', '600RMBtoIDR', '100 USD ke IDR', 'USD 100 ke IDR',
                      'Berita ekonomi', 'Harga iPhone 16 berapa?', 'Price of gold',
                      'Verifikasi klaim ini', 'Siapa presiden Indonesia sekarang?',
                      'versi Python terbaru sekarang apa?'):
@@ -103,6 +103,104 @@ class AutoSearchTests(unittest.TestCase):
                 self.assertEqual(payload['tool_choice'], 'required')
                 self.assertIn('never a remembered or assumed rate', payload['instructions'])
                 self.assertEqual(payload['input'], '600 CNY to IDR: current published exchange rate')
+
+    def test_completed_retrieved_sources_recover_missing_inline_annotations(self):
+        for agent in (False, True):
+            for question, answer in (
+                ('Berita ekonomi terbaru', 'Temuan sintetis bertanggal hari ini: https://example.test/current'),
+                ('Harga iPhone terbaru berapa?', 'Harga sintetis menurut https://example.test/current'),
+                ('1 USD berapa rupiah', '```json\n' + rate(base='USD',rate='16000.25') + '\n```')):
+                data=response(answer,sources=False)
+                data['output'][0]['action']={'type':'search','sources':[
+                    {'type':'url','url':'https://example.test/current','title':'Sumber aktual sintetis'},
+                    {'type':'url','url':'https://unused.test/other','title':'Unused'}]}
+                with self.subTest(agent=agent,question=question), patch.object(tools,'_request',return_value=data) as search, \
+                        patch.object(providers,'stream',side_effect=AssertionError('No guessed fallback')):
+                    result=self.submit_chat(question,agent)
+                    text=agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['content'] if agent else result.get_data(as_text=True)
+                    self.assertIn('https://example.test/current',text)
+                    self.assertNotIn('belum terverifikasi',text)
+                    self.assertNotIn('unused.test',text)
+                    if question.startswith('1 USD'):
+                        self.assertIn('16.000,25',text)
+                        self.assertIn('Waktu sumber:',text)
+                    self.assertEqual(search.call_count,1)
+                    self.assertEqual(search.call_args.args[0]['include'],['web_search_call.action.sources'])
+                    self.assertEqual(search.call_args.args[0]['max_tool_calls'],1)
+
+    def test_retrieved_source_fallback_rejects_uncited_failed_or_stale_evidence(self):
+        answers=('Unsupported finding without any cited URL.',
+                 'Invented URL https://invented.test/current',
+                 rate(base='USD',as_of=(datetime.now(timezone.utc)-timedelta(days=30)).date().isoformat()))
+        for answer in answers:
+            data=response(answer,sources=False)
+            data['output'][0]['action']={'type':'search','sources':[{'type':'url','url':'https://example.test/current'}]}
+            with self.subTest(answer=answer),patch.object(tools,'_request',return_value=data) as search:
+                with self.assertRaises(tools.ToolUnavailable):
+                    list(tools.web_search_steps([{'role':'user','content':'1 USD berapa rupiah'}],verify_currency=True))
+                self.assertEqual(search.call_count,1)
+        data=response('See https://example.test/current',sources=False)
+        data['output'][0].update(status='failed',action={'sources':[{'url':'https://example.test/current'}]})
+        with patch.object(tools,'_request',return_value=data):
+            with self.assertRaises(tools.ToolUnavailable):
+                list(tools.web_search_steps([{'role':'user','content':'Berita terbaru'}]))
+
+    def test_search_failure_reasons_are_distinct_and_do_not_retry_paid_transport(self):
+        failures=[(tools.requests.Timeout('PRIVATE'),'provider_timeout'),
+                  (tools.requests.ConnectionError('PRIVATE'),'provider_connection'),
+                  (ValueError('PRIVATE'),'provider_invalid_response')]
+        for status,code in [(400,'provider_request_rejected'),(401,'configuration_rejected'),
+                            (403,'configuration_rejected'),(429,'provider_rate_limited'),(503,'provider_http_error')]:
+            http=tools.requests.Response();http.status_code=status
+            failures.append((tools.requests.HTTPError('PRIVATE',response=http),code))
+        for error,code in failures:
+            with self.subTest(code=code),patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-only'}), \
+                    patch.object(tools.requests,'post',side_effect=error) as post:
+                with self.assertRaises(tools.ToolUnavailable) as failure:
+                    list(tools.web_search_steps([{'role':'user','content':'Berita terbaru'}]))
+                self.assertEqual(failure.exception.code,code)
+                self.assertEqual(post.call_count,1)
+                message=chat_web.search_failure_message(failure.exception)
+                self.assertIn('belum terverifikasi',message)
+                self.assertNotIn('PRIVATE',message)
+                with self.assertLogs('kilas_ai.tools',level='WARNING') as logs:
+                    tools.log_search_failure(failure.exception)
+                self.assertIn(code,logs.output[0]);self.assertNotIn('PRIVATE',logs.output[0])
+        with patch.dict(os.environ,{'KILAS_AI_OPENAI_WEB_MODEL':''}),patch.object(tools.requests,'post') as post:
+            with self.assertRaises(tools.ToolUnavailable) as failure:
+                list(tools.web_search_steps([{'role':'user','content':'Berita terbaru'}]))
+            self.assertEqual(failure.exception.code,'configuration_missing');post.assert_not_called()
+
+    def test_failed_later_research_call_preserves_verified_partial_results(self):
+        data=response('Temuan bersumber https://example.test/current')
+        with patch.object(tools,'_request',side_effect=[data,tools.ToolUnavailable('Private failure',code='provider_timeout')]) as search:
+            result=next(event['result'] for event in tools.web_search_steps(
+                [{'role':'user','content':'riset beberapa sumber berita terbaru'}],max_calls=2) if 'result' in event)
+        self.assertEqual(search.call_count,2)
+        self.assertEqual(result['search_calls'],2)
+        self.assertTrue(result['partial'])
+        self.assertIn('Sebagian pemeriksaan sumber belum berhasil',result['text'])
+        self.assertIn('https://example.test/current',result['text'])
+        self.assertNotIn('Private failure',result['text'])
+
+    def test_both_chat_routes_report_timeout_without_a_guessed_answer(self):
+        for agent in (False,True):
+            with self.subTest(agent=agent),patch.object(tools,'_request',side_effect=tools.ToolUnavailable('Private failure',code='provider_timeout')) as search, \
+                    patch.object(providers,'stream',side_effect=AssertionError('No guessed fallback')):
+                result=self.submit_chat('Berita terbaru',agent)
+                text=agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['content'] if agent else result.get_data(as_text=True)
+                self.assertIn('melewati batas waktu',text)
+                self.assertIn('belum terverifikasi',text)
+                self.assertNotIn('Private failure',text)
+                self.assertEqual(search.call_count,1)
+
+    def test_currency_json_wrapping_does_not_accept_extra_prose_or_invalid_provenance(self):
+        for raw in ('Here is a guess: '+rate(base='USD'),
+                    '```json\n'+rate(base='USD',source_url='https://invented.test/rate')+'\n```',
+                    '```json\n'+rate(base='USD',as_of='')+'\n```'):
+            with self.subTest(raw=raw),self.assertRaises((ValueError,TypeError)):
+                chat_web.conversion_answer(chat_web.conversion('1 USD berapa rupiah'),raw,
+                    [{'url':'https://example.test/current'}],tools._source_url)
 
     def test_news_and_prices_search_without_checkbox(self):
         for agent in (False, True):

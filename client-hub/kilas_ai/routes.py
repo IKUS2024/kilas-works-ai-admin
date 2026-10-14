@@ -492,8 +492,9 @@ def send(thread_id, *, script_only=False):
                     if error.model:
                         provider, model = 'openai', error.model
                         usage.update(error.usage)
-                    from .chat_web import UNVERIFIED
-                    yield _sse("error", {"message": "Gambar belum dapat dibuat sekarang. Coba lagi sebentar." if tool in ("IMAGE_GENERATE", "IMAGE_EDIT") else UNVERIFIED})
+                    from .chat_web import search_failure_message
+                    if tool == 'WEB': ai_tools.log_search_failure(error)
+                    yield _sse("error", {"message": "Gambar belum dapat dibuat sekarang. Coba lagi sebentar." if tool in ("IMAGE_GENERATE", "IMAGE_EDIT") else search_failure_message(error)})
                     return
             yield _sse("activity", {"label": "Menganalisis gambar…" if any(item["mime_type"].startswith("image/") for item in prepared)
                           else "Membaca dokumen…" if any(item["extracted_text"] for item in prepared)

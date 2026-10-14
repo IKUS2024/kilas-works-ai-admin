@@ -1,6 +1,7 @@
 """Explicit provider-backed Kilas AI web and image operations."""
 import base64
 import io
+import logging
 import os
 import re
 from datetime import datetime, timezone
@@ -13,16 +14,17 @@ from . import response_style
 
 
 class ToolUnavailable(Exception):
-    def __init__(self, message, *, model=None, usage=None):
+    def __init__(self, message, *, model=None, usage=None, code='search_unavailable'):
         super().__init__(message)
         self.model = model
         self.usage = usage or {}
+        self.code = code
 
 
 def _openai_key():
     key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not key:
-        raise ToolUnavailable("OpenAI belum dikonfigurasi.")
+        raise ToolUnavailable("OpenAI belum dikonfigurasi.", code='configuration_missing')
     return key
 
 
@@ -106,6 +108,29 @@ def _web_response(data):
     return searched, "\n".join(parts).strip(), citations
 
 
+def _search_sources(data, answer, citations):
+    """Recover cited URLs from actual completed search results, never model-only URLs."""
+    allowed = {_source_url(value.rstrip('.,;!?')) for value in
+               re.findall(r'https?://[^\s<>\)\]"\']+', answer, flags=re.I)}
+    result = list(citations)
+    for item in data.get('output', []):
+        if item.get('type') != 'web_search_call' or item.get('status') != 'completed':
+            continue
+        for source in (item.get('action') or {}).get('sources', []):
+            if not isinstance(source, dict):
+                continue
+            url = _source_url(source.get('url'))
+            if url and url in allowed and url not in {entry['url'] for entry in result}:
+                result.append({'url': url, 'title': str(source.get('title') or urlparse(url).netloc)[:160]})
+    return result
+
+
+def log_search_failure(error):
+    # No prompts, URLs, response bodies, credentials or customer content in logs.
+    code = getattr(error, 'code', 'search_internal_error')
+    logging.getLogger(__name__).warning('KILAS_SEARCH_FAILURE code=%s', code)
+
+
 def _cited_urls_only(answer, citations):
     """URL provenance only; this does not prove that a cited source supports a claim."""
     allowed={item['url'] for item in citations}
@@ -120,9 +145,21 @@ def _request(payload, timeout=90):
             headers={"Authorization": "Bearer " + _openai_key(), "Content-Type": "application/json"},
             json=payload, timeout=(10, timeout))
         response.raise_for_status()
-        return response.json()
-    except (requests.RequestException, ValueError):
-        raise ToolUnavailable("Web search sedang tidak tersedia. Coba lagi.") from None
+        data = response.json()
+        if not isinstance(data, dict):
+            raise ValueError('response_shape')
+        return data
+    except requests.Timeout:
+        raise ToolUnavailable('Web search melewati batas waktu.', code='provider_timeout') from None
+    except requests.HTTPError as error:
+        status = getattr(error.response, 'status_code', None)
+        code = ('provider_rate_limited' if status == 429 else 'configuration_rejected' if status in (401,403)
+                else 'provider_request_rejected' if status == 400 else 'provider_http_error')
+        raise ToolUnavailable('Web search sedang tidak tersedia.', code=code) from None
+    except requests.RequestException:
+        raise ToolUnavailable('Koneksi web search gagal.', code='provider_connection') from None
+    except ValueError:
+        raise ToolUnavailable('Respons web search tidak dapat dibaca.', code='provider_invalid_response') from None
 
 
 def _enough_evidence(text, citations):
@@ -154,14 +191,14 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
     from . import chat_web, model_policy
     model = os.environ.get("KILAS_AI_OPENAI_WEB_MODEL", "").strip()
     if not model:
-        raise ToolUnavailable("Web search belum tersedia.")
+        raise ToolUnavailable("Web search belum tersedia.", code='configuration_missing')
     lookup = model_policy.request_text(context[-1]['content'])
     currency = chat_web.conversion(lookup) if verify_currency else None
     if verify_currency and not currency:
         previous = next((model_policy.request_text(item['content']) for item in reversed(context[:-1]) if item['role']=='user'), '')
         currency = chat_web.conversion_followup(lookup, previous)
     if verify_currency and not currency and chat_web.conversion_requested(lookup) and re.search(r'\d', lookup):
-        raise ToolUnavailable(chat_web.UNVERIFIED)
+        raise ToolUnavailable(chat_web.UNVERIFIED, code='currency_query_ambiguous')
     complex_request = research_requested(context) and not currency
     limit = min(5, max(1, int(max_calls or SEARCH_CALL_CAPS.get(plan, 1)))) if complex_request else 1
     prompt = _chat_search_text(context, currency) if minimal_query else _search_text(context)
@@ -175,6 +212,7 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
     incomplete = False
     cost_components = []
     input_tokens = output_tokens = 0
+    failure_code = 'search_no_results'
     for index in range(limit):
         previous = "\n".join(item["url"] for item in citations[-8:])
         query = prompt if index == 0 else (prompt + "\n\nPrior sources (avoid duplicates):\n" + previous +
@@ -182,13 +220,15 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
         payload = {"model": model, "instructions": response_style.search_instructions(
             today, angles[index] if complex_request else "Answer the user's question directly."),
             "input": query, "tools": [{"type": "web_search"}], "tool_choice": "required", "store": False,
+            "include": ["web_search_call.action.sources"],
             "reasoning": {"effort": "medium" if complex_request else "low"}, "max_tool_calls": 1, "max_output_tokens": 2048}
         if currency:
             payload['instructions'] += chat_web.conversion_instructions(currency)
         calls += 1
         try:
             data = _request(payload) if request_timeout is None else _request(payload, timeout=request_timeout)
-        except ToolUnavailable:
+        except ToolUnavailable as error:
+            failure_code = error.code
             incomplete = True
             if not complex_request or not parts:
                 if index + 1 < limit:
@@ -196,6 +236,7 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
                 break
             continue
         searched, answer, found = _web_response(data)
+        found = _search_sources(data, answer, found) if searched and answer else found
         used = data.get("usage") or {}
         cost_components.append({'model':model,'operation':'WEB_SEARCH',
             'input_tokens':used.get('input_tokens',0),'output_tokens':used.get('output_tokens',0),
@@ -203,6 +244,9 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
         input_tokens += int(used.get("input_tokens") or 0)
         output_tokens += int(used.get("output_tokens") or 0)
         if not searched or not answer or not found or not _cited_urls_only(answer,found):
+            failure_code = ('search_incomplete' if data.get('status') not in (None,'completed')
+                            else 'search_not_completed' if not searched else 'search_empty_answer' if not answer
+                            else 'search_no_sources' if not found else 'search_uncited_url')
             incomplete = True
             if not complex_request:
                 break
@@ -210,9 +254,12 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
         if currency:
             try:
                 answer = chat_web.conversion_answer(currency, answer, found, _source_url)
-            except (ValueError, TypeError, KeyError, ArithmeticError):
+            except (ValueError, TypeError, KeyError, ArithmeticError) as error:
+                reason = str(error)
+                code = reason if reason in {'currency_pair_missing','rate_invalid','rate_time_missing',
+                    'rate_not_current','rate_source_missing'} else 'currency_evidence_invalid'
                 raise ToolUnavailable(chat_web.UNVERIFIED, model=model,
-                    usage={'input_tokens':input_tokens,'output_tokens':output_tokens,'cost_components':cost_components}) from None
+                    usage={'input_tokens':input_tokens,'output_tokens':output_tokens,'cost_components':cost_components}, code=code) from None
         new_sources = [item for item in found if item["url"] not in {source["url"] for source in citations}]
         if not new_sources and citations:
             break
@@ -224,7 +271,7 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
             yield {"activity": "Membandingkan informasi…"}
     if not parts or not citations:
         raise ToolUnavailable("Web search tidak mengembalikan sumber yang dapat ditampilkan.", model=model,
-            usage={'input_tokens':input_tokens,'output_tokens':output_tokens,'cost_components':cost_components})
+            usage={'input_tokens':input_tokens,'output_tokens':output_tokens,'cost_components':cost_components}, code=failure_code)
     answer = "\n\n".join(parts)
     if complex_request and len(parts) > 1 and len(citations) > 1:
         yield {"activity": "Menyusun hasil riset…"}

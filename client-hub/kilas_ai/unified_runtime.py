@@ -116,8 +116,11 @@ def search(owner,key,conversation):
         except Exception as error:
             model = getattr(error,'model',None) or model
             used.update(getattr(error,'usage',{}) or {})
-            agent_store.append(owner,'assistant',UNVERIFIED,conversation)
-            yield {'type':'error','message':UNVERIFIED}
+            from .chat_web import search_failure_message
+            tools.log_search_failure(error)
+            message=search_failure_message(error)
+            agent_store.append(owner,'assistant',message,conversation)
+            yield {'type':'error','message':message}
         finally:usage.finish(owner,meter,operations,success=success,provider='openai' if model else None,model=model,usage=used)
     if request.headers.get('X-Agent-Chat')=='1':
         return Response(stream_with_context(('data: '+json.dumps(event,ensure_ascii=False)+'\n\n' for event in generate())),mimetype='text/event-stream',headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'})

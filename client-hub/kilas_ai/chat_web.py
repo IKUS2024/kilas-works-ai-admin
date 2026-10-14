@@ -9,6 +9,29 @@ UNVERIFIED = ('Informasi terbaru belum dapat diperiksa dan belum terverifikasi. 
 NO_SEARCH = ('Saya tidak melakukan pencarian web sesuai permintaanmu. '
              'Informasi terkini belum terverifikasi. Berikan data atau kurs yang ingin dipakai '
              'agar saya dapat membantu tanpa menebak.')
+
+
+def search_failure_message(error):
+    code = getattr(error, 'code', 'search_internal_error')
+    if code == 'provider_timeout':
+        detail = 'Pencarian melewati batas waktu. Coba lagi sebentar.'
+    elif code == 'provider_rate_limited':
+        detail = 'Layanan pencarian sedang membatasi permintaan. Coba lagi sebentar.'
+    elif code in {'provider_http_error','provider_connection','provider_invalid_response'}:
+        detail = 'Layanan pencarian sedang bermasalah. Coba lagi sebentar.'
+    elif code in {'configuration_missing','configuration_rejected'}:
+        detail = 'Layanan pencarian belum tersedia karena konfigurasi layanan.'
+    elif code == 'provider_request_rejected':
+        detail = 'Layanan pencarian belum dapat memproses permintaan ini.'
+    elif code == 'currency_query_ambiguous':
+        detail = 'Permintaan pencarian belum dapat diproses. Perjelas pertanyaannya.'
+    elif code in {'search_incomplete','search_not_completed','search_empty_answer'}:
+        detail = 'Layanan pencarian belum mengembalikan hasil yang selesai.'
+    else:
+        detail = 'Pencarian belum menghasilkan bukti bersumber yang cukup untuk pertanyaan ini.'
+    return detail + ' ' + UNVERIFIED
+
+
 ALIASES = {'rmb': 'CNY', 'cny': 'CNY', 'yuan': 'CNY', 'renminbi': 'CNY',
            'idr': 'IDR', 'rupiah': 'IDR', 'usd': 'USD', 'dolar': 'USD', 'dollar': 'USD',
            'eur': 'EUR', 'euro': 'EUR', 'gbp': 'GBP', 'jpy': 'JPY', 'yen': 'JPY',
@@ -88,7 +111,9 @@ def conversion_followup(text, previous_request):
 def conversion_answer(spec, raw, citations, normalize_url, now=None):
     """Require published-rate metadata and cited provenance before any arithmetic."""
     now = now or datetime.now(timezone.utc)
-    data = json.loads(raw)
+    # Accept one complete JSON code block; no prose scraping or invented defaults.
+    wrapped = re.fullmatch(r'\s*```(?:json)?\s*\n([\s\S]*?)\n```\s*', raw, flags=re.I)
+    data = json.loads(wrapped[1] if wrapped else raw)
     if not isinstance(data, dict) or (data.get('base'), data.get('quote')) != (spec['base'], spec['quote']):
         raise ValueError('currency_pair_missing')
     raw_rate = str(data.get('rate', ''))
