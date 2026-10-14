@@ -4,6 +4,12 @@
 .kilas-chat-sidebar .ai-new{display:flex;align-items:center;justify-content:center;gap:10px;box-sizing:border-box;width:100%;min-height:48px;padding:12px;border:0;border-radius:16px;background:var(--neutral-hover,#ececeb);color:var(--text);font:600 14px/1.4 Manrope,system-ui,sans-serif;text-decoration:none;cursor:pointer}
 .kilas-chat-sidebar .ai-new svg{flex:none}
 .kilas-chat-sidebar h2{font:600 12px/1.4 Manrope,system-ui,sans-serif;color:var(--muted);margin:20px 12px 8px}
+.kilas-chat-sidebar .chat-history-toggle{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.kilas-chat-sidebar .chat-history-toggle:hover{color:var(--text)}
+.kilas-chat-sidebar .chat-history-toggle svg{flex:none;width:14px}
+.kilas-chat-sidebar .chat-history-toggle[aria-expanded=true] svg{transform:rotate(90deg)}
+.kilas-chat-sidebar .chat-history-content{min-width:0}
+.kilas-chat-sidebar .chat-history-content[hidden]{display:none}
 .kilas-chat-sidebar .ai-history{display:grid;gap:3px;min-width:0}
 .kilas-chat-sidebar .ai-history a{display:block;box-sizing:border-box;min-width:0;min-height:44px;padding:12px;border-radius:7px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;line-height:20px;color:var(--text);text-decoration:none}
 .kilas-chat-sidebar :is(.ai-new,.ai-history a):hover{background:var(--neutral-hover,#ececeb)}
@@ -21,7 +27,8 @@
 /* Home history scrolls independently so the bottom account control stays put. */
 body.kilas-light:has(.kilas-home-workspace) .premium-sidebar.kilas-revision-sidebar{overflow:visible;min-height:0}
 body.kilas-light:has(.kilas-home-workspace) .kilas-revision-sidebar .kilas-chat-sidebar{display:flex;flex-direction:column;flex:1;min-height:0;margin-bottom:12px;overflow:hidden}
-body.kilas-light:has(.kilas-home-workspace) .kilas-chat-sidebar>:not(.ai-history){flex:none}
+body.kilas-light:has(.kilas-home-workspace) .kilas-chat-sidebar>:not(.chat-history-content){flex:none}
+body.kilas-light:has(.kilas-home-workspace) .kilas-chat-sidebar .chat-history-content:not([hidden]){display:flex;flex-direction:column;flex:1;min-height:0}
 body.kilas-light:has(.kilas-home-workspace) .kilas-chat-sidebar .ai-history{display:block;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--control-border,#d5d7da) transparent}
 body.kilas-light:has(.kilas-home-workspace) .kilas-chat-sidebar .ai-history a{min-height:36px;padding:8px;margin:0}
 body.kilas-light:has(.kilas-home-workspace) .kilas-chat-sidebar .ai-history::-webkit-scrollbar{width:6px}

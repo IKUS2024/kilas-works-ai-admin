@@ -1,6 +1,12 @@
 /* Drawer interaction keeps drafts in place; leaving is always explicit. */
 (()=>{
   const rail=document.querySelector('[data-chat-sidebar]');if(!rail)return;
+  const toggle=rail.querySelector('[data-chat-history-toggle]'),history=rail.querySelector('[data-chat-history-content]');
+  if(toggle&&history)toggle.addEventListener('click',()=>{
+    const expanded=toggle.getAttribute('aria-expanded')!=='true';
+    if(!expanded&&history.contains(document.activeElement))toggle.focus();
+    history.hidden=!expanded;toggle.setAttribute('aria-expanded',String(expanded));
+  });
   const sidebar=rail.closest('#premium-sidebar');let leaving=false,carrying=false;
   const t=message=>window.KilasUI?window.KilasUI.t(message):message;
   function chatDirty(){

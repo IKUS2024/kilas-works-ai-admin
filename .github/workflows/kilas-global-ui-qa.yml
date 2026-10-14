@@ -27,9 +27,12 @@ jobs:
         with: {python-version: '3.12'}
       - run: pip install -r client-hub/requirements.txt playwright
       - run: python -m playwright install --with-deps chromium
+      - run: cd client-hub/tests && python -m unittest test_kilas_home
+      - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_chat_disclosure_browser.py
+        env:
+          KILAS_DISCLOSURE_SCREENSHOTS: /tmp/kilas-global-ui-qa/chat-disclosure
       - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_global_ui_browser.py
       - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_drawer_browser.py
-      - run: cd client-hub/tests && python -m unittest test_kilas_home
       - run: PYTHONPATH=client-hub:client-hub/tests python client-hub/tests/test_kilas_home_browser.py
         env:
           KILAS_HOME_SCREENSHOTS: /tmp/kilas-global-ui-qa/home

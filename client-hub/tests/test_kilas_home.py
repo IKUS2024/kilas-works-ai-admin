@@ -50,7 +50,8 @@ class HomeTests(unittest.TestCase):
         self.assertNotIn('premium-home-secondary',html)
         self.assertNotIn('<span>Percakapan</span>',html)
         self.assertEqual(html.count('name="product" value="finance"'),1)
-        self.assertIn('Riwayat percakapan',html)
+        self.assertIn('data-chat-history-toggle',html)
+        self.assertIn('aria-expanded="true" aria-controls="kilas-chat-history"',html)
         self.assertNotIn('home-recent',html)
         self.assertIn('data-chat-sidebar',html)
         self.assertNotIn('home-history-panel',html)
@@ -91,19 +92,21 @@ class HomeTests(unittest.TestCase):
         owned=store.create_thread(self.owner)
         title='Riwayat percakapan <script> My Library'
         store.rename_thread(self.owner,owned,title)
-        labels={'id':('Chat baru','Library saya','Riwayat percakapan'),
-                'en':('New chat','My Library','Conversation history'),
-                'es':('Nuevo chat','Mi biblioteca','Historial de conversaciones'),
-                'zh':('新对话','我的资料库','对话历史')}
+        labels={'id':('Chat baru','Library saya','Chat','See all'),
+                'en':('New chat','My Library','Chat','See all'),
+                'es':('Nuevo chat','Mi biblioteca','Chat','Ver todo'),
+                'zh':('新对话','我的资料库','对话','查看全部')}
         client=self.client()
-        for code,(new,library,history) in labels.items():
+        for code,(new,library,chat,see_all) in labels.items():
             client.set_cookie('kilas_language',code)
             for route in ('/products/start','/kilas-ai/agent?conversation='+str(self.conversation)):
                 with self.subTest(language=code,route=route):
                     html=client.get(route).text
                     self.assertIn('<span>'+new+'</span>',html)
                     self.assertIn('<span>'+library+'</span>',html)
-                    self.assertIn('<h2>'+history+'</h2>',html)
+                    self.assertIn('data-chat-history-toggle><span>'+chat+'</span>',html)
+                    self.assertIn('data-chat-navigation>'+see_all+'</a>',html)
+                    self.assertNotIn('href="/kilas-ai/agent?view=history"',html)
                     self.assertIn('title="Riwayat percakapan &lt;script&gt; My Library"',html)
                     self.assertIn('>Riwayat percakapan &lt;script&gt; My Library</a>',html)
 

@@ -1,15 +1,17 @@
 {% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
 {% set chat_history = home_ai if home_ai|default(false) else chat_sidebar_history() %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_sidebar.css',v='home-alignment-20261012') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_sidebar.css',v='chat-disclosure-20261014') }}">
 <section class="kilas-chat-sidebar" aria-label="{{ ui_t('Percakapan') }}" data-chat-sidebar>
   {% if home_agent|default(false) %}<form class="home-agent-new" method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" data-chat-navigation><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">{{ drawer_icon('new-chat') }}<span>{{ ui_t('Chat baru') }}</span></button></form>{% else %}<a class="ai-new" href="{{ url_for('products.product_start') }}" data-chat-navigation>{{ drawer_icon('new-chat') }}<span>{{ ui_t('Chat baru') }}</span></a>{% endif %}
   <a class="chat-history-all chat-library-entry" href="{{ url_for('kilas_ai.library') }}" data-chat-navigation>{{ drawer_icon('library') }}<span>{{ ui_t('Library saya') }}</span>{{ drawer_icon('chevron') }}</a>
-  <h2>{{ ui_t('Riwayat percakapan') }}</h2>
+  <h2><button class="chat-history-toggle" type="button" aria-expanded="true" aria-controls="kilas-chat-history" data-chat-history-toggle><span>{{ ui_t('Chat') }}</span>{{ drawer_icon('chevron') }}</button></h2>
+  <div class="chat-history-content" id="kilas-chat-history" data-chat-history-content>
   <nav class="ai-history" aria-label="{{ ui_t('Chat tersimpan') }}">
     {% for chat in chat_history.conversations %}<a href="{{ url_for('kilas_ai.agent_home',conversation=chat.id) }}" title="{{ chat.title }}" data-chat-navigation {% if home_agent|default(false) and conversation.id == chat.id %}aria-current="page"{% endif %}>{{ chat.title }}</a>{% endfor %}
     {% for item in chat_history.threads %}<a class="ai-history-item" href="{{ url_for('kilas_ai.thread_page',thread_id=item.id) }}" title="{{ item.title }}" data-chat-navigation {% if selected|default(false) and selected.id == item.id %}aria-current="page"{% endif %}>{{ item.title }}</a>{% endfor %}
     {% if not chat_history.conversations and not chat_history.threads %}<p class="ai-sidebar-empty">{{ ui_t('Percakapanmu akan tersimpan di sini.') }}</p>{% endif %}
   </nav>
-  <a class="chat-history-all" href="{{ url_for('kilas_ai.home',attachments='1') }}" data-chat-navigation>{{ ui_t('Buka ruang percakapan lengkap') }}</a>{% if chat_history.automation_enabled %}<a class="chat-history-all" href="{{ url_for('kilas_ai.agent_home',view='history') }}" data-chat-navigation>{{ ui_t('Riwayat percakapan') }}</a>{% endif %}
+  <a class="chat-history-all" href="{{ url_for('kilas_ai.home',attachments='1') }}" data-chat-navigation>{{ ui_t('See all') }}</a>
+  </div>
 </section>
-<script src="{{ url_for('static',filename='kilas_chat_sidebar.js',v='sidebar-review-1') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_chat_sidebar.js',v='chat-disclosure-20261014') }}" defer></script>
