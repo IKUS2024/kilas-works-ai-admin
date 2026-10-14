@@ -20,7 +20,7 @@ TEXT=r'''## Synthetic reasoning
 
 \[
 \begin{aligned}
-f(x)&=\sqrt{x+1}\\
+f(x)&=\sqrt{x+1}\\\\
 P&=\frac{\binom{6}{2}}{\binom{9}{2}}
 \end{aligned}
 \]
@@ -84,6 +84,7 @@ def main():
      for chunk in chunks:page.evaluate('text=>qaPart(text)',chunk)
      expect(body.locator('.katex')).to_have_count(4,timeout=10000)
      assert body.locator('[data-math-error]').count()==0
+     expect(body.locator('.ai-math-display mtable > mtr')).to_have_count(2)
      expect(body.locator('pre code')).to_have_text('literal = "<img src=x onerror=alert(1)> and \\(x_1\\)"\nprint(literal)')
      assert body.locator('table tr').last.locator('td').count()==2
      assert page.evaluate('window.qaInjected===undefined') and body.locator('img,script,iframe').count()==0
