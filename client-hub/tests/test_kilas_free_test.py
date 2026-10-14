@@ -17,6 +17,50 @@ NOW=datetime(2026,10,13,12,tzinfo=timezone.utc)
 
 
 class FreeTestTests(unittest.TestCase):
+    def test_translator_fence_reuses_fresh_table_fact_without_duplicate_user_or_schema_reads(self):
+        from kilas_ai import live_translator_store as sessions
+        with self.trial():
+            self.verified()
+            for owner in (self.user,self.other):
+                ident=sessions.create(owner,'id','en','kilas-male');key='live-'+str(owner).zfill(32);sessions.claim(owner,ident,key)
+                with patch.object(db,'query_one',wraps=db.query_one) as reads:
+                    self.assertEqual(live.check_session(owner,ident,key)['language_a'],'id')
+                self.assertEqual(reads.call_count,3,'One owned session read, one current user and one current proof read.')
+                sql=[call.args[0] for call in reads.call_args_list]
+                self.assertFalse(any('sqlite_master' in value or 'to_regclass' in value for value in sql))
+                self.assertEqual(sum('FROM users' in value for value in sql),1)
+                self.assertEqual(sum('kilas_realtime_checks' in value for value in sql),1)
+                sessions.end(owner,ident)
+            with patch.object(db,'query_one',wraps=db.query_one) as reads:self.assertTrue(live.ready(self.user))
+            self.assertTrue(any('sqlite_master' in call.args[0] for call in reads.call_args_list),'Public readiness still verifies schema.')
+
+    def test_optimized_translator_fence_keeps_user_key_proof_end_and_expiry_revocation_fresh(self):
+        from kilas_ai import live_translator_store as sessions
+        with self.trial():
+            self.verified();ident=sessions.create(self.user,'id','en','kilas-male');key='live-'+str(self.user).zfill(32);sessions.claim(self.user,ident,key)
+            live.check_session(self.user,ident,key)
+            for invalid in (None,0,-1,True,'9',99999999):self.assertFalse(live.ready(invalid))
+            with patch.dict(os.environ,{'ELEVENLABS_API_KEY':'different-synthetic-key'}):
+                with self.assertRaises(audio_store.AudioError) as denied:live.check_session(self.user,ident,key)
+                self.assertEqual(denied.exception.code,'translator_unavailable')
+            db.execute("UPDATE kilas_realtime_checks SET status='UNKNOWN' WHERE approval=?",(proof.APPROVAL,))
+            with self.assertRaises(audio_store.AudioError) as denied:live.check_session(self.user,ident,key)
+            self.assertEqual(denied.exception.code,'translator_unavailable')
+            self.verified();live.check_session(self.user,ident,key)
+            for now in (free_test.STT_END_AT,free_test.END_AT):
+                with self.trial(now):
+                    with self.assertRaises(audio_store.AudioError):live.check_session(self.user,ident,key)
+            with patch.dict(os.environ,{'KILAS_APP_FREE_TEST_ENABLED':'false'}):
+                with self.assertRaises(audio_store.AudioError):live.check_session(self.user,ident,key)
+            db.execute('UPDATE kilas_live_translator_sessions SET expires_at=? WHERE id=?',((NOW-timedelta(seconds=1)).isoformat(),ident))
+            with self.assertRaises(audio_store.AudioError) as denied:live.check_session(self.user,ident,key)
+            self.assertEqual(denied.exception.code,'session_ended')
+            db.execute("UPDATE kilas_live_translator_sessions SET expires_at='' WHERE id=?",(ident,))
+            sessions.end(self.user,ident)
+            with patch.object(live,'require_ready') as readiness:
+                with self.assertRaises(audio_store.AudioError):live.check_session(self.user,ident,key)
+                readiness.assert_not_called()
+
     def test_streamed_translator_trial_reads_proof_without_per_event_write_connections(self):
         from kilas_ai import providers, live_translator_store as sessions
         with self.trial():

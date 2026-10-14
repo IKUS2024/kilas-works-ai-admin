@@ -104,4 +104,28 @@ class WholeTests(unittest.TestCase):
    ident=self.session();response=self.client.post(self.path(ident,self.key()),data={'csrf_token':'audio-csrf','stream_output':'sentences-v1'})
    self.assertEqual(response.status_code,202);enqueue.assert_called_once();self.assertTrue(enqueue.call_args.kwargs['whole_output']);self.assertFalse(enqueue.call_args.kwargs.get('stream_output',False))
 
+ def test_known_case_insensitive_regional_metadata_is_canonicalized_only_within_selected_pair(self):
+  text='Every fact remains: 2 kg, 03/04, no delivery. Repeated repeated words.'
+  samples=[('id','en',' ID-id ','EN-us'),('en','id','en-GB','id-ID'),
+           ('zh','en','zh-Hans','en-US'),('pt','en','pt-BR','en-CA')]
+  self.credit(300)
+  for index,(source,target,source_tag,target_tag) in enumerate(samples,50):
+   with self.subTest(source=source_tag,target=target_tag),self.context(text,source_tag,target_tag):
+    ident=sessions.create(self.user,source,target,'kilas-male');key=self.key(index);info=sessions.claim(self.user,ident,key)
+    response=self.response(lambda:iter([self.raw]))
+    with patch.object(segments.transport,'request',return_value=response) as request:
+     job=self.process(ident,key,info)
+    request.assert_called_once();self.assertEqual(request.call_args.kwargs['json']['text'],text)
+    row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(job,));self.assertEqual((row['source_language'],row['target_language']),(source,target));self.assertEqual(row['original_script'],text)
+    result=self.client.get(self.path(ident,key)).json;self.assertEqual((result['source_language'],result['target_language']),(source,target));self.assertEqual(result['translated_text'],text);sessions.end(self.user,ident)
+
+ def test_empty_unknown_translation_keeps_no_speech_and_never_dispatches_tts(self):
+  self.credit(300)
+  with self.context('','unknown','unknown'):
+   ident=self.session();key=self.key();info=sessions.claim(self.user,ident,key)
+   with patch.object(segments.transport,'request') as request:
+    with self.assertRaises(audio_store.AudioError) as failed:self.process(ident,key,info)
+    self.assertEqual(failed.exception.code,'no_speech');request.assert_not_called()
+   self.assertEqual(sessions.result(self.user,ident,key)['error_code'],'no_speech')
+
 if __name__=='__main__':unittest.main()

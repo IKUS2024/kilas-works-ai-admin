@@ -496,6 +496,7 @@ def live_translator_turn(ident,key):
     elif state['status']=='FAILED':
         code=state.get('error_code')
         messages={'no_speech':'Ucapan belum terbaca dalam pasangan bahasa ini. Bicara kembali.',
+                  'translation_language_mismatch':'Bahasa hasil terjemahan belum sesuai dengan pasangan yang dipilih. Ucapan ini tidak diulang otomatis.',
                   'provider_credit_exhausted':'Kapasitas layanan suara tidak cukup. Sesi dijeda tanpa pembelian tambahan.',
                   'provider_credit_check_failed':'Kapasitas layanan suara belum dapat diperiksa. Sesi dijeda sebelum permintaan berikutnya.',
                   'provider_billing_unverified':'Status layanan suara belum terverifikasi. Sesi dijeda.',
@@ -504,7 +505,7 @@ def live_translator_turn(ident,key):
                   'zero_balance':'Kuota audio Live Translator belum tersedia untuk akun ini.',
                   'insufficient_balance':'Kuota audio tidak cukup untuk ucapan berikutnya.',
                   'stream_unavailable':'Audio belum tersedia. Sesi dijeda; ucapan ini tidak diulang otomatis.'}
-        state={'status':'FAILED','code':code,'recoverable':code in ('no_speech','translation_failed','transcription_failed','speech_failed','processing_failed','processing_interrupted'),
+        state={'status':'FAILED','code':code,'recoverable':code in ('no_speech','translation_failed','translation_language_mismatch','transcription_failed','speech_failed','processing_failed','processing_interrupted'),
                'error':messages.get(code,'Ucapan belum berhasil diproses. Ucapan ini tidak diulang otomatis.')}
     else:state={'status':state['status']}
     return state,200,{'Cache-Control':'private, no-store'}

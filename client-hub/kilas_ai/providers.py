@@ -55,7 +55,7 @@ def _events(response,*,chunk_size=None):
             raise ProviderError("bad_provider_stream") from None
 
 
-def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=None,event_chunk_size=None):
+def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=None,event_chunk_size=None,response_format=None):
     # Private server-selected profile; public chat callers retain their routing.
     profile = model_policy.chat_profile(messages) if profile is None else profile
     try:
@@ -64,7 +64,8 @@ def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=
             headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", **({'OpenAI-Project':project} if project else {})},
             json={"model": model, "messages": [{"role": "system", "content": system}] + messages,
                   "max_completion_tokens": profile["output_tokens"], "reasoning_effort": profile["effort"], "stream": True,
-                  "stream_options": {"include_usage": True}, "store": False},
+                  "stream_options": {"include_usage": True}, "store": False,
+                  **({'response_format':response_format} if response_format is not None else {})},
             stream=True, timeout=(10, 90),
         ) as response:
             response.raise_for_status()
@@ -80,6 +81,8 @@ def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=
                            "cached_input_tokens": (usage.get("prompt_tokens_details") or {}).get("cached_tokens",0)}
                 choices = event.get("choices") or []
                 if choices:
+                    if response_format is not None and (choices[0].get("delta") or {}).get("refusal"):
+                        yield {"type":"refusal"}  # Never expose provider refusal content.
                     delta = (choices[0].get("delta") or {}).get("content")
                     if isinstance(delta, str) and delta:
                         yield {"type": "delta", "text": delta}

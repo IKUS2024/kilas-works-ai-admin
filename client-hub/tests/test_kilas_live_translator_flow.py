@@ -87,7 +87,8 @@ class ApplicationFlowTests(unittest.TestCase):
     def setUpClass(cls):
         cls.raw = audio.mp3(1.4)
 
-    def context(self, translated='Hello. Hello. Complete final sentence.', *, realtime_on=False):
+    def context(self, translated='Hello. Hello. Complete final sentence.', *, realtime_on=False,
+                provider_languages=('id', 'en')):
         stack = ExitStack()
         stack.enter_context(self.funded())
         stack.enter_context(self.on())
@@ -103,7 +104,8 @@ class ApplicationFlowTests(unittest.TestCase):
 
         def translate(*args, **kwargs):
             yield {'type': 'delta', 'text': json.dumps({
-                'text': translated, 'source_language': 'id', 'target_language': 'en',
+                'text': translated, 'source_language': provider_languages[0],
+                'target_language': provider_languages[1],
             })}
             yield {'type': 'usage', 'input_tokens': 20, 'output_tokens': 18}
             yield {'type': 'finish', 'reason': 'stop'}
@@ -394,9 +396,9 @@ class ApplicationFlowTests(unittest.TestCase):
                       'Revoked proof did not settle')
             result = self.client.get(self.path(ident)).json
             self.assertEqual(result['status'], 'FAILED')
-            # Translation's existing public failure mapping also covers a lost
-            # readiness fence. The following TTS request must still be blocked.
-            self.assertEqual(result['code'], 'translation_failed')
+            # Preserve the actual lost-readiness fence instead of rewriting it
+            # as a supplier translation failure. TTS must still be blocked.
+            self.assertEqual(result['code'], 'translator_unavailable')
             translation.assert_called_once()
             request.assert_not_called()
             self.assertEqual(self.client.get(self.path(ident) + '/audio').status_code, 404)

@@ -56,7 +56,7 @@ class Relay:
     def check(self):
         if self.closed.is_set():raise self.error or failure('turn_cancelled')
         if monotonic()-self.started>=budget.LEASE_MS/1000:raise failure('realtime_deadline')
-        live.require_ready(self.owner);sessions.check(self.owner,self.ident,self.key)
+        live.check_session(self.owner,self.ident,self.key)
         if self.closed.is_set():raise self.error or failure('turn_cancelled')
 
     def arm_deadline(self):

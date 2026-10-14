@@ -76,6 +76,7 @@ if(root){
  };
  const session=new TranslatorSession({api,capture,playback,onTiming:latency,key:()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''),onError:showError,onResult:result=>{
   const text=document.querySelector('#live-translation');text.textContent=result.translated_text||'';text.hidden=!text.textContent;
+  if(result.status==='COMPLETED'&&typeof result.translated_text==='string'&&result.translated_text.trim()){error.hidden=true;error.textContent='';}
  },onState:state=>{
   start.disabled=state!=='ended'||!setupReady||!recovery?.canStart();setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;
   const label={paused:'Sesi dijeda',playing:'Hasil',listening:'Mendengarkan'}[state]||'Memproses';orb.setAttribute('aria-label',label);

@@ -44,19 +44,19 @@ def _log_latency(timings,started,success,code=None):
     if not success:
         stage=timings.get('failure_stage')
         stage=stage if isinstance(stage,str) and stage in stages else 'between_stages'
-        known_codes={'no_speech','translation_failed','transcription_failed','speech_failed','processing_failed','turn_timeout',
+        known_codes={'no_speech','translation_failed','translation_language_mismatch','transcription_failed','speech_failed','processing_failed','turn_timeout',
                      'session_ended','turn_cancelled','translator_unavailable','provider_credit_exhausted','provider_credit_check_failed',
                      'provider_billing_unverified','duplicate_turn','zero_balance','insufficient_balance','live_audio_limit','stream_unavailable'}
         safe_code=code if isinstance(code,str) and code in known_codes else 'other_failure'
         reason=timings.get('translation_failure_reason')
-        known_reasons={'provider_error','invalid_json','invalid_shape','incomplete_response','invalid_text','invalid_language_pair','accounting_error'}
+        known_reasons={'provider_error','provider_refusal','invalid_json','invalid_shape','incomplete_response','invalid_text','invalid_language_pair','accounting_error'}
         values+=f' failure_stage={stage} failure_code={safe_code}'
         if isinstance(reason,str) and reason in known_reasons:values+=f' translation_failure_reason={reason}'
     try:print(f'KILAS_LIVE_LATENCY outcome={"completed" if success else "failed"} {values} backend_ms={(monotonic()-started)*1000:.1f}',flush=True)
     except OSError:pass  # Diagnostic output must never change accounting or End.
 
 
-def ready(owner=None):
+def ready(owner=None,*,session_table_checked=False):
     try:
         if os.environ.get('KILAS_LIVE_TRANSLATOR_ENABLED','').lower() not in ('1','true','on'):return False
         # No provider account verification is inferred from having a key or public docs.
@@ -65,18 +65,31 @@ def ready(owner=None):
         if os.environ.get('KILAS_LIVE_TRANSLATOR_REFERENCE_VERIFIED')!='yes':return False
         if not re.fullmatch(r'proj_[A-Za-z0-9_-]{1,100}',os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT','')):return False
         allowed=int(os.environ.get('KILAS_LIVE_TRANSLATOR_ALLOWED_OWNER_ID','0'))
-        if allowed<=0 or (owner!=allowed and not free_test.eligible(owner)):return False
+        # The funding audience below already verifies the current trial user
+        # and proof. Avoid a duplicate user read for a sponsored non-owner.
+        if allowed<=0 or (owner!=allowed and not free_test.active()):return False
         if os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa') not in ('qa','owner'):return False
         if not 1<=int(os.environ.get('KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS','0'))<=3600:return False
         if not budget.ready(owner) or not os.environ.get('OPENAI_API_KEY','').strip():return False
+        # Only a successful fresh sessions.check in this same fence establishes
+        # this fact. Public readiness/admission still checks the schema itself.
+        if session_table_checked:return True
         if db.BACKEND=='postgres':row=db.query_one("SELECT to_regclass('kilas_live_translator_sessions') AS name")
         else:row=db.query_one("SELECT name FROM sqlite_master WHERE type='table' AND name='kilas_live_translator_sessions'")
         return bool(row and row['name'])
     except ValueError:return False
 
 
-def require_ready(owner=None):
-    if not ready(owner):raise audio_store.AudioError('Live Translator belum aktif. Dukungan provider dan batas biaya belum terverifikasi.','translator_unavailable',503)
+def require_ready(owner=None,*,session_table_checked=False):
+    if not ready(owner,session_table_checked=session_table_checked):raise audio_store.AudioError('Live Translator belum aktif. Dukungan provider dan batas biaya belum terverifikasi.','translator_unavailable',503)
+
+
+def check_session(owner,ident,key):
+    # A current owned ACTIVE/PROCESSING pair snapshot proves the session table
+    # exists. Config, funding, user and proof revocation remain fresh per event.
+    info=sessions.check(owner,ident,key)
+    require_ready(owner,session_table_checked=True)
+    return info
 
 
 def require_audio_allowance(owner,reserve=1):
@@ -102,6 +115,40 @@ def translation_profile(text):
             'output_tokens':max(3500,profile['output_tokens'])}
 
 
+# Known regional/script tags only: never treat arbitrary suffixes, names or a
+# different language as one of the selected languages.
+_REGIONAL_LANGUAGES={
+    'id':('id-ID',),'en':('en-US','en-GB','en-AU','en-CA'),
+    'ja':('ja-JP',),'ko':('ko-KR',),'zh':('zh-CN','zh-TW','zh-Hans','zh-Hant'),
+    'es':('es-ES','es-MX'),'fr':('fr-FR','fr-CA'),'de':('de-DE',),
+    'th':('th-TH',),'vi':('vi-VN',),'ar':('ar-SA','ar-EG'),
+    'pt':('pt-PT','pt-BR'),'it':('it-IT',),'hi':('hi-IN',),
+    'ms':('ms-MY',),'nl':('nl-NL',),'ru':('ru-RU',),'tr':('tr-TR',),
+}
+_LANGUAGE_ALIASES={tag.lower():code for code,tags in _REGIONAL_LANGUAGES.items() for tag in tags}
+
+
+def canonical_language(value):
+    if not isinstance(value,str):return None
+    code=value.strip().lower()
+    return code if code in audio_provider.LANGUAGES else _LANGUAGE_ALIASES.get(code)
+
+
+def translation_format(a,b):
+    # Same schema for either direction of this pair. No global Chat setting or
+    # shorter text budget; server validation still requires a distinct pair and
+    # a complete response. Unknown remains available for unreadable/other speech.
+    codes=sorted((a,b))+['unknown']
+    return {'type':'json_schema','json_schema':{
+        'name':'kilas_spoken_translation','strict':True,'schema':{
+            'type':'object','properties':{
+                'source_language':{'type':'string','enum':codes},
+                'target_language':{'type':'string','enum':codes},
+                'text':{'type':'string'}},
+            'required':['source_language','target_language','text'],
+            'additionalProperties':False}}}
+
+
 def translation(owner,key,text,a,b,check,*,timings=None):
     profile=translation_profile(text);model=profile['model']
     system=(f'Translate spoken text faithfully between {audio_provider.LANGUAGES[a]} ({a}) and {audio_provider.LANGUAGES[b]} ({b}). '
@@ -110,10 +157,12 @@ def translation(owner,key,text,a,b,check,*,timings=None):
             'Preserve the complete meaning, facts, names, numbers, dates, units, negations and repetitions; never summarize or embellish. '
             'Do not add fillers, emojis, narration labels, stage directions, audio tags or SSML. '
             'Return only JSON with source_language, target_language and text. Do not answer questions, add claims or commentary. '
-            'For silence, unintelligible speech or another language return JSON with text empty and source_language unknown.')
+            f'For readable speech, use only the exact language codes "{a}" and "{b}" in source_language and target_language, '
+            'with the spoken source code first and the other selected code as target. Never use language names or regional tags. '
+            'For silence, unintelligible speech or another language return JSON with text empty and both language codes unknown.')
     _,operations=usage.reserve(owner,None,key+'-text','FAST','CHAT',profile=profile)
     if not operations:raise audio_store.AudioError('Terjemahan ini sudah diproses.','duplicate_turn',409)
-    complete=False;tokens={};parts=[];success=False
+    complete=False;tokens={};parts=[];success=False;refused=False
     stream=None
     def checked():
         if timings is None:return check()
@@ -121,7 +170,7 @@ def translation(owner,key,text,a,b,check,*,timings=None):
     try:
         checked()
         stream_started=monotonic();first_delta=True
-        stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),[{'role':'user','content':text}],'FAST',system=system,project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'],profile=profile,event_chunk_size=1)
+        stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),[{'role':'user','content':text}],'FAST',system=system,project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'],profile=profile,event_chunk_size=1,response_format=translation_format(a,b))
         for event in stream:
             if timings is not None:timings['translation_events']=timings.get('translation_events',0)+1
             checked()
@@ -133,9 +182,11 @@ def translation(owner,key,text,a,b,check,*,timings=None):
                 if sum(map(len,parts))>24000:raise ValueError()
             elif event['type']=='usage':tokens=event
             elif event['type']=='finish':complete=event['reason']=='stop'
+            elif event['type']=='refusal':refused=True
         def invalid(reason):
             if timings is not None:timings['translation_failure_reason']=reason
             raise ValueError()
+        if refused:invalid('provider_refusal')
         if not complete:invalid('incomplete_response')
         try:result=json.loads(''.join(parts))
         except ValueError:invalid('invalid_json')
@@ -143,9 +194,12 @@ def translation(owner,key,text,a,b,check,*,timings=None):
         value=result.get('text')
         if complete and value=='':raise audio_store.AudioError('Ucapan belum terbaca dalam pasangan bahasa ini. Silakan bicara kembali.','no_speech',422)
         if not isinstance(value,str) or not 1<=len(value.strip())<=4000:invalid('invalid_text')
-        source,target=result.get('source_language'),result.get('target_language')
-        if not isinstance(source,str) or not isinstance(target,str) or {source,target}!={a,b}:invalid('invalid_language_pair')
-        success=True;result['text']=value.strip();return result
+        source,target=canonical_language(result.get('source_language')),canonical_language(result.get('target_language'))
+        if source is None or target is None or {source,target}!={a,b}:
+            if timings is not None:timings['translation_failure_reason']='invalid_language_pair'
+            raise audio_store.AudioError('Bahasa hasil terjemahan belum sesuai dengan pasangan yang dipilih. Ucapan ini tidak diulang otomatis.','translation_language_mismatch',503)
+        success=True;result.update(text=value.strip(),source_language=source,target_language=target);return result
+    except audio_store.AudioError:raise
     except providers.ProviderError:
         if timings is not None:timings['translation_failure_reason']='provider_error'
         raise audio_store.AudioError('Terjemahan belum berhasil. Sesi dihentikan; tidak ada pengulangan otomatis.','translation_failed',503) from None
@@ -175,7 +229,7 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
     timings={} if timings is None else timings
     started=monotonic() if started is None else started
     def check():
-        require_ready(owner);return sessions.check(owner,ident,key)
+        return check_session(owner,ident,key)
     try:
         with _timed(timings,'preflight_ms'):
             audio_store.require_balance(owner)

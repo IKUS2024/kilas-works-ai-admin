@@ -508,6 +508,9 @@ class LiveTranslatorTests(unittest.TestCase):
                ('invalid_shape','null','stop'),('invalid_text',json.dumps({**valid,'text':['private']}),'stop'),
                ('invalid_language_pair',json.dumps({**valid,'source_language':['private']}),'stop'),
                ('invalid_language_pair',json.dumps({**valid,'source_language':'fr'}),'stop'),
+               ('invalid_language_pair',json.dumps({**valid,'source_language':'en-invented'}),'stop'),
+               ('invalid_language_pair',json.dumps({**valid,'source_language':'en-US','target_language':'en-GB'}),'stop'),
+               ('invalid_language_pair',json.dumps({**valid,'source_language':'English'}),'stop'),
                ('incomplete_response',json.dumps(valid),'length')]
         with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(segments,'speech') as tts,patch.object(live.stt,'transcribe') as stt:
             ident=self.session()
@@ -516,11 +519,12 @@ class LiveTranslatorTests(unittest.TestCase):
                 events=[{'type':'delta','text':payload},{'type':'usage','input_tokens':21,'output_tokens':19},{'type':'finish','reason':finish}]
                 with patch.object(providers,'_openai',return_value=(event for event in events)) as provider,redirect_stdout(output):
                     with self.assertRaises(audio_store.AudioError) as failed:live.process(self.user,ident,key,None,info,committed_text='private-source-phrase',whole_output=True)
-                self.assertEqual(failed.exception.code,'translation_failed');self.assertEqual(provider.call_count,1)
-                self.assertEqual(sessions.result(self.user,ident,key)['error_code'],'translation_failed')
+                code='translation_language_mismatch' if reason=='invalid_language_pair' else 'translation_failed'
+                self.assertEqual(failed.exception.code,code);self.assertEqual(provider.call_count,1)
+                self.assertEqual(sessions.result(self.user,ident,key)['error_code'],code)
                 record=audio.f.db.query_one('SELECT status,input_tokens,output_tokens FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.user,key+'-text'))
                 self.assertEqual((record['status'],record['input_tokens'],record['output_tokens']),('FAILED',21,19))
-                log=output.getvalue();self.assertIn('failure_stage=translation_ms',log);self.assertIn('failure_code=translation_failed',log)
+                log=output.getvalue();self.assertIn('failure_stage=translation_ms',log);self.assertIn('failure_code='+code,log)
                 self.assertIn('translation_failure_reason='+reason,log);self.assertIn('translation_events=3.0',log)
                 self.assertIn('translation_settlement_ms=',log)
                 for private in ('private',ident,key,VOICE['id'],'proj_synthetic','synthetic-only'):self.assertNotIn(private,log)
@@ -673,6 +677,12 @@ class LiveTranslatorTests(unittest.TestCase):
             self.assertEqual(live.translation(self.user,self.key(),text,'id','en',lambda:None)['text'],'Hello, how are you?')
         profile=reserve.call_args.kwargs['profile'];body=request.call_args.kwargs['json']
         self.assertEqual(parsed.call_args.kwargs,{'chunk_size':1})
+        self.assertEqual(body['response_format'],live.translation_format('id','en'))
+        self.assertEqual(live.translation_format('id','en'),live.translation_format('en','id'))
+        schema=body['response_format']['json_schema'];self.assertTrue(schema['strict']);self.assertFalse(schema['schema']['additionalProperties'])
+        self.assertEqual(schema['schema']['required'],['source_language','target_language','text'])
+        self.assertEqual(schema['schema']['properties']['source_language']['enum'],['en','id','unknown'])
+        self.assertEqual(schema['schema']['properties']['target_language']['enum'],['en','id','unknown'])
         self.assertEqual(body['model'],profile['model']);self.assertEqual(body['reasoning_effort'],profile['effort']);self.assertEqual(body['max_completion_tokens'],profile['output_tokens'])
         self.assertEqual(body['messages'][1]['content'],text);self.assertIn('faithfully',body['messages'][0]['content']);self.assertEqual(request.call_count,1)
         instruction=body['messages'][0]['content']
@@ -689,6 +699,7 @@ class LiveTranslatorTests(unittest.TestCase):
         with patch.object(providers.requests,'post',return_value=response) as request,patch.object(providers,'_events',return_value=iter([])) as parsed:
             list(providers._openai(model_policy.LUNA,'synthetic-only',messages,'FAST'))
         self.assertEqual(parsed.call_args.kwargs,{})
+        self.assertNotIn('response_format',request.call_args.kwargs['json'])
         self.assertEqual(request.call_args.kwargs['json']['reasoning_effort'],original['effort'])
         self.assertEqual(request.call_args.kwargs['json']['max_completion_tokens'],original['output_tokens'])
 
@@ -707,6 +718,23 @@ class LiveTranslatorTests(unittest.TestCase):
         self.assertTrue(response.raw.closed);self.assertEqual(audio_store.balance(self.user)['available'],300)
         self.assertEqual(sessions.result(self.user,ident,self.key())['status'],'FAILED')
         self.assertEqual(audio.f.db.query_one('SELECT status FROM kilas_ai_usage WHERE user_id=?',(self.user,))['status'],'FAILED')
+
+    def test_structured_refusal_is_settled_once_without_tts_repair_or_private_content(self):
+        import requests
+        from urllib3.response import HTTPResponse
+        values=[{'choices':[{'delta':{'refusal':'private refusal content'}}]},
+                {'choices':[{'delta':{},'finish_reason':'stop'}]},
+                {'usage':{'prompt_tokens':10,'completion_tokens':2}}]
+        wire=''.join('data: '+json.dumps(value)+'\n\n' for value in values)+'data: [DONE]\n\n'
+        response=requests.Response();response.status_code=200;response.raw=HTTPResponse(body=io.BytesIO(wire.encode()),preload_content=False)
+        self.credit(300);output=io.StringIO()
+        with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(providers.requests,'post',return_value=response) as request,patch.object(segments,'speech') as tts,redirect_stdout(output):
+            ident=self.session();info=self.claim(ident)
+            with self.assertRaises(audio_store.AudioError) as failed:live.process(self.user,ident,self.key(),None,info,committed_text='private source content',whole_output=True)
+            self.assertEqual(failed.exception.code,'translation_failed');request.assert_called_once();tts.assert_not_called()
+        row=audio.f.db.query_one('SELECT status,input_tokens,output_tokens FROM kilas_ai_usage WHERE user_id=?',(self.user,))
+        self.assertEqual((row['status'],row['input_tokens'],row['output_tokens']),('FAILED',10,2))
+        self.assertIn('translation_failure_reason=provider_refusal',output.getvalue());self.assertNotIn('private',output.getvalue());self.assertTrue(response.raw.closed)
 
 
     def test_long_translation_is_returned_in_full_with_stop_and_language_validation(self):
