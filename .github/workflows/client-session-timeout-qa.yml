@@ -1,4 +1,4 @@
-name: Client Session Timeout QA
+name: Client Session Persistence QA
 on:
   pull_request:
     branches: [main]
@@ -19,7 +19,7 @@ on:
 permissions:
   contents: read
 jobs:
-  session-timeout:
+  session-persistence:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,13 +28,13 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r client-hub/requirements.txt
-      - name: Customer inactivity timeout regressions
+      - name: Customer retained-login foundation regressions
         run: |
           cd client-hub
           python - <<'PY'
           import sys
           sys.path.insert(0, "tests")
           import test_production_foundation as t
-          t.test_client_owner_session_expires_after_idle_timeout()
+          t.test_client_owner_session_retained_after_long_inactivity()
           t.test_active_client_owner_session_is_refreshed_not_logged_out()
           PY
