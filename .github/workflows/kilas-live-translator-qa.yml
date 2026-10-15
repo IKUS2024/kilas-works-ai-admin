@@ -20,7 +20,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python client-hub/tests/test_kilas_live_translator.py
       - run: |
-          for suite in test_kilas_live_translator_transport.py test_kilas_live_translator_sse.py test_kilas_live_translator_whole.py test_kilas_live_translator_realtime.py test_kilas_live_translator_flow.py; do
+          for suite in test_kilas_live_translator_transport.py test_kilas_live_translator_sse.py test_kilas_live_translator_whole.py test_kilas_live_translator_realtime.py test_kilas_live_translator_incremental.py test_kilas_live_translator_flow.py; do
             python -B scripts/run_offline_tests.py --only "$suite" || exit 1
           done
       - run: node --test client-hub/tests/test_kilas_live_translator*.mjs

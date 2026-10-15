@@ -37,7 +37,7 @@ class RealtimeTests(unittest.TestCase):
  session=fixture.LiveTranslatorTests.session
  key=fixture.LiveTranslatorTests.key
  credit=fixture.LiveTranslatorTests.credit
- def owner(self):return patch.dict(os.environ,{'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user),'KILAS_VO_STT_USAGE_MODE':'owner','KILAS_LIVE_TRANSLATOR_USAGE_MODE':'owner'})
+ def owner(self):return patch.dict(os.environ,{'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user),'KILAS_VO_STT_USAGE_MODE':'owner','KILAS_LIVE_TRANSLATOR_USAGE_MODE':'owner','KILAS_LIVE_INCREMENTAL_ENABLED':'false'})
  def make(self):
   self.credit(300);ident=self.session();key=self.key();info=sessions.claim(self.user,ident,key);cap=budget.claim(self.user,ident,key);self.assertTrue(rt._slots.acquire(blocking=False));relay=rt.Relay(self.user,ident,key,info,cap);self.addCleanup(lambda:rt._slots.release() if not relay.finished else None);return relay
  def row(self,key=None):return audio.f.db.query_one('SELECT * FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(self.user,budget.ledger_key(key or self.key())))

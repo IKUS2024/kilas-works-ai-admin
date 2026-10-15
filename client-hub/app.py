@@ -296,6 +296,8 @@ def create_app():
         if os.environ.get('KILAS_LIVE_TRANSLATOR_ENABLED','').lower() in ('1','true','on'):
             from kilas_ai import live_translator_realtime_account
             audio_schema.apply_release('0094_kilas_realtime_check')
+            from kilas_ai import live_translator_incremental
+            live_translator_incremental.startup_report()  # Fixed config only, no provider IO.
             live_translator_realtime_account.startup_probe()  # Harmless account reads.
             from kilas_ai import live_translator_realtime_check
             live_translator_realtime_check.startup()  # Explicit one-shot approval gate; durable no-retry marker.
