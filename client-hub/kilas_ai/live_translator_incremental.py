@@ -15,7 +15,8 @@ def enabled():
 
 
 def startup_report():
-    try:print(f'KILAS_LIVE_INCREMENTAL configured={str(enabled()).lower()} max_clauses={MAX_CLAUSES} endpoint_ms=2000 paid_qa=false',flush=True)
+    from .live_translator_segments import LIVE_SPEECH_SPEED
+    try:print(f'KILAS_LIVE_INCREMENTAL configured={str(enabled()).lower()} max_clauses={MAX_CLAUSES} endpoint_ms=2000 tts_speed={LIVE_SPEECH_SPEED} paid_qa=false',flush=True)
     except OSError:pass
 
 

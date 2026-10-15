@@ -18,6 +18,7 @@ from . import live_translator_output as temporary
 
 MAX_SEGMENTS=8
 MAX_BYTES=20*1024*1024
+LIVE_SPEECH_SPEED=0.93  # Request-local pacing; never change saved/Voice Over settings.
 MAGIC=b'KWSEG1'
 PREFIX='live-stream:'
 
@@ -197,13 +198,13 @@ def complete(owner,job,check=lambda:None):
 def speech(text,voice,check,on_first_byte,*,previous='',following=''):
     """One documented HTTP stream; never retry or switch endpoints after dispatch."""
     # Translator-only request overrides: moderate expressive variation while
-    # retaining the approved voice and normal speaking speed. Optional speaker
+    # retaining the approved voice with modestly calmer speech. Optional speaker
     # boost adds provider computation/latency for a subtle similarity effect;
     # keep similarity .75 and omit that extra processing for live conversation.
     # Do not edit saved voice defaults, add tags or rewrite the text.
     payload={'text':text,'model_id':'eleven_multilingual_v2',
              'voice_settings':{'stability':0.4,'similarity_boost':0.75,'style':0.0,
-                               'use_speaker_boost':False,'speed':1.0},
+                               'use_speaker_boost':False,'speed':LIVE_SPEECH_SPEED},
              'apply_text_normalization':'auto'}
     if previous:payload['previous_text']=previous[-1000:]
     if following:payload['next_text']=following[:1000]
