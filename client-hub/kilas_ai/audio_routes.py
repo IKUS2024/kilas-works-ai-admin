@@ -45,6 +45,27 @@ def seconds(value):
     return f'{value//60}m {value%60:02d}s' if value>=60 else f'{value}s'
 
 
+def _history_args():
+    try:
+        page=int(request.args.get('page',1))
+        through=int(request.args['through']) if 'through' in request.args else None
+        selected=int(request.args['selected']) if request.args.get('selected') else None
+    except ValueError:abort(400)
+    if any(value is not None and not 0<=value<=2**63-1 for value in (through,selected)):abort(400)
+    return page,through,selected
+
+
+@audio_bp.get('/history')
+def history_fragment():
+    page,through,selected=_history_args()
+    data=store.history_page(session['user_id'],page,through=through)
+    html=render_template('kilas_translator/_history.html',**data,selected_job_id=selected,
+                         video_script_ready=video_budget.ready(session['user_id']),
+                         languages=provider.LANGUAGES,seconds=seconds)
+    return {'html':html,'page':data['history_page'],'pages':data['history_page_count'],
+            'total':data['history_total']},200,{'Cache-Control':'private, no-store'}
+
+
 @audio_bp.get('')
 @audio_bp.get('/jobs/<int:ident>')
 def home(ident=None,initial_brief=None,home_task=None):
@@ -56,11 +77,10 @@ def home(ident=None,initial_brief=None,home_task=None):
     from .audio_presentation import upload_translation_visible
     if not upload_translation_visible():active_mode='voiceover'
     state=store.balance(user)
-    try:page=max(1,min(10000,int(request.args.get('page',1))))
-    except ValueError:abort(400)
-    rows=store.history(user,page)
+    page,through,_=_history_args()
+    recent=store.history_page(user,page,through=through)
     saved_voices=personal.saved_voices(user)
-    return render_template('kilas_translator/home.html',active_mode=active_mode,video_script_ready=video_budget.ready(user),content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,history=rows[:20],more=len(rows)>20,page=page,
+    return render_template('kilas_translator/home.html',**recent,selected_job_id=job['id'] if job else None,active_mode=active_mode,video_script_ready=video_budget.ready(user),content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,
                            voices=branded.public_choices(),
                            personal_voice=bool(personal.get(user)),personal_preview=personal.has_preview(user),voice_operation_key=secrets.token_hex(16),
                            saved_voices=saved_voices,

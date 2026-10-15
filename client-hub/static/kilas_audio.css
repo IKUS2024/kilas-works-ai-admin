@@ -62,3 +62,12 @@
 #voice-dictation #dictation-start{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px}
 #voice-dictation #dictation-start svg{width:20px;height:20px;flex:none}
 #voice-dictation #dictation-status:empty{display:none}
+
+/* Recent pagination is confined to the audio history component. */
+.audio-history{overflow-anchor:none}
+.audio-history [data-audio-history-list]{display:flow-root}
+.audio-history [data-audio-history-list] ul{margin:0}
+.audio-history .audio-history-pages{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:16px}
+.audio-history .audio-history-pages .btn{min-width:44px;min-height:44px;padding:8px;justify-content:center}
+.audio-history .audio-history-pages [aria-current=page]{color:#bd4700;background:#fff0e5;border-color:#edc9ae;opacity:1}
+.audio-history [data-audio-history-message]{min-height:1.5em;margin:8px 0 0;font-size:13px}

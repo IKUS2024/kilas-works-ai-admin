@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ 'Kilas Translator' if active_mode=='translate' else 'Voice Over' }} · Kilas Works
 {% endblock %}
-{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='voiceover-compact-20261015') }}">{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='recent-pages-20261015') }}">{% endblock %}
 {% block content %}
 {% if home_task %}{% include 'kilas_ai/_home_handoff.html' %}{% endif %}
 {% include 'kilas_content/_handoff.html' %}
@@ -74,8 +74,9 @@
 </form></section>
 <p id="audio-progress" role="status" aria-live="polite" hidden></p><p id="audio-error" role="alert" hidden></p><span id="audio-error-purchase" hidden></span>
 
-</main><aside class="audio-history"><h2>Recent</h2>{% if history %}<ul>{% for item in history %}<li><a href="{{ url_for('kilas_audio.home',ident=item.id) }}" data-audio-history="{{ item.id }}" {{ 'aria-current=page' if job and job.id==item.id }}><strong title="{{ item.title }}">{{ item.title }}</strong><span>{{ 'Translate' if item.mode=='translate' else 'Voice Over' }} · <span data-audio-history-status>{{ {'QUEUED':'Menunggu','PROCESSING':'Diproses','COMPLETED':'Selesai','FAILED':'Belum berhasil'}[item.status] }}</span></span><span>{{ languages.get(item.source_language,'Auto Detect') }} → {{ languages.get(item.target_language,'Bahasa naskah') }}{% if item.mode=='voiceover' %} · {{ item.voice_name }}{% endif %}</span><small><span data-audio-history-duration>{{ seconds(((item.source_ms if item.mode=='translate' else item.actual_ms)+999)//1000) }}</span> · <time datetime="{{ item.created_at }}">{{ item.created_at[:16].replace('T',' ') }} UTC</time></small></a>{% if item.mode=='voiceover' and item.status in ['COMPLETED','FAILED'] %}{% if item.has_original_script %}<button type="button" class="btn secondary audio-edit-script" data-audio-edit="{{ url_for('kilas_audio.script_for_edit',ident=item.id) }}">Edit naskah</button>{% else %}<small>Naskah asli tidak tersedia untuk hasil lama ini.</small>{% with reconstruct_job=item %}{% include 'kilas_translator/_reconstruct.html' %}{% endwith %}{% endif %}{% endif %}</li>{% endfor %}</ul>{% endif %}<nav aria-label="Halaman riwayat">{% if page>1 %}<a href="{{ url_for('kilas_audio.home',page=page-1,mode=active_mode) }}">Sebelumnya</a>{% endif %}{% if more %}<a href="{{ url_for('kilas_audio.home',page=page+1,mode=active_mode) }}">Berikutnya</a>{% endif %}</nav></aside></div>
+</main><aside class="audio-history" id="audio-history" data-history-url="{{ url_for('kilas_audio.history_fragment') }}" data-selected-job="{{ job.id if job else '' }}"><h2>Recent</h2><div data-audio-history-content>{% include 'kilas_translator/_history.html' %}</div><p data-audio-history-message role="status" aria-live="polite"></p></aside></div>
 </section>{% include '_generation_feedback.html' %}<script src="{{ url_for('static',filename='kilas_audio.js',v='voiceover-compact-20261015') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_audio_history.js',v='recent-pages-20261015') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_personal_voice.js',v='upload-20261013') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_voice_script.js',v='voiceover-compact-20261015') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_video_script.js',v='reconstruction-20261011') }}" defer></script>

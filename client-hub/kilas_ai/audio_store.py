@@ -66,8 +66,30 @@ def get(user,ident):
     return db.query_one("SELECT id,user_id,mode,title,source_language,target_language,voice_id,voice_name,estimated_seconds,source_ms,actual_ms,seconds_charged,status,provider_id,error_code,created_at,updated_at, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL THEN 1 ELSE 0 END AS has_original_script, CASE WHEN substr(result_content,5,4)=? THEN 1 ELSE 0 END AS result_is_video FROM kilas_audio_jobs WHERE id=? AND user_id=?",(b'ftyp',ident,user))
 
 
+HISTORY_PAGE_SIZE = 4
+
+
+def history_page(user,page=1,*,through=None):
+    # Keep one newest-first snapshot while paging; a newly created job must not
+    # shift older entries between pages. Every query remains owner scoped.
+    where='user_id=?';params=[user]
+    if through is not None:where+=' AND id<=?';params.append(through)
+    count=db.query_one('SELECT COUNT(*) AS total,MAX(id) AS latest FROM kilas_audio_jobs WHERE '+where,tuple(params))
+    total=int(count['total']);anchor=int(count['latest'] or 0)
+    pages=(total+HISTORY_PAGE_SIZE-1)//HISTORY_PAGE_SIZE
+    page=max(1,min(int(page),max(1,pages)))
+    rows=db.query_all("SELECT id,mode,title,source_language,target_language,voice_name,source_ms,actual_ms,status,created_at, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL THEN 1 ELSE 0 END AS has_original_script FROM kilas_audio_jobs WHERE user_id=? AND id<=? ORDER BY id DESC LIMIT ? OFFSET ?",(user,anchor,HISTORY_PAGE_SIZE,(page-1)*HISTORY_PAGE_SIZE))
+    visible=sorted({1,pages,*range(max(1,page-1),min(pages,page+1)+1)}) if pages>1 else []
+    numbers=[]
+    for number in visible:
+        if numbers and number-numbers[-1]>1:numbers.append(None)
+        numbers.append(number)
+    return {'history':rows,'history_page':page,'history_page_count':pages,
+            'history_total':total,'history_anchor':anchor,'history_pages':numbers}
+
+
 def history(user,page=1):
-    return db.query_all("SELECT id,mode,title,source_language,target_language,voice_name,source_ms,actual_ms,status,created_at, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL THEN 1 ELSE 0 END AS has_original_script FROM kilas_audio_jobs WHERE user_id=? ORDER BY id DESC LIMIT 21 OFFSET ?",(user,(page-1)*20))
+    return history_page(user,page)['history']
 
 
 def edit_script(user,ident):
