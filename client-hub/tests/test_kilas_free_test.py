@@ -163,13 +163,18 @@ class FreeTestTests(unittest.TestCase):
 
     def test_anonymous_invalid_role_session_and_admin_connector_isolation(self):
         with self.trial(),patch.object(learning.voices,'public_choices',return_value=[fixture.VOICE]):
-            for url in ('/kilas-ai','/kilas-translator?mode=voiceover','/kilas-learning'):
+            for url in ('/kilas-ai','/kilas-translator?mode=voiceover'):
                 self.assertEqual(self.client.get(url,follow_redirects=True).status_code,200)
                 self.assertEqual(fixture.fixture.f.app.app.test_client().get(url).status_code,302)
+            self.assertEqual(self.client.get('/kilas-learning').status_code,404)
+            self.assertEqual(fixture.fixture.f.app.app.test_client().get('/kilas-learning').status_code,302)
             db.execute("UPDATE users SET role='CLIENT_MEMBER' WHERE id=?",(self.user,))
-            self.assertEqual(self.client.get('/kilas-learning').status_code,403)
-            with self.client.session_transaction() as state:state['role']='CLIENT_MEMBER'
-            self.assertEqual(self.client.get('/kilas-learning').status_code,200)
+            invalid=self.client.get('/kilas-learning')
+            self.assertEqual(invalid.status_code,303)
+            self.assertIn('/login',invalid.headers['Location'])
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.user),_csrf_token='audio-csrf')
+            self.assertEqual(self.client.get('/kilas-learning').status_code,404)
             self.assertEqual(self.client.get('/kilas-ai/agent/connections/google/callback').status_code,404)
             self.assertNotEqual(self.client.get('/admin/kilas-ai').status_code,200)
 

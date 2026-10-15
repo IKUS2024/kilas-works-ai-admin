@@ -86,6 +86,12 @@ class RetirementTests(unittest.TestCase):
   self.assertTrue(audio_store.is_learning_output(self.user,job))
   self.assertEqual(audio_store.history_page(self.user)['history_total'],0)
 
+ def test_standalone_audio_without_learning_tables_remains_supported(self):
+  for backend,row in (('sqlite',{'n':0}),('sqlite',{'n':1}),('postgres',{'present':False})):
+   with self.subTest(backend=backend,row=row),patch.object(db,'BACKEND',backend),patch.object(db,'query_one',return_value=row) as query:
+    self.assertEqual(audio_store.learning_output_clause(),'(0=1)')
+    self.assertNotIn('FROM kilas_learning',query.call_args.args[0])
+
  def test_foreign_learning_relation_cannot_hide_an_ordinary_owned_voiceover(self):
   job=self.seed(1)[0]
   ident,_=learning_store.create(self.other,'retired-foreign-start','en','id','beginner','kilas-male')

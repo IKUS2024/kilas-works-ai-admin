@@ -58,13 +58,15 @@ Recheck count/bytes/digest after deployment; preserve all eight rows unchanged.
 
 ## Checks and limits
 
-Nine new retirement tests cover common pages and refresh, stale template flags,
+Ten new retirement tests cover common pages and refresh, stale template flags,
 permanent home closure, all creation/input/read/audio gates, Home/product
 handoffs, source-based history pagination, foreign-owner/title false positives,
-generic saved-job rejection and byte/ledger preservation. Existing Learning
+generic saved-job rejection, standalone Audio installs without Learning tables,
+and byte/ledger preservation. Existing Learning
 pipeline/retention tests remain as internal historical regressions; obsolete
 page-render tests now render an isolated archived template fixture, not a public
-route. Two old auth-fixture cookie mutations were replaced by the existing
+route. The free-test account regression now expects that entry to stay closed,
+rather than reopening it for sponsored users. Old auth-fixture cookie mutations were replaced by the existing
 legitimate authentication helper while preserving owner-isolation assertions.
 
 Offline suites: Learning retirement, historical Learning, Audio/history, Home,

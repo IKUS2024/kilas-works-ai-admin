@@ -81,6 +81,16 @@ def is_live_output(user,ident):
 def learning_output_clause(alias='kilas_audio_jobs'):
     # Soft-hide retired tutor results by an OWNED source relationship, not title:
     # an ordinary Voice Over may legitimately be called "Learning".
+    # Standalone Audio installs/rehearsals may never have installed Learning.
+    # Inspect without querying an absent table or caching across database/schema
+    # changes. No Learning records can exist when either source table is absent.
+    if db.BACKEND=='postgres':
+        row=db.query_one("SELECT to_regclass('kilas_learning_turns') IS NOT NULL AND to_regclass('kilas_learning_sessions') IS NOT NULL AS present")
+        present=bool(row and row['present'])
+    else:
+        row=db.query_one("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('kilas_learning_turns','kilas_learning_sessions')")
+        present=bool(row and int(row['n'])==2)
+    if not present:return '(0=1)'
     return f"EXISTS (SELECT 1 FROM kilas_learning_turns kt JOIN kilas_learning_sessions ks ON ks.id=kt.session_id WHERE ks.user_id={alias}.user_id AND (kt.audio_job_id={alias}.id OR {alias}.operation_key=kt.id||'-audio'))"
 
 
