@@ -462,8 +462,8 @@ class BrowserApplicationFlowTests(unittest.TestCase):
             for index, job in enumerate(jobs):
                 self.assertEqual(job['operation_key'], keys[index] + '-audio')
                 self.assertEqual(job['status'], 'COMPLETED')
-                self.assertEqual(job['original_script'], translations[index])
-                self.assertEqual(bytes(job['result_content']), raws[index])
+                self.assertIsNone(job['original_script'])
+                self.assertIsNone(job['result_content'])
                 self.assertGreater(job['seconds_charged'], 0)
                 self.assertEqual(job['seconds_charged'], (job['actual_ms'] + 999) // 1000)
             self.assertEqual(audio.f.db.query_one('SELECT seconds FROM kilas_audio_balances WHERE user_id=?', (self.user,))['seconds'], 300 - sum(job['seconds_charged'] for job in jobs))

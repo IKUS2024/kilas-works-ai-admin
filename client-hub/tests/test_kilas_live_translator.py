@@ -45,7 +45,10 @@ class LiveTranslatorTests(unittest.TestCase):
         with wave.open(data,'wb') as wav:
             wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(16000);wav.writeframes(b''.join(struct.pack('<h',int(2000*math.sin(i*2*math.pi*440/16000))) for i in range(16000)))
         return data.getvalue()
-    def session(self):return sessions.create(self.user,'id','en','kilas-male')
+    def session(self):
+        ident=sessions.create(self.user,'id','en','kilas-male')
+        self.addCleanup(sessions.end,self.user,ident)
+        return ident
     def claim(self,ident,key=None):return sessions.claim(self.user,ident,key or self.key())
 
     def test_default_off_missing_verification_or_reference_denies_before_mic_pipeline(self):
@@ -148,9 +151,9 @@ class LiveTranslatorTests(unittest.TestCase):
             response=self.client.get(prefix);self.assertEqual(response.status_code,200);self.assertEqual(response.json['translated_text'],'Hello, how are you?')
             download=self.client.get(response.json['audio_url']);self.assertEqual(download.status_code,200)
         self.assertEqual(download.data,self.audio);self.assertEqual(download.headers['Cache-Control'],'private, no-store')
-        live_reads=[s for s in statements if 'kilas_live_translator' in s or s.startswith('SELECT source_language,target_language,original_script')]
-        self.assertEqual(len(live_reads),3,'Completed metadata + audio use three bounded reads, formerly six.')
-        self.assertNotIn('result_content',live_reads[1])
+        live_reads=[s for s in statements if 'kilas_live_translator' in s or s.startswith('SELECT id FROM kilas_audio_jobs')]
+        self.assertEqual(len(live_reads),3,'Metadata and playback retain fresh ownership fences.')
+        self.assertTrue(all('result_content' not in sql and 'original_script' not in sql for sql in live_reads))
         audio.f.db.execute('UPDATE kilas_audio_jobs SET user_id=? WHERE id=?',(self.other,job))
         self.assertEqual(self.client.get(prefix).status_code,404);self.assertEqual(self.client.get(prefix+'/audio').status_code,404)
 

@@ -27,6 +27,8 @@ def main():
                 case=AudioHistoryTests('test_zero_four_five_nine_and_identical_timestamp_order')
                 case.id=lambda:f'audio-history-browser-{count}-{width}'
                 case.setUp();ids=case.seed(count)
+                if count==9 and width==1440:
+                    for upload in case.seed(5):f.db.execute("UPDATE kilas_audio_jobs SET mode='translate' WHERE id=?",(upload,))
                 f.db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,1000)',(case.user,))
                 if ids:f.db.execute('UPDATE kilas_audio_jobs SET result_content=?,actual_ms=60000 WHERE id=?',(clip,ids[-1]))
                 context=browser.new_context(viewport={'width':width,'height':900},has_touch=width<761)
@@ -101,10 +103,13 @@ def main():
                 assert page.evaluate('qaAudio.isConnected && !qaAudio.paused')
                 if count==9 and width==1440:
                     page.locator('#translate-tab').click()
+                    expect(history.locator('[data-audio-history-state]')).to_have_attribute('data-kind','translate')
+                    expect(history.locator('[data-audio-history]')).to_have_count(4)
                     page.evaluate("""() => {const input=document.querySelector('#audio-file'),files=new DataTransfer();files.items.add(new File(['synthetic local selection'],'keep-selected.wav',{type:'audio/wav'}));input.files=files.files;window.qaFile=input;}""")
-                    button=history.locator('[data-audio-history-page="3"]');button.scroll_into_view_if_needed()
+                    button=history.locator('[data-audio-history-page="2"]');button.scroll_into_view_if_needed()
                     y=page.evaluate('scrollY');active_url=page.url;button.click()
-                    expect(history.locator('[data-audio-history-state]')).to_have_attribute('data-page','3')
+                    expect(history.locator('[data-audio-history-state]')).to_have_attribute('data-page','2')
+                    expect(history.locator('[data-audio-history]')).to_have_count(1)
                     expect(page.locator('#translate-tab')).to_have_attribute('aria-selected','true')
                     assert page.evaluate('qaFile===document.querySelector("#audio-file") && qaFile.files[0].name==="keep-selected.wav"')
                     assert abs(page.evaluate('scrollY')-y)<=1 and page.url==active_url

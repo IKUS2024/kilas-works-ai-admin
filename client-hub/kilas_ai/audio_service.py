@@ -25,9 +25,16 @@ def submit(user,ident):
             store.submitted(user,ident,ident_provider,retain_video=bytes(payload['source_content'])[4:8]==b'ftyp')
         else:
             from . import audio_personal_voice as personal
+            transient=store.is_session_output(user,ident)
+            if transient:
+                from . import live_translator_output as temporary
+                entry=temporary.job(user,ident)
+                if not entry:raise store.AudioError('Hasil sementara sesi tidak tersedia.','session_output_expired',409)
+                payload={'script':entry['text']}
             options={'personal':True} if job['voice_name']=='Suara Saya' or personal.owns(user,job['voice_id']) else {}
             raw,request_id=provider.speech(payload['script'],job['voice_id'],job['target_language'],**options)
             store.finish(user,ident,raw,media.mp3_duration(raw),request_id)
+            if transient:temporary.update(user,ident,raw=raw)
     except (provider.ProviderError,media.MediaError,store.AudioError,budget.BudgetError) as error:
         store.fail(user,ident,getattr(error,'code','invalid_audio'))
     except Exception:

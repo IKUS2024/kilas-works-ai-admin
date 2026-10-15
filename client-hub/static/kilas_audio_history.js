@@ -2,21 +2,19 @@
 (() => {
   const root=document.querySelector('#audio-history'),region=root?.querySelector('[data-audio-history-content]');
   if(!region)return;
-  const status=root.querySelector('[data-audio-history-message]');
+  const status=root.querySelector('[data-audio-history-message]'),studio=document.querySelector('#audio-studio');
   let pending=null,version=0;
-  root.addEventListener('click',async event=>{
-    const button=event.target.closest('[data-audio-history-page]');
-    if(!button||button.disabled||!root.contains(button))return;
-    event.preventDefault();
-    const state=region.querySelector('[data-audio-history-state]'),page=Number(button.dataset.audioHistoryPage);
-    if(!Number.isInteger(page)||page<1||page>Number(state.dataset.pages))return;
+  async function load(page,reset=false){
+    const state=region.querySelector('[data-audio-history-state]'),kind=studio.dataset.activeMode;
+    if(!Number.isInteger(page)||page<1||(!reset&&page>Number(state.dataset.pages)))return;
     pending?.abort();const controller=new AbortController(),ticket=++version;pending=controller;
     const oldButtons=[...region.querySelectorAll('[data-audio-history-page]')],disabled=oldButtons.map(b=>b.disabled);
     oldButtons.forEach(b=>b.disabled=true);region.setAttribute('aria-busy','true');status.textContent='Memuat riwayat…';
     const timeout=setTimeout(()=>controller.abort(),15000);
     try{
       const url=new URL(root.dataset.historyUrl,location.origin);
-      url.searchParams.set('page',String(page));url.searchParams.set('through',state.dataset.through);
+      url.searchParams.set('page',String(page));url.searchParams.set('kind',kind);
+      if(!reset)url.searchParams.set('through',state.dataset.through);
       if(root.dataset.selectedJob)url.searchParams.set('selected',root.dataset.selectedJob);
       const response=await fetch(url,{credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal});
       if(!response.ok||response.redirected)throw Error();
@@ -42,6 +40,14 @@
       clearTimeout(timeout);
       if(ticket===version){pending=null;region.removeAttribute('aria-busy');}
     }
+  }
+  root.addEventListener('click',event=>{
+    const button=event.target.closest('[data-audio-history-page]');
+    if(!button||button.disabled||!root.contains(button))return;
+    event.preventDefault();load(Number(button.dataset.audioHistoryPage));
+  });
+  document.addEventListener('audio-mode-change',()=>{
+    if(pending||region.querySelector('[data-audio-history-state]').dataset.kind!==studio.dataset.activeMode)load(1,true);
   });
   window.addEventListener('pagehide',()=>{
     version++;pending?.abort();pending=null;region.removeAttribute('aria-busy');status.textContent='';

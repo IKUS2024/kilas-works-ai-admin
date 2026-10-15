@@ -36,7 +36,7 @@ class WholeTests(unittest.TestCase):
     with patch.object(segments.transport,'request',return_value=response) as request,patch.object(live.stt,'transcribe') as stt,patch.object(segments,'_join') as join,patch.object(live.audio_provider,'speech') as alternate:
      job=self.process(ident,key,info)
     request.assert_called_once();payload=request.call_args.kwargs['json'];self.assertEqual(payload['text'],text);self.assertEqual(payload['model_id'],'eleven_multilingual_v2');self.assertEqual(request.call_args.args[0],'POST');self.assertIn('/text-to-speech/'+fixture.VOICE['id']+'/stream',request.call_args.args[1]);stt.assert_not_called();join.assert_not_called();alternate.assert_not_called()
-    row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(job,));self.assertEqual(row['status'],'COMPLETED');self.assertEqual(bytes(row['result_content']),self.raw);self.assertEqual(row['original_script'],text);self.assertEqual(row['seconds_charged'],math.ceil(row['actual_ms']/1000));self.assertGreater(row['seconds_charged'],0)
+    row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(job,));self.assertEqual(row['status'],'COMPLETED');self.assertIsNone(row['result_content']);self.assertIsNone(row['original_script']);self.assertEqual(row['seconds_charged'],math.ceil(row['actual_ms']/1000));self.assertGreater(row['seconds_charged'],0)
     result=self.client.get(self.path(ident,key)).json;self.assertEqual(result['translated_text'],text);self.assertNotIn('segments',result);self.assertEqual(self.client.get(result['audio_url']).data,self.raw);sessions.end(self.user,ident)
  def test_delayed_second_transport_chunk_never_publishes_prefix_or_dispatches_again(self):
   available,release=Event(),Event();jobs=[];errors=[];text='First sentence. Final sentence with repeated repeated words.'
@@ -68,7 +68,7 @@ class WholeTests(unittest.TestCase):
     self.assertEqual(payload['apply_text_normalization'],'auto')
     for unsupported in ('language_code','previous_text','next_text','seed','use_pvc_as_ivc','audio_effects'):self.assertNotIn(unsupported,payload)
     self.assertNotIn('optimize_streaming_latency',request.call_args.kwargs['params'])
-    row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(job,));self.assertEqual(row['voice_id'],voice);self.assertEqual(row['original_script'],text);self.assertEqual(bytes(row['result_content']),self.raw)
+    row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(job,));self.assertEqual(row['voice_id'],voice);self.assertIsNone(row['original_script']);self.assertIsNone(row['result_content'])
     self.assertEqual(row['seconds_charged'],math.ceil(row['actual_ms']/1000));self.assertEqual(self.client.get(self.path(ident,key)).json['translated_text'],text)
     self.assertEqual([dict(row) for row in audio.f.db.query_all('SELECT * FROM kilas_audio_saved_voices')],before);sessions.end(self.user,ident)
  def test_end_during_transport_read_closes_response_without_audio_publication_or_second_request(self):
@@ -82,7 +82,7 @@ class WholeTests(unittest.TestCase):
     except BaseException as error:errors.append(error)
    with patch.object(segments.transport,'request',return_value=response) as request:
     thread=Thread(target=worker);thread.start();self.assertTrue(available.wait(2));sessions.end(self.user,ident);release.set();thread.join(3);self.assertFalse(thread.is_alive());request.assert_called_once();self.assertEqual(len(errors),1);self.assertIn(errors[0].code,('turn_cancelled','session_unavailable','session_ended'));response.__exit__.assert_called_once()
-   self.assertEqual(self.client.get(self.path(ident,key)+'/audio').status_code,404);row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE user_id=?',(self.user,));self.assertEqual(row['status'],'FAILED');self.assertEqual(row['original_script'],'Complete first sentence. Complete last sentence.');self.assertIsNone(row['result_content'])
+   self.assertEqual(self.client.get(self.path(ident,key)+'/audio').status_code,404);row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE user_id=?',(self.user,));self.assertEqual(row['status'],'FAILED');self.assertIsNone(row['original_script']);self.assertIsNone(row['result_content'])
  def test_end_after_complete_response_settles_valid_paid_output_once_but_never_exposes_it(self):
   with self.context('One full utterance. Every word remains present.'):
    self.credit(300);ident=self.session();key=self.key();info=sessions.claim(self.user,ident,key)
@@ -116,7 +116,7 @@ class WholeTests(unittest.TestCase):
     with patch.object(segments.transport,'request',return_value=response) as request:
      job=self.process(ident,key,info)
     request.assert_called_once();self.assertEqual(request.call_args.kwargs['json']['text'],text)
-    row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(job,));self.assertEqual((row['source_language'],row['target_language']),(source,target));self.assertEqual(row['original_script'],text)
+    row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(job,));self.assertEqual((row['source_language'],row['target_language']),(source,target));self.assertIsNone(row['original_script'])
     result=self.client.get(self.path(ident,key)).json;self.assertEqual((result['source_language'],result['target_language']),(source,target));self.assertEqual(result['translated_text'],text);sessions.end(self.user,ident)
 
  def test_empty_unknown_translation_keeps_no_speech_and_never_dispatches_tts(self):

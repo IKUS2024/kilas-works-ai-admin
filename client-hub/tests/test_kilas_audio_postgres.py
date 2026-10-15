@@ -24,7 +24,7 @@ def main():
         values=original();return dict(values,options=values['options']+' -c search_path='+isolated)
     try:
         with patch.object(db,'_postgres_connect_kwargs',side_effect=options):
-            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_','0090_','0091_','0092_','0095_'))]):db.init_schema()
+            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_','0090_','0091_','0092_','0095_','0098_'))]):db.init_schema()
             before={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert schema.apply_release()==[schema.NAME];assert schema.apply_release()==[]
             after={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
@@ -51,6 +51,8 @@ def main():
             assert schema.apply_release('0092_kilas_live_translator')==[]
             assert schema.apply_release('0095_kilas_free_test')==['0095_kilas_free_test']
             assert schema.apply_release('0095_kilas_free_test')==[]
+            assert schema.apply_release('0098_kilas_live_session_output')==['0098_kilas_live_session_output']
+            assert schema.apply_release('0098_kilas_live_session_output')==[]
             with store.locked(0) as conn:
                 user=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
                 admin=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio-admin@example.test','hash','KILAS_ADMIN') RETURNING id",one=True)[0]
@@ -206,6 +208,22 @@ def main():
             assert db.query_one('SELECT original_script FROM kilas_audio_jobs WHERE id=?',(failed,))['original_script']==original_text
             assert store.edit_script(user,failed)==original_text
             assert schema.apply_release('0090_kilas_audio_script_edit')==[]
+            # Session-only output on native PG retains charges, never content.
+            from kilas_ai import live_translator_store as live_sessions,live_translator_output as temporary
+            with store.locked(0) as conn:
+                live_user=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('live-session@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
+                usage._query(conn,'INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,10)',(live_user,))
+            session_id=live_sessions.create(live_user,'id','en','kilas-male');turn_key='live-'+uuid.uuid4().hex
+            live_sessions.claim(live_user,session_id,turn_key);temporary.begin(live_user,session_id,turn_key)
+            live_job,new=store.create(live_user,turn_key+'-audio','voiceover','Live Translator','id','en','voice','QA','Ephemeral words',0,None,2,5,live_session=(session_id,turn_key))
+            assert new and store.start(live_user,live_job)
+            temporary.bind(live_user,session_id,turn_key,live_job,{'text':'Ephemeral words','source_language':'id','target_language':'en'})
+            assert store.finish(live_user,live_job,b'ID3synthetic',2000)
+            row=db.query_one('SELECT script,original_script,source_content,result_content,content_origin,initial_reserved_seconds,seconds_charged FROM kilas_audio_jobs WHERE id=?',(live_job,))
+            assert all(row[field] is None for field in ('script','original_script','source_content','result_content'))
+            assert row['content_origin']=='live_session' and row['initial_reserved_seconds']==5 and row['seconds_charged']==2
+            assert store.balance(live_user)['seconds']==8 and store.history(live_user)==[]
+            live_sessions.end(live_user,session_id);assert temporary.get(live_user,session_id,turn_key) is None
     finally:
         with control.cursor() as cur:cur.execute('DROP SCHEMA '+isolated+' CASCADE')
         control.close()

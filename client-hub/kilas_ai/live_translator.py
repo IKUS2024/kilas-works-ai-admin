@@ -58,6 +58,9 @@ def _log_latency(timings,started,success,code=None):
 
 def ready(owner=None,*,session_table_checked=False):
     try:
+        if not session_table_checked:
+            from . import live_translator_output
+            if not live_translator_output.single_worker():return False
         if os.environ.get('KILAS_LIVE_TRANSLATOR_ENABLED','').lower() not in ('1','true','on'):return False
         # No provider account verification is inferred from having a key or public docs.
         if os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_MODEL')!=model_policy.luna_model():return False
@@ -97,12 +100,12 @@ def require_audio_allowance(owner,reserve=1):
     if free_test.eligible(owner):return
     now=usage._now()
     start=now.replace(day=1,hour=0,minute=0,second=0,microsecond=0) if os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa')=='owner' else now-timedelta(days=1)
-    rows=db.query_all("SELECT status,actual_ms,original_script FROM kilas_audio_jobs WHERE user_id=? AND operation_key LIKE ? AND title='Live Translator' AND created_at>=?",(owner,'live-%-audio',start.isoformat()))
+    rows=db.query_all("SELECT status,actual_ms,original_script,initial_reserved_seconds FROM kilas_audio_jobs WHERE user_id=? AND operation_key LIKE ? AND title='Live Translator' AND created_at>=?",(owner,'live-%-audio',start.isoformat()))
     used=0
     for row in rows:
         # A failed/dispatched result may still have supplier cost. Do not auto-refund
         # this safety allowance or reset historical records to permit another call.
-        used+=(int(row['actual_ms'])+999)//1000 if row['status']=='COMPLETED' else audio_service.estimate(row['original_script'] or '')[1]
+        used+=(int(row['actual_ms'])+999)//1000 if row['status']=='COMPLETED' else int(row['initial_reserved_seconds']) or audio_service.estimate(row['original_script'] or '')[1]
     if used+reserve>int(os.environ['KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS']):
         raise audio_store.AudioError('Batas audio Live Translator tercapai. Sesi dihentikan tanpa pembelian tambahan.','live_audio_limit',429)
 
@@ -225,7 +228,8 @@ def process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=F
 
 
 def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=False,whole_output=False,committed_text=None):
-    job=None;capability=None;success=False;failure_code=None
+    from . import live_translator_output as temporary
+    job=None;capability=None;success=False;failure_code=None;temporary_owned=False
     timings={} if timings is None else timings
     started=monotonic() if started is None else started
     def check():
@@ -237,6 +241,8 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
             choice=voices.resolve(info['voice_alias'])
             if not choice:raise audio_store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
             check()
+            temporary.begin(owner,ident,key)
+            temporary_owned=True
             if committed_text is None:
                 pcm,ms=stt.normalize(pcm)
                 with wave.open(io.BytesIO(pcm)) as wav:
@@ -260,7 +266,8 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
         with _timed(timings,'audio_reserve_ms'):
             expected,reserve=audio_service.estimate(result['text'])
             require_audio_allowance(owner,reserve)
-            job,new=audio_store.create(owner,key+'-audio','voiceover','Live Translator',result['source_language'],result['target_language'],choice['id'],choice['name'],result['text'],0,None,expected,reserve,original_script=result['text'])
+            job,new=audio_store.create(owner,key+'-audio','voiceover','Live Translator',result['source_language'],result['target_language'],choice['id'],choice['name'],result['text'],0,None,expected,reserve,live_session=(ident,key))
+            temporary.bind(owner,ident,key,job,result)
         check()
         if not new:raise audio_store.AudioError('Audio ini sudah diproses.','duplicate_turn',409)
         from . import live_translator_segments as segments
@@ -282,6 +289,8 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
                 # following session check keeps that cancelled result private.
                 with _timed(timings,'audio_measure_ms'):duration=audio_media.mp3_duration(raw)
                 with _timed(timings,'audio_settlement_ms'):audio_store.finish(owner,job,raw,duration)
+                check()
+                if not temporary.update(owner,job,raw=raw):raise audio_store.AudioError('Hasil sementara sesi tidak tersedia.','session_output_expired',409)
             elif len(parts)>1:
                 segments.attach(owner,ident,key,job,len(parts),reserve)
                 for index,part in enumerate(parts):
@@ -303,6 +312,8 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
         success=True
         return job
     except Exception as error:
+        if not temporary_owned and getattr(error,'code','')=='duplicate_turn':raise
+        if temporary_owned:temporary.discard(owner,ident,key)
         failure_code=getattr(error,'code','processing_failed')
         # A reservation that did not dispatch can be cancelled; dispatched cost stays recorded.
         if capability and budget.owned(owner,key)['status']=='RESERVED':budget.cancel(owner,key)

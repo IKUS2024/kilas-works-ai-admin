@@ -66,7 +66,7 @@ class SegmentTests(unittest.TestCase):
         self.assertEqual(final['reserved_seconds'],0);self.assertEqual(final['status'],'COMPLETED');self.assertEqual(store.balance(self.user)['seconds'],298)
         sessions.finish(self.user,ident,key,True,job)
         self.assertEqual(self.client.get(self.url(ident,key,1)).data,self.audio)
-        self.assertEqual(self.client.get(self.url(ident,key)+'/audio').status_code,200)
+        self.assertEqual(self.client.get(self.url(ident,key)+'/audio').status_code,404)  # Legacy archived bytes are retained but not offered as a saved Live result.
         self.assertEqual(self.client.get(self.url(ident,key)).json['audio_url'],self.url(ident,key)+'/audio')
         with self.assertRaises(store.AudioError):segments.complete(self.user,job)
         self.assertEqual(store.balance(self.user)['seconds'],298)
@@ -203,7 +203,7 @@ class SegmentTests(unittest.TestCase):
         data={'version':1,'total':2,'ceiling_ms':30000,'dispatched':1,'clips':[]};conn=object()
         def query(c,sql,params=(),one=False):
             self.assertIs(c,conn)
-            if sql.startswith('SELECT status'):return ('PROCESSING',segments._encode(data),0,0,30,len(segments.MAGIC))
+            if sql.startswith('SELECT status'):return ('PROCESSING',segments._encode(data),0,0,30,len(segments.MAGIC),'standard')
             return None
         with patch.object(store,'locked',return_value=nullcontext(conn)),patch.object(usage,'_query',side_effect=query) as statements,patch.object(store,'_balance',return_value=300),patch.object(usage,'_qa_quota_exempt',return_value=False),patch.object(audio.f.db,'BACKEND','postgres'),patch.object(segments.media,'mp3_duration',return_value=600):
             segments.commit_clip(self.user,1,0,b'x'*(1200*1024))

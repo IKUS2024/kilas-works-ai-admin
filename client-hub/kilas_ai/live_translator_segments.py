@@ -14,6 +14,7 @@ import requests
 import db
 from . import audio_store as store, audio_media as media, audio_provider as provider, usage
 from . import live_translator_store as sessions, live_translator_transport as transport
+from . import live_translator_output as temporary
 
 MAX_SEGMENTS=8
 MAX_BYTES=20*1024*1024
@@ -72,7 +73,10 @@ def attach(owner,ident,key,job,total,ceiling):
         row=usage._query(conn,"SELECT status FROM kilas_live_translator_turns WHERE session_id=? AND operation_key=?",(ident,key),one=True)
         if not row or row[0]!='PROCESSING':raise store.AudioError('Ucapan dibatalkan.','turn_cancelled',409)
         data={'version':1,'total':total,'ceiling_ms':ceiling*1000,'dispatched':0,'clips':[]};manifest(_encode(data))
-        usage._query(conn,"UPDATE kilas_audio_jobs SET status='PROCESSING',provider_id=?,source_content=? WHERE id=? AND user_id=? AND status='QUEUED'",(_encode(data),MAGIC,job,owner))
+        origin=usage._query(conn,'SELECT content_origin FROM kilas_audio_jobs WHERE id=? AND user_id=?',(job,owner),one=True)
+        transient=origin and origin[0]==temporary.ORIGIN
+        if transient:temporary.update(owner,job,framed=MAGIC)
+        usage._query(conn,"UPDATE kilas_audio_jobs SET status='PROCESSING',provider_id=?,source_content=? WHERE id=? AND user_id=? AND status='QUEUED'",(_encode(data),None if transient else MAGIC,job,owner))
         usage._query(conn,"UPDATE kilas_live_translator_turns SET audio_job_id=? WHERE session_id=? AND operation_key=? AND status='PROCESSING'",(job,ident,key))
 
 
@@ -103,12 +107,16 @@ def commit_clip(owner,job,index,raw,ms=None):
     if ms is not None and ms!=measured:raise store.AudioError('Durasi audio tidak cocok.','stream_invalid',503)
     ms=measured
     with store.locked(owner) as conn:
-        row=usage._query(conn,'SELECT status,provider_id,actual_ms,seconds_charged,reserved_seconds,length(source_content) FROM kilas_audio_jobs WHERE id=? AND user_id=?',(job,owner),one=True)
+        row=usage._query(conn,'SELECT status,provider_id,actual_ms,seconds_charged,reserved_seconds,length(source_content),content_origin FROM kilas_audio_jobs WHERE id=? AND user_id=?',(job,owner),one=True)
         if not row or row[0]!='PROCESSING':raise store.AudioError('Audio tidak tersedia.','stream_invalid',409)
         data=manifest(row[1])
         if not data or type(index) is not int or not 0<=index<data['total'] or index!=len(data['clips']) or data['dispatched']!=index+1:raise store.AudioError('Urutan audio berubah.','stream_invalid',409)
         if int(row[2])!=sum(c['ms'] for c in data['clips']):raise store.AudioError('Durasi audio berubah.','stream_invalid',409)
-        size=int(row[5] or 0);total_ms=int(row[2])+ms
+        transient=row[6]==temporary.ORIGIN
+        size=(len(MAGIC)+sum(8+c['bytes'] for c in data['clips'])) if transient else int(row[5] or 0)
+        entry=temporary.job(owner,job) if transient else None
+        if entry and len(entry['framed'] or b'')!=size:raise store.AudioError('Audio sementara berubah.','stream_invalid',409)
+        total_ms=int(row[2])+ms
         if size+8+len(raw)>MAX_BYTES:raise store.AudioError('Audio melebihi batas.','stream_limit',413)
         if total_ms>data['ceiling_ms']:raise store.AudioError('Durasi melebihi cadangan audio.','output_exceeds_reservation',402)
         exempt=usage._qa_quota_exempt(conn,owner,usage._now())
@@ -119,8 +127,11 @@ def commit_clip(owner,job,index,raw,ms=None):
         frame=struct.pack('>II',len(raw),ms)+raw
         # BYTEA writes stay small and all bytes + duration + debit commit atomically.
         expression='source_content || ?' if db.BACKEND=='postgres' else 'CAST(source_content || ? AS BLOB)'
-        for at in range(0,len(frame),512*1024):
-            usage._query(conn,'UPDATE kilas_audio_jobs SET source_content='+expression+' WHERE id=? AND user_id=?',(frame[at:at+512*1024],job,owner))
+        if transient:
+            if entry:temporary.update(owner,job,framed=entry['framed']+frame)
+        else:
+            for at in range(0,len(frame),512*1024):
+                usage._query(conn,'UPDATE kilas_audio_jobs SET source_content='+expression+' WHERE id=? AND user_id=?',(frame[at:at+512*1024],job,owner))
         data['clips'].append({'offset':size+8,'bytes':len(raw),'ms':ms})
         usage._query(conn,'UPDATE kilas_audio_jobs SET provider_id=?,actual_ms=?,seconds_charged=?,reserved_seconds=reserved_seconds-?,updated_at=? WHERE id=? AND user_id=?',(_encode(data),total_ms,charge,delta,usage._now().isoformat(),job,owner))
 
@@ -155,10 +166,13 @@ def _join(data,framed,check):
 
 
 def complete(owner,job,check=lambda:None):
-    output=db.query_one('SELECT source_content,provider_id FROM kilas_audio_jobs WHERE id=? AND user_id=?',(job,owner))
+    output=db.query_one('SELECT source_content,provider_id,content_origin FROM kilas_audio_jobs WHERE id=? AND user_id=?',(job,owner))
     data=manifest(output['provider_id']) if output else None
     if not data or len(data['clips'])!=data['total']:raise store.AudioError('Audio belum lengkap.','stream_invalid',409)
-    framed=bytes(output['source_content']);_frames(data,framed);raw=_join(data,framed,check)
+    transient=output['content_origin']==temporary.ORIGIN
+    entry=temporary.job(owner,job) if transient else None
+    if transient and not entry:raise store.AudioError('Hasil sementara sesi tidak tersedia.','session_output_expired',409)
+    framed=bytes(entry['framed'] if transient else output['source_content']);_frames(data,framed);raw=_join(data,framed,check)
     final_ms=max(sum(c['ms'] for c in data['clips']),media.mp3_duration(raw))
     if final_ms>data['ceiling_ms']:raise store.AudioError('Durasi melebihi cadangan audio.','output_exceeds_reservation',402)
     check()
@@ -172,9 +186,11 @@ def complete(owner,job,check=lambda:None):
         if delta<0 or (not exempt and (delta>int(ledger[1]) or delta>store._balance(conn,owner))):raise store.AudioError('Durasi melebihi cadangan audio.','output_exceeds_reservation',402)
         if delta:usage._query(conn,'UPDATE kilas_audio_balances SET seconds=seconds-? WHERE user_id=? AND seconds>=?',(delta,owner,delta))
         # Reuse completed duration/charges; never debit the full job a second time.
-        for at in range(0,len(raw),512*1024):
-            expression='?' if at==0 else 'result_content || ?' if db.BACKEND=='postgres' else 'CAST(result_content || ? AS BLOB)'
-            usage._query(conn,'UPDATE kilas_audio_jobs SET result_content='+expression+' WHERE id=? AND user_id=?',(raw[at:at+512*1024],job,owner))
+        if transient:temporary.update(owner,job,raw=raw)
+        else:
+            for at in range(0,len(raw),512*1024):
+                expression='?' if at==0 else 'result_content || ?' if db.BACKEND=='postgres' else 'CAST(result_content || ? AS BLOB)'
+                usage._query(conn,'UPDATE kilas_audio_jobs SET result_content='+expression+' WHERE id=? AND user_id=?',(raw[at:at+512*1024],job,owner))
         usage._query(conn,"UPDATE kilas_audio_jobs SET status='COMPLETED',actual_ms=?,seconds_charged=?,reserved_seconds=0,script=NULL,updated_at=? WHERE id=? AND user_id=?",(final_ms,charge,usage._now().isoformat(),job,owner))
 
 
@@ -212,22 +228,27 @@ def speech(text,voice,check,on_first_byte,*,previous='',following=''):
 
 def progress(owner,ident,key,state):
     if state['status'] not in ('PROCESSING','COMPLETED') or not state.get('audio_job_id'):return None
-    row=db.query_one('SELECT provider_id,original_script,source_language,target_language FROM kilas_audio_jobs WHERE id=? AND user_id=?',(state['audio_job_id'],owner))
+    row=db.query_one('SELECT provider_id,original_script,source_language,target_language,content_origin FROM kilas_audio_jobs WHERE id=? AND user_id=?',(state['audio_job_id'],owner))
     data=manifest(row['provider_id']) if row else None
     if not data:return None
-    parts=sentences(row['original_script'])
+    entry=temporary.get(owner,ident,key) if row['content_origin']==temporary.ORIGIN else None
+    if row['content_origin']==temporary.ORIGIN and not entry:return None
+    text=entry['text'] if entry else row['original_script']
+    parts=sentences(text)
     if sessions.result(owner,ident,key)['status'] not in ('PROCESSING','COMPLETED'):return None
     return {'total_segments':data['total'],'segments':[{'index':i,'duration_ms':clip['ms'],'translated_text':''.join(parts[:i+1]).strip()} for i,clip in enumerate(data['clips'])],
-            'translated_text':row['original_script'],'source_language':row['source_language'],'target_language':row['target_language']}
+            'translated_text':text,'source_language':row['source_language'],'target_language':row['target_language']}
 
 
 def clip(owner,ident,key,index):
     state=sessions.result(owner,ident,key)
     if state['status'] not in ('PROCESSING','COMPLETED') or not state.get('audio_job_id'):raise store.AudioError('Audio tidak tersedia.','turn_unavailable',404)
-    row=db.query_one('SELECT provider_id,source_content FROM kilas_audio_jobs WHERE id=? AND user_id=?',(state['audio_job_id'],owner))
+    row=db.query_one('SELECT provider_id,source_content,content_origin FROM kilas_audio_jobs WHERE id=? AND user_id=?',(state['audio_job_id'],owner))
     data=manifest(row['provider_id']) if row else None
     if not data or not 0<=index<len(data['clips']):raise store.AudioError('Audio tidak tersedia.','turn_unavailable',404)
-    record=data['clips'][index];framed=bytes(row['source_content'])
+    entry=temporary.get(owner,ident,key) if row['content_origin']==temporary.ORIGIN else None
+    if row['content_origin']==temporary.ORIGIN and not entry:raise store.AudioError('Hasil sementara sesi tidak tersedia.','session_output_expired',404)
+    record=data['clips'][index];framed=bytes(entry['framed'] if entry else row['source_content'])
     _frames(data,framed)
     # Recheck after the blob read so End/cancel cannot expose a stale chunk.
     latest=sessions.result(owner,ident,key)

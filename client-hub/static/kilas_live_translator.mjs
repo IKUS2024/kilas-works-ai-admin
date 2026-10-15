@@ -73,7 +73,7 @@ if(root){
   input:new RealtimeInput({json,csrf}),
   async start(data,signal){try{return await json('/kilas-translator/live/sessions',{method:'POST',body:data,signal,timeoutMs:30000});}catch(e){recoverRequested=true;throw e;}},
   turn:(...args)=>turns.turn(...args),resume:(...args)=>turns.resume(...args),
-  end:id=>recovery.endKnown(id),
+  end:id=>{const text=document.querySelector('#live-translation');text.textContent='';text.hidden=true;return recovery.endKnown(id);},
  };
  const session=new TranslatorSession({api,capture,playback,onTiming:latency,key:()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''),onError:showError,onResult:result=>{
   const text=document.querySelector('#live-translation');text.textContent=result.translated_text||'';text.hidden=!text.textContent;

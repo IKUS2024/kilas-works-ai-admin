@@ -292,6 +292,7 @@ def create_app():
         audio_schema.apply_release('0090_kilas_audio_script_edit')  # New VoiceOver originals only; existing rows remain NULL.
         audio_schema.apply_release('0091_kilas_voice_script_transcription')  # Independent default-off STT accounting; never customer credits.
         audio_schema.apply_release('0092_kilas_live_translator')  # Default-off owner session/turn fences; no provider activation.
+        audio_schema.apply_release('0098_kilas_live_session_output')  # Source marker and numeric audit reserve; no historical content deletion.
         if os.environ.get('KILAS_LIVE_TRANSLATOR_ENABLED','').lower() in ('1','true','on'):
             from kilas_ai import live_translator_realtime_account
             audio_schema.apply_release('0094_kilas_realtime_check')

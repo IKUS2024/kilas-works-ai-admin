@@ -16,6 +16,8 @@ jobs:
         with: {python-version: '3.12'}
       - run: pip install -r client-hub/requirements.txt
       - run: python client-hub/tests/test_kilas_audio.py
+      - run: python client-hub/tests/test_kilas_audio_history.py
+      - run: python client-hub/tests/test_kilas_live_session_output.py
       - run: python client-hub/tests/test_kilas_audio_video_script.py
       - run: python client-hub/tests/test_kilas_personal_voice.py
   browser:
@@ -28,6 +30,7 @@ jobs:
       - run: pip install -r client-hub/requirements.txt playwright
       - run: python -m playwright install --with-deps chromium
       - run: python client-hub/tests/test_kilas_audio_browser.py
+      - run: python client-hub/tests/test_kilas_audio_history_browser.py
       - run: python client-hub/tests/test_kilas_audio_video_script_browser.py
       - run: python client-hub/tests/test_kilas_personal_voice_browser.py
       - uses: actions/upload-artifact@v4

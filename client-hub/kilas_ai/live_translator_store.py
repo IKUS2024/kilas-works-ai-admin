@@ -83,6 +83,8 @@ def end(owner,ident):
         if not row:raise audio_store.AudioError('Sesi tidak tersedia.','session_unavailable',404)
         usage._query(conn,"UPDATE kilas_live_translator_sessions SET status='ENDED' WHERE id=?",(ident,))
         usage._query(conn,"UPDATE kilas_live_translator_turns SET status='CANCELLED' WHERE session_id=? AND status='PROCESSING'",(ident,))
+    from . import live_translator_output
+    live_translator_output.discard(owner,ident)
 
 
 def cancel_turn(owner,ident,key):
@@ -97,6 +99,8 @@ def cancel_turn(owner,ident,key):
             return 'CANCELLED'
         if row[1]=='PROCESSING':
             usage._query(conn,"UPDATE kilas_live_translator_turns SET status='CANCELLED',error_code='turn_cancelled' WHERE operation_key=? AND session_id=? AND status='PROCESSING'",(key,ident))
+            from . import live_translator_output
+            live_translator_output.discard(owner,ident,key)
             return 'CANCELLED'
         return row[1]
 

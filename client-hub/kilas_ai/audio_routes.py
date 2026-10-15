@@ -36,7 +36,7 @@ def invalid(error):
 
 def owned(ident):
     job=store.get(session['user_id'],ident)
-    if not job:abort(404)
+    if not job or store.is_live_output(session['user_id'],ident):abort(404)
     return job
 
 
@@ -58,7 +58,9 @@ def _history_args():
 @audio_bp.get('/history')
 def history_fragment():
     page,through,selected=_history_args()
-    data=store.history_page(session['user_id'],page,through=through)
+    kind=request.args.get('kind','voiceover')
+    if kind not in ('voiceover','translate'):abort(400)
+    data=store.history_page(session['user_id'],page,through=through,kind=kind)
     html=render_template('kilas_translator/_history.html',**data,selected_job_id=selected,
                          video_script_ready=video_budget.ready(session['user_id']),
                          languages=provider.LANGUAGES,seconds=seconds)
@@ -78,7 +80,7 @@ def home(ident=None,initial_brief=None,home_task=None):
     if not upload_translation_visible():active_mode='voiceover'
     state=store.balance(user)
     page,through,_=_history_args()
-    recent=store.history_page(user,page,through=through)
+    recent=store.history_page(user,page,through=through,kind=active_mode)
     saved_voices=personal.saved_voices(user)
     return render_template('kilas_translator/home.html',**recent,selected_job_id=job['id'] if job else None,active_mode=active_mode,video_script_ready=video_budget.ready(user),content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,
                            voices=branded.public_choices(),
@@ -507,11 +509,14 @@ def live_translator_turn(ident,key):
         if state['status']=='COMPLETED':progress['audio_url']=url_for('kilas_audio.live_translator_result',ident=ident,key=key)
         return {'status':state['status'],'stream_output':'sentences-v1',**progress},200,{'Cache-Control':'private, no-store'}
     if state['status']=='COMPLETED':
-        # Avoid loading/inspecting audio blobs merely to return completed metadata.
-        job=db.query_one("SELECT source_language,target_language,original_script FROM kilas_audio_jobs WHERE id=? AND user_id=? AND status='COMPLETED' AND mode='voiceover'",(state['audio_job_id'],session['user_id']))
-        if not job:abort(404)
+        from . import live_translator_output as temporary
+        owned_job=db.query_one("SELECT id FROM kilas_audio_jobs WHERE id=? AND user_id=? AND status='COMPLETED' AND content_origin='live_session'",(state['audio_job_id'],session['user_id']))
+        if not owned_job:abort(404)
+        job=temporary.get(session['user_id'],ident,key)
+        if not job or job['job']!=owned_job['id'] or not job['raw']:
+            return {'status':'FAILED','code':'session_output_expired','recoverable':True,'error':'Hasil sementara sesi sudah tidak tersedia. Ucapan ini tidak dibuat ulang otomatis.'},200,{'Cache-Control':'private, no-store'}
         state={'status':'COMPLETED','audio_url':url_for('kilas_audio.live_translator_result',ident=ident,key=key),
-               'translated_text':job['original_script'] or '',
+               'translated_text':job['text'],
                'source_language':job['source_language'],'target_language':job['target_language']}
     elif state['status']=='FAILED':
         code=state.get('error_code')
@@ -542,16 +547,13 @@ def live_translator_segment(ident,key,index):
 @audio_bp.get('/live/sessions/<ident>/turns/<key>/audio')
 def live_translator_result(ident,key):
     from . import live_translator_store as sessions
-    # One snapshot binds the owner, active session, completed turn and billed result.
-    # Ordinary Voice Over downloads retain their existing route and accounting.
-    row=db.query_one("SELECT s.language_a,s.language_b,j.title,j.target_language,CASE WHEN t.status='COMPLETED' AND j.status='COMPLETED' AND j.mode='voiceover' THEN j.result_content ELSE NULL END AS result_content FROM kilas_live_translator_sessions s LEFT JOIN kilas_live_translator_turns t ON t.session_id=s.id AND t.operation_key=? LEFT JOIN kilas_audio_jobs j ON j.id=t.audio_job_id AND j.user_id=s.user_id WHERE s.id=? AND s.user_id=? AND s.status='ACTIVE' AND (s.expires_at='' OR s.expires_at>?)",(key,ident,session['user_id'],usage._now().isoformat()))
+    from . import live_translator_output as temporary
+    row=db.query_one("SELECT s.language_a,s.language_b,CASE WHEN t.status='COMPLETED' AND j.status='COMPLETED' AND j.content_origin='live_session' THEN j.id ELSE NULL END AS id FROM kilas_live_translator_sessions s LEFT JOIN kilas_live_translator_turns t ON t.session_id=s.id AND t.operation_key=? LEFT JOIN kilas_audio_jobs j ON j.id=t.audio_job_id AND j.user_id=s.user_id WHERE s.id=? AND s.user_id=? AND s.status='ACTIVE' AND (s.expires_at='' OR s.expires_at>?)",(key,ident,session['user_id'],usage._now().isoformat()))
     if not row:abort(404)
     sessions.require_pair(row['language_a'],row['language_b'])
-    if row['result_content'] is None:abort(404)
-    from werkzeug.utils import secure_filename
-    raw=bytes(row['result_content']);wav=request.args.get('format')=='wav'
-    if wav:raw=media.download_wav(raw)
-    name=(secure_filename(row['title']).rsplit('.',1)[0][:80] or 'audio')+'-'+provider.LANGUAGES.get(row['target_language'],'Voice Over').split(' / ')[0]+('.wav' if wav else '.mp3')
-    response=send_file(io.BytesIO(raw),mimetype='audio/wav' if wav else 'audio/mpeg',download_name=name,as_attachment=request.args.get('download')=='1')
+    if row['id'] is None:abort(404)
+    output=temporary.get(session['user_id'],ident,key)
+    if not output or output['job']!=row['id'] or not output['raw']:abort(404)
+    response=send_file(io.BytesIO(output['raw']),mimetype='audio/mpeg')
     response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
     return response
