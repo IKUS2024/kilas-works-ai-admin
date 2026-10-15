@@ -28,7 +28,7 @@ def main():
                 case=fixture.UnifiedTests('test_ordinary_and_capability_never_create_jobs');case.id=lambda:'unified-browser-'+str(width);case.setUp()
                 cookie=case.client().get_cookie('session')
                 context=browser.new_context(viewport={'width':width,'height':900},has_touch=width<760,reduced_motion='reduce')
-                context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+                context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
                 page=context.new_page();errors=[]
                 page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(origin+'/kilas-ai',wait_until='networkidle')

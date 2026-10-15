@@ -55,11 +55,16 @@ commit evidence are recorded separately after deployment, not assumed here.
   voice values during pagination. DOM emulation provides no CSS-layout proof.
 - Ruff E9/F passed on changed Python files. Changed Python/JavaScript syntax,
   all 235 Jinja templates, and `git diff --check` passed.
-- Historical Indonesian audio copy checks now explicitly select Indonesian;
+- Historical Indonesian audio copy checks and browser fixtures now explicitly select Indonesian;
   default-English assertions live in the new suites. Existing expectations for
   default English and script-embedded catalogs were corrected. A stale Node VM
   fixture now supplies the Event/dispatchEvent primitives the existing script
-  already uses. No business assertion was removed.
+  already uses. No business assertion was removed. CI confirmed the old browser fixtures were
+  receiving correct English values (“Processing”, “uses 3s of balance”) while
+  expecting Indonesian without selecting a locale. Their existing Indonesian
+  UI scenarios now explicitly send `kilas_language=id`; the new dedicated
+  suite continues to test the no-preference English default. No browser was
+  launched manually for this fixture correction.
 
 ## Limits and release gate
 

@@ -40,7 +40,7 @@ def main():
                 context=browser.new_context(viewport={'width':width,'height':900},has_touch=width<761,reduced_motion='reduce')
                 context.add_init_script(DICTATION_MOCK + "Object.defineProperty(crypto,'randomUUID',{value:undefined});")
                 context.grant_permissions(['clipboard-read','clipboard-write'])
-                cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+                cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
                 page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 def check(name):
                     page.evaluate('document.activeElement?.blur();scrollTo(0,0)')
@@ -138,7 +138,7 @@ def main():
                     page.locator('#voice-script-assist > summary').click()
                     fallback=browser.new_context(viewport={'width':390,'height':900})
                     fallback.add_init_script('window.SpeechRecognition=undefined;window.webkitSpeechRecognition=undefined;')
-                    fallback.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+                    fallback.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
                     typed=fallback.new_page();typed.goto(origin+'/kilas-translator',wait_until='networkidle');typed.locator('#voiceover-tab').click();typed.locator('#voice-script-assist > summary').click()
                     expect(typed.locator('#voice-assist-mic')).to_be_disabled();expect(typed.locator('#voice-assist-mic-note')).to_contain_text('Ketik arahan')
                     typed.select_option('#voice-assist-mode','generate');typed.fill('#voice-assist-prompt','Naskah dari ide yang diketik.');typed.locator('#voice-assist-generate').click();expect(typed.locator('#voice-assist-status')).to_contain_text('masuk ke kolom',timeout=20000)
@@ -226,14 +226,14 @@ def main():
                 zero=f.repo.create_user(f'audio-zero-{width}@example.test','hash');client=f.app.app.test_client()
                 from auth_test_helpers import authenticate
                 authenticate(client,f.repo.get_user_by_id(zero),_csrf_token='zero-csrf')
-                cookie=client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+                cookie=client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
                 page.goto(origin+'/kilas-translator',wait_until='networkidle');expect(page.locator('.audio-balance,.audio-notice')).to_have_count(0);expect(page.locator('#translate-panel button[type=submit]')).to_be_disabled();check('paywall')
                 clean_workbench()
                 expect(page.locator('.audio-notice a')).to_have_count(0)
                 page.goto(origin+'/kilas-ai/video',wait_until='networkidle');expect(page.get_by_role('heading',name='Kuota Kilas Video belum tersedia')).to_be_visible();expect(page.locator('#video-submit')).to_be_disabled()
                 # Current presentation; explicit ON above retains full historical upload coverage.
                 with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false'}):
-                    cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+                    cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
                     page.goto(origin+'/kilas-translator?mode=translate',wait_until='networkidle')
                     expect(page.get_by_role('heading',name='Voice Over',exact=True)).to_be_visible()
                     expect(page.locator('#translate-tab,#translate-panel,#audio-file,[data-kilas-feature=translate]')).to_have_count(0)

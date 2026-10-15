@@ -32,7 +32,7 @@ def main():
                 f.db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,1000)',(case.user,))
                 if ids:f.db.execute('UPDATE kilas_audio_jobs SET result_content=?,actual_ms=60000 WHERE id=?',(clip,ids[-1]))
                 context=browser.new_context(viewport={'width':width,'height':900},has_touch=width<761)
-                cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+                cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
                 page=context.new_page();errors=[];navigations=[];documents=[];paid=[]
                 page.on('pageerror',lambda e:errors.append(str(e)))
                 page.on('framenavigated',lambda frame:navigations.append(frame.url) if frame==page.main_frame else None)

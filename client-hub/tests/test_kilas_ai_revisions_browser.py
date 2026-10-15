@@ -37,7 +37,7 @@ def main():
             for width,height in ((1440,900),(820,1000),(390,844),(320,700)):
                 client=case.client();cookie=client.get_cookie('session')
                 context=browser.new_context(viewport={'width':width,'height':height},has_touch=width<761)
-                context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);context.add_init_script(MIC)
+                context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}]);context.add_init_script(MIC)
                 page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
                 page.goto(origin+'/products/start',wait_until='networkidle')

@@ -23,7 +23,7 @@ def main():
             for width in (320,360,390,430,768,1024,1440):
                 case=PersonalVoiceTests('test_create_persist_retry_no_public_identifier');case.id=lambda:'personal-browser-'+str(width);case.setUp();case.credit(300)
                 c=browser.new_context(viewport={'width':width,'height':950},has_touch=width<761,permissions=['microphone'],reduced_motion='reduce')
-                cookie=case.client.get_cookie('session');c.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);page=c.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+                cookie=case.client.get_cookie('session');c.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}]);page=c.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(origin+'/kilas-translator',wait_until='networkidle');page.locator('#voiceover-tab').click();page.locator('[name=voice_kind][value=personal]').check()
                 expect(page.locator('#saved-voice-choice')).to_have_value('');expect(page.locator('#voice-generate')).to_be_disabled()
                 page.locator('#add-saved-voice').click();page.locator('#record-voice-name').fill('Suara Saya');page.locator('#record-start').click();expect(page.locator('#record-state')).to_contain_text('Mikrofon aktif')

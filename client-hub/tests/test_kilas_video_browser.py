@@ -27,7 +27,7 @@ def main():
                 active[0]=spec()
                 case=VideoTests('test_create_and_reopen_owner_history');case.id=lambda:'video-browser-'+str(width);case.setUp()
                 context=browser.new_context(viewport={'width':width,'height':950},has_touch=width<761,reduced_motion='reduce',permissions=['clipboard-read','clipboard-write'])
-                cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+                cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
                 page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 def check(name):
                     page.evaluate('window.scrollTo(0,0)')

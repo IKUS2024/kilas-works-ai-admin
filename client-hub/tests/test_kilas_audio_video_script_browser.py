@@ -23,7 +23,7 @@ def main():
                 case=VideoScriptTests('test_real_mp4_decode_original_text_only_no_tts_job_or_credit_debit');case.id=lambda:'video-script-browser-'+str(width);case.setUp();case.credit(300)
                 with case.funded(),patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false'}),patch.object(stt.requests,'post',return_value=case.response('Ucapan asli yang bisa diedit.')) as paid:
                     context=browser.new_context(viewport={'width':width,'height':height},has_touch=width<1024)
-                    cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+                    cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
                     page=context.new_page();errors=[];jobs=[];page.on('pageerror',lambda e:errors.append(str(e)));page.on('request',lambda r:jobs.append(r.url) if r.method=='POST' and r.url.endswith('/kilas-translator/jobs') else None)
                     page.goto(origin+'/kilas-translator?mode=voiceover',wait_until='networkidle')
                     expect(page.locator('#audio-script')).to_have_count(1);expect(page.locator('#translate-panel')).to_have_count(0)
@@ -39,7 +39,7 @@ def main():
             for width,height in ((390,844),(1440,900)):
                 case=VideoScriptTests('test_legacy_reconstruction_preserves_entire_job_and_never_restores_original');case.id=lambda:'legacy-script-browser-'+str(width);case.setUp();case.credit(300);ident=case.legacy_job()
                 with case.funded(),patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false'}),patch.object(stt.requests,'post',return_value=case.response('English spoken output, reconstructed.')) as paid:
-                    context=browser.new_context(viewport={'width':width,'height':height});cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);page=context.new_page();jobs=[];errors=[]
+                    context=browser.new_context(viewport={'width':width,'height':height});cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}]);page=context.new_page();jobs=[];errors=[]
                     page.on('request',lambda r:jobs.append(r.url) if r.method=='POST' and r.url.endswith('/kilas-translator/jobs') else None);page.on('pageerror',lambda e:errors.append(str(e)))
                     page.goto(origin+'/kilas-translator/jobs/'+str(ident),wait_until='networkidle');buttons=page.locator('[data-audio-reconstruct]');expect(buttons).to_have_count(2)
                     expect(page.locator('#audio-script')).to_have_count(1);expect(page.locator('[data-audio-edit]')).to_have_count(0)

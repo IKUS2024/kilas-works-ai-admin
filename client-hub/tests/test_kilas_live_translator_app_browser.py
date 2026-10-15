@@ -119,7 +119,7 @@ class BrowserApplicationFlowTests(unittest.TestCase):
                 try:
                     context = browser.new_context(viewport={'width': 390, 'height': 844})
                     cookie = self.client.get_cookie('session')
-                    context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}])
+                    context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin},{'name':'kilas_language','value':'id','url':origin}])
                     context.add_init_script('window.qaWav=' + json.dumps(base64.b64encode(self.signal()).decode()) + ';' + MEDIA)
                     page = context.new_page()
                     errors, requests = [], []
@@ -170,7 +170,7 @@ class BrowserApplicationFlowTests(unittest.TestCase):
             try:
                 context = browser.new_context(viewport={'width': 390, 'height': 844})
                 cookie = self.client.get_cookie('session')
-                context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}])
+                context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin},{'name':'kilas_language','value':'id','url':origin}])
                 context.add_init_script('window.qaWav=' + json.dumps(base64.b64encode(self.signal()).decode()) + ';' + MEDIA)
                 page = context.new_page()
                 errors, requests = [], []

@@ -23,7 +23,7 @@ def main():
             for width in (320,360,390,430,768,820,1024,1440):
                 case=VideoTests('test_create_and_reopen_owner_history');case.id=lambda:'video-parts-browser-'+str(width);case.setUp()
                 context=browser.new_context(viewport={'width':width,'height':950},has_touch=width<761,reduced_motion='reduce',permissions=['clipboard-read','clipboard-write'])
-                cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+                cookie=case.client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
                 page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(origin+'/kilas-ai/video',wait_until='networkidle')
                 expect(page.locator('#video-multi-controls')).to_be_hidden()

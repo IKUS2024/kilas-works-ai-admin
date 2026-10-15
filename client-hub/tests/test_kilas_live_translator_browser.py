@@ -28,7 +28,7 @@ def main():
             if os.environ.get('KILAS_QA_CHROMIUM'):options.update(executable_path=os.environ['KILAS_QA_CHROMIUM'],args=['--no-sandbox'])
             browser=pw.chromium.launch(**options)
             for width,height in ((320,780),(360,800),(390,844),(430,900),(820,1100),(1440,900)):
-                c=browser.new_context(viewport={'width':width,'height':height});cookie=case.client().get_cookie('session');c.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);c.add_init_script(MEDIA)
+                c=browser.new_context(viewport={'width':width,'height':height});cookie=case.client().get_cookie('session');c.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}]);c.add_init_script(MEDIA)
                 page=c.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)));state={'complete':False,'posts':0,'ends':0,'pairs':[],'sent_at':None,'hold_start':True,'pending':[]}
                 def route(r):
                     path=r.request.url.removeprefix(origin)

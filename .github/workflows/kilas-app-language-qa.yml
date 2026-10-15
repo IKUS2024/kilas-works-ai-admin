@@ -10,6 +10,7 @@ on:
       - 'client-hub/static/kilas_*.js'
       - 'client-hub/static/kilas_*.mjs'
       - 'client-hub/tests/test_ui_*'
+      - 'client-hub/tests/*browser.py'
       - '.github/workflows/kilas-app-language-qa.yml'
   workflow_dispatch:
 permissions:
