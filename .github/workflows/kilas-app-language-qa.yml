@@ -7,6 +7,8 @@ on:
       - 'client-hub/locales/**'
       - 'client-hub/templates/**'
       - 'client-hub/static/ui_i18n.*'
+      - 'client-hub/static/finance_branches.js'
+      - 'client-hub/routes_finance.py'
       - 'client-hub/static/kilas_*.js'
       - 'client-hub/static/kilas_*.mjs'
       - 'client-hub/tests/test_ui_*'
@@ -29,17 +31,20 @@ jobs:
       - run: pip install -r client-hub/requirements.txt ruff
       - name: Install browser-free DOM utility
         run: npm install --prefix /tmp/kilas-ui-dom --cache /tmp/kilas-ui-npm-cache --no-audit --no-fund --save-exact jsdom@26.1.0
-      - run: ruff check --select E9,F client-hub/ui_i18n.py client-hub/tests/test_ui_i18n.py client-hub/tests/test_ui_english_consistency.py
+      - run: ruff check --select E9,F client-hub/ui_i18n.py client-hub/tests/test_ui_i18n.py client-hub/tests/test_ui_english_consistency.py client-hub/tests/test_ui_finance_locale.py
       - name: Locale, response-boundary and real Flask rendering regressions
         run: |
           python -B scripts/run_offline_tests.py --only test_ui_i18n.py
           python -B scripts/run_offline_tests.py --only test_ui_english_consistency.py
           python -B scripts/run_offline_tests.py --only test_finance_home_dashboard.py
+          python -B scripts/run_offline_tests.py --only test_ui_finance_locale.py
         env:
           KILAS_ENGLISH_UI_FIXTURE_PATH: /tmp/kilas-ui-pages.json
+          KILAS_FINANCE_LOCALE_FIXTURE_PATH: /tmp/kilas-finance-ui-pages.json
           PYTHONDONTWRITEBYTECODE: '1'
       - name: Mocked UI, recovery and history DOM regressions
-        run: node --test client-hub/tests/test_ui_i18n.mjs client-hub/tests/test_ui_english_dom.mjs
+        run: node --test client-hub/tests/test_ui_i18n.mjs client-hub/tests/test_ui_english_dom.mjs client-hub/tests/test_ui_finance_locale.mjs
         env:
           KILAS_ENGLISH_UI_FIXTURE_PATH: /tmp/kilas-ui-pages.json
+          KILAS_FINANCE_LOCALE_FIXTURE_PATH: /tmp/kilas-finance-ui-pages.json
           KILAS_UI_DOM_TOOLS: /tmp/kilas-ui-dom

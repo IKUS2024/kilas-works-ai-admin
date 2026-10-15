@@ -16,6 +16,41 @@ const code=name=>readFileSync(new URL('../static/'+name,import.meta.url),'utf8')
 const tick=async()=>{for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));};
 
 for(const width of [390,1440]){
+ test(`Voice Over placeholder round-trips en/id/en across initialization, tabs and reset at ${width}`,async t=>{
+  for(const locale of ['en','id','en']){
+   const dom=new JSDOM(pages['voiceover-locale-'+locale],{url:'https://app.example.test/kilas-translator?mode=voiceover',runScripts:'outside-only',pretendToBeVisual:true});
+   t.after(()=>dom.window.close());const {window}=dom,{document}=window;
+   Object.defineProperty(window,'innerWidth',{value:width});window.eval(code('ui_i18n.js'));
+   const script=document.querySelector('#audio-script');
+   const expected=locale==='en'?'Write what you want to say...':'Tulis apa yang ingin diucapkan...';
+   let requests=0;
+   const first=document.querySelector('[data-audio-history-state]').outerHTML;
+   window.fetch=async url=>{
+    requests++;const params=new URL(url).searchParams,page=Number(params.get('page'));
+    const body=params.get('kind')==='translate'?pages['history-translate-locale-'+locale]:
+     page===1?{html:first,page:1,pages:2}:pages['history-locale-'+locale];
+    return {ok:true,redirected:false,json:async()=>body};
+   };
+   assert.equal(script.value,'');assert.equal(script.placeholder,expected);
+   assert.equal(document.querySelector('label[for="audio-script"]').textContent,locale==='en'?'Script':'Naskah');
+   assert.equal(document.querySelector('[name="voice_kind"][value="personal"]').closest('label').querySelector('strong').textContent,locale==='en'?'My Voice':'Suara Saya');
+   window.eval(code('kilas_audio.js'));window.eval(code('kilas_audio_history.js'));
+   assert.equal(script.placeholder,expected);assert.equal(requests,0);
+   script.value='Tulis apa yang ingin diucapkan...';
+   document.querySelector('#translate-tab').click();await tick();
+   document.querySelector('#voiceover-tab').click();await tick();
+   assert.equal(script.value,'Tulis apa yang ingin diucapkan...');assert.equal(script.placeholder,expected);
+   assert.equal(document.querySelector('#voice-translation-target').value,'en');
+   assert.equal(document.querySelector('#voice-language').value,'auto');
+   assert.equal(document.querySelector('#selected-voice').value,'kilas-male');
+   document.querySelector('[data-audio-history-page="2"]').click();await tick();
+   assert.equal(document.querySelector('[data-audio-history-message]').textContent,locale==='en'?'Page 2 of 2.':'Halaman 2 dari 2.');
+   assert.equal(script.value,'Tulis apa yang ingin diucapkan...');assert.equal(script.placeholder,expected);
+   script.closest('form').reset();assert.equal(script.value,'');assert.equal(script.placeholder,expected);
+   assert.equal(document.documentElement.lang,locale);assert.equal(requests,3);
+  }
+ });
+
  test(`English history at ${width} preserves user draft and audio form through paging`,async t=>{
   const dom=new JSDOM(pages['history-first'],{url:'https://app.example.test/kilas-translator?mode=voiceover',runScripts:'outside-only',pretendToBeVisual:true});
   t.after(()=>dom.window.close());const {window}=dom,{document}=window;

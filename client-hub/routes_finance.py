@@ -2515,7 +2515,8 @@ def reports(business_id,user,business):
         'finance_reports.html',user=user,business=business,
         filters=filters,today=finance.business_today(business_id).isoformat(),
         data=data,summary=summary,directions=finance_reports.DIRECTIONS,
-        account_types=finance_reports.ACCOUNT_TYPES))
+        account_types=finance_reports.ACCOUNT_TYPES,
+        account_type_options=finance.list_account_type_options(business_id,**actor)))
     response.headers['Cache-Control']='private, no-store'
     return response
 

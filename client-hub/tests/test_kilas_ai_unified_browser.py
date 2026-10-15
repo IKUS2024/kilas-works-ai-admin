@@ -116,7 +116,7 @@ def main():
                 assert page.locator('#agent-sidebar a[href*=tasks],#agent-sidebar a[href*=notifications]').count()==0
                 page.screenshot(path=str(Path(tempfile.gettempdir())/f'kilas-cleanup-sidebar-{width}.png'))
                 click_new_chat(page,agent=True)
-                expect(page.get_by_role('heading',name='How can I Help you?')).to_be_visible()
+                expect(page.get_by_role('heading',name='Apa yang bisa saya bantu?')).to_be_visible()
                 expect(page.locator('.work-sent-file,[data-job-id]')).to_have_count(0)
                 page.goto(origin+'/kilas-ai/agent?view=history',wait_until='networkidle')
                 assert page.locator(f'nav[aria-label="Riwayat percakapan"] a[href$="conversation={original}"]').count()==1

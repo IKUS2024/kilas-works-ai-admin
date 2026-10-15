@@ -79,7 +79,7 @@ def main():
                 assert page.locator('#auth-password').get_attribute('type') == 'text'
                 context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin},{'name':'kilas_language','value':'id','url':origin}])
                 capture('home', '/products/start')
-                expect(page.get_by_role('heading', name='How can I Help you?', exact=True)).to_be_visible()
+                expect(page.get_by_role('heading', name='Apa yang bisa saya bantu?', exact=True)).to_be_visible()
                 assert page.locator('.premium-brand[href="/products/start"]').count() == 2
                 expect(page.locator('.premium-home-secondary,.home-recent,.home-project-options')).to_have_count(0)
                 assert page.locator('.premium-navigation').get_by_text('Assist').count() == 0

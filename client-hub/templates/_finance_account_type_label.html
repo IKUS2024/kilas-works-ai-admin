@@ -1,0 +1,4 @@
+{# Localize system options only; custom labels and submitted values stay original. #}
+{% macro account_type_label(name, options) -%}
+{{- ui_t(name) if options|selectattr('is_default')|selectattr('name','equalto',name)|list else name -}}
+{%- endmacro %}

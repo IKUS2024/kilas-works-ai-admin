@@ -123,8 +123,17 @@ class LanguageTests(unittest.TestCase):
 
     def test_catalog_is_complete_and_has_no_empty_translations(self):
         for key, translations in ui_i18n.CATALOG.items():
-            self.assertEqual(set(translations), {'en', 'es', 'zh'}, key)
+            self.assertTrue({'en', 'es', 'zh'} <= set(translations) <= set(ui_i18n.LANGUAGES), key)
             self.assertTrue(all(value.strip() for value in translations.values()), key)
+
+    def test_english_source_ui_keys_have_explicit_indonesian_client_mappings(self):
+        with self.app.test_request_context(headers={'Cookie':'kilas_language=id'}):
+            context = {}
+            self.app.update_template_context(context)
+            for key, expected in [('See all','Lihat semua'),('Profile','Profil'),
+                                  ('Wallet','Dompet'),('Generate Voice Over','Buat Voice Over')]:
+                self.assertEqual(ui_i18n.translate(key), expected)
+                self.assertEqual(context['ui_messages'][key], expected)
 
 
 if __name__ == '__main__':

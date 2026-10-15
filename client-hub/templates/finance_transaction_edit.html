@@ -20,5 +20,5 @@
 <button class="btn">{{ ui_t('💾 Simpan Perubahan') }}</button>
 </form>
 <div class="card"><h2>{{ ui_t('Tindakan') }}</h2><p class="muted">{{ ui_t('Menghapus transaksi akan mengeluarkan nilainya dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar perubahan dapat dilacak.') }}</p><form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=transaction.id) }}" onsubmit='return confirm({{ ui_t('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari semua perhitungan Finance.')|tojson }});'><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary finance-delete" type="submit">{{ ui_t('🗑️ Hapus Transaksi') }}</button></form></div>
-<script src="{{ url_for('static',filename='finance_branches.js',v='20260922-decimal-1') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_branches.js',v='locale-types-20261015') }}" defer></script>
 {% endblock %}

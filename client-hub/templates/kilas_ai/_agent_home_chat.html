@@ -5,7 +5,7 @@
           {% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}
           {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}" data-message-id="{{ message.id }}"><div class="agent-speaker">{{ ui_t('Kamu') if message.role == 'user' else ui_t('Kilas') }}</div><div class="agent-message-text {{ 'ai-markdown' if message.role=='assistant' else '' }}" {% if message.role=='assistant' %}data-kilas-markdown{% endif %}>{{ message.content }}</div>{% if message_attachments.get(message.id) %}<div class="work-sent-files" aria-label="{{ ui_t('Lampiran terkirim') }}">{% for attachment in message_attachments[message.id] %}{% include 'kilas_ai/_message_attachment.html' %}{% endfor %}</div>{% endif %}</article>{% for job in inline_jobs.get(message.id,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endfor %}
         {% else %}
-          <div class="agent-welcome"><img class="kilas-new-chat-logo" src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="1254" height="1254" alt="Kilas" loading="eager" fetchpriority="high" decoding="async"><h3>How can I Help you?</h3></div>
+          <div class="agent-welcome"><img class="kilas-new-chat-logo" src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="1254" height="1254" alt="Kilas" loading="eager" fetchpriority="high" decoding="async"><h3>{{ ui_t('How can I Help you?') }}</h3></div>
         {% endif %}
         {% if not messages %}{% for job in inline_jobs.get(0,[]) %}{% include 'kilas_ai/_work_job.html' %}{% endfor %}{% endif %}
       </div>

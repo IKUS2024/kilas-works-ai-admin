@@ -115,7 +115,7 @@ class HomeTests(unittest.TestCase):
         owned=store.create_thread(self.owner)
         title='Riwayat percakapan <script> My Library'
         store.rename_thread(self.owner,owned,title)
-        labels={'id':('Chat baru','Library saya','Chat','See all'),
+        labels={'id':('Chat baru','Pustaka saya','Chat','Lihat semua'),
                 'en':('New chat','My Library','Chat','See all'),
                 'es':('Nuevo chat','Mi biblioteca','Chat','Ver todo'),
                 'zh':('新对话','我的资料库','对话','查看全部')}

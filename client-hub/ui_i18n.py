@@ -73,12 +73,11 @@ def install(app):
 
     @app.context_processor
     def localized_ui():
-        selected = language()
         # Keep the client catalog limited to explicit UI copy used by scripts;
         # include new audio/status keys without shipping unrelated page copy.
         keys = CLIENT_MESSAGES
-        return {'ui_messages': ({key: translate(key) for key in keys}
-                               if selected != 'id' else {})}
+        messages = {key: translate(key) for key in keys}
+        return {'ui_messages': {key: value for key, value in messages.items() if value != key}}
 
     @app.after_request
     def localized_ui_response(response):

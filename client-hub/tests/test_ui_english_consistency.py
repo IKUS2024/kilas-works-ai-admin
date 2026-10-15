@@ -1,6 +1,7 @@
 """Real Flask rendering with synthetic accounts; no browser or paid provider IO."""
 import json
 import os
+import re
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
@@ -13,14 +14,18 @@ from kilas_ai import providers, audio_provider, content_projects, content_schema
 
 class VisibleUI(HTMLParser):
     def __init__(self, html):
-        super().__init__(); self.hidden = []; self.text = []
+        super().__init__(); self.hidden = []; self.text = []; self.controls = {}
         self.feed(html)
 
     def handle_starttag(self, tag, attrs):
-        if tag in ('script', 'style', 'textarea', 'pre', 'code'):
-            self.hidden.append(tag)
         if not self.hidden:
             self.text.extend(value for key, value in attrs if key in ('aria-label', 'title', 'placeholder') and value)
+            values = dict(attrs)
+            if values.get('id'):
+                self.controls[values['id']] = values
+        # A textarea's attributes are UI; only its contents are user text.
+        if tag in ('script', 'style', 'textarea', 'pre', 'code'):
+            self.hidden.append(tag)
 
     def handle_endtag(self, tag):
         if self.hidden and tag == self.hidden[-1]:
@@ -50,13 +55,81 @@ class EnglishUITests(unittest.TestCase):
                     for leftover in ('Bahasa aplikasi', 'Terapkan', 'Pilih suara',
                                      'Naskah', 'Mendengarkan', 'Pilih dua bahasa',
                                      'Tambah Suara', 'Saldo Audio', 'Belum ada',
-                                     'sedang dicadangkan', 'Terjemahkan naskah'):
+                                     'sedang dicadangkan', 'Terjemahkan naskah',
+                                     'Tulis apa yang ingin diucapkan...'):
                         self.assertTrue(leftover not in text, (path, leftover))
                     self.assertNotIn('href="/kilas-learning', response.text)
                     pages[path] = response.text
         target = os.environ.get('KILAS_ENGLISH_UI_FIXTURE_PATH')
         if target:
             Path(target).write_text(json.dumps(pages), encoding='utf-8')
+
+    def test_visible_ui_includes_textarea_attributes_but_excludes_its_content(self):
+        page = VisibleUI('<textarea id="draft" placeholder="UI placeholder" aria-label="UI label">Private user text</textarea>')
+        self.assertIn('UI placeholder', page.text)
+        self.assertIn('UI label', page.text)
+        self.assertNotIn('Private user text', page.text)
+
+    def test_reported_home_library_voice_and_language_labels_roundtrip(self):
+        for language in ('en', 'id', 'en'):
+            self.client.set_cookie('kilas_language', language)
+            home = self.client.get('/products/start').text
+            visible = VisibleUI(home).text
+            for expected in (('How can I Help you?', 'See all', 'Profile') if language=='en'
+                             else ('Apa yang bisa saya bantu?', 'Lihat semua', 'Profil')):
+                self.assertIn(expected, visible)
+            library = self.client.get('/kilas-ai/library').text
+            self.assertTrue(('<h1>My Library</h1>' if language=='en' else '<h1>Pustaka saya</h1>') in library)
+            audio = self.client.get('/kilas-translator?mode=voiceover').text
+            self.assertTrue(('>Generate Voice Over</button>' if language=='en' else '>Buat Voice Over</button>') in audio)
+            self.assertTrue(('<h2>Recent</h2>' if language=='en' else '<h2>Terbaru</h2>') in audio)
+            self.assertTrue(('>Auto Detect</option>' if language=='en' else '>Deteksi otomatis</option>') in audio)
+            live = self.client.get('/kilas-translator/live').text
+            options = re.search(r'<select name="language_a"[^>]*>(.*?)</select>',live,re.S)[1]
+            self.assertTrue(re.search(r'value="id"[^>]*>'+('Indonesian' if language=='en' else 'Bahasa Indonesia')+r'</option>',options))
+            self.assertTrue(re.search(r'value="en"[^>]*>'+('English' if language=='en' else 'Inggris')+r'</option>',options))
+            self.assertTrue('value="id" selected' in options)
+
+    def test_voiceover_script_placeholder_respects_locale_refresh_and_original_draft(self):
+        source = 'Tulis apa yang ingin diucapkan...'
+        history_fixture.AudioHistoryTests.seed(self, 5)
+        for code, expected in ((None, 'Write what you want to say...'),
+                               ('en', 'Write what you want to say...'), ('id', source),
+                               ('en', 'Write what you want to say...'),
+                               ('es', 'Escribe lo que quieres decir...'),
+                               ('zh', '输入你想说的内容...'),
+                               ('en', 'Write what you want to say...')):
+            if code is None:
+                self.client.delete_cookie('kilas_language')
+            else:
+                selected = self.client.post('/language', data={
+                    'csrf_token':'audio-csrf', 'language':code,
+                    'next':'/kilas-translator?mode=voiceover'})
+                self.assertEqual(selected.status_code, 303)
+            # Navigation and repeated GETs use the persisted application locale.
+            home = self.client.get('/products/start')
+            self.assertTrue('<html lang="'+(code or 'en')+'">' in home.text)
+            for _ in range(2):
+                response = self.client.get('/kilas-translator?mode=voiceover')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(VisibleUI(response.text).controls['audio-script']['placeholder'], expected)
+            target = os.environ.get('KILAS_ENGLISH_UI_FIXTURE_PATH')
+            if target and code in ('en', 'id'):
+                path = Path(target)
+                pages = json.loads(path.read_text()) if path.exists() else {}
+                pages['voiceover-locale-'+code] = response.text
+                pages['history-locale-'+code] = self.client.get(
+                    '/kilas-translator/history?page=2&kind=voiceover').json
+                pages['history-translate-locale-'+code] = self.client.get(
+                    '/kilas-translator/history?page=1&kind=translate').json
+                path.write_text(json.dumps(pages), encoding='utf-8')
+            carried = self.client.post('/kilas-ai/home-task', data={
+                'csrf_token':'audio-csrf', 'task':'voiceover', 'brief':source})
+            self.assertEqual(carried.status_code, 200)
+            self.assertEqual(VisibleUI(carried.text).controls['audio-script']['placeholder'], expected)
+            value = re.search(r'<textarea\b[^>]*id="audio-script"[^>]*>(.*?)</textarea>', carried.text, re.S)
+            self.assertIsNotNone(value)
+            self.assertEqual(value[1], source)
 
     def test_default_ui_does_not_change_translator_language_or_voice_settings(self):
         with patch.object(audio_branded_voices, 'public_choices', return_value=[{'alias':'kilas-male','name':'Kilas Male','style':'Natural'}]):

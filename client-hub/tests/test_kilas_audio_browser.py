@@ -161,7 +161,7 @@ def main():
                 redirect_dialogs=[]
                 def record_redirect_dialog(dialog):redirect_dialogs.append(dialog.type);dialog.dismiss()
                 page.on('dialog',record_redirect_dialog)
-                page.get_by_role('button',name='Generate Voice Over').click();expect(page.locator('#audio-result audio')).to_be_visible(timeout=20000)
+                page.get_by_role('button',name='Buat Voice Over').click();expect(page.locator('#audio-result audio')).to_be_visible(timeout=20000)
                 page.remove_listener('dialog',record_redirect_dialog)
                 assert redirect_dialogs==[],('Generate result redirect must not be interrupted',redirect_dialogs)
                 expect(page.locator('#generation-feedback')).to_have_attribute('data-state','success')
@@ -181,7 +181,7 @@ def main():
                 if width==320:
                     page.evaluate("window.qaEditFetch=fetch;window.fetch=(url,options)=>String(url).endsWith('/script')?new Promise(resolve=>window.qaEditResolve=resolve):qaEditFetch(url,options)")
                     page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-male')
-                    edit.click();page.wait_for_function('!!window.qaEditResolve');page.get_by_role('button',name='Generate Voice Over').click();assert len(audio_jobs)==1
+                    edit.click();page.wait_for_function('!!window.qaEditResolve');page.get_by_role('button',name='Buat Voice Over').click();assert len(audio_jobs)==1
                     page.fill('#audio-script','Changed during Edit fetch.')
                     page.evaluate("qaEditResolve(new Response(JSON.stringify({script:'Safe synthetic voice over.'}),{headers:{'Content-Type':'application/json'}}));window.fetch=qaEditFetch")
                     expect(page.locator('#audio-error')).to_contain_text('Draf telah berubah')
@@ -208,15 +208,15 @@ def main():
                 page.route('**'+action,lambda route:route.fulfill(status=503,content_type='application/json',body='{"error":"Gangguan QA sintetis"}'))
                 page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-male')
                 page.fill('#audio-script','Synthetic failure check.')
-                page.get_by_role('button',name='Generate Voice Over').click()
+                page.get_by_role('button',name='Buat Voice Over').click()
                 expect(page.locator('#generation-feedback')).to_have_attribute('data-state','error')
                 expect(page.locator('#generation-feedback')).to_contain_text('Gangguan QA sintetis')
-                expect(page.get_by_role('button',name='Generate Voice Over')).to_be_enabled()
+                expect(page.get_by_role('button',name='Buat Voice Over')).to_be_enabled()
                 page.unroute('**'+action)
 
                 # Low balance remains an error; temporary purchase UI is hidden.
                 page.route('**'+action,lambda route:route.fulfill(status=402,content_type='application/json',body='{"error":"Saldo QA sintetis habis"}'))
-                page.get_by_role('button',name='Generate Voice Over').click()
+                page.get_by_role('button',name='Buat Voice Over').click()
                 expect(page.locator('#generation-feedback')).to_contain_text('Saldo QA sintetis habis')
                 expect(page.locator('#audio-error-purchase')).to_be_hidden()
                 page.unroute('**'+action);page.locator('#generation-feedback-close').click()
@@ -260,7 +260,7 @@ def main():
                         page.locator('#audio-result [data-audio-edit]').click()
                         expect(page.locator('#audio-script')).to_have_value('Safe synthetic voice over.')
                         expect(page.locator('#voiceover-tab')).to_have_attribute('aria-selected','true')
-                        expect(page.get_by_role('button',name='Generate Voice Over')).to_be_disabled()
+                        expect(page.get_by_role('button',name='Buat Voice Over')).to_be_disabled()
                         assert len(audio_jobs)==before and f.db.query_one('SELECT seconds FROM kilas_audio_balances WHERE user_id=?',(case.user,))['seconds']==0
                         page.locator('#voice-translate-toggle').check()
                         page.route('**/voice-script/translate',lambda route:route.fulfill(content_type='application/json',body='{"text":"Synthetic script translation","source_language":"en"}'))

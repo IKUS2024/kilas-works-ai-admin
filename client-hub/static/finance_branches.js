@@ -1,5 +1,8 @@
 'use strict';
 
+// Only explicit UI copy is localized; names and canonical form values stay original.
+const financeText=(message,values={})=>window.KilasUI?window.KilasUI.t(message,values):Object.entries(values).reduce((text,[key,value])=>text.replaceAll('{'+key+'}',String(value)),message);
+
 // Counterparty master-data connection.
 // EXPENSE selects from Penerima/Vendor. INCOME selects from the same Customer master
 // used by Invoice/Piutang. Quick-add stays inside the transaction sheet.
@@ -14,9 +17,9 @@ for (const form of document.querySelectorAll('form')) {
 
   const refreshOptions=()=>{
     const income=direction.value==='INCOME';
-    label.textContent=income?'Sumber / Pelanggan':'Penerima / Vendor';
+    label.textContent=income?financeText('Sumber / Pelanggan'):financeText('Penerima / Vendor');
     const placeholder=select.querySelector('[data-counterparty-placeholder]');
-    if(placeholder)placeholder.textContent=income?'Pilih Pelanggan':'Pilih Penerima / Vendor';
+    if(placeholder)placeholder.textContent=income?financeText('Pilih Pelanggan'):financeText('Pilih Penerima / Vendor');
 
     for(const option of select.options){
       if(!option.value)continue;
@@ -33,7 +36,7 @@ for (const form of document.querySelectorAll('form')) {
       hiddenName.value=selected.value;
       customerId.value=income?String(selected.dataset.customerId||''):'';
     }
-    if(addButton)addButton.textContent=income?'＋ Tambah / kelola Pelanggan':'＋ Tambah / kelola Penerima';
+    if(addButton)addButton.textContent=income?financeText('＋ Tambah / kelola Pelanggan'):financeText('＋ Tambah / kelola Penerima');
   };
 
   const syncSelection=()=>{
@@ -73,7 +76,7 @@ for(const masterForm of document.querySelectorAll('[data-counterparty-add-form]'
         headers:{'Accept':'application/json'}
       });
       const data=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(data.error||'Data belum dapat disimpan.');
+      if(!response.ok)throw new Error(data.error||financeText('Data belum dapat disimpan.'));
 
       const transactionForm=document.getElementById('add-transaction');
       const direction=transactionForm?.querySelector('[name="direction"]');
@@ -103,12 +106,12 @@ for(const masterForm of document.querySelectorAll('[data-counterparty-add-form]'
           if(customerId)customerId.value=kind==='INCOME'?String(data.id||''):'';
         }
       }
-      if(status){status.textContent=(masterForm.dataset.kind==='customer'?'Pelanggan':'Penerima')+' ditambahkan.';status.classList.add('success');}
+      if(status){status.textContent=financeText(masterForm.dataset.kind==='customer'?'Pelanggan ditambahkan.':'Penerima ditambahkan.');status.classList.add('success');}
       masterForm.reset();
       const dialog=masterForm.closest('dialog');
       if(dialog)setTimeout(()=>dialog.close(),350);
     }catch(error){
-      if(status){status.textContent=error.message||'Data belum dapat disimpan.';status.classList.add('error');}
+      if(status){status.textContent=financeText(error.message||'Data belum dapat disimpan.');status.classList.add('error');}
     }finally{
       if(button)button.disabled=false;
     }
@@ -203,7 +206,7 @@ for (const picker of document.querySelectorAll('[data-bill-category-picker]')) {
 
   const sync=()=>{
     const selected=select.selectedOptions && select.selectedOptions[0];
-    summary.textContent=selected&&selected.value?String(selected.textContent||'').trim():'Pilih kategori';
+    summary.textContent=selected&&selected.value?String(selected.textContent||'').trim():financeText('Pilih kategori');
     for(const button of picker.querySelectorAll('[data-bill-category-option]')){
       button.classList.toggle('active',String(button.dataset.categoryValue||'')===String(select.value||''));
     }
@@ -251,7 +254,7 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
   const parentSelect=quick.querySelector('[data-category-parent]');
   if(!form||!category||!subcategory||!direction||!toggle||!panel||!input||!save||!cancel||!status||!list||!level||!parentField||!parentSelect)continue;
 
-  const labelForDirection=()=>direction.value==='INCOME'?'Pemasukan':'Pengeluaran';
+  const labelForDirection=()=>direction.value==='INCOME'?financeText('Pemasukan'):financeText('Pengeluaran');
   const isOtherName=name=>['Lainnya','Pendapatan Lain','Pengeluaran Lain'].includes(name);
   const rowsByDirection=new Map([['INCOME',[]],['EXPENSE',[]]]);
 
@@ -274,7 +277,7 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
   }
 
   const setStatus=(message,type='')=>{
-    status.textContent=message||'';
+    status.textContent=financeText(message||'');
     status.classList.remove('error','success');
     if(type)status.classList.add(type);
   };
@@ -294,7 +297,7 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     parentField.hidden=level.value!=='subcategory';
     parentSelect.disabled=level.value!=='subcategory';
     parentSelect.required=level.value==='subcategory';
-    save.textContent=level.value==='subcategory'?'Tambah subkategori & pilih':'Tambah kategori & pilih';
+    save.textContent=level.value==='subcategory'?financeText('Tambah subkategori & pilih'):financeText('Tambah kategori & pilih');
   };
 
   const rebuildSelectors=(preferredCategory='',preferredSubcategory='')=>{
@@ -303,7 +306,7 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
 
     const mainPlaceholder=document.createElement('option');
     mainPlaceholder.value='';
-    mainPlaceholder.textContent='Pilih kategori';
+    mainPlaceholder.textContent=financeText('Pilih kategori');
     mainPlaceholder.disabled=true;
     category.replaceChildren(mainPlaceholder);
     subcategory.replaceChildren();
@@ -338,7 +341,7 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
 
   const request=async(payload)=>{
     const endpoint=quick.dataset.categoryCreateUrl;
-    if(!endpoint)throw new Error('Kategori belum bisa diubah dari halaman ini.');
+    if(!endpoint)throw new Error(financeText('Kategori belum bisa diubah dari halaman ini.'));
     const body=new FormData();
     const csrf=form.querySelector('input[name="csrf_token"]');
     if(csrf)body.set('csrf_token',csrf.value);
@@ -353,7 +356,7 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
       headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}
     });
     const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||'Kategori belum bisa diubah.');
+    if(!response.ok)throw new Error(data.error||financeText('Kategori belum bisa diubah.'));
     return data;
   };
 
@@ -374,8 +377,8 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     return template ? template.replace(/\/0(?=\?|$)/,'/'+encodeURIComponent(String(id))) : '';
   };
   const globalMeta=item=>
-    (item.direction==='INCOME'?'Pemasukan':'Pengeluaran')+
-    (item.parent_name?' · Subkategori '+item.parent_name:'');
+    (item.direction==='INCOME'?financeText('Pemasukan'):financeText('Pengeluaran'))+
+    (item.parent_name?' · '+financeText('Subkategori {name}',{name:item.parent_name}):'');
   const updateGlobalRow=(row,item)=>{
     if(!row)return;
     row.dataset.financeCategoryRecord=String(item.id);
@@ -395,7 +398,7 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     if(deleteButton){
       deleteButton.setAttribute(
         'onclick',
-        'return confirm('+JSON.stringify('Hapus '+item.name+' dari daftar aktif? Riwayat lama dan transaksi yang sudah ada tetap tersimpan.')+');'
+        'return confirm('+JSON.stringify(financeText('Hapus {name} dari daftar aktif? Riwayat lama dan transaksi yang sudah ada tetap tersimpan.',{name:item.name}))+');'
       );
     }
   };
@@ -458,12 +461,12 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     const editor=document.createElement('div');
     editor.className='finance-category-inline-editor';
     const hint=document.createElement('small');
-    hint.textContent=wasChild?'Subkategori '+(item.parent_name||''):'Kategori utama';
+    hint.textContent=wasChild?financeText('Subkategori {name}',{name:item.parent_name||''}):financeText('Kategori utama');
     const editInput=document.createElement('input');
     editInput.type='text';
     editInput.maxLength=160;
     editInput.value=item.name;
-    editInput.setAttribute('aria-label','Nama kategori');
+    editInput.setAttribute('aria-label',financeText('Nama kategori'));
     editor.append(hint,editInput);
 
     const actions=document.createElement('div');
@@ -471,11 +474,11 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     const saveEdit=document.createElement('button');
     saveEdit.type='button';
     saveEdit.className='finance-category-quick-edit';
-    saveEdit.textContent='Simpan';
+    saveEdit.textContent=financeText('Simpan');
     const abort=document.createElement('button');
     abort.type='button';
     abort.className='finance-category-quick-delete';
-    abort.textContent='Batal';
+    abort.textContent=financeText('Batal');
     actions.append(saveEdit,abort);
     row.append(editor,actions);
     editInput.focus({preventScroll:true});
@@ -534,7 +537,7 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
       const label=document.createElement('span');
       label.textContent=(isChild?'↳ ':'')+item.name;
       const meta=document.createElement('small');
-      meta.textContent=isChild?'Subkategori '+(item.parent_name||''):'Kategori utama';
+      meta.textContent=isChild?financeText('Subkategori {name}',{name:item.parent_name||''}):financeText('Kategori utama');
       copy.append(label,meta);
 
       const actions=document.createElement('div');
@@ -543,12 +546,12 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
       edit.type='button';
       edit.className='finance-category-quick-edit';
       edit.dataset.categoryEdit='';
-      edit.textContent='Edit';
+      edit.textContent=financeText('Edit');
       const remove=document.createElement('button');
       remove.type='button';
       remove.className='finance-category-quick-delete';
       remove.dataset.categoryDelete='';
-      remove.textContent='Hapus';
+      remove.textContent=financeText('Hapus');
       actions.append(edit,remove);
       row.append(copy,actions);
       list.appendChild(row);
@@ -568,8 +571,8 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
   const syncKind=()=>{
     if(kindLabel)kindLabel.textContent=labelForDirection();
     input.placeholder=level.value==='subcategory'
-      ?'Contoh: Listrik'
-      :(direction.value==='INCOME'?'Contoh: Pendapatan Konten':'Contoh: Perawatan');
+      ?financeText('Contoh: Listrik')
+      :(direction.value==='INCOME'?financeText('Contoh: Pendapatan Konten'):financeText('Contoh: Perawatan'));
     syncParentChoices();
     renderList();
   };
@@ -651,10 +654,9 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
       return;
     }
 
-    const kind=item.parent_category_id?'subkategori':'kategori';
-    if(!window.confirm('Hapus '+kind+' "'+item.name+'" dari daftar aktif? Riwayat lama tetap aman.'))return;
+    if(!window.confirm(financeText(item.parent_category_id?'Hapus subkategori "{name}" dari daftar aktif? Riwayat lama tetap aman.':'Hapus kategori "{name}" dari daftar aktif? Riwayat lama tetap aman.',{name:item.name})))return;
     deleteButton.disabled=true;
-    setStatus('Menghapus '+kind+'…');
+    setStatus(item.parent_category_id?'Menghapus subkategori…':'Menghapus kategori…');
     const keepMain=category.value===categoryId?'':category.value;
     const keepSub=subcategory.value===categoryId?'':subcategory.value;
     try{
@@ -696,7 +698,7 @@ for (const form of document.querySelectorAll('[data-category-manager-form]')) {
     parentField.hidden=!wantsChild;
     parent.disabled=!wantsChild;
     parent.required=wantsChild;
-    submit.textContent=wantsChild?'Tambah Subkategori':'Tambah Kategori';
+    submit.textContent=wantsChild?financeText('Tambah Subkategori'):financeText('Tambah Kategori');
   };
   direction.addEventListener('change',refresh);
   level.addEventListener('change',refresh);
@@ -809,9 +811,9 @@ if(categoryEditor){
     parent.disabled=!directChild;
     parent.required=directChild;
     if(childChoice)childChoice.hidden=directChild||!hasMainCategoryName();
-    if(nameLabel)nameLabel.textContent=directChild?'Nama subkategori':'Nama kategori';
-    if(createName)createName.placeholder=directChild?'Contoh: Internet':'Contoh: Operasional';
-    if(createSubmit)createSubmit.textContent=directChild?'Tambah Subkategori':'Tambah Kategori';
+    if(nameLabel)nameLabel.textContent=directChild?financeText('Nama subkategori'):financeText('Nama kategori');
+    if(createName)createName.placeholder=directChild?financeText('Contoh: Internet'):financeText('Contoh: Operasional');
+    if(createSubmit)createSubmit.textContent=directChild?financeText('Tambah Subkategori'):financeText('Tambah Kategori');
     updateChildBuilder();
   };
 
@@ -863,7 +865,7 @@ if(categoryEditor){
     button.addEventListener('click',()=>{
       editorMode='category';
       const kind=currentDirection();
-      if(title)title.textContent='Tambah Kategori';
+      if(title)title.textContent=financeText('Tambah Kategori');
       if(createForm)createForm.hidden=false;
       if(editForm)editForm.hidden=true;
       if(directionInput)directionInput.value=kind;
@@ -882,7 +884,7 @@ if(categoryEditor){
       const parentId=String(button.dataset.categoryParentId||'');
       const parentName=String(button.dataset.categoryParentName||'');
       if(!parentId)return;
-      if(title)title.textContent='Tambah Subkategori'+(parentName?' · '+parentName:'');
+      if(title)title.textContent=financeText('Tambah Subkategori')+(parentName?' · '+parentName:'');
       if(createForm)createForm.hidden=false;
       if(editForm)editForm.hidden=true;
       if(directionInput)directionInput.value=kind;
@@ -904,7 +906,7 @@ if(categoryEditor){
       const kind=String(button.dataset.categoryKind||'category');
       const template=categoryEditor.dataset.categorySettingUrlTemplate||'';
       if(!id||!template)return;
-      if(title)title.textContent=kind==='subcategory'?'Edit Subkategori':'Edit Kategori';
+      if(title)title.textContent=kind==='subcategory'?financeText('Edit Subkategori'):financeText('Edit Kategori');
       if(createForm)createForm.hidden=true;
       if(editForm){
         editForm.hidden=false;
@@ -927,6 +929,7 @@ if(categoryEditor){
 // choices here without leaving the account form; existing accounts keep their
 // assigned label even when that label is removed from future choices.
 for (const manager of document.querySelectorAll('[data-account-type-manager]')) {
+  const typeText=financeText;
   const select=manager.querySelector('[data-account-type-select]');
   const toggle=manager.querySelector('[data-account-type-toggle]');
   const panel=manager.querySelector('[data-account-type-panel]');
@@ -937,7 +940,7 @@ for (const manager of document.querySelectorAll('[data-account-type-manager]')) 
   if(!select||!toggle||!panel||!input||!add||!list||!status)continue;
 
   const setStatus=(message,type='')=>{
-    status.textContent=message||'';
+    status.textContent=typeText(message||'');
     status.classList.remove('error','success');
     if(type)status.classList.add(type);
   };
@@ -949,7 +952,7 @@ for (const manager of document.querySelectorAll('[data-account-type-manager]')) 
     if(!rows.length){
       const empty=document.createElement('option');
       empty.value='';
-      empty.textContent='Tambah tipe terlebih dahulu';
+      empty.textContent=typeText('Tambah tipe terlebih dahulu');
       empty.disabled=true;
       empty.selected=true;
       select.appendChild(empty);
@@ -959,7 +962,7 @@ for (const manager of document.querySelectorAll('[data-account-type-manager]')) 
       if(!name)continue;
       const option=document.createElement('option');
       option.value=name;
-      option.textContent=name;
+      option.textContent=item.is_default?typeText(name):name;
       select.appendChild(option);
 
       const row=document.createElement('div');
@@ -967,12 +970,12 @@ for (const manager of document.querySelectorAll('[data-account-type-manager]')) 
       row.dataset.accountTypeRow='';
       row.dataset.name=name;
       const label=document.createElement('span');
-      label.textContent=name;
+      label.textContent=item.is_default?typeText(name):name;
       const remove=document.createElement('button');
       remove.type='button';
       remove.className='finance-account-type-delete';
       remove.dataset.accountTypeDelete='';
-      remove.textContent='Hapus';
+      remove.textContent=typeText('Hapus');
       row.append(label,remove);
       list.appendChild(row);
     }
@@ -1040,7 +1043,7 @@ for (const manager of document.querySelectorAll('[data-account-type-manager]')) 
     const row=button.closest('[data-account-type-row]');
     const name=String(row && row.dataset.name || '').trim();
     if(!name)return;
-    if(!window.confirm('Hapus tipe "'+name+'" dari pilihan akun baru? Akun lama tetap aman.'))return;
+    if(!window.confirm(typeText('Hapus tipe "{name}" dari pilihan akun baru? Akun lama tetap aman.',{name:row.querySelector('span')?.textContent||name})))return;
     button.disabled=true;
     setStatus('Menghapus tipe…');
     const keep=select.value===name?'':select.value;
@@ -1124,7 +1127,7 @@ for (const account of document.querySelectorAll('[data-currency-account]')) {
   const form=account.closest('form');const amount=form && form.querySelector('[data-currency-amount]');
   const label=form && form.querySelector('[data-currency-label]');const help=form && form.querySelector('[data-currency-help]');
   const sync=()=>{const code=account.selectedOptions[0]?.dataset.currency||'IDR';if(label)label.textContent=code;
-    if(help)help.textContent='Boleh desimal pakai titik atau koma. Contoh 1250.50 atau 1250,50; dua angka desimal disimpan.';};
+    if(help)help.textContent=financeText('Boleh desimal pakai titik atau koma. Contoh 1250.50 atau 1250,50; dua angka desimal disimpan.');};
   account.addEventListener('change',sync);sync();
 }
 for (const currency of document.querySelectorAll('[data-account-currency]')) {
@@ -1142,9 +1145,9 @@ for (const form of document.querySelectorAll('form[action*="/finance/exchanges"]
     for(const option of to.options)option.disabled=!!option.value&&(option.value===from.value||option.dataset.currency===fc);
     if(to.selectedOptions[0]?.disabled)to.value='';
     const chosen=to.selectedOptions[0],fr=Number(f?.dataset.idrRate),tr=Number(chosen?.dataset.idrRate);
-    reference.textContent=(fc&&chosen?.dataset.currency&&fr>0&&tr>0)?('Kurs referensi: 1 '+fc+' ≈ '+(fr/tr).toLocaleString(undefined,{maximumFractionDigits:6})+' '+chosen.dataset.currency+' · estimasi, bukan kurs jual/beli bank.'):'Kurs referensi akan tampil setelah dua mata uang dipilih.';
+    reference.textContent=(fc&&chosen?.dataset.currency&&fr>0&&tr>0)?financeText('Kurs referensi: 1 {from} ≈ {rate} {to} · estimasi, bukan kurs jual/beli bank.',{from:fc,rate:(fr/tr).toLocaleString(undefined,{maximumFractionDigits:6}),to:chosen.dataset.currency}):financeText('Kurs referensi akan tampil setelah dua mata uang dipilih.');
     const fa=Number(String(fromAmount.value).replace(',','.')),ta=Number(String(toAmount.value).replace(',','.'));
-    actual.textContent=(fc&&chosen?.dataset.currency&&fa>0&&ta>0)?('Kurs aktual penukaran: 1 '+fc+' = '+(ta/fa).toLocaleString(undefined,{maximumFractionDigits:6})+' '+chosen.dataset.currency):'';
+    actual.textContent=(fc&&chosen?.dataset.currency&&fa>0&&ta>0)?financeText('Kurs aktual penukaran: 1 {from} = {rate} {to}',{from:fc,rate:(ta/fa).toLocaleString(undefined,{maximumFractionDigits:6}),to:chosen.dataset.currency}):'';
   };
   from.addEventListener('change',refresh);to.addEventListener('change',refresh);fromAmount.addEventListener('input',refresh);toAmount.addEventListener('input',refresh);refresh();
 }
@@ -1165,8 +1168,8 @@ for (const card of document.querySelectorAll('[data-balance-card]')) {
     const option=select.selectedOptions[0],code=option?.value||'IDR';
     const rate=Number(option?.dataset.idrRate||1),decimals=Number(option?.dataset.decimals||0);
     const converted=code==='IDR'?totalIdr:(rate>0?totalIdr/rate:null);
-    value.textContent=converted===null?'Kurs tidak tersedia':format(converted,code,decimals);
-    label.textContent='Estimasi total dalam '+code;
+    value.textContent=converted===null?financeText('Kurs tidak tersedia'):format(converted,code,decimals);
+    label.textContent=financeText('Estimasi total dalam {currency}',{currency:code});
   };
   select.addEventListener('change',refresh);refresh();
 }

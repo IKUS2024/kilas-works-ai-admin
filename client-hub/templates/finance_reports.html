@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_finance_account_type_label.html' import account_type_label %}
 {% block title %}{{ ui_t('Laporan Finance · Kilas Finance') }}{% endblock %}
 {% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
@@ -130,7 +131,7 @@
 {% macro report_table(rows,columns) %}
   {% if rows %}
   <div class="report-table-wrap"><table class="report-table"><thead><tr>{% for label,key,kind in columns %}<th>{{ label|ui_text }}</th>{% endfor %}</tr></thead><tbody>
-  {% for row in rows %}<tr>{% for label,key,kind in columns %}<td data-label="{{ label|ui_text }}">{% if kind=='money' %}{{ row[key]|finance_money(row.get('currency','IDR')) }}{% elif kind=='percent' %}{{ row[key] }}%{% elif kind=='direction' %}{{ directions[row[key]] }}{% elif kind=='account_type' %}{{ row.get('account_type_label') or account_types.get(row[key],row[key]) }}{% elif kind=='active' %}{{ ui_t('Aktif') if row[key] else ui_t('Nonaktif') }}{% else %}{{ (row[key] or '—') if kind=='text' else row[key] }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+  {% for row in rows %}<tr>{% for label,key,kind in columns %}<td data-label="{{ label|ui_text }}">{% if kind=='money' %}{{ row[key]|finance_money(row.get('currency','IDR')) }}{% elif kind=='percent' %}{{ row[key] }}%{% elif kind=='direction' %}{{ ui_t(directions[row[key]]) }}{% elif kind=='account_type' %}{{ account_type_label(row.account_type_label,account_type_options) if row.get('account_type_label') else ui_t(account_types.get(row[key],row[key])) }}{% elif kind=='active' %}{{ ui_t('Aktif') if row[key] else ui_t('Nonaktif') }}{% else %}{{ (row[key] or '—') if kind=='text' else row[key] }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
   </tbody></table></div>
   {% else %}<div class="report-empty">{{ ui_t('Belum ada data pada periode ini.') }}</div>{% endif %}
 {% endmacro %}
@@ -163,7 +164,7 @@
   'all':'Semua waktu','custom':'Tanggal khusus'
 } %}
 <div class="report-meta">
-  <span class="report-chip">📅 <strong>{{ preset_names.get(filters.preset,ui_t('Tanggal khusus')) }}</strong> · {{ filters.start }} – {{ filters.end }}</span>
+  <span class="report-chip">📅 <strong>{{ ui_t(preset_names.get(filters.preset,'Tanggal khusus')) }}</strong> · {{ filters.start }} – {{ filters.end }}</span>
   {% if finance_workspace_personal %}
   <span class="report-chip">👤 <strong>{{ ui_t('Pribadi') }}</strong></span>
   {% else %}
@@ -175,7 +176,7 @@
   <div class="report-toolbar">
     <div class="report-toolbar-left">
       <button type="button" class="report-tool-btn primary" data-report-filter-open>{{ ui_t('⚙️ Pilih Periode') }}</button>
-      <span class="report-chip">{{ preset_names.get(filters.preset,ui_t('Tanggal khusus')) }} · {{ filters.start }} – {{ filters.end }}</span>
+      <span class="report-chip">{{ ui_t(preset_names.get(filters.preset,'Tanggal khusus')) }} · {{ filters.start }} – {{ filters.end }}</span>
     </div>
     <div class="report-toolbar-right">
       <a class="report-tool-btn primary" href="{{ url_for('finance.report_pdf',business_id=business.id,branch_id=report_scope,**filters) }}">{{ ui_t('⬇️ Unduh PDF') }}</a>

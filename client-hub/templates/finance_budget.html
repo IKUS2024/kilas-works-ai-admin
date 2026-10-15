@@ -48,7 +48,7 @@
         <strong>{{ row.budget_display }}</strong>
       </div>
       <div class="finance-budget-category-sub"><span></span><small>{{ ui_t('Bulanan') }}</small></div>
-      <div class="finance-budget-progress {{ 'over' if row.over_budget else '' }}" aria-label="{{ row.percent_used }} persen terpakai">
+      <div class="finance-budget-progress {{ 'over' if row.over_budget else '' }}" aria-label="{{ ui_t('{percent} persen terpakai',percent=row.percent_used) }}">
         <i style="--budget-progress:{{ [row.percent_used,100]|min }}%"></i>
       </div>
       <div class="finance-budget-category-values">
@@ -83,7 +83,7 @@
       <div><span>{{ ui_t('Terpakai') }}</span><strong>{{ row.spent_display }}</strong></div>
       <div><span>{{ ui_t('Sisa') }}</span><strong class="{{ 'finance-danger' if row.over_budget else '' }}">{{ row.remaining_display }}</strong></div>
     </div>
-    <div class="finance-budget-progress {{ 'over' if row.over_budget else '' }}" aria-label="{{ row.percent_used }} persen terpakai">
+    <div class="finance-budget-progress {{ 'over' if row.over_budget else '' }}" aria-label="{{ ui_t('{percent} persen terpakai',percent=row.percent_used) }}">
       <i style="--budget-progress:{{ [row.percent_used,100]|min }}%"></i>
     </div>
 
@@ -164,5 +164,5 @@
   </div>
 </dialog>
 </div>
-<script src="{{ url_for('static',filename='finance_branches.js',v='20260922-decimal-1') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_branches.js',v='locale-types-20261015') }}" defer></script>
 {% endblock %}

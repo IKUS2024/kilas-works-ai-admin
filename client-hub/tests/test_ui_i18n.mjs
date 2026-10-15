@@ -11,7 +11,7 @@ const catalog=JSON.parse(readFileSync(new URL('../locales/ui.json',import.meta.u
 const english=JSON.parse(readFileSync(new URL('../locales/ui_en.json',import.meta.url),'utf8'));
 const source=readFileSync(new URL('../static/ui_i18n.js',import.meta.url),'utf8');
 function install(t,language='en'){
- const messages=language==='id'?{}:Object.fromEntries(Object.entries(catalog).map(([key,value])=>[key,value[language]??key]));
+ const messages=Object.fromEntries(Object.entries(catalog).map(([key,value])=>[key,value[language]??key]));
  if(language==='en')Object.assign(messages,english);
  const context={window:{},document:{getElementById:()=>({textContent:JSON.stringify(messages)})}};
  vm.runInNewContext(source,context);
@@ -33,6 +33,8 @@ test('English applies only to explicit UI text, with exact placeholder values',t
 test('an explicit Indonesian UI preference retains source copy and interpolation',t=>{
  install(t,'id');
  assert.equal(uiText('Pilih suara'),'Pilih suara');
+ assert.equal(uiText('See all'),'Lihat semua');
+ assert.equal(uiText('Wallet'),'Dompet');
  assert.equal(uiText('Halaman {value0} dari {value1}.',{value0:2,value1:7}),'Halaman 2 dari 7.');
 });
 

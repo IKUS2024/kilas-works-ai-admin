@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
-{% block title %}My Library · Kilas Works{% endblock %}
+{% block title %}{{ ui_t('My Library') }} · Kilas Works{% endblock %}
 {% block content %}
 {% with selected_feature='chat' %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}
-<section class="kilas-library"><h1>My Library</h1>
+<section class="kilas-library"><h1>{{ ui_t('My Library') }}</h1>
 <h2>{{ ui_t('File tersimpan') }}</h2><ul>{% for file in files %}<li><a href="{{ url_for('kilas_ai.attachment_download',thread_id=file.thread_id,attachment_id=file.id) }}">{{ file.filename }}</a></li>{% endfor %}{% for file in artifacts %}<li><a href="{{ url_for('kilas_ai.autonomous_detail',job_id=file.job_id) }}">{{ file.name }}</a></li>{% endfor %}</ul>{% if not files and not artifacts %}<p>{{ ui_t('Belum ada file tersimpan.') }}</p>{% endif %}
 <h2>Voice Over</h2><ul>{% for item in audio %}<li><a href="{{ url_for('kilas_audio.home',ident=item.id) }}">{{ item.title }}</a></li>{% endfor %}</ul>
 {% if plans %}<h2>{{ ui_t('Rencana video tersimpan') }}</h2><ul>{% for item in plans %}<li><a href="{{ url_for('kilas_ai.video_project',project=item.id) }}">{{ item.title }}</a></li>{% endfor %}</ul>{% endif %}
