@@ -336,7 +336,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
     <summary class="finance-account-hb-group-head">
       <span>{{ account_type_label(type_label,account_type_options) }}</span>
       <span class="finance-account-hb-group-summary-right">
-        <strong>{{ type_rows|length }} {{ ui_t('akun') }}</strong>
+        <strong>{{ ui_t('{count} account' if type_rows|length==1 else '{count} accounts',count=type_rows|length) }}</strong>
         <i class="finance-account-hb-group-chevron" aria-hidden="true">⌄</i>
       </span>
     </summary>

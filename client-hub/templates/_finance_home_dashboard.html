@@ -15,7 +15,7 @@
     <strong>{{ budget_total_display }}</strong>
   </div>
   <div class="finance-budget-chart-wrap">
-    <div class="finance-budget-ring {{ 'over' if budget_percent > 100 else '' }}" style="--budget-percent: {{ [budget_percent,100]|min }};" role="img" aria-label="Penggunaan anggaran {{ budget_percent }} persen">
+    <div class="finance-budget-ring {{ 'over' if budget_percent > 100 else '' }}" style="--budget-percent: {{ [budget_percent,100]|min }};" role="img" aria-label="{{ ui_t('Penggunaan anggaran {percent} persen',percent=budget_percent) }}">
       <div class="finance-budget-ring-center">
         <strong>{{ budget_percent }}%</strong>
         <small>{{ ui_t('terpakai') }}</small>

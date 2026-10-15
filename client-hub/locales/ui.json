@@ -32,6 +32,7 @@
     "zh": "首页 · Kilas Works"
   },
   "Home": {
+    "id": "Beranda",
     "en": "Home",
     "es": "Inicio",
     "zh": "首页"
@@ -2690,6 +2691,7 @@
     "zh": "尚有未收金额的发票 · 截至"
   },
   "Invoice": {
+    "id": "Faktur",
     "en": "Invoices",
     "es": "Facturas",
     "zh": "发票"
@@ -5596,6 +5598,7 @@
     "zh": "所选范围和月份无结果。"
   },
   "Dashboard": {
+    "id": "Dasbor",
     "en": "Dashboard",
     "es": "Panel",
     "zh": "总览"
@@ -8200,5 +8203,8 @@
   "Kurs aktual penukaran: 1 {from} = {rate} {to}": {"en": "Actual exchange rate: 1 {from} = {rate} {to}", "es": "Tipo de cambio real: 1 {from} = {rate} {to}", "zh": "实际兑换汇率：1 {from} = {rate} {to}"},
   "Contoh: Listrik": {"en": "Example: Electricity", "es": "Ejemplo: Electricidad", "zh": "例如：电费"},
   "Contoh: Pendapatan Konten": {"en": "Example: Content income", "es": "Ejemplo: Ingresos de contenido", "zh": "例如：内容收入"},
-  "Contoh: Perawatan": {"en": "Example: Maintenance", "es": "Ejemplo: Mantenimiento", "zh": "例如：维护"}
+  "Contoh: Perawatan": {"en": "Example: Maintenance", "es": "Ejemplo: Mantenimiento", "zh": "例如：维护"},
+  "Penggunaan anggaran {percent} persen": {"en": "Budget usage {percent} percent", "es": "Uso del presupuesto: {percent} por ciento", "zh": "预算使用率{percent}%"},
+  "{count} account": {"id": "{count} akun", "en": "{count} account", "es": "{count} cuenta", "zh": "{count} 个账户"},
+  "{count} accounts": {"id": "{count} akun", "en": "{count} accounts", "es": "{count} cuentas", "zh": "{count} 个账户"}
 }

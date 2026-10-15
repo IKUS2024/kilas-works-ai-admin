@@ -671,7 +671,7 @@ class DashboardHomeTests(unittest.TestCase):
             actor_user_id=self.uid,idempotency_key='dashboard-invoice-paid-0001')
 
         html,context=self.page('?month=2026-09')
-        self.assertIn('>Invoice</span>',html)
+        self.assertIn('>Faktur</span>',html)
         self.assertIn('Rp2.000.000,00',html)
         self.assertIn('section=invoices',html)
         self.assertEqual(context['invoice_open_count'],1)
@@ -680,8 +680,8 @@ class DashboardHomeTests(unittest.TestCase):
     def test_finance_global_navigation_has_dashboard_and_exit(self):
         html,_=self.page('?month=2026-09')
         self.assertIn('finance-dashboard-link',html)
-        self.assertIn('>Dashboard</a>',html)
-        self.assertIn('href="/products/start">← Home</a>',html)
+        self.assertIn('>Dasbor</a>',html)
+        self.assertIn('href="/products/start">← Beranda</a>',html)
         self.assertNotIn('href="/workspace/more"',html)
 
     def test_workspace_entry_redirects_directly_to_business_finance(self):
@@ -727,12 +727,12 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Customer</span>',html)
         self.assertNotIn('Pengeluaran dari anggaran',html)
         budget_index=html.index('finance-budget-metric')
-        invoice_index=html.index('>Invoice</span>')
+        invoice_index=html.index('>Faktur</span>')
         penerima_index=html.index('>Penerima</span>')
         self.assertLess(budget_index,invoice_index)
         self.assertLess(invoice_index,penerima_index)
         cards=re.findall(r'<a class="([^"]*)"[^>]*>(.*?)</a>',html,re.S)
-        for label in ('Invoice','Penerima'):
+        for label in ('Faktur','Penerima'):
             classes=next(classes.split() for classes,body in cards if f'>{label}</span>' in body)
             self.assertIn('finance-metric',classes)
             self.assertIn('compact',classes)
@@ -745,7 +745,7 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Kilas<span>Works</span> Client Hub',html)
         self.assertNotIn('class="finance-context-bar"',html)
         self.assertNotIn('class="topbar-active" aria-current="page"',html)
-        self.assertIn('href="/products/start">← Home</a>',html)
+        self.assertIn('href="/products/start">← Beranda</a>',html)
         self.assertIn('finance-exit-bar',html)
 
     def test_transaction_form_can_add_income_and_expense_categories_in_place(self):
