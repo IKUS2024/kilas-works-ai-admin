@@ -147,7 +147,7 @@ def main():
                 assert audio_jobs==[],audio_jobs
                 check('script-assist')
                 page.locator('#voice-script-assist > summary').click()
-                page.fill('#audio-script','Safe synthetic voice over.');expect(page.locator('#voice-estimate')).to_contain_text('reservasi')
+                page.fill('#audio-script','Safe synthetic voice over.');expect(page.locator('#voice-estimate')).to_have_count(0)
                 clean_workbench()
                 page.locator('[name=voice_kind][value=kilas]').check();page.select_option('#kilas-voice-choice','kilas-male');check('voiceover')
                 def generation_feedback(route):

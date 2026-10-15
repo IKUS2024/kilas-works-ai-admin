@@ -35,7 +35,7 @@ class TabsCopyTests(unittest.TestCase):
         self.assertIn('Keep this agent user description verbatim.',responses['agent_chat'].text)
         self.assertIn('Keep this project brief description verbatim.',responses['project'].text)
         self.assertIn('Demonstrasi pemakaian dengan kemasan tetap sama.',responses['video_result'].text)
-        for key,ids in {'home':['ai-input','ai-files','ai-send','ai-stop'],'video_new':['video-idea','video-submit','video-clip-strategy','video-status','video-error'],'voiceover':['audio-script','voice-assist-copy','voice-assist-generate','voice-translate-toggle','voice-estimate','dictation-start','voice-generate'],'live_assist':['live-consent','live-provider','live-start','live-stop','live-status']}.items():
+        for key,ids in {'home':['ai-input','ai-files','ai-send','ai-stop'],'video_new':['video-idea','video-submit','video-clip-strategy','video-status','video-error'],'voiceover':['audio-script','voice-assist-copy','voice-assist-generate','voice-translate-toggle','dictation-start','voice-generate'],'live_assist':['live-consent','live-provider','live-start','live-stop','live-status']}.items():
             for ident in ids:self.assertIn('id="'+ident+'"',responses[key].text)
         self.assertIn('Jawaban AI dapat keliru.',responses['home'].text)
         self.assertIn('Video akhir dibuat di tool pilihanmu.',responses['video_new'].text)

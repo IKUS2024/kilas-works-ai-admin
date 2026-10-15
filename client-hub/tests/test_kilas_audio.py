@@ -49,18 +49,23 @@ class AudioTests(unittest.TestCase):
     def credit(self,seconds=60):
         f.db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,?)',(self.user,seconds))
 
-    def test_compact_script_copy_keeps_disclosures_and_accessible_controls(self):
+    def test_compact_script_copy_keeps_accessible_controls_without_info_or_estimate(self):
         html=self.client.get('/kilas-translator?mode=voiceover').text
         self.assertNotIn('Naskah asli Voice Over baru disimpan bersama',html)
         self.assertNotIn('Hasil AI masuk ke kolom Naskah. Pemakaian chat berlaku',html)
-        self.assertIn('class="voice-script-info"',html)
-        self.assertIn('Naskah Voice Over baru disimpan di riwayat, termasuk saat proses gagal, untuk diedit kembali.',html)
+        self.assertNotIn('class="voice-script-info"',html)
+        self.assertNotIn('Info naskah',html)
+        self.assertNotIn('id="voice-estimate"',html)
+        self.assertNotIn('Estimasi dihitung dari naskah.',html)
+        self.assertNotIn('reservasi hingga',html)
         self.assertIn('Bantu AI memakai kuota chat.',html)
         self.assertIn('id="voice-assist-status" role="status" aria-live="polite"></p>',html)
-        for ident in ('audio-script','voice-language-status','voice-assist-copy','voice-assist-generate','voice-translate-toggle','voice-estimate','voice-generate'):
+        for ident in ('audio-script','voice-language-status','voice-assist-copy','voice-assist-generate','voice-translate-toggle','voice-generate'):
             self.assertEqual(html.count('id="'+ident+'"'),1)
-        self.assertIn('aria-describedby="voice-language-status voice-estimate"',html)
-        self.assertIn('Biaya akhir mengikuti durasi MP3 aktual.',html)
+        self.assertIn('aria-describedby="voice-language-status"',html)
+        self.assertIn('aria-label="Dikte Naskah"',html)
+        self.assertNotIn('<span>Dikte</span>',html)
+        self.assertIn('aria-label="Salin naskah"',html)
 
     def test_compact_video_copy_keeps_privacy_and_disabled_consent(self):
         with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false','KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):
