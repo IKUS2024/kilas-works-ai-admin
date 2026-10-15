@@ -99,7 +99,8 @@ test('Learning code remains isolated, responsive constraints and no transcript D
   assert.ok(!page.includes('data-transcript'));assert.ok(!js.includes('kilas_live_translator'));
   assert.ok(css.includes('minmax(0,1fr)'));assert.ok(css.includes('max-width:480px'));assert.ok(css.includes('max-width:760px'));assert.ok(css.includes('prefers-reduced-motion'));
   const nav=readFileSync(new URL('../templates/kilas_ai/_home_task_selector.html',import.meta.url),'utf8');
-  assert.ok(nav.indexOf("('translate'")<nav.indexOf("('learning'"));assert.ok(nav.indexOf("('learning'")<nav.indexOf("('voiceover'"));
+  assert.ok(!nav.includes("('learning'"));
+  assert.ok(nav.indexOf("('translate'")>=0);assert.ok(nav.indexOf("('translate'")<nav.indexOf("('voiceover'"));
 });
 
 const tick=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};

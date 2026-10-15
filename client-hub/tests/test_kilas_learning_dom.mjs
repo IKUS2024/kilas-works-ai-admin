@@ -42,8 +42,9 @@ test('rendered Finance-first DOM binds Start to the lesson and sends checked con
   f.form.elements.namedItem('target').value='zh';f.form.elements.namedItem('native').value='es';f.form.elements.namedItem('level').value='advanced';f.form.elements.namedItem('voice').value='kilas-female';
   f.start.click();assert.match(f.status.textContent,/Meminta izin mikrofon/);await tick();
   const posts=f.requested.filter(x=>x.url==='/kilas-learning/sessions');assert.equal(posts.length,1);
-  assert.deepEqual(Object.fromEntries(posts[0].options.body),{csrf_token:'audio-csrf',target:'zh',native:'es',level:'advanced',voice:'kilas-female',consent:'yes',start_key:'synthetic-start-1234567890'});
-  assert.equal(posts[0].options.headers['X-CSRF-Token'],'audio-csrf');assert.equal(call.phase,'listening');
+  const csrf=f.form.elements.namedItem('csrf_token').value;assert.ok(csrf);
+  assert.deepEqual(Object.fromEntries(posts[0].options.body),{csrf_token:csrf,target:'zh',native:'es',level:'advanced',voice:'kilas-female',consent:'yes',start_key:'synthetic-start-1234567890'});
+  assert.equal(posts[0].options.headers['X-CSRF-Token'],csrf);assert.equal(call.phase,'listening');
   assert.deepEqual(f.events,['unlock','permission','played','listen']);assert.equal(f.root.querySelector('[data-setup]').hidden,true);
 });
 test('Learning binding leaves Finance navigation submit untouched',async t=>{
