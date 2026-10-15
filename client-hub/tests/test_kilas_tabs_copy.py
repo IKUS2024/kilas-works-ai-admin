@@ -42,7 +42,7 @@ class TabsCopyTests(unittest.TestCase):
         for key in ('home','legacy_chat','agent_chat','voiceover','live_assist'):
             self.assertNotIn('ElevenLabs',responses[key].text)
             self.assertNotIn('OpenAI',responses[key].text)
-        self.assertIn('href="/privacy#audio-processing"',responses['voiceover'].text)
+        self.assertNotIn('href="/privacy#audio-processing"',responses['voiceover'].text)
         self.assertIn('ElevenLabs memakai logging bawaan',self.client.get('/privacy').text)
         self.assertIn('Caption, terjemahan dan saran jawaban belum tersedia.',responses['live_assist'].text)
         policy=self.client.get('/privacy').text
@@ -54,8 +54,9 @@ class TabsCopyTests(unittest.TestCase):
         root=Path(__file__).resolve().parents[1]/'templates'
         for name in ('kilas_translator/live.html','kilas_translator/home.html','kilas_ai/home.html','kilas_ai/_home_workspace.html','kilas_ai/_agent_home_chat.html','finance_assistant.html','_finance_home_dashboard.html','kilas_content/_transcription.html','kilas_content/live_assist.html'):
             with self.subTest(template=name):self.assertNotRegex((root/name).read_text(),r'ElevenLabs|OpenAI')
-        for name in ('kilas_translator/live.html','kilas_translator/home.html','kilas_content/_transcription.html','kilas_content/live_assist.html'):
+        for name in ('kilas_translator/live.html','kilas_content/_transcription.html','kilas_content/live_assist.html'):
             self.assertIn("url_for('privacy_policy')",(root/name).read_text())
+        self.assertNotIn("url_for('privacy_policy')",(root/'kilas_translator/home.html').read_text())
 
     def test_translate_rollback_mode_keeps_form_and_validation(self):
         with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'true'}):html=self.client.get('/kilas-translator?mode=translate').text

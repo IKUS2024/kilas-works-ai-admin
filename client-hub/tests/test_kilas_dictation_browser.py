@@ -51,6 +51,7 @@ def main():
                 page.on('pageerror', lambda e: errors.append(str(e)))
                 page.route('**/*', lambda r: r.continue_() if r.request.url.startswith(origin) else r.abort())
                 page.goto(origin+'/kilas-translator?mode=voiceover', wait_until='networkidle')
+                expect(page.locator('#voiceover-panel a[href*="/privacy"]')).to_have_count(0)
                 script = page.locator('#audio-script')
                 script.fill('Naskah awal.')
                 assert page.evaluate('qaMic.calls') == 0
@@ -63,6 +64,8 @@ def main():
 
                 page.route('**/voice-script/dictate', response)
                 page.locator('#dictation-start').click()
+                expect(page.locator('#dictation-cancel')).to_have_text('Batal')
+                expect(page.locator('#dictation-cancel')).to_have_attribute('aria-label', 'Batal dikte')
                 script.fill('Edit saat merekam.')
                 page.locator('#dictation-stop').click()
                 expect(script).to_have_value('Edit saat merekam.\nHasil dikte.')
@@ -99,6 +102,7 @@ def main():
                 page.locator('#dictation-start').click()
                 page.locator('#dictation-stop').click()
                 expect(page.locator('#dictation-status')).to_contain_text('Menyiapkan naskah')
+                expect(page.locator('#dictation-cancel')).to_have_text('Batal')
                 script.fill('Edit saat proses.')
                 page.locator('#dictation-cancel').click()
                 assert len(pending) == 1

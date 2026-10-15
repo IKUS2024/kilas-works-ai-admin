@@ -1,8 +1,8 @@
 {% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
 <div id="voice-dictation" data-ready="{{ 'true' if video_script_ready else 'false' }}">
-  <button type="button" class="btn secondary" id="dictation-start" aria-label="Dikte Naskah" aria-describedby="dictation-disclosure" title="{{ 'Dikte Naskah' if video_script_ready else 'Dikte belum tersedia' }}" disabled>{{ drawer_icon('mic') }}</button>
+  <button type="button" class="btn secondary" id="dictation-start" aria-label="Dikte Naskah" title="{{ 'Dikte Naskah' if video_script_ready else 'Dikte belum tersedia' }}" disabled>{{ drawer_icon('mic') }}</button>
   <button type="button" class="btn secondary" id="dictation-stop" hidden>Stop rekaman</button>
-  <button type="button" class="btn secondary" id="dictation-cancel" hidden>Batal dikte</button>
+  <button type="button" class="btn secondary" id="dictation-cancel" aria-label="Batal dikte" hidden>Batal</button>
   <button type="button" class="btn secondary" id="dictation-undo" hidden>Urungkan dikte</button>
   <p id="dictation-status" role="status" aria-live="polite"></p>
   <p id="dictation-error" role="alert" hidden></p>

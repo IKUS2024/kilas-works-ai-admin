@@ -63,7 +63,6 @@
 <div class="voice-script-workspace">
 <div class="voice-script-label"><label for="audio-script">Naskah</label><div class="voice-script-tools"><button type="button" class="btn secondary" id="voice-assist-copy" aria-label="Salin naskah" title="Salin naskah">{{ chat_icon('copy') }}</button></div></div><textarea id="audio-script" name="script" maxlength="4000" rows="7" required placeholder="Tulis apa yang ingin diucapkan..." aria-describedby="voice-language-status">{{ initial_brief if home_task=='voiceover' and initial_brief is not none else content_draft.script if content_draft and not job else '' }}</textarea>
 <p id="voice-language-status" role="status" hidden>Bahasa mengikuti naskah.</p>
-<p id="dictation-disclosure" hidden><a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">Privasi</a>.</p>
 {% include 'kilas_translator/_dictation.html' %}
 {% include 'kilas_translator/_reconstruction_controls.html' %}
 {% include 'kilas_translator/_script_assist.html' %}
