@@ -214,7 +214,7 @@ def main():
                 live_user=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('live-session@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
                 usage._query(conn,'INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,10)',(live_user,))
             session_id=live_sessions.create(live_user,'id','en','kilas-male');turn_key='live-'+uuid.uuid4().hex
-            live_sessions.claim(live_user,session_id,turn_key);temporary.begin(live_user,session_id,turn_key)
+            live_sessions.claim(live_user,session_id,turn_key)
             live_job,new=store.create(live_user,turn_key+'-audio','voiceover','Live Translator','id','en','voice','QA','Ephemeral words',0,None,2,5,live_session=(session_id,turn_key))
             assert new and store.start(live_user,live_job)
             temporary.bind(live_user,session_id,turn_key,live_job,{'text':'Ephemeral words','source_language':'id','target_language':'en'})

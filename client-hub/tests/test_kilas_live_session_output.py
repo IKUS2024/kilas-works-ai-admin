@@ -87,15 +87,15 @@ class SessionOutputTests(unittest.TestCase):
         paid.assert_not_called();translate.assert_not_called()
 
     def test_temporary_capacity_failure_is_before_paid_work(self):
-        self.credit(300);ident=self.session();key=self.key();info=sessions.claim(self.user,ident,key)
+        self.credit(300);ident=self.session();key=self.key()
         with self.context('Complete text.'),patch.object(temporary,'MAX_ENTRIES',0),patch.object(segments.transport,'request') as paid,patch.object(live,'translation') as translate:
-            with self.assertRaises(audio.store.AudioError) as error:self.process(ident,key,info)
+            with self.assertRaises(audio.store.AudioError) as error:sessions.claim(self.user,ident,key)
         self.assertEqual(error.exception.code,'session_storage_busy')
         paid.assert_not_called();translate.assert_not_called()
 
     def test_duplicate_worker_cannot_cancel_or_discard_the_original_turn(self):
         self.credit(300);ident=self.session();key=self.key();info=sessions.claim(self.user,ident,key)
-        temporary.begin(self.user,ident,key)
+        temporary.activate(self.user,ident,key)
         with self.context('Complete text.'),patch.object(live,'translation') as translate:
             with self.assertRaises(audio.store.AudioError) as error:self.process(ident,key,info)
         self.assertEqual(error.exception.code,'duplicate_turn');translate.assert_not_called()

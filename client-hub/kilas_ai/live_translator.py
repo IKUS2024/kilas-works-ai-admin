@@ -236,13 +236,14 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
         return check_session(owner,ident,key)
     try:
         with _timed(timings,'preflight_ms'):
+            check()
+            temporary.activate(owner,ident,key)
+            temporary_owned=True
             audio_store.require_balance(owner)
             require_audio_allowance(owner)
             choice=voices.resolve(info['voice_alias'])
             if not choice:raise audio_store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
             check()
-            temporary.begin(owner,ident,key)
-            temporary_owned=True
             if committed_text is None:
                 pcm,ms=stt.normalize(pcm)
                 with wave.open(io.BytesIO(pcm)) as wav:

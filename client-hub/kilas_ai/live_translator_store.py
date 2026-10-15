@@ -53,6 +53,8 @@ def claim(owner,ident,key):
         busy=usage._query(conn,"SELECT 1 FROM kilas_live_translator_turns WHERE session_id=? AND status='PROCESSING'",(ident,),one=True)
         if busy:raise audio_store.AudioError('Ucapan sebelumnya masih diproses.','turn_busy',409)
         usage._query(conn,"INSERT INTO kilas_live_translator_turns(operation_key,session_id,status,created_at) VALUES (?,?,'PROCESSING',?)",(key,ident,usage._now().isoformat()))
+        from . import live_translator_output
+        live_translator_output.begin(owner,ident,key)  # Reserve before even realtime STT can dispatch.
         return info
 
 
