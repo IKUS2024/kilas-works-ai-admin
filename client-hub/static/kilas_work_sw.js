@@ -5,7 +5,7 @@ self.addEventListener('push', event => {
   const target = new URL(data.url || '/kilas-ai/agent', self.location.origin);
   if (target.origin !== self.location.origin || target.pathname !== '/kilas-ai/agent') return;
   event.waitUntil(self.registration.showNotification('Kilas AI', {
-    body: String(data.body || 'Pengingat Kilas AI').slice(0, 240),
+    body: String(data.body || 'Kilas AI').slice(0, 240),
     tag: String(data.tag || 'kilas-work').slice(0, 100),
     data: {url: target.href}
   }));

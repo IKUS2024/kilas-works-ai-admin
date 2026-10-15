@@ -1,3 +1,4 @@
+import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 // Discover only the signed-in owner's session; never replace or end it on a read.
 export class TranslatorRecovery {
   constructor({api, isIdle = () => true, onChange = () => {}, onError = () => {}}) {
@@ -14,14 +15,14 @@ export class TranslatorRecovery {
       const result = await this.api.active();
       if (ticket !== this.version) return false;
       if (!result || !Object.hasOwn(result, 'session') || (result.session !== null && (!result.session || typeof result.session.session_id !== 'string' || !result.session.session_id))) {
-        throw Error('Status sesi belum terverifikasi. Periksa sesi saat jaringan siap.');
+        throw Error(t('Status sesi belum terverifikasi. Periksa sesi saat jaringan siap.'));
       }
       this.active = result.session; this.checked = true;
       return !this.active;
     } catch (error) {
       if (ticket === this.version) {
         this.checked = false;
-        this.onError(error.message || 'Status sesi belum dapat diperiksa. Periksa sesi saat jaringan siap.');
+        this.onError(error.message || t('Status sesi belum dapat diperiksa. Periksa sesi saat jaringan siap.'));
       }
       return false;
     } finally {
@@ -40,7 +41,7 @@ export class TranslatorRecovery {
     } catch {
       if (ticket === this.version) {
         this.checked = true;
-        this.onError('Sesi belum terkonfirmasi berakhir. Periksa sesi atau akhiri kembali saat jaringan siap.');
+        this.onError(t('Sesi belum terkonfirmasi berakhir. Periksa sesi atau akhiri kembali saat jaringan siap.'));
       }
     } finally {
       if (ticket === this.version) { this.ending = false; this.pending = false; this.changed(); }

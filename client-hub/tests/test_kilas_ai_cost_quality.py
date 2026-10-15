@@ -5,11 +5,10 @@ import unittest
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 import test_kilas_autonomous_agent as fixture
 from auth_test_helpers import authenticate
 from kilas_ai import model_policy as policy, fair_use, usage, store, providers, conversation_context, conversation_standard
-from kilas_ai import agent_store
 
 
 class CostQualityTests(unittest.TestCase):
@@ -98,14 +97,14 @@ class CostQualityTests(unittest.TestCase):
             self.assertEqual(usage.reserve(self.uid,self.thread,'tier-'+str(n),'SMART','CHAT')[0],'PLUS')
 
     def test_slow_user_at_ceiling_is_denied_before_provider_or_topup(self):
-        from kilas_ai import capacity,topups
+        from kilas_ai import capacity
         self.spend(capacity.allowance())
         client=fixture.app.app.test_client()
         authenticate(client,fixture.repo.get_user_by_id(self.uid),_csrf_token='ceiling-csrf')
         with patch.object(providers,'stream') as provider:
             response=client.post('/kilas-ai/threads/'+str(self.thread)+'/send',json={'content':'Analisis strategi bisnis secara komprehensif','operation_key':'chatop_ceiling0123456789'},headers={'X-CSRF-Token':'ceiling-csrf'})
             self.assertEqual(response.status_code,429)
-            self.assertIn('Kapasitas Premium',response.json['error'])
+            self.assertIn('Premium Capacity',response.json['error'])
             provider.assert_not_called()
         self.assertEqual(usage.reserve(self.uid,self.thread,'normal-at-exhaustion','FAST','CHAT')[0],'PLUS')
 
@@ -285,7 +284,7 @@ class CostQualityTests(unittest.TestCase):
         authenticate(client,fixture.repo.get_user_by_id(self.uid))
         page=client.get('/kilas-ai/usage').text
         self.assertIn('Unlimited AI Chat',page)
-        self.assertIn('Chat normal tetap tersedia sesuai Fair Use',page)
+        self.assertIn('Normal Chat remains available under Fair Use',page)
         self.assertNotIn('600 /',page)
         self.assertNotIn('gpt-6',page)
         for internal in ('16%','24%','30%','35%','API cost','token cost','GPT-6','OpenAI'):

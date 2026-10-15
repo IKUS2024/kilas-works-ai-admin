@@ -1,11 +1,12 @@
-import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=lifecycle-20261012';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=latency-stages-20261014';
-import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=translator-recovery-20261014';
-import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=whole-utterance-20261013';
-import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=plain-status-20261014';
-import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=input-buffer-20261014';
+import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
+import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=app-language-20261015';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=app-language-20261015';
+import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=app-language-20261015';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=app-language-20261015';
+import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=app-language-20261015';
+import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=app-language-20261015';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
-import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=owner-recovery-20261012';
+import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=app-language-20261015';
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
 const root=document.querySelector('.kilas-live-translator');
 if(root){
@@ -13,7 +14,7 @@ if(root){
  const csrf=form.querySelector('[name=csrf_token]').value,start=form.querySelector('button');let context=null,source=null,analyser=null,interval=null,recorder=null;
  const callLayout=new TranslatorCallLayout({document,root,endButton:document.querySelector('#live-end')});
  const setupReady=root.dataset.ready==='true'&&!start.disabled;
- const showError=(text,detail)=>{error.textContent=text;error.hidden=false;
+ const showError=(text,detail)=>{error.textContent=t(text);error.hidden=false;
   if(detail?.startupStage){if(detail.startupStage==='session_admission')recoverRequested=true;try{console.info('KILAS_LIVE_STARTUP_FAILURE stage='+detail.startupStage+' code='+(detail.code||'startup_failed'));}catch{}}
   if(detail?.inputStage&&['realtime_queue_full','realtime_protocol','realtime_turn_busy','realtime_chunk_invalid','realtime_no_speech'].includes(detail.code)){try{console.info('KILAS_LIVE_INPUT_FAILURE code='+detail.code);}catch{}}
  };
@@ -30,10 +31,10 @@ if(root){
  function monitorStop(){if(interval!==null)clearInterval(interval);interval=null;source?.disconnect();source=null;analyser?.disconnect();analyser=null;}
  const batchCapture={
   async start({level,blob,error:onError,ready}){
-   if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder||!context)throw Error('Browser ini belum mendukung mikrofon.');
-   recorder=new VoiceRecorder({mediaDevices:navigator.mediaDevices,Recorder:window.MediaRecorder,onBlob:raw=>{if(own!==recorder)return;monitorStop();if(own.translatorFinalized)blob(raw);else onError(Object.assign(Error('Ucapan terlalu panjang untuk satu rekaman. Jeda sebentar lalu tekan Lanjutkan; ucapan ini tidak diproses sebagian.'),{code:'utterance_limit'}));},onState:state=>{if(own!==recorder)return;if(state==='empty'){monitorStop();blob(new Blob([]));}if(state==='error')onError(Object.assign(Error('Mikrofon terputus. Periksa izin browser lalu tekan Lanjutkan.'),{code:'microphone_unavailable'}));}});
+   if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder||!context)throw Error(t('Browser ini belum mendukung mikrofon.'));
+   recorder=new VoiceRecorder({mediaDevices:navigator.mediaDevices,Recorder:window.MediaRecorder,onBlob:raw=>{if(own!==recorder)return;monitorStop();if(own.translatorFinalized)blob(raw);else onError(Object.assign(Error(t('Ucapan terlalu panjang untuk satu rekaman. Jeda sebentar lalu tekan Lanjutkan; ucapan ini tidak diproses sebagian.')),{code:'utterance_limit'}));},onState:state=>{if(own!==recorder)return;if(state==='empty'){monitorStop();blob(new Blob([]));}if(state==='error')onError(Object.assign(Error(t('Mikrofon terputus. Periksa izin browser lalu tekan Lanjutkan.')),{code:'microphone_unavailable'}));}});
    const own=recorder;await own.start({userGesture:true,consent:true,enabled:true});
-   if(own!==recorder)return;if(!own.stream)throw Object.assign(Error('Mikrofon belum siap. Periksa izin browser lalu tekan Lanjutkan.'),{code:'microphone_unavailable'});
+   if(own!==recorder)return;if(!own.stream)throw Object.assign(Error(t('Mikrofon belum siap. Periksa izin browser lalu tekan Lanjutkan.')),{code:'microphone_unavailable'});
    source=context.createMediaStreamSource(own.stream);analyser=context.createAnalyser();analyser.fftSize=2048;source.connect(analyser);
    const samples=new Float32Array(analyser.fftSize);let began=performance.now(),heard=false;
    interval=setInterval(()=>{if(!analyser)return;analyser.getFloatTimeDomainData(samples);const rms=Math.sqrt(samples.reduce((sum,v)=>sum+v*v,0)/samples.length);if(rms>=.015)heard=true;level(rms);
@@ -80,7 +81,7 @@ if(root){
   if(result.status==='COMPLETED'&&typeof result.translated_text==='string'&&result.translated_text.trim()){error.hidden=true;error.textContent='';}
  },onState:state=>{
   start.disabled=state!=='ended'||!setupReady||!recovery?.canStart();setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;
-  const label={paused:'Sesi dijeda',playing:'Hasil',listening:'Mendengarkan'}[state]||'Memproses';orb.setAttribute('aria-label',label);
+  const label={paused:t('Sesi dijeda'),playing:t('Hasil'),listening:t('Mendengarkan')}[state]||t('Memproses');orb.setAttribute('aria-label',label);
   document.querySelector('#live-resume').hidden=state!=='paused';
   document.querySelector('#live-state').textContent=orb.getAttribute('aria-label');
   callLayout.setActive(state!=='ended');
@@ -91,12 +92,12 @@ if(root){
   const confirmedActive=Boolean(state.active)&&(state.checked||state.ending),idle=session.state==='ended';
   recoveryPanel.hidden=!idle||!confirmedActive;
   // Keep initial checks in the existing Start control; no conflict panel or form shift.
-  start.textContent=state.pending&&!confirmedActive?'Memeriksa sesi...':'Start';
+  start.textContent=state.pending&&!confirmedActive?t('Memeriksa sesi...'):'Start';
   start.setAttribute?.('aria-busy',String(state.pending));
-  sessionStatus.textContent=idle&&state.pending&&!confirmedActive?'Memeriksa sesi...':'';
+  sessionStatus.textContent=idle&&state.pending&&!confirmedActive?t('Memeriksa sesi...'):'';
   recoveryRetry.hidden=!idle||state.pending||state.checked||confirmedActive;
   recoveryEnd.hidden=!state.active;recoveryEnd.disabled=state.pending;recoveryCheck.disabled=state.pending;
-  recoveryStatus.textContent=state.ending?'Mengakhiri sesi sebelumnya...':state.pending?'Memeriksa sesi...':state.active?'Sesi sebelumnya masih aktif.'+(state.active.processing?' Ada ucapan yang masih diproses.':''):'Status sesi belum terverifikasi. Periksa sesi saat jaringan siap.';
+  recoveryStatus.textContent=state.ending?t('Mengakhiri sesi sebelumnya...'):state.pending?t('Memeriksa sesi...'):state.active?t('Sesi sebelumnya masih aktif.')+(state.active.processing?t(' Ada ucapan yang masih diproses.'):''):t('Status sesi belum terverifikasi. Periksa sesi saat jaringan siap.');
   if(state.canStart()&&recoveryError){error.hidden=true;recoveryError=false;}
   if(recoveryExpiry!==null){clearTimeout(recoveryExpiry);recoveryExpiry=null;}
   if(session.state==='ended'&&!state.pending&&state.active?.expires_in_seconds>0)recoveryExpiry=setTimeout(()=>recovery.refresh(),state.active.expires_in_seconds*1000);
@@ -104,8 +105,8 @@ if(root){
  recoveryEnd.addEventListener('click',()=>recovery.endPrevious());recoveryCheck.addEventListener('click',()=>recovery.refresh());recoveryRetry.addEventListener('click',()=>recovery.refresh());
  window.addEventListener('online',()=>recovery.refresh());recovery.refresh();
  form.addEventListener('submit',event=>{event.preventDefault();if(!setupReady||session.state!=='ended'||!recovery.canStart())return;if(!form.reportValidity())return;
-  if(!validLanguagePair(languageA,languageB)){showError('Pilih dua bahasa yang berbeda sebelum memulai sesi.');languageB.focus();return;}
-  error.hidden=true;document.querySelector('#live-translation').hidden=true;const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext){showError('Browser ini belum mendukung audio sesi.');return;}
+  if(!validLanguagePair(languageA,languageB)){showError(t('Pilih dua bahasa yang berbeda sebelum memulai sesi.'));languageB.focus();return;}
+  error.hidden=true;document.querySelector('#live-translation').hidden=true;const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext){showError(t('Browser ini belum mendukung audio sesi.'));return;}
   context=new AudioContext();session.start(new FormData(form));
  });
  document.querySelector('#live-resume').addEventListener('click',()=>{error.hidden=true;session.resume();});

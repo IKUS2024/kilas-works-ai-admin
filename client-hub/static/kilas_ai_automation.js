@@ -50,7 +50,7 @@ if (scheduleForm) {
     const now = localNow();
     if (mode.value === 'once' && now && date.value && clock.value &&
         (date.value < now.date || (date.value === now.date && clock.value <= now.time))) {
-      clock.setCustomValidity('Pilih tanggal dan jam yang belum lewat.');
+      clock.setCustomValidity(t('Pilih tanggal dan jam yang belum lewat.'));
       clock.reportValidity();
       event.preventDefault();
     }
@@ -60,7 +60,7 @@ if (scheduleForm) {
 }
 document.querySelectorAll('form[data-confirm-delete="1"]').forEach(form => {
   form.addEventListener('submit', event => {
-    if (!window.confirm('Hapus tugas ini? Hasil yang sudah ada tetap tersimpan.')) event.preventDefault();
+    if (!window.confirm(t('Hapus tugas ini? Hasil yang sudah ada tetap tersimpan.'))) event.preventDefault();
   });
 });
 const agentChat=document.querySelector('#agent-chat-form');

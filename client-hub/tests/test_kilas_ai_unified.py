@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 import test_kilas_work_v2 as base
-from kilas_ai import unified_runtime, agent_chat, providers, model_policy, agent_store, work_artifacts, store
+from kilas_ai import unified_runtime, providers, model_policy, agent_store, work_artifacts, store
 
 
 def answer(text='Halo! Ada yang bisa saya bantu?'):
@@ -183,7 +183,7 @@ class UnifiedTests(unittest.TestCase):
     def test_unified_navigation_and_legacy_history(self):
         thread=store.create_thread(self.owner)
         html=self.client().get('/kilas-ai/agent?view=history').text
-        self.assertIn('Percakapan sebelumnya',html)
+        self.assertIn('Previous conversations',html)
         self.assertIn('/kilas-ai/threads/'+str(thread),html)
         self.assertEqual(self.client().get('/kilas-ai/threads/'+str(thread)).status_code,200)
         html=self.client().get('/kilas-ai/agent').text

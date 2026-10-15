@@ -39,6 +39,9 @@ class AudioTests(unittest.TestCase):
         self.user=f.repo.create_user(self.id()+'@example.test','hash')
         self.other=f.repo.create_user(self.id()+'-other@example.test','hash')
         self.client=f.app.app.test_client()
+        # These historical copy assertions exercise the explicit Indonesian UI.
+        # Default-English behavior is covered independently by the locale suites.
+        self.client.set_cookie('kilas_language','id')
         from auth_test_helpers import authenticate
         authenticate(self.client,f.repo.get_user_by_id(self.user),_csrf_token='audio-csrf')
         self.voices=[{'id':'actualVoice123','name':'QA Calm','style':'Female · Calm'}]

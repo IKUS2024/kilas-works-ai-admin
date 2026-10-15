@@ -322,19 +322,19 @@
         {% set nav_products_active = (customer_blueprint == 'products' and not nav_bills_active) or customer_endpoint == 'projects.service_catalog_page' %}
         {% set nav_orders_active = customer_blueprint == 'projects' and customer_endpoint != 'projects.service_catalog_page' %}
         {% set nav_account_active = customer_endpoint == 'auth.account_page' %}
-        <a class="{{ 'topbar-active' if nav_home_active else '' }}" {% if nav_home_active %}aria-current="page"{% endif %} href="{{ url_for('client.dashboard') }}">Beranda</a>
+        <a class="{{ 'topbar-active' if nav_home_active else '' }}" {% if nav_home_active %}aria-current="page"{% endif %} href="{{ url_for('client.dashboard') }}">{{ ui_t('Beranda') }}</a>
         {% if request.blueprint == 'finance' %}
           <a class="topbar-active" aria-current="page" href="{{ url_for('finance.workspace_choice',business_id=request.view_args.get('business_id')) if request.view_args and request.view_args.get('business_id') else request.path }}">Finance</a>
         {% endif %}
-        <a class="{{ 'topbar-active' if nav_products_active else '' }}" {% if nav_products_active %}aria-current="page"{% endif %} href="{{ url_for('products.index') }}">Produk &amp; Layanan</a>
-        <a class="{{ 'topbar-active' if nav_orders_active else '' }}" {% if nav_orders_active %}aria-current="page"{% endif %} href="{{ url_for('projects.my_project_list') }}">Pesanan</a>
-        <a class="{{ 'topbar-active' if nav_bills_active else '' }}" {% if nav_bills_active %}aria-current="page"{% endif %} href="{{ url_for('products.account_bills') }}">Tagihan</a>
-        <a class="{{ 'topbar-active' if nav_account_active else '' }}" {% if nav_account_active %}aria-current="page"{% endif %} href="{{ url_for('auth.account_page') }}">Akun</a>
+        <a class="{{ 'topbar-active' if nav_products_active else '' }}" {% if nav_products_active %}aria-current="page"{% endif %} href="{{ url_for('products.index') }}">{{ ui_t('Produk & Layanan') }}</a>
+        <a class="{{ 'topbar-active' if nav_orders_active else '' }}" {% if nav_orders_active %}aria-current="page"{% endif %} href="{{ url_for('projects.my_project_list') }}">{{ ui_t('Pesanan') }}</a>
+        <a class="{{ 'topbar-active' if nav_bills_active else '' }}" {% if nav_bills_active %}aria-current="page"{% endif %} href="{{ url_for('products.account_bills') }}">{{ ui_t('Tagihan') }}</a>
+        <a class="{{ 'topbar-active' if nav_account_active else '' }}" {% if nav_account_active %}aria-current="page"{% endif %} href="{{ url_for('auth.account_page') }}">{{ ui_t('Akun') }}</a>
       {% endif %}
       {% if session.get('role')=='KILAS_ADMIN' %}<a href="{{ url_for('products.admin_bills') }}">Verifikasi Finance</a><a href="{{ url_for('auth.logout_page') }}">Logout</a>{% endif %}
     {% else %}
       <a href="{{ url_for('auth.login_page') }}">Login</a>
-      <a href="{{ url_for('auth.register_page') }}">Daftar</a>
+      <a href="{{ url_for('auth.register_page') }}">{{ ui_t('Daftar') }}</a>
     {% endif %}
   </nav>
 </div>
@@ -351,7 +351,7 @@
   {% if request.blueprint == 'finance' and session.get('user_id') and not (finance_ui and finance_ui.enabled) %}
   {% set finance_nav_business_id = request.view_args.get('business_id') if request.view_args else none %}
   {% set finance_nav_branch_id = g.get('finance_branch_id') %}
-  <nav class="finance-exit-bar no-print" aria-label="Navigasi Finance">
+  <nav class="finance-exit-bar no-print" aria-label="{{ ui_t('Navigasi Finance') }}">
     {% if finance_nav_business_id and finance_nav_branch_id and request.endpoint != 'finance.workspace_choice' %}
     <a class="finance-exit-link finance-dashboard-link" href="{{ url_for('finance.dashboard',business_id=finance_nav_business_id,branch_id=finance_nav_branch_id) }}">Dashboard</a>
     {% endif %}

@@ -1,13 +1,14 @@
+import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 const failure=code=>{
-  const detail={realtime_queue_full:'Koneksi input tertinggal terlalu lama. Sesi dijeda agar ucapan tidak dipotong.',
-    realtime_protocol:'Layanan belum mengonfirmasi input suara.',
-    realtime_turn_busy:'Ucapan sebelumnya belum selesai dikirim.',
-    realtime_chunk_invalid:'Urutan input suara belum terkonfirmasi.',
-    realtime_no_speech:'Input ucapan belum lengkap.'}[code]||'Input suara terputus.';
-  return Object.assign(Error(detail+' Ucapan ini tidak diulang dalam mode lain.'),{code,inputStage:'upload'});
+  const detail={realtime_queue_full:t('Koneksi input tertinggal terlalu lama. Sesi dijeda agar ucapan tidak dipotong.'),
+    realtime_protocol:t('Layanan belum mengonfirmasi input suara.'),
+    realtime_turn_busy:t('Ucapan sebelumnya belum selesai dikirim.'),
+    realtime_chunk_invalid:t('Urutan input suara belum terkonfirmasi.'),
+    realtime_no_speech:t('Input ucapan belum lengkap.')}[code]||t('Input suara terputus.');
+  return Object.assign(Error(detail+t(' Ucapan ini tidak diulang dalam mode lain.')),{code,inputStage:'upload'});
 };
 const MAX_BACKLOG_BYTES=8*32000; // Bounded startup/jitter buffer; total utterance cap is unchanged.
-const abort=()=>new DOMException('Sesi dijeda.','AbortError');
+const abort=()=>new DOMException(t('Sesi dijeda.'),'AbortError');
 export class RealtimeInput {
   constructor({json,csrf}){Object.assign(this,{json,csrf});this.current=null;}
   path(id,key){return '/kilas-translator/live/sessions/'+encodeURIComponent(id)+'/turns/'+encodeURIComponent(key);}

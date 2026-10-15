@@ -1,3 +1,4 @@
+import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 // Injectable browser microphone lifecycle. No capture runs merely by importing this module.
 export class VoiceRecorder {
   constructor({mediaDevices,Recorder,onBlob,onState,setTimer=(fn,ms)=>globalThis.setInterval(fn,ms),clearTimer=id=>globalThis.clearInterval(id),now=Date.now}) {
@@ -8,7 +9,7 @@ export class VoiceRecorder {
   cancel() {++this.version;try{if(this.recorder?.state==='recording')this.recorder.stop();}finally{this.cleanup();this.recorder=null;this.stopping=false;}}
   stop() {if(this.stopping)return;if(this.recorder?.state==='recording'){this.stopping=true;this.recorder.stop();}else {this.cancel();this.onState('cancelled');}}
   async start({userGesture,consent,enabled}) {
-    if(!userGesture||!consent||!enabled)throw Error('Setujui pemrosesan audio dan mulai rekaman melalui tombol.');
+    if(!userGesture||!consent||!enabled)throw Error(t('Setujui pemrosesan audio dan mulai rekaman melalui tombol.'));
     this.cancel();const ticket=this.version;
     try {
       const stream=await this.mediaDevices.getUserMedia({audio:true});

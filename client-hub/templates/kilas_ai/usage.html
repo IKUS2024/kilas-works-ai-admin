@@ -12,7 +12,7 @@
   <div class="subscription-layout">
     <section class="subscription-offer" aria-labelledby="offer-title">
       <div class="subscription-offer-head"><div><h2 id="offer-title">{{ ui_t('Kilas Pro') }}</h2></div><span class="subscription-status">{{ ui_t('Aktif') if subscription.status == 'ACTIVE' else ui_t('Belum aktif') }}</span></div>
-      <p class="subscription-price">{{ ui_t('Rp99.000') }} <span>/ 30 hari</span></p>
+      <p class="subscription-price">{{ ui_t('Rp99.000') }} <span>{{ ui_t("/ 30 hari") }}</span></p>
       {% if subscription.status == 'ACTIVE' %}<p class="subscription-period">{{ ui_t('Aktif hingga') }} {{ subscription.period_end.strftime('%d/%m/%Y') }}{{ ui_t('. Perpanjangan dilakukan melalui tagihan baru.') }}</p>{% elif subscription_expired %}<p class="subscription-period">{{ ui_t('Masa aktif Kilas Pro telah berakhir.') }}</p>{% endif %}
       <ul class="subscription-capabilities"><li>{{ ui_t('Unlimited AI Chat*') }}</li><li>{{ ui_t('Cari informasi terbaru dari web') }}</li><li>{{ ui_t('Analisis dokumen dan file') }}</li><li>{{ ui_t('Baca dan rangkum PDF') }}</li><li>{{ ui_t('Buat dan edit gambar') }}</li><li>{{ ui_t('Bantu menulis, merencanakan, dan menganalisis') }}</li><li>{{ ui_t('Perencanaan video di AI Chat dan Work') }}</li><li>{{ ui_t('Riwayat percakapan tersimpan') }}</li></ul>
       <form method="post" action="{{ url_for('kilas_ai.checkout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="subscription-primary" type="submit">{{ ui_t('Perpanjang Rp99.000 / 30 hari') if subscription_expired else ui_t('Perpanjang langganan') if subscription.status == 'ACTIVE' else ui_t('Mulai berlangganan') }}</button></form>

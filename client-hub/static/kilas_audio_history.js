@@ -1,5 +1,6 @@
 /* Update only Recent. Form, media, capture and result polling keep their nodes. */
 (() => {
+  const t=(message,values)=>window.KilasUI ? window.KilasUI.t(message,values) : Object.entries(values||{}).reduce((text,[key,value])=>text.replaceAll('{'+key+'}',String(value)),message);
   const root=document.querySelector('#audio-history'),region=root?.querySelector('[data-audio-history-content]');
   if(!region)return;
   const status=root.querySelector('[data-audio-history-message]'),studio=document.querySelector('#audio-studio');
@@ -9,7 +10,7 @@
     if(!Number.isInteger(page)||page<1||(!reset&&page>Number(state.dataset.pages)))return;
     pending?.abort();const controller=new AbortController(),ticket=++version;pending=controller;
     const oldButtons=[...region.querySelectorAll('[data-audio-history-page]')],disabled=oldButtons.map(b=>b.disabled);
-    oldButtons.forEach(b=>b.disabled=true);region.setAttribute('aria-busy','true');status.textContent='Memuat riwayat…';
+    oldButtons.forEach(b=>b.disabled=true);region.setAttribute('aria-busy','true');status.textContent=t('Memuat riwayat…');
     const timeout=setTimeout(()=>controller.abort(),15000);
     try{
       const url=new URL(root.dataset.historyUrl,location.origin);
@@ -33,9 +34,9 @@
       if(pager)pager.style.minHeight=`${Math.ceil(pagerHeight)}px`;
       if(focusPager&&pager){pager.tabIndex=-1;pager.focus({preventScroll:true});}
       if(window.scrollX!==x||window.scrollY!==y)window.scrollTo({left:x,top:y,behavior:'instant'});
-      status.textContent=body.pages?`Halaman ${body.page} dari ${body.pages}.`:'Belum ada riwayat audio.';
+      status.textContent=body.pages?t("Halaman {value0} dari {value1}.", {value0: (body.page), value1: (body.pages)}):t('Belum ada riwayat audio.');
     }catch{
-      if(ticket===version&&root.isConnected){oldButtons.forEach((b,i)=>b.disabled=disabled[i]);status.textContent='Riwayat belum dapat dimuat. Silakan coba lagi.';}
+      if(ticket===version&&root.isConnected){oldButtons.forEach((b,i)=>b.disabled=disabled[i]);status.textContent=t('Riwayat belum dapat dimuat. Silakan coba lagi.');}
     }finally{
       clearTimeout(timeout);
       if(ticket===version){pending=null;region.removeAttribute('aria-busy');}

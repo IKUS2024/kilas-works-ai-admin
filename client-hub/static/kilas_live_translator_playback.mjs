@@ -1,6 +1,7 @@
+import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 // Bounded Web Audio playback. No microphone, provider calls or automatic replay.
-const abortError=()=>new DOMException('Sesi berakhir.','AbortError');
-const failure=(code,message)=>Object.assign(Error(message+' Audio ini tidak dibuat ulang otomatis.'),{code});
+const abortError=()=>new DOMException(t('Sesi berakhir.'),'AbortError');
+const failure=(code,message)=>Object.assign(Error(message+t(' Audio ini tidak dibuat ulang otomatis.')),{code});
 const MAX_BYTES=20*1024*1024;
 
 export class TranslatorPlayback {
@@ -28,12 +29,12 @@ export class TranslatorPlayback {
     this.operation?.controller.abort();
     const op={controller:new AbortController(),context:this.getContext(),isCurrent,prefetch};this.operation=op;
     const cancel=()=>op.controller.abort();signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
-    try{this.check(op);if(!op.context||op.context.state==='closed')throw failure('audio_context','Audio tidak tersedia. Periksa audio browser.');return await work(op);}
+    try{this.check(op);if(!op.context||op.context.state==='closed')throw failure('audio_context',t('Audio tidak tersedia. Periksa audio browser.'));return await work(op);}
     finally{op.controller.abort();op.prefetch?.controller.abort();op.prefetch?.cleanup?.();signal.removeEventListener('abort',cancel);if(this.operation===op)this.operation=null;}
   }
   async resume(op){
     if(op.context.state==='running')return;
-    const error=failure('audio_resume','Audio belum diizinkan atau terputus. Periksa audio browser lalu tekan Lanjutkan.');
+    const error=failure('audio_resume',t('Audio belum diizinkan atau terputus. Periksa audio browser lalu tekan Lanjutkan.'));
     const began=this.now();
     try{await this.bounded(op,()=>op.context.resume(),5000,error);}catch(e){if(this.cancelled(op,e))throw e;throw error;}
     this.check(op);if(op.context.state!=='running')throw error;
@@ -41,21 +42,21 @@ export class TranslatorPlayback {
   }
   prepare(signal,isCurrent){this.discardPrefetch();return this.run(signal,isCurrent,op=>this.resume(op));}
   async load(op,url){
-      if(typeof url!=='string'||!/^\/kilas-translator\/live\/sessions\/[a-f0-9]{48}\/turns\/live-[a-f0-9]{32}\/audio(?:\/segments\/[0-7])?$/.test(url))throw failure('audio_url','Hasil audio tidak tersedia.');
-      const loadError=failure('audio_fetch','Audio belum dapat dimuat. Periksa koneksi.');
+      if(typeof url!=='string'||!/^\/kilas-translator\/live\/sessions\/[a-f0-9]{48}\/turns\/live-[a-f0-9]{32}\/audio(?:\/segments\/[0-7])?$/.test(url))throw failure('audio_url',t('Hasil audio tidak tersedia.'));
+      const loadError=failure('audio_fetch',t('Audio belum dapat dimuat. Periksa koneksi.'));
       const downloadBegan=this.now();let raw;
       try{
         raw=await this.bounded(op,async()=>{
           const response=await this.fetchAudio(url,{credentials:'same-origin',signal:op.controller.signal,cache:'no-store',redirect:'error'});
           this.check(op);
           if(!response.ok||response.redirected)throw loadError;
-          const size=Number(response.headers?.get('Content-Length'));if(size>MAX_BYTES)throw failure('audio_size','Audio melebihi batas.');
-          const data=await response.arrayBuffer();if(!data.byteLength||data.byteLength>MAX_BYTES)throw failure('audio_size','Audio kosong atau melebihi batas.');
+          const size=Number(response.headers?.get('Content-Length'));if(size>MAX_BYTES)throw failure('audio_size',t('Audio melebihi batas.'));
+          const data=await response.arrayBuffer();if(!data.byteLength||data.byteLength>MAX_BYTES)throw failure('audio_size',t('Audio kosong atau melebihi batas.'));
           return data;
         },15000,loadError);
       }catch(e){if(this.cancelled(op,e)||typeof e.code==='string')throw e;throw loadError;}
       this.timing({audio_download_ms:Math.max(0,this.now()-downloadBegan)});
-      const decodeBegan=this.now(),decodeError=failure('audio_decode','Format audio belum dapat dibaca.');let buffer;
+      const decodeBegan=this.now(),decodeError=failure('audio_decode',t('Format audio belum dapat dibaca.'));let buffer;
       try{buffer=await this.bounded(op,()=>op.context.decodeAudioData(raw),10000,decodeError);}catch(e){if(this.cancelled(op,e))throw e;throw decodeError;}
       if(!Number.isFinite(buffer?.duration)||buffer.duration<=0||buffer.duration>600)throw decodeError;
       this.timing({audio_decode_ms:Math.max(0,this.now()-decodeBegan)});
@@ -72,7 +73,7 @@ export class TranslatorPlayback {
     this.prefetched=op;
     signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
     op.promise=(async()=>{
-      try{this.check(op);if(!op.context||op.context.state==='closed')throw failure('audio_context','Audio tidak tersedia. Periksa audio browser.');return {buffer:await this.load(op,url)};}
+      try{this.check(op);if(!op.context||op.context.state==='closed')throw failure('audio_context',t('Audio tidak tersedia. Periksa audio browser.'));return {buffer:await this.load(op,url)};}
       catch(error){return {error};}
     })();
   }
@@ -83,7 +84,7 @@ export class TranslatorPlayback {
       const waitBegan=this.now();let buffer;
       if(slot){
         op.controller.signal.addEventListener('abort',()=>slot.controller.abort(),{once:true});
-        const loaded=await this.bounded(op,()=>slot.promise,25000,failure('audio_fetch','Audio belum dapat dimuat. Periksa koneksi.'));
+        const loaded=await this.bounded(op,()=>slot.promise,25000,failure('audio_fetch',t('Audio belum dapat dimuat. Periksa koneksi.')));
         this.check(op);if(loaded.error)throw loaded.error;buffer=loaded.buffer;
       }
       else buffer=await this.load(op,url);
@@ -92,7 +93,7 @@ export class TranslatorPlayback {
       // Android may suspend the context while network/provider work is in flight.
       await this.resume(op);this.check(op);
       const readyAt=this.now();
-      await this.bounded(op,()=>this.playBuffer(op,buffer,()=>{this.timing({audio_start_ms:Math.max(0,this.now()-readyAt)});onStarted({buffer_wait_ms:bufferWaitMs});}),buffer.duration*1000+10000,failure('audio_timeout','Pemutaran audio melewati batas waktu.'));
+      await this.bounded(op,()=>this.playBuffer(op,buffer,()=>{this.timing({audio_start_ms:Math.max(0,this.now()-readyAt)});onStarted({buffer_wait_ms:bufferWaitMs});}),buffer.duration*1000+10000,failure('audio_timeout',t('Pemutaran audio melewati batas waktu.')));
     },slot);
   }
   playBuffer(op,buffer,onStarted){
@@ -110,22 +111,22 @@ export class TranslatorPlayback {
         try{
           this.check(op);
           if(context.state!=='running'){
-            if(recovered||context.state==='closed')throw failure('audio_stalled','Pemutaran audio terputus.');
+            if(recovered||context.state==='closed')throw failure('audio_stalled',t('Pemutaran audio terputus.'));
             recovered=true;await this.resume(op);if(settled)return;lastProgress=this.now();lastTime=context.currentTime;
           }
           if(context.currentTime>lastTime){lastTime=context.currentTime;lastProgress=this.now();}
           // A finite buffer has finished once the running audio clock passed it,
           // even if a device omitted onended. Never resume capture on a wall timer.
           if(context.currentTime-audioStart>=buffer.duration+.25){finish();return;}
-          if(this.now()-lastProgress>=5000)throw failure('audio_stalled','Pemutaran audio tidak bergerak.');
+          if(this.now()-lastProgress>=5000)throw failure('audio_stalled',t('Pemutaran audio tidak bergerak.'));
           timer=this.schedule(watch,250);
         }catch(e){finish(e);}
       };
       try{
         this.check(op);node=context.createBufferSource();node.buffer=buffer;node.connect(context.destination);
         // Allow 50 ms of audio-clock rounding at the natural end, never a wall-time success.
-        node.onended=()=>{try{this.check(op);if(context.currentTime-audioStart<buffer.duration-.05)throw failure('audio_stalled','Pemutaran audio berakhir sebelum ucapan selesai.');finish();}catch(e){finish(e);}};node.start();try{onStarted();}catch{}timer=this.schedule(watch,250);}
-      catch(e){finish(e.name==='AbortError'?e:failure('audio_start','Audio belum dapat diputar.'));}
+        node.onended=()=>{try{this.check(op);if(context.currentTime-audioStart<buffer.duration-.05)throw failure('audio_stalled',t('Pemutaran audio berakhir sebelum ucapan selesai.'));finish();}catch(e){finish(e);}};node.start();try{onStarted();}catch{}timer=this.schedule(watch,250);}
+      catch(e){finish(e.name==='AbortError'?e:failure('audio_start',t('Audio belum dapat diputar.')));}
     });
   }
 }

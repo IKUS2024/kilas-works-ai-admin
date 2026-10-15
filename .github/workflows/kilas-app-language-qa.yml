@@ -1,0 +1,42 @@
+name: Kilas App Language QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client-hub/ui_i18n.py'
+      - 'client-hub/locales/**'
+      - 'client-hub/templates/**'
+      - 'client-hub/static/ui_i18n.*'
+      - 'client-hub/static/kilas_*.js'
+      - 'client-hub/static/kilas_*.mjs'
+      - 'client-hub/tests/test_ui_*'
+      - '.github/workflows/kilas-app-language-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt ruff
+      - name: Install browser-free DOM utility
+        run: npm install --prefix /tmp/kilas-ui-dom --cache /tmp/kilas-ui-npm-cache --no-audit --no-fund --save-exact jsdom@26.1.0
+      - run: ruff check --select E9,F client-hub/ui_i18n.py client-hub/tests/test_ui_i18n.py client-hub/tests/test_ui_english_consistency.py
+      - name: Locale, response-boundary and real Flask rendering regressions
+        run: |
+          python -B scripts/run_offline_tests.py --only test_ui_i18n.py
+          python -B scripts/run_offline_tests.py --only test_ui_english_consistency.py
+        env:
+          KILAS_ENGLISH_UI_FIXTURE_PATH: /tmp/kilas-ui-pages.json
+          PYTHONDONTWRITEBYTECODE: '1'
+      - name: Mocked UI, recovery and history DOM regressions
+        run: node --test client-hub/tests/test_ui_i18n.mjs client-hub/tests/test_ui_english_dom.mjs
+        env:
+          KILAS_ENGLISH_UI_FIXTURE_PATH: /tmp/kilas-ui-pages.json
+          KILAS_UI_DOM_TOOLS: /tmp/kilas-ui-dom

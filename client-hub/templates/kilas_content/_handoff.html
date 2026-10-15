@@ -1,7 +1,7 @@
 {% if content_draft %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_content.css') }}">
-<aside class="content-handoff" aria-label="Proyek konten">
-<a href="{{ url_for('kilas_ai.content_project',ident=content_draft.project.id) }}">Kembali ke {{ content_draft.project.title }}</a>
-<p>Draft proyek · naskah v{{ content_draft.version }}</p><details><summary>Info draft</summary><p>Periksa sebelum memulai. Tautkan hasil baru secara manual dari proyek.</p></details>
+<aside class="content-handoff" aria-label="{{ ui_t('Proyek konten') }}">
+<a href="{{ url_for('kilas_ai.content_project',ident=content_draft.project.id) }}">{{ ui_t("Kembali ke") }} {{ content_draft.project.title }}</a>
+<p>{{ ui_t("Draft proyek · naskah v") }}{{ content_draft.version }}</p><details><summary>{{ ui_t("Info draft") }}</summary><p>{{ ui_t("Periksa sebelum memulai. Tautkan hasil baru secara manual dari proyek.") }}</p></details>
 </aside>
 {% endif %}

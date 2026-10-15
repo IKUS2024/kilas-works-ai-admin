@@ -147,7 +147,7 @@
             if (update.type === 'delta') {
               answer ||= message('assistant', ''); window.KilasMarkdown.stream(answer,update.text);
               chat.scrollTop = chat.scrollHeight;
-            } else if (update.type === 'activity') thinking.lastElementChild.textContent = update.label;
+            } else if (update.type === 'activity') thinking.lastElementChild.textContent = t(update.label);
             else if (update.type === 'reset') { if(answer) window.KilasMarkdown.render(answer,''); }
             else if (update.type === 'error') throw new Error('provider');
             else if (update.type === 'done') { complete = true; if (answer) { answer.classList.add('ai-markdown'); window.KilasMarkdown.finish(answer); } }

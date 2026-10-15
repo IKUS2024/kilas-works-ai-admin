@@ -5,6 +5,6 @@
     <div class="kilas-profile-identity"><span>{{ kilas_profile_email }}</span></div>
     <a href="{{ url_for('kilas_ai.usage_page') }}">{{ drawer_icon('subscription') }}<span>Subscription</span>{{ drawer_icon('chevron') }}</a>
     <details class="kilas-profile-language"><summary>{{ drawer_icon('language') }}<span>App Language</span>{{ drawer_icon('chevron') }}</summary>{% set language_location='kilas-profile' %}{% include '_language_selector.html' %}</details>
-    <a href="{{ url_for('auth.logout_page') }}">{{ drawer_icon('logout') }}<span>Logout</span>{{ drawer_icon('chevron') }}</a>
+    <a href="{{ url_for('auth.logout_page') }}">{{ drawer_icon('logout') }}<span>{{ ui_t("Logout") }}</span>{{ drawer_icon('chevron') }}</a>
   </div>
 </details>

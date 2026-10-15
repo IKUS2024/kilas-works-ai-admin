@@ -12,7 +12,7 @@
       <div id="agent-thinking" class="agent-thinking" role="status" aria-live="polite" hidden><span class="agent-thinking-dot" aria-hidden="true"></span><span>{{ ui_t('Menyiapkan jawaban…') }}</span></div>
       {% if chat_content %}
         {% include 'kilas_content/_chat_content_panel.html' %}
-        {% if chat_content.listening_enabled %}<details class="chat-content-listening"><summary>Contoh caption tab · sintetis</summary>{% include 'kilas_content/_listening_panel.html' %}</details>{% endif %}
+        {% if chat_content.listening_enabled %}<details class="chat-content-listening"><summary>{{ ui_t("Contoh caption tab · sintetis") }}</summary>{% include 'kilas_content/_listening_panel.html' %}</details>{% endif %}
         <script type="module" src="{{ url_for('static',filename='kilas_chat_content.mjs') }}"></script>
       {% endif %}
       <p id="agent-chat-error" class="auto-error" role="alert" hidden></p>

@@ -1,13 +1,13 @@
 <details id="voice-video-script" data-ready="{{ 'true' if video_script_ready else 'false' }}" data-busy="false">
-<summary>Video ke naskah (opsional)</summary>
-{% if not video_script_ready %}<p role="status">Transkripsi video belum aktif.</p>{% endif %}
+<summary>{{ ui_t("Video ke naskah (opsional)") }}</summary>
+{% if not video_script_ready %}<p role="status">{{ ui_t("Transkripsi video belum aktif.") }}</p>{% endif %}
 <form id="voice-video-extract-form" action="{{ url_for('kilas_audio.video_script') }}" method="post" enctype="multipart/form-data">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<label for="voice-video-file">Video MP4</label><input type="file" id="voice-video-file" name="video" accept=".mp4,video/mp4" data-max-bytes="{{ max_mb*1024*1024 }}" data-max-file-mb="{{ max_mb }}" {{ 'disabled' if not video_script_ready }}>
-<p class="voice-video-limits">MP4 · maks. {{ max_mb }} MB · {{ max_seconds//60 }} menit</p>
-<p id="voice-video-privacy-terms">Naskah maksimal 4.000 karakter; hasil yang lebih panjang tidak dipotong. Periksa naskah sebelum Generate Voice Over; transkripsi tidak membuat suara otomatis.</p>
-<label class="voice-consent"><input type="checkbox" id="voice-video-consent" name="consent" value="yes" aria-describedby="voice-video-privacy-terms" {{ 'disabled' if not video_script_ready }}><span>Saya punya izin dan menyetujui pemrosesan audio video ini sesuai Kebijakan Privasi.</span></label>
-<div class="voice-preview-actions"><button type="submit" class="btn secondary" id="voice-video-extract" {{ 'disabled' if not video_script_ready }}>Ambil naskah</button><button type="button" class="btn secondary" id="voice-video-stop" hidden>Stop</button><button type="button" class="btn secondary" id="voice-video-apply" hidden>Gunakan hasil video</button><button type="button" class="btn secondary" id="voice-video-undo" hidden>Urungkan naskah video</button></div>
+<label for="voice-video-file">{{ ui_t("Video MP4") }}</label><input type="file" id="voice-video-file" name="video" accept=".mp4,video/mp4" data-max-bytes="{{ max_mb*1024*1024 }}" data-max-file-mb="{{ max_mb }}" {{ 'disabled' if not video_script_ready }}>
+<p class="voice-video-limits">{{ ui_t("MP4 · maks.") }} {{ max_mb }} MB · {{ max_seconds//60 }} {{ ui_t("menit") }}</p>
+<p id="voice-video-privacy-terms">{{ ui_t("Naskah maksimal 4.000 karakter; hasil yang lebih panjang tidak dipotong. Periksa naskah sebelum Generate Voice Over; transkripsi tidak membuat suara otomatis.") }}</p>
+<label class="voice-consent"><input type="checkbox" id="voice-video-consent" name="consent" value="yes" aria-describedby="voice-video-privacy-terms" {{ 'disabled' if not video_script_ready }}><span>{{ ui_t("Saya punya izin dan menyetujui pemrosesan audio video ini sesuai Kebijakan Privasi.") }}</span></label>
+<div class="voice-preview-actions"><button type="submit" class="btn secondary" id="voice-video-extract" {{ 'disabled' if not video_script_ready }}>{{ ui_t("Ambil naskah") }}</button><button type="button" class="btn secondary" id="voice-video-stop" hidden>{{ ui_t("Stop") }}</button><button type="button" class="btn secondary" id="voice-video-apply" hidden>{{ ui_t("Gunakan hasil video") }}</button><button type="button" class="btn secondary" id="voice-video-undo" hidden>{{ ui_t("Urungkan naskah video") }}</button></div>
 <p id="voice-video-status" role="status"></p>
 </form>
 </details>

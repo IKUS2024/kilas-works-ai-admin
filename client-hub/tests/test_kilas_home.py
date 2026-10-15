@@ -9,7 +9,6 @@ from kilas_ai import audio_provider, content_projects, content_schema
 
 
 class HomeTests(unittest.TestCase):
-    setUp=fixture.UnifiedTests.setUp
     client=fixture.UnifiedTests.client
 
     def setUp(self):
@@ -55,7 +54,7 @@ class HomeTests(unittest.TestCase):
         self.assertNotIn('home-recent',html)
         self.assertIn('data-chat-sidebar',html)
         self.assertNotIn('home-history-panel',html)
-        self.assertNotIn('Belum tersedia untuk akun ini',html)
+        self.assertNotIn('Belum tersedia untuk akun ini',__import__('re').sub(r'<script\b[^>]*>.*?</script>','',html,flags=__import__('re').S))
         self.assertIn('name="product" value="finance"',html)
 
     def test_landing_logo_is_available_without_javascript_and_prioritized_in_both_chat_surfaces(self):
@@ -86,8 +85,9 @@ class HomeTests(unittest.TestCase):
         for ready in (False,True):
             with patch.object(live_qa_budget,'enabled',return_value=True), patch.object(live_assist,'ready',return_value=ready), patch.object(live_qa_budget,'ready',return_value=True):
                 html=self.client().get('/products/start').get_data(as_text=True)
-            self.assertEqual('Terjemahan langsung / Bantu jawab' in html,ready)
-            self.assertNotIn('Belum tersedia untuk akun ini',html)
+            visible=__import__('re').sub(r'<script\b[^>]*>.*?</script>','',html,flags=__import__('re').S)
+            self.assertEqual('Live translation / Reply assistance' in visible,ready)
+            self.assertNotIn('Belum tersedia untuk akun ini',__import__('re').sub(r'<script\b[^>]*>.*?</script>','',html,flags=__import__('re').S))
 
     def test_shared_sidebar_owned_history_selection_and_native_new_chat(self):
         from kilas_ai import store
@@ -273,7 +273,7 @@ class HomeTests(unittest.TestCase):
             html=client.get(route).text
             self.assertNotIn('class="account-workspace-access"',html)
             self.assertNotIn('id="premium-sidebar"',html)
-            self.assertIn('<h1>Akun</h1>',html)
+            self.assertIn('<h1>Accounts</h1>',html)
             self.assertNotIn('<span>Video</span>',html)
         for route in ('/account','/account#business','/account?workspace=finance','/account?workspace=HOME','/account?workspace=invalid'):
             html=client.get(route).text

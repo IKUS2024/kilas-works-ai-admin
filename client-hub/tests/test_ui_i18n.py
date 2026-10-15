@@ -1,9 +1,8 @@
 """Language changes affect explicit UI copy, never customer content or financial values."""
-import json
 import unittest
 import sys
 from pathlib import Path
-from flask import Flask, render_template_string
+from flask import Blueprint, Flask, render_template_string
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import ui_i18n
 
@@ -15,6 +14,20 @@ class LanguageTests(unittest.TestCase):
         self.app.config['SESSION_COOKIE_SECURE'] = False
         ui_i18n.install(self.app)
         self.app.add_url_rule('/products/start', 'products.product_start', lambda: 'Home')
+        audio = Blueprint('kilas_audio', __name__)
+        @audio.get('/ui-probe', endpoint='status')
+        def probe():
+            return {'error': 'Pilih suara', 'status_label': 'Menunggu',
+                    'script': 'Pilih suara', 'translated_text': 'Pilih suara',
+                    'language_a': 'id', 'language_b': 'en', 'voice': 'kilas-male',
+                    'seconds_charged': 7, 'content': {'error': 'Pilih suara'}}, 409, {'Cache-Control': 'private, no-store'}
+        @audio.get('/content-probe')
+        def content_probe():
+            return {'error': 'Pilih suara', 'status_label': 'Menunggu'}
+        @audio.get('/download-probe')
+        def download_probe():
+            return {'error': 'Pilih suara', 'status': 'FAILED', 'code': 'user-content'}, 200, {'Content-Disposition': 'attachment; filename=original.json'}
+        self.app.register_blueprint(audio)
         self.client = self.app.test_client()
 
     def test_all_languages_and_cookie_persistence(self):
@@ -31,7 +44,51 @@ class LanguageTests(unittest.TestCase):
     def test_invalid_language_and_cookie(self):
         self.assertEqual(self.client.post('/language', data={'language': 'invalid'}).status_code, 400)
         with self.app.test_request_context(headers={'Cookie': 'kilas_language=invalid'}):
-            self.assertEqual(ui_i18n.language(), 'id')
+            self.assertEqual(ui_i18n.language(), 'en')
+
+    def test_default_is_english_without_using_browser_language(self):
+        for headers in ({}, {'Accept-Language': 'id-ID,id;q=0.9'}):
+            with self.app.test_request_context(headers=headers):
+                self.assertEqual(ui_i18n.language(), 'en')
+                self.assertEqual(ui_i18n.translate('Kirim'), 'Send')
+                self.assertEqual(ui_i18n.translate('Pilih suara'), 'Choose a voice')
+
+    def test_new_english_ui_catalog_preserves_placeholders(self):
+        import re
+        for key, translated in ui_i18n.EN_MESSAGES.items():
+            self.assertTrue(translated.strip(), key)
+            self.assertEqual(set(re.findall(r'\{\w+\}', key)),
+                             set(re.findall(r'\{\w+\}', translated)), key)
+
+    def test_numeric_ui_errors_keep_exact_values_and_leave_other_text_unchanged(self):
+        with self.app.test_request_context():
+            self.assertEqual(ui_i18n.translate_ui_message('File maksimal 10 MB.'),
+                             'Files must be no larger than 10 MB.')
+            self.assertEqual(ui_i18n.translate_ui_message('Saldo tidak cukup. Dibutuhkan 12s; saldo tersedia 3s.'),
+                             'Insufficient balance. 12s required; 3s available.')
+            self.assertEqual(ui_i18n.translate_ui_message('Customer wrote: Pilih suara'),
+                             'Customer wrote: Pilih suara')
+
+    def test_response_localizes_only_designated_ui_fields_preserving_security_and_content(self):
+        response = self.client.get('/ui-probe')
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.headers['Cache-Control'], 'private, no-store')
+        self.assertIn('Cookie', response.vary)
+        self.assertEqual(response.json['error'], 'Choose a voice')
+        self.assertEqual(response.json['status_label'], 'Waiting')
+        for key in ('script', 'translated_text'):
+            self.assertEqual(response.json[key], 'Pilih suara')
+        self.assertEqual(response.json['content'], {'error': 'Pilih suara'})
+        self.assertEqual((response.json['language_a'], response.json['language_b'],
+                          response.json['voice'], response.json['seconds_charged']),
+                         ('id', 'en', 'kilas-male', 7))
+        self.client.set_cookie('kilas_language', 'id')
+        self.assertEqual(self.client.get('/ui-probe').json['error'], 'Pilih suara')
+
+    def test_successful_content_and_download_json_are_never_translated(self):
+        for path in ('/content-probe', '/download-probe'):
+            self.assertEqual(self.client.get(path).json['error'], 'Pilih suara')
+        self.assertEqual(self.client.get('/content-probe').json['status_label'], 'Menunggu')
 
     def test_retired_page_language_form_does_not_echo_request_identifier(self):
         with self.app.test_request_context('/retired/private'):
@@ -62,7 +119,7 @@ class LanguageTests(unittest.TestCase):
             placeholders=set(re.findall(r'\{\w+\}',key))
             for translated in translations.values():
                 self.assertEqual(placeholders,set(re.findall(r'\{\w+\}',translated)),key)
-        self.assertTrue(set(ui_i18n.CLIENT_MESSAGES)<=set(ui_i18n.CATALOG))
+        self.assertTrue(set(ui_i18n.CLIENT_MESSAGES)<=(set(ui_i18n.CATALOG)|set(ui_i18n.EN_MESSAGES)))
 
     def test_catalog_is_complete_and_has_no_empty_translations(self):
         for key, translations in ui_i18n.CATALOG.items():

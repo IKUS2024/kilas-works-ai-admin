@@ -3,7 +3,7 @@
   <input type="hidden" name="next" value="{{ ui_language_return_path() }}">
   <label for="language-{{ language_location|default('nav') }}">{{ ui_t('Bahasa') }}</label>
   <select id="language-{{ language_location|default('nav') }}" name="language" aria-label="{{ ui_t('Bahasa aplikasi') }}">
-    {% for code, label in ui_languages.items() %}<option value="{{ code }}" {{ 'selected' if ui_language() == code }}>{{ label }}</option>{% endfor %}
+    {% for code, label in ui_languages.items() %}<option value="{{ code }}" {{ 'selected' if ui_language() == code }}>{{ ui_t(label) }}</option>{% endfor %}
   </select>
   <button type="submit">{{ ui_t('Terapkan') }}</button>
 </form>
