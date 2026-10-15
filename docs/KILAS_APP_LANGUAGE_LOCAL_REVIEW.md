@@ -89,3 +89,10 @@ The review patch and machine-readable evidence are outside the repository at
 `/workspace/app-language-local-review.patch` and
 `/workspace/app-language-local-evidence.json`. The explicit release approval has now been received. The release evidence
 file records the final commit, CI, deploy result and actual verification limits.
+
+The existing Finance dashboard copy suite also selected no locale while asserting
+Indonesian labels (22 copy-only failures under the new English default). Its
+disposable test client now explicitly selects Indonesian. An added default-
+English test clears that preference, checks the English UI and compares the
+exact financial summary values across locales. No Finance implementation or
+financial assertion was changed.

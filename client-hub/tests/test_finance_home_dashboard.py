@@ -1,5 +1,4 @@
 """Dashboard reads: six-month trends, recent limit, currency and period boundaries."""
-import json
 import re
 import unittest
 from unittest.mock import patch
@@ -10,6 +9,18 @@ import db
 class DashboardHomeTests(unittest.TestCase):
     def setUp(self):
         fixture.ReceivablesTests.setUp(self)
+        # Existing copy scenarios deliberately exercise Indonesian. The new
+        # no-preference English case below also checks unchanged financial values.
+        self.client.set_cookie('kilas_language','id')
+
+    def test_default_english_ui_keeps_financial_summary_values(self):
+        _, original = self.page()
+        self.client.delete_cookie('kilas_language')
+        html, english = self.page()
+        self.assertTrue('<html lang="en">' in html)
+        self.assertTrue('Budget' in html)
+        for key in ('balance_total_display','period_income_display'):
+            self.assertEqual(english[key],original[key])
 
     def page(self, query='?month=2026-09'):
         captured = []
@@ -312,7 +323,7 @@ class DashboardHomeTests(unittest.TestCase):
         branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
         expense_cat=fixture.f.list_categories(
             self.b,'EXPENSE',actor_user_id=self.uid)[0]['id']
-        income_id=fixture.f.create_transaction(
+        fixture.f.create_transaction(
             self.b,'INCOME',30000000,self.a,self.cat,'2026-09-20',
             description='Income live total',actor_user_id=self.uid)
         expense_id=fixture.f.create_transaction(
@@ -1034,7 +1045,7 @@ class DashboardHomeTests(unittest.TestCase):
             self.assertEqual(
                 fixture.f.get_finance_summary(
                     self.b,'2026-09-01','2026-09-30',actor_user_id=self.uid)['total_expense_minor'],0)
-            source=fixture.f.get_account(self.b,bca,actor_user_id=self.uid)
+            fixture.f.get_account(self.b,bca,actor_user_id=self.uid)
             source_balance=next(row for row in fixture.f.get_account_balance_report(
                 self.b,'2026-09-30',self.uid) if row['id']==bca)
             self.assertEqual(source_balance['balance_minor'],1000000)
