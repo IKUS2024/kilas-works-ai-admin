@@ -7,6 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch, Mock
 import test_kilas_autonomous_agent as fixture
+from auth_test_helpers import authenticate
 from kilas_ai import model_policy as policy, fair_use, usage, store, providers, conversation_context, conversation_standard
 from kilas_ai import agent_store
 
@@ -100,7 +101,7 @@ class CostQualityTests(unittest.TestCase):
         from kilas_ai import capacity,topups
         self.spend(capacity.allowance())
         client=fixture.app.app.test_client()
-        with client.session_transaction() as state:state.update(user_id=self.uid,role='CLIENT_OWNER',_csrf_token='ceiling-csrf')
+        authenticate(client,fixture.repo.get_user_by_id(self.uid),_csrf_token='ceiling-csrf')
         with patch.object(providers,'stream') as provider:
             response=client.post('/kilas-ai/threads/'+str(self.thread)+'/send',json={'content':'Analisis strategi bisnis secara komprehensif','operation_key':'chatop_ceiling0123456789'},headers={'X-CSRF-Token':'ceiling-csrf'})
             self.assertEqual(response.status_code,429)
@@ -156,7 +157,7 @@ class CostQualityTests(unittest.TestCase):
         historical=[billing.create_invoice(self.uid,plan) for plan in ('PRO','MAX')]
         before=[dict(billing.invoice(self.uid,invoice)) for invoice in historical]
         client=fixture.app.app.test_client()
-        with client.session_transaction() as state:state.update(user_id=self.uid,role='CLIENT_OWNER',_csrf_token='checkout-csrf')
+        authenticate(client,fixture.repo.get_user_by_id(self.uid),_csrf_token='checkout-csrf')
         response=client.post('/kilas-ai/checkout',data={'csrf_token':'checkout-csrf','plan':'PRO'})
         self.assertEqual(response.status_code,303)
         invoice=fixture.db.query_one("SELECT plan,amount_idr FROM kilas_ai_invoices WHERE user_id=? AND plan='PLUS'",(self.uid,))
@@ -239,7 +240,9 @@ class CostQualityTests(unittest.TestCase):
         cases=json.loads((Path(__file__).parent/'fixtures/kilas_conversation_standard.json').read_text(encoding='utf-8'))
         self.assertGreaterEqual(len(cases),250)
         self.assertEqual(len({c['id'] for c in cases}),len(cases))
-        self.assertLess(len(conversation_standard.SYSTEM),4000)
+        # The shared runtime standard includes the reviewed provisional-experiment
+        # guidance; keep a finite budget without deleting that production policy.
+        self.assertLess(len(conversation_standard.SYSTEM),5000)
         for c in cases:
             with self.subTest(c['id']):
                 self.assertTrue(c['desired'] and c['avoid'] and c['category'])
@@ -279,7 +282,7 @@ class CostQualityTests(unittest.TestCase):
 
     def test_paid_offer_has_no_message_counter_or_chat_topup_wall(self):
         client=fixture.app.app.test_client()
-        with client.session_transaction() as state:state.update(user_id=self.uid,role='CLIENT_OWNER')
+        authenticate(client,fixture.repo.get_user_by_id(self.uid))
         page=client.get('/kilas-ai/usage').text
         self.assertIn('Unlimited AI Chat',page)
         self.assertIn('Chat normal tetap tersedia sesuai Fair Use',page)

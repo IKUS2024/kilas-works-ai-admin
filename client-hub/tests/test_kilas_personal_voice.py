@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch,Mock
 from werkzeug.datastructures import FileStorage
 import test_kilas_audio as audio
+from auth_test_helpers import authenticate
 from test_kilas_audio import f, wav, provider, store, media
 from kilas_ai import audio_personal_voice as personal
 
@@ -48,7 +49,7 @@ class PersonalVoiceTests(unittest.TestCase):
         self.assertEqual(len(personal.saved_voices(self.user)),1)
         self.assertEqual(personal.saved(self.user,ident)['voice_id'],'legacySavedPrivate')
         self.assertIsNone(personal.saved(self.other,ident))
-        with self.client.session_transaction() as session:session['user_id']=self.other
+        authenticate(self.client,f.repo.get_user_by_id(self.other),_csrf_token='audio-csrf')
         for action in ('rename','delete'):
             with patch.object(provider,'request') as call:
                 self.assertEqual(self.client.post('/kilas-translator/personal-voices/'+str(ident)+'/'+action,data={'csrf_token':'audio-csrf','name':'Other'}).status_code,404)
@@ -109,7 +110,7 @@ class PersonalVoiceTests(unittest.TestCase):
         self.assertEqual(preview.status_code,200);self.assertEqual(preview.mimetype,'audio/mpeg')
         self.assertEqual(preview.headers['Cache-Control'],'private, no-store');self.assertLess(media.mp3_duration(preview.data),16000)
         self.assertEqual(preview.data,personal.preview(self.user));self.assertNotIn('newPrivate123',self.client.get('/kilas-translator').text)
-        with self.client.session_transaction() as state:state['user_id']=self.other
+        authenticate(self.client,f.repo.get_user_by_id(self.other),_csrf_token='audio-csrf')
         self.assertEqual(self.client.get('/kilas-translator/personal-voice/preview').status_code,404)
         self.assertEqual(f.app.app.test_client().get('/kilas-translator/personal-voice/preview').status_code,302)
 
@@ -182,7 +183,7 @@ class PersonalVoiceTests(unittest.TestCase):
         self.credit()
         with patch.object(provider,'clone_voice',return_value='foreignPrivate123'):self.clone()
         self.user=self.other;self.credit()
-        with self.client.session_transaction() as s:s['user_id']=self.other
+        authenticate(self.client,f.repo.get_user_by_id(self.other),_csrf_token='audio-csrf')
         self.assertFalse(personal.get(self.other))
         for choice in ('personal','foreignPrivate123'):
             r,speech,_=self.create(voice=choice);self.assertEqual(r.status_code,503);speech.assert_not_called()

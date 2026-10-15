@@ -83,3 +83,13 @@ public HTTP verification may remain blocked by this cloud's outbound CONNECT
 403 gateway; do not describe that as an application response or claim real owner
 browser acceptance. A pre-existing open browser document changes on refresh;
 its old API calls remain denied by the backend.
+
+CI compatibility follow-up: the untouched live baseline reproduced three stale
+CostQuality authentication fixtures, three PersonalVoice authentication fixtures,
+and an obsolete 4000-character runtime-prompt ceiling. Tests now use real
+revocable sessions for disposable actors, retaining the original billing, quota
+and owner-isolation assertions. The prompt budget is bounded at 5000 characters
+to include the already-reviewed provisional-experiment guidance; no runtime
+prompt, provider, plan or billing behavior changed. Both affected offline modules
+pass. The Learning workflow now watches its CostQuality/auth-helper dependencies
+so a correction to a suite it executes starts a fresh CI run.
