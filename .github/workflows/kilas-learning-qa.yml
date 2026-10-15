@@ -21,6 +21,7 @@ jobs:
         run: npm install --prefix /tmp/kilas-learning-dom --cache /tmp/kilas-learning-npm-cache --no-audit --no-fund --save-exact jsdom@26.1.0
       - run: python -m compileall -q client-hub/kilas_ai/learning.py client-hub/kilas_ai/learning_realtime.py client-hub/kilas_ai/learning_store.py client-hub/kilas_ai/learning_routes.py client-hub/kilas_ai/learning_schema.py client-hub/kilas_ai/learning_phrases.py client-hub/kilas_ai/free_test.py
       - run: ruff check --select E9,F client-hub/kilas_ai/learning*.py client-hub/tests/test_kilas_learning.py client-hub/kilas_ai/free_test.py client-hub/tests/test_kilas_free_test.py
+      - run: python -B scripts/run_offline_tests.py --only test_kilas_learning_retirement.py
       - name: Isolated offline module suites
         run: |
           for suite in 'test_kilas_free_test' 'test_kilas_learning test_kilas_home test_kilas_ai_unified' 'test_kilas_audio' 'test_kilas_audio_video_script' 'test_kilas_live_translator' 'test_kilas_live_translator_realtime' 'test_kilas_live_translator_realtime_check' 'test_kilas_live_translator_segments' 'test_kilas_live_translator_whole' 'test_kilas_live_translator_transport' 'test_kilas_ai_cost_quality'; do

@@ -78,6 +78,16 @@ def is_live_output(user,ident):
     return bool(db.query_one('SELECT 1 FROM kilas_audio_jobs WHERE user_id=? AND id=? AND '+live_output_clause(),(user,ident)))
 
 
+def learning_output_clause(alias='kilas_audio_jobs'):
+    # Soft-hide retired tutor results by an OWNED source relationship, not title:
+    # an ordinary Voice Over may legitimately be called "Learning".
+    return f"EXISTS (SELECT 1 FROM kilas_learning_turns kt JOIN kilas_learning_sessions ks ON ks.id=kt.session_id WHERE ks.user_id={alias}.user_id AND (kt.audio_job_id={alias}.id OR {alias}.operation_key=kt.id||'-audio'))"
+
+
+def is_learning_output(user,ident):
+    return bool(db.query_one('SELECT 1 FROM kilas_audio_jobs WHERE user_id=? AND id=? AND '+learning_output_clause(),(user,ident)))
+
+
 def is_session_output(user,ident):
     return bool(db.query_one("SELECT 1 FROM kilas_audio_jobs WHERE user_id=? AND id=? AND content_origin='live_session'",(user,ident)))
 
@@ -86,7 +96,7 @@ def history_page(user,page=1,*,through=None,kind='voiceover'):
     # Keep one newest-first snapshot while paging; a newly created job must not
     # shift older entries between pages. Every query remains owner scoped.
     if kind not in (None,'voiceover','translate'):raise ValueError('invalid_history_kind')
-    where='user_id=? AND NOT '+live_output_clause();params=[user]
+    where='user_id=? AND NOT '+live_output_clause()+' AND NOT '+learning_output_clause();params=[user]
     if kind is not None:where+=' AND mode=?';params.append(kind)
     if through is not None:where+=' AND id<=?';params.append(through)
     count=db.query_one('SELECT COUNT(*) AS total,MAX(id) AS latest FROM kilas_audio_jobs WHERE '+where,tuple(params))

@@ -1,5 +1,5 @@
 """Learning-only authenticated API; no provider secrets or transcripts in responses."""
-from flask import Blueprint, request, g, session, jsonify, render_template, abort, redirect, url_for, Response
+from flask import Blueprint, request, g, session, jsonify, abort, redirect, url_for, Response
 import security
 import json
 import re
@@ -9,12 +9,6 @@ from .audio_transcription_budget import BudgetError
 from .usage import UsageLimit
 
 learning_bp=Blueprint('kilas_learning',__name__,url_prefix='/kilas-learning')
-
-@learning_bp.app_context_processor
-def navigation():
-    # Shared templates are also used by isolated apps without this blueprint.
-    return {'kilas_learning_registered':learning.PRODUCT_ACTIVE}
-
 
 @learning_bp.before_request
 def access():
@@ -64,8 +58,9 @@ def invalid(error):
 
 @learning_bp.get('')
 def home():
-    return render_template('kilas_learning/home.html',learning_ready=learning.ready(session['user_id']),
-                           targets=store.TARGETS,natives=store.NATIVES,levels=store.LEVELS,voices=voices.public_choices())
+    # The cancelled product has no user-facing entry even under archived-code
+    # tests that reactivate its internal pipeline. Historical rows stay internal.
+    abort(404)
 
 
 @learning_bp.get('/session')

@@ -36,7 +36,7 @@ def invalid(error):
 
 def owned(ident):
     job=store.get(session['user_id'],ident)
-    if not job or store.is_live_output(session['user_id'],ident):abort(404)
+    if not job or store.is_live_output(session['user_id'],ident) or store.is_learning_output(session['user_id'],ident):abort(404)
     return job
 
 

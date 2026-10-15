@@ -41,11 +41,16 @@ def main():
                 page.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
                 url=origin+(f'/kilas-translator/jobs/{ids[-1]}' if ids else '/kilas-translator')+'?mode=voiceover'
                 page.goto(url,wait_until='networkidle')
+                expect(page.locator('a[href^="/kilas-learning"], [data-home-task="learning"]')).to_have_count(0)
+                expect(page.locator('.home-task-choices')).not_to_contain_text('Learning')
                 history=page.locator('#audio-history')
                 expect(history.locator('[data-audio-history]')).to_have_count(min(4,count))
                 expect(history.locator('.audio-history-pages')).to_have_count(int(count>4))
                 if count<=4:
                     assert not errors and not paid,(errors,paid)
+                    page.reload(wait_until='networkidle')
+                    expect(page.locator('a[href^="/kilas-learning"], [data-home-task="learning"]')).to_have_count(0)
+                    expect(history.locator('[data-audio-history]')).to_have_count(min(4,count))
                     page.screenshot(path=str(output/f'history-{count}-{width}.png'),full_page=True)
                     report['cases'].append({'records':count,'width':width,'visible':min(4,count),'pagination':False})
                     context.close();case.doCleanups();continue
@@ -119,6 +124,10 @@ def main():
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 page.screenshot(path=str(output/f'history-{count}-{width}.png'),full_page=True)
                 report['cases'].append({'records':count,'width':width,'pages':(count+3)//4,'scroll_form_audio_and_retry':'PASS','document_loads':len(documents)})
+                page.reload(wait_until='networkidle')
+                expect(page.locator('a[href^="/kilas-learning"], [data-home-task="learning"]')).to_have_count(0)
+                expect(page.locator('.home-task-choices')).not_to_contain_text('Learning')
+                report['cases'][-1]['retired_learning_absent_after_refresh']=True
                 context.close();case.doCleanups()
             browser.close()
         (output/'verification.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))

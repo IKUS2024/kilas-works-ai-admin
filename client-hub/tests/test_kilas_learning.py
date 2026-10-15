@@ -75,13 +75,10 @@ class LearningTests(unittest.TestCase):
         with patch.object(learning.voices,'public_choices',return_value=[VOICE]),patch.object(learning,'queue') as paid:
             for _ in range(2):
                 response=self.client.get('/kilas-learning')
-                self.assertEqual(response.status_code,200)
-                self.assertIn('Learning',response.text)
-                self.assertIn('data-call hidden',response.text)
+                self.assertEqual(response.status_code,404)
+                self.assertNotIn('data-learning-form',response.text)
                 self.assertNotIn('id="live-translation"',response.text)
                 self.assertNotIn(VOICE['id'],response.text)
-                for label in ('AI Chat','Translator','Learning','Voice Over','Finance'):
-                    self.assertIn('<span>'+label+'</span>',response.text)
             paid.assert_not_called()
         guest=fixture.f.app.app.test_client()
         self.assertEqual(guest.get('/kilas-learning').status_code,302)
@@ -355,8 +352,9 @@ class LearningTests(unittest.TestCase):
         self.assertLess(audio_store.balance(self.user)['seconds'],500)
 
     def test_compact_call_ui_preserves_consent_and_has_no_provider_description(self):
-        with patch.object(learning.voices,'public_choices',return_value=[VOICE]):
-            html=self.client.get('/kilas-learning').text
+        from flask import render_template
+        with fixture.f.app.app.test_request_context('/archived-learning-fixture'):
+            html=render_template('kilas_learning/home.html',learning_ready=False,targets=store.TARGETS,natives=store.NATIVES,levels=store.LEVELS,voices=[VOICE])
         self.assertIn('aria-label="Akhiri sesi"',html)
         self.assertIn('name="consent" value="yes" required',html)
         self.assertIn('/privacy#audio-processing',html)
@@ -397,9 +395,11 @@ class LearningTests(unittest.TestCase):
             learning_schema.report_readiness()
 
     def test_dom_fixture_has_distinct_navigation_and_learning_forms(self):
+        # Archived client protocol fixture only; the retired page is not served.
+        from flask import render_template
         voices=[VOICE,{**VOICE,'alias':'kilas-female','name':'Kilas Female'}]
-        with patch.object(learning,'ready',return_value=True),patch.object(learning.voices,'public_choices',return_value=voices):
-            html=self.client.get('/kilas-learning').text
+        with fixture.f.app.app.test_request_context('/archived-learning-fixture'):
+            html=render_template('kilas_learning/home.html',learning_ready=True,targets=store.TARGETS,natives=store.NATIVES,levels=store.LEVELS,voices=voices)
         self.assertLess(html.index('<form class="kilas-finance-entry"'),html.index('data-learning-form'))
         self.assertIn('data-ready="true"',html)
         self.assertIn('data-learning-start disabled',html)
@@ -411,11 +411,12 @@ class LearningTests(unittest.TestCase):
     def test_page_readiness_remains_owner_specific_and_start_denial_is_visible(self):
         self.credit(500)
         with self.funded(),self.on(),patch.object(learning.voices,'public_choices',return_value=[VOICE]):
-            self.assertIn('data-ready="true"',self.client.get('/kilas-learning').text)
-            with self.client.session_transaction() as state:state['user_id']=self.other
-            html=self.client.get('/kilas-learning').text
-            self.assertIn('data-ready="false"',html)
-            self.assertIn('Learning belum aktif untuk akun ini.',html)
+            self.assertTrue(learning.ready(self.user))
+            self.assertEqual(self.client.get('/kilas-learning').status_code,404)
+            from auth_test_helpers import authenticate
+            authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
+            self.assertFalse(learning.ready(self.other))
+            self.assertEqual(self.client.get('/kilas-learning').status_code,404)
             response=self.client.post('/kilas-learning/sessions',data={'csrf_token':'audio-csrf','consent':'yes'})
             self.assertEqual(response.status_code,503)
             self.assertEqual(response.json['code'],'learning_unavailable')
@@ -623,7 +624,8 @@ class LearningDeactivationTests(unittest.TestCase):
             response=self.client.post('/kilas-learning'+route,data={'csrf_token':'audio-csrf',**fields})
             self.assertEqual(response.status_code,200)
         self.assertEqual(db.query_one('SELECT output_text FROM kilas_learning_turns WHERE id=?',(completed,))['output_text'],'Retained answer')
-        with self.client.session_transaction() as state:state['user_id']=self.other
+        from auth_test_helpers import authenticate
+        authenticate(self.client,__import__('repo').get_user_by_id(self.other),_csrf_token='audio-csrf')
         self.assertEqual(self.client.post('/kilas-learning/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,404)
 
     def test_undispatched_cost_is_zero_and_cleanup_remains_csrf_guarded(self):
