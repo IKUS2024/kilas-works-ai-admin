@@ -1,4 +1,8 @@
 {
+  "Total saldo buku": {"en": "Total book balance", "es": "Saldo contable total", "zh": "账面余额合计"},
+  "Saldo kredit / kewajiban": {"en": "Credit / liability balance", "es": "Saldo de crédito / pasivo", "zh": "信用／负债余额"},
+  "Utang / kewajiban": {"en": "Debt / liability", "es": "Deuda / pasivo", "zh": "债务／负债"},
+  "Saldo buku mencakup kredit/kewajiban; bukan saldo tersedia.": {"en": "Book balance includes credit/liabilities; it is not available cash.", "es": "El saldo contable incluye crédito/pasivos; no es efectivo disponible.", "zh": "账面余额含信用／负债，并非可用现金。"},
   "Transaksi berubah sejak formulir dibuka. Buka Edit kembali sebelum menyimpan.": {"en": "This entry changed after the form was opened. Open Edit again before saving.", "es": "Este registro cambió después de abrir el formulario. Vuelve a abrir Editar antes de guardar.", "zh": "打开表单后此记录已更改，请重新打开编辑后再保存。"},
   "Reset ini hanya mencakup cabang Bisnis yang disebutkan. Cabang lain, ruang Pribadi, dan bisnis lain tidak termasuk.": {"en": "This reset covers only the named Business branch. Other branches, Personal workspaces and other businesses are excluded.", "es": "Este restablecimiento solo abarca la sucursal indicada. Se excluyen otras sucursales, los espacios personales y otros negocios.", "zh": "此重置仅涵盖所列业务分支，不包含其他分支、个人工作区或其他企业。"},
   "Satu ruang Pribadi utama sudah tersedia. Buka Personal untuk memakai data yang sama; tidak ada akun baru yang dibuat.": {"en": "One Personal workspace already exists. Open Personal to use the same data; no new account was created.", "es": "Ya existe un espacio Personal. Abre Personal para usar los mismos datos; no se creó ninguna cuenta nueva.", "zh": "已有一个个人工作区。请打开个人财务以使用同一份数据，未创建新账户。"},

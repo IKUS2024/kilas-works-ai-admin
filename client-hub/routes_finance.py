@@ -34,6 +34,7 @@ import finance_fx
 from flask import jsonify, current_app, g
 import security
 import finance_ui
+import finance_account_presentation
 import finance_reset
 import finance_personal
 import repo
@@ -775,6 +776,7 @@ def dashboard(business_id, user, business):
     account_type_options = finance.list_account_type_options(business_id, **actor)
     account_type_group_labels = [item['name'] for item in account_type_options]
     for item in account_balance_rows:
+        item['is_credit']=finance_account_presentation.is_credit(item.get('account_type_label'))
         label = item.get('account_type_label') or finance.LEGACY_ACCOUNT_TYPE_LABELS.get(
             item.get('account_type'), 'Lainnya')
         if label not in account_type_group_labels:
@@ -1022,6 +1024,8 @@ def dashboard(business_id, user, business):
         exchanges=finance.list_currency_exchanges(business_id,user['id'],50),
         supported_currencies=finance.SUPPORTED_CURRENCIES, branch_breakdown=breakdown,
         businesses=repo.list_businesses_for_user(user['id']),
+        account_group_summaries=finance_account_presentation.group_summaries(account_balance_rows,account_type_group_labels,display_currency,fx),
+        account_has_credit=any(item['is_credit'] for item in account_balance_rows),
         accounts=accounts, entry_accounts=(finance.list_entry_accounts(business_id, actor_user_id=user['id'])
             if g.finance_branch_id is not None else []),
         account_balance_rows=account_balance_rows, selected_account=selected_account,

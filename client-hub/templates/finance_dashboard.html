@@ -198,7 +198,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
       <small>{{ selected_account.currency }}{% if all_branches %} · {{ selected_account.branch_name }}{% endif %}</small>
     </div>
     <div class="finance-account-hb-total finance-account-detail-balance">
-      <span>{{ ui_t('Saldo sekarang') }}</span>
+      <span>{{ ui_t('Saldo kredit / kewajiban') if selected_account.is_credit else ui_t('Saldo sekarang') }}</span>
       <strong>{{ selected_account.balance_minor|finance_money(selected_account.currency) }}</strong>
       {% if selected_account.balance_minor < 0 %}<small class="finance-account-negative">{{ ui_t('Saldo negatif · cek saldo awal dan transaksi akun') }}</small>{% elif selected_account.currency != display_currency %}<small>≈ {{ selected_account.display_balance_value }}</small>{% endif %}
     </div>
@@ -320,23 +320,26 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
       <h1>{{ ui_t('Akun') }}</h1>
       <small>{% if finance_workspace_personal %}{{ ui_t('Pribadi') }}{% else %}{{ business.business_name }} · {{ selected_branch.name }}{% endif %}</small>
     </div>
-    <div class="finance-account-hb-total">
-      <span>{{ ui_t('Saldo tersedia sekarang') }}</span>
+    <div class="finance-account-hb-total finance-account-overall-total">
+      <span>{{ ui_t('Total saldo buku') }}</span>
       <strong>{{ balance_total_display }}</strong>
       {% if not branch_read_only %}<button type="button" class="finance-account-hb-add" data-finance-open="account-dialog" aria-label="{{ ui_t('Tambah akun') }}">＋</button>{% endif %}
     </div>
   </div>
+  {% if account_has_credit %}<p class="finance-account-total-note">{{ ui_t('Saldo buku mencakup kredit/kewajiban; bukan saldo tersedia.') }}</p>{% endif %}
 </header>
 
 <section class="card finance-account-hb-list" aria-label="{{ ui_t('Daftar Akun') }}">
 {% for type_label in account_type_group_labels %}
   {% set type_rows = account_balance_rows|selectattr('account_type_label','equalto',type_label)|list %}
   {% if type_rows %}
+  {% set group = account_group_summaries[type_label] %}
   <details class="finance-account-hb-group">
     <summary class="finance-account-hb-group-head">
-      <span>{{ account_type_label(type_label,account_type_options) }}</span>
+      <span>{{ account_type_label(type_label,account_type_options) }}{% if group.is_credit %}<small class="finance-account-liability-label">{{ ui_t('Utang / kewajiban') }}</small>{% endif %}</span>
       <span class="finance-account-hb-group-summary-right">
-        <strong>{{ ui_t('{count} account' if type_rows|length==1 else '{count} accounts',count=type_rows|length) }}</strong>
+        <strong class="finance-account-group-total">{{ group.display_total }}</strong>
+        <small class="finance-account-group-count">{{ ui_t('{count} account' if type_rows|length==1 else '{count} accounts',count=type_rows|length) }}</small>
         <i class="finance-account-hb-group-chevron" aria-hidden="true">⌄</i>
       </span>
     </summary>

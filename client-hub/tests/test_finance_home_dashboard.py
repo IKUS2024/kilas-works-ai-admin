@@ -79,7 +79,7 @@ class DashboardHomeTests(unittest.TestCase):
         # August period flow stays August-only; the Accounts page is a current-balance
         # snapshot, so it must not pretend the September expense belongs to August.
         self.assertEqual(context['period_expense_display'],'Rp0,00')
-        self.assertIn('Saldo tersedia sekarang',html)
+        self.assertIn('Total saldo buku',html)
         self.assertIn('Saldo negatif',html)
         self.assertNotIn('id="finance-app-month"',html)
 
@@ -182,10 +182,11 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('finance-account-hb-list',html)
         self.assertIn('Akun',html)
         self.assertIn(account['name'],html)
-        self.assertIn('Saldo tersedia',html)
+        self.assertIn('Total saldo buku',html)
         self.assertIn('<details class="finance-account-hb-group">',html)
         self.assertIn('finance-account-hb-group-head',html)
-        self.assertRegex(html,r'finance-account-hb-group-summary-right[^>]*>\s*<strong>\d+ akun</strong>')
+        self.assertIn('class="finance-account-group-total"',html)
+        self.assertRegex(html,r'finance-account-group-count[^>]*>\d+ akun</small>')
         self.assertNotIn('finance-account-hb-fx',html)
         self.assertNotIn('finance-account-hb-detail-page',html)
         # Opening-balance input belongs to the add-account dialog, not the list.

@@ -100,7 +100,7 @@ class FinanceLocaleTests(unittest.TestCase):
                             self.assertNotIn('>'+leftover+'</a>', sidebar)
                     if 'view=accounts' in query:
                         expected = str(count)+' '+('akun' if locale=='id' else 'account' if count==1 else 'accounts')
-                        self.assertIn('<strong>'+expected+'</strong>', html)
+                        self.assertIn('<small class="finance-account-group-count">'+expected+'</small>', html)
                         self.assertNotIn('<strong>1 accounts</strong>', html)
                         if count == 2:
                             self.assertIn('<strong>Invoice</strong>', html)

@@ -1,0 +1,9 @@
+# Finance Accounts totals and grouping — 16 October 2026
+
+This presentation-only package follows the verified LIVE saved-entry editing release. Accounts now has a larger, bolder overall **book balance**. Every non-empty account group shows its combined balance while collapsed, with account count secondary. Existing bank names, values and account-detail navigation remain available on expansion.
+
+Credit is explicitly labeled **debt/liability**, including its detail balance. The signed ledger values and the overall arithmetic are preserved exactly; there is no invented liability sign reversal or new net-worth formula. The overall value is labeled a book total and, when Credit exists, explicitly described as including liabilities and not available cash. This avoids representing a Credit balance as spendable money.
+
+Group totals use only active accounts in the current authorized Personal/Business branch scope. They use the same existing FX snapshot and conversion helpers as the overall total. If conversion is unavailable, a group displays separate native-currency balances instead of summing unlike currencies. No balances, currencies, accounts, mappings or financial records are rewritten. No new schema, service or credential changes.
+
+Validation: **186 targeted regressions pass**, zero failures/errors/skips, including collapsed totals, current native balances, scope/inactive-account exclusion, signed Credit labels, missing FX and preserved package-one editing. Read-only local Chromium passes at **1440/390/320px**, both modes and all four languages, checking expansion, font hierarchy and mobile overflow with no form submissions and unchanged local financial records. Only synthetic fixtures are used. [Browser report](evidence/finance-accounts-groups-20261016/report.json). LIVE proof will be recorded after verification.
