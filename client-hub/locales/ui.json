@@ -5,6 +5,7 @@
   "Akses ruang Pribadi utama tidak tersedia. Tidak ada ruang pengganti atau akun duplikat yang dibuat.": {"en": "The Personal workspace is not accessible. No replacement workspace or duplicate account was created.", "es": "El espacio Personal no está disponible. No se creó un espacio sustituto ni una cuenta duplicada.", "zh": "无法访问个人工作区。未创建替代工作区或重复账户。"},
   "Data lama tetap tersimpan. Tidak ada pemindahan, penggabungan, atau penghapusan otomatis.": {"en": "Existing data is retained. Nothing is automatically moved, merged or deleted.", "es": "Se conservan los datos existentes. Nada se mueve, fusiona ni elimina automáticamente.", "zh": "现有数据均保留，不会自动移动、合并或删除。"},
   "Gunakan ruang Pribadi utama. Tidak ada transaksi yang dicatat pada ruang lama.": {"en": "Use the Personal workspace. No transaction was recorded in the old workspace.", "es": "Usa el espacio Personal principal. No se registró ninguna transacción en el espacio antiguo.", "zh": "请使用个人工作区。未在旧工作区记录任何交易。"},
+  "Reset": {"en": "Reset", "es": "Restablecer", "zh": "重置"},
   "Reset Data Finance": {"en": "Reset Finance Data", "es": "Restablecer datos financieros", "zh": "重置财务数据"},
   "Verifikasi Reset Data Finance": {"en": "Verify Finance Data Reset", "es": "Verificar restablecimiento financiero", "zh": "确认重置财务数据"},
   "Target penghapusan": {"en": "Data reset target", "es": "Destino del restablecimiento", "zh": "要重置的范围"},

@@ -32,10 +32,11 @@ def main():
                     for language in report['languages']:
                         context.add_cookies([dict(name='kilas_language',value=language,url=origin)])
                         goto(home)
-                        launch=page.locator('.finance-context-home > .finance-reset-launch')
+                        launch=page.locator('.finance-primary-navigation > .finance-reset-launch')
                         assert launch.count()==1 and page.locator('.finance-reset-launch').count()==1
                         expect(launch.locator('button')).to_be_visible()
-                        assert launch.locator('button').evaluate('(b)=>{const r=b.getBoundingClientRect();const p=b.closest(".finance-context-home").getBoundingClientRect();return r.left>=p.left-1&&r.right<=p.right+1&&r.top>=p.top-1&&r.bottom<=p.bottom+1&&r.right<=innerWidth&&r.left>=0}')
+                        assert page.locator('.finance-context-toolbar .finance-reset-launch').count()==0
+                        assert launch.locator('button').evaluate('(b)=>{const r=b.getBoundingClientRect();const p=b.closest(".finance-primary-navigation").getBoundingClientRect();return r.left>=p.left-1&&r.right<=p.right+1&&r.top>=p.top-1&&r.bottom<=p.bottom+1&&r.right<=innerWidth&&r.left>=0}')
                         if mode=='personal':assert page.locator('#finance-app-branch,[data-dashboard-open=branch-dialog]').count()==0
                         if language=='id':page.screenshot(path=str(output/f'{mode}-dashboard-{width}.png'),full_page=True)
                     context.add_cookies([dict(name='kilas_language',value='id',url=origin)])
@@ -46,7 +47,7 @@ def main():
                         assert page.locator('.finance-reset-launch').count()==0
                     # Only a disposable local request is prepared: no final reset submission.
                     goto(home);count=db.query_one('SELECT count(*) AS n FROM finance_reset_requests')['n']
-                    page.locator('.finance-context-home .finance-reset-launch button').click();page.wait_for_load_state('networkidle')
+                    page.locator('.finance-primary-navigation .finance-reset-launch button').click();page.wait_for_load_state('networkidle')
                     assert '/reset/review/' in page.url
                     assert page.locator('.finance-reset-launch').count()==0
                     expect(page.locator('[name=confirmation]')).to_be_visible()

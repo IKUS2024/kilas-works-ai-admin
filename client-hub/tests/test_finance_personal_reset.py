@@ -89,6 +89,11 @@ class PersonalResetTests(unittest.TestCase):
         for branch in (self.personal,self.branch):
             html,_=self.page(branch)
             self.assertEqual(html.count('class="finance-reset-launch"'),1)
+            navigation=re.search(r'<nav class="finance-primary-navigation">.*?</nav>',html,re.S).group()
+            self.assertIn('class="finance-reset-launch"',navigation)
+            self.assertIn('/reset/prepare?',navigation)
+            context_bar=html[html.index('<div class="finance-context-toolbar'):]
+            self.assertNotIn('class="finance-reset-launch"',context_bar)
             for query in (dict(view='accounts'),dict(view='transactions'),dict(view='transactions',direction='INCOME'),dict(view='transactions',direction='EXPENSE')):
                 html,_=self.page(branch,**query)
                 self.assertNotIn('class="finance-reset-launch"',html)
