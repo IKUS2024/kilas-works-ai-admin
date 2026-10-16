@@ -266,10 +266,24 @@ def main():
                 # for the SAME last reserve, under the production PG lock.
                 prior_call=db.query_one('SELECT SUM(charge_micro) AS n FROM kilas_vo_stt_operations WHERE campaign LIKE ?',('gml-%',))['n']
                 call_config=dict(internal,KILAS_LIVE_GEMINI_CAMPAIGN='pg-call-shared',
-                                 KILAS_LIVE_GEMINI_BUDGET_MICRO_USD=str(prior_call+250000),
-                                 KILAS_LIVE_GEMINI_AUDIENCE='authenticated',KILAS_AI_CALL_ENABLED='true')
+                                 KILAS_LIVE_GEMINI_BUDGET_MICRO_USD=str(prior_call+500000),
+                                 KILAS_LIVE_GEMINI_AUDIENCE='authenticated',KILAS_AI_CALL_ENABLED='true',KILAS_AI_ENABLED='true')
                 with patch.dict(os.environ,call_config):
                     with call_budget.transaction() as conn:budget.ledger._campaign(conn,budget.policy())
+                    cancelled=uuid.uuid4().hex
+                    call_budget.end(owner,cancelled)
+                    try:call_budget.claim(owner,cancelled)
+                    except budget.ledger.BudgetError as error:assert error.code=='duplicate_turn'
+                    else:raise AssertionError('End-before-Start did not fence a late Call')
+                    trial_id=uuid.uuid4().hex
+                    trial=call_budget.claim(owner,trial_id)
+                    call_budget.dispatch(trial)
+                    try:call_budget.end(peer,trial_id)
+                    except budget.ledger.BudgetError as error:assert error.code=='not_owned'
+                    else:raise AssertionError('Cross-account Call End accepted')
+                    call_budget.end(owner,trial_id);call_budget.finish(trial)
+                    assert call_budget.owned(owner,trial_id)['status']=='UNKNOWN'
+                    assert call_budget.owned(owner,trial_id)['charge_micro']==250000
                     def call_contend(kind):
                         try:
                             return call_budget.claim(owner,uuid.uuid4().hex) if kind=='call' else budget.claim(peer,'8'*48,'live-'+uuid.uuid4().hex)
@@ -283,7 +297,7 @@ def main():
                         call_budget.dispatch(winner);call_budget.finish(winner)
                     else:
                         budget.dispatch(winner);budget.finish(winner,False)
-                    assert budget.status(owner)['charged_micro_usd']==prior_call+250000
+                    assert budget.status(owner)['charged_micro_usd']==prior_call+500000
                     assert call_budget.status(peer)['reason']=='budget_limit'
                     assert db.query_one('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',(winner.key,))['charge_micro']==250000
                 print('PASS AI Call PostgreSQL: native and conversational models contend for one final existing global reserve; retained dispatch costs and history preserved')
