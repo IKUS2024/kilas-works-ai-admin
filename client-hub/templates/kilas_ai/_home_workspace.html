@@ -4,6 +4,7 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <section class="kilas-home-workspace ai-shell" data-ai-shell data-thread-id="{{ selected.id if selected|default(false) else '' }}" data-automation-enabled="0" data-max-files="{{ home_ai.limits.max_files }}" data-max-file-bytes="{{ home_ai.limits.max_file_bytes }}" data-max-image-bytes="{{ home_ai.limits.max_image_bytes }}">
   <div class="home-workspace-top"><span class="home-workspace-brand">Kilas AI</span>{% if home_ai.live_available %}<div class="home-workspace-actions"><a href="{{ url_for('kilas_ai.live_assist_home') }}">{{ ui_t('Terjemahan langsung / Bantu jawab') }}</a></div>{% endif %}</div>
+  {% include 'kilas_ai/_chat_tabs.html' %}
   <template id="ai-copy-icon">{{ chat_icon('copy') }}</template>
   <main class="ai-main {{ 'is-empty' if not messages|default([]) else '' }}">
     {% include 'kilas_content/_handoff.html' %}

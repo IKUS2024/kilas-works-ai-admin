@@ -1,0 +1,31 @@
+/* Scoped extension of the existing light Kilas chat. */
+.group-chat-tabs{display:flex;gap:4px;flex:none;border-bottom:1px solid #e4e5e7;padding:0 0 8px;margin:0 0 12px;font-size:14px;font-weight:600;line-height:1.4}
+.group-chat-tabs a{display:inline-flex;align-items:center;min-height:44px;padding:8px 18px;color:#545963;border-radius:8px;text-decoration:none}
+.group-chat-tabs a:hover{background:#f5f5f4}.group-chat-tabs a[aria-current]{background:#fff0e5;color:#a43c00}
+.group-workspace{width:100%;max-width:1200px;margin:0 auto;color:#202329;min-width:0}
+.group-layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:28px}
+.group-workspace :is(button,input,textarea){font:inherit;color:inherit;box-sizing:border-box}
+.group-workspace button{cursor:pointer;border:1px solid #d5d7da;background:#fff;border-radius:8px;padding:8px 12px;min-height:44px;font-size:14px;font-weight:600}
+.group-workspace button:hover{background:#f5f5f4}.group-workspace button:disabled{opacity:.55;cursor:default}
+.group-workspace :is(a,button,input,textarea,summary):focus-visible,.group-chat-tabs a:focus-visible{outline:2px solid #bd4700;outline-offset:3px}
+.group-workspace :is(input,textarea){background:#fff;border:1px solid #c7c9cd;border-radius:8px;min-width:0;caret-color:#bd4700}
+.group-workspace ::placeholder{color:#62666f}.group-workspace ::selection{background:#fff0e5}
+.group-list h1{font-size:20px;margin:0 0 16px}.group-create-row{display:flex;flex-wrap:wrap;gap:8px}.group-create-row input{width:100%;min-height:44px}
+.group-list nav{display:flex;flex-direction:column;margin-top:18px;gap:4px;max-height:45vh;overflow:auto}
+.group-list nav a{color:#202329;min-height:44px;padding:10px;border-radius:8px;overflow-wrap:anywhere;text-decoration:none}
+.group-list nav a[aria-current]{background:#fff0e5;color:#a43c00}
+.group-conversation{display:flex;flex-direction:column;min-width:0;max-width:850px}
+.group-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}.group-heading h2{font-size:22px;overflow-wrap:anywhere;max-width:100%;margin:0}
+.group-heading details{width:100%}.group-heading summary{cursor:pointer;min-height:44px;padding:10px 0;font-size:14px;color:#545963}
+.group-settings{padding:12px 0;border-bottom:1px solid #e4e5e7;max-width:70ch}.group-settings p{font-size:14px;line-height:1.6}
+.group-settings ul{padding:0;list-style:none;max-height:240px;overflow:auto}.group-settings li{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:6px 0;overflow-wrap:anywhere}.group-settings li span{flex:1;min-width:0}.group-settings li small{color:#62666f}
+.group-invite-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.group-check{display:flex!important;align-items:center;gap:8px;font-size:14px!important;margin:0!important;min-height:44px}.group-check input{width:20px!important;height:20px}
+.group-help,.group-summary-help{font-size:13px;line-height:1.5;color:#62666f;margin:8px 0 12px}
+.group-messages{overflow:auto;max-height:52dvh;min-height:120px;scrollbar-color:#c7c9cd #fff;padding:12px 4px;overscroll-behavior:contain}
+.group-message{margin:0 0 18px;max-width:75ch}.group-message strong{font-size:13px}.group-message time{font-size:11px;color:#62666f;margin-left:10px;font-variant-numeric:tabular-nums}
+.group-message p{background:#f2f3f4;border-radius:14px;margin:5px 0 0;padding:10px 14px;font-size:15px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.group-mine{margin-left:auto}.group-mine p{background:#fff0e5}.group-composer-area{position:static;background:#fff;padding:12px 0 4px;border-top:1px solid #e4e5e7}
+.group-composer-area textarea{font-size:16px;line-height:1.5;min-height:72px;max-height:180px;resize:vertical;width:100%}.group-send-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}
+#group-send{background:#e96817;border-color:#e96817;color:#22150c}#group-status{color:#a43c00;font-size:14px;line-height:1.5;margin:0 0 10px;overflow-wrap:anywhere}#group-status:empty{display:none}
+.group-empty-state{padding:60px 0;max-width:60ch}.group-empty-state p,.group-invitation p{line-height:1.7;color:#62666f}.group-invitation{max-width:640px;margin:40px auto;padding:20px}
+@media(max-width:760px){.group-layout{display:flex;flex-direction:column;gap:20px}.group-list nav{flex-direction:row;max-height:100px;overflow:auto}.group-list nav a{flex:none;max-width:230px}.group-create-row{flex-wrap:nowrap}.group-create-row input{flex:1}.group-create-row button{flex:none}.group-list h1{font-size:18px;margin-bottom:6px}.group-message{max-width:100%}.group-messages{max-height:45dvh}.group-composer-area{padding-bottom:env(safe-area-inset-bottom,8px)}.group-heading h2{font-size:20px}.group-invitation{margin:20px auto}}

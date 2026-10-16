@@ -259,6 +259,7 @@ def create_app():
     from kilas_ai.routes import ai_bp, enabled as kilas_ai_enabled
     from kilas_ai import automation_routes  # Registers Automation on the existing Kilas AI blueprint.
     from kilas_ai import agent_routes  # Agent UI reuses the existing Automation engine.
+    from kilas_ai import group_routes  # Isolated text groups, same auth and billing.
     from kilas_ai import ai_call_routes  # Isolated opt-in voice conversation; no IO on import.
     from kilas_ai import autonomous_routes  # Additive jobs remain behind their own disabled-by-default flag.
     from kilas_ai import connector_routes  # Owner-only OAuth and exact-payload approval routes.
@@ -285,6 +286,9 @@ def create_app():
         from kilas_ai import live_qa_schema
         live_qa_schema.apply()  # Independent owner-QA metadata; never customer billing.
     if kilas_ai_enabled():
+        from kilas_ai import group_schema
+        group_schema.apply_release()
+        print("KILAS_GROUP_CHAT_READY schema=0099 polling=true", flush=True)
         from kilas_ai import video_schema
         video_schema.apply_release()  # Only additive 0082; checksum-idempotent.
         from kilas_ai import audio_schema

@@ -310,6 +310,7 @@ MIGRATIONS = [
     ("0095_kilas_free_test_sqlite.sql", "0095_kilas_free_test_postgres.sql"),
     ("0097_customer_auth_sessions_sqlite.sql", "0097_customer_auth_sessions_postgres.sql"),
     ("0098_kilas_live_session_output_sqlite.sql", "0098_kilas_live_session_output_postgres.sql"),
+    ("0099_kilas_group_chat_sqlite.sql", "0099_kilas_group_chat_postgres.sql"),
 ]
 
 

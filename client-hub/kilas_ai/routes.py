@@ -28,7 +28,7 @@ def trial_context():
 def require_access():
     if not enabled():
         abort(404)
-    if request.endpoint == "kilas_ai.shared":
+    if request.endpoint in ("kilas_ai.shared", "kilas_ai.group_invitation"):
         return None
     if not session.get("user_id"):
         return redirect(url_for("auth.login_page"))

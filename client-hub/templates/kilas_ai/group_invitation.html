@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}{{ ui_t('Undangan grup') }} · Kilas AI{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_groups.css',v='1') }}">
+<section class="group-invitation">
+<h1>{{ ui_t('Undangan grup') }}</h1>
+<p>{{ ui_t('Bergabung berarti Anda setuju mengakses riwayat grup dan membagikan pesan Anda kepada anggota grup. Riwayat baru dibuka setelah Anda memilih Bergabung.') }}</p>
+<p>{{ ui_t('AI hanya menjawab saat diminta. Penggunaan AI memakai kapasitas pemilik grup.') }}</p>
+{% if joined_error|default(false) %}<p role="alert">{{ joined_error }}</p>
+{% elif authenticated %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">{{ ui_t('Bergabung') }}</button></form>
+{% else %}<p><a class="btn" href="{{ url_for('auth.login_page') }}">{{ ui_t('Login') }}</a> <a class="btn secondary" href="{{ url_for('auth.register_page') }}">{{ ui_t('Daftar') }}</a></p>{% endif %}
+<a href="{{ url_for('kilas_ai.home') }}">{{ ui_t('Kembali ke chat') }}</a>
+</section>
+{% endblock %}

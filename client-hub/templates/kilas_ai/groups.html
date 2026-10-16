@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}{{ selected_group.name if selected_group else ui_t('Chat grup') }} · Kilas AI{% endblock %}
+{% block content %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<section class="group-workspace" id="group-workspace" data-group-id="{{ selected_group.id if selected_group else '' }}" data-user-id="{{ session.user_id }}">
+{% set group_tab = true %}{% include 'kilas_ai/_chat_tabs.html' %}
+<div class="group-layout">
+<aside class="group-list"><h1>{{ ui_t('Chat grup') }}</h1>
+<form id="group-create"><label for="group-name">{{ ui_t('Nama grup') }}</label><div class="group-create-row"><input id="group-name" name="name" maxlength="100" required autocomplete="off"><button type="submit">{{ ui_t('Buat grup') }}</button></div></form>
+<nav aria-label="{{ ui_t('Daftar grup') }}">{% for group in groups %}<a href="{{ url_for('kilas_ai.group_page',ident=group.id) }}" {% if selected_group and selected_group.id == group.id %}aria-current="page"{% endif %}>{{ group.name }}</a>{% endfor %}</nav>
+</aside>
+<main class="group-conversation">
+<p id="group-status" role="status" aria-live="polite"></p>
+{% if selected_group %}
+<header class="group-heading"><h2>{{ selected_group.name }}</h2><details id="group-details"><summary>{{ ui_t('Anggota & pengaturan') }}</summary>
+<div class="group-settings"><ul id="group-members"></ul>
+{% if selected_group.is_owner %}
+<p>{{ ui_t('AI memakai kapasitas akun Anda. Kontrol saldo dan batas akun tetap berlaku.') }} <a href="{{ url_for('kilas_ai.usage_page') }}">{{ ui_t('Lihat penggunaan akun') }}</a></p>
+<p><span>{{ ui_t('Permintaan AI grup') }}:</span> <span id="group-ai-count">{{ selected_group.ai_requests }}</span></p>
+<label class="group-check"><input type="checkbox" id="group-ai-enabled" {% if selected_group.ai_enabled %}checked{% endif %}>{{ ui_t('Izinkan anggota meminta AI') }}</label>
+<div class="group-invite-actions"><button type="button" id="group-invite">{{ ui_t('Buat / ganti tautan undangan') }}</button><button type="button" id="group-revoke">{{ ui_t('Cabut tautan undangan') }}</button></div>
+<div id="group-invite-result" hidden><label for="group-invite-url">{{ ui_t('Tautan undangan') }}</label><input id="group-invite-url" readonly><button type="button" id="group-copy">{{ ui_t('Salin tautan') }}</button></div>
+{% else %}<p>{{ ui_t('Penggunaan AI memakai kapasitas pemilik grup.') }}</p>{% endif %}
+</div></details></header>
+<p class="group-help">{{ ui_t('Gunakan Tanya AI atau sebut @Kilas. Pesan biasa hanya untuk diskusi anggota.') }}</p>
+<button type="button" id="group-older" hidden>{{ ui_t('Muat pesan sebelumnya') }}</button>
+<div id="group-messages" class="group-messages" aria-live="polite" aria-label="{{ ui_t('Pesan grup') }}"></div>
+<p id="group-empty">{{ ui_t('Mulai diskusi dengan pesan pertama. AI menunggu permintaan Anda.') }}</p>
+<p id="group-paused" hidden role="status">{{ ui_t('AI dijeda oleh pemilik grup.') }}</p>
+<p id="group-busy" hidden role="status">{{ ui_t('AI sedang menjawab…') }}</p>
+<div class="group-composer-area"><button type="button" id="group-retry" hidden>{{ ui_t('Kirim ulang') }}</button><button type="button" id="group-summary">{{ ui_t('Ringkas keputusan & tugas') }}</button><p class="group-summary-help">{{ ui_t('Ringkasan memakai maksimal 200 pesan terbaru / 28.000 karakter dari grup ini.') }}</p>
+<form id="group-composer"><label for="group-input">{{ ui_t('Tulis pesan') }}</label><textarea id="group-input" maxlength="6000" rows="2" required placeholder="{{ ui_t('Pesan') }}"></textarea><div class="group-send-actions"><label class="group-check"><input type="checkbox" id="group-ask">{{ ui_t('Tanya AI') }}</label><button type="submit" id="group-send">{{ ui_t('Kirim') }}</button></div></form>
+</div>
+<script type="application/json" id="group-initial">{{ selected_group|tojson }}</script>
+{% else %}<div class="group-empty-state"><h2>{{ ui_t('Diskusi bersama Kilas AI') }}</h2><p>{{ ui_t('Buat grup, salin tautan undangan, lalu diskusikan ide bersama. Setiap anggota harus bergabung sebelum membaca riwayat.') }}</p></div>{% endif %}
+</main></div></section>
+<script type="application/json" id="group-ui">{{ group_ui|default({})|tojson }}</script>
+<script src="{{ url_for('static',filename='kilas_groups.js',v='1') }}" defer></script>
+{% endblock %}
