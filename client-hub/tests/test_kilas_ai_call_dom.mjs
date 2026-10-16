@@ -19,10 +19,20 @@ for(const locale of ['en','id','es','zh'])test(`Call ${locale} actual chat place
  // and the component stylesheet loads after it. jsdom is not a browser cascade.
  const mobileRule=document.createElement('style');mobileRule.textContent='.customer-ui footer{display:none;padding:14px}';document.head.append(mobileRule);
  for(const path of ['kilas_premium.css','kilas_home.css','kilas_chat.css','kilas_ai_call.css']){const style=document.createElement('style');style.textContent=readFileSync(new URL('../static/'+path,import.meta.url),'utf8');document.head.append(style);}
- assert.equal(button.type,'button');assert.ok(button.nextElementSibling.matches('.ai-send[type=submit]'));assert.equal(button.closest('form').querySelector('[name=csrf_token]')?.value,'audio-csrf');
+ assert.equal(button.type,'button');assert.equal(button.parentElement.lastElementChild,button);assert.ok(button.previousElementSibling.matches('.ai-stop'));assert.ok(button.previousElementSibling.previousElementSibling.matches('.ai-send[type=submit]'));assert.equal(button.closest('form').querySelector('[name=csrf_token]')?.value,'audio-csrf');
  assert.equal(button.textContent.trim(),'');assert.ok(button.getAttribute('aria-label'));
  const composer=button.closest('.ai-composer'),actions=button.parentElement,input=composer.querySelector('textarea');
  assert.equal(window.getComputedStyle(composer).display,'grid');assert.equal(window.getComputedStyle(actions).display,'flex');assert.equal(window.getComputedStyle(actions).gridColumn,'3');assert.equal(window.getComputedStyle(input).gridColumn,'2');assert.equal(window.getComputedStyle(button).width,'44px');
+ const attach=composer.querySelector('[data-work-attach],.ai-attach');
+ assert.ok(attach.compareDocumentPosition(input)&window.Node.DOCUMENT_POSITION_FOLLOWING);
+ assert.ok(input.compareDocumentPosition(actions.querySelector('.ai-send'))&window.Node.DOCUMENT_POSITION_FOLLOWING);
+ assert.equal(window.getComputedStyle(input).resize,'none');assert.equal(window.getComputedStyle(input).lineHeight,'24px');
+ assert.equal(window.getComputedStyle(input).whiteSpace,'pre');assert.equal(window.getComputedStyle(input).overflow,'hidden');
+ // jsdom does not update :placeholder-shown for value changes. Remove the
+ // placeholder to inspect the filled-state cascade without claiming pixel QA.
+ const placeholder=input.getAttribute('placeholder');input.removeAttribute('placeholder');input.value='First line\nSecond line';input.focus();input.setSelectionRange(5,5);input.setRangeText(' draft');
+ assert.equal(input.value,'First draft line\nSecond line');assert.equal(window.getComputedStyle(input).whiteSpace,'pre-wrap');assert.equal(window.getComputedStyle(input).overflow,'auto');
+ input.value='';input.setAttribute('placeholder',placeholder);input.blur();
  assert.equal(dialog.getAttribute('aria-describedby'),'ai-call-privacy');assert.ok(end.getAttribute('aria-label'));assert.equal(document.querySelectorAll('#ai-call-dialog').length,1);
  assert.equal(dialog.querySelectorAll('audio,video').length,0);
  assert.equal(dialog.hidden,true);assert.equal(window.getComputedStyle(dialog).display,'none');

@@ -30,7 +30,9 @@ body.kilas-ai-call-open{overflow:hidden}
 #ai-call-dialog.ai-call-compact .ai-call-end{width:56px;height:56px;min-height:56px}
 #ai-call-dialog.ai-call-compact .ai-call-footer>span{margin-top:4px;font-size:12px}
 .kilas-light .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch){display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:6px;min-width:0;align-items:end}
-.kilas-light .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch)>textarea{grid-column:2;grid-row:1;min-width:0;width:100%;box-sizing:border-box}
+.kilas-light .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch)>textarea{grid-column:2;grid-row:1;min-width:0;width:100%;box-sizing:border-box;min-height:40px;padding:8px 2px;line-height:24px;resize:none;white-space:pre-wrap;overflow-wrap:break-word;overflow:auto}
+/* Keep an empty 40px composer on one line; typed drafts retain wrapping and scrolling. */
+.kilas-light .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch)>textarea:placeholder-shown{white-space:pre;overflow:hidden;text-overflow:ellipsis}
 .kilas-light .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch) .ai-composer-actions{display:flex;grid-column:3;grid-row:1;align-items:center;flex-wrap:nowrap;gap:6px;margin:0;min-width:0}
 .kilas-light .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch) :is(.ai-attach,.work-attachment-bar){grid-column:1;grid-row:1;margin:0;min-width:0}
 .kilas-light .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch) .ai-composer-actions>:is(.ai-call-launch,.ai-send,.ai-stop){flex:none;margin:0}
