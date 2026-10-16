@@ -987,7 +987,7 @@ def ensure_finance_defaults(business_id, *, actor_user_id=None):
             sync_business_category_catalog(
                 business_id, actor_user_id=actor_user_id)
 
-def _transaction_data(business_id, data, *, scheduled=False):
+def _transaction_data(business_id, data, *, scheduled=False, retained_category_id=None):
     data = dict(data)
     data.setdefault('notes', None)
     data['direction'] = _enum(data['direction'], DIRECTIONS)
@@ -1007,7 +1007,7 @@ def _transaction_data(business_id, data, *, scheduled=False):
     if account['currency'] != data['currency']:
         raise FinanceError('account_currency_mismatch')
     category = _category_setting_by_id(
-        business_id, data['category_id'], include_inactive=scheduled)
+        business_id, data['category_id'], include_inactive=(scheduled or data['category_id']==retained_category_id))
     if not category:
         raise FinanceError('category_unavailable')
     if category['direction'] != data['direction']:
@@ -1167,13 +1167,89 @@ def count_transactions(business_id, *, start_date=None, end_date=None, direction
     return int(row['n']) if row else 0
 
 
-def update_transaction(business_id, transaction_id, *, actor_user_id=None, **changes):
+def _save_transaction_revision(business_id, current, data, actor_user_id):
+    if _finance_write.get() != (business_id, actor_user_id):
+        raise FinanceError('business_unavailable')
+    original = {key: current[key] for key in FIELDS}
+    if any(data[key] != original[key] for key in FIELDS):
+        db.execute('INSERT INTO finance_transaction_revisions '
+            '(business_id,transaction_id,before_json,after_json,actor_user_id,created_at) VALUES (?,?,?,?,?,?)',
+            (business_id,current['id'],json.dumps(dict(original,branch_id=current['branch_id']),sort_keys=True),
+             json.dumps(data,sort_keys=True),actor_user_id,repo._now()))
+        db.execute('UPDATE finance_transactions SET '+','.join(key+'=?' for key in FIELDS)+
+            ",updated_at=? WHERE business_id=? AND branch_id=? AND id=? AND status='POSTED'",
+            [data[key] for key in FIELDS]+[repo._now(),business_id,current['branch_id'],current['id']])
+        _audit(business_id,actor_user_id,'FINANCE_TRANSACTION_UPDATED',current['id'])
+    return get_transaction(business_id,current['id'],actor_user_id=actor_user_id)
+
+
+def update_bill_payment(business_id, transaction_id, *, actor_user_id, expected_updated_at=None, **changes):
+    """Amend one paid occurrence in place; its posting link and future schedule stay intact."""
+    _id(actor_user_id)
+    if branches._current.get() and branches._current.get()[2]!=actor_user_id:
+        raise FinanceError('business_unavailable')
+    if set(changes)-{'amount_minor','occurred_on','account_id','category_id','description','notes'}:
+        raise FinanceError('unsupported_fields')
+    with _write(business_id,actor_user_id):
+        current=get_transaction(business_id,transaction_id,actor_user_id=actor_user_id)
+        if not current or current['status']!='POSTED' or current['source_type']!='FINANCE_RECURRING_EXPENSE' or current['direction']!='EXPENSE':
+            raise FinanceError('transaction_unavailable')
+        posting=db.query_one('SELECT id FROM finance_recurring_postings WHERE business_id=? AND ledger_transaction_id=?',
+                             (business_id,current['id']))
+        if not posting or current['source_ref']!=str(posting['id']):
+            raise FinanceError('recurring_posting_unresolved')
+        if expected_updated_at and expected_updated_at!=current['updated_at']:
+            raise FinanceError('transaction_changed')
+        data=_transaction_data(business_id,dict({key:current[key] for key in FIELDS},branch_id=current['branch_id'],**changes),retained_category_id=current['category_id'])
+        return _save_transaction_revision(business_id,current,data,actor_user_id)
+
+
+def update_invoice_payment(business_id, transaction_id, *, actor_user_id, expected_updated_at=None, **changes):
+    """Amend linked income and its invoice payment together under the same ledger lock."""
+    _id(actor_user_id)
+    if branches._current.get() and branches._current.get()[2]!=actor_user_id:
+        raise FinanceError('business_unavailable')
+    if set(changes)-{'amount_minor','occurred_on','account_id','category_id','description','notes'}:
+        raise FinanceError('unsupported_fields')
+    with _write(business_id,actor_user_id):
+        current=get_transaction(business_id,transaction_id,actor_user_id=actor_user_id)
+        if not current or current['status']!='POSTED' or current['source_type']!='FINANCE_INVOICE_PAYMENT' or current['direction']!='INCOME':
+            raise FinanceError('transaction_unavailable')
+        payment=db.query_one('SELECT * FROM finance_invoice_payments WHERE business_id=? AND ledger_transaction_id=?',
+                             (business_id,current['id']))
+        if not payment or current['source_ref']!=str(payment['id']):
+            raise FinanceError('invoice_ledger_managed')
+        invoice=_invoice(business_id,payment['invoice_id'],actor_user_id)
+        if invoice['status'] not in ('ISSUED','PARTIALLY_PAID','PAID'):
+            raise FinanceError('invalid_invoice_state')
+        if expected_updated_at and expected_updated_at!=current['updated_at']:
+            raise FinanceError('transaction_changed')
+        data=_transaction_data(business_id,dict({key:current[key] for key in FIELDS},branch_id=current['branch_id'],**changes),retained_category_id=current['category_id'])
+        totals=get_invoice_totals(business_id,invoice['id'])
+        paid=totals['paid_minor']-payment['amount_minor']+data['amount_minor']
+        if paid>totals['total_minor']:
+            raise FinanceError('overpayment')
+        result=_save_transaction_revision(business_id,current,data,actor_user_id)
+        if any(payment[key]!=data[field] for key,field in (('amount_minor','amount_minor'),('paid_on','occurred_on'),('account_id','account_id'),('category_id','category_id'))):
+            db.execute('UPDATE finance_invoice_payments SET amount_minor=?,paid_on=?,account_id=?,category_id=? WHERE business_id=? AND id=?',
+                       (data['amount_minor'],data['occurred_on'],data['account_id'],data['category_id'],business_id,payment['id']))
+            db.execute('UPDATE finance_invoices SET status=?,updated_at=? WHERE business_id=? AND id=?',
+                       ('PAID' if paid==totals['total_minor'] else 'PARTIALLY_PAID',repo._now(),business_id,invoice['id']))
+            _audit(business_id,actor_user_id,'FINANCE_INVOICE_PAYMENT_UPDATED',payment['id'])
+        return result
+
+
+def update_transaction(business_id, transaction_id, *, actor_user_id=None, expected_updated_at=None, **changes):
+    if actor_user_id is not None and branches._current.get() and branches._current.get()[2]!=actor_user_id:
+        raise FinanceError('business_unavailable')
     if set(changes) - set(FIELDS):
         raise FinanceError('unsupported_fields')
     with _write(business_id, actor_user_id):
         current = get_transaction(business_id, transaction_id, actor_user_id=actor_user_id)
         if current is None:
             raise FinanceError('transaction_unavailable')
+        if expected_updated_at and expected_updated_at!=current['updated_at']:
+            raise FinanceError('transaction_changed')
         if current['source_type'] == 'FINANCE_OPERATOR':
             if any(key in changes and changes[key] != current[key] for key in ('source_type','source_ref')):
                 raise FinanceError('operator_origin_immutable')
@@ -1186,7 +1262,7 @@ def update_transaction(business_id, transaction_id, *, actor_user_id=None, **cha
         if current['status'] == 'VOID':
             raise FinanceError('transaction_void')
         original = {key: current[key] for key in FIELDS}
-        data = _transaction_data(business_id, dict(original, branch_id=current['branch_id'], **changes))
+        data = _transaction_data(business_id, dict(original, branch_id=current['branch_id'], **changes),retained_category_id=current['category_id'])
         # Check canonical source names after _text strips whitespace. Raw-input
         # guards above alone allow padded managed origins on unrelated records.
         if data['source_type'] == 'FINANCE_INVOICE_PAYMENT':
@@ -1206,16 +1282,7 @@ def update_transaction(business_id, transaction_id, *, actor_user_id=None, **cha
                 raise FinanceError('receipt_origin_immutable')
         elif data['source_type'] == 'FINANCE_RECEIPT':
             raise FinanceError('receipt_origin_immutable')
-        if any(data[key] != original[key] for key in FIELDS):
-            db.execute('INSERT INTO finance_transaction_revisions '
-                '(business_id,transaction_id,before_json,after_json,actor_user_id,created_at) VALUES (?,?,?,?,?,?)',
-                (business_id, transaction_id, json.dumps(dict(original, branch_id=current['branch_id']), sort_keys=True),
-                 json.dumps(data, sort_keys=True), actor_user_id, repo._now()))
-            db.execute('UPDATE finance_transactions SET ' + ','.join(key+'=?' for key in FIELDS) +
-                       ',updated_at=? WHERE business_id=? AND id=? AND status=\'POSTED\'',
-                       [data[key] for key in FIELDS] + [repo._now(), business_id, transaction_id])
-            _audit(business_id, actor_user_id, 'FINANCE_TRANSACTION_UPDATED', transaction_id)
-        return get_transaction(business_id, transaction_id, actor_user_id=actor_user_id)
+        return _save_transaction_revision(business_id,current,data,actor_user_id)
 
 
 

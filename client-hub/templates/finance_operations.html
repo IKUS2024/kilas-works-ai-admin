@@ -126,6 +126,7 @@
       {% if r.show_native %}<small>{{ ui_t('Asli') }} {{ r.native_amount }}</small>{% endif %}
       <span class="finance-bill-status-label">{% if r.status=='paid' %}{{ ui_t('Sudah dibayar') }}{% if r.paid_on %} · {{ r.paid_on }}{% endif %}{% elif r.status=='void' %}{{ ui_t('Dibatalkan') }}{% else %}{{ ui_t('Belum dibayar ·') }} {{ r.status_label }}{% endif %}</span>
     </div>
+    {% if r.ledger_transaction_id and not branch_read_only %}<div class="finance-bill-row-actions"><a class="finance-mini-action" href="{{ url_for('finance.edit_transaction',business_id=business.id,branch_id=selected_branch_id,transaction_id=r.ledger_transaction_id) }}">{{ ui_t('Edit') }}</a></div>{% endif %}
     {% if r.can_mark_paid %}
     <div class="finance-bill-row-actions">
       {% if r.can_edit %}
@@ -180,6 +181,7 @@
       {% if r.show_native %}<small>{{ ui_t('Asli') }} {{ r.native_amount }}</small>{% endif %}
       <span class="finance-bill-status-label">{% if r.status=='paid' %}{{ ui_t('Sudah dibayar') }}{% if r.paid_on %} · {{ r.paid_on }}{% endif %}{% elif r.status=='void' %}{{ ui_t('Dibatalkan') }}{% else %}{{ ui_t('Belum dibayar ·') }} {{ r.status_label }}{% endif %}</span>
     </div>
+    {% if r.ledger_transaction_id and not branch_read_only %}<div class="finance-bill-row-actions"><a class="finance-mini-action" href="{{ url_for('finance.edit_transaction',business_id=business.id,branch_id=selected_branch_id,transaction_id=r.ledger_transaction_id) }}">{{ ui_t('Edit') }}</a></div>{% endif %}
     {% if r.can_mark_paid %}
     <div class="finance-bill-row-actions">
       {% if r.can_edit %}
@@ -268,7 +270,7 @@
       <input type="hidden" name="payment_status" value="{{ payment_status }}">
       <label>{{ ui_t('Nama Tagihan') }}<input name="name" value="{{ r.name }}" maxlength="160" required></label>
       <div class="finance-bill-form-grid">
-        <input type="hidden" name="account_id" value="{{ r.account_id }}">
+        <label>{{ ui_t('Akun') }}<select name="account_id" required>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}" {{ 'selected' if a.id==r.account_id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
         <label>{{ ui_t('Nominal') }} {{ r.currency }}<input name="amount" value="{{ r.input_amount }}" inputmode="decimal" maxlength="25" required></label>
         <input type="hidden" name="direction" value="EXPENSE">
         <label>{{ ui_t('Kategori') }}

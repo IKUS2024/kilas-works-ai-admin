@@ -5,6 +5,8 @@
 <a class="finance-app-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a>
 <a class="finance-home-return" href="{{ url_for('products.product_start') }}">{{ icon('home') }}{{ ui_t('Home') }}</a><nav class="finance-primary-navigation">{% for area,label,symbol,endpoint,params in [
 ('dashboard','Dashboard','home','dashboard',{}),
+('income','Pemasukan','income','dashboard',{'view':'transactions','direction':'INCOME'}),
+('expenses','Pengeluaran','expense','dashboard',{'view':'transactions','direction':'EXPENSE'}),
 ('transactions','Transaksi','transfer','dashboard',{'view':'transactions'}),
 ('accounts','Akun','account','dashboard',{'view':'accounts'}),
 ('bills','Tagihan','bill','operations',{}),
@@ -12,7 +14,7 @@
 ('invoices','Invoice','invoice','receivables',{'section':'invoices'}),
 ('payees','Penerima','people','payees',{}),
 ('reports','Laporan','chart','reports',{})] %}
-<a class="{{ 'active' if ui.area==area }}" {% if ui.area==area %}aria-current="page"{% endif %} href="{{ url_for('finance.' ~ endpoint,business_id=business.id,branch_id=selected_branch_id,**params) }}">{{ icon(symbol) }}{{ label|ui_text }}</a>
+<a class="{{ 'active' if ui.navigation_area==area }}" {% if ui.navigation_area==area %}aria-current="page"{% endif %} href="{{ url_for('finance.' ~ endpoint,business_id=business.id,branch_id=selected_branch_id,**params) }}">{{ icon(symbol) }}{{ label|ui_text }}</a>
 {% endfor %}
 {% if ui.home and ui.can_reset and not finance_read_only and not branch_read_only %}<form method="post" action="{{ url_for('finance.reset_prepare',business_id=business.id,branch_id=selected_branch_id) }}" class="finance-reset-launch"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" aria-label="{{ ui_t('Reset Data Finance') }}" title="{{ ui_t('Reset Data Finance') }}">{{ icon('reset') }}<span>{{ ui_t('Reset') }}</span></button></form>{% endif %}
 </nav>
@@ -20,15 +22,14 @@
 {% set language_location = 'finance-sidebar' %}{% include '_language_selector.html' %}</aside>
 <div class="finance-mobile-home"><a href="{{ url_for('products.product_start') }}">← {{ ui_t('Home') }}</a>{% set language_location = 'finance-mobile' %}{% include '_language_selector.html' %}</div>
 <div class="finance-app-topbar">
-<form class="finance-app-search" method="get" action="{{ url_for('finance.dashboard',business_id=business.id) }}" {% if ui.home %}data-finance-live-period{% endif %}>
-<input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ ui.month }}"><input type="hidden" name="display_currency" value="{{ ui.currency }}">{{ icon('search') }}<input type="search" name="q" value="{{ request.args.get('q','') if ui.home else '' }}" aria-label="{{ ui_t('Cari transaksi, tagihan, atau penerima') }}" placeholder="{{ ui_t('Cari transaksi, tagihan, atau penerima...') }}"><button type="submit" aria-label="{{ ui_t('Cari') }}">→</button></form>
+{% if ui.area != 'transactions' %}<form class="finance-app-search" method="get" action="{{ url_for('finance.dashboard',business_id=business.id) }}" {% if ui.home %}data-finance-live-period{% endif %}>
+<input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ ui.month }}"><input type="hidden" name="display_currency" value="{{ ui.currency }}">{{ icon('search') }}<input type="search" name="q" value="{{ request.args.get('q','') if ui.home else '' }}" aria-label="{{ ui_t('Cari transaksi, tagihan, atau penerima') }}" placeholder="{{ ui_t('Cari transaksi, tagihan, atau penerima...') }}"><button type="submit" aria-label="{{ ui_t('Cari') }}">→</button></form>{% endif %}
 <a class="finance-app-bell" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,payment_status='unpaid') }}" aria-label="{{ ui_t('Tagihan belum dibayar') }}">{{ icon('bell') }}</a>{% include '_finance_identity.html' %}
 </div>
 {% if ui.home %}<div class="finance-app-greeting"><h1>{{ display_name }}</h1><p>{{ ui_t('Kelola semua keuanganmu dalam satu tempat.') }}</p></div>{% endif %}
 <div class="finance-context-toolbar {{ 'finance-context-home' if ui.home else '' }}" aria-label="{{ ui_t('Konteks Finance') }}">
 <div class="finance-app-mode" role="group" aria-label="{{ ui_t('Pribadi atau Bisnis') }}">{% for code,label in [('PERSONAL','Pribadi'),('BUSINESS','Bisnis')] %}{% if (code=='PERSONAL')==finance_workspace_personal %}<span class="active" aria-current="page">{{ label|ui_text }}</span>{% else %}<form method="post" action="{{ url_for('finance.enter_workspace',business_id=(ui.business_return_id if code=='BUSINESS' else business.id),workspace_type=code) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="month" value="{{ ui.month }}"><input type="hidden" name="display_currency" value="{{ ui.currency }}">{% if code=='BUSINESS' and ui.business_return_branch %}<input type="hidden" name="return_branch_id" value="{{ ui.business_return_branch }}">{% endif %}<button type="submit">{{ label|ui_text }}</button></form>{% endif %}{% endfor %}</div>
 {% if not finance_workspace_personal %}
-{% if ui.businesses|length > 1 %}<details class="finance-legacy-switch"><summary>{{ ui_t('Bisnis lainnya') }}</summary><form method="get" action="{{ url_for('finance.overview') }}"><input type="hidden" name="month" value="{{ ui.month }}"><input type="hidden" name="display_currency" value="{{ ui.currency }}"><label>{{ ui_t('Bisnis tersimpan') }}<select name="business_id">{% for item in ui.businesses %}<option value="{{ item.id }}" {{ 'selected' if item.id==business.id }}>{{ item.business_name }}</option>{% endfor %}</select></label><button class="btn secondary">{{ ui_t('Buka') }}</button></form><a href="{{ url_for('finance.overview') }}">{{ ui_t('Lihat bisnis tersimpan') }}</a></details>{% endif %}
 {% set branch_destination={'bills':'operations','budget':'budget','payees':'payees','invoices':'receivables','reports':'reports','assistant':'assistant'}.get(ui.area,'dashboard') %}
 <form method="get" action="{{ url_for('finance.' ~ branch_destination,business_id=business.id) }}" class="finance-app-branch"><input type="hidden" name="month" value="{{ ui.month }}"><input type="hidden" name="display_currency" value="{{ ui.currency }}">{% if ui.area in ('transactions','accounts') %}<input type="hidden" name="view" value="{{ ui.area }}">{% endif %}{% if ui.area=='transactions' and request.args.get('direction') %}<input type="hidden" name="direction" value="{{ request.args.get('direction') }}">{% endif %}<label for="finance-app-branch">{{ ui_t('Cabang') }}</label><select id="finance-app-branch" name="branch_id" data-finance-ui-submit title="{{ ui_t('Pilih cabang') }}">{% for branch in finance_branches if branch.is_active %}<option value="{{ branch.id }}" {{ 'selected' if branch.id==selected_branch_id }}>{{ branch.name }}</option>{% endfor %}</select><noscript><button>{{ ui_t('Tampilkan') }}</button></noscript></form>
 {% endif %}

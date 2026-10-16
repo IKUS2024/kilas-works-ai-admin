@@ -9,6 +9,7 @@
 <h1>{{ ui_t('Edit Transaksi') }}</h1>
 <form method="post" class="card">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="expected_updated_at" value="{{ transaction.updated_at }}">
 <p>{{ ui_t('Pemasukan') if transaction.direction == 'INCOME' else ui_t('Pengeluaran') }}</p>
 <label>{{ ui_t('Nominal') }} {{ transaction.currency }}<input name="amount" value="{{ transaction.amount_minor|finance_input_money(transaction.currency) }}" inputmode="decimal" maxlength="25" autocomplete="off" required></label>
 <label>{{ ui_t('Tanggal') }}<input name="occurred_on" type="date" value="{{ transaction.occurred_on }}" max="{{ today }}" required></label>
@@ -21,6 +22,6 @@
 <label>{{ ui_t('Catatan (opsional)') }}<textarea name="notes" maxlength="4000">{{ transaction.notes or '' }}</textarea></label>
 <button class="btn">{{ ui_t('💾 Simpan Perubahan') }}</button>
 </form>
-<div class="card"><h2>{{ ui_t('Tindakan') }}</h2><p class="muted">{{ ui_t('Menghapus transaksi akan mengeluarkan nilainya dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar perubahan dapat dilacak.') }}</p><form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=transaction.id) }}" onsubmit='return confirm({{ ui_t('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari semua perhitungan Finance.')|tojson }});'><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary finance-delete" type="submit">{{ ui_t('🗑️ Hapus Transaksi') }}</button></form></div>
+{% if transaction.source_type != 'FINANCE_INVOICE_PAYMENT' %}<div class="card"><h2>{{ ui_t('Tindakan') }}</h2><p class="muted">{{ ui_t('Menghapus transaksi akan mengeluarkan nilainya dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar perubahan dapat dilacak.') }}</p><form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=transaction.id) }}" onsubmit='return confirm({{ ui_t('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari semua perhitungan Finance.')|tojson }});'><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary finance-delete" type="submit">{{ ui_t('🗑️ Hapus Transaksi') }}</button></form></div>{% endif %}
 <script src="{{ url_for('static',filename='finance_branches.js',v='locale-types-20261015') }}" defer></script>
 {% endblock %}

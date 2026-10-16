@@ -150,6 +150,7 @@ def finance_access(view):
 
 
 ERRORS = {
+    'transaction_changed': 'Transaksi berubah sejak formulir dibuka. Buka Edit kembali sebelum menyimpan.',
     'personal_home_elsewhere': 'Satu ruang Pribadi utama sudah tersedia. Buka Personal untuk memakai data yang sama; tidak ada akun baru yang dibuat.',
     'personal_context_conflict': 'Ada beberapa dataset Pribadi lama yang berisi data. Tidak ada data digabung atau dihapus. Penyatuan perlu ditinjau pengelola terlebih dahulu.',
     'personal_home_unavailable': 'Akses ruang Pribadi utama tidak tersedia. Tidak ada ruang pengganti atau akun duplikat yang dibuat.',
@@ -2171,7 +2172,7 @@ def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_use
                 account_name=payment_account_name,
                 category_name=None,
                 counterparty_name=rule['counterparty_name'],
-                description=rule['description'],
+                description=transaction['description'] if transaction else rule['description'],
                 cadence=rule['cadence'],
                 end_on=rule['end_on'],
                 status=status,
@@ -2179,6 +2180,7 @@ def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_use
                 paid_on=(transaction['occurred_on'] if transaction and transaction['status'] == 'POSTED' else None),
                 can_mark_paid=False,
                 can_edit=False,
+                ledger_transaction_id=(transaction['id'] if transaction and transaction['status']=='POSTED' else None),
                 source='posting'))
             seen.add(key)
 
@@ -3321,10 +3323,11 @@ def edit_transaction(business_id, user, business, transaction_id):
     transaction = finance.get_transaction(business_id, transaction_id, actor_user_id=user['id'])
     if not transaction:
         abort(404)
-    if transaction['status'] != 'POSTED' or transaction['source_type'] not in (None, '', 'MANUAL', 'FINANCE_OPERATOR', 'FINANCE_RECEIPT'):
+    if transaction['status'] != 'POSTED' or transaction['source_type'] not in (None, '', 'MANUAL', 'FINANCE_OPERATOR', 'FINANCE_RECEIPT', 'FINANCE_BANK_IMPORT', 'FINANCE_RECURRING_EXPENSE', 'FINANCE_INVOICE_PAYMENT'):
         abort(403)
     if request.method == 'POST':
-        return mutate(business_id, lambda: finance.update_transaction(business_id, transaction_id,
+        save={'FINANCE_RECURRING_EXPENSE':finance.update_bill_payment,'FINANCE_INVOICE_PAYMENT':finance.update_invoice_payment}.get(transaction['source_type'],finance.update_transaction)
+        return mutate(business_id, lambda: save(business_id, transaction_id,
             amount_minor=currency_amount(request.form.get('amount'),transaction['currency']), occurred_on=request.form.get('occurred_on'),
             account_id=record_id(request.form.get('account_id')), category_id=(transaction['category_id']
                 if g.finance_workspace_type == 'PERSONAL' and transaction['direction'] == 'INCOME'
@@ -3332,8 +3335,11 @@ def edit_transaction(business_id, user, business, transaction_id):
             description=(finance._text(request.form.get('description'),4000,True)
                 if g.finance_workspace_type == 'PERSONAL' and transaction['direction'] == 'INCOME'
                 else transaction_note(business_id, request.form)),
-            notes=request.form.get('notes', transaction.get('notes')), actor_user_id=user['id']),
-            'Transaksi diperbarui. Riwayat perubahan tersimpan.')
+            notes=request.form.get('notes', transaction.get('notes')), actor_user_id=user['id'],
+            expected_updated_at=request.form.get('expected_updated_at')),
+            'Transaksi diperbarui. Riwayat perubahan tersimpan.',
+            url_for('finance.dashboard',business_id=business_id,branch_id=g.finance_branch_id,
+                    view='transactions',direction=transaction['direction'],month=request.form.get('occurred_on','')[:7]))
     categories = finance.list_categories(
         business_id, transaction['direction'], include_children=True, actor_user_id=user['id'])
     is_other = any(c['id'] == transaction['category_id'] and c['name'] in ('Lainnya', 'Pendapatan Lain', 'Pengeluaran Lain') for c in categories)

@@ -1,6 +1,11 @@
 (() => {
   'use strict';
   const t = value => window.KilasUI ? window.KilasUI.t(value) : value;
+  const navigation = document.querySelector('.finance-primary-navigation');
+  const activeNavigation = navigation?.querySelector('[aria-current="page"]');
+  if (activeNavigation && window.matchMedia('(max-width:760px)').matches) {
+    navigation.scrollLeft += activeNavigation.getBoundingClientRect().left - navigation.getBoundingClientRect().left - 8;
+  }
   const form = document.querySelector('[data-finance-entry]');
   if (form) {
     const direction = form.elements.namedItem('direction');

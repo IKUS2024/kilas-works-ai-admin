@@ -62,5 +62,6 @@ def context(business_id, user):
                 identity_photo=photo, can_edit_identity=can_edit,
                 business_return_id=return_business,business_return_branch=return_branch,
                 can_reset=bool(personal or (member and member['role_in_business']=='OWNER')), enabled=endpoint in PAGE_ENDPOINTS, month=month, currency=currency, area=area,
+                navigation_area=({'INCOME':'income','EXPENSE':'expenses'}.get(request.args.get('direction'),'transactions') if area=='transactions' and endpoint=='dashboard' else area),
                 home=endpoint=='dashboard' and not view, businesses=_product_businesses(user['id'], 'finance') if endpoint in PAGE_ENDPOINTS else [],
                 currencies=finance.SUPPORTED_CURRENCIES)

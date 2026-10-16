@@ -403,7 +403,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <input type="hidden" name="view" value="transactions"><input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
 {% for key,value in period_query.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
 {% if selected_category_id %}<input type="hidden" name="category_id" value="{{ selected_category_id }}">{% endif %}
-<label>{{ ui_t('Cari transaksi') }}<input type="search" name="search" value="{{ transaction_search }}" placeholder="{{ ui_t('Deskripsi atau penerima') }}" maxlength="160"></label>
+{% if transaction_search %}<input type="hidden" name="search" value="{{ transaction_search }}">{% endif %}
 {% if direction %}<input type="hidden" name="direction" value="{{ direction }}">
 {% else %}<label>{{ ui_t('Jenis') }}<select name="direction"><option value="">{{ ui_t('Semua') }}</option><option value="INCOME">{{ ui_t('Pemasukan') }}</option><option value="EXPENSE">{{ ui_t('Pengeluaran') }}</option></select></label>{% endif %}
 <label>{{ ui_t('Akun') }}<select name="account_id"><option value="">{{ ui_t('Semua akun') }}</option>{% for a in account_balance_rows %}<option value="{{ a.id }}" {{ 'selected' if transaction_account_id==a.id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label><button class="btn secondary" type="submit">{{ ui_t('Terapkan') }}</button>
@@ -458,13 +458,13 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
     <div class="finance-tx-main">
       <div class="finance-tx-top">
         <strong class="finance-tx-amount {{ 'income' if t.direction == 'INCOME' else 'expense' }}">{{ '+' if t.direction == 'INCOME' else '−' }}{{ t.display_amount_value }}</strong>
-        {% if not branch_read_only and t.source_type != 'FINANCE_INVOICE_PAYMENT' %}
+        {% if not branch_read_only %}
         <details class="finance-tx-actions">
           <summary aria-label="{{ ui_t('Tindakan transaksi') }}" title="{{ ui_t('Tindakan') }}">•••</summary>
           <div class="finance-tx-actions-menu">
-            {% if t.source_type in (none,'','MANUAL','FINANCE_OPERATOR','FINANCE_RECEIPT') %}<a href="{{ url_for('finance.edit_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=t.id) }}">{{ ui_t('Edit') }}</a>{% endif %}
+            {% if t.source_type in (none,'','MANUAL','FINANCE_OPERATOR','FINANCE_RECEIPT','FINANCE_BANK_IMPORT','FINANCE_RECURRING_EXPENSE','FINANCE_INVOICE_PAYMENT') %}<a href="{{ url_for('finance.edit_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=t.id) }}">{{ ui_t('Edit') }}</a>{% endif %}
             {% if t.source_type in workspace_movable_sources %}<button type="button" data-finance-open="move-transaction-{{ t.id }}">{{ ui_t('Pindahkan ke') }} {{ workspace_move_target_label }}</button>{% endif %}
-            <form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=t.id) }}" onsubmit='return confirm({{ ui_t('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar aman.')|tojson }});'><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-danger" type="submit">{{ ui_t('Hapus') }}</button></form>
+            {% if t.source_type != 'FINANCE_INVOICE_PAYMENT' %}<form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=t.id) }}" onsubmit='return confirm({{ ui_t('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar aman.')|tojson }});'><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-danger" type="submit">{{ ui_t('Hapus') }}</button></form>{% endif %}
           </div>
         </details>
         {% endif %}

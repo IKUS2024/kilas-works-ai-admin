@@ -1,0 +1,15 @@
+{
+  "widths": [
+    1440,
+    390,
+    320
+  ],
+  "modes": [
+    "PERSONAL",
+    "BUSINESS"
+  ],
+  "external_io": "blocked",
+  "production_writes": 0,
+  "reset_submissions": 0,
+  "result": "PASS"
+}
