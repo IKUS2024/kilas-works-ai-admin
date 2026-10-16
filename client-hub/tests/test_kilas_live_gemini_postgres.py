@@ -14,7 +14,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import db
 import repo
 from kilas_ai import audio_schema, audio_store, live_translator_store as sessions
-from kilas_ai import live_gemini as native, live_gemini_budget as budget
+from kilas_ai import live_gemini as native, live_gemini_budget as budget, live_gemini_smoke as smoke
 
 
 def main():
@@ -77,6 +77,19 @@ def main():
                 assert audio_store.history_page(owner,kind='voiceover')['history_total']==0
                 native.cancel(owner,ident);sessions.end(owner,ident)
                 assert db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_jobs WHERE source_content IS NOT NULL OR result_content IS NOT NULL OR original_script IS NOT NULL')['n']==0
+                configured={'owner':owner,'email':'native-pg@example.test'}
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    def mark(_):
+                        try:return smoke.once(configured)
+                        finally:db._discard_cached_connection()
+                    assert sorted(pool.map(mark,range(2)))==[False,True]
+                assert not smoke.once(configured)
+                marker=db.query_one('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',('gemini-qa-'+smoke.RUN,))
+                assert marker['status']=='CANCELLED' and marker['charge_micro']==0
+                wrong_owner={'owner':owner,'email':'other@example.test'}
+                try:smoke.once(wrong_owner)
+                except ValueError as error:assert str(error)=='owner_mismatch'
+                else:raise AssertionError('Owner mismatch admitted')
             print('PASS Gemini PostgreSQL: serialized admission, duplicate exclusion, durable unknown dispatch cost, idempotent settlement, unchanged customer balance, private native history')
     finally:
         db._discard_cached_connection()

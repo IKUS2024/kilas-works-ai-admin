@@ -1,0 +1,264 @@
+"""Exactly two approved synthetic tests; separate process, never a public route.
+
+Default OFF. No import IO, automatic retries, fixture generation or secret output.
+The web worker never enables Gemini: only this short-lived child sets its policy.
+"""
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import time
+import wave
+from datetime import datetime, timezone, timedelta
+
+RUN = 'gmlqa20261016a'
+SERVICE = 'srv-da7ti2psrm7s73dh9i2g'
+ARM = 'KILAS_LIVE_GEMINI_QA_ARM'
+FIXTURES = {
+    'id':'3751b3b407c81b5f6398f1dcccc4ad21fbaffda3912e51f6aabe12f760714fc9',
+    'en':'955455943bd45b9ca13b375030f75b49e9515d477ab26a65ed3e6731df3e0e8a',
+}
+
+
+def config():
+    try:
+        if os.environ.get(ARM) != RUN or os.environ.get('RENDER_SERVICE_ID') != SERVICE:
+            return None
+        owner = int(os.environ['KILAS_LIVE_GEMINI_QA_OWNER_ID'])
+        email = os.environ['KILAS_LIVE_GEMINI_QA_OWNER_EMAIL'].strip().lower()
+        expiry = datetime.fromisoformat(os.environ['KILAS_LIVE_GEMINI_QA_EXPIRES_AT'].replace('Z','+00:00'))
+        now = datetime.now(timezone.utc)
+        if not 0 < owner <= 10**9 or '@' not in email or expiry.tzinfo is None or not now < expiry <= now+timedelta(minutes=30):
+            return None
+        return {'owner':owner, 'email':email, 'expiry':expiry.astimezone(timezone.utc).isoformat()}
+    except (KeyError, ValueError, TypeError, OverflowError):
+        return None
+
+
+def launch():
+    if not config():
+        return False
+    # Inherit the installed runtime environment without reading/copying any
+    # secret value in the web worker, command line, files or logs.
+    try:
+        subprocess.Popen([sys.executable,'-m','kilas_ai.live_gemini_smoke'], close_fds=True)
+    except OSError:
+        report({'run':RUN,'status':'launch_failed_no_retry'})
+        return False
+    return True
+
+
+def fixture(language):
+    path = Path(__file__).resolve().parents[1]/'tests'/'fixtures'/'gemini_live_synthetic'/(language+'.wav')
+    if hashlib.sha256(path.read_bytes()).hexdigest() != FIXTURES[language]:
+        raise ValueError('fixture_changed')
+    with wave.open(str(path),'rb') as wav:
+        if (wav.getnchannels(),wav.getsampwidth(),wav.getframerate(),wav.getnframes()) != (1,2,16000,240000):
+            raise ValueError('fixture_invalid')
+        return wav.readframes(240000)
+
+
+def report(value):
+    print('KILAS_GEMINI_QA '+json.dumps(value,separators=(',',':')),flush=True)
+
+
+class ProbeSocket:
+    """Observe real transport, preserving bytes/protocol and suppressing errors."""
+    def __init__(self, socket, observation):
+        self.socket, self.observation = socket, observation
+
+    def __getattr__(self, name):
+        return getattr(self.socket,name)
+
+    def recv(self):
+        raw = self.socket.recv()
+        if isinstance(raw,str) and len(raw) <= 1024*1024:
+            value = json.loads(raw)
+            if isinstance(value,dict):
+                if 'setupComplete' in value:
+                    self.observation['setup_complete'] = True
+                error = value.get('error')
+                if isinstance(error,dict) and type(error.get('code')) is int:
+                    self.observation['provider_error_code'] = error['code']
+                    message = error.get('message','')
+                    if isinstance(message,str):
+                        self.observation['provider_error_fields'] = [field for field in (
+                            'translationConfig','inputAudioTranscription','outputAudioTranscription',
+                            'maxOutputTokens','targetLanguageCode','echoTargetLanguage') if field in message]
+                usage = value.get('usageMetadata')
+                if isinstance(usage,dict):
+                    event = {key:usage[key] for key in ('promptTokenCount','responseTokenCount','totalTokenCount')
+                             if type(usage.get(key)) is int and 0 <= usage[key] <= 10**7}
+                    events = self.observation['usage_snapshots']
+                    if event:
+                        events.append(event)
+                    if len(events)>64:
+                        raise ValueError('usage_limit')
+                    # Conservative SUM of reported observations (not an invoice;
+                    # snapshots may be cumulative). Stop before further input.
+                    cost = sum(e.get('promptTokenCount',0)*7+e.get('responseTokenCount',0)*42 for e in events)
+                    self.observation['observed_token_estimate_micro'] = (cost+1)//2
+                    if cost >= 180000:  # $0.09, within the approved $0.10 lease.
+                        raise ValueError('usage_limit')
+        return raw
+
+
+def once(configured):
+    """Durable unpaid run marker: restart/duplicate invocation never dispatches."""
+    import db
+    from . import live_gemini_budget as budget, usage
+    from .autonomous_store import transaction
+    if db.BACKEND != 'postgres':
+        raise ValueError('production_postgres_required')
+    owner = configured['owner']
+    with transaction() as conn:
+        budget.ledger._campaign(conn,budget.policy())
+        budget.ledger._owner(conn,owner)
+        row = usage._query(conn,'SELECT email,role FROM users WHERE id=?',(owner,),one=True)
+        if not row or row[0].strip().lower()!=configured['email'] or row[1]!='CLIENT_OWNER':
+            raise ValueError('owner_mismatch')
+        marker = 'gemini-qa-'+RUN
+        if budget.ledger._row(conn,owner,marker):
+            return False
+        # Read-only detection; never End/reset a legitimate owner's session.
+        if usage._query(conn,"SELECT 1 FROM kilas_live_translator_sessions WHERE user_id=? AND status='ACTIVE' AND (expires_at='' OR expires_at>?)",(owner,datetime.now(timezone.utc).isoformat()),one=True):
+            raise ValueError('owner_session_busy')
+        usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at,finished_at) VALUES (?,?,?,?,'CANCELLED',0,0,?,?,?)",
+                     (owner,marker,budget.policy()['id'],hashlib.sha256(RUN.encode()).hexdigest(),'unpaid-run-marker',
+                      datetime.now(timezone.utc).isoformat(),datetime.now(timezone.utc).isoformat()))
+    return True
+
+
+def session(configured, source, target, raw):
+    import db
+    from . import live_gemini as native, live_translator_store as sessions
+    observation = {'direction':source+'-'+target, 'usage_snapshots':[], 'setup_complete':False,
+                   'provider_connection':False, 'audible_measured':False}
+    original = native.connect
+    def observed_connect():
+        started = time.monotonic()
+        try:
+            socket = original()
+        except Exception as error:
+            status = getattr(error,'status_code',None)
+            if type(status) is int:
+                observation['handshake_status'] = status
+            raise
+        observation.update(provider_connection=True,connect_ms=round((time.monotonic()-started)*1000,1))
+        return ProbeSocket(socket,observation)
+    native.connect = observed_connect
+    owner = configured['owner']
+    ident = sessions.create(owner,source,target,native.VOICE)
+    key = 'live-'+hashlib.sha256((RUN+source+target).encode()).hexdigest()[:32]
+    relay = None
+    try:
+        relay = native.start(owner,ident,key)
+        # Real-time paced synthetic PCM only, no browser, device or microphone.
+        started = time.monotonic()
+        for index, offset in enumerate(range(0,len(raw),16000)):
+            if relay.finished:
+                break
+            relay.accept(index,raw[offset:offset+16000])
+            time.sleep(max(0,started+(index+1)*.5-time.monotonic()))
+        if not relay.finished:
+            relay.finish_input(relay.expected)
+        deadline = started+45
+        while not relay.finished and time.monotonic()<deadline:
+            time.sleep(.05)
+        if not relay.finished:
+            relay.stop(native.failure('gemini_deadline'))
+            relay.completed.wait(2)
+        after = received = 0
+        if relay.finished:
+            while after<len(relay.frames):
+                value = relay.snapshot(after)
+                for frame in value['frames']:
+                    if frame['type']=='audio':
+                        received += len(base64.b64decode(frame['pcm'],validate=True))
+                after = value['next_index']
+        observation.update(input_ms=relay.accepted/32,output_ms=relay.output_bytes/48,
+                           terminal_turn_complete=relay.completed.is_set(),settled=relay.finished,
+                           output_cursor=after,total_frames=len(relay.frames),
+                           all_generated_pcm_read=received==relay.output_bytes,
+                           source_text=relay.source_text,translated_text=relay.target_text,
+                           code=getattr(relay.error,'code',None))
+        if relay.first_output_at is not None and relay.first_input_at is not None:
+            observation['backend_first_pcm_ms'] = round((relay.first_output_at-relay.first_input_at)*1000,1)
+        if relay.end_at is not None:
+            observation['finish_to_settled_ms'] = round((time.monotonic()-relay.end_at)*1000,1)
+        # Persist token observations as an estimate alongside retained admission
+        # allowance. Supplier billing/credit consumption remains unverified.
+        events = observation['usage_snapshots']
+        if events:
+            db.execute('UPDATE kilas_vo_stt_operations SET input_tokens=?,output_tokens=?,actual_estimate_micro=? WHERE user_id=? AND operation_key=? AND campaign=?',
+                       (sum(e.get('promptTokenCount',0) for e in events),sum(e.get('responseTokenCount',0) for e in events),
+                        observation['observed_token_estimate_micro'],owner,key+'-gm','gml-'+RUN))
+        return observation
+    finally:
+        ended = time.monotonic()
+        sessions.end(owner,ident)
+        native.cancel(owner,ident)
+        observation['backend_end_ms'] = round((time.monotonic()-ended)*1000,1)
+        observation['post_end_frames'] = len(relay.frames) if relay else 0
+        try:
+            native.owned(owner,ident,key)
+        except native.audio_store.AudioError:
+            observation['post_end_output_access'] = 'blocked'
+        else:
+            observation['post_end_output_access'] = 'unexpectedly_available'
+        native.connect = original
+        report(observation)
+
+
+def run():
+    configured = config()
+    if configured is None:
+        return
+    os.environ[ARM] = 'off'
+    # These nonsecret values affect this child process only. The public web
+    # service remains OFF; the approved campaign has exactly two $0.10 leases.
+    os.environ.update({'KILAS_LIVE_GEMINI_ENABLED':'true','KILAS_LIVE_GEMINI_BILLING_VERIFIED':'yes',
+                       'KILAS_LIVE_GEMINI_ALLOWED_OWNER_ID':str(configured['owner']),
+                       'KILAS_LIVE_GEMINI_CAMPAIGN':RUN,'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD':'200000',
+                       'KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD':'100000',
+                       'KILAS_LIVE_GEMINI_EXPIRES_AT':configured['expiry']})
+    from . import live_gemini as native, live_gemini_budget as budget
+    original_limits = native.INPUT_BYTES,native.OUTPUT_BYTES,budget.LEASE_MS
+    native.INPUT_BYTES, native.OUTPUT_BYTES = 15*32000,30*48000
+    budget.LEASE_MS = 45000
+    original_setup = native.setup
+    def bounded_setup(target):
+        value = original_setup(target)
+        value['setup']['generationConfig']['maxOutputTokens'] = 512
+        return value
+    native.setup = bounded_setup
+    try:
+        samples = {language:fixture(language) for language in FIXTURES}
+        if not once(configured):
+            report({'run':RUN,'status':'already_attempted_no_retry'})
+            return
+        signal.alarm(105)  # Process-level backstop; restart cannot repeat marker.
+        report({'run':RUN,'status':'started','max_sessions':2,'allowance_micro':200000})
+        for source,target in (('id','en'),('en','id')):
+            result = session(configured,source,target,samples[source])
+            if result.get('code') or not result.get('terminal_turn_complete') or not result.get('all_generated_pcm_read'):
+                report({'run':RUN,'status':'stopped_after_failure_no_retry'})
+                return
+        report({'run':RUN,'status':'completed_two_sessions'})
+    except Exception as error:
+        # Never print exception text/traceback: supplier errors can contain keys.
+        code = getattr(error,'code',None)
+        report({'run':RUN,'status':'stopped_no_retry','code':code if isinstance(code,str) else 'qa_failed'})
+    finally:
+        signal.alarm(0)
+        os.environ['KILAS_LIVE_GEMINI_ENABLED'] = 'false'
+        native.INPUT_BYTES,native.OUTPUT_BYTES,budget.LEASE_MS = original_limits
+        native.setup = original_setup
+
+
+if __name__ == '__main__':
+    run()

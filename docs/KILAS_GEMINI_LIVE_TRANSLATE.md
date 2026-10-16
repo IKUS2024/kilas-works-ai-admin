@@ -107,3 +107,37 @@ Official references checked 2026-10-16:
 - https://ai.google.dev/api/live
 - https://ai.google.dev/gemini-api/docs/models/gemini-3.5-live-translate-preview
 - https://github.com/googleapis/python-genai/blob/main/google/genai/live.py
+
+## Approved two-session synthetic smoke test
+
+The 2026-10-16 approval covers two short synthetic ID→EN / EN→ID tests only,
+with an internal US$0.20 total allowance and US$0.10 retained per dispatch.
+It is not approval to enable public production use or renew a pilot.
+
+`live_gemini_smoke` runs in a separate short-lived child of the Client Hub worker.
+The normal web process does not enable Gemini. Four nonsecret test settings arm
+the child only on service `srv-da7ti2psrm7s73dh9i2g`:
+
+- `KILAS_LIVE_GEMINI_QA_ARM=gmlqa20261016a`
+- `KILAS_LIVE_GEMINI_QA_OWNER_ID`: verified application owner ID
+- `KILAS_LIVE_GEMINI_QA_OWNER_EMAIL`: matching application account email
+- `KILAS_LIVE_GEMINI_QA_EXPIRES_AT`: fixed RFC3339 test deadline within 30 minutes
+
+Never retrieve or replace the service environment to arm this. Merge these
+nonsecret keys only; the child inherits the already-installed secret normally.
+A durable unpaid marker in the existing allowance ledger prevents any restart
+from repeating the run, including a failed first session. Each paid direction
+also has a deterministic operation key and the existing admission safeguards.
+Existing active owner sessions block testing; they are never ended automatically.
+
+Each immutable offline-generated fixture is exactly 15 seconds PCM16/16k mono.
+The child limits accepted output to 30 seconds, response output to 512 tokens,
+each lease to 45 seconds and the entire child to 105 seconds. It stops on the
+first failure without retry or fallback. Usage observations are numeric and
+conservatively summed; their token-price estimate is not a supplier invoice.
+The normal full-session limits and native voice/model are unchanged.
+
+After testing set `KILAS_LIVE_GEMINI_QA_ARM=off`. Do not set the normal enable
+flags or infer ongoing funding/expiry approval from this two-test permission.
+Backend first-PCM and End timing are reported separately from audible/device
+measurements, which this browser-free test cannot establish.
