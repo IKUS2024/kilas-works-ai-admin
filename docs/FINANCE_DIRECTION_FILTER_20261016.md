@@ -18,3 +18,11 @@ FINANCE_QA_OUTPUT=/tmp/finance-type-filter-browser python client-hub/tests/finan
 ```
 
 Release target remains the existing Render Client Hub `srv-da7ti2psrm7s73dh9i2g`, workspace `tea-da34t2gu01pc73ft7uf0`. No production QA writes or new migration are required. The application commit and LIVE deployment ID will be reported after verification. Direct external HTTP verification remains blocked by the execution proxy; no authenticated production browser success is claimed by this local browser report.
+
+## Verified release
+
+- Application commit `edb638c298097906539cb25835b6aeed0d1e17cc` was pushed directly to main. Existing Client Hub deploy `dep-db95nk2jnfac73alu7qg` reports **LIVE**, finished **2026-10-16 17:17:01 UTC**, at that exact commit. Worker startup independently confirms the same SHA.
+- Post-release read-only comparison: **31/31 Finance data tables unchanged**, including complete transaction Notes and internal transfer history. Counts and full-row fingerprints match the pre-release capture. No production QA workspace, transaction, account or other financial record was created or changed by this follow-up.
+- Render error-level query covering 17:16:00–17:17:35 UTC returned no logs. No new migration or configuration change.
+- User URL: https://app.kilasworks.id. Direct HTTPS smoke remains blocked by the execution proxy; the screenshots above are local synthetic browser evidence. Parent production-browser verification can open the existing authorized workspace with `view=transactions&direction=EXPENSE` or `direction=INCOME` and inspect the search/account filter area.
+- The evidence checkpoint changes documentation only; deployed application source remains identical to `edb638c`.
