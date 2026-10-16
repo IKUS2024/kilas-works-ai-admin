@@ -1,0 +1,157 @@
+{
+  "captured_utc": "2026-10-16T16:56Z (minute precision)",
+  "baseline_commit": "68211ee3948984c837b935ee34fe7cad15cadc15",
+  "comparison": "Sorted full-row hashes; finance_transactions notes excluded because this release adds that nullable column. No row content was exported.",
+  "tables": [
+    {
+      "fingerprint": "9a34c2da9f54103a7b503fc0dd932393",
+      "name": "finance_account_type_assignments",
+      "rows": 6
+    },
+    {
+      "fingerprint": "bb2498a0bf55b1805aa611014e2dbe4d",
+      "name": "finance_account_type_options",
+      "rows": 12
+    },
+    {
+      "fingerprint": "62ac39f3ace472bbdaee1e38b93c8dd6",
+      "name": "finance_accounts",
+      "rows": 38
+    },
+    {
+      "fingerprint": "a8368a62514c17b09df471e2e2e71a73",
+      "name": "finance_bank_extraction_reviews",
+      "rows": 12
+    },
+    {
+      "fingerprint": "36b1dd18d12bf6a6cc917dbb71e2cc23",
+      "name": "finance_bank_imports",
+      "rows": 11
+    },
+    {
+      "fingerprint": "dce08fb2c6ecf355777ae9caa2350a12",
+      "name": "finance_bank_rows",
+      "rows": 39
+    },
+    {
+      "fingerprint": "55f27c2d3055669968c73f28043549a6",
+      "name": "finance_bill_requests",
+      "rows": 4
+    },
+    {
+      "fingerprint": "c9a5c50ce42fa3fd7a96a2f377a44bac",
+      "name": "finance_branch_workspaces",
+      "rows": 22
+    },
+    {
+      "fingerprint": "09afb2b2e5e536d0dc963caf87581c09",
+      "name": "finance_branches",
+      "rows": 22
+    },
+    {
+      "fingerprint": "7cc5b64389205bc29be842f0d61de121",
+      "name": "finance_budgets",
+      "rows": 2
+    },
+    {
+      "fingerprint": "6615eee385cbdb7274f020853ac22f7b",
+      "name": "finance_categories",
+      "rows": 1199
+    },
+    {
+      "fingerprint": "6f59d8963f69f953fa038c5905054be8",
+      "name": "finance_category_hierarchy",
+      "rows": 796
+    },
+    {
+      "fingerprint": "729d7a659e26710fcf4c1ef9842c103d",
+      "name": "finance_category_workspace_settings",
+      "rows": 1309
+    },
+    {
+      "fingerprint": "0b0a33410d8d014316b6ba09c4f235cc",
+      "name": "finance_customers",
+      "rows": 9
+    },
+    {
+      "fingerprint": "2e56e788c3cbb8385088ee0571442325",
+      "name": "finance_entitlements",
+      "rows": 10
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "name": "finance_fx_exchanges",
+      "rows": 0
+    },
+    {
+      "fingerprint": "2fef4d6898fa9d52d7262be2eac48ce3",
+      "name": "finance_invoice_items",
+      "rows": 21
+    },
+    {
+      "fingerprint": "2e2f42df88ac9404a439d8428c8ec16f",
+      "name": "finance_invoice_payments",
+      "rows": 4
+    },
+    {
+      "fingerprint": "f581847891e0bae6084f5f0df30c82db",
+      "name": "finance_invoice_revisions",
+      "rows": 1
+    },
+    {
+      "fingerprint": "aa6d937cd1f15c2b1700f18c53a80fef",
+      "name": "finance_invoice_settings",
+      "rows": 1
+    },
+    {
+      "fingerprint": "57c9bb1c751a5c1ac6ebe176e72bec6a",
+      "name": "finance_invoices",
+      "rows": 10
+    },
+    {
+      "fingerprint": "d15f1ed1a6990cc36135aa9682cb3ccd",
+      "name": "finance_money_scale_state",
+      "rows": 1
+    },
+    {
+      "fingerprint": "fd64246ed3e2b6d0fbcc52c3c18974ee",
+      "name": "finance_payees",
+      "rows": 4
+    },
+    {
+      "fingerprint": "96396a94b5fc7115a6965569a990106a",
+      "name": "finance_recurring_expenses",
+      "rows": 2
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "name": "finance_recurring_postings",
+      "rows": 0
+    },
+    {
+      "fingerprint": "aaee45835e4ea432958f99bfb08a0e86",
+      "name": "finance_subscription_bills",
+      "rows": 1
+    },
+    {
+      "fingerprint": "6e342264522079603a38f928a7891c9b",
+      "name": "finance_transaction_revisions",
+      "rows": 1
+    },
+    {
+      "fingerprint": "bb1719ea33229faab442a85133019907",
+      "name": "finance_transactions",
+      "rows": 68
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "name": "finance_workspace_corrections",
+      "rows": 0
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "name": "finance_workspace_opening_history",
+      "rows": 0
+    }
+  ]
+}

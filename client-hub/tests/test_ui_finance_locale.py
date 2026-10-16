@@ -37,7 +37,7 @@ class FinanceLocaleTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200, (name, language))
                 html = response.text
                 self.assertTrue('<html lang="'+language+'">' in html)
-                self.assertTrue(('aria-label="Profile Recent"' if language=='en' else 'aria-label="Profil Recent"') in html)
+                self.assertTrue(('aria-label="Profile Business"' if language=='en' else 'aria-label="Profil Business"') in html)
                 if name == 'reports':
                     self.assertTrue(('<strong>This month</strong>' if language=='en' else '<strong>Bulan ini</strong>') in html)
                 if name == 'budget':
@@ -105,7 +105,7 @@ class FinanceLocaleTests(unittest.TestCase):
                         if count == 2:
                             self.assertIn('<strong>Invoice</strong>', html)
                     else:
-                        expected = 'Budget usage 0 percent' if locale=='en' else 'Penggunaan anggaran 0 persen'
+                        expected = 'Not set' if locale=='en' else 'Belum diatur'
                         self.assertIn('role="img" aria-label="'+expected+'"', html)
                         self.assertEqual(context['budget_percent'], 0)
                 self.assertEqual(self.snapshot(), before)

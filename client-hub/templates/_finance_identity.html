@@ -1,0 +1,4 @@
+<button type="button" class="finance-identity" data-finance-ui-open="finance-identity-dialog" aria-label="{{ ui_t('Profil {name}',name=ui.identity_name) }}">
+<span class="finance-app-avatar">{% if ui.identity_photo %}<img src="{{ url_for('auth.account_personal_photo',v=ui.identity_photo.id) if finance_workspace_personal else url_for('auth.account_business_photo',business_id=business.id,v=ui.identity_photo.id) }}" alt="">{% else %}{{ ui.identity_name[:1]|upper }}{% if ui.identity_name.split()|length>1 %}{{ ui.identity_name.split()[-1][:1]|upper }}{% endif %}{% endif %}</span>
+<span class="finance-identity-name">{{ ui.identity_name }}</span>
+</button>

@@ -40,7 +40,7 @@ DIRECTIONS = ('INCOME', 'EXPENSE')
 SUPPORTED_CURRENCIES = ('IDR', 'USD', 'SGD', 'MYR', 'EUR', 'GBP', 'AUD', 'JPY', 'CNY', 'HKD', 'THB')
 RETIRED_CATEGORY_NAMES = frozenset(name.casefold() for name in ('Pendapatan Lain', 'Pengeluaran Lain', 'Lainnya'))
 FIELDS = ('direction', 'amount_minor', 'currency', 'account_id', 'category_id', 'occurred_on',
-          'description', 'counterparty_name', 'project_id', 'source_type', 'source_ref', 'customer_id')
+          'description', 'counterparty_name', 'project_id', 'source_type', 'source_ref', 'customer_id', 'notes')
 WORKSPACE_MOVABLE_TRANSACTION_SOURCES = (None, '', 'MANUAL', 'FINANCE_OPERATOR', 'FINANCE_RECEIPT')
 WORKSPACE_ACCOUNT_MOVABLE_SOURCES = WORKSPACE_MOVABLE_TRANSACTION_SOURCES + ('FINANCE_RECURRING_EXPENSE', 'FINANCE_BANK_IMPORT')
 DEFAULT_CATEGORIES = {
@@ -980,6 +980,7 @@ def ensure_finance_defaults(business_id, *, actor_user_id=None):
 
 def _transaction_data(business_id, data, *, scheduled=False):
     data = dict(data)
+    data.setdefault('notes', None)
     data['direction'] = _enum(data['direction'], DIRECTIONS)
     data['amount_minor'] = _money(data['amount_minor'], positive=True)
     data['currency'] = _currency(data['currency'])
@@ -1009,14 +1010,14 @@ def _transaction_data(business_id, data, *, scheduled=False):
         customer = get_customer(business_id, _id(data['customer_id']))
         if not customer or not customer['is_active']:
             raise FinanceError('customer_unavailable')
-    for key, limit in (('description', 4000), ('counterparty_name', 160), ('source_type', 64), ('source_ref', 256)):
+    for key, limit in (('description', 4000), ('notes', 4000), ('counterparty_name', 160), ('source_type', 64), ('source_ref', 256)):
         data[key] = _text(data[key], limit)
     return data
 
 
 def create_transaction(business_id, direction, amount_minor, account_id, category_id, occurred_on, *,
                        currency='IDR', description=None, counterparty_name=None, project_id=None,
-                       source_type=None, source_ref=None, customer_id=None, actor_user_id=None):
+                       source_type=None, source_ref=None, customer_id=None, notes=None, actor_user_id=None):
     raw = {key: value for key, value in locals().items() if key in FIELDS}
     with _write(business_id, actor_user_id):
         data = _transaction_data(business_id, raw)
@@ -1044,6 +1045,7 @@ def create_transaction(business_id, direction, amount_minor, account_id, categor
 
 def _insert_transaction(business_id, data, actor_user_id):
     """Caller already holds the business lock; used by atomic Finance payment posting."""
+    data.setdefault('notes', None)
     if data['direction'] == 'EXPENSE' and data.get('counterparty_name'):
         _ensure_payee(business_id, data['branch_id'], data['counterparty_name'], actor_user_id)
     now = repo._now()
@@ -1439,6 +1441,12 @@ def move_account_workspace(business_id, account_id, target_branch_id,
                 (business_id, source_account['id'], source_account['id'])):
             raise FinanceError('workspace_move_fx_linked')
 
+        if db.query_one(
+                'SELECT 1 FROM finance_internal_transfers WHERE business_id=? '
+                'AND (from_account_id=? OR to_account_id=?) LIMIT 1',
+                (business_id, source_account['id'], source_account['id'])):
+            raise FinanceError('workspace_move_fx_linked')
+
         transactions = [dict(row) for row in db.query_all(
             'SELECT * FROM finance_transactions '
             'WHERE business_id=? AND branch_id=? AND account_id=? ORDER BY id',
@@ -1592,6 +1600,9 @@ def reset_branch_finance(business_id, actor_user_id=None):
             "UPDATE finance_recurring_expenses SET is_active=FALSE,updated_at=? "
             "WHERE business_id=? AND branch_id=? AND is_active=TRUE",
             (now, business_id, branch_id))
+        db.execute("UPDATE finance_internal_transfers SET status='VOID',voided_at=?,voided_by_user_id=? "
+                   "WHERE business_id=? AND branch_id=? AND status='POSTED'",
+                   (now, actor_user_id, business_id, branch_id))
         db.execute("UPDATE finance_fx_exchanges SET status='VOID',voided_at=COALESCE(voided_at,?),voided_by_user_id=COALESCE(voided_by_user_id,?),updated_at=? WHERE business_id=? AND branch_id=? AND status='POSTED'",
                    (now,actor_user_id,now,business_id,branch_id))
         # In-progress bank work is closed; completed imports stay as historical reconciliation.
@@ -2737,6 +2748,15 @@ def get_account_balance_report(business_id, as_of, actor_user_id=None):
     for row in exchanges:
         if row['from_account_id'] in groups:groups[row['from_account_id']]['exchange_out_minor']+=row['from_amount_minor']
         if row['to_account_id'] in groups:groups[row['to_account_id']]['exchange_in_minor']+=row['to_amount_minor']
+    transfers = db.query_all(
+        'SELECT from_account_id,to_account_id,amount_minor FROM finance_internal_transfers '
+        'WHERE business_id=?' + branches.predicate('') + " AND status='POSTED' AND occurred_on<=?",
+        (business_id, as_of))
+    for row in transfers:
+        if row['from_account_id'] in groups:
+            groups[row['from_account_id']]['exchange_out_minor'] += row['amount_minor']
+        if row['to_account_id'] in groups:
+            groups[row['to_account_id']]['exchange_in_minor'] += row['amount_minor']
     for item in groups.values():
         item['balance_minor']=item['opening_balance_minor']+item['income_minor']-item['expense_minor']+item['exchange_in_minor']-item['exchange_out_minor']
     return list(groups.values())
@@ -3125,3 +3145,113 @@ def get_expense_category_totals(business_id, start_date, end_date, *, actor_user
          " AND status='POSTED' AND direction='EXPENSE' AND occurred_on>=? AND occurred_on<=? "
          'GROUP BY category_id,currency ORDER BY category_id,currency'),
         (business_id, start_date, end_date))
+
+
+def _internal_transfer_scope(business_id, actor_user_id):
+    _id(actor_user_id)
+    context = branches._current.get()
+    if not context or context[0] != business_id or context[1] is None or context[2] != actor_user_id:
+        raise FinanceError('branch_unavailable')
+    branches.get(business_id, context[1], actor_user_id=actor_user_id)
+
+
+def record_internal_transfer(business_id, from_account_id, to_account_id, amount_minor,
+                             occurred_on, *, idempotency_key, actor_user_id):
+    """One immutable row represents equal debit/credit; never operating cash flow or FX."""
+    _internal_transfer_scope(business_id, actor_user_id)
+    amount_minor = _money(amount_minor, positive=True)
+    occurred_on = _date(occurred_on)
+    if occurred_on > business_today(business_id).isoformat():
+        raise FinanceError('future_date')
+    if not isinstance(idempotency_key, str) or not re.fullmatch(r'[a-f0-9]{32}', idempotency_key):
+        raise FinanceError('invalid_transfer_key')
+    with _write(business_id, actor_user_id):
+        source = get_account(business_id, _id(from_account_id), actor_user_id=actor_user_id, active=True)
+        target = get_account(business_id, _id(to_account_id), actor_user_id=actor_user_id, active=True)
+        if source['id'] == target['id']:
+            raise FinanceError('transfer_same_account')
+        if source['currency'] != target['currency']:
+            raise FinanceError('transfer_currency_mismatch')
+        if source['branch_id'] != target['branch_id']:
+            raise FinanceError('branch_mismatch')
+        existing = db.query_one(
+            'SELECT * FROM finance_internal_transfers WHERE business_id=? AND idempotency_key=?',
+            (business_id, idempotency_key))
+        if existing:
+            expected = (source['branch_id'], source['id'], target['id'], amount_minor, occurred_on, actor_user_id)
+            if tuple(existing[k] for k in ('branch_id','from_account_id','to_account_id','amount_minor','occurred_on','created_by_user_id')) != expected:
+                raise FinanceError('transfer_key_conflict')
+            return existing['id']  # Includes a voided replay: never recreate money.
+        transfer_id = db.insert_returning_id(
+            'INSERT INTO finance_internal_transfers '
+            '(business_id,branch_id,from_account_id,to_account_id,currency,amount_minor,occurred_on,'
+            'idempotency_key,created_by_user_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+            (business_id, source['branch_id'], source['id'], target['id'], source['currency'],
+             amount_minor, occurred_on, idempotency_key, actor_user_id, repo._now()))
+        _audit(business_id, actor_user_id, 'FINANCE_INTERNAL_TRANSFER_CREATED', transfer_id)
+        return transfer_id
+
+
+def list_internal_transfers(business_id, *, actor_user_id, limit=100):
+    _internal_transfer_scope(business_id, actor_user_id)
+    _scope(business_id, actor_user_id)
+    if type(limit) is not int or not 1 <= limit <= 500:
+        raise FinanceError('invalid_pagination')
+    return db.query_all(
+        'SELECT t.*,a.name AS from_account_name,b.name AS to_account_name '
+        'FROM finance_internal_transfers t '
+        'JOIN finance_accounts a ON a.business_id=t.business_id AND a.id=t.from_account_id '
+        'JOIN finance_accounts b ON b.business_id=t.business_id AND b.id=t.to_account_id '
+        'WHERE t.business_id=?' + branches.predicate('t') +
+        ' ORDER BY t.occurred_on DESC,t.id DESC LIMIT ?', (business_id, limit))
+
+
+def void_internal_transfer(business_id, transfer_id, *, actor_user_id):
+    _internal_transfer_scope(business_id, actor_user_id)
+    with _write(business_id, actor_user_id):
+        row = db.query_one('SELECT * FROM finance_internal_transfers WHERE business_id=?' +
+                           branches.predicate('') + ' AND id=?', (business_id, _id(transfer_id)))
+        if not row:
+            raise FinanceError('transfer_unavailable')
+        if row['status'] == 'POSTED':
+            db.execute("UPDATE finance_internal_transfers SET status='VOID',voided_at=?,voided_by_user_id=? "
+                       'WHERE business_id=? AND id=?', (repo._now(), actor_user_id, business_id, transfer_id))
+            _audit(business_id, actor_user_id, 'FINANCE_INTERNAL_TRANSFER_VOIDED', transfer_id)
+        return transfer_id
+
+
+def personal_income_category(business_id, *, actor_user_id):
+    """Required legacy FK only; the source shown to the owner is their description."""
+    with _write(business_id, actor_user_id):
+        branch_id = branches.write_branch(business_id, actor_user_id)
+        branch = branches.get(business_id, branch_id, actor_user_id=actor_user_id)
+        if branch['workspace_type'] != 'PERSONAL':
+            raise FinanceError('workspace_unavailable')
+        for category in list_categories(business_id, 'INCOME', actor_user_id=actor_user_id):
+            if category['name'] == 'Pemasukan' and not category.get('parent_category_id'):
+                return category['id']
+        return create_category(business_id, 'INCOME', 'Pemasukan', actor_user_id=actor_user_id)
+
+
+def get_entry_summary(business_id, start_date, end_date, direction, *, account_id=None,
+                      category_ids=None, search=None, sources=False, actor_user_id):
+    """Unpaginated SQL aggregate using the same filters as transaction history."""
+    _scope(business_id, actor_user_id)
+    start_date, end_date = _period(start_date, end_date)
+    direction = _enum(direction, DIRECTIONS)
+    group = "COALESCE(NULLIF(TRIM(description),''),'Pemasukan')" if sources else 'category_id'
+    sql = ('SELECT ' + group + ' AS summary_key,currency,' + _money_sum() + '(amount_minor) AS amount_minor,'
+           'COUNT(*) AS transaction_count FROM finance_transactions WHERE business_id=?' +
+           branches.predicate('') + " AND status='POSTED' AND direction=? AND occurred_on>=? AND occurred_on<=?")
+    params = [business_id, direction, start_date, end_date]
+    if account_id is not None:
+        sql += ' AND account_id=?'
+        params.append(_id(account_id))
+    ids = _transaction_category_ids(category_ids)
+    if ids is not None:
+        if not ids:
+            return []
+        sql += ' AND category_id IN (' + ','.join('?' for _ in ids) + ')'
+        params.extend(ids)
+    clause, values = _transaction_search(search)
+    return db.query_all(sql + clause + ' GROUP BY ' + group + ',currency', params + values)

@@ -137,6 +137,12 @@ def finance_access(view):
 
 
 ERRORS = {
+    'transfer_same_account': 'Pilih dua akun yang berbeda.',
+    'transfer_currency_mismatch': 'Transfer internal hanya mendukung akun dengan mata uang yang sama. Tidak ada konversi mata uang.',
+    'invalid_transfer_key': 'Form transfer kedaluwarsa. Muat ulang halaman lalu coba lagi.',
+    'transfer_key_conflict': 'Form ini sudah digunakan untuk transfer lain. Muat ulang sebelum mencatat transfer baru.',
+    'transfer_unavailable': 'Transfer tidak tersedia pada ruang Finance ini.',
+
     'recurring_ledger_managed': 'Biaya rutin tidak dapat diedit langsung. Batalkan transaksi jika keliru; riwayat kejadian tetap tersimpan.',
     'recurring_occurrence_unavailable': 'Tagihan ini sudah berubah atau bukan kejadian berikutnya. Muat ulang daftar tagihan.',
     'recurring_posting_unresolved': 'Pembayaran tagihan ini belum dapat dipastikan. Muat ulang sebelum mencoba lagi.',
@@ -847,51 +853,41 @@ def dashboard(business_id, user, business):
     if transaction_account_id:
         ledger_category_query['account_id'] = transaction_account_id
 
-    # Direction pages are intentionally category-first: every active main category is
-    # visible (including Rp0), while posted subcategory transactions roll up into the
-    # parent so the rows reconcile to the Pemasukan/Pengeluaran total above.
     ledger_category_rows = []
+    personal_sources = g.finance_workspace_type == 'PERSONAL' and direction == 'INCOME'
     if show_transactions and direction:
         category_lookup = {item['id']: item for item in all_categories}
         grouped = {}
-        for item in categories:
-            if item['direction'] != direction or item.get('parent_category_id') is not None:
-                continue
-            grouped[item['id']] = dict(
-                category_id=item['id'], name=item['name'],
-                amount_minor=0, transaction_count=0)
-        for row in finance.get_category_totals(
-                business_id, start, end, direction, **actor):
-            category = category_lookup.get(row['category_id'], {})
-            parent_id = category.get('parent_category_id')
-            group_id = parent_id or row['category_id']
+        summary_rows = finance.get_entry_summary(
+            business_id, start, end, direction, account_id=transaction_account_id,
+            category_ids=selected_category_ids, search=transaction_search,
+            sources=personal_sources, **actor)
+        for row in summary_rows:
+            key = row['summary_key']
+            category = category_lookup.get(key, {})
+            group_id = key if personal_sources else (category.get('parent_category_id') or key)
             parent = category_lookup.get(group_id, {})
-            group_name = (
-                parent.get('name') or category.get('parent_name') or
-                category.get('name') or 'Kategori')
-            item = grouped.setdefault(
-                group_id, dict(category_id=group_id, name=group_name,
-                               amount_minor=0, transaction_count=0))
-            converted = finance_fx.convert_total(
-                [{'currency': row['currency'], 'balance_minor': int(row['amount_minor'])}],
-                display_currency, fx)
-            if converted is None:
-                item['amount_minor'] = None
-            elif item['amount_minor'] is not None:
-                item['amount_minor'] += converted
+            name = key if personal_sources else (parent.get('name') or category.get('name') or 'Kategori')
+            item = grouped.setdefault(group_id, dict(category_id=None if personal_sources else group_id,
+                name=name, amount_minor=0, transaction_count=0, native=[]))
+            item['native'].append(dict(currency=row['currency'], balance_minor=int(row['amount_minor'])))
             item['transaction_count'] += int(row['transaction_count'])
-        preferred_order = {
-            name: index for index, name in enumerate(finance.DEFAULT_CATEGORIES.get(direction, ()))
-        }
-        ledger_category_rows = sorted(
-            grouped.values(),
-            key=lambda item: (
-                preferred_order.get(item['name'], len(preferred_order)),
-                item['name'].casefold(), item['category_id']))
+        ledger_category_rows = sorted(grouped.values(), key=lambda item: (item['name'].casefold(), str(item['category_id'])))
         for item in ledger_category_rows:
-            item['display_amount'] = (
-                'Kurs belum lengkap' if item['amount_minor'] is None
+            item['amount_minor'] = finance_fx.convert_total(item['native'], display_currency, fx)
+            item['display_amount'] = ('Kurs belum lengkap' if item['amount_minor'] is None
                 else finance_fx.format_money(item['amount_minor'], display_currency))
+        filtered_total = finance_fx.convert_total(
+            [dict(currency=row['currency'], balance_minor=int(row['amount_minor'])) for row in summary_rows],
+            display_currency, fx)
+        filtered_display = ('Kurs belum lengkap' if filtered_total is None
+                            else finance_fx.format_money(filtered_total, display_currency))
+        if direction == 'INCOME':
+            period_income_display = filtered_display
+            period_income_display_main, period_income_display_fraction = money_display_parts(filtered_display)
+        else:
+            period_expense_display = filtered_display
+            period_expense_display_main, period_expense_display_fraction = money_display_parts(filtered_display)
 
     breakdown = []
     if g.finance_branch_id is None:
@@ -958,6 +954,8 @@ def dashboard(business_id, user, business):
     invoice_paid_count = sum(row['status'] == 'PAID' for row in invoice_rows)
     invoice_draft_count = sum(row['status'] == 'DRAFT' for row in invoice_rows)
     return render_template('finance_dashboard.html', user=user, business=business,
+        internal_transfers=finance.list_internal_transfers(business_id, actor_user_id=user['id']),
+        transfer_key=uuid.uuid4().hex,
         dashboard_view=dashboard_view,
         period_start=start, period_end=end, period_mode=period_mode, period_label=period_label,
         period_query=period_query, range_start_value=range_start_value, range_end_value=range_end_value,
@@ -1383,12 +1381,18 @@ def create_transaction(business_id, user, business):
         direction=request.form.get('direction')
         subcategory_value=request.form.get('subcategory_id')
         subcategory_id=record_id(subcategory_value) if subcategory_value else None
-        category_id=finance.resolve_category_selection(
-            business_id,direction,record_id(request.form.get('category_id')),
-            subcategory_id,actor_user_id=user['id'])
-        finance.create_transaction(business_id,direction,currency_amount(request.form.get('amount'),currency),
+        personal_income = g.finance_workspace_type == 'PERSONAL' and direction == 'INCOME'
+        if personal_income:
+            finance._text(request.form.get('description'), 4000, True)
+        with finance._write(business_id, user['id']):
+            category_id = (finance.personal_income_category(business_id, actor_user_id=user['id'])
+                if personal_income else finance.resolve_category_selection(
+                    business_id,direction,record_id(request.form.get('category_id')),
+                    subcategory_id,actor_user_id=user['id']))
+            finance.create_transaction(business_id,direction,currency_amount(request.form.get('amount'),currency),
             account_id,category_id,request.form.get('occurred_on'),currency=currency,
-            description=transaction_note(business_id,request.form),counterparty_name=request.form.get('counterparty_name'),
+            description=(request.form.get('description') if personal_income else transaction_note(business_id,request.form)),
+            notes=request.form.get('notes'),counterparty_name=(None if personal_income else request.form.get('counterparty_name')),
             customer_id=record_id(request.form['customer_id']) if request.form.get('customer_id') else None,
             project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,actor_user_id=user['id'])
     destination = None
@@ -1403,6 +1407,12 @@ def create_transaction(business_id, user, business):
             destination = url_for('finance.dashboard', business_id=business_id,
                                   branch_id=g.finance_branch_id or 'all', period_mode='month',
                                   month=return_month, view='transactions', direction=return_direction)
+    return_args = {key: request.form.get('return_' + key) for key in (
+        'period_mode','month','range_start','range_end','display_currency','account_id','category_id','search','view','direction')
+        if request.form.get('return_' + key)}
+    if return_args.get('view') in ('transactions', 'accounts'):
+        destination = url_for('finance.dashboard', business_id=business_id,
+                              branch_id=g.finance_branch_id, **return_args)
     return mutate(business_id,action,'Transaksi dicatat.',destination)
 
 
@@ -3258,8 +3268,13 @@ def edit_transaction(business_id, user, business, transaction_id):
     if request.method == 'POST':
         return mutate(business_id, lambda: finance.update_transaction(business_id, transaction_id,
             amount_minor=currency_amount(request.form.get('amount'),transaction['currency']), occurred_on=request.form.get('occurred_on'),
-            account_id=record_id(request.form.get('account_id')), category_id=record_id(request.form.get('category_id')),
-            description=transaction_note(business_id, request.form), actor_user_id=user['id']),
+            account_id=record_id(request.form.get('account_id')), category_id=(transaction['category_id']
+                if g.finance_workspace_type == 'PERSONAL' and transaction['direction'] == 'INCOME'
+                else record_id(request.form.get('category_id'))),
+            description=(finance._text(request.form.get('description'),4000,True)
+                if g.finance_workspace_type == 'PERSONAL' and transaction['direction'] == 'INCOME'
+                else transaction_note(business_id, request.form)),
+            notes=request.form.get('notes', transaction.get('notes')), actor_user_id=user['id']),
             'Transaksi diperbarui. Riwayat perubahan tersimpan.')
     categories = finance.list_categories(
         business_id, transaction['direction'], include_children=True, actor_user_id=user['id'])
@@ -3399,3 +3414,62 @@ def assistant_document(business_id,user,business):
         return jsonify(error='Dokumen belum berhasil diproses. Coba lagi atau gunakan foto/PDF yang lebih jelas. Belum ada pencatatan.'),503
     finally:
         for upload in uploads:upload.close()
+
+
+@finance_bp.route('/business/<int:business_id>/finance/internal-transfers', methods=['POST'])
+@finance_access
+def internal_transfer(business_id, user, business):
+    def action():
+        source = finance.get_account(business_id, record_id(request.form.get('from_account_id')),
+                                     actor_user_id=user['id'], active=True)
+        finance.record_internal_transfer(
+            business_id, source['id'], record_id(request.form.get('to_account_id')),
+            currency_amount(request.form.get('amount'), source['currency']), request.form.get('occurred_on'),
+            idempotency_key=request.form.get('idempotency_key'), actor_user_id=user['id'])
+    return mutate(business_id, action, 'Transfer internal dicatat. Tidak ada uang dikirim melalui bank.',
+                  url_for('finance.dashboard', business_id=business_id, branch_id=g.finance_branch_id,
+                          view='accounts', display_currency=request.form.get('display_currency')))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/internal-transfers/<int:transfer_id>/void', methods=['POST'])
+@finance_access
+def void_internal_transfer(business_id, user, business, transfer_id):
+    return mutate(business_id, lambda: finance.void_internal_transfer(
+        business_id, transfer_id, actor_user_id=user['id']), 'Transfer dibatalkan. Riwayat tetap tersimpan.',
+        url_for('finance.dashboard', business_id=business_id, branch_id=g.finance_branch_id, view='accounts'))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/identity', methods=['POST'])
+@finance_access
+def update_identity(business_id, user, business):
+    import account_profile_service as profiles
+    if not g.finance_ui['can_edit_identity']:
+        abort(403)
+    name = (request.form.get('name') or '').strip()
+    destination = url_for('finance.dashboard', business_id=business_id, branch_id=g.finance_branch_id)
+    if not name or len(name) > 160 or any(ord(c) < 32 for c in name):
+        flash('Nama wajib diisi dan maksimal 160 karakter.', 'error')
+        return redirect(destination, code=303)
+    photo = request.files.get('photo')
+    content = None
+    if photo and photo.filename:
+        content = photo.stream.read(file_utils.MAX_IMAGE_UPLOAD_BYTES + 1)
+        try:
+            filename, mime = file_utils.validate_image_upload(photo.filename, content)
+            file_utils.validate_receipt_upload(filename, content)
+        except file_utils.UploadRejected as error:
+            flash(str(error), 'error')
+            return redirect(destination, code=303)
+    personal = g.finance_workspace_type == 'PERSONAL'
+    with finance._write(business_id, user['id']):
+        if personal:
+            repo.update_user_profile(user['id'], name)
+        else:
+            repo.update_business_identity(business_id, name, user['id'])
+        if content is not None:
+            profiles.save_profile_photo('USER' if personal else 'BUSINESS',
+                user['id'] if personal else business_id, filename, mime, content, user['id'])
+        repo.write_audit(user['id'], business_id, 'FINANCE_IDENTITY_UPDATED',
+                         'personal identity' if personal else 'business identity')
+    flash('Profil Finance diperbarui.', 'success')
+    return redirect(destination, code=303)

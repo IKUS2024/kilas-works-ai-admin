@@ -1,0 +1,314 @@
+{
+  "baseline": "68211ee3948984c837b935ee34fe7cad15cadc15",
+  "baseline_results": [
+    {
+      "suite": "test_finance_phase1b",
+      "tests": 16,
+      "failures": 11,
+      "errors": 2,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase2a",
+      "tests": 25,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase2b",
+      "tests": 25,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase3",
+      "tests": 20,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase4a",
+      "tests": 15,
+      "failures": 15,
+      "errors": 1,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase4b",
+      "tests": 35,
+      "failures": 31,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase4c",
+      "tests": 25,
+      "failures": 20,
+      "errors": 1,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase5ab",
+      "tests": 24,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase5c",
+      "tests": 33,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase6a",
+      "tests": 53,
+      "failures": 56,
+      "errors": 1,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase6b",
+      "tests": 115,
+      "failures": 39,
+      "errors": 5,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase6c",
+      "tests": 103,
+      "failures": 61,
+      "errors": 22,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_branches",
+      "tests": 39,
+      "failures": 19,
+      "errors": 6,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_multibusiness",
+      "tests": 13,
+      "failures": 5,
+      "errors": 1,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_dashboard_design",
+      "tests": 10,
+      "failures": 4,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_bank_sections",
+      "tests": 22,
+      "failures": 4,
+      "errors": 15,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_ui_finance_locale",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    }
+  ],
+  "final_results": [
+    {
+      "suite": "test_finance_phase1b",
+      "tests": 16,
+      "failures": 11,
+      "errors": 2,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase2a",
+      "tests": 25,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase2b",
+      "tests": 25,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase3",
+      "tests": 20,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase4a",
+      "tests": 15,
+      "failures": 15,
+      "errors": 1,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase4b",
+      "tests": 35,
+      "failures": 31,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase4c",
+      "tests": 25,
+      "failures": 20,
+      "errors": 1,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase5ab",
+      "tests": 24,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase5c",
+      "tests": 33,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase6a",
+      "tests": 53,
+      "failures": 56,
+      "errors": 1,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase6b",
+      "tests": 115,
+      "failures": 39,
+      "errors": 5,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase6c",
+      "tests": 103,
+      "failures": 61,
+      "errors": 22,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_branches",
+      "tests": 39,
+      "failures": 19,
+      "errors": 6,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_multibusiness",
+      "tests": 13,
+      "failures": 5,
+      "errors": 1,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_dashboard_design",
+      "tests": 10,
+      "failures": 4,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_bank_sections",
+      "tests": 22,
+      "failures": 4,
+      "errors": 15,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_ui_finance_locale",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    }
+  ],
+  "additional_failures": []
+}

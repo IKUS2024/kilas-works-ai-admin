@@ -1,5 +1,6 @@
 """Shared Finance navigation context; no financial writes or alternate calculations."""
 import re
+import db
 from flask import g, request, session
 import finance_service as finance
 
@@ -34,7 +35,17 @@ def context(business_id, user):
         remembered[str(business_id)] = g.finance_branch_id
         session['workspace_finance_branches'] = remembered
         session['active_product'] = 'finance'
+    import account_profile_service as profiles
+    import repo
+    personal = g.finance_workspace_type == 'PERSONAL'
+    business = repo.get_business(business_id)
+    owner_type, owner_id = ('USER', user['id']) if personal else ('BUSINESS', business_id)
+    photo = profiles.profile_asset_meta(owner_type, owner_id)
+    member = db.query_one('SELECT role_in_business FROM business_memberships WHERE business_id=? AND user_id=?',
+                          (business_id, user['id']))
+    can_edit = personal or user['role'] == 'KILAS_ADMIN' or (member and member['role_in_business'] == 'OWNER')
     from routes_products import _product_businesses
-    return dict(enabled=endpoint in PAGE_ENDPOINTS, month=month, currency=currency, area=area,
+    return dict(identity_name=(user.get('full_name') or user['email'].split('@')[0]) if personal else business['business_name'],
+                identity_photo=photo, can_edit_identity=can_edit, enabled=endpoint in PAGE_ENDPOINTS, month=month, currency=currency, area=area,
                 home=endpoint=='dashboard' and not view, businesses=_product_businesses(user['id'], 'finance') if endpoint in PAGE_ENDPOINTS else [],
                 currencies=finance.SUPPORTED_CURRENCIES)

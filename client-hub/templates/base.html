@@ -302,6 +302,7 @@
 {% set account_standalone = request.endpoint == 'auth.account_page' and session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}
 {% set premium_workspace = premium_ui and session.get('user_id') and not account_standalone and not (finance_ui and finance_ui.enabled) %}
 {% if premium_ui %}{% include '_premium_styles.html' %}{% endif %}
+{% if finance_ui and finance_ui.enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_revisions.css',v='20261016-1') }}">{% endif %}
 {% if premium_ui %}{% include '_ui_i18n_head.html' %}{% endif %}
 </head>
 <body data-finance-month="{{ finance_ui.month if finance_ui else '' }}" data-finance-currency="{{ finance_ui.currency if finance_ui else '' }}" class="{{ 'kilas-light' if premium_ui }} {{ 'account-standalone' if account_standalone }} {{ 'premium-workspace' if premium_workspace }} {{ 'kw-app' if not premium_ui and workspace_ui and workspace_ui.enabled and workspace_ui.product == 'ai' and not (finance_ui and finance_ui.enabled) else '' }} {{ 'finance-app' if finance_ui and finance_ui.enabled else '' }} {% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
@@ -347,7 +348,7 @@
 <form class="inline" method="post" action="{{ url_for('platform_control.support_exit') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary">Akhiri akses support</button></form></aside>{% endif %}
 <div id="kw-main" tabindex="-1" class="wrap {{ 'finance-app-main' if finance_ui and finance_ui.enabled }}"{% if assist_refresh %} data-assist-ui{% endif %}>
 {% if workspace_ui and workspace_ui.enabled and not premium_ui %}{% include '_product_switcher.html' %}{% endif %}
-{% if finance_ui and finance_ui.enabled %}{% if premium_ui %}{% with selected_feature='finance' %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}{% endif %}{% include '_finance_app_shell.html' %}{% endif %}
+{% if finance_ui and finance_ui.enabled %}{% include '_finance_app_shell.html' %}{% endif %}
   {% if request.blueprint == 'finance' and session.get('user_id') and not (finance_ui and finance_ui.enabled) %}
   {% set finance_nav_business_id = request.view_args.get('business_id') if request.view_args else none %}
   {% set finance_nav_branch_id = g.get('finance_branch_id') %}
@@ -365,7 +366,7 @@
   {% endwith %}
   {% if finance_read_only %}<section class="card" role="status"><h2>{{ ui_t('Finance hanya-baca') }}</h2><p>{{ ui_t('Data dan laporan tetap tersedia. Periksa akses Finance untuk melanjutkan pencatatan.') }}</p><a class="btn" href="{{ url_for('products.finance_setup',business_id=finance_access_business_id) }}">{{ ui_t('Kelola akses Finance') }}</a></section>{% endif %}
   {% block content %}{% endblock %}
-  {% if finance_ui and finance_ui.enabled %}<script src="{{ url_for('static',filename='finance_ui.js',v='20260922-unified-1') }}" defer></script>{% endif %}
+  {% if finance_ui and finance_ui.enabled %}<script src="{{ url_for('static',filename='finance_ui.js',v='20260922-unified-1') }}" defer></script><script src="{{ url_for('static',filename='finance_revisions.js',v='20261016-1') }}" defer></script>{% endif %}
   {% if request.blueprint=='products' %}<script src="{{ url_for('static',filename='product_forms.js') }}" defer></script>{% endif %}
   {% if finance_read_only or (branch_read_only and finance_branches and request.endpoint != 'finance.assistant') %}<script src="{{ url_for('static',filename='finance_read_only.js') }}" defer></script>{% endif %}
 </div>

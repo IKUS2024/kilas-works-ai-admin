@@ -308,7 +308,7 @@ def decide(business_id,import_id,row_id,action,user_id,*,transaction_id=None,fie
                 project_id=None,customer_id=None,source_type='FINANCE_BANK_IMPORT',source_ref=row['row_hash'])
             tx=db.query_one(('SELECT * FROM finance_transactions WHERE business_id=?' + branches.predicate('') + ' AND source_type=? AND source_ref=?'),
                             (business_id,'FINANCE_BANK_IMPORT',row['row_hash']))
-            if state=='POSTED' and tx and row['created_transaction_id']==tx['id'] and tx['status']=='POSTED' and tx['created_by_user_id']==user_id and all(tx[k]==data[k] for k in f.FIELDS):
+            if state=='POSTED' and tx and row['created_transaction_id']==tx['id'] and tx['status']=='POSTED' and tx['created_by_user_id']==user_id and all(tx[k]==data.get(k) for k in f.FIELDS):
                 return tx['id']
         elif action=='match':
             tx=f.get_transaction(business_id,f._id(transaction_id),actor_user_id=user_id)

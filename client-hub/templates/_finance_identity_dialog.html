@@ -1,0 +1,11 @@
+<dialog class="finance-ui-dialog" id="finance-identity-dialog">
+<div class="finance-ui-dialog-head"><h2>{{ ui_t('Profil Pribadi') if finance_workspace_personal else ui_t('Profil Bisnis') }}</h2><button type="button" data-finance-ui-close="finance-identity-dialog" aria-label="{{ ui_t('Tutup') }}">×</button></div>
+<div class="finance-ui-dialog-body">
+{% if ui.can_edit_identity %}<form method="post" action="{{ url_for('finance.update_identity',business_id=business.id,branch_id=selected_branch_id) }}" enctype="multipart/form-data" data-finance-once>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label>{{ ui_t('Nama') if finance_workspace_personal else ui_t('Nama bisnis') }}<input name="name" value="{{ ui.identity_name }}" maxlength="160" required></label>
+<label>{{ ui_t('Ubah foto') if finance_workspace_personal else ui_t('Ubah logo') }}<input type="file" name="photo" accept="image/jpeg,image/png,image/webp"></label>
+<p class="muted">JPEG, PNG, WebP · {{ ui_t('Maksimal 5 MiB') }}</p>
+<button class="btn" type="submit">{{ ui_t('Simpan') }}</button>
+</form>{% else %}<p>{{ ui.identity_name }}</p>{% endif %}
+</div></dialog>

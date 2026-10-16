@@ -566,6 +566,8 @@ def finance_entry():
             session['active_product']='finance'
             return redirect(target,code=303)
         if action=='create_trial':
+            if businesses:
+                return redirect(url_for('products.finance_entry'),code=303)
             business_name=(request.form.get('business_name') or '').strip()
             try:
                 business_id=product_flow.create_business(
@@ -633,7 +635,7 @@ def finance_entry():
         businesses=cards,
         trial_days=FINANCE_PLAN['trial_days'],
         setup_identity=uuid.uuid4().hex,
-        show_business_form=(request.args.get('step')=='business')
+        show_business_form=(request.args.get('step')=='business' and not businesses)
     )
 
 

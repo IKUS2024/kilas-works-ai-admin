@@ -1,0 +1,18 @@
+<dialog id="internal-transfer-dialog" class="finance-sheet">
+<div class="finance-sheet-head"><h2>{{ ui_t('Transfer antar akun') }}</h2><button type="button" class="finance-sheet-close" data-finance-close="internal-transfer-dialog" aria-label="{{ ui_t('Tutup') }}">×</button></div>
+<div class="finance-sheet-body">
+<p>{{ ui_t('Pencatatan internal antar akun. Tidak mengirim uang atau terhubung ke bank. Kedua akun harus memakai mata uang yang sama.') }}</p>
+{% if not finance_read_only and not branch_read_only %}<form method="post" action="{{ url_for('finance.internal_transfer',business_id=business.id,branch_id=selected_branch_id) }}" data-finance-once data-internal-transfer>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ transfer_key }}"><input type="hidden" name="display_currency" value="{{ display_currency }}">
+<label>{{ ui_t('Akun sumber') }}<select name="from_account_id" data-transfer-source required><option value="">{{ ui_t('Pilih akun') }}</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
+<label>{{ ui_t('Akun tujuan') }}<select name="to_account_id" data-transfer-target required><option value="">{{ ui_t('Pilih akun') }}</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
+<label>{{ ui_t('Nominal') }}<input name="amount" inputmode="decimal" maxlength="25" required></label>
+<label>{{ ui_t('Tanggal') }}<input name="occurred_on" type="date" value="{{ today }}" max="{{ today }}" required></label>
+<p class="muted" data-transfer-feedback aria-live="polite"></p>
+<button type="submit" class="btn">{{ ui_t('Simpan Transfer') }}</button>
+</form>{% endif %}
+<h3>{{ ui_t('Riwayat Transfer') }}</h3>
+{% for item in internal_transfers %}<div class="finance-transfer-record"><strong>{{ item.from_account_name }} → {{ item.to_account_name }}</strong><span>{{ item.amount_minor|finance_money(item.currency) }} · {{ item.occurred_on }}</span><span>{{ ui_t('Dicatat') if item.status=='POSTED' else ui_t('Dibatalkan') }}</span>
+{% if item.status=='POSTED' and not finance_read_only and not branch_read_only %}<form method="post" action="{{ url_for('finance.void_internal_transfer',business_id=business.id,branch_id=selected_branch_id,transfer_id=item.id) }}" data-finance-once><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="finance-mini-action">{{ ui_t('Batalkan transfer') }}</button></form>{% endif %}</div>
+{% else %}<p class="muted">{{ ui_t('Belum ada transfer.') }}</p>{% endfor %}
+</div></dialog>

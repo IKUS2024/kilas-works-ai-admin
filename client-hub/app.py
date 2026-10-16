@@ -317,6 +317,8 @@ def create_app():
     app.jinja_env.globals["kilas_ai_enabled"] = kilas_ai_enabled
     app.jinja_env.globals["kilas_video_enabled"] = kilas_ai_enabled
     app.jinja_env.globals["kilas_content_enabled"] = content_enabled
+    import finance_schema
+    finance_schema.apply_release()
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
     from routes_workspace import workspace_bp

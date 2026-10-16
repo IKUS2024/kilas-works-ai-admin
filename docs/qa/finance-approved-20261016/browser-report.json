@@ -1,0 +1,72 @@
+{
+  "widths": [
+    1440,
+    390,
+    320
+  ],
+  "metrics": [
+    {
+      "width": 1440,
+      "styles": [
+        {
+          "background": "rgb(239, 249, 242)",
+          "color": "rgb(21, 91, 50)",
+          "label": "rgb(21, 91, 50)"
+        },
+        {
+          "background": "rgb(255, 241, 241)",
+          "color": "rgb(155, 34, 49)",
+          "label": "rgb(155, 34, 49)"
+        },
+        {
+          "background": "rgb(239, 245, 253)",
+          "color": "rgb(36, 88, 142)",
+          "label": "rgb(36, 88, 142)"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "styles": [
+        {
+          "background": "rgb(239, 249, 242)",
+          "color": "rgb(21, 91, 50)",
+          "label": "rgb(21, 91, 50)"
+        },
+        {
+          "background": "rgb(255, 241, 241)",
+          "color": "rgb(155, 34, 49)",
+          "label": "rgb(155, 34, 49)"
+        },
+        {
+          "background": "rgb(239, 245, 253)",
+          "color": "rgb(36, 88, 142)",
+          "label": "rgb(36, 88, 142)"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "styles": [
+        {
+          "background": "rgb(239, 249, 242)",
+          "color": "rgb(21, 91, 50)",
+          "label": "rgb(21, 91, 50)"
+        },
+        {
+          "background": "rgb(255, 241, 241)",
+          "color": "rgb(155, 34, 49)",
+          "label": "rgb(155, 34, 49)"
+        },
+        {
+          "background": "rgb(239, 245, 253)",
+          "color": "rgb(36, 88, 142)",
+          "label": "rgb(36, 88, 142)"
+        }
+      ]
+    }
+  ],
+  "production_writes": 0,
+  "external_io": "blocked",
+  "result": "PASS"
+}
