@@ -92,6 +92,9 @@ class PersonalResetTests(unittest.TestCase):
             navigation=re.search(r'<nav class="finance-primary-navigation">.*?</nav>',html,re.S).group()
             self.assertIn('class="finance-reset-launch"',navigation)
             self.assertIn('/reset/prepare?',navigation)
+            links=[a for tag,a in Elements(navigation).items if tag=='a']
+            self.assertTrue(urlsplit(links[-1]['href']).path.endswith('/reports'))
+            self.assertRegex(navigation,r'(?s)</a>\s*<form[^>]*class="finance-reset-launch".*?</form>\s*</nav>')
             context_bar=html[html.index('<div class="finance-context-toolbar'):]
             self.assertNotIn('class="finance-reset-launch"',context_bar)
             for query in (dict(view='accounts'),dict(view='transactions'),dict(view='transactions',direction='INCOME'),dict(view='transactions',direction='EXPENSE')):

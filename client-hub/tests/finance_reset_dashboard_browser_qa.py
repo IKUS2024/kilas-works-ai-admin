@@ -12,7 +12,7 @@ def main():
     output=Path(os.environ.get('FINANCE_DASHBOARD_QA_OUTPUT','/tmp/finance-reset-dashboard-browser'));output.mkdir(parents=True,exist_ok=True)
     server=make_server('127.0.0.1',0,fixture.prior.app,threaded=True);threading.Thread(target=server.serve_forever,daemon=True).start()
     origin=f'http://127.0.0.1:{server.server_port}';cookie=case.client.get_cookie('session')
-    report=dict(widths=[],modes=['PERSONAL','BUSINESS'],languages=['id','en','es','zh'],final_reset_submissions=0,production_writes=0,external_io='blocked')
+    report=dict(widths=[],modes=['PERSONAL','BUSINESS'],languages=['id','en','es','zh'],reset_placement='last navigation item after Reports',final_reset_submissions=0,production_writes=0,external_io='blocked')
     before=case.finance_rows()
     try:
         with sync_playwright() as p:
@@ -34,6 +34,8 @@ def main():
                         goto(home)
                         launch=page.locator('.finance-primary-navigation > .finance-reset-launch')
                         assert launch.count()==1 and page.locator('.finance-reset-launch').count()==1
+                        assert launch.evaluate('(f)=>f.parentElement.lastElementChild===f&&f.previousElementSibling.tagName==="A"&&new URL(f.previousElementSibling.href).pathname.endsWith("/reports")')
+                        launch.locator('button').scroll_into_view_if_needed()
                         expect(launch.locator('button')).to_be_visible()
                         assert page.locator('.finance-context-toolbar .finance-reset-launch').count()==0
                         assert launch.locator('button').evaluate('(b)=>{const r=b.getBoundingClientRect();const p=b.closest(".finance-primary-navigation").getBoundingClientRect();return r.left>=p.left-1&&r.right<=p.right+1&&r.top>=p.top-1&&r.bottom<=p.bottom+1&&r.right<=innerWidth&&r.left>=0}')

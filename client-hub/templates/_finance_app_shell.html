@@ -13,8 +13,8 @@
 ('payees','Penerima','people','payees',{}),
 ('reports','Laporan','chart','reports',{})] %}
 <a class="{{ 'active' if ui.area==area }}" {% if ui.area==area %}aria-current="page"{% endif %} href="{{ url_for('finance.' ~ endpoint,business_id=business.id,branch_id=selected_branch_id,**params) }}">{{ icon(symbol) }}{{ label|ui_text }}</a>
-{% if area=='dashboard' and ui.home and ui.can_reset and not finance_read_only and not branch_read_only %}<form method="post" action="{{ url_for('finance.reset_prepare',business_id=business.id,branch_id=selected_branch_id) }}" class="finance-reset-launch"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" aria-label="{{ ui_t('Reset Data Finance') }}" title="{{ ui_t('Reset Data Finance') }}">{{ icon('reset') }}<span>{{ ui_t('Reset') }}</span></button></form>{% endif %}
 {% endfor %}
+{% if ui.home and ui.can_reset and not finance_read_only and not branch_read_only %}<form method="post" action="{{ url_for('finance.reset_prepare',business_id=business.id,branch_id=selected_branch_id) }}" class="finance-reset-launch"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" aria-label="{{ ui_t('Reset Data Finance') }}" title="{{ ui_t('Reset Data Finance') }}">{{ icon('reset') }}<span>{{ ui_t('Reset') }}</span></button></form>{% endif %}
 </nav>
 <nav class="finance-app-sidebar-bottom"><a href="{{ url_for('auth.account_page') }}">{{ icon('settings') }}{{ ui_t('Pengaturan') }}</a><button type="button" data-finance-ui-open="finance-help-dialog">{{ icon('help') }}{{ ui_t('Bantuan') }}</button></nav>
 {% set language_location = 'finance-sidebar' %}{% include '_language_selector.html' %}</aside>
