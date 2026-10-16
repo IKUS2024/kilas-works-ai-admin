@@ -1,10 +1,12 @@
 """Disposable SQLite + synthetic socket only; no real credentials or provider IO."""
 import base64
 import json
+import io
 import os
 from pathlib import Path
 import time
 import unittest
+from contextlib import redirect_stdout
 from datetime import datetime, timezone, timedelta
 from queue import Queue
 from threading import Thread, Event
@@ -190,6 +192,116 @@ class GeminiTests(unittest.TestCase):
     def test_binary_protocol_rejects_non_utf8_non_object_and_oversized_frames(self):
         for raw in (b'\xff',b'[]',b'x'*(native.MAX_MESSAGE+1),None):
             with self.assertRaises(audio_store.AudioError):native.message(raw)
+
+    def test_recorded_pcm_duration_outlives_old_tail_deadline_without_extending_lease(self):
+        with self.config():
+            relay=self.make();base=relay.started
+            def audio_for(ms):
+                return json.dumps({'serverContent':{'modelTurn':{'parts':[{'inlineData':{
+                    'mimeType':'audio/pcm;rate=24000','data':base64.b64encode(b'\x01\x00'*(ms*24)).decode()}}]}}})
+            # Actual observed timing: first PCM at2.881s, total27.750s PCM,
+            # input finishes15s; old watchdog stopped around30s.
+            with patch.object(native,'monotonic',return_value=base+2.881):
+                relay.receive(audio_for(14000));relay.receive(audio_for(13750))
+            relay.end_at=base+15;relay.end_sent.set();relay.input_closed=True
+            self.assertAlmostEqual(relay.drain_deadline(),base+45.631,places=3)
+            with patch.object(native,'monotonic',return_value=base+30.891),\
+                 patch.object(relay.cancelled,'wait',side_effect=[False,True]):
+                relay.watch()
+            self.assertIsNone(relay.error);self.assertFalse(relay.completed.is_set())
+            # A test's45s lease remains45s; the buffer cannot renew funding.
+            with patch.object(budget,'LEASE_MS',45000):
+                self.assertEqual(relay.drain_deadline(),base+45)
+            with patch.object(native,'monotonic',return_value=base+46),\
+                 patch.object(relay.cancelled,'wait',return_value=False):
+                relay.watch()
+            self.assertEqual(relay.error.code,'gemini_tail_timeout')
+            budget.finish(relay.capability,False);audio_store.fail(self.user,relay.job,'synthetic')
+
+    def test_watchdog_reason_survives_recv_close_and_keeps_unknown_spend(self):
+        with self.config():
+            relay=self.make()
+            class ClosedByWatchdog:
+                calls=0
+                def send(self,raw):pass
+                def settimeout(self,timeout):pass
+                def shutdown(self):pass
+                def recv(self):
+                    self.calls+=1
+                    if self.calls==1:return '{"setupComplete":{}}'
+                    relay.stop(native.failure('gemini_tail_timeout'))
+                    raise OSError('synthetic recv closed; no supplier details')
+            with patch.object(native,'connect',return_value=ClosedByWatchdog()),patch.object(native.Thread,'start'):
+                relay.run()
+            self.assertEqual(relay.error.code,'gemini_tail_timeout')
+            self.assertEqual(relay.diagnostics()['first_error_code'],'gemini_tail_timeout')
+            self.assertEqual(self.row()['status'],'UNKNOWN')
+            self.assertEqual(self.row()['charge_micro'],1000)
+            self.assertEqual(audio_store.get(self.user,relay.job)['error_code'],'gemini_tail_timeout')
+
+    def test_socket_eof_after_input_end_does_not_imply_final_tail_success(self):
+        with self.config():
+            relay=self.make();relay.end_sent.set();relay.end_at=time.monotonic()
+            class EmptyClose:
+                calls=0
+                def send(self,raw):pass
+                def settimeout(self,timeout):pass
+                def shutdown(self):pass
+                def recv(self):
+                    self.calls+=1
+                    return '{"setupComplete":{}}' if self.calls==1 else b''
+            with patch.object(native,'connect',return_value=EmptyClose()),patch.object(native.Thread,'start'):
+                relay.run()
+            self.assertEqual(relay.error.code,'gemini_tail_unconfirmed')
+            self.assertFalse(relay.completed.is_set())
+            self.assertEqual(self.row()['status'],'UNKNOWN')
+
+    def test_fast_eos_acknowledgement_is_not_lost_before_send_returns(self):
+        with self.config():
+            relay=self.make();ack=Event();receivers=[]
+            class FastAck:
+                def send(self,raw):
+                    if json.loads(raw).get('realtimeInput',{}).get('audioStreamEnd'):
+                        def receive():
+                            relay.receive('{"serverContent":{"turnComplete":true}}')
+                            ack.set()
+                        receiver=Thread(target=receive,daemon=True);receivers.append(receiver);receiver.start()
+                        ack.wait(.05) # Simulate remote reply before send returns.
+                def shutdown(self):pass
+            relay.ws=FastAck();relay.accept(0,b'\x00\x00'*1600);relay.finish_input(1)
+            sender=Thread(target=relay.send);sender.start();sender.join(2)
+            for receiver in receivers:receiver.join(2)
+            self.assertFalse(sender.is_alive());self.assertTrue(ack.is_set())
+            self.assertTrue(relay.end_sent.is_set());self.assertTrue(relay.completed.is_set())
+            budget.finish(relay.capability,False);audio_store.fail(self.user,relay.job,'synthetic')
+
+    def test_generation_and_in_progress_or_interrupted_turns_do_not_fake_final_success(self):
+        with self.config():
+            relay=self.make();relay.end_sent.set();relay.end_at=time.monotonic()
+            relay.receive('{"serverContent":{"generationComplete":true}}')
+            self.assertFalse(relay.completed.is_set())
+            relay.receive('{"serverContent":{"turnComplete":true,"interactionStatus":"IN_PROGRESS"}}')
+            self.assertFalse(relay.completed.is_set())
+            relay.receive('{"serverContent":{"turnComplete":true,"interrupted":true}}')
+            self.assertFalse(relay.completed.is_set())
+            relay.receive('{"serverContent":{"turnComplete":true,"interactionStatus":"IDLE"}}')
+            self.assertTrue(relay.completed.is_set())
+            self.assertEqual(relay.diagnostics()['completion_kind'],'turn_complete')
+            self.assertEqual(relay.diagnostics()['generation_complete_after_end'],1)
+            self.assertEqual(relay.diagnostics()['turn_complete_after_end'],3)
+            budget.finish(relay.capability,False);audio_store.fail(self.user,relay.job,'synthetic')
+
+    def test_synthetic_harness_normal_finish_and_cleanup_end_retain_success(self):
+        from kilas_ai import live_gemini_smoke as smoke
+        with self.config(),patch.object(native,'connect',return_value=Socket()),redirect_stdout(io.StringIO()):
+            self.credit(300)
+            result=smoke.session({'owner':self.user},'en','id',b'\x01\x00'*1600)
+        self.assertTrue(result['terminal_turn_complete'])
+        self.assertTrue(result['all_generated_pcm_read'])
+        self.assertTrue(result['settled_after_end'])
+        self.assertIsNone(result['code'])
+        self.assertIsNone(result['protocol']['first_error_code'])
+        self.assertEqual(result['post_end_output_access'],'blocked')
 
     def test_undispatched_end_releases_reservation_and_never_connects(self):
         with self.config():

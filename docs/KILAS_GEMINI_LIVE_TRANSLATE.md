@@ -65,7 +65,8 @@ marker times out visibly; silence alone never means the tail is complete.
 Read-only recovery never terminates another legitimate session automatically.
 
 This pilot has fixed bounds: 60 seconds input audio, 90 seconds output audio,
-90 seconds total server lease, 15 seconds final drain, 8 seconds input/client
+90 seconds total server lease, 15 seconds grace after the estimated pending-PCM
+playout (always capped by that same lease), 8 seconds input/client
 playback backlog, 4,000 characters per transcript, two native transport slots,
 and four private RAM outputs with ten-minute expiry. Speaker/headset echo must be
 tested on real devices before claiming simultaneous speakerphone support.
@@ -150,3 +151,50 @@ only that known failed, zero-output, ended setup UNKNOWN after two minutes;
 it never refunds or adjusts unrelated operations. A separate durable marker
 blocks repetition of this remaining test on restart. This is a manual remaining
 test, not an automatic retry.
+
+## Offline final-audio repair after the approved tests
+
+The EN→ID test on 2026-10-16 accepted 15 seconds input, received 27.750 seconds
+PCM, and saw the first PCM at 2.881 seconds. The original watchdog closed at
+input-end plus 15 seconds, without allowing for queued PCM duration. That is
+around 30 seconds from input start; even immediate uninterrupted playback of
+the received PCM would run to about 30.631 seconds before any terminal grace.
+This is a concrete local timeout defect. It does not prove that the remote
+service would have sent its terminal event later.
+
+The reference documents that `turnComplete` can be delayed by playback. The
+relay now estimates queued playout from each validated PCM chunk and arrival
+gap, then applies the existing 15-second grace. The original total server lease
+still caps every deadline. This does not extend funding, retry input, or claim
+that audio was actually heard. Interrupted generations clear estimated queued
+playout while generated PCM still counts for settlement.
+
+The old receiver also overwrote a watchdog's `gemini_tail_timeout` with generic
+`gemini_transport` when shutdown unblocked `recv()`. The first error is now kept
+atomically; a real unprompted EOF after input end is `gemini_tail_unconfirmed`.
+An EOS-send/receive lock prevents an immediate terminal reply from being ignored
+before the sender publishes its sent flag. No silence/usage/transcript or bare
+socket close is promoted to success. Generation-complete, turn-complete and
+interaction-state observations are reported separately in synthetic QA.
+The tester also distinguishes its final cleanup End from the settled provider
+outcome, so a successful synthetic run cannot be reclassified as cancelled
+merely because its private output was correctly revoked afterwards.
+
+Live Translate is a continuous interpreter, unlike turn-based Live Agent. Its
+dedicated guide does not guarantee a final turn-EOF event. The old trace did not
+retain individual terminal fields, so the exact provider/local-close sequence
+cannot be reconstructed conclusively. The conservative success gate remains:
+an explicit non-interrupted terminal turn after input end, without an
+`IN_PROGRESS` interaction status. GenerationComplete alone is not proof that all
+input was translated. Missing proof remains a bounded visible failure.
+
+Offline regressions replay the observed durations, delayed final markers, fast
+EOS acknowledgements, watchdog/socket-close ordering, incomplete EOF and
+nonterminal generation/background events. No paid call or test retry was used
+for this repair. Activation still requires a separately authorized wire check
+of actual final markers, complete final audio/transcript and client drain.
+
+Official protocol references checked 2026-10-16:
+
+- https://ai.google.dev/api/live#BidiGenerateContentServerContent
+- https://ai.google.dev/gemini-api/docs/live-api/live-translate?hl=en

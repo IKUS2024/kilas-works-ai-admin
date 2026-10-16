@@ -65,6 +65,17 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(observation['first_frame_type'],'bytes')
         self.assertTrue(observation['setup_complete'])
 
+    def test_probe_keeps_terminal_event_kinds_separate_from_transcripts_and_usage(self):
+        raw=json.dumps({'serverContent':{'generationComplete':True,'turnComplete':True,
+                                        'interactionStatus':'IN_PROGRESS','outputTranscription':{'text':'synthetic'}}})
+        class Socket:
+            def recv(self):return raw
+        observation={'usage_snapshots':[]}
+        self.assertEqual(smoke.ProbeSocket(Socket(),observation).recv(),raw)
+        self.assertEqual(observation['server_terminal_events'],{'generationComplete':1,'turnComplete':1})
+        self.assertEqual(observation['last_interaction_status'],'IN_PROGRESS')
+        self.assertNotIn('synthetic',str(observation))
+
     def test_probe_stops_conservatively_before_internal_lease_limit(self):
         class Socket:
             def recv(self):return json.dumps({'usageMetadata':{'promptTokenCount':10,'responseTokenCount':5000}})

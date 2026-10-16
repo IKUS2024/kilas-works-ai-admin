@@ -77,7 +77,14 @@ class ProbeSocket:
         return getattr(self.socket,name)
 
     def recv(self):
-        raw = self.socket.recv()
+        try:
+            raw = self.socket.recv()
+        except Exception as error:
+            if type(error).__name__ == 'WebSocketConnectionClosedException':
+                self.observation['socket_closed'] = True
+            raise
+        if raw in ('',b''):
+            self.observation['socket_closed'] = True
         self.observation.setdefault('first_frame_type',type(raw).__name__)
         if isinstance(raw,(str,bytes)) and len(raw) <= 1024*1024:
             value = json.loads(raw)
@@ -85,6 +92,14 @@ class ProbeSocket:
                 types=self.observation.setdefault('message_types',[])
                 for name in ('setupComplete','serverContent','error','usageMetadata','goAway'):
                     if name in value and name not in types:types.append(name)
+                content=value.get('serverContent')
+                if isinstance(content,dict):
+                    counters=self.observation.setdefault('server_terminal_events',{})
+                    for field in ('generationComplete','turnComplete','interrupted','waitingForInput'):
+                        if content.get(field) is True:counters[field]=counters.get(field,0)+1
+                    status=content.get('interactionStatus')
+                    if status in ('IDLE','IN_PROGRESS','REQUIRES_ACTION','INTERACTION_STATUS_UNSPECIFIED'):
+                        self.observation['last_interaction_status']=status
                 if 'setupComplete' in value:
                     self.observation['setup_complete'] = True
                 error = value.get('error')
@@ -193,7 +208,10 @@ def session(configured, source, target, raw):
             time.sleep(.05)
         if not relay.finished:
             relay.stop(native.failure('gemini_deadline'))
-            relay.completed.wait(2)
+            # completed is a provider-marker event, not settlement completion.
+            settled_by=time.monotonic()+2
+            while not relay.finished and time.monotonic()<settled_by:
+                time.sleep(.05)
         after = received = 0
         if relay.finished:
             while after<len(relay.frames):
@@ -221,6 +239,8 @@ def session(configured, source, target, raw):
                         observation['observed_token_estimate_micro'],owner,key+'-gm','gml-'+RUN))
         return observation
     finally:
+        protocol_before_end=relay.diagnostics() if relay else None
+        error_before_end=getattr(relay.error,'code',None) if relay else None
         ended = time.monotonic()
         sessions.end(owner,ident)
         native.cancel(owner,ident)
@@ -231,6 +251,11 @@ def session(configured, source, target, raw):
         while relay is not None and not relay.finished and time.monotonic()<settlement_deadline:
             time.sleep(.05)
         observation['settled_after_end']=relay.finished if relay else False
+        if relay is not None:
+            observation['protocol']=protocol_before_end
+            # Explicit cleanup End must not reclassify an already-settled success
+            # as a failed provider turn. Keep cleanup state separate.
+            observation.setdefault('code',error_before_end)
         observation['post_end_frames'] = len(relay.frames) if relay else 0
         try:
             native.owned(owner,ident,key)
