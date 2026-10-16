@@ -15,8 +15,14 @@ for(const locale of ['en','id','es','zh'])test(`Call ${locale} actual chat place
  const button=document.querySelector('[data-ai-call-launch]'),dialog=document.querySelector('#ai-call-dialog'),end=document.querySelector('#ai-call-end');
  // Load the actual conflicting global theme and Call styles; earlier tests
  // only checked HTML and therefore missed the dialog's size/color cascade.
- for(const path of ['kilas_premium.css','kilas_ai_call.css']){const style=document.createElement('style');style.textContent=readFileSync(new URL('../static/'+path,import.meta.url),'utf8');document.head.append(style);}
+ // Mirror production order: the mobile footer rule is in base.html's head,
+ // and the component stylesheet loads after it. jsdom is not a browser cascade.
+ const mobileRule=document.createElement('style');mobileRule.textContent='.customer-ui footer{display:none;padding:14px}';document.head.append(mobileRule);
+ for(const path of ['kilas_premium.css','kilas_home.css','kilas_chat.css','kilas_ai_call.css']){const style=document.createElement('style');style.textContent=readFileSync(new URL('../static/'+path,import.meta.url),'utf8');document.head.append(style);}
  assert.equal(button.type,'button');assert.ok(button.nextElementSibling.matches('.ai-send[type=submit]'));assert.equal(button.closest('form').querySelector('[name=csrf_token]')?.value,'audio-csrf');
+ assert.equal(button.textContent.trim(),'');assert.ok(button.getAttribute('aria-label'));
+ const composer=button.closest('.ai-composer'),actions=button.parentElement,input=composer.querySelector('textarea');
+ assert.equal(window.getComputedStyle(composer).display,'grid');assert.equal(window.getComputedStyle(actions).display,'flex');assert.equal(window.getComputedStyle(actions).gridColumn,'3');assert.equal(window.getComputedStyle(input).gridColumn,'2');assert.equal(window.getComputedStyle(button).width,'44px');
  assert.equal(dialog.getAttribute('aria-describedby'),'ai-call-privacy');assert.ok(end.getAttribute('aria-label'));assert.equal(document.querySelectorAll('#ai-call-dialog').length,1);
  assert.equal(dialog.querySelectorAll('audio,video').length,0);
  assert.equal(dialog.hidden,true);assert.equal(window.getComputedStyle(dialog).display,'none');
@@ -34,10 +40,13 @@ for(const locale of ['en','id','es','zh'])test(`Call ${locale} actual chat place
  assert.equal(dialog.parentNode,document.body);assert.equal(dialog.hidden,true);
  button.click();await tick();assert.equal(dialog.open,true);assert.equal(document.activeElement,end);assert.equal(contexts,1);assert.equal(microphones,0);assert.equal(requests,1);
  assert.equal(dialog.hidden,false);
- const computed=window.getComputedStyle(dialog);assert.equal(computed.display,'flex');assert.equal(computed.position,'fixed');assert.equal(computed.maxWidth,'none');assert.equal(computed.maxHeight,'none');assert.equal(computed.borderRadius,'0');assert.equal(computed.backgroundColor,'rgb(17, 24, 32)');
+ const computed=window.getComputedStyle(dialog);assert.equal(computed.display,'grid');assert.equal(computed.position,'fixed');assert.equal(computed.maxWidth,'none');assert.equal(computed.maxHeight,'none');assert.equal(computed.borderRadius,'0');assert.equal(computed.backgroundColor,'rgb(17, 24, 32)');
+ const footer=end.closest('footer');assert.equal(footer.parentNode,dialog);assert.equal(window.getComputedStyle(footer).display,'flex');assert.equal(window.getComputedStyle(footer).padding,'0px');assert.equal(dialog.querySelector('#ai-call-privacy').parentNode.className,'ai-call-body');assert.equal(window.getComputedStyle(dialog.querySelector('.ai-call-body')).minHeight,'0');
  assert.equal(dialog.style.getPropertyValue('--ai-call-height'),'740px');assert.equal(dialog.style.getPropertyValue('--ai-call-width'),'393px');
  Object.assign(viewport,{height:390,width:740,offsetTop:5,offsetLeft:2});viewport.dispatchEvent(new window.Event('resize'));
  assert.equal(dialog.style.getPropertyValue('--ai-call-height'),'390px');assert.equal(dialog.style.getPropertyValue('--ai-call-top'),'5px');assert.equal(dialog.style.getPropertyValue('--ai-call-width'),'740px');assert.equal(dialog.style.getPropertyValue('--ai-call-left'),'2px');
+ assert.equal(dialog.classList.contains('ai-call-compact'),true);assert.equal(window.getComputedStyle(end).minHeight,'56px');
+ Object.assign(viewport,{height:240,width:320,offsetTop:0,offsetLeft:0});viewport.dispatchEvent(new window.Event('resize'));assert.equal(dialog.style.getPropertyValue('--ai-call-height'),'240px');assert.equal(window.getComputedStyle(footer).display,'flex');assert.equal(window.getComputedStyle(end).minHeight,'56px');
  assert.equal(dialog.querySelector('#ai-call-error').textContent,window.KilasUI.t('Batas biaya tercapai. Panggilan dihentikan.'));
  assert.equal(dialog.dataset.state,'ended');
  document.dispatchEvent(new window.Event('visibilitychange'));await tick();assert.equal(dialog.open,true);

@@ -38,6 +38,7 @@ if(dialog){
  });
  const syncViewport=()=>{
   if(!dialog.open)return;const viewport=window.visualViewport;
+  dialog.classList.toggle('ai-call-compact',(viewport?.height||window.innerHeight)<440);
   for(const [name,value] of Object.entries({width:viewport?.width||window.innerWidth,height:viewport?.height||window.innerHeight,left:viewport?.offsetLeft||0,top:viewport?.offsetTop||0})){
    if(Number.isFinite(value))dialog.style.setProperty('--ai-call-'+name,value+'px');
   }
