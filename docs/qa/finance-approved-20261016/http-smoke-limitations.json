@@ -1,0 +1,26 @@
+{
+  "origin": "https://kilas-works-client-hub.onrender.com",
+  "checks": [
+    {
+      "path": "/",
+      "error": "ProxyError"
+    },
+    {
+      "path": "/login",
+      "error": "ProxyError"
+    },
+    {
+      "path": "/finance",
+      "error": "ProxyError"
+    },
+    {
+      "path": "/static/finance_revisions.css?v=20261016-1",
+      "error": "ProxyError"
+    },
+    {
+      "path": "/static/finance_revisions.js?v=20261016-1",
+      "error": "ProxyError"
+    }
+  ],
+  "custom_domain_blocker": "Execution proxy rejects app.kilasworks.id with tunnel 403; web tool also cannot access it."
+}

@@ -37,3 +37,14 @@ FINANCE_LOCAL_PG_QA=1 KILAS_FINANCE_BETA=on KILAS_FINANCE_ACCESS_MODE=internal_b
 ```
 
 Limits: Chromium viewport emulation does not certify a physical mobile keyboard/device. Browser writes were synthetic/local; production identity/transaction writes will not be performed for verification. Archived failing suites are disclosed rather than claimed green. The active agent could not switch its running model to the separately requested model setting.
+
+## Production release evidence
+
+- Application commit **`eeae81fa85941885218572493bee1e268e8a8c1c`** was pushed directly to `main` and verified against the remote ref. It preserves all prior commits, including Group Chat.
+- Existing Render Client Hub `srv-da7ti2psrm7s73dh9i2g`, workspace `tea-da34t2gu01pc73ft7uf0`: deploy **`dep-db95hbnt5n8s73ec85r0`** reports **LIVE**, finished **2026-10-16 17:03:36 UTC**, at that exact application commit. No other service was deployed; auto-deploy remains off.
+- Production `finance_release_migrations` confirms `0100_finance_approved_revisions` with SHA-256 `e6b616f7a2db5dc98cc93833ef705416c77535522efeab63e85198498fbc121c`, identical to the tested local SQL. New internal transfers: **0**. Existing transactions with non-NULL new Notes: **0**.
+- At 17:04 UTC, every original Finance table has the **same full-row fingerprint and row count** as before release: **30/30 unchanged**. No real transaction, account, branch or business was created/edited/deleted for QA. [After evidence](qa/finance-approved-20261016/production-after.json).
+- Render error-level queries for 17:02:38–17:04:21 and 17:03:36–17:05:41 UTC returned no logs. The new worker startup log independently confirms exact application commit `eeae81fa85941885218572493bee1e268e8a8c1c` at 17:03:37 UTC.
+- User URL: **https://app.kilasworks.id**. Direct shell HTTPS checks of the custom domain and service URL are blocked by the execution proxy with `403 Forbidden`; the web tool also cannot access the custom domain. Therefore an external HTTP/production-browser smoke is **unverified**, even though Render reports LIVE and the production schema/data checks pass. [Probe limitation](qa/finance-approved-20261016/http-smoke-limitations.json).
+- GitHub CLI check-run lookup returned `Forbidden`; the connector returned no commit statuses. Remote CI is not claimed green. Local targeted **136**, Notes bank-import compatibility **4**, native PostgreSQL **4**, and real local browser checks are the release validation evidence.
+- This evidence-only follow-up changes documentation/images only. The deployed Client Hub source tree is unchanged from the verified application commit; no deployment is needed for the evidence checkpoint.
