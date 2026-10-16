@@ -23,7 +23,11 @@ OUTPUT_BYTES = 90 * 48000
 QUEUE_BYTES = 8 * 32000
 MAX_MESSAGE = 1024 * 1024
 MAX_TEXT = 4000
-TAIL_GRACE_SECONDS = 15
+# Continuous Live Translate does not promise a turn EOF. Google's example
+# bounds its final receive window to four seconds, then stops the stream:
+# https://github.com/google-gemini/gemini-live-api-examples/blob/3bcae1162d1bc6955672153310e4f84eba6621ff/command-line/python/translate.py
+# This is a local transport bound, never proof that the semantic tail arrived.
+TAIL_GRACE_SECONDS = 4
 _lock = Lock()
 _items = {}
 _slots = BoundedSemaphore(2)
@@ -97,7 +101,7 @@ def message(raw):
 
 
 class Relay:
-    def __init__(self, owner, ident, key, info, capability, job):
+    def __init__(self, owner, ident, key, info, capability, job, lease_started=None):
         self.owner, self.ident, self.key, self.info = owner, ident, key, info
         self.capability, self.job = capability, job
         self.lock = Lock()
@@ -105,6 +109,7 @@ class Relay:
         self.queue = Queue(maxsize=64)
         self.cancelled, self.completed, self.end_sent = Event(), Event(), Event()
         self.finished = False
+        self.run_started = False
         self.error = None
         self.first_error = None
         self.ws = None
@@ -112,12 +117,13 @@ class Relay:
         self.frames = []
         self.source_text = self.target_text = ''
         self.input_closed = False
-        self.started = self.last_input = monotonic()
+        self.last_input = monotonic()
+        self.started = self.last_input if lease_started is None else lease_started
         self.end_at = None
-        self.playout_until = 0
         self.generation_complete_count = self.turn_complete_count = 0
         self.post_end_generation_complete = self.post_end_turn_complete = 0
         self.completion_kind = None
+        self.tail_confirmed = False
         self.first_input_at = self.first_output_at = None
         self.sent_bytes = self.sent_packets = self.received_packets = self.rejected_output_bytes = 0
         self.last_output_at = None
@@ -144,6 +150,9 @@ class Relay:
                     self.error = error
                     self.first_error = error
         self.cancelled.set()
+        self.close_socket()
+
+    def close_socket(self):
         if self.ws:
             try:
                 self.ws.shutdown()
@@ -154,11 +163,26 @@ class Relay:
         with self.lock:
             if self.end_at is None:
                 return None
-            # Google may defer turnComplete while audio is played in real time.
-            # Account for validated PCM already queued, including arrival gaps;
-            # this is an estimate, not an audible/playback acknowledgement.
+            # PCM already accepted remains available for client playout. Its
+            # duration cannot extend the paid socket or prove a final tail.
             return min(self.started+budget.LEASE_MS/1000,
-                       max(self.end_at,self.playout_until)+TAIL_GRACE_SECONDS)
+                       self.end_at+TAIL_GRACE_SECONDS)
+
+    def finish_drain(self):
+        """Close the local receive window without inventing a provider EOF."""
+        with self.error_lock:
+            with self.lock:
+                now = monotonic()
+                if (self.completed.is_set() or self.cancelled.is_set() or self.error is not None
+                        or self.end_at is None or now < self.end_at+TAIL_GRACE_SECONDS
+                        or now >= self.started+budget.LEASE_MS/1000):
+                    return False
+                self.completion_kind = 'bounded_drain'
+                self.completed.set()
+        # Wake a blocking recv; its resulting close is expected only while the
+        # local completion is still free of cancellation or a prior failure.
+        self.close_socket()
+        return True
 
     def diagnostics(self):
         with self.lock:
@@ -168,6 +192,8 @@ class Relay:
                     'generation_complete_after_end':self.post_end_generation_complete,
                     'turn_complete_after_end':self.post_end_turn_complete,
                     'completion_kind':self.completion_kind,
+                    'tail_confirmed':self.tail_confirmed,
+                    'tail_code':'gemini_tail_unconfirmed' if self.completion_kind == 'bounded_drain' else None,
                     'input_accepted_bytes':self.accepted, 'input_sent_bytes':self.sent_bytes,
                     'input_sent_packets':self.sent_packets, 'output_accepted_bytes':self.output_bytes,
                     'output_received_packets':self.received_packets,
@@ -242,9 +268,8 @@ class Relay:
         try:
             while not self.cancelled.wait(.25) and not self.completed.is_set():
                 self.check()
-                deadline = self.drain_deadline()
-                if deadline is not None and monotonic() > deadline:
-                    raise failure('gemini_tail_timeout')
+                if self.finish_drain():
+                    return
                 if not self.input_closed and monotonic()-self.last_input > 5:
                     raise failure('gemini_input_idle')
         except Exception as error:
@@ -265,9 +290,10 @@ class Relay:
             with self.lock:
                 if self.cancelled.is_set():
                     raise self.error or failure('turn_cancelled',409)
+                if self.completed.is_set():
+                    return
                 if content.get('interrupted') is True:
                     self.generation += 1
-                    self.playout_until = monotonic()
                     self.frames.append({'type':'reset', 'generation':self.generation})
                 for field, target in (('inputTranscription','source_text'), ('outputTranscription','target_text')):
                     transcript = content.get(field)
@@ -302,7 +328,6 @@ class Relay:
                         raise failure('gemini_output_limit', 429)
                     self.output_bytes += len(pcm)
                     self.last_output_at = monotonic()
-                    self.playout_until = max(self.playout_until,monotonic())+len(pcm)/48000
                     if self.first_output_at is None:
                         self.first_output_at = monotonic()
                     for offset in range(0, len(pcm), 9600):
@@ -316,13 +341,12 @@ class Relay:
                 if content.get('turnComplete') is True:
                     self.turn_complete_count += 1
                     self.post_end_turn_complete += int(self.end_sent.is_set())
-                    # GenerationComplete alone, silence, usage and a closed
-                    # socket cannot prove that all buffered input was translated.
-                    # Continuous Live Translate has no documented guaranteed
-                    # turn EOF; keep this conservative gate until wire verified.
+                    # Preserve a real terminal marker separately from the
+                    # bounded local stop used by this continuous interpreter.
                     if (self.end_sent.is_set() and content.get('interrupted') is not True
                             and content.get('interactionStatus') != 'IN_PROGRESS'):
                         self.completion_kind = 'turn_complete'
+                        self.tail_confirmed = True
                         self.completed.set()
         except audio_store.AudioError:
             raise
@@ -333,10 +357,12 @@ class Relay:
         # Owner/session/expiry fences apply to every response, including terminal.
         if not budget.ready(self.owner):
             raise failure('gemini_unavailable',404)
-        state = sessions.result(self.owner, self.ident, self.key)
-        if state['status'] == 'CANCELLED':
-            raise failure('turn_cancelled', 409)
         with self.lock:
+            # Read the durable status while holding the same publication lock
+            # as finished. An old PROCESSING read cannot pair with closed PCM.
+            state = sessions.result(self.owner, self.ident, self.key)
+            if state['status'] == 'CANCELLED':
+                raise failure('turn_cancelled', 409)
             if type(after) is not int or not 0 <= after <= len(self.frames):
                 raise failure('gemini_cursor_invalid', 400)
             frames = [{'index':i, **frame} for i, frame in enumerate(self.frames[after:after+12], after)]
@@ -345,16 +371,24 @@ class Relay:
                     'target_language':self.info['language_b'], 'generation':self.generation,
                     'input_closed':self.input_closed, 'output_closed':self.finished,
                     'total_frames':len(self.frames) if self.finished else None,
+                    'completion_kind':self.completion_kind, 'tail_confirmed':self.tail_confirmed,
+                    'tail_code':'gemini_tail_unconfirmed' if self.completion_kind == 'bounded_drain' else None,
                     'code':getattr(self.error,'code',None)}
 
     def run(self):
-        timer = Timer(budget.LEASE_MS/1000, self.stop, args=(failure('gemini_deadline'),))
+        with self.lock:
+            if self.run_started:
+                return
+            self.run_started = True
+        timer = Timer(max(0, self.started+budget.LEASE_MS/1000-monotonic()),
+                      self.stop, args=(failure('gemini_deadline'),))
         timer.daemon = True
         success = False
         try:
             timer.start()
             self.check()
             budget.dispatch(self.capability)  # Durable before possibly billable handshake.
+            self.check()  # End may commit while the durable dispatch waits.
             self.ws = connect()
             self.check()
             self.ws.send(json.dumps(setup(self.info['language_b'])))
@@ -368,13 +402,19 @@ class Relay:
             import websocket
             while not self.completed.is_set():
                 self.check()
+                if self.finish_drain():
+                    break
                 try:
                     raw = self.ws.recv()
                 except websocket.WebSocketTimeoutException:
                     continue
-                except websocket.WebSocketConnectionClosedException:
+                except Exception:
+                    if self.completed.is_set() and not self.cancelled.is_set():
+                        break
                     raise failure('gemini_tail_unconfirmed' if self.end_sent.is_set() else 'gemini_transport') from None
                 if raw in ('',b''):
+                    if self.completed.is_set() and not self.cancelled.is_set():
+                        break
                     raise failure('gemini_tail_unconfirmed' if self.end_sent.is_set() else 'gemini_transport')
                 self.receive(raw)
             self.check()
@@ -403,13 +443,14 @@ class Relay:
                         self.first_error = self.error
                 sessions.finish(self.owner, self.ident, self.key, False, self.job, 'gemini_settlement_failed')
             finally:
-                with self.error_lock:
+                with self.error_lock, self.lock:
                     self.finished = True
                 _slots.release()
                 db._discard_cached_connection()
                 values = f'input_ms={self.accepted/32:.1f} output_ms={self.output_bytes/48:.1f} elapsed_ms={(monotonic()-self.started)*1000:.1f}'
                 values += f' code={getattr(self.error,"code",None) or "none"} first_code={getattr(self.first_error,"code",None) or "none"}'
                 values += f' generation_complete={self.generation_complete_count} turn_complete={self.turn_complete_count}'
+                values += f' completion_kind={self.completion_kind or "none"} tail_confirmed={str(self.tail_confirmed).lower()}'
                 if self.first_input_at is not None and self.first_output_at is not None:
                     values += f' first_output_ms={max(0,self.first_output_at-self.first_input_at)*1000:.1f}'
                 try:
@@ -434,13 +475,16 @@ def start(owner, ident, key):
             raise failure('gemini_session_changed', 409)
         audio_store.require_balance(owner)
         live.require_audio_allowance(owner, 90)
+        # Include admission/DB delay in the hard lease; never let the shared
+        # ledger's stale-operation fence expire while this socket is live.
+        lease_started = monotonic()
         capability = budget.claim(owner, ident, key)
         job, new = audio_store.create(owner, key+'-audio', 'voiceover', 'Live Translator',
                                      info['language_a'], info['language_b'], VOICE, 'Gemini Live',
                                      '', 0, None, 90, 90, live_session=(ident,key))
         if not new or not audio_store.start(owner, job):
             raise failure('duplicate_turn', 409)
-        relay = Relay(owner, ident, key, info, capability, job)
+        relay = Relay(owner, ident, key, info, capability, job, lease_started=lease_started)
         with _lock:
             now = monotonic()
             for address in list(_items):
@@ -456,14 +500,26 @@ def start(owner, ident, key):
         Thread(target=relay.run, name='kilas-gemini-live', daemon=True).start()
         return relay
     except Exception as error:
+        error_code = getattr(error,'code','gemini_admission_failed')
+        cleanups = []
         if capability:
-            budget.finish(capability, False)
+            cleanups.append(lambda:budget.finish(capability, False))
         if job:
-            audio_store.fail(owner, job, 'gemini_admission_failed')
+            cleanups.append(lambda:audio_store.fail(owner, job, 'gemini_admission_failed'))
         if claimed:
-            sessions.finish(owner, ident, key, False, job, getattr(error,'code','gemini_admission_failed'))
-            temporary.discard(owner, ident, key)
-        _slots.release()
+            cleanups.append(lambda:sessions.finish(owner, ident, key, False, job, error_code))
+            cleanups.append(lambda:temporary.discard(owner, ident, key))
+        cleanup_failed = False
+        try:
+            for cleanup in cleanups:
+                try:
+                    cleanup()
+                except Exception:
+                    cleanup_failed = True
+        finally:
+            _slots.release()
+        if cleanup_failed:
+            raise failure('gemini_settlement_failed') from None
         if isinstance(error, budget.ledger.BudgetError):
             raise failure(error.code, error.status) from None
         raise

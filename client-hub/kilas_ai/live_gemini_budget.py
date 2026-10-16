@@ -15,6 +15,15 @@ from .autonomous_store import transaction
 MODEL = 'gemini-3.5-live-translate-preview'
 PRICE_VERSION = 'gemini-live-translate-approved-90s-envelope-v1'
 LEASE_MS = 90000  # Less than the existing ledger's 120s stale-operation fence.
+# Leave at least 10s between a full physical lease and stale-row recovery.
+# Checked against the durable admission timestamp, never a browser timestamp.
+DISPATCH_MAX_AGE_SECONDS = 20
+INTERNAL_GUARD_MAX_IDR = 250000
+INTERNAL_VALUATION_MIN_IDR_PER_USD = 25000
+INTERNAL_RESERVE_MIN_MICRO_USD = 250000
+# Anti-abuse only: ordinary 59s input + bounded drain stays below 60/hour.
+# This never adds funding, resets lifetime spend, or changes other STT limits.
+OWNER_PHYSICAL_LEASES_PER_HOUR = 80
 
 
 def policy():
@@ -28,15 +37,41 @@ def policy():
         cap = int(os.environ['KILAS_LIVE_GEMINI_BUDGET_MICRO_USD'])
         reserve = int(os.environ['KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD'])
         mode = os.environ.get('KILAS_LIVE_GEMINI_POLICY', 'qa')
+        valuation = {}
+        price_version = PRICE_VERSION
         if mode == 'owner_lifetime':
-            # Operator must verify a tax/fee-inclusive USD->IDR upper bound.
-            # Never infer one from a claimed balance or a market spot quote.
-            if os.environ.get('KILAS_LIVE_GEMINI_IDR_CEILING_VERIFIED') != 'yes':
-                return None
-            ceiling = int(os.environ['KILAS_LIVE_GEMINI_IDR_PER_USD_CEILING'])
             approved_idr = int(os.environ['KILAS_LIVE_GEMINI_TOTAL_IDR'])
-            if not 0 < approved_idr <= 500000 or ceiling <= 0 or cap*ceiling > approved_idr*1000000:
+            if not 0 < approved_idr <= 500000:
                 return None
+            valuation_mode = os.environ.get('KILAS_LIVE_GEMINI_IDR_VALUATION_MODE', 'verified_ceiling')
+            if valuation_mode == 'verified_ceiling':
+                # A verified tax/fee-inclusive bound remains a separate path.
+                # Neither a wallet balance nor a market quote verifies it.
+                if os.environ.get('KILAS_LIVE_GEMINI_IDR_CEILING_VERIFIED') != 'yes':
+                    return None
+                ceiling = int(os.environ['KILAS_LIVE_GEMINI_IDR_PER_USD_CEILING'])
+                guard_idr = approved_idr
+            elif valuation_mode == 'conservative_internal':
+                # Explicit internal accounting assumption, NOT actual FX,
+                # supplier usage, an invoice ceiling or a prepaid hard stop.
+                # All amounts need affirmative configuration; no spend defaults.
+                if os.environ.get('KILAS_LIVE_GEMINI_INTERNAL_VALUATION_ACK') != 'yes':
+                    return None
+                ceiling = int(os.environ['KILAS_LIVE_GEMINI_IDR_PER_USD_INTERNAL'])
+                guard_idr = int(os.environ['KILAS_LIVE_GEMINI_INTERNAL_GUARD_IDR'])
+                if (ceiling < INTERNAL_VALUATION_MIN_IDR_PER_USD
+                        or not 0 < guard_idr <= min(approved_idr, INTERNAL_GUARD_MAX_IDR)
+                        or reserve < INTERNAL_RESERVE_MIN_MICRO_USD):
+                    return None
+                # Pin the acknowledged assumption in the immutable campaign
+                # ledger too, so same-campaign edits fail closed at dispatch.
+                price_version += '-internal-{}-{}-{}'.format(ceiling, guard_idr, approved_idr)
+            else:
+                return None
+            if ceiling <= 0 or cap*ceiling > guard_idr*1000000:
+                return None
+            valuation = {'valuation_mode': valuation_mode, 'total_idr': approved_idr,
+                         'guard_idr': guard_idr, 'idr_per_usd': ceiling}
             # Stable TEXT value in the existing immutable policy ledger. This
             # is a lifetime cap, not an artificial distant date or auto-renewal.
             expiry_text = 'owner-lifetime-v1'
@@ -54,7 +89,8 @@ def policy():
             return None
         return {'id':'gml-'+campaign, 'allowed_owner':owner, 'global_micro':cap,
                 'account_micro':cap, 'reserve':reserve,
-                'expires_at':expiry_text, 'price_version':PRICE_VERSION, 'mode':mode}
+                'expires_at':expiry_text, 'price_version':price_version, 'mode':mode,
+                **valuation}
     except (ValueError, KeyError, TypeError, OverflowError):
         return None
 
@@ -64,6 +100,47 @@ def ready(owner):
     return bool(config and config['allowed_owner'] == owner)
 
 
+def _spend(conn, config):
+    # Lifetime means every native campaign, including historical QA, cancelled
+    # dispatches and unknown outcomes. Renaming a campaign cannot reset spend.
+    lifetime = config['mode'] == 'owner_lifetime'
+    return int(usage._query(conn,
+        'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign '+('LIKE ?' if lifetime else '=?'),
+        ('gml-%' if lifetime else config['id'],), one=True)[0])
+
+
+def status(owner):
+    """Read-only internal allowance snapshot; never a supplier wallet balance.
+
+    This snapshot grants no reservation. Each physical connection must still
+    claim and dispatch under the shared PostgreSQL admission lock.
+    """
+    config = policy()
+    unavailable = {'available': False, 'reason': 'gemini_unavailable'}
+    if not config or config['allowed_owner'] != owner:
+        return unavailable
+    with transaction() as conn:
+        ledger._global_lock(conn)
+        ledger._owner(conn, owner)
+        row = usage._query(conn,
+            'SELECT global_micro,account_micro,expires_at,price_version,blocked FROM kilas_vo_stt_campaigns WHERE id=?',
+            (config['id'],), one=True)
+        if row and (row[4] or tuple(row[:4]) != tuple(config[k] for k in ('global_micro', 'account_micro', 'expires_at', 'price_version'))):
+            return {'available': False, 'reason': 'campaign_blocked' if row[4] else 'campaign_policy_changed'}
+        charged = _spend(conn, config)
+        remaining = max(0, config['global_micro']-charged)
+        active = bool(usage._query(conn,
+            "SELECT 1 FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",
+            (owner,), one=True))
+    reason = 'already_processing' if active else 'budget_limit' if remaining < config['reserve'] else None
+    return {'available': reason is None, 'reason': reason, 'policy_mode': config['mode'],
+            'valuation_mode': config.get('valuation_mode'), 'total_idr': config.get('total_idr'),
+            'guard_idr': config.get('guard_idr'), 'idr_per_usd': config.get('idr_per_usd'),
+            'cap_micro_usd': config['global_micro'], 'charged_micro_usd': charged,
+            'remaining_micro_usd': remaining, 'reserve_micro_usd': config['reserve'],
+            'remaining_leases': remaining//config['reserve'], 'lease_ms': LEASE_MS, 'active': active}
+
+
 def claim(owner, ident, key):
     config = policy()
     if not config or config['allowed_owner'] != owner:
@@ -71,6 +148,11 @@ def claim(owner, ident, key):
     if not re.fullmatch(r'live-[a-f0-9]{32}', key):
         raise ledger.BudgetError('invalid_operation', 400)
     operation = key+'-gm'
+    # Native start already claims the owner-bound logical session. Its stable
+    # rate bucket is not a capability: unique keys and lease nonces still fence
+    # every physical dispatch. Preserve historical/QA per-operation hashes.
+    fingerprint = hashlib.sha256(('native-logical-session:'+ident if config['mode'] == 'owner_lifetime'
+                                  else ident+':'+key).encode()).hexdigest()
     with transaction() as conn:
         ledger._campaign(conn, config)
         ledger._owner(conn, owner)
@@ -83,21 +165,36 @@ def claim(owner, ident, key):
         if usage._query(conn, "SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status IN ('RESERVED','DISPATCHED')", one=True)[0] >= ledger.GLOBAL_CONCURRENCY:
             raise ledger.BudgetError('service_busy', 429)
         now = datetime.now(timezone.utc)
+        if config['mode'] == 'owner_lifetime' and usage._query(conn,
+                'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND campaign LIKE ? AND created_at>=?',
+                (owner, 'gml-%', (now-timedelta(hours=1)).isoformat()), one=True)[0] >= OWNER_PHYSICAL_LEASES_PER_HOUR:
+            raise ledger.BudgetError('attempt_limit', 429)
         for seconds, maximum in ((3600, ledger.OWNER_HOURLY_ATTEMPTS), (86400, ledger.OWNER_DAILY_ATTEMPTS)):
-            if usage._query(conn, 'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?',
-                            (owner, 'live-%', (now-timedelta(seconds=seconds)).isoformat()), one=True)[0] >= maximum:
+            cutoff = (now-timedelta(seconds=seconds)).isoformat()
+            if config['mode'] == 'owner_lifetime':
+                # Count each native logical session once in this window; old
+                # QA hashes stay conservatively separate. Every original Live
+                # or STT operation keeps its prior individual attempt weight.
+                # Exclude this bucket only if it is present in the window, so
+                # a session can renew at the logical-session limit, while a
+                # different or long-idle session must still gain a new slot.
+                attempts = usage._query(conn,
+                    'SELECT COUNT(DISTINCT CASE WHEN campaign LIKE ? THEN fingerprint ELSE operation_key END) '
+                    'FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=? '
+                    'AND (campaign NOT LIKE ? OR fingerprint<>?)',
+                    ('gml-%', owner, 'live-%', cutoff, 'gml-%', fingerprint), one=True)[0]
+            else:
+                attempts = usage._query(conn,
+                    'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?',
+                    (owner, 'live-%', cutoff), one=True)[0]
+            if attempts >= maximum:
                 raise ledger.BudgetError('attempt_limit', 429)
-        if config['mode'] == 'owner_lifetime':
-            # Same advisory lock as all admissions. Campaign rotation, earlier
-            # QA, failures and unknown outcomes cannot reset the total budget.
-            spent = usage._query(conn, 'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign LIKE ?', ('gml-%',), one=True)[0]
-        else:
-            spent = usage._query(conn, 'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=?', (config['id'],), one=True)[0]
+        spent = _spend(conn, config)
         if spent + config['reserve'] > config['global_micro']:
             raise ledger.BudgetError('budget_limit', 429)
         lease = secrets.token_hex(32)
         usage._query(conn, "INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at) VALUES (?,?,?,?,'RESERVED',?,?,?,?)",
-                     (owner, operation, config['id'], hashlib.sha256((ident+':'+key).encode()).hexdigest(),
+                     (owner, operation, config['id'], fingerprint,
                       config['reserve'], LEASE_MS, ledger._hash(lease), now.isoformat()))
         return ledger.Reservation(owner, operation, lease)
 
@@ -116,6 +213,14 @@ def dispatch(capability):
                 or row[4] != config['reserve'] or row[5] != ledger._hash(capability.lease)
                 or row[6] != LEASE_MS):
             raise ledger.BudgetError('invalid_reservation')
+        admitted = usage._query(conn, 'SELECT created_at FROM kilas_vo_stt_operations WHERE id=?', (row[0],), one=True)[0]
+        try:
+            admitted_at = datetime.fromisoformat(admitted.replace('Z', '+00:00'))
+            age = (datetime.now(timezone.utc)-admitted_at).total_seconds()
+        except (ValueError, TypeError, AttributeError):
+            raise ledger.BudgetError('invalid_reservation') from None
+        if not 0 <= age <= DISPATCH_MAX_AGE_SECONDS:
+            raise ledger.BudgetError('reservation_expired', 409)
         usage._query(conn, "UPDATE kilas_vo_stt_operations SET status='DISPATCHED',dispatched_at=? WHERE id=?",
                      (datetime.now(timezone.utc).isoformat(), row[0]))
 

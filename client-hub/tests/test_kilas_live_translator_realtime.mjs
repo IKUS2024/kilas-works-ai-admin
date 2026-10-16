@@ -71,12 +71,12 @@ test('settled realtime output polls existing turn with no admission/paidSTTPOST'
  const requests=[],api=new TranslatorTurns({csrf:'synthetic',json:async(path,options={})=>{requests.push({path,options});return {status:'COMPLETED',audio_url:url+'/audio',translated_text:'Complete saved translation'};}});
  const result=await api.turn(id,key,null,new AbortController().signal,async()=>{});assert.equal(result.translated_text,'Complete saved translation');assert.equal(requests.length,1);assert.equal(requests[0].options.method,undefined);
 });
-function captureFixture(){
+function captureFixture(options={}){
  let now=0,next=0;const timers=new Map(),events=new Map(),track={stops:0,stop(){this.stops++;},addEventListener(name,fn){events.set(name,fn);}};
  const node={port:{onmessage:null,postMessage(message){node.message=message;}},connect(){},disconnect(){node.detached=true;}},stream={getTracks:()=>[track]};
  const context={state:'running',audioWorklet:{addModule:async()=>{}},destination:{},createMediaStreamSource:()=>({connect(){},disconnect(){}})};
  const output=[],levels=[],errors=[],blobs=[];
- const capture=new RealtimeCapture({getContext:()=>context,mediaDevices:{getUserMedia:async()=>stream},createNode:()=>node,schedule:(fn,ms)=>{const id=++next;timers.set(id,{at:now+ms,fn});return id;},clear:id=>timers.delete(id)});
+ const capture=new RealtimeCapture({getContext:()=>context,mediaDevices:{getUserMedia:async()=>stream},createNode:()=>node,schedule:(fn,ms)=>{const id=++next;timers.set(id,{at:now+ms,fn});return id;},clear:id=>timers.delete(id),...options});
  const begin=()=>capture.start({level:value=>levels.push(value),pcm:value=>output.push(value),blob:value=>blobs.push(value),error:value=>errors.push(value)});
  const start=async()=>{const work=begin();await tick();frame(0);await work;levels.length=0;};
  const frame=(rms=.1,length=6400)=>node.port.onmessage({data:{bytes:new ArrayBuffer(length),rms}});
@@ -94,6 +94,13 @@ test('idle capture rotates locally after60s without sending silence or ending lo
 });
 test('voice179s limit begins at first voice rather than idle capture time',async()=>{
  const f=captureFixture();await f.start();await f.advance(50000);f.frame();await f.advance(60000);assert.equal(f.errors.length,0);assert.ok([...f.timers.values()].some(t=>t.at===229000));await f.advance(119000);assert.equal(f.errors[0].code,'utterance_limit');assert.equal(f.blobs.length,0);
+});
+test('native continuous capture keeps unpaid initial VAD and runs until End without utterance or idle expiry',async()=>{
+ const f=captureFixture({continuous:true});await f.start();f.frame(0);await f.advance(180000);
+ assert.equal(f.output.length,0);assert.equal(f.errors.length,0);assert.equal(f.track.stops,0);
+ f.frame(.1);assert.equal(f.output.length,3);f.frame(0);await f.advance(240000);
+ assert.equal(f.output.length,4);assert.equal(f.errors.length,0);assert.equal(f.track.stops,0);assert.equal(f.timers.size,0);
+ f.capture.cancel();assert.equal(f.track.stops,1);assert.equal(f.node.port.onmessage,null);
 });
 test('End cleans up and late worklet frames cannot reach a newer capture',async()=>{
  const f=captureFixture();await f.start();const old=f.node.port.onmessage;f.capture.cancel();old({data:{bytes:new ArrayBuffer(6400),rms:.1}});assert.equal(f.output.length,0);assert.equal(f.blobs.length,0);assert.equal(f.timers.size,0);assert.equal(f.track.stops,1);

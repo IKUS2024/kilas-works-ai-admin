@@ -259,29 +259,34 @@ class GeminiTests(unittest.TestCase):
         for raw in (b'\xff',b'[]',b'x'*(native.MAX_MESSAGE+1),None):
             with self.assertRaises(audio_store.AudioError):native.message(raw)
 
-    def test_recorded_pcm_duration_outlives_old_tail_deadline_without_extending_lease(self):
+    def test_recorded_pcm_duration_does_not_extend_bounded_receive_window(self):
         with self.config():
             relay=self.make();base=relay.started
             def audio_for(ms):
                 return json.dumps({'serverContent':{'modelTurn':{'parts':[{'inlineData':{
                     'mimeType':'audio/pcm;rate=24000','data':base64.b64encode(b'\x01\x00'*(ms*24)).decode()}}]}}})
-            # Actual observed timing: first PCM at2.881s, total27.750s PCM,
-            # input finishes15s; old watchdog stopped around30s.
+            # A recorded timing pattern has27.750s accepted PCM after15s input.
+            # Playback remains available without extending the provider socket.
             with patch.object(native,'monotonic',return_value=base+2.881):
                 relay.receive(audio_for(14000));relay.receive(audio_for(13750))
             relay.end_at=base+15;relay.end_sent.set();relay.input_closed=True
-            self.assertAlmostEqual(relay.drain_deadline(),base+45.631,places=3)
-            with patch.object(native,'monotonic',return_value=base+30.891),\
+            self.assertAlmostEqual(relay.drain_deadline(),base+19,places=3)
+            with patch.object(native,'monotonic',return_value=base+18.999),\
                  patch.object(relay.cancelled,'wait',side_effect=[False,True]):
                 relay.watch()
             self.assertIsNone(relay.error);self.assertFalse(relay.completed.is_set())
-            # A test's45s lease remains45s; the buffer cannot renew funding.
-            with patch.object(budget,'LEASE_MS',45000):
-                self.assertEqual(relay.drain_deadline(),base+45)
-            with patch.object(native,'monotonic',return_value=base+46),\
+            with patch.object(native,'monotonic',return_value=base+19),\
                  patch.object(relay.cancelled,'wait',return_value=False):
                 relay.watch()
-            self.assertEqual(relay.error.code,'gemini_tail_timeout')
+            self.assertTrue(relay.completed.is_set())
+            self.assertEqual(relay.completion_kind,'bounded_drain')
+            self.assertFalse(relay.tail_confirmed)
+            self.assertIsNone(relay.error)
+            self.assertEqual(relay.output_bytes,27750*48)
+            # A test's45s lease still bounds an EOS sent near that deadline.
+            relay.end_at=base+43
+            with patch.object(budget,'LEASE_MS',45000):
+                self.assertEqual(relay.drain_deadline(),base+45)
             budget.finish(relay.capability,False);audio_store.fail(self.user,relay.job,'synthetic')
 
     def test_watchdog_reason_survives_recv_close_and_keeps_unknown_spend(self):

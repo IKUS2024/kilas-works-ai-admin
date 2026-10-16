@@ -43,6 +43,10 @@ def config():
 
 
 def launch():
+    # Passive fixed-directory TTL maintenance in the long-lived worker. It does
+    # not create a capture, enable Gemini, arm QA or connect to any provider.
+    from . import live_gemini_capture
+    live_gemini_capture.start_cleanup()
     if not config():
         return False
     # Inherit the installed runtime environment without reading/copying any
@@ -80,6 +84,7 @@ def passed(result):
                 and result.get('input_ms')==15000 and result.get('output_ms',0)>0
                 and result.get('streamed_before_input_finished')
                 and result.get('source_tail_word_confirmed') and result.get('target_tail_word_confirmed')
+                and result.get('tail_confirmed') is True
                 and result.get('terminal_turn_complete') and result.get('all_generated_pcm_read')
                 and result.get('settled_after_end') and result.get('post_end_frames')==0
                 and result.get('post_end_output_access')=='blocked'
@@ -105,8 +110,9 @@ def production_policy_check(owner):
 
 class ProbeSocket:
     """Observe real transport, preserving bytes/protocol and suppressing errors."""
-    def __init__(self, socket, observation):
+    def __init__(self, socket, observation, fixture_capture=None):
         self.socket, self.observation = socket, observation
+        self.fixture_capture = fixture_capture
 
     def __getattr__(self, name):
         return getattr(self.socket,name)
@@ -124,6 +130,8 @@ class ProbeSocket:
         if isinstance(raw,(str,bytes)) and len(raw) <= 1024*1024:
             value = json.loads(raw)
             if isinstance(value,dict):
+                if self.fixture_capture is not None:
+                    self.fixture_capture.observe(value)
                 types=self.observation.setdefault('message_types',[])
                 for name in ('setupComplete','serverContent','error','usageMetadata','goAway'):
                     if name in value and name not in types:types.append(name)
@@ -207,9 +215,18 @@ def once(configured):
 
 def session(configured, source, target, raw):
     import db
-    from . import live_gemini as native, live_translator_store as sessions
+    from . import live_gemini as native, live_translator_store as sessions, live_gemini_capture as captures
     observation = {'direction':source+'-'+target, 'usage_snapshots':[], 'setup_complete':False,
                    'provider_connection':False, 'audible_measured':False}
+    fixture_capture = None
+    try:
+        selected = captures.begin_fixture(configured['owner'], source, target)
+        # Internal server selection is mandatory; an arbitrary synthetic test
+        # or a real microphone stream can never enable this export path.
+        if isinstance(raw, bytes) and raw == selected.source_pcm:
+            fixture_capture = selected
+    except captures.audio_store.AudioError:
+        pass
     original = native.connect
     def observed_connect():
         started = time.monotonic()
@@ -221,7 +238,7 @@ def session(configured, source, target, raw):
                 observation['handshake_status'] = status
             raise
         observation.update(provider_connection=True,connect_ms=round((time.monotonic()-started)*1000,1))
-        return ProbeSocket(socket,observation)
+        return ProbeSocket(socket,observation,fixture_capture)
     native.connect = observed_connect
     owner = configured['owner']
     ident = sessions.create(owner,source,target,native.VOICE)
@@ -235,10 +252,14 @@ def session(configured, source, target, raw):
             if relay.finished:
                 break
             relay.accept(index,raw[offset:offset+16000])
+            if fixture_capture is not None:
+                fixture_capture.accept(index,raw[offset:offset+16000])
             time.sleep(max(0,started+(index+1)*.5-time.monotonic()))
         input_finished_at=time.monotonic()
         if not relay.finished:
             relay.finish_input(relay.expected)
+            if fixture_capture is not None:
+                fixture_capture.finish_input(relay.expected)
         deadline = started+45
         while not relay.finished and time.monotonic()<deadline:
             time.sleep(.05)
@@ -257,7 +278,8 @@ def session(configured, source, target, raw):
                         received += len(base64.b64decode(frame['pcm'],validate=True))
                 after = value['next_index']
         observation.update(input_ms=relay.accepted/32,output_ms=relay.output_bytes/48,
-                           terminal_turn_complete=relay.completed.is_set(),settled=relay.finished,
+                           terminal_turn_complete=relay.tail_confirmed, tail_confirmed=relay.tail_confirmed,
+                           completion_kind=relay.completion_kind, settled=relay.finished,
                            output_cursor=after,total_frames=len(relay.frames),
                            all_accepted_pcm_read=received==relay.output_bytes,
                            # Compatibility key: rejected/unreceived provider PCM
@@ -300,6 +322,11 @@ def session(configured, source, target, raw):
             # Explicit cleanup End must not reclassify an already-settled success
             # as a failed provider turn. Keep cleanup state separate.
             observation.setdefault('code',error_before_end)
+        if fixture_capture is not None:
+            artifact = fixture_capture.finalize(code=error_before_end, diagnostics=protocol_before_end)
+            observation['fixture_capture_status'] = 'available' if artifact else 'not_available'
+            if artifact:
+                observation['fixture_capture_id'] = artifact
         observation['post_end_frames'] = len(relay.frames) if relay else 0
         try:
             native.owned(owner,ident,key)

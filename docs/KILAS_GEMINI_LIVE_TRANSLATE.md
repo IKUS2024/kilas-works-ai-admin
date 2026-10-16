@@ -1,5 +1,12 @@
 # Isolated Gemini Live Translate candidate
 
+Latest implementation: [continuous sessions, final PCM drain, conservative owner
+allowance and synthetic-only exports](KILAS_GEMINI_CONTINUOUS_RELEASE_20261016.md).
+That release remains safe OFF. Its explicit bounded transport completion does
+not claim semantic final-tail verification; older candidate/QA notes below are
+historical where superseded.
+
+
 This candidate is disabled by default. It does not replace `/kilas-translator/live`,
 change Voice Over/voice cloning, publish history, reactivate Learning, or apply a new
 schema migration. No provider inference, real microphone or paid check was used to

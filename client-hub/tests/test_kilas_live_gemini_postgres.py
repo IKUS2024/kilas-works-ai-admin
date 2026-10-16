@@ -65,6 +65,20 @@ def main():
                 row=db.query_one('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',(key+'-gm',))
                 assert row['status']=='UNKNOWN' and row['charge_micro']==1000
                 assert not budget.finish(capability,True)
+                # Distinct renewal keys cannot bypass owner concurrency across
+                # processes: admission holds the same PostgreSQL advisory lock.
+                def admit_distinct(n):
+                    try:
+                        return budget.claim(owner,ident,'live-'+str(n)*32)
+                    except budget.ledger.BudgetError as error:
+                        return error.code
+                    finally:
+                        db._discard_cached_connection()
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    distinct=list(pool.map(admit_distinct,(1,2)))
+                capabilities=[r for r in distinct if isinstance(r,budget.ledger.Reservation)]
+                assert len(capabilities)==1 and 'already_processing' in distinct, distinct
+                budget.dispatch(capabilities[0]);budget.finish(capabilities[0],False)
                 sessions.end(owner,ident)
                 ident=sessions.create(owner,'id','en',native.VOICE)
                 key='live-'+'b'*32
@@ -129,7 +143,30 @@ def main():
                         try:budget.claim(owner,'d'*48,'live-'+'d'*32)
                         except budget.ledger.BudgetError as error:assert error.code=='budget_limit'
                         else:raise AssertionError('Standing cap reset by campaign rotation')
-            print('PASS Gemini PostgreSQL: serialized admission, duplicate exclusion, durable unknown dispatch cost, idempotent settlement, unchanged customer balance, private native history')
+                # Explicit internal assumptions need no fabricated verified FX.
+                # The guard is inclusive of every historical native campaign.
+                historical=db.query_one('SELECT SUM(charge_micro) AS n FROM kilas_vo_stt_operations WHERE campaign LIKE ?',('gml-%',))['n']
+                internal={'KILAS_LIVE_GEMINI_POLICY':'owner_lifetime',
+                          'KILAS_LIVE_GEMINI_IDR_VALUATION_MODE':'conservative_internal',
+                          'KILAS_LIVE_GEMINI_INTERNAL_VALUATION_ACK':'yes',
+                          'KILAS_LIVE_GEMINI_IDR_CEILING_VERIFIED':'',
+                          'KILAS_LIVE_GEMINI_IDR_PER_USD_INTERNAL':'25000',
+                          'KILAS_LIVE_GEMINI_INTERNAL_GUARD_IDR':'250000',
+                          'KILAS_LIVE_GEMINI_TOTAL_IDR':'500000',
+                          'KILAS_LIVE_GEMINI_CAMPAIGN':'pg-conservative-internal',
+                          'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD':str(historical+250000),
+                          'KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD':'250000'}
+                with patch.dict(os.environ,internal):
+                    snapshot=budget.status(owner)
+                    assert snapshot['charged_micro_usd']==historical and snapshot['remaining_leases']==1, snapshot
+                    conservative=budget.claim(owner,'e'*48,'live-'+'e'*32)
+                    budget.dispatch(conservative);budget.finish(conservative,False)
+                    assert budget.status(owner)['reason']=='budget_limit'
+                    with patch.dict(os.environ,{'KILAS_LIVE_GEMINI_CAMPAIGN':'pg-conservative-rotated'}):
+                        try:budget.claim(owner,'f'*48,'live-'+'f'*32)
+                        except budget.ledger.BudgetError as error:assert error.code=='budget_limit'
+                        else:raise AssertionError('Internal allowance reset by campaign rotation')
+            print('PASS Gemini PostgreSQL: serialized duplicate/distinct-key admission, lifetime internal guard, historical accounting, durable unknown dispatch cost, idempotent settlement, unchanged customer balance, private native history')
     finally:
         db._discard_cached_connection()
         with control.cursor() as cur:
