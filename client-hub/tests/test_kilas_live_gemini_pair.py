@@ -65,9 +65,9 @@ class PairTests(unittest.TestCase):
     key = fixture.GeminiTests.key
     wait = fixture.GeminiTests.wait
 
-    def make(self):
+    def make(self, voice=pair.VOICE):
         self.credit(300)
-        ident = sessions.create(self.user, 'en', 'id', pair.VOICE)
+        ident = sessions.create(self.user, 'en', 'id', voice)
         with patch.object(pair.Thread, 'start'):
             relay = pair.start(self.user, ident, self.key())
         self.addCleanup(lambda:native.cancel(self.user, ident))
@@ -94,7 +94,7 @@ class PairTests(unittest.TestCase):
         self.assertFalse(runner.is_alive())
         return connect
 
-    def test_two_fixed_targets_share_capture_then_publish_contiguous_runs_after_both_settle(self):
+    def test_two_fixed_targets_stream_primary_before_eos_then_keep_contiguous_runs(self):
         with self.config():
             relay = self.make()
             en, indonesian = Socket(), Socket()
@@ -106,8 +106,11 @@ class PairTests(unittest.TestCase):
                     socket.incoming.put(audio(pcm))
                     self.wait(lambda:relay.output_bytes == expected*len(PCM))
                 before = relay.snapshot(0)
-                self.assertEqual(before['frames'], [])
+                self.assertEqual([frame['stream_id'] for frame in before['frames']], ['en','en'])
                 self.assertFalse(before['output_closed'])
+                self.assertFalse(before['input_closed'])
+                self.assertFalse(relay.end_sent.is_set())
+                self.assertEqual(self.ledger()['first'], 'DISPATCHED')
                 self.assertEqual(before['input_mode'], pair.INPUT_MODE)
                 relay.finish_input(1)
             connect = self.run_pair(relay, [en, indonesian], interact)
@@ -116,7 +119,7 @@ class PairTests(unittest.TestCase):
             self.assertTrue(final['output_closed'])
             self.assertTrue(final['tail_confirmed'])
             self.assertEqual(final['completion_kind'], 'turn_complete')
-            self.assertEqual(final['output_order'], 'stream_runs_after_close')
+            self.assertEqual(final['output_order'], 'progressive_stream_runs')
             self.assertEqual([frame['stream_id'] for frame in final['frames']], ['en','en','id','id'])
             self.assertEqual([frame['index'] for frame in final['frames']], [0,1,2,3])
             expected = [PCM,b'\x03\x00'*2400,b'\x02\x00'*2400,b'\x04\x00'*2400]
@@ -139,6 +142,165 @@ class PairTests(unittest.TestCase):
                 relay.run()
             settle.assert_not_called()
             reconnect.assert_not_called()
+
+    def test_legacy_session_keeps_whole_turn_hold_and_original_wire_protocol(self):
+        with self.config():
+            relay = self.make(pair.LEGACY_VOICE)
+            sockets = [Socket(), Socket()]
+            def interact(runner):
+                self.assertTrue(sockets[1].configured.wait(2))
+                relay.accept(0, b'\0\0'*1600)
+                sockets[0].incoming.put(audio())
+                self.wait(lambda:relay.output_bytes == len(PCM))
+                current = relay.snapshot(0)
+                self.assertEqual(current['frames'], [])
+                self.assertEqual(current['input_mode'], pair.LEGACY_INPUT_MODE)
+                self.assertEqual(current['output_order'], pair.LEGACY_OUTPUT_ORDER)
+                relay.finish_input(1)
+            self.run_pair(relay, sockets, interact)
+            final = relay.snapshot(0)
+            self.assertEqual(final['input_mode'], pair.LEGACY_INPUT_MODE)
+            self.assertEqual(final['output_order'], pair.LEGACY_OUTPUT_ORDER)
+            self.assertEqual(final['total_frames'], 1)
+            self.assertEqual(final['frames'][0]['stream_id'], 'en')
+
+    def test_primary_tail_precedes_buffered_secondary_then_secondary_stays_progressive(self):
+        with self.config():
+            relay = self.make()
+            en, indonesian = Socket(terminal=False), Socket(terminal=False)
+            published = []
+            def interact(runner):
+                self.assertTrue(indonesian.configured.wait(2))
+                relay.accept(0, b'\0\0'*1600)
+                indonesian.incoming.put('{"serverContent":{"interrupted":true}}')
+                self.wait(lambda:relay.streams['id'].generation == 1)
+                self.assertEqual(relay.snapshot(0)['frames'], [])
+                en.incoming.put(audio())
+                self.wait(lambda:relay.output_bytes == len(PCM))
+                first = relay.snapshot(0)
+                self.assertEqual([frame['stream_id'] for frame in first['frames']], ['en'])
+                self.assertFalse(first['input_closed'])
+                indonesian.incoming.put(audio(b'\x02\x00'*2400))
+                self.wait(lambda:relay.output_bytes == 2*len(PCM))
+                self.assertEqual(relay.snapshot(0)['frames'], first['frames'])
+                en.incoming.put(audio(b'\x03\x00'*2400))
+                self.wait(lambda:relay.output_bytes == 3*len(PCM))
+                prefix = relay.snapshot(0)['frames']
+                self.assertEqual([frame['stream_id'] for frame in prefix], ['en','en'])
+                relay.finish_input(1)
+                self.wait(relay.end_sent.is_set)
+                en.incoming.put('{"serverContent":{"turnComplete":true}}')
+                self.wait(lambda:relay.streams['en'].stopped and len(relay.frames) == 4)
+                advanced = relay.snapshot(0)
+                self.assertEqual([frame['stream_id'] for frame in advanced['frames']], ['en','en','id','id'])
+                self.assertEqual([frame['type'] for frame in advanced['frames']], ['audio','audio','reset','audio'])
+                self.assertTrue(advanced['streams']['en']['output_closed'])
+                self.assertFalse(advanced['streams']['id']['output_closed'])
+                self.assertFalse(advanced['output_closed'])
+                self.assertEqual(advanced['frames'][:2], prefix)
+                published.extend(advanced['frames'])
+                # A closed primary cannot contribute another audio chunk.
+                relay.streams['en'].receive(audio())
+                self.assertEqual(relay.output_bytes, 3*len(PCM))
+                indonesian.incoming.put(audio(b'\x04\x00'*2400))
+                self.wait(lambda:relay.output_bytes == 4*len(PCM) and len(relay.frames) == 5)
+                self.assertEqual(relay.snapshot(4)['frames'][0]['stream_id'], 'id')
+                indonesian.incoming.put('{"serverContent":{"turnComplete":true}}')
+            self.run_pair(relay, [en, indonesian], interact)
+            final = relay.snapshot(0)
+            self.assertEqual(final['frames'][:4], published)
+            self.assertEqual([frame['stream_id'] for frame in final['frames']], ['en','en','id','id','id'])
+            self.assertEqual(final['total_frames'], 5)
+            self.assertTrue(final['tail_confirmed'])
+
+    def test_reset_before_first_primary_pcm_is_published_in_generation_order(self):
+        with self.config():
+            relay = self.make()
+            stream = relay.streams['en']
+            stream.receive('{"serverContent":{"interrupted":true}}')
+            self.assertEqual(relay.snapshot(0)['frames'], [])
+            stream.receive(audio())
+            current = relay.snapshot(0)
+            self.assertEqual([(frame['type'],frame['generation']) for frame in current['frames']],
+                             [('reset',1),('audio',1)])
+            self.assertTrue(all(frame['stream_id'] == 'en' for frame in current['frames']))
+            budget.finish(relay.capability, False)
+            audio_store.fail(self.user, relay.job, 'synthetic')
+
+    def test_progressive_visibility_does_not_shorten_late_tail_drain_window(self):
+        with self.config():
+            relay = self.make()
+            stream = relay.streams['en']
+            base = relay.started
+            stream.receive(audio())
+            self.assertEqual(len(relay.snapshot(0)['frames']), 1)
+            stream.end_at = base+2
+            stream.end_sent.set()
+            with patch.object(native, 'monotonic', return_value=base+5.9):
+                stream.receive(audio(b'\x02\x00'*2400))
+            self.assertEqual(len(relay.snapshot(0)['frames']), 2)
+            self.assertAlmostEqual(stream.drain_deadline(), base+7.4)
+            with patch.object(native, 'monotonic', return_value=base+6):
+                self.assertFalse(stream.finish_drain())
+            with patch.object(native, 'monotonic', return_value=base+7.4):
+                self.assertTrue(stream.finish_drain())
+            self.assertFalse(stream.tail_confirmed)
+            self.assertFalse(relay.finished)
+            budget.finish(relay.capability, False)
+            audio_store.fail(self.user, relay.job, 'synthetic')
+
+    def test_failed_primary_releases_accepted_secondary_after_close_without_replay(self):
+        with self.config():
+            relay = self.make()
+            sockets = [Socket(), Socket()]
+            observed = []
+            def interact(runner):
+                self.assertTrue(sockets[1].configured.wait(2))
+                relay.accept(0, b'\0\0'*1600)
+                sockets[0].incoming.put(audio())
+                self.wait(lambda:relay.output_bytes == len(PCM))
+                observed.extend(relay.snapshot(0)['frames'])
+                sockets[1].incoming.put(audio(b'\x02\x00'*2400))
+                self.wait(lambda:relay.output_bytes == 2*len(PCM))
+                self.assertEqual(len(relay.snapshot(0)['frames']), 1)
+                sockets[0].incoming.put('{"error":{}}')
+            self.run_pair(relay, sockets, interact)
+            final = relay.snapshot(0)
+            self.assertEqual(final['status'], 'FAILED')
+            self.assertEqual(final['code'], 'gemini_response_invalid')
+            self.assertEqual(final['frames'][:1], observed)
+            self.assertEqual([frame['stream_id'] for frame in final['frames']], ['en','id'])
+            self.assertEqual([frame['index'] for frame in relay.snapshot(1)['frames']], [1])
+            self.assertTrue(final['streams']['en']['output_closed'])
+            self.assertEqual(audio_store.get(self.user, relay.job)['actual_ms'], 200)
+
+    def test_final_log_contains_numeric_transport_timing_without_content_or_identifiers(self):
+        with self.config():
+            relay = self.make()
+            sockets = [Socket(), Socket()]
+            sockets[0].incoming.put(audio(outputTranscription={'text':'private transcript'}))
+            relay.accept(0, b'\0\0'*1600)
+            relay.finish_input(1)
+            output = io.StringIO()
+            with patch.object(native, 'connect', side_effect=sockets), redirect_stdout(output):
+                relay.run()
+            line = next(line for line in output.getvalue().splitlines() if line.startswith('KILAS_GEMINI_PAIR '))
+            record = json.loads(line.split(' ',1)[1])
+            self.assertEqual(record['input_mode'], pair.INPUT_MODE)
+            self.assertEqual(record['output_ms'], 100)
+            for field in ('first_output_ms', 'first_publication_ms', 'input_end_ms', 'post_eos_ms'):
+                self.assertIsInstance(record[field], (int,float))
+                self.assertGreaterEqual(record[field], 0)
+            self.assertEqual(record['streams']['en']['output_ms'], 100)
+            self.assertEqual(record['streams']['id']['output_ms'], 0)
+            self.assertIsNone(record['streams']['id']['first_output_ms'])
+            self.assertEqual(record['streams']['en']['completion_kind'], 'turn_complete')
+            for private in ('private transcript', relay.key, relay.ident, str(relay.job),
+                            'synthetic-native-key-not-real', 'source_text', 'translated_text'):
+                if private == str(relay.job):
+                    self.assertNotIn('job', record)
+                else:
+                    self.assertNotIn(private, line)
 
     def test_independent_bounded_tails_never_claim_semantic_confirmation(self):
         with self.config(), patch.object(native, 'TAIL_GRACE_SECONDS', .04), \

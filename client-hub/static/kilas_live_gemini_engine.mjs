@@ -1,5 +1,5 @@
 // One owned logical session; bounded native turns are admitted serially, never retried.
-import {GeminiPlayer} from './kilas_live_gemini_player.mjs?v=native-pair-20261016';
+import {GeminiPlayer} from './kilas_live_gemini_player.mjs?v=native-progressive-20261016';
 export {GeminiPlayer};
 const abort=()=>new DOMException('Aborted','AbortError');
 const failure=code=>Object.assign(Error(code),{code});
@@ -20,11 +20,13 @@ export class GeminiSession {
  protocol(result){
   if(result?.input_mode!==this.inputMode)throw failure('gemini_protocol');
   if(this.twoWay&&(result.translation_mode!=='two_way'||!Array.isArray(result.streams)||result.streams.length!==2||new Set(result.streams).size!==2||result.streams.some(id=>!this.streamIds.includes(id))))throw failure('gemini_protocol');
+  if(this.twoWay&&((this.progressive||result.output_order!==undefined)&&result.output_order!==this.outputOrder))throw failure('gemini_protocol');
  }
  async start(form){
   if(this.active||this.admissionPending)return;const ticket=++this.version;this.active=true;this.stopping=false;this.failureTask=null;this.outputQueue=[];this.outputTask=null;this.speech={active:false,silenceSamples:0,preRoll:[]};this.controller=new AbortController();this.state('starting');
   try{
-   this.twoWay=form.get('translation_mode')==='two_way';this.inputMode=this.twoWay?'gemini-live-two-way-v1':'gemini-live-v1';
+   this.twoWay=form.get('translation_mode')==='two_way';this.progressive=this.twoWay&&form.get('output_order')==='progressive_stream_runs';
+   this.inputMode=this.twoWay?(this.progressive?'gemini-live-two-way-v2':'gemini-live-two-way-v1'):'gemini-live-v1';this.outputOrder=this.progressive?'progressive_stream_runs':'stream_runs_after_close';
    this.streamIds=this.twoWay?[form.get('language_a'),form.get('language_b')]:[];
    if(this.twoWay&&(this.streamIds.some(id=>typeof id!=='string'||!id||id.length>32)||new Set(this.streamIds).size!==2))throw failure('gemini_protocol');
    await this.prepare(this.controller.signal,()=>ticket===this.version);this.current(ticket);
@@ -49,7 +51,7 @@ export class GeminiSession {
   const operation='live-'+this.key();
   if(this.usedKeys.has(operation))throw failure('gemini_operation_invalid');this.usedKeys.add(operation);
   const turn={operation,index:0,cursor:0,totalBytes:0,queuedBytes:0,pending:new Uint8Array(16000),pendingLength:0,begun:false,finishing:false,closed:false,generation:0,firstInputAt:null,outputSeen:false};
-  if(this.twoWay){turn.generations=new Map(this.streamIds.map(id=>[id,0]));turn.scopes=new Map(this.streamIds.map(id=>[id,{turn,stream_id:id}]));turn.output=[];turn.outputBytes=0;turn.seenStreams=new Set();turn.lastStream=null;}
+  if(this.twoWay){turn.generations=new Map(this.streamIds.map(id=>[id,0]));turn.scopes=new Map(this.streamIds.map(id=>[id,{turn,stream_id:id}]));turn.output=[];turn.outputBytes=0;turn.seenStreams=new Set();turn.closedStreams=new Set();turn.lastStream=null;}
   this.turn=turn;return turn;
  }
  input(bytes,ticket){
@@ -131,10 +133,12 @@ export class GeminiSession {
  }
  pairSnapshot(result,turn,complete=false){
   const streams=result.streams;
-  if(result.input_mode!==this.inputMode||result.translation_mode!=='two_way'||result.output_order!=='stream_runs_after_close'||!streams||Array.isArray(streams)||typeof streams!=='object'||Object.keys(streams).length!==2||Object.keys(streams).some(id=>!this.streamIds.includes(id)))throw failure('gemini_output_invalid');
+  if(result.input_mode!==this.inputMode||result.translation_mode!=='two_way'||result.output_order!==this.outputOrder||!streams||Array.isArray(streams)||typeof streams!=='object'||Object.keys(streams).length!==2||Object.keys(streams).some(id=>!this.streamIds.includes(id)))throw failure('gemini_output_invalid');
   for(const id of this.streamIds){
    const stream=streams[id],generation=turn.generations.get(id);
    if(!stream||stream.target_language!==id||!Number.isInteger(stream.generation)||stream.generation<generation||typeof stream.output_closed!=='boolean'||typeof stream.tail_confirmed!=='boolean')throw failure('gemini_output_invalid');
+   if(turn.closedStreams.has(id)&&!stream.output_closed)throw failure('gemini_output_invalid');
+   if(stream.output_closed)turn.closedStreams.add(id);
    if(complete&&(stream.generation!==generation||!stream.output_closed||(stream.tail_confirmed&&stream.completion_kind!=='turn_complete')||(!stream.tail_confirmed&&!['bounded_drain',null].includes(stream.completion_kind))))throw failure('gemini_tail_incomplete');
   }
   if(complete&&result.tail_confirmed!==this.streamIds.every(id=>streams[id].tail_confirmed))throw failure('gemini_tail_incomplete');
@@ -164,7 +168,7 @@ export class GeminiSession {
    this.current(ticket,turn);if(this.now()-turn.firstInputAt>=90000)throw failure('gemini_deadline');
    const result=await this.json(path+'?after='+turn.cursor,{signal:this.controller.signal,timeoutMs:10000});this.current(ticket,turn);
    if(!Array.isArray(result.frames)||result.frames.length>12||result.next_index!==turn.cursor+result.frames.length)throw failure('gemini_output_invalid');
-   if(this.twoWay){this.pairSnapshot(result,turn);if(result.frames.length&&!result.output_closed)throw failure('gemini_output_invalid');}
+   if(this.twoWay){this.pairSnapshot(result,turn);if(!this.progressive&&result.frames.length&&!result.output_closed)throw failure('gemini_output_invalid');}
    // A terminal status may carry the final accepted PCM. Validate and consume it first.
    for(const frame of result.frames){
     if(frame.index!==turn.cursor||!Number.isInteger(frame.generation)||frame.generation<0)throw failure('gemini_output_invalid');
@@ -172,7 +176,10 @@ export class GeminiSession {
     if(this.twoWay){
      const id=frame.stream_id;
      if(!turn.generations.has(id)||frame.target_language!==id)throw failure('gemini_output_invalid');
-     if(id!==turn.lastStream){if(turn.seenStreams.has(id))throw failure('gemini_output_invalid');turn.seenStreams.add(id);turn.lastStream=id;}
+     if(id!==turn.lastStream){
+      if(turn.seenStreams.has(id)||(turn.lastStream&&!result.streams[turn.lastStream].output_closed))throw failure('gemini_output_invalid');
+      turn.seenStreams.add(id);turn.lastStream=id;
+     }
      generation=turn.generations.get(id);scope=turn.scopes.get(id);
     }
     if(frame.type==='reset'){
@@ -193,12 +200,15 @@ export class GeminiSession {
    }
    if(typeof result.translated_text!=='string'||result.translated_text.length>4000)throw failure('gemini_output_invalid');
    this.onText(result.translated_text);
+   // Coherent pages can play before socket closure. The local speech gate
+   // keeps their accepted samples held until the speaker reaches the endpoint.
+   if(this.progressive){this.queueOutput(turn);this.feedOutput(ticket).catch(()=>{});}
    const failed=result.status==='FAILED'||result.status==='CANCELLED';
    if(failed&&!this.stopping){this.stopping=true;if(!this.utterancePlayback)this.capture.cancel();this.clear(turn.timer);this.state('draining');}
    if(result.output_closed){
     if(!['COMPLETED','FAILED','CANCELLED'].includes(result.status)||!Number.isInteger(result.total_frames)||result.total_frames<turn.cursor)throw failure('gemini_tail_incomplete');
     if(turn.cursor===result.total_frames){
-     if(this.twoWay){this.pairSnapshot(result,turn,true);this.queueOutput(turn);this.feedOutput(ticket).catch(()=>{});}
+     if(this.twoWay){this.pairSnapshot(result,turn,true);if(!this.progressive){this.queueOutput(turn);this.feedOutput(ticket).catch(()=>{});}}
      turn.closed=true;this.clear(turn.timer);
      if(failed){this.fail(failure(result.code||'gemini_transport'),ticket);return;}
      if(!turn.finishing||typeof result.tail_confirmed!=='boolean'||!['turn_complete','bounded_drain'].includes(result.completion_kind)||(result.tail_confirmed!==(result.completion_kind==='turn_complete')))throw failure('gemini_tail_incomplete');

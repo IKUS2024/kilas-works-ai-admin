@@ -52,7 +52,7 @@ class ReadinessTests(unittest.TestCase):
         checks = self.checks()
         result = readiness.report()
         self.assertEqual(result, {'owner_id':9, 'user_id':9, 'audience':'owner', 'start_eligible':True, 'reason':'ready',
-            'input_mode':'gemini-live-two-way-v1', 'streams':2,
+            'input_mode':'gemini-live-two-way-v2', 'output_order':'progressive_stream_runs', 'streams':2,
             'remaining_micro_usd':8850000, 'remaining_leases':17, 'reserve_micro_usd':500000,
             'valuation_mode':'conservative_internal', 'audio_exempt':False})
         for call in checks['query'].call_args_list:

@@ -1,5 +1,9 @@
 # Native Translator automatic pair — 2026-10-16
 
+This records the initial buffered pair release. The later
+[progressive audio follow-up](KILAS_TRANSLATOR_PROGRESSIVE_AUDIO_20261016.md)
+removes its forced first-playback drain wait while preserving cached v1 sessions.
+
 This work continues the explicit requirement for automatic English–Indonesian
 translation in both directions within the same logical session, without a
 manual direction switch. Kilas/ElevenLabs voices remain outside active scope.

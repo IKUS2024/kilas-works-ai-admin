@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {GeminiSession} from '../static/kilas_live_gemini_engine.mjs?v=native-pair-20261016';
+import {GeminiSession} from '../static/kilas_live_gemini_engine.mjs?v=native-progressive-20261016';
 const pages=JSON.parse(readFileSync(process.env.KILAS_GEMINI_UI_FIXTURE_PATH,'utf8'));
 const {JSDOM}=createRequire(pathToFileURL(join(process.env.KILAS_UI_DOM_TOOLS||'/tmp/kilas-gemini-dom','package.json')))('jsdom');
 const tick=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
@@ -29,7 +29,9 @@ for(const locale of ['en','id']){
   assert.equal(document.querySelector('#live-recovery-check').hidden,true);document.querySelector('#live-recovery-end').click();await tick();assert.equal(start.disabled,false);
   first.value='en';first.dispatchEvent(new window.Event('change'));assert.notEqual(first.value,second.value);assert.equal(start.disabled,false);
   const paired=document.querySelector('[data-gemini-live]').dataset.geminiTranslationMode==='two_way';
-  assert.equal(document.querySelector('[name=consent]').value,paired?'gemini-live-two-way-v1':'gemini-live-v1');
+  const progressive=paired&&document.querySelector('[name=output_order]')?.value==='progressive_stream_runs';
+  const consent=paired?(progressive?'gemini-live-two-way-v2':'gemini-live-two-way-v1'):'gemini-live-v1';
+  assert.equal(document.querySelector('[name=consent]').value,consent);
   assert.equal(document.querySelector('[name=translation_mode]')?.value||null,paired?'two_way':null);
   if(paired){
    assert.equal(document.querySelector('#gemini-pair-summary').textContent,first.selectedOptions[0].textContent+' ↔ '+second.selectedOptions[0].textContent);
@@ -44,7 +46,7 @@ for(const locale of ['en','id']){
   // Drive the real DOM callbacks with synthetic engine states; never start media.
   const originalStart=GeminiSession.prototype.start;let submitted=false;
   GeminiSession.prototype.start=function(data){
-   assert.equal(data.get('translation_mode'),paired?'two_way':null);assert.equal(data.get('consent'),paired?'gemini-live-two-way-v1':'gemini-live-v1');
+   assert.equal(data.get('translation_mode'),paired?'two_way':null);assert.equal(data.get('consent'),consent);assert.equal(data.get('output_order'),progressive?'progressive_stream_runs':null);
    submitted=true;this.active=true;this.state('renewing');
    assert.equal(document.querySelector('#live-active').hidden,false);assert.equal(document.querySelector('#gemini-finish'),null);assert.equal(document.querySelector('#live-translation'),null);assert.deepEqual([...document.querySelectorAll('#live-active button')].map(node=>node.id),['live-end']);assert.equal(document.querySelector('#live-recovery-check').hidden,true);
    assert.equal(document.querySelector('#live-state').textContent,locale==='en'?'Processing':'Memproses');

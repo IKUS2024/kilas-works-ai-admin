@@ -1,5 +1,5 @@
 """Read-only native Start gates for worker diagnostics; never an admission grant."""
-from . import audio_store, live_gemini as native, live_gemini_budget as budget
+from . import audio_store, live_gemini as native, live_gemini_budget as budget, live_gemini_pair as pair
 from . import live_translator as live, live_translator_store as sessions, routes, usage
 
 
@@ -42,7 +42,7 @@ def report(owner=None):
             result['reason'] = 'gemini_unavailable'
             return result
         allowance = budget.status(owner, streams=2)
-        result.update(input_mode='gemini-live-two-way-v1', streams=2)
+        result.update(input_mode=pair.INPUT_MODE, output_order=pair.OUTPUT_ORDER, streams=2)
         for name in ('remaining_micro_usd', 'remaining_leases', 'reserve_micro_usd'):
             value = allowance.get(name)
             if type(value) is int and value >= 0:

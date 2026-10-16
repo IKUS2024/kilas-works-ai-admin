@@ -34,12 +34,12 @@ def _native_default_ready(user):
     # An old session stays on its original page until its user explicitly ends
     # it. A GET cannot migrate it or imply that its old pipeline uses Gemini.
     # Funding/busy state disables native Start; it must not switch providers.
-    return row['voice_alias'] in (native.VOICE,pair.VOICE) if row else native.ready(user)
+    return row['voice_alias'] in (native.VOICE,*pair.VOICES) if row else native.ready(user)
 
 
 def _active_native_session(user):
     from . import live_gemini as native, live_gemini_pair as pair
-    return bool(db.query_one("SELECT 1 FROM kilas_live_translator_sessions WHERE user_id=? AND voice_alias IN (?,?) AND status='ACTIVE' AND (expires_at='' OR expires_at>?)",(user,native.VOICE,pair.VOICE,usage._now().isoformat())))
+    return bool(db.query_one("SELECT 1 FROM kilas_live_translator_sessions WHERE user_id=? AND voice_alias IN (?,?,?) AND status='ACTIVE' AND (expires_at='' OR expires_at>?)",(user,native.VOICE,*pair.VOICES,usage._now().isoformat())))
 
 
 def _native_route_access(user):
@@ -64,15 +64,15 @@ def _native_route_access(user):
         # can still recover after rollout is disabled; never expose legacy
         # sessions through the native-only exception.
         row=db.query_one("SELECT voice_alias FROM kilas_live_translator_sessions WHERE user_id=? AND status='ACTIVE' AND (expires_at='' OR expires_at>?) ORDER BY created_at DESC LIMIT 1",(user,usage._now().isoformat()))
-        if row:return row['voice_alias'] in (native.VOICE,pair.VOICE)
+        if row:return row['voice_alias'] in (native.VOICE,*pair.VOICES)
         # After a successful explicit End the recovery UI checks once more.
         # Native participation grants this empty discovery response even OFF.
-        return shared or bool(db.query_one('SELECT 1 FROM kilas_live_translator_sessions WHERE user_id=? AND voice_alias IN (?,?) LIMIT 1',(user,native.VOICE,pair.VOICE)))
+        return shared or bool(db.query_one('SELECT 1 FROM kilas_live_translator_sessions WHERE user_id=? AND voice_alias IN (?,?,?) LIMIT 1',(user,native.VOICE,*pair.VOICES)))
     if endpoint in {'kilas_audio.live_translator_session_status',
                     'kilas_audio.live_translator_end','kilas_audio.live_translator_cancel_turn'}:
         row=db.query_one('SELECT voice_alias FROM kilas_live_translator_sessions WHERE user_id=? AND id=?',
                          (user,request.view_args['ident']))
-        return bool(row and row['voice_alias'] in (native.VOICE,pair.VOICE))
+        return bool(row and row['voice_alias'] in (native.VOICE,*pair.VOICES))
     return False
 
 
@@ -528,17 +528,20 @@ def live_translator_cancel_turn(ident,key):
 @audio_bp.get('/live/gemini')
 def live_gemini_home():
     from . import live_gemini as native, live_gemini_pair as pair
-    active=db.query_one("SELECT voice_alias FROM kilas_live_translator_sessions WHERE user_id=? AND status='ACTIVE' AND (expires_at='' OR expires_at>?) ORDER BY created_at DESC LIMIT 1",(session['user_id'],usage._now().isoformat()))
+    active=db.query_one("SELECT voice_alias,language_a,language_b FROM kilas_live_translator_sessions WHERE user_id=? AND status='ACTIVE' AND (expires_at='' OR expires_at>?) ORDER BY created_at DESC LIMIT 1",(session['user_id'],usage._now().isoformat()))
     # Existing one-way sessions retain their original protocol and consent.
     # The server-owned marker, never a request flag, selects their backend.
     two_way = not active or active['voice_alias']!=native.VOICE
     backend = pair if two_way else native
+    info=active if active and active['voice_alias'] in (native.VOICE,*pair.VOICES) else {
+        'voice_alias':pair.VOICE,'language_a':'id','language_b':'en'}
     enabled = backend.ready(session['user_id'])
     recovery_only = not enabled and _active_native_session(session['user_id'])
     if not enabled and not recovery_only and not native.ready(session['user_id']) and not native.preview_owner(session['user_id']):
         raise native.failure('gemini_unavailable',404)
     return render_template('kilas_translator/gemini.html', languages=provider.LANGUAGES, gemini_ready=enabled,
-                           gemini_recovery_only=recovery_only,gemini_two_way=two_way),200,{'Cache-Control':'private, no-store'}
+                           gemini_recovery_only=recovery_only,gemini_two_way=two_way,
+                           gemini_protocol=_native_protocol(backend,info)),200,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.get('/live/gemini/fixtures')
@@ -567,10 +570,19 @@ def live_gemini_session():
     from . import live_gemini as native, live_gemini_pair as pair, live_translator_store as sessions
     mode=request.form.get('translation_mode')
     if mode=='two_way':
-        backend=pair;consent='gemini-live-two-way-v1'
+        backend=pair;consent=request.form.get('consent');order=request.form.get('output_order')
+        if consent==pair.INPUT_MODE and order==pair.OUTPUT_ORDER:
+            voice=pair.VOICE
+        elif consent==pair.LEGACY_INPUT_MODE and order in (None,pair.LEGACY_OUTPUT_ORDER):
+            # Cached v1 forms retain their original full-turn playback contract.
+            voice=pair.LEGACY_VOICE
+        elif consent not in (pair.INPUT_MODE,pair.LEGACY_INPUT_MODE):
+            raise store.AudioError('Setujui pemrosesan ucapan sebelum mulai.', 'consent_required',400)
+        else:
+            raise store.AudioError('Muat ulang halaman sebelum memulai mode audio ini.','invalid_output_order',400)
     elif mode in (None,'one_way'):
         # A cached one-way page can only request its original single stream.
-        backend=native;consent='gemini-live-v1'
+        backend=native;consent='gemini-live-v1';voice=native.VOICE
     else:
         raise store.AudioError('Pilih mode terjemahan yang tersedia.','invalid_translation_mode',400)
     if not backend.ready(session['user_id']):raise native.failure('gemini_unavailable',404)
@@ -579,25 +591,26 @@ def live_gemini_session():
     a, b = request.form.get('language_a'), request.form.get('language_b')
     sessions.require_pair(a, b)
     store.require_balance(session['user_id'])
-    ident = sessions.create(session['user_id'], a, b, backend.VOICE)
-    return {'session_id':ident, **_native_protocol(backend,a,b),
+    ident = sessions.create(session['user_id'], a, b, voice)
+    info={'voice_alias':voice,'language_a':a,'language_b':b}
+    return {'session_id':ident, **_native_protocol(backend,info),
             'max_input_ms':60000, 'max_output_ms':90000}, 201, {'Cache-Control':'private, no-store'}
 
 
-def _native_protocol(backend,a,b):
+def _native_protocol(backend,info):
     from . import live_gemini_pair as pair
     if backend is pair:
-        return {'input_mode':pair.INPUT_MODE,'translation_mode':'two_way','streams':[a,b]}
-    return {'input_mode':'gemini-live-v1','translation_mode':'one_way','target_language':b}
+        return pair.protocol(info)
+    return {'input_mode':'gemini-live-v1','translation_mode':'one_way','target_language':info['language_b']}
 
 
 def _owned_native_backend(ident):
     from . import live_gemini as native, live_gemini_pair as pair
     row=db.query_one('SELECT voice_alias,language_a,language_b FROM kilas_live_translator_sessions WHERE id=? AND user_id=?',
                      (ident,session['user_id']))
-    if not row or row['voice_alias'] not in (native.VOICE,pair.VOICE):
+    if not row or row['voice_alias'] not in (native.VOICE,*pair.VOICES):
         raise store.AudioError('Sesi tidak tersedia.','session_unavailable',404)
-    return (pair if row['voice_alias']==pair.VOICE else native),row
+    return (pair if row['voice_alias'] in pair.VOICES else native),row
 
 
 @audio_bp.route('/live/gemini/sessions/<ident>/turns/<key>', methods=['GET','POST'])
@@ -607,7 +620,7 @@ def live_gemini_turn(ident, key):
     backend,info=_owned_native_backend(ident)
     if request.method == 'POST':
         backend.start(session['user_id'], ident, key)
-        return {'status':'LISTENING', **_native_protocol(backend,info['language_a'],info['language_b'])}, 202, {'Cache-Control':'private, no-store'}
+        return {'status':'LISTENING', **_native_protocol(backend,info)}, 202, {'Cache-Control':'private, no-store'}
     try:
         after = int(request.args.get('after','0'))
     except ValueError:

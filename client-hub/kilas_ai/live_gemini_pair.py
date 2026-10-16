@@ -2,9 +2,10 @@
 
 Each socket has one fixed target and disables target-language echo. Identical
 input goes to both; no classifier, extra provider, text prompt or voice change.
-Output is held until both sockets close, then grouped into contiguous streams
-in order of first accepted PCM. This prevents alternating word chunks; it does
-not establish semantic order when a single utterance mixes both languages.
+Progressive sessions publish the first PCM stream immediately and hold the
+other until that receiver closes. Legacy sessions retain whole-turn output
+holding. Both preserve contiguous stream runs, without claiming semantic order
+when a single utterance mixes both languages.
 """
 import base64
 import json
@@ -18,11 +19,26 @@ from . import audio_store, live_gemini as native, live_gemini_budget as budget
 from . import live_translator as live, live_translator_store as sessions
 from . import live_translator_output as temporary
 
-VOICE = 'gemini-live-two-way'  # Server session marker; acoustic voice is unchanged.
-INPUT_MODE = 'gemini-live-two-way-v1'
-OUTPUT_ORDER = 'stream_runs_after_close'
+LEGACY_VOICE = 'gemini-live-two-way'
+LEGACY_INPUT_MODE = 'gemini-live-two-way-v1'
+LEGACY_OUTPUT_ORDER = 'stream_runs_after_close'
+VOICE = 'gemini-live-two-way-progressive'  # Server marker; acoustic voice is unchanged.
+INPUT_MODE = 'gemini-live-two-way-v2'
+OUTPUT_ORDER = 'progressive_stream_runs'
+VOICES = (LEGACY_VOICE, VOICE)
 failure = native.failure
 require_ready = native.require_ready
+
+
+def protocol(info):
+    """Select wire behavior only from the admitted server session marker."""
+    if info.get('voice_alias') not in VOICES:
+        raise failure('gemini_session_changed', 409)
+    progressive = info['voice_alias'] == VOICE
+    return {'input_mode':INPUT_MODE if progressive else LEGACY_INPUT_MODE,
+            'translation_mode':'two_way',
+            'output_order':OUTPUT_ORDER if progressive else LEGACY_OUTPUT_ORDER,
+            'streams':[info['language_a'], info['language_b']]}
 
 
 def ready(owner):
@@ -41,6 +57,7 @@ class Stream(native.Relay):
         self.pair, self.target = pair, target
         self.cancelled = pair.cancelled
         self.stopped = False
+        self.published = 0
 
     @property
     def error(self):
@@ -64,7 +81,10 @@ class Stream(native.Relay):
             if isinstance(transcript, dict) and transcript.get('languageCode') is not None:
                 if live.canonical_language(transcript['languageCode']) != self.target:
                     raise failure('gemini_response_invalid')
-        super().receive(raw)
+        try:
+            super().receive(raw)
+        finally:
+            self.pair.publish_stream(self)
 
     def accept_pcm(self, pcm):
         # The child lock is held by receive. Aggregate admission happens before
@@ -73,6 +93,8 @@ class Stream(native.Relay):
         with pair.lock:
             if pair.cancelled.is_set():
                 raise pair.error or failure('turn_cancelled', 409)
+            if self.stopped:
+                raise failure('gemini_response_invalid')
             pair.received_packets += 1
             if pair.output_bytes+len(pcm) > native.OUTPUT_BYTES:
                 pair.rejected_output_bytes += len(pcm)
@@ -86,6 +108,7 @@ class Stream(native.Relay):
                 pair.first_output_at = self.first_output_at
             if self.target not in pair.output_order:
                 pair.output_order.append(self.target)
+            pair._publish_stream_locked(self)
 
     def state(self):
         with self.lock:
@@ -98,7 +121,9 @@ class Stream(native.Relay):
 class Pair(native.Relay):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.progressive = self.info['voice_alias'] == VOICE
         self.discarded = False
+        self.first_publication_at = None
         self.output_order = []
         self.streams = {target:Stream(self, target)
                         for target in (self.info['language_a'], self.info['language_b'])}
@@ -111,7 +136,8 @@ class Pair(native.Relay):
             raise failure('gemini_deadline')
         require_ready(self.owner)
         info = sessions.check(self.owner, self.ident, self.key)
-        if (info['voice_alias'] != VOICE or any(info[name] != self.info[name]
+        if (info['voice_alias'] not in VOICES or info['voice_alias'] != self.info['voice_alias']
+                or any(info[name] != self.info[name]
                                                for name in ('language_a', 'language_b'))):
             raise failure('gemini_session_changed', 409)
         if self.cancelled.is_set():
@@ -132,6 +158,39 @@ class Pair(native.Relay):
                 with stream.lock:
                     stream.frames.clear()
                     stream.source_text = stream.target_text = ''
+            with self.lock:
+                self.frames.clear()
+
+    def _publish_stream_locked(self, stream):
+        """Append a permitted stream delta while child and pair locks are held."""
+        if not self.progressive or self.discarded:
+            return
+        primary = self.output_order[0] if self.output_order else None
+        if primary is None:
+            if not all(item.stopped for item in self.streams.values()):
+                return  # Reset-only traffic cannot select a primary language.
+        elif stream.target != primary and not self.streams[primary].stopped:
+            return
+        pending = stream.frames[stream.published:]
+        if pending and self.first_publication_at is None:
+            self.first_publication_at = monotonic()
+        self.frames.extend({'stream_id':stream.target, 'target_language':stream.target, **frame}
+                           for frame in pending)
+        stream.published = len(stream.frames)
+
+    def publish_stream(self, stream):
+        with stream.lock, self.lock:
+            self._publish_stream_locked(stream)
+
+    def stream_stopped(self, stream):
+        # Flush the final primary delta BEFORE stopped permits secondary output.
+        # Every operation that needs both locks uses child->pair consistently.
+        with stream.lock, self.lock:
+            self._publish_stream_locked(stream)
+            stream.stopped = True
+        order = self.output_order + [target for target in self.streams if target not in self.output_order]
+        for target in order:
+            self.publish_stream(self.streams[target])
 
     def send(self):
         try:
@@ -197,8 +256,7 @@ class Pair(native.Relay):
             self.stop(error if isinstance(error, audio_store.AudioError) else failure())
         finally:
             stream.close_socket()
-            with stream.lock:
-                stream.stopped = True
+            self.stream_stopped(stream)
             db._discard_cached_connection()
 
     def watch(self):
@@ -220,8 +278,8 @@ class Pair(native.Relay):
         # Child parsers never acquire the pair lock while state() holds it.
         # Keep the lock order child->pair everywhere that needs both.
         states = {target:stream.state() for target, stream in self.streams.items()}
-        result.update(input_mode=INPUT_MODE, translation_mode='two_way', output_order=OUTPUT_ORDER,
-                      target_language=None, target_languages=list(self.streams), streams=states)
+        result.update(protocol(self.info))
+        result.update(target_language=None, target_languages=list(self.streams), streams=states)
         if result['output_closed'] and result['status'] == 'PROCESSING':
             # A failed durable settlement must keep admission fenced, while
             # still letting this owned client drain accepted local PCM once.
@@ -231,7 +289,11 @@ class Pair(native.Relay):
     def publish(self, frames):
         with self.error_lock, self.lock:
             if not self.discarded:
-                self.frames = frames
+                # Existing cursor entries stay immutable. Progressive output is
+                # already the same contiguous prefix of the final stream runs.
+                if frames and self.first_publication_at is None:
+                    self.first_publication_at = monotonic()
+                self.frames.extend(frames[len(self.frames):])
             self.finished = True
 
     def diagnostics(self):
@@ -290,8 +352,7 @@ class Pair(native.Relay):
                 if worker.ident is not None:
                     worker.join(timeout=1)
             for stream in self.streams.values():
-                with stream.lock:
-                    stream.stopped = True  # Includes an unopened/failed setup leg.
+                self.stream_stopped(stream)  # Includes an unopened/failed setup leg.
             with self.error_lock:
                 success = success and self.error is None
             try:
@@ -316,8 +377,8 @@ class Pair(native.Relay):
                 except Exception:
                     pass  # Keep capacity charged; an unavailable ledger cannot grant renewal.
             finally:
-                # Publish only complete contiguous stream runs, after both
-                # sockets stop and settlement ends. Never alternate word PCM.
+                # Complete the existing contiguous cursor after settlement.
+                # Legacy sessions first receive their whole turn at this point.
                 frames = []
                 for target in self.output_order + [key for key in self.streams if key not in self.output_order]:
                     stream = self.streams[target]
@@ -329,9 +390,20 @@ class Pair(native.Relay):
                 native._slots.release()
                 db._discard_cached_connection()
                 try:
+                    finished_at = monotonic()
                     print('KILAS_GEMINI_PAIR '+json.dumps({
                         'outcome':'completed' if success and self.error is None else 'failed',
+                        'input_mode':protocol(self.info)['input_mode'],
                         'input_ms':round(self.accepted/32, 1), 'output_ms':round(self.output_bytes/48, 1),
+                        'first_output_ms':None if self.first_output_at is None else round((self.first_output_at-self.started)*1000, 1),
+                        'first_publication_ms':None if self.first_publication_at is None else round((self.first_publication_at-self.started)*1000, 1),
+                        'input_end_ms':None if self.end_at is None else round((self.end_at-self.started)*1000, 1),
+                        'post_eos_ms':None if self.end_at is None else round((finished_at-self.end_at)*1000, 1),
+                        'streams':{target:{
+                            'output_ms':round(stream.output_bytes/48, 1),
+                            'first_output_ms':None if stream.first_output_at is None else round((stream.first_output_at-self.started)*1000, 1),
+                            'completion_kind':stream.completion_kind}
+                            for target, stream in self.streams.items()},
                         'completion_kind':self.completion_kind, 'tail_confirmed':self.tail_confirmed,
                         'code':getattr(self.error, 'code', None),
                         'first_code':getattr(self.first_error, 'code', None)}), flush=True)
@@ -355,7 +427,7 @@ def start(owner, ident, key):
     try:
         info = sessions.claim(owner, ident, key)
         claimed = True
-        if info['voice_alias'] != VOICE:
+        if info['voice_alias'] not in VOICES:
             raise failure('gemini_session_changed', 409)
         audio_store.require_balance(owner)
         live.require_audio_allowance(owner, 90)
