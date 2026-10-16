@@ -34,3 +34,9 @@ def post_worker_init(worker):
     except Exception:
         classic = {'configured_ready':False, 'reason':'readiness_check_failed'}
     print('KILAS_ELEVENLABS_READY '+json.dumps(classic,sort_keys=True), flush=True)
+    try:
+        from kilas_ai.ai_call_readiness import report as call_report
+        call = call_report()
+    except Exception:
+        call = {'configured_ready':False, 'reason':'readiness_check_failed', 'paid_qa':False}
+    print('KILAS_AI_CALL_READY '+json.dumps(call,sort_keys=True), flush=True)

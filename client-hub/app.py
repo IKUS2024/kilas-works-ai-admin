@@ -259,6 +259,7 @@ def create_app():
     from kilas_ai.routes import ai_bp, enabled as kilas_ai_enabled
     from kilas_ai import automation_routes  # Registers Automation on the existing Kilas AI blueprint.
     from kilas_ai import agent_routes  # Agent UI reuses the existing Automation engine.
+    from kilas_ai import ai_call_routes  # Isolated opt-in voice conversation; no IO on import.
     from kilas_ai import autonomous_routes  # Additive jobs remain behind their own disabled-by-default flag.
     from kilas_ai import connector_routes  # Owner-only OAuth and exact-payload approval routes.
     from kilas_ai.audio_routes import audio_bp
@@ -478,7 +479,11 @@ def create_app():
             # edited) keeps working unchanged, matching the "keep all existing tests passing"
             # instruction for this phase.
             return None
-        if request.is_json:
+        if request.endpoint in ('kilas_ai.ai_call_session','kilas_ai.ai_call_chunk','kilas_ai.ai_call_end'):
+            # Call PCM is binary, so validate its same-origin CSRF header too.
+            # End's page-exit beacon uses the existing form token instead.
+            token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
+        elif request.is_json:
             token = request.headers.get("X-CSRF-Token")
         else:
             token = request.form.get("csrf_token")

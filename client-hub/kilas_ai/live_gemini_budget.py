@@ -26,9 +26,9 @@ INTERNAL_RESERVE_MIN_MICRO_USD = 250000
 OWNER_PHYSICAL_LEASES_PER_HOUR = 80
 
 
-def policy():
+def policy(*, enabled_key='KILAS_LIVE_GEMINI_ENABLED'):
     try:
-        if os.environ.get('KILAS_LIVE_GEMINI_ENABLED', '').lower() not in ('true', '1', 'on'):
+        if os.environ.get(enabled_key, '').lower() not in ('true', '1', 'on'):
             return None
         if os.environ.get('KILAS_LIVE_GEMINI_BILLING_VERIFIED') != 'yes':
             return None
