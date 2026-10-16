@@ -20,8 +20,9 @@ export class PlaybackEcho {
  matches(raw){
   const context=this.getContext();if(!context||!this.segments.length||raw.length<32)return false;
   const count=Math.floor(raw.length/8),input=new Float32Array(count),view=new DataView(raw.buffer,raw.byteOffset,raw.byteLength);
-  let energy=0;
-  for(let i=0;i<count;i++){let sum=0;for(let j=0;j<4;j++)sum+=view.getInt16((i*4+j)*2,true)/32768;input[i]=sum/4;energy+=input[i]**2;}
+  let energy=0,fullEnergy=0;
+  for(let i=0;i<count;i++){let sum=0;for(let j=0;j<4;j++){const value=view.getInt16((i*4+j)*2,true)/32768;sum+=value;fullEnergy+=value**2;}input[i]=sum/4;energy+=input[i]**2;}
+  for(let i=count*4;i<raw.length/2;i++)fullEnergy+=(view.getInt16(i*2,true)/32768)**2;
   if(energy/count<.003**2)return false;
   const delay=Math.ceil(DELAY*RATE),reference=new Float32Array(count+delay),start=context.currentTime-count/RATE-DELAY;
   for(const item of this.segments){
@@ -32,7 +33,11 @@ export class PlaybackEcho {
    let dot=0,other=0;for(let i=0;i<count;i++){const value=reference[offset+i];dot+=input[i]*value;other+=value**2;}
    if(other<1e-8||dot<=0)continue;
    const gain=dot/other;
-   if(gain>=.05&&gain<=10&&dot*dot/(energy*other)>=.96)return true;
+   // Correlation alone hides quieter new speech mixed with louder playback.
+   // Check the residual at the original16k rate: averaging must not hide a
+   // new voice's higher frequencies. Uncertain/distorted echo stays as input.
+   const residual=Math.max(0,(fullEnergy-4*dot*dot/other)/(raw.length/2));
+   if(gain>=.05&&gain<=10&&dot*dot/(energy*other)>=.96&&residual<.003**2)return true;
   }
   return false;
  }

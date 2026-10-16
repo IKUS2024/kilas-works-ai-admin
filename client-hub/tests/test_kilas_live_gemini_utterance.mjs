@@ -41,13 +41,13 @@ function fixture({isEcho=()=>false}={}){
 async function silence(f,count){for(let i=0;i<count;i++)await f.input(new Uint8Array(3200));}
 async function voice(f,count){for(let i=0;i<count;i++)await f.input(sound(1600,i+1));}
 
-test('stream processing overlaps speech but audible output waits for1.5s final silence, not an intra-sentence pause',async t=>{
+test('stream processing overlaps speech but audible output waits for2s final silence, not an intra-sentence pause',async t=>{
  const f=fixture();t.after(()=>f.session.end());await f.session.start(new FormData());
  await voice(f,5);f.polls[0].resolve(snapshot([frame(0)],1));await tick();
  assert.equal(f.player.pendingSamples,2400);assert.equal(f.a.starts.length,0);assert.equal(f.turns().length,1);
- await silence(f,14);assert.equal(f.a.starts.length,0);assert.equal(f.session.speech.active,true);
+ await silence(f,19);assert.equal(f.a.starts.length,0);assert.equal(f.session.speech.active,true);
  await voice(f,10);assert.equal(f.a.starts.length,0);
- await silence(f,14);assert.equal(f.a.starts.length,0);
+ await silence(f,19);assert.equal(f.a.starts.length,0);
  await silence(f,1);assert.equal(f.session.speech.active,false);assert.equal(f.player.holding,false);assert.equal(f.a.starts.length,1);
  assert.equal(f.requests.some(r=>r.url.endsWith('/finish')),false);assert.equal(f.mic,true);
  await silence(f,30);assert.equal(f.turns().length,1);assert.deepEqual(f.errors,[]);
@@ -72,14 +72,14 @@ test('provider reset does not erase accepted sentence PCM in utterance-gated pla
  let interrupted=0;f.player.interrupt=()=>interrupted++;
  f.polls[0].resolve(snapshot([frame(0),{index:1,type:'reset',generation:1},frame(2,1)],3));await tick();
  assert.equal(f.player.pendingSamples,4800);assert.equal(interrupted,0);assert.equal(f.a.starts.length,0);
- await silence(f,15);assert.equal(f.a.starts.length,2);assert.deepEqual(f.errors,[]);
+ await silence(f,20);assert.equal(f.a.starts.length,2);assert.deepEqual(f.errors,[]);
 });
 
 test('quiet renewal preserves source bytes and standby silence never reserves a successor',async t=>{
  const f=fixture();t.after(()=>f.session.end());await f.session.start(new FormData());
  const sent=[];for(let i=0;i<440;i++){const raw=sound(1600,i);sent.push(Buffer.from(raw));await f.input(raw);}
  assert.equal(f.requests.some(r=>r.url.endsWith('/finish')),false);
- for(let i=0;i<15;i++){const raw=new Uint8Array(3200);sent.push(Buffer.from(raw));await f.input(raw);}
+ for(let i=0;i<20;i++){const raw=new Uint8Array(3200);sent.push(Buffer.from(raw));await f.input(raw);}
  const path=f.turns()[0].url;assert.equal(f.requests.filter(r=>r.url===path+'/finish').length,1);
  assert.deepEqual(await f.uploaded(path),Buffer.concat(sent));
  await silence(f,20);assert.equal(f.session.carryBytes,0);
@@ -95,10 +95,18 @@ test('a hard renewal during continuous speech preserves all source bytes and kee
  f.polls[0].resolve(snapshot([frame(0)],1,{status:'COMPLETED',output_closed:true,total_frames:1,completion_kind:'bounded_drain',tail_confirmed:false}));await tick();
  assert.equal(f.turns().length,2);const second=f.turns()[1].url;
  // Flush the successor's partial input as ordinary silence enters its stream.
- await silence(f,15);f.session.flush(f.session.version,f.session.turn);await tick();
- const expected=Buffer.concat([...sent,Buffer.alloc(15*3200)]);
+ await silence(f,20);f.session.flush(f.session.version,f.session.turn);await tick();
+ const expected=Buffer.concat([...sent,Buffer.alloc(20*3200)]);
  assert.deepEqual(Buffer.concat([await f.uploaded(first),await f.uploaded(second)]),expected);
  assert.equal(f.player.holding,false);assert.equal(f.a.starts.length,1);assert.deepEqual(f.errors,[]);
+});
+
+test('silence carried across a hard boundary does not reserve an otherwise idle successor',async t=>{
+ const f=fixture();t.after(()=>f.session.end());await f.session.start(new FormData());await voice(f,590);await silence(f,20);
+ assert.equal(f.session.carryBytes,20*3200);
+ f.polls[0].resolve(snapshot([],0,{status:'COMPLETED',output_closed:true,total_frames:0,completion_kind:'bounded_drain',tail_confirmed:false}));await tick();
+ assert.equal(f.session.turn,null);assert.equal(f.turns().length,1);assert.equal(f.session.speech.preRoll.length,4);
+ await voice(f,1);assert.equal(f.turns().length,2);assert.deepEqual(f.errors,[]);
 });
 
 test('recognizable playback echo neither starts another utterance nor opens an idle provider connection',async t=>{
@@ -120,9 +128,29 @@ test('the local echo check rejects delayed scaled playback and retains mixed new
 test('network failure cannot release queued translation over ongoing speech; local silence permits a bounded drain',async t=>{
  const f=fixture();t.after(()=>f.session.end());await f.session.start(new FormData());await voice(f,2);f.player.push(sound(2400));
  f.session.fail(Object.assign(Error('synthetic'),{code:'network'}),f.session.version);await tick();assert.equal(f.a.starts.length,0);assert.equal(f.mic,true);
- const before=f.requests.length;await voice(f,2);await silence(f,14);assert.equal(f.requests.length,before);assert.equal(f.a.starts.length,0);
+ const before=f.requests.length;await voice(f,2);await silence(f,19);assert.equal(f.requests.length,before);assert.equal(f.a.starts.length,0);
  await silence(f,1);assert.equal(f.mic,false);assert.equal(f.a.starts.length,1);
  f.c.advance(1000);await tick();assert.equal(f.session.active,false);assert.equal(f.turns().length,1);assert.equal(f.errors.length,1);
+});
+
+test('terminal server failure preserves local endpoint observation before draining its accepted tail',async t=>{
+ const f=fixture();t.after(()=>f.session.end());await f.session.start(new FormData());await voice(f,2);
+ f.polls[0].resolve(snapshot([frame(0)],1,{status:'FAILED',code:'gemini_transport',output_closed:true,total_frames:1}));await tick();
+ assert.equal(f.mic,true);assert.equal(f.a.starts.length,0);assert.equal(f.session.stopping,true);
+ const before=f.requests.length;await silence(f,19);assert.equal(f.mic,true);assert.equal(f.a.starts.length,0);assert.equal(f.requests.length,before);
+ await silence(f,1);assert.equal(f.mic,false);assert.equal(f.a.starts.length,1);
+ f.c.advance(1000);await tick();assert.equal(f.session.active,false);assert.equal(f.turns().length,1);assert.equal(f.errors.length,1);
+});
+
+test('new speech while a failed tail is paginating holds its final accepted PCM without upload',async t=>{
+ const f=fixture();t.after(()=>f.session.end());await f.session.start(new FormData());await voice(f,1);await silence(f,20);
+ f.polls[0].resolve(snapshot([],0,{status:'FAILED',output_closed:false,code:'gemini_transport'}));await tick();
+ const before=f.requests.filter(r=>r.method==='POST').length;
+ await voice(f,3);assert.equal(f.session.speech.active,true);assert.equal(f.player.holding,true);
+ assert.equal(f.requests.filter(r=>r.method==='POST').length,before);
+ f.polls.at(-1).resolve(snapshot([frame(0)],1,{status:'FAILED',output_closed:true,total_frames:1,code:'gemini_transport'}));await tick();
+ assert.equal(f.a.starts.length,0);assert.equal(f.mic,true);await silence(f,19);assert.equal(f.a.starts.length,0);
+ await silence(f,1);assert.equal(f.a.starts.length,1);assert.equal(f.mic,false);
 });
 
 test('failure silence wait is bounded and explicit End cannot be undone by a late local endpoint',async t=>{
@@ -142,4 +170,10 @@ test('native100ms PCM frames preserve the final partial samples and legacy frami
   encoder.finish();assert.equal(emitted.reduce((total,item)=>total+item.bytes.byteLength/2,0),Math.ceil(13000/3));
   assert.equal(emitted[0].bytes.byteLength,size*2);assert.ok(emitted.at(-1).bytes.byteLength>0);
  }
+});
+
+test('a new failed preparation does not inherit the previous session speech endpoint',async()=>{
+ const f=fixture();await f.session.start(new FormData());await voice(f,1);await f.session.end();
+ f.session.prepare=async()=>{throw Error('synthetic preparation failure');};await f.session.start(new FormData());await tick();
+ assert.equal(f.session.speech.active,false);assert.equal(f.mic,false);assert.equal(f.session.failureEndpoint,null);assert.equal(f.session.active,false);
 });
