@@ -23,6 +23,7 @@ OUTPUT_BYTES = 90 * 48000
 QUEUE_BYTES = 8 * 32000
 MAX_MESSAGE = 1024 * 1024
 MAX_TEXT = 4000
+TAIL_GRACE_SECONDS = 15
 _lock = Lock()
 _items = {}
 _slots = BoundedSemaphore(2)
@@ -89,10 +90,12 @@ class Relay:
         self.owner, self.ident, self.key, self.info = owner, ident, key, info
         self.capability, self.job = capability, job
         self.lock = Lock()
+        self.error_lock = Lock()
         self.queue = Queue(maxsize=64)
         self.cancelled, self.completed, self.end_sent = Event(), Event(), Event()
         self.finished = False
         self.error = None
+        self.first_error = None
         self.ws = None
         self.expected = self.accepted = self.queued = self.output_bytes = self.generation = 0
         self.frames = []
@@ -100,6 +103,10 @@ class Relay:
         self.input_closed = False
         self.started = self.last_input = monotonic()
         self.end_at = None
+        self.playout_until = 0
+        self.generation_complete_count = self.turn_complete_count = 0
+        self.post_end_generation_complete = self.post_end_turn_complete = 0
+        self.completion_kind = None
         self.first_input_at = self.first_output_at = None
         self.expires = self.started + 600
 
@@ -117,13 +124,38 @@ class Relay:
 
     def stop(self, error=None):
         if error is not None:
-            self.error = error
+            with self.error_lock:
+                # A watchdog/cancel closes recv(). That secondary close must
+                # never replace the first bounded failure with "transport".
+                if self.error is None and not self.finished:
+                    self.error = error
+                    self.first_error = error
         self.cancelled.set()
         if self.ws:
             try:
                 self.ws.shutdown()
             except Exception:
                 pass
+
+    def drain_deadline(self):
+        with self.lock:
+            if self.end_at is None:
+                return None
+            # Google may defer turnComplete while audio is played in real time.
+            # Account for validated PCM already queued, including arrival gaps;
+            # this is an estimate, not an audible/playback acknowledgement.
+            return min(self.started+budget.LEASE_MS/1000,
+                       max(self.end_at,self.playout_until)+TAIL_GRACE_SECONDS)
+
+    def diagnostics(self):
+        with self.lock:
+            return {'end_sent':self.end_sent.is_set(),
+                    'generation_complete_count':self.generation_complete_count,
+                    'turn_complete_count':self.turn_complete_count,
+                    'generation_complete_after_end':self.post_end_generation_complete,
+                    'turn_complete_after_end':self.post_end_turn_complete,
+                    'completion_kind':self.completion_kind,
+                    'first_error_code':getattr(self.first_error,'code',None)}
 
     def accept(self, index, raw):
         self.check()
@@ -165,9 +197,12 @@ class Relay:
                 except Empty:
                     continue
                 if raw is None:
-                    self.ws.send(json.dumps({'realtimeInput':{'audioStreamEnd':True}}))
-                    self.end_at = monotonic()
-                    self.end_sent.set()
+                    # Publish the sent state before a fast EOS acknowledgement
+                    # can acquire receive's lock. Never hold this for normal PCM.
+                    with self.lock:
+                        self.ws.send(json.dumps({'realtimeInput':{'audioStreamEnd':True}}))
+                        self.end_at = monotonic()
+                        self.end_sent.set()
                     return
                 with self.lock:
                     self.queued -= len(raw)
@@ -186,12 +221,14 @@ class Relay:
         try:
             while not self.cancelled.wait(.25) and not self.completed.is_set():
                 self.check()
-                if self.end_at is not None and monotonic()-self.end_at > 15:
+                deadline = self.drain_deadline()
+                if deadline is not None and monotonic() > deadline:
                     raise failure('gemini_tail_timeout')
                 if not self.input_closed and monotonic()-self.last_input > 5:
                     raise failure('gemini_input_idle')
         except Exception as error:
-            self.stop(error if isinstance(error, audio_store.AudioError) else failure())
+            if not self.completed.is_set():
+                self.stop(error if isinstance(error, audio_store.AudioError) else failure())
         finally:
             db._discard_cached_connection()
 
@@ -205,8 +242,11 @@ class Relay:
             if not isinstance(content, dict):
                 raise ValueError()
             with self.lock:
+                if self.cancelled.is_set():
+                    raise self.error or failure('turn_cancelled',409)
                 if content.get('interrupted') is True:
                     self.generation += 1
+                    self.playout_until = monotonic()
                     self.frames.append({'type':'reset', 'generation':self.generation})
                 for field, target in (('inputTranscription','source_text'), ('outputTranscription','target_text')):
                     transcript = content.get(field)
@@ -236,6 +276,7 @@ class Relay:
                     if not pcm or len(pcm)%2 or self.output_bytes+len(pcm) > OUTPUT_BYTES:
                         raise ValueError()
                     self.output_bytes += len(pcm)
+                    self.playout_until = max(self.playout_until,monotonic())+len(pcm)/48000
                     if self.first_output_at is None:
                         self.first_output_at = monotonic()
                     for offset in range(0, len(pcm), 9600):
@@ -243,10 +284,22 @@ class Relay:
                                             'pcm':base64.b64encode(pcm[offset:offset+9600]).decode('ascii')})
                 if len(self.frames) > 2000:
                     raise ValueError()
-                # Never infer the final tail from wall-clock silence. Missing
-                # final provider marker is a visible timeout, not false success.
-                if self.end_sent.is_set() and content.get('turnComplete') is True:
-                    self.completed.set()
+                if content.get('generationComplete') is True:
+                    self.generation_complete_count += 1
+                    self.post_end_generation_complete += int(self.end_sent.is_set())
+                if content.get('turnComplete') is True:
+                    self.turn_complete_count += 1
+                    self.post_end_turn_complete += int(self.end_sent.is_set())
+                    # GenerationComplete alone, silence, usage and a closed
+                    # socket cannot prove that all buffered input was translated.
+                    # Continuous Live Translate has no documented guaranteed
+                    # turn EOF; keep this conservative gate until wire verified.
+                    if (self.end_sent.is_set() and content.get('interrupted') is not True
+                            and content.get('interactionStatus') != 'IN_PROGRESS'):
+                        self.completion_kind = 'turn_complete'
+                        self.completed.set()
+        except audio_store.AudioError:
+            raise
         except (ValueError, TypeError, KeyError, binascii.Error):
             raise failure('gemini_response_invalid') from None
 
@@ -293,11 +346,15 @@ class Relay:
                     raw = self.ws.recv()
                 except websocket.WebSocketTimeoutException:
                     continue
+                except websocket.WebSocketConnectionClosedException:
+                    raise failure('gemini_tail_unconfirmed' if self.end_sent.is_set() else 'gemini_transport') from None
+                if raw in ('',b''):
+                    raise failure('gemini_tail_unconfirmed' if self.end_sent.is_set() else 'gemini_transport')
                 self.receive(raw)
             self.check()
             success = True
         except Exception as error:
-            self.error = error if isinstance(error, audio_store.AudioError) else failure()
+            self.stop(error if isinstance(error, audio_store.AudioError) else failure())
         finally:
             self.stop()
             timer.cancel()
@@ -314,13 +371,19 @@ class Relay:
                 sessions.finish(self.owner, self.ident, self.key, success, self.job,
                                 None if success else getattr(self.error,'code','gemini_transport'))
             except Exception:
-                self.error = failure('gemini_settlement_failed')
+                with self.error_lock:
+                    self.error = failure('gemini_settlement_failed')
+                    if self.first_error is None:
+                        self.first_error = self.error
                 sessions.finish(self.owner, self.ident, self.key, False, self.job, 'gemini_settlement_failed')
             finally:
-                self.finished = True
+                with self.error_lock:
+                    self.finished = True
                 _slots.release()
                 db._discard_cached_connection()
                 values = f'input_ms={self.accepted/32:.1f} output_ms={self.output_bytes/48:.1f} elapsed_ms={(monotonic()-self.started)*1000:.1f}'
+                values += f' code={getattr(self.error,"code",None) or "none"} first_code={getattr(self.first_error,"code",None) or "none"}'
+                values += f' generation_complete={self.generation_complete_count} turn_complete={self.turn_complete_count}'
                 if self.first_input_at is not None and self.first_output_at is not None:
                     values += f' first_output_ms={max(0,self.first_output_at-self.first_input_at)*1000:.1f}'
                 try:
