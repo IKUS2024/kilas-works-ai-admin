@@ -46,8 +46,16 @@ class CreativeServicesTests(unittest.TestCase):
             self.assertIn(social, content)
             for tier in ('Basic', 'Standard', 'Premium'):
                 self.assertIn('<h3>'+tier+'</h3>', content)
-            self.assertNotIn('<li>', content)
-            self.assertNotIn('Rp', content)
+            self.assertEqual(content.count(CATALOG['Konsep Video'][locale]), 3)
+            self.assertEqual(content.count('<span aria-hidden="true">✓</span>'), 3)
+            self.assertIn(CATALOG['Konten Video'][locale]+': 4 '+CATALOG['per bulan'][locale], content)
+            self.assertIn(CATALOG['Konten Foto'][locale]+': 6 '+CATALOG['per bulan'][locale], content)
+            self.assertIn('Rp2.000.000', content)
+            self.assertIn(CATALOG['Draft untuk ditinjau'][locale], content)
+            self.assertEqual(content.count('class="creative-price"'), 1)
+            self.assertEqual(content.count('<li>'), 5)
+            for unwanted in ('Rp1.500.000', 'Rp3.000.000', 'Rp5.000.000', 'Static Visual', CATALOG['1 kali revisi edit'][locale], CATALOG['2 kali revisi edit'][locale]):
+                self.assertNotIn(unwanted, content)
         self.assertEqual(client.get('/kilas-ai/creative-services?category=unknown').status_code, 404)
 
     def test_private_page_uses_existing_authentication_gate(self):

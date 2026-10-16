@@ -27,7 +27,14 @@
   <p>{{ ui_t('Revisi hanya untuk hasil edit, tidak termasuk pengambilan gambar ulang.') }}</p>
   {% else %}
   <div class="creative-package-grid">
-    {% for tier in ('Basic', 'Standard', 'Premium') %}<article class="card" data-creative-package="{{ tier|lower }}"><h3>{{ tier }}</h3><p>{{ ui_t('Rincian paket sedang disiapkan.') }}</p></article>{% endfor %}
+    {% for tier in ('Basic', 'Standard', 'Premium') %}
+    <article class="card" data-creative-package="{{ tier|lower }}"><h3>{{ tier }}</h3>
+      {% if tier == 'Basic' %}<p>{{ ui_t('Draft untuk ditinjau') }}</p><p class="creative-price">Rp2.000.000 <span>{{ ui_t('per bulan') }}</span></p>{% endif %}
+      <ul><li><span aria-hidden="true">✓</span> {{ ui_t('Konsep Video') }}</li>
+      {% if tier == 'Basic' %}<li>{{ ui_t('Konten Video') }}: 4 {{ ui_t('per bulan') }}</li><li>{{ ui_t('Konten Foto') }}: 6 {{ ui_t('per bulan') }}</li>{% endif %}
+      </ul><p>{{ ui_t('Rincian paket sedang disiapkan.') }}</p>
+    </article>
+    {% endfor %}
   </div>
   {% endif %}
   {% endif %}

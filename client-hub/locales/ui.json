@@ -8286,5 +8286,9 @@
   "Teaser Instagram Reels": {"id": "Teaser Instagram Reels", "en": "Instagram Reels Teaser", "es": "Teaser de Instagram Reels", "zh": "Instagram Reels预告短片"},
   "Edit maksimal 100 foto pilihan klien": {"id": "Edit maksimal 100 foto pilihan klien", "en": "Editing of up to 100 client-selected photos", "es": "Edición de hasta 100 fotos elegidas por el cliente", "zh": "精修客户选定的最多100张照片"},
   "Draft untuk ditinjau": {"id": "Draft untuk ditinjau", "en": "Draft for review", "es": "Borrador para revisión", "zh": "草案待审核"},
-  "Revisi hanya untuk hasil edit, tidak termasuk pengambilan gambar ulang.": {"id": "Revisi hanya untuk hasil edit, tidak termasuk pengambilan gambar ulang.", "en": "Revisions apply to edits only and do not include reshoots.", "es": "Las revisiones se aplican solo a la edición y no incluyen repetir la sesión.", "zh": "修改仅限后期编辑，不包括重新拍摄。"}
+  "Revisi hanya untuk hasil edit, tidak termasuk pengambilan gambar ulang.": {"id": "Revisi hanya untuk hasil edit, tidak termasuk pengambilan gambar ulang.", "en": "Revisions apply to edits only and do not include reshoots.", "es": "Las revisiones se aplican solo a la edición y no incluyen repetir la sesión.", "zh": "修改仅限后期编辑，不包括重新拍摄。"},
+  "Konsep Video": {"id": "Konsep Video", "en": "Video Concept", "es": "Concepto de vídeo", "zh": "视频创意"},
+  "Konten Video": {"id": "Konten Video", "en": "Video Content", "es": "Contenido de vídeo", "zh": "视频内容"},
+  "Konten Foto": {"id": "Konten Foto", "en": "Photo Content", "es": "Contenido fotográfico", "zh": "照片内容"},
+  "per bulan": {"id": "per bulan", "en": "per month", "es": "al mes", "zh": "每月"}
 }
