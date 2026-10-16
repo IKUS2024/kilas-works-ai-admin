@@ -141,3 +141,12 @@ After testing set `KILAS_LIVE_GEMINI_QA_ARM=off`. Do not set the normal enable
 flags or infer ongoing funding/expiry approval from this two-test permission.
 Backend first-PCM and End timing are reported separately from audible/device
 measurements, which this browser-free test cannot establish.
+
+If the first ID→EN attempt failed at setup, the operator can explicitly arm
+`gmlqa20261016a-remaining-en-id` once for the already-approved second direction.
+It cannot repeat ID→EN, change campaign/expiry, add allowance, or run EN→ID twice.
+The failed first lease retains its full allowance. A scoped reconciliation marks
+only that known failed, zero-output, ended setup UNKNOWN after two minutes;
+it never refunds or adjusts unrelated operations. A separate durable marker
+blocks repetition of this remaining test on restart. This is a manual remaining
+test, not an automatic retry.

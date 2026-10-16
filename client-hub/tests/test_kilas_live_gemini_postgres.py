@@ -1,5 +1,6 @@
 """Native ledger/dispatch rehearsal; disposable loopback PostgreSQL ONLY."""
 import os
+import hashlib
 import sys
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -90,6 +91,25 @@ def main():
                 try:smoke.once(wrong_owner)
                 except ValueError as error:assert str(error)=='owner_mismatch'
                 else:raise AssertionError('Owner mismatch admitted')
+                remaining=dict(configured,remaining=True)
+                try:smoke.once(remaining)
+                except ValueError as error:assert str(error)=='remaining_test_not_available'
+                else:raise AssertionError('Remaining session without failed first admitted')
+                ident=sessions.create(owner,'id','en',native.VOICE)
+                key='live-'+hashlib.sha256((smoke.RUN+'id'+'en').encode()).hexdigest()[:32]
+                with patch.object(native.Thread,'start'):relay=native.start(owner,ident,key)
+                class InvalidSetup:
+                    def send(self,raw):pass
+                    def recv(self):return '{"unrecognized":true}'
+                    def shutdown(self):pass
+                with patch.object(native,'connect',return_value=InvalidSetup()):relay.run()
+                native.cancel(owner,ident);sessions.end(owner,ident)
+                db.execute("UPDATE kilas_vo_stt_operations SET status='DISPATCHED',finished_at=NULL,created_at=? WHERE user_id=? AND operation_key=?",
+                           ((datetime.now(timezone.utc)-timedelta(minutes=3)).isoformat(),owner,key+'-gm'))
+                assert smoke.once(remaining)
+                assert not smoke.once(remaining)
+                recovered=db.query_one('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(owner,key+'-gm'))
+                assert recovered['status']=='UNKNOWN' and recovered['charge_micro']==1000
             print('PASS Gemini PostgreSQL: serialized admission, duplicate exclusion, durable unknown dispatch cost, idempotent settlement, unchanged customer balance, private native history')
     finally:
         db._discard_cached_connection()

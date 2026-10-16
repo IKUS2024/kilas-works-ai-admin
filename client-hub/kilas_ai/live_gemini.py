@@ -70,6 +70,20 @@ def connect():
                                        timeout=5, enable_multithread=True, redirect_limit=0)
 
 
+def message(raw):
+    # WebSocket peers may carry JSON in a text or UTF-8 binary frame. Bound
+    # bytes before decoding, and never accept arbitrary binary audio here.
+    if not isinstance(raw,(str,bytes)) or len(raw)>MAX_MESSAGE:
+        raise failure('gemini_response_invalid')
+    try:
+        value=json.loads(raw.decode('utf-8') if isinstance(raw,bytes) else raw)
+    except (ValueError,UnicodeError):
+        raise failure('gemini_response_invalid') from None
+    if not isinstance(value,dict):
+        raise failure('gemini_response_invalid')
+    return value
+
+
 class Relay:
     def __init__(self, owner, ident, key, info, capability, job):
         self.owner, self.ident, self.key, self.info = owner, ident, key, info
@@ -183,10 +197,8 @@ class Relay:
 
     def receive(self, raw):
         self.check()
-        if not isinstance(raw, str) or len(raw) > MAX_MESSAGE:
-            raise failure('gemini_response_invalid')
         try:
-            value = json.loads(raw)
+            value = message(raw)
             if not isinstance(value, dict) or any(k in value for k in ('error','toolCall','goAway')):
                 raise ValueError()
             content = value.get('serverContent', {})
@@ -267,8 +279,9 @@ class Relay:
             self.ws = connect()
             self.check()
             self.ws.send(json.dumps(setup(self.info['language_b'])))
-            raw = self.ws.recv()
-            if not isinstance(raw, str) or len(raw) > MAX_MESSAGE or json.loads(raw).get('setupComplete') != {}:
+            value = message(self.ws.recv())
+            if (not isinstance(value.get('setupComplete'),dict)
+                    or any(field in value for field in ('error','toolCall','goAway'))):
                 raise failure('gemini_setup_invalid')
             Thread(target=self.send, name='kilas-gemini-input', daemon=True).start()
             Thread(target=self.watch, name='kilas-gemini-fence', daemon=True).start()
