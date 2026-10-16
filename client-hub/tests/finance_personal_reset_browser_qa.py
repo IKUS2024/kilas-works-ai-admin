@@ -56,6 +56,7 @@ def main():
                 assert (row['account_id'],row['branch_id'])==(bca,case.personal)
                 assert before_accounts==db.query_all('SELECT * FROM finance_accounts')
                 # Personal first click only prepares a warning; typed text and acknowledgement are separate.
+                goto(f'{case.url}?branch_id={case.personal}&month=2026-09')
                 before=case.finance_rows();page.locator('.finance-reset-launch button').click();page.wait_for_load_state('networkidle')
                 expect(page.get_by_role('heading',name='Verifikasi Reset Data Finance',exact=True)).to_be_visible()
                 assert 'Finance Pribadi' in page.locator('.finance-reset-review').inner_text()

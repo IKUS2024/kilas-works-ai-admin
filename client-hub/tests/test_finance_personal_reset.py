@@ -84,6 +84,28 @@ class PersonalResetTests(unittest.TestCase):
         self.assertEqual((row['account_id'],row['branch_id'],row['amount_minor']),(bank,self.personal,1025))
         self.assertEqual(before_accounts,db.query_all('SELECT * FROM finance_accounts'))
 
+    def test_reset_launch_is_only_on_personal_and_business_dashboard(self):
+        before=self.finance_rows(False)
+        for branch in (self.personal,self.branch):
+            html,_=self.page(branch)
+            self.assertEqual(html.count('class="finance-reset-launch"'),1)
+            for query in (dict(view='accounts'),dict(view='transactions'),dict(view='transactions',direction='INCOME'),dict(view='transactions',direction='EXPENSE')):
+                html,_=self.page(branch,**query)
+                self.assertNotIn('class="finance-reset-launch"',html)
+            for endpoint in ('operations','budget','payees','receivables','reports','assistant'):
+                response=self.client.get(self.url+'/'+endpoint,query_string=dict(branch_id=branch,month='2026-09'))
+                if endpoint=='assistant':self.assertIn(response.status_code,(200,404))
+                else:self.assertEqual(response.status_code,200,endpoint)
+                self.assertNotIn('class="finance-reset-launch"',response.text)
+        self.assertEqual(before,self.finance_rows(False))
+
+    def test_dashboard_reset_launch_keeps_owner_visibility_rules(self):
+        db.execute("UPDATE business_memberships SET role_in_business='STAFF' WHERE business_id=? AND user_id=?",(self.b,self.uid))
+        html,_=self.page(self.branch)
+        self.assertNotIn('class="finance-reset-launch"',html)
+        html,_=self.page(self.personal)
+        self.assertIn('class="finance-reset-launch"',html)
+
     def test_account_selection_rejects_business_other_owner_and_other_personal_context(self):
         bca,bank,_,_=self.seed_personal()
         db.execute("INSERT INTO business_memberships(business_id,user_id,role_in_business) VALUES (?,?,'OWNER')",(self.b,self.other_uid))

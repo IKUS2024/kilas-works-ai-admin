@@ -57,7 +57,8 @@ body.finance-app .finance-context-home .finance-app-more {margin-left:auto}
  body.finance-app .finance-context-home .finance-app-branch {flex:1 1 120px;height:auto}
  body.finance-app.kilas-light .finance-context-home .finance-app-more {min-width:105px!important;font-size:11px!important;margin:0}
 }
-body.finance-app .finance-reset-launch {display:flex;justify-content:flex-end;margin:10px 0 18px}
+body.finance-app .finance-context-home .finance-reset-launch {display:flex;justify-content:flex-end;flex:0 1 auto;max-width:100%;margin:0 0 0 auto}
+body.finance-app .finance-context-home .finance-reset-launch button {max-width:100%;white-space:normal}
 body.finance-app .finance-reset-review {max-width:760px;margin-inline:auto;line-height:1.6}
 body.finance-app .finance-reset-review li {margin:8px 0}
 body.finance-app .finance-reset-review form {margin:16px 0}
