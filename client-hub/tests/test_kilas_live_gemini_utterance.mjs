@@ -18,24 +18,27 @@ function audio(c){
   createBufferSource(){const node={connect(){},disconnect(){},stop(){this.stopped=true;},start(at){starts.push({at,node:this});}};nodes.push(node);return node;}};
  return {context,nodes,starts};
 }
-function fixture({isEcho=()=>false}={}){
+function fixture({isEcho=()=>false,referenceEcho=false,twoWay=false}={}){
  const c=clock(),a=audio(c),requests=[],polls=[],errors=[];let handlers,key=0,mic=false;
- const player=new GeminiPlayer({...c,getContext:()=>a.context,maxBufferedSeconds:90});
+ const echo=referenceEcho?new PlaybackEcho({getContext:()=>a.context}):null;
+ if(referenceEcho)a.context.sampleRate=48000;
+ const player=new GeminiPlayer({...c,getContext:()=>a.context,maxBufferedSeconds:90,onScheduled:(buffer,at)=>echo?.remember(buffer,at),onHold:at=>echo?.hold(at)});
+ const protocol=twoWay?{input_mode:'gemini-live-two-way-v2',translation_mode:'two_way',streams:['id','en'],output_order:'progressive_stream_runs'}:{input_mode:'gemini-live-v1'};
  const capture={async start(value){handlers=value;mic=true;value.ready();},cancel(){mic=false;}};
  const json=async(url,options={})=>{
   requests.push({url,...options});
-  if(url==='/kilas-translator/live/gemini/sessions')return {session_id:'a'.repeat(48),input_mode:'gemini-live-v1'};
+  if(url==='/kilas-translator/live/gemini/sessions')return {session_id:'a'.repeat(48),...protocol};
   if(url.endsWith('/end'))return {status:'ENDED'};
   const chunk=url.match(/\/chunks\/(\d+)$/);if(chunk)return {accepted_index:Number(chunk[1])};
   if(url.endsWith('/finish'))return {status:'DRAINING'};
-  if(options.method==='POST')return {input_mode:'gemini-live-v1'};
+  if(options.method==='POST')return protocol;
   const result=deferred();polls.push({...result,url});return result.promise;
  };
- const session=new GeminiSession({...c,json,capture,player,prepare:async()=>{},csrf:'synthetic',utterancePlayback:true,isEcho,
+ const session=new GeminiSession({...c,json,capture,player,prepare:async()=>{},csrf:'synthetic',utterancePlayback:true,isEcho:echo?raw=>echo.matches(raw):isEcho,
   key:()=> (++key).toString(16).padStart(32,'0'),onError:error=>errors.push(error)});
  const turns=()=>requests.filter(r=>r.method==='POST'&&/\/turns\/live-[a-f0-9]{32}$/.test(r.url));
  const uploaded=async path=>Buffer.concat(await Promise.all(requests.filter(r=>r.url.startsWith(path+'/chunks/')).map(async r=>Buffer.from(await r.body.get('pcm').arrayBuffer()))));
- return {c,a,player,session,requests,polls,errors,turns,uploaded,get mic(){return mic;},
+ return {c,a,echo,player,session,requests,polls,errors,turns,uploaded,get mic(){return mic;},
   async input(raw){c.advance(raw.length/32);handlers.pcm(raw);await tick();},get handlers(){return handlers;}};
 }
 async function silence(f,count){for(let i=0;i<count;i++)await f.input(new Uint8Array(3200));}
@@ -123,6 +126,27 @@ test('the local echo check rejects delayed scaled playback and retains mixed new
  const input=mixed=>{const raw=new Uint8Array(6400),view=new DataView(raw.buffer);for(let i=0;i<3200;i++)view.setInt16(i*2,Math.round((base[Math.floor(i/4)]*.35+(mixed?Math.sin(i*.031)*.15:0))*32768),true);return raw;};
  assert.equal(echo.matches(input(false)),true);assert.equal(echo.matches(input(true)),false);
  echo.hold(.2);assert.equal(echo.matches(input(false)),false);
+});
+
+test('progressive playback through actual48k capture does not hold itself or reserve a successor; mixed new speech still does',async t=>{
+ const f=fixture({referenceEcho:true,twoWay:true});t.after(()=>f.session.end());
+ const form=new FormData();for(const [key,value] of Object.entries({translation_mode:'two_way',language_a:'id',language_b:'en',output_order:'progressive_stream_runs'}))form.set(key,value);
+ const wave=time=>.12*Math.sin(2*Math.PI*220*time)+.07*Math.sin(2*Math.PI*750*time)+.04*Math.sin(2*Math.PI*2500*time);
+ const output=Array.from({length:5},(_,index)=>{const raw=new Uint8Array(9600),view=new DataView(raw.buffer);for(let i=0;i<4800;i++)view.setInt16(i*2,Math.round(wave(index*.2+i/24000)*32768),true);return {index,type:'audio',stream_id:'id',target_language:'id',generation:0,pcm:Buffer.from(raw).toString('base64')};});
+ const pair=(frames,closed=false)=>({input_mode:'gemini-live-two-way-v2',translation_mode:'two_way',output_order:'progressive_stream_runs',streams:Object.fromEntries(['id','en'].map(id=>[id,{target_language:id,generation:0,output_closed:closed,tail_confirmed:false,completion_kind:closed?'bounded_drain':null}])),status:closed?'COMPLETED':'PROCESSING',frames,next_index:5,translated_text:'',output_closed:closed,total_frames:closed?5:null,tail_confirmed:false,completion_kind:closed?'bounded_drain':null});
+ await f.session.start(form);await voice(f,1);f.polls[0].resolve(pair(output));await tick();await silence(f,19);assert.equal(f.a.starts.length,0);
+ await silence(f,1);assert.equal(f.a.starts.length,5);assert.equal(f.session.turn.closed,false);const scheduledAt=f.a.starts[0].at;
+ const captured=(newVoice=false)=>{
+  const end=f.c.now()/1000+.1,frames=[],encoder=new PcmEncoder(48000,value=>frames.push(new Uint8Array(value.bytes)),1600);
+  const samples=Float32Array.from({length:4800},(_,i)=>wave(end-.1-.1536875-scheduledAt+i/48000)*.5+(newVoice?.03*Math.sin(2*Math.PI*1317*i/48000):0));
+  encoder.feed([samples]);assert.equal(frames.length,1);return frames[0];
+ };
+ f.c.advance(200);const pure=captured();assert.equal(f.echo.matches(pure),true);await f.input(pure);
+ assert.equal(f.session.speech.active,false);assert.equal(f.player.holding,false);assert.ok(f.a.nodes.every(node=>!node.stopped));
+ f.polls.at(-1).resolve(pair([],true));await tick();assert.equal(f.session.turn,null);await f.input(captured());assert.equal(f.turns().length,1);assert.equal(f.session.speech.active,false);assert.equal(f.mic,true);
+ const mixed=captured(true);assert.equal(f.echo.matches(mixed),false);await f.input(mixed);
+ assert.equal(f.session.speech.active,true);assert.equal(f.player.holding,true);assert.equal(f.turns().length,2);assert.ok(f.player.pendingSamples>0);assert.deepEqual(f.errors,[]);
+ await silence(f,19);assert.equal(f.player.holding,true);await silence(f,1);assert.equal(f.player.holding,false);assert.equal(f.mic,true);
 });
 
 test('network failure cannot release queued translation over ongoing speech; local silence permits a bounded drain',async t=>{

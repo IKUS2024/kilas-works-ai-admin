@@ -23,6 +23,15 @@ OUTPUT_BYTES = 90 * 48000
 QUEUE_BYTES = 8 * 32000
 MAX_MESSAGE = 1024 * 1024
 MAX_TEXT = 4000
+# Internal diagnostic codes only. Never attach provider values or payloads.
+VALIDATION_REASONS = frozenset((
+    'message_type', 'message_size', 'message_json', 'message_object',
+    'provider_error', 'provider_go_away', 'unexpected_tool_call',
+    'content_shape', 'transcript_shape', 'input_language',
+    'output_language', 'text_limit', 'turn_shape', 'part_shape', 'audio_shape',
+    'audio_mime', 'audio_base64', 'audio_length', 'frame_limit', 'closed_stream',
+    'unknown',
+))
 # Continuous Live Translate does not promise a turn EOF. Google's example
 # uses four seconds, but that is not a semantic completion signal:
 # https://github.com/google-gemini/gemini-live-api-examples/blob/3bcae1162d1bc6955672153310e4f84eba6621ff/command-line/python/translate.py
@@ -50,6 +59,27 @@ def sweep():
 def failure(code='gemini_transport', status=503):
     # Never propagate supplier exceptions: they may contain headers or content.
     return audio_store.AudioError('Sesi Gemini terputus. Ucapan ini tidak diulang otomatis.', code, status)
+
+
+def validation_reason(error):
+    """Return only a fixed internal code, never supplier-controlled metadata."""
+    reason = getattr(error, 'validation_reason', None)
+    return reason if (getattr(error, 'code', None) == 'gemini_response_invalid'
+                      and type(reason) is str and reason in VALIDATION_REASONS) else None
+
+
+def provider_status(error):
+    status = getattr(error, 'provider_status', None)
+    return status if (validation_reason(error) == 'provider_error'
+                      and type(status) is int and 100 <= status <= 599) else None
+
+
+def invalid_response(reason, status=None):
+    error = failure('gemini_response_invalid')
+    error.validation_reason = reason if type(reason) is str and reason in VALIDATION_REASONS else 'unknown'
+    if error.validation_reason == 'provider_error' and type(status) is int and 100 <= status <= 599:
+        error.provider_status = status
+    return error
 
 
 def ready(owner):
@@ -92,14 +122,16 @@ def connect():
 def message(raw):
     # WebSocket peers may carry JSON in a text or UTF-8 binary frame. Bound
     # bytes before decoding, and never accept arbitrary binary audio here.
-    if not isinstance(raw,(str,bytes)) or len(raw)>MAX_MESSAGE:
-        raise failure('gemini_response_invalid')
+    if not isinstance(raw,(str,bytes)):
+        raise invalid_response('message_type')
+    if len(raw)>MAX_MESSAGE:
+        raise invalid_response('message_size')
     try:
         value=json.loads(raw.decode('utf-8') if isinstance(raw,bytes) else raw)
     except (ValueError,UnicodeError):
-        raise failure('gemini_response_invalid') from None
+        raise invalid_response('message_json') from None
     if not isinstance(value,dict):
-        raise failure('gemini_response_invalid')
+        raise invalid_response('message_object')
     return value
 
 
@@ -115,6 +147,8 @@ class Relay:
         self.run_started = False
         self.error = None
         self.first_error = None
+        self.validation_reason = None
+        self.provider_status = None
         self.ws = None
         self.expected = self.accepted = self.queued = self.output_bytes = self.generation = 0
         self.frames = []
@@ -288,17 +322,25 @@ class Relay:
     def receive(self, raw):
         self.check()
         try:
-            value = message(raw)
-            if not isinstance(value, dict) or any(k in value for k in ('error','toolCall','goAway')):
-                raise ValueError()
-            content = value.get('serverContent', {})
-            if not isinstance(content, dict):
-                raise ValueError()
             with self.lock:
                 if self.cancelled.is_set():
                     raise self.error or failure('turn_cancelled',409)
                 if self.completed.is_set():
                     return
+                # Completion and admission share one boundary: a packet that
+                # recv returns after the bounded drain closed is ignored in full.
+                value = message(raw)
+                if 'error' in value:
+                    envelope = value['error']
+                    raise invalid_response('provider_error', envelope.get('code') if isinstance(envelope, dict) else None)
+                if 'toolCall' in value:
+                    raise invalid_response('unexpected_tool_call')
+                if 'goAway' in value:
+                    raise invalid_response('provider_go_away')
+                content = value.get('serverContent', {})
+                if not isinstance(content, dict):
+                    raise invalid_response('content_shape')
+                self.validate_content(content)
                 if content.get('interrupted') is True:
                     self.interruption_count += 1
                     self.generation += 1
@@ -307,32 +349,36 @@ class Relay:
                     transcript = content.get(field)
                     if transcript is not None:
                         if not isinstance(transcript, dict) or not isinstance(transcript.get('text',''), str):
-                            raise ValueError()
+                            raise invalid_response('transcript_shape')
                         reported = transcript.get('languageCode')
                         if reported is not None and live.canonical_language(reported) not in (self.info['language_a'],self.info['language_b']):
-                            raise ValueError()
+                            raise invalid_response('input_language' if field == 'inputTranscription' else 'output_language')
                         text = getattr(self, target)+transcript.get('text','')
                         if len(text) > MAX_TEXT:
-                            raise ValueError()
+                            raise invalid_response('text_limit')
                         setattr(self, target, text)
                 turn = content.get('modelTurn', {})
                 if not isinstance(turn, dict) or not isinstance(turn.get('parts',[]), list):
-                    raise ValueError()
+                    raise invalid_response('turn_shape')
                 for part in turn.get('parts', []):
                     if not isinstance(part, dict):
-                        raise ValueError()
+                        raise invalid_response('part_shape')
                     audio = part.get('inlineData')
                     if audio is None:
                         continue
-                    if (not isinstance(audio, dict) or audio.get('mimeType') != 'audio/pcm;rate=24000'
-                            or not isinstance(audio.get('data'), str)):
-                        raise ValueError()
-                    pcm = base64.b64decode(audio['data'], validate=True)
+                    if not isinstance(audio, dict) or not isinstance(audio.get('data'), str):
+                        raise invalid_response('audio_shape')
+                    if audio.get('mimeType') != 'audio/pcm;rate=24000':
+                        raise invalid_response('audio_mime')
+                    try:
+                        pcm = base64.b64decode(audio['data'], validate=True)
+                    except (ValueError, binascii.Error):
+                        raise invalid_response('audio_base64') from None
                     if not pcm or len(pcm)%2:
-                        raise ValueError()
+                        raise invalid_response('audio_length')
                     self.accept_pcm(pcm)
                 if len(self.frames) > 2000:
-                    raise ValueError()
+                    raise invalid_response('frame_limit')
                 if content.get('generationComplete') is True:
                     self.generation_complete_count += 1
                     self.post_end_generation_complete += int(self.end_sent.is_set())
@@ -346,10 +392,24 @@ class Relay:
                         self.completion_kind = 'turn_complete'
                         self.tail_confirmed = True
                         self.completed.set()
-        except audio_store.AudioError:
+        except audio_store.AudioError as error:
+            self.note_validation(error)
             raise
         except (ValueError, TypeError, KeyError, binascii.Error):
-            raise failure('gemini_response_invalid') from None
+            error = invalid_response('unknown')
+            self.note_validation(error)
+            raise error from None
+
+    def validate_content(self, content):
+        """Additional stream constraints, inside the active parser lock."""
+
+    def note_validation(self, error):
+        reason = validation_reason(error)
+        if reason is not None:
+            with self.lock:
+                if self.validation_reason is None:
+                    self.validation_reason = reason
+                    self.provider_status = provider_status(error)
 
     def accept_pcm(self, pcm):
         """Accept validated PCM while receive holds the relay lock."""
@@ -461,6 +521,8 @@ class Relay:
                 db._discard_cached_connection()
                 values = f'input_ms={self.accepted/32:.1f} output_ms={self.output_bytes/48:.1f} elapsed_ms={(monotonic()-self.started)*1000:.1f}'
                 values += f' code={getattr(self.error,"code",None) or "none"} first_code={getattr(self.first_error,"code",None) or "none"}'
+                values += f' validation_reason={validation_reason(self.first_error) or "none"}'
+                values += f' provider_status={provider_status(self.first_error) or "none"}'
                 values += f' generation_complete={self.generation_complete_count} turn_complete={self.turn_complete_count}'
                 values += f' interruptions={self.interruption_count}'
                 if self.end_at is not None:
