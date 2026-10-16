@@ -41,7 +41,8 @@ class RetirementTests(unittest.TestCase):
                          kilas_live_translator_available=True,feature_navigation=navigation,
                          selected_feature='voiceover')
     self.assertNotIn('/kilas-learning',html);self.assertNotIn('<span>Learning</span>',html)
-    for label in ('AI Chat','Translator','Voice Over','Finance'):self.assertIn('<span>'+label+'</span>',html)
+    for label in ('AI Chat','Translator','Voice Over'):self.assertIn('<span>'+label+'</span>',html)
+    self.assertNotIn('name="product" value="finance"',html)
 
  def test_retired_home_cannot_reappear_under_archived_pipeline_reactivation(self):
   with patch.object(learning,'PRODUCT_ACTIVE',True),patch.object(learning,'queue') as paid:

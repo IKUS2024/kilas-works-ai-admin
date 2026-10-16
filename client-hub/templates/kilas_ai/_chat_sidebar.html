@@ -1,9 +1,13 @@
 {% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
 {% set chat_history = home_ai if home_ai|default(false) else chat_sidebar_history() %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_sidebar.css',v='history-in-place-20261014') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_sidebar.css',v='sidebar-products-20261016') }}">
 <section class="kilas-chat-sidebar" aria-label="{{ ui_t('Percakapan') }}" data-chat-sidebar>
   {% if home_agent|default(false) %}<form class="home-agent-new" method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" data-chat-navigation><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">{{ drawer_icon('new-chat') }}<span>{{ ui_t('Chat baru') }}</span></button></form>{% else %}<a class="ai-new" href="{{ url_for('products.product_start') }}" data-chat-navigation>{{ drawer_icon('new-chat') }}<span>{{ ui_t('Chat baru') }}</span></a>{% endif %}
   <a class="chat-history-all chat-library-entry" href="{{ url_for('kilas_ai.library') }}" data-chat-navigation>{{ drawer_icon('library') }}<span>{{ ui_t('Library saya') }}</span>{{ drawer_icon('chevron') }}</a>
+  <details class="chat-products" open>
+    <summary><span>{{ ui_t('Products') }}</span>{{ drawer_icon('chevron') }}</summary>
+    <form class="chat-product-entry" method="post" action="{{ url_for('products.product_start') }}" data-chat-navigation><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance"><button type="submit">{{ drawer_icon('finance') }}<span>Finance</span></button></form>
+  </details>
   <h2><button class="chat-history-toggle" type="button" aria-expanded="true" aria-controls="kilas-chat-history" data-chat-history-toggle><span>{{ ui_t('Chat') }}</span>{{ drawer_icon('chevron') }}</button></h2>
   <div class="chat-history-content" id="kilas-chat-history" data-chat-history-content>
   <nav class="ai-history" id="kilas-chat-list" aria-label="{{ ui_t('Chat tersimpan') }}">
