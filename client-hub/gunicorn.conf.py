@@ -28,3 +28,9 @@ def post_worker_init(worker):
     # Default-off, once-only approved synthetic Gemini test in a separate process.
     from kilas_ai.live_gemini_smoke import launch
     launch()
+    try:
+        from kilas_ai.live_translator_readiness import report as classic_report
+        classic = classic_report()
+    except Exception:
+        classic = {'configured_ready':False, 'reason':'readiness_check_failed'}
+    print('KILAS_ELEVENLABS_READY '+json.dumps(classic,sort_keys=True), flush=True)

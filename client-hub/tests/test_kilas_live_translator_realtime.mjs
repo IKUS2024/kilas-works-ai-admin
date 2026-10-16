@@ -31,10 +31,19 @@ function inputFixture({delay=null,failCommit=false}={}){
   throw Error('Unexpected whole STT POST');
  }});return {input,requests,accepted,controller,push:bytes=>input.push(id,key,bytes,controller.signal),finish:()=>input.finish(id,key,controller.signal)};
 }
-test('input auth starts on first voice, frames aggregate1s and final tail drains before one commit',async()=>{
- const f=inputFixture(),original=[];for(let i=0;i<11;i++){const bytes=new Uint8Array(6400).fill(i);original.push(bytes);await f.push(bytes);}
- assert.equal(f.requests[0].path,url+'/input/start');assert.equal(f.accepted.length,2);await f.finish();assert.deepEqual(f.accepted.map(p=>p.index),[0,1,2]);assert.equal(f.accepted.at(-1).bytes.length,6400);
- assert.deepEqual(Buffer.concat(f.accepted.map(p=>Buffer.from(p.bytes))),Buffer.concat(original.map(p=>Buffer.from(p))));const commit=f.requests.at(-1);assert.equal(commit.path,url+'/input/commit');assert.equal(commit.options.body.get('count'),'3');assert.equal(commit.options.body.get('csrf_token'),'synthetic');
+test('input primes first200ms then aggregates1s and drains exact final tail before one commit',async()=>{
+ const f=inputFixture(),original=[];for(let i=0;i<12;i++){const bytes=new Uint8Array(6400).fill(i);original.push(bytes);await f.push(bytes);}
+ assert.equal(f.requests[0].path,url+'/input/start');assert.equal(f.accepted.length,3);assert.equal(f.accepted[0].bytes.length,6400);await f.finish();assert.deepEqual(f.accepted.map(p=>p.index),[0,1,2,3]);assert.equal(f.accepted.at(-1).bytes.length,6400);
+ assert.deepEqual(Buffer.concat(f.accepted.map(p=>Buffer.from(p.bytes))),Buffer.concat(original.map(p=>Buffer.from(p))));const commit=f.requests.at(-1);assert.equal(commit.path,url+'/input/commit');assert.equal(commit.options.body.get('count'),'4');assert.equal(commit.options.body.get('csrf_token'),'synthetic');
+});
+test('first capture frame reaches the same lease before more speech or finalization',async()=>{
+ const f=inputFixture(),first=new Uint8Array(6400).fill(31);await f.push(first);
+ assert.deepEqual(f.accepted.map(p=>p.bytes),[first]);
+ assert.equal(f.requests.filter(r=>r.path.endsWith('/input/start')).length,1);
+ assert.equal(f.requests.some(r=>r.path.endsWith('/input/commit')),false);
+ await f.push(new Uint8Array(138).fill(19));assert.equal(f.accepted.length,1);
+ await f.finish();assert.equal(f.accepted.length,2);assert.equal(f.accepted[1].bytes.length,138);
+ assert.equal(f.requests.filter(r=>r.path.endsWith('/input/start')).length,1);
 });
 test('healthy350ms serialHTTP sustains200ms PCM production over a long utterance with exact final tail',async()=>{
  let now=0,timers=[];const delay=()=>new Promise(resolve=>timers.push({at:now+350,resolve}));

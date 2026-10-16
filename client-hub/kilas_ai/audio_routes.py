@@ -2,6 +2,7 @@
 import io
 import hashlib
 import math
+import os
 import re
 import secrets
 from flask import Blueprint, abort, redirect, render_template, request, send_file, session, url_for
@@ -29,6 +30,8 @@ def _shared_native_user(user):
 
 def _native_default_ready(user):
     from . import live_gemini as native, live_gemini_pair as pair
+    # Native remains an explicit opt-in; ordinary Translator uses Kilas voices.
+    if os.environ.get('KILAS_TRANSLATOR_PROVIDER','elevenlabs')!='gemini':return False
     if request.args.get('classic')=='1':return False
     row=db.query_one("SELECT voice_alias FROM kilas_live_translator_sessions WHERE user_id=? AND status='ACTIVE' AND (expires_at='' OR expires_at>?) ORDER BY created_at DESC LIMIT 1",(user,usage._now().isoformat()))
     # An old session stays on its original page until its user explicitly ends
