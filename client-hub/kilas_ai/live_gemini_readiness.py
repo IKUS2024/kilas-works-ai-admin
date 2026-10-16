@@ -1,4 +1,4 @@
-"""Read-only owner Start gates for worker diagnostics; never an admission grant."""
+"""Read-only native Start gates for worker diagnostics; never an admission grant."""
 from . import audio_store, live_gemini as native, live_gemini_budget as budget
 from . import live_translator as live, live_translator_store as sessions, routes, usage
 
@@ -10,25 +10,32 @@ SAFE_REASONS = frozenset({
 })
 
 
-def report():
+def report(owner=None):
     """Inspect configuration and existing rows without cleanup or paid IO.
 
     This instant snapshot cannot reserve a future Start. Real admission still
     checks its original identity, policy, balance and concurrency fences.
     """
-    result = {'owner_id': None, 'start_eligible': False, 'reason': 'policy_unavailable'}
+    result = {'owner_id': None, 'user_id': None, 'audience': None,
+              'start_eligible': False, 'reason': 'policy_unavailable'}
     try:
         config = budget.policy()
         if not config:
             return result
-        owner = config['allowed_owner']
-        if type(owner) is not int or owner <= 0:
+        funding_owner = config['allowed_owner']
+        if type(funding_owner) is not int or funding_owner <= 0:
             return result
-        result['owner_id'] = owner
+        owner = funding_owner if owner is None else owner
+        audience = config.get('audience', 'owner')
+        result.update(owner_id=funding_owner, audience=audience)
+        if type(owner) is not int or owner <= 0 or not budget.allowed(owner, config):
+            result['reason'] = 'user_unavailable'
+            return result
+        result['user_id'] = owner
         if not routes.enabled():
             result['reason'] = 'app_unavailable'
             return result
-        if not native.preview_owner(owner):
+        if owner == funding_owner and not native.preview_owner(owner):
             result['reason'] = 'owner_unverified'
             return result
         if not native.ready(owner):
@@ -78,4 +85,38 @@ def report():
     except Exception:
         # Never crash a worker or emit database/provider exceptions or secrets.
         result['reason'] = 'readiness_error'
+    return result
+
+
+def audience_report(owner_report=None):
+    """Report one existing nonowner account without creating or acting as it."""
+    result = {'audience': None, 'owner': owner_report, 'nonowner': None,
+              'nonowner_reason': 'policy_unavailable'}
+    try:
+        config = budget.policy()
+        if not config:
+            return result
+        result['audience'] = config.get('audience', 'owner')
+        if result['owner'] is None:
+            result['owner'] = report()
+        if result['audience'] != 'authenticated':
+            result['nonowner_reason'] = 'owner_only'
+            return result
+        conn = usage._connect()
+        try:
+            # Prefer an existing customer account; every existing role remains
+            # governed by the native authenticated-audience policy itself.
+            row = usage._query(conn,
+                "SELECT id FROM users WHERE id<>? "
+                "ORDER BY CASE WHEN role='CLIENT_OWNER' THEN 0 ELSE 1 END,id LIMIT 1",
+                (config['allowed_owner'],), one=True)
+        finally:
+            conn.close()
+        if not row:
+            result['nonowner_reason'] = 'no_existing_nonowner'
+            return result
+        result['nonowner'] = report(row[0])
+        result['nonowner_reason'] = result['nonowner']['reason']
+    except Exception:
+        result['nonowner_reason'] = 'readiness_error'
     return result

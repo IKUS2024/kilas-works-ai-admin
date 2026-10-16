@@ -1,4 +1,4 @@
-// Real Flask HTML, synthetic read-only session transport; no browser or media.
+// Real Flask HTML, synthetic session transport; no browser or media.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
@@ -47,5 +47,44 @@ for(const locale of ['en','id']){
   assert.equal(submitted,true);assert.equal(document.querySelector('#live-error').hidden,false);
   assert.equal(document.querySelector('#live-error').textContent,locale==='en'?'The Gemini spending limit was reached. The session has stopped; speech is not retried automatically.':'Batas biaya Gemini tercapai. Sesi dihentikan; ucapan tidak diulang otomatis.');
   assert.equal(document.querySelector('#live-active').hidden,true);assert.equal(microphones,0);assert.equal(contexts,0);assert.equal(requests.length,2);
+ });
+}
+
+for(const locale of ['en','id']){
+ test(`Native ${locale} recovery-only entry can end its owned session while Start remains blocked`,async t=>{
+  const dom=new JSDOM(pages[locale+'_recovery']||pages[locale],{url:'https://app.example.test/kilas-translator/live/gemini',runScripts:'outside-only',pretendToBeVisual:true});
+  t.after(()=>dom.window.close());const {window}=dom,{document}=window;
+  // A rendered recovery fixture is preferred; the same admission attribute is
+  // injected when the focused route suite did not export a recovery fixture.
+  const root=document.querySelector('[data-gemini-live]');assert.ok(root);root.dataset.geminiReady='false';
+  window.eval(readFileSync(new URL('../static/ui_i18n.js',import.meta.url),'utf8'));
+  const id='d'.repeat(48),requests=[];let active={session_id:id,processing:true},microphones=0,contexts=0;
+  const values={window,document,KilasUI:window.KilasUI,FormData:window.FormData,
+   navigator:{mediaDevices:{getUserMedia(){microphones++;throw Error('No microphone QA');}}},
+   AudioContext:class{constructor(){contexts++;throw Error('No audio-context QA');}},
+   fetch:async(url,options={})=>{
+    requests.push({url,...options});
+    if(url.endsWith('/live/sessions/active')){assert.equal(options.method||'GET','GET');return {ok:true,redirected:false,json:async()=>({session:active})};}
+    assert.equal(url,'/kilas-translator/live/sessions/'+id+'/end');assert.equal(options.method,'POST');active=null;
+    return {ok:true,redirected:false,json:async()=>({status:'ENDED'})};
+   }};
+  const previous={};for(const [key,value] of Object.entries(values)){previous[key]=Object.getOwnPropertyDescriptor(globalThis,key);Object.defineProperty(globalThis,key,{value,writable:true,configurable:true});}
+  t.after(()=>{for(const [key,value] of Object.entries(previous)){if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}});
+  await import('../static/kilas_live_gemini.mjs?dom-recovery-'+locale);await tick();
+  const form=document.querySelector('#live-setup-form'),start=form.querySelector('[type=submit]');
+  assert.equal(start.disabled,true);assert.equal(document.querySelector('#live-recovery').hidden,false);assert.equal(requests.length,1);
+  document.querySelector('[name=consent]').checked=true;
+  const submit=()=>form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
+  submit();await tick();assert.equal(requests.length,1);assert.equal(microphones,0);assert.equal(contexts,0);
+  document.querySelector('#live-recovery-end').click();await tick();
+  assert.equal(requests.filter(request=>request.method==='POST').length,1);assert.equal(requests.length,3);
+  assert.equal(document.querySelector('#live-recovery').hidden,true);assert.equal(start.disabled,true);
+  const first=document.querySelector('[name=language_a]');first.value='en';first.dispatchEvent(new window.Event('change'));assert.equal(start.disabled,true);
+  submit();await tick();assert.equal(requests.length,3);assert.equal(microphones,0);assert.equal(contexts,0);
+  // Even script-driven removal of disabled cannot bypass the server-rendered
+  // admission state. Explicitly ending the old session never authorizes Start.
+  start.disabled=false;submit();await tick();assert.equal(requests.length,3);assert.equal(microphones,0);assert.equal(contexts,0);
+  document.querySelector('#live-recovery-check').click();await tick();assert.equal(start.disabled,true);assert.equal(requests.length,4);
+  assert.equal(requests.some(request=>request.url==='/kilas-translator/live/gemini/sessions'),false);
  });
 }

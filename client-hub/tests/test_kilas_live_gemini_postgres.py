@@ -166,7 +166,52 @@ def main():
                         try:budget.claim(owner,'f'*48,'live-'+'f'*32)
                         except budget.ledger.BudgetError as error:assert error.code=='budget_limit'
                         else:raise AssertionError('Internal allowance reset by campaign rotation')
-            print('PASS Gemini PostgreSQL: serialized duplicate/distinct-key admission, lifetime internal guard, historical accounting, durable unknown dispatch cost, idempotent settlement, unchanged customer balance, private native history')
+                # Two authenticated accounts contend for one final GLOBAL
+                # reserve. Funding ownership does not make this cap per user.
+                member=repo.create_user('native-member-pg@example.test','unused',role='CLIENT_MEMBER')
+                admin=repo.create_user('native-admin-pg@example.test','unused',role='KILAS_ADMIN')
+                prior_shared=db.query_one('SELECT SUM(charge_micro) AS n FROM kilas_vo_stt_operations WHERE campaign LIKE ?',('gml-%',))['n']
+                shared=dict(internal,KILAS_LIVE_GEMINI_CAMPAIGN='pg-authenticated-shared',
+                            KILAS_LIVE_GEMINI_BUDGET_MICRO_USD=str(prior_shared+250000),
+                            KILAS_LIVE_GEMINI_AUDIENCE='authenticated')
+                with patch.dict(os.environ,shared):
+                    shared_policy=budget.policy()
+                    assert shared_policy['allowed_owner']==owner
+                    assert budget.allowed(member) and budget.allowed(admin)
+                    assert not budget.allowed(True) and not budget.allowed(10**9)
+                    with patch.dict(os.environ,{'KILAS_LIVE_GEMINI_AUDIENCE':'owner'}):
+                        private_policy=budget.policy()
+                        assert private_policy['id']==shared_policy['id']
+                        assert private_policy['price_version']==shared_policy['price_version']
+                        assert not budget.allowed(member) and not budget.allowed(admin)
+                    def contend(user):
+                        try:return budget.claim(user,'9'*48,'live-'+format(user,'032x'))
+                        except budget.ledger.BudgetError as error:return error.code
+                        finally:db._discard_cached_connection()
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        raced=list(pool.map(contend,(member,admin)))
+                    winners=[item for item in raced if isinstance(item,budget.ledger.Reservation)]
+                    assert len(winners)==1 and 'budget_limit' in raced, raced
+                    winner=winners[0]
+                    loser=admin if winner.owner==member else member
+                    forged=budget.ledger.Reservation(loser,winner.key,winner.lease)
+                    for action in (lambda:budget.dispatch(forged),lambda:budget.finish(forged,False)):
+                        try:action()
+                        except budget.ledger.BudgetError as error:assert error.code=='invalid_reservation'
+                        else:raise AssertionError('Cross-account nonce accepted')
+                    try:budget.claim(winner.owner,'9'*48,'live-'+'9'*32)
+                    except budget.ledger.BudgetError as error:assert error.code=='already_processing'
+                    else:raise AssertionError('Two active native operations for one user')
+                    budget.dispatch(winner)
+                    db.execute('INSERT INTO customer_auth_account_state(user_id,disabled) VALUES (?,1) ON CONFLICT(user_id) DO UPDATE SET disabled=1',(winner.owner,))
+                    assert not budget.allowed(winner.owner)
+                    with patch.dict(os.environ,{'KILAS_LIVE_GEMINI_ENABLED':'false','KILAS_LIVE_GEMINI_AUDIENCE':'owner'}):
+                        assert not budget.finish(winner,False)
+                    assert budget.status(loser)['reason']=='budget_limit'
+                    retained=db.query_one('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(winner.owner,winner.key))
+                    assert retained['status']=='UNKNOWN' and retained['charge_micro']==250000
+                    assert budget.status(loser)['charged_micro_usd']==prior_shared+250000
+            print('PASS Gemini PostgreSQL: serialized owner/cross-account admission, one global lifetime cap, authenticated roles and disabled-account fences, nonce ownership, historical accounting, durable unknown dispatch cost, unchanged customer balance/history')
     finally:
         db._discard_cached_connection()
         with control.cursor() as cur:

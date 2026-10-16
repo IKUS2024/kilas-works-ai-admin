@@ -4,13 +4,13 @@
 {% block content %}
 <div class="kilas-live-page">
 {% set selected_feature='live' %}{% include 'kilas_ai/_feature_navigation.html' %}
-{% if not gemini_ready %}
+{% if not gemini_ready and not gemini_recovery_only %}
 <section class="kilas-live-translator"><header class="live-heading"><h1>Translator · Gemini</h1><p>{{ ui_t('Akses khusus owner') }}</p></header>
 <p role="status">{{ ui_t('Batas total Rp500.000 sudah disetujui. Start menunggu verifikasi pengaman biaya dan pemakaian sebelumnya.') }}</p>
 <p>{{ ui_t('Bagian akhir terjemahan masih diverifikasi. Mikrofon dan layanan Gemini belum dijalankan dari halaman ini.') }}</p>
 <button type="button" class="btn" disabled>{{ ui_t('Start') }}</button></section>
 {% else %}
-<section class="kilas-live-translator" data-gemini-live>
+<section class="kilas-live-translator" data-gemini-live data-gemini-ready="{{ 'true' if gemini_ready else 'false' }}">
 <section id="live-setup"><header class="live-heading"><h1>Translator · Gemini</h1><p>{{ ui_t('Terjemahan langsung satu arah dengan suara Gemini. Pilih arah sebelum mulai.') }}</p></header>
 <p>{{ ui_t('Bahasa tujuan diabaikan oleh penerjemah. Gunakan headset untuk mengurangi suara speaker masuk kembali ke mikrofon.') }}</p>
 <section id="live-recovery" hidden aria-label="{{ ui_t('Pemulihan sesi') }}"><p id="live-recovery-status" role="status"></p><p>{{ ui_t('Sesi mungkin masih digunakan di tab atau perangkat lain. Gunakan tab itu, atau akhiri sesi sebelumnya di sini. Mengakhiri sesi membatalkan ucapan yang masih diproses; biaya yang sudah dikirim tetap tercatat.') }}</p><button type="button" class="btn secondary" id="live-recovery-end">{{ ui_t('Akhiri sesi sebelumnya') }}</button></section>
@@ -26,6 +26,6 @@
 <p id="live-error" role="alert" hidden></p><p id="live-session-status" role="status" aria-live="polite"></p>
 <button type="button" class="btn secondary" id="live-recovery-check">{{ ui_t('Periksa sesi') }}</button>
 </section>
-<script type="module" src="{{ url_for('static',filename='kilas_live_gemini.mjs',v='gemini-continuous-v2') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_live_gemini.mjs',v='gemini-recovery-v3') }}"></script>
 {% endif %}</div>
 {% endblock %}

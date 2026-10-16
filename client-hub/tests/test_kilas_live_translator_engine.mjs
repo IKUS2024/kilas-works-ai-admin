@@ -67,6 +67,28 @@ test('late previous utterance callbacks cannot supply a newer turn in the same s
  assert.equal(f.calls,1);assert.equal(f.session.state,'finalizing');assert.deepEqual(f.errors,[]);f.session.end();
 });
 
+for(const state of ['processing','playing'])test(`a finalized capture error cannot pause the accepted utterance during ${state}`,async()=>{
+ const f=fixture();await f.session.start({});const retired=f.handlers;
+ f.level(.1,0);f.level(0,2000);
+ if(state==='playing'){f.turn.resolve({audio_url:'/synthetic'});await tick();}
+ assert.equal(f.session.state,state);const version=f.session.version;
+ retired.error(Object.assign(Error('Late processor error after capture finished'),{code:'realtime_capture_failed'}));
+ retired.blob(new Blob(['duplicate finished']));
+ assert.equal(f.session.state,state);assert.equal(f.session.version,version);assert.deepEqual(f.errors,[]);assert.equal(f.calls,1);
+ if(state==='processing')f.turn.resolve({audio_url:'/synthetic'});
+ await tick();assert.equal(f.playing,true);f.play.resolve();await tick();
+ assert.equal(f.session.state,'listening');assert.equal(f.captureCalls,2);assert.equal(f.mics,1);f.session.end();
+});
+
+test('no-speech recovery ignores retired capture errors while verifying the owned session',async()=>{
+ const f=fixture(),verify=deferred();let checks=0;f.api.resume=async()=>{checks++;await verify.promise;};
+ await f.session.start({});const retired=f.handlers;
+ retired.error(Object.assign(Error('No speech'),{code:'no_speech'}));assert.equal(f.session.state,'recovering');const version=f.session.version;
+ retired.error(Object.assign(Error('Late processor error during recovery'),{code:'realtime_capture_failed'}));
+ assert.equal(f.session.state,'recovering');assert.equal(f.session.version,version);assert.equal(checks,1);assert.deepEqual(f.errors,['No speech']);
+ verify.resolve();await tick();assert.equal(f.session.state,'listening');assert.equal(f.captureCalls,2);assert.equal(f.mics,1);assert.equal(f.calls,0);f.session.end();
+});
+
 test('old no-speech recovery permission rejection cannot end a restarted session',async()=>{
  const f=fixture(),permission=deferred(),original=f.capture.start;let calls=0;
  f.capture.start=async h=>{if(++calls===2)await permission.promise;else await original(h);};

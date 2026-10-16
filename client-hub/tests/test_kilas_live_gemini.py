@@ -153,6 +153,186 @@ class GeminiTests(unittest.TestCase):
         values.update(extra)
         return patch.dict(os.environ,values)
 
+    def shared(self, **extra):
+        values={'KILAS_LIVE_GEMINI_AUDIENCE':'authenticated',
+                'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD':'10000000',
+                'KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD':'250000',
+                'KILAS_APP_FREE_TEST_ENABLED':'false'}
+        values.update(extra)
+        return self.lifetime(**values)
+
+    def login_other(self, role='CLIENT_MEMBER'):
+        from auth_test_helpers import authenticate
+        audio.f.db.execute('UPDATE users SET role=? WHERE id=?',(role,self.other))
+        authenticate(self.client,audio.f.repo.get_user_by_id(self.other),_csrf_token='audio-csrf')
+
+    def native_fields(self):
+        return {'csrf_token':'audio-csrf','language_a':'id','language_b':'en','consent':'gemini-live-v1'}
+
+    def test_shared_native_accepts_existing_authenticated_roles_without_legacy_entitlement(self):
+        audio.f.db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,300)',(self.other,))
+        with self.config(),self.shared(),patch.object(native,'connect') as connect:
+            for role in ('CLIENT_MEMBER','KILAS_ADMIN','MEMBER'):
+                with self.subTest(role=role):
+                    self.login_other(role)
+                    self.assertTrue(native.ready(self.other))
+                    response=self.client.get('/kilas-translator/live/gemini')
+                    self.assertEqual(response.status_code,200)
+                    self.assertEqual(response.headers['Cache-Control'],'private, no-store')
+                    self.assertIn('value="gemini-live-v1"',response.text)
+                    self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/live/gemini')
+                    self.assertEqual(self.client.get('/kilas-translator?mode=live').location,'/kilas-translator/live/gemini')
+                    for path in ('/kilas-translator','/kilas-translator?mode=voiceover',
+                                 '/kilas-translator/jobs/0?mode=live','/kilas-translator/history',
+                                 '/kilas-translator/live?classic=1','/kilas-translator?mode=live&classic=1',
+                                 '/kilas-translator/live/gemini/fixtures',
+                                 '/kilas-translator/live/gemini/fixtures/'+'a'*48+'/zip'):
+                        self.assertEqual(self.client.get(path).status_code,404,path)
+                    for path in ('/kilas-translator/jobs','/kilas-translator/voice-script/dictate',
+                                 '/kilas-translator/live/sessions'):
+                        self.assertEqual(self.client.post(path,data=self.native_fields()).status_code,404,path)
+                    response=self.client.post('/kilas-translator/live/gemini/sessions',data=self.native_fields())
+                    self.assertEqual(response.status_code,201)
+                    ident=response.json['session_id']
+                    self.assertEqual(self.client.post('/kilas-translator/live/gemini/sessions',data=self.native_fields()).status_code,409)
+                    self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
+            connect.assert_not_called()
+
+    def test_shared_member_native_turns_stay_private_and_one_operation_per_user(self):
+        self.login_other()
+        audio.f.db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,300)',(self.other,))
+        with self.config(),self.shared(),patch.object(native,'connect') as connect:
+            created=self.client.post('/kilas-translator/live/gemini/sessions',data=self.native_fields())
+            self.assertEqual(created.status_code,201)
+            ident=created.json['session_id'];key=self.key()
+            base='/kilas-translator/live/gemini/sessions/'+ident+'/turns/'+key
+            self.assertEqual(self.client.post(base).status_code,400)
+            with patch.object(native.Thread,'start'):
+                self.assertEqual(self.client.post(base,data={'csrf_token':'audio-csrf'}).status_code,202)
+            relay=native.owned(self.other,ident,key)
+            try:
+                self.assertEqual(self.client.get(base).status_code,200)
+                self.assertEqual(self.client.post(base,data={'csrf_token':'audio-csrf'}).status_code,409)
+                other_key=base.rsplit('/',1)[0]+'/'+self.key(2)
+                self.assertEqual(self.client.post(other_key,data={'csrf_token':'audio-csrf'}).status_code,409)
+                self.assertEqual(audio.f.db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_jobs WHERE user_id=?',(self.other,))['n'],1)
+                from auth_test_helpers import authenticate
+                authenticate(self.client,audio.f.repo.get_user_by_id(self.user),_csrf_token='audio-csrf')
+                self.assertEqual(self.client.get(base).status_code,404)
+                self.assertEqual(self.client.post(base,data={'csrf_token':'audio-csrf'}).status_code,404)
+                self.assertEqual(self.client.post(base+'/chunks/0',data={'csrf_token':'audio-csrf','pcm':(io.BytesIO(PCM),'part.pcm','application/octet-stream')}).status_code,404)
+                self.assertEqual(self.client.post(base+'/finish',data={'csrf_token':'audio-csrf','count':'1'}).status_code,404)
+                self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,404)
+                self.assertEqual(sessions.status(self.other,ident)['status'],'ACTIVE')
+                connect.assert_not_called()
+            finally:
+                budget.finish(relay.capability,False)
+                audio_store.fail(self.other,relay.job,'synthetic')
+                sessions.end(self.other,ident)
+                native.cancel(self.other,ident)
+                native._slots.release()
+
+    def test_shared_member_owned_native_recovery_survives_policy_off_without_legacy_access(self):
+        self.login_other()
+        native_id=sessions.create(self.other,'id','en',native.VOICE)
+        foreign_id=sessions.create(self.user,'id','en',native.VOICE)
+        self.addCleanup(sessions.end,self.user,foreign_id)
+        with self.config(KILAS_LIVE_GEMINI_ENABLED='false'),self.shared(),patch.object(native,'connect') as connect:
+            for path in ('/kilas-translator/live','/kilas-translator?mode=live'):
+                self.assertEqual(self.client.get(path).location,'/kilas-translator/live/gemini')
+            recovery=self.client.get('/kilas-translator/live/gemini')
+            self.assertEqual(recovery.status_code,200)
+            self.assertIn('data-gemini-ready="false"',recovery.text)
+            self.assertIn('id="live-recovery-end"',recovery.text)
+            self.assertEqual(self.client.get('/kilas-translator/live/sessions/active').json['session']['session_id'],native_id)
+            self.assertEqual(self.client.get('/kilas-translator/live/sessions/'+native_id).json,{'status':'ACTIVE','processing':False})
+            for suffix in ('','/turns/'+self.key()+'/cancel','/end'):
+                path='/kilas-translator/live/sessions/'+foreign_id+suffix
+                response=self.client.get(path) if not suffix else self.client.post(path,data={'csrf_token':'audio-csrf'})
+                self.assertEqual(response.status_code,404)
+            self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+native_id+'/turns/'+self.key()+'/cancel',data={'csrf_token':'audio-csrf'}).status_code,200)
+            self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+native_id+'/end').status_code,400)
+            for _ in range(2):
+                self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+native_id+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
+            self.assertEqual(sessions.status(self.other,native_id)['status'],'ENDED')
+            self.assertEqual(self.client.get('/kilas-translator/live/sessions/active').json,{'session':None})
+            self.assertEqual(self.client.get('/kilas-translator/live/gemini').status_code,404)
+            legacy=sessions.create(self.other,'id','en','kilas-male')
+            self.addCleanup(sessions.end,self.other,legacy)
+            for path in ('/kilas-translator/live/sessions/active','/kilas-translator/live/sessions/'+legacy):
+                self.assertEqual(self.client.get(path).status_code,404)
+            self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+legacy+'/end',data={'csrf_token':'audio-csrf'}).status_code,404)
+            self.assertEqual(self.client.post('/kilas-translator/live/gemini/sessions',data=self.native_fields()).status_code,404)
+            connect.assert_not_called()
+
+    def test_shared_route_requires_revocable_login_existing_user_and_current_role(self):
+        from auth_test_helpers import authenticate
+        import customer_auth
+        with self.config(),self.shared(),patch.object(native,'connect') as connect:
+            anonymous=audio.f.app.app.test_client()
+            self.assertEqual(anonymous.get('/kilas-translator/live/gemini').status_code,302)
+            self.login_other()
+            with self.client.session_transaction() as state:state['role']='CLIENT_OWNER'
+            self.assertEqual(self.client.get('/kilas-translator/live/gemini').status_code,303)
+            self.login_other()
+            customer_auth.revoke_all(self.other)
+            self.assertEqual(self.client.get('/kilas-translator/live/gemini').status_code,303)
+            self.login_other()
+            customer_auth.set_account_disabled(self.other)
+            self.assertEqual(self.client.get('/kilas-translator/live/gemini').status_code,303)
+            for value in (str(self.other),True):
+                with anonymous.session_transaction() as state:
+                    state['user_id']=value;state['role']='CLIENT_MEMBER'
+                self.assertEqual(anonymous.get('/kilas-translator/live/gemini').status_code,303)
+            missing=audio.f.repo.create_user(self.id()+'-missing@example.test','hash')
+            authenticate(anonymous,audio.f.repo.get_user_by_id(missing),_csrf_token='audio-csrf')
+            audio.f.db.execute('DELETE FROM users WHERE id=?',(missing,))
+            self.assertEqual(anonymous.get('/kilas-translator/live/gemini').status_code,303)
+            connect.assert_not_called()
+
+    def test_shared_access_is_opt_in_and_qa_stays_owner_only(self):
+        self.login_other()
+        with self.config(),patch.dict(os.environ,{'KILAS_APP_FREE_TEST_ENABLED':'false'}),patch.object(native,'connect') as connect:
+            for manager in (self.lifetime(KILAS_LIVE_GEMINI_AUDIENCE='owner'),
+                            patch.dict(os.environ,{'KILAS_LIVE_GEMINI_POLICY':'qa','KILAS_LIVE_GEMINI_AUDIENCE':'authenticated'})):
+                with manager:
+                    self.assertFalse(native.ready(self.other))
+                    self.assertEqual(self.client.get('/kilas-translator/live/gemini').status_code,404)
+                    self.assertEqual(self.client.get('/kilas-translator/live').status_code,404)
+                    self.assertEqual(self.client.post('/kilas-translator/live/gemini/sessions',data=self.native_fields()).status_code,404)
+            connect.assert_not_called()
+
+    def test_default_native_entry_preserves_classic_fallback_and_existing_sessions(self):
+        with self.config(),self.shared(),patch.object(native,'connect') as connect:
+            for path in ('/kilas-translator/live','/kilas-translator?mode=live'):
+                response=self.client.get(path)
+                self.assertEqual(response.status_code,302)
+                self.assertEqual(response.location,'/kilas-translator/live/gemini')
+                self.assertEqual(response.headers['Cache-Control'],'private, no-store')
+            legacy=sessions.create(self.user,'id','en','kilas-male')
+            before=dict(audio.f.db.query_one('SELECT * FROM kilas_live_translator_sessions WHERE id=?',(legacy,)))
+            for path in ('/kilas-translator/live','/kilas-translator?mode=live'):
+                response=self.client.get(path)
+                self.assertEqual(response.status_code,200)
+                self.assertNotIn('/static/kilas_live_gemini.mjs',response.text)
+                self.assertEqual(dict(audio.f.db.query_one('SELECT * FROM kilas_live_translator_sessions WHERE id=?',(legacy,))),before)
+            self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+legacy+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
+            self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/live/gemini')
+            current=sessions.create(self.user,'id','en',native.VOICE)
+            self.addCleanup(sessions.end,self.user,current)
+            self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/live/gemini')
+            self.assertEqual(sessions.status(self.user,current)['status'],'ACTIVE')
+            for path in ('/kilas-translator/live?classic=1','/kilas-translator?mode=live&classic=1'):
+                response=self.client.get(path)
+                self.assertEqual(response.status_code,200)
+                self.assertNotIn('/static/kilas_live_gemini.mjs',response.text)
+            sessions.end(self.user,current)
+            for extra in ({'KILAS_LIVE_GEMINI_ENABLED':'false'},{'GEMINI_API_KEY':''}):
+                with patch.dict(os.environ,extra):
+                    self.assertEqual(self.client.get('/kilas-translator/live').status_code,200)
+                    self.assertEqual(self.client.get('/kilas-translator?mode=live').status_code,200)
+            connect.assert_not_called()
+
     def test_lifetime_budget_requires_verified_currency_bound_and_finite_total(self):
         with self.config(),self.lifetime():
             config=budget.policy()

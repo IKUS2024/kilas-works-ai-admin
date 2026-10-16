@@ -1,6 +1,6 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=app-language-20261015';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=app-language-20261015';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=capture-callback-retirement-20261016';
 import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=app-language-20261015';
 import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=app-language-20261015';
 import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=app-language-20261015';

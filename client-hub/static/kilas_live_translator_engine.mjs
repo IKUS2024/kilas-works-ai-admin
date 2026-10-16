@@ -77,6 +77,9 @@ export class TranslatorSession {
   async utterance(blob,ticket){
     if(ticket!==this.version||this.state!=='finalizing')return;
     // Capture adapter releases every mic track before delivering the blob.
+    // Retire its callbacks now: a queued device error from the disposed capture
+    // must not interrupt this accepted utterance's processing or playback.
+    ++this.captureVersion;
     this.stateTo('processing');
     try{
       const realtime=this.inputMode==='realtime-v1';
@@ -127,6 +130,9 @@ export class TranslatorSession {
   }
   async recover(error,ticket){
     if(ticket!==this.version)return;
+    // Recovery owns this cycle before awaiting verification; duplicate errors
+    // from the cancelled capture cannot pause or start a second recovery.
+    ++this.captureVersion;
     if(error.turnSettled)this.pendingKey=null;
     try{this.capture.cancel();}catch{}try{this.playback.cancel?.();}catch{}
     if(!error.recoverable&&error.code!=='no_speech'){this.pause(error);return;}

@@ -1,10 +1,11 @@
 # Isolated Gemini Live Translate candidate
 
-Latest implementation: [continuous sessions, final PCM drain, conservative owner
-allowance and synthetic-only exports](KILAS_GEMINI_CONTINUOUS_RELEASE_20261016.md).
-That release remains safe OFF. Its explicit bounded transport completion does
-not claim semantic final-tail verification; older candidate/QA notes below are
-historical where superseded.
+Latest rollout: [authenticated native access with one shared allowance and
+continuous default entry](KILAS_GEMINI_SHARED_ROLLOUT_20261016.md).
+The [continuous implementation](KILAS_GEMINI_CONTINUOUS_RELEASE_20261016.md)
+describes final PCM drain and synthetic-only exports. Its bounded transport
+completion does not claim semantic final-tail verification. Older candidate/QA
+access and safe-OFF notes below are historical where superseded.
 
 
 This candidate is disabled by default. It does not replace `/kilas-translator/live`,
