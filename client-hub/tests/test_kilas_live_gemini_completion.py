@@ -80,7 +80,9 @@ class CompletionTests(unittest.TestCase):
         relay.accept(0, b'\x01\x00' * 1600)
         relay.finish_input(1)
         with patch.object(native, 'connect', return_value=socket), \
-             patch.object(native, 'TAIL_GRACE_SECONDS', .06), redirect_stdout(io.StringIO()):
+             patch.object(native, 'TAIL_GRACE_SECONDS', .06), \
+             patch.object(native, 'TAIL_MAX_SECONDS', .12), \
+             patch.object(native, 'TAIL_QUIET_SECONDS', .02), redirect_stdout(io.StringIO()):
             relay.run()
         return relay
 
@@ -245,7 +247,7 @@ class CompletionTests(unittest.TestCase):
             self.assertTrue(final['output_closed'])
             self.assertEqual(final['total_frames'], 2)
 
-    def test_continuous_audio_does_not_extend_fixed_post_eos_window(self):
+    def test_late_audio_extends_quiet_drain_but_never_exceeds_six_second_bound(self):
         with self.config():
             relay = self.make()
             base = relay.started
@@ -253,16 +255,22 @@ class CompletionTests(unittest.TestCase):
             relay.end_sent.set()
             relay.input_closed = True
             with patch.object(native, 'monotonic', return_value=base + 18.999):
-                # A large accepted burst must remain readable without prolonging
-                # the final socket window by its30s PCM duration.
+                # Accepted PCM duration is not a socket-time extension. A late
+                # packet receives a short quiet wait, never another full lease.
                 for _ in range(3):
                     relay.receive(output(100))
                 self.assertFalse(relay.finish_drain())
-            self.assertEqual(relay.drain_deadline(), base + 19)
+            self.assertAlmostEqual(relay.drain_deadline(), base + 20.499)
             with patch.object(native, 'monotonic', return_value=base + 19):
+                self.assertFalse(relay.finish_drain())
+            with patch.object(native, 'monotonic', return_value=base + 20.9):
+                relay.receive(output())
+                self.assertEqual(relay.drain_deadline(), base + 21)
+                self.assertFalse(relay.finish_drain())
+            with patch.object(native, 'monotonic', return_value=base + 21):
                 self.assertTrue(relay.finish_drain())
             self.assertFalse(relay.tail_confirmed)
-            self.assertEqual(len(relay.frames), 300)
+            self.assertEqual(len(relay.frames), 301)
             budget.finish(relay.capability, False)
             audio_store.fail(self.user, relay.job, 'synthetic')
 

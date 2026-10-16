@@ -24,10 +24,13 @@ QUEUE_BYTES = 8 * 32000
 MAX_MESSAGE = 1024 * 1024
 MAX_TEXT = 4000
 # Continuous Live Translate does not promise a turn EOF. Google's example
-# bounds its final receive window to four seconds, then stops the stream:
+# uses four seconds, but that is not a semantic completion signal:
 # https://github.com/google-gemini/gemini-live-api-examples/blob/3bcae1162d1bc6955672153310e4f84eba6621ff/command-line/python/translate.py
-# This is a local transport bound, never proof that the semantic tail arrived.
+# Keep a short quiet period after a late PCM packet, within a fixed six-second
+# maximum and the original paid lease. Never turn that bound into proof of EOF.
 TAIL_GRACE_SECONDS = 4
+TAIL_MAX_SECONDS = 6
+TAIL_QUIET_SECONDS = 1.5
 _lock = Lock()
 _items = {}
 _slots = BoundedSemaphore(2)
@@ -126,6 +129,7 @@ class Relay:
         self.tail_confirmed = False
         self.first_input_at = self.first_output_at = None
         self.sent_bytes = self.sent_packets = self.received_packets = self.rejected_output_bytes = 0
+        self.interruption_count = 0
         self.last_output_at = None
         self.expires = self.started + 600
 
@@ -161,12 +165,14 @@ class Relay:
 
     def drain_deadline(self):
         with self.lock:
-            if self.end_at is None:
-                return None
-            # PCM already accepted remains available for client playout. Its
-            # duration cannot extend the paid socket or prove a final tail.
-            return min(self.started+budget.LEASE_MS/1000,
-                       self.end_at+TAIL_GRACE_SECONDS)
+            return self._drain_deadline()
+
+    def _drain_deadline(self):
+        if self.end_at is None:
+            return None
+        quiet_after = (self.last_output_at if self.last_output_at is not None else self.end_at)+TAIL_QUIET_SECONDS
+        return min(self.started+budget.LEASE_MS/1000, self.end_at+TAIL_MAX_SECONDS,
+                   max(self.end_at+TAIL_GRACE_SECONDS, quiet_after))
 
     def finish_drain(self):
         """Close the local receive window without inventing a provider EOF."""
@@ -174,7 +180,7 @@ class Relay:
             with self.lock:
                 now = monotonic()
                 if (self.completed.is_set() or self.cancelled.is_set() or self.error is not None
-                        or self.end_at is None or now < self.end_at+TAIL_GRACE_SECONDS
+                        or self.end_at is None or now < self._drain_deadline()
                         or now >= self.started+budget.LEASE_MS/1000):
                     return False
                 self.completion_kind = 'bounded_drain'
@@ -189,6 +195,7 @@ class Relay:
             return {'end_sent':self.end_sent.is_set(),
                     'generation_complete_count':self.generation_complete_count,
                     'turn_complete_count':self.turn_complete_count,
+                    'interruption_count':self.interruption_count,
                     'generation_complete_after_end':self.post_end_generation_complete,
                     'turn_complete_after_end':self.post_end_turn_complete,
                     'completion_kind':self.completion_kind,
@@ -293,6 +300,7 @@ class Relay:
                 if self.completed.is_set():
                     return
                 if content.get('interrupted') is True:
+                    self.interruption_count += 1
                     self.generation += 1
                     self.frames.append({'type':'reset', 'generation':self.generation})
                 for field, target in (('inputTranscription','source_text'), ('outputTranscription','target_text')):
@@ -450,6 +458,11 @@ class Relay:
                 values = f'input_ms={self.accepted/32:.1f} output_ms={self.output_bytes/48:.1f} elapsed_ms={(monotonic()-self.started)*1000:.1f}'
                 values += f' code={getattr(self.error,"code",None) or "none"} first_code={getattr(self.first_error,"code",None) or "none"}'
                 values += f' generation_complete={self.generation_complete_count} turn_complete={self.turn_complete_count}'
+                values += f' interruptions={self.interruption_count}'
+                if self.end_at is not None:
+                    values += f' post_eos_ms={max(0,monotonic()-self.end_at)*1000:.1f}'
+                    if self.last_output_at is not None:
+                        values += f' last_output_after_eos_ms={(self.last_output_at-self.end_at)*1000:.1f}'
                 values += f' completion_kind={self.completion_kind or "none"} tail_confirmed={str(self.tail_confirmed).lower()}'
                 if self.first_input_at is not None and self.first_output_at is not None:
                     values += f' first_output_ms={max(0,self.first_output_at-self.first_input_at)*1000:.1f}'

@@ -3,7 +3,7 @@ import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 const failure=(code,message)=>Object.assign(Error(message),{code,startupStage:'microphone_start'});
 const aborted=()=>new DOMException(t('Sesi berakhir.'),'AbortError');
 export class RealtimeCapture {
-  constructor({getContext,mediaDevices,continuous=false,createNode=(ctx)=>new AudioWorkletNode(ctx,'kilas-pcm'),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
+  constructor({getContext,mediaDevices,continuous=false,frameSamples=3200,createNode=(ctx)=>new AudioWorkletNode(ctx,'kilas-pcm',{processorOptions:{frameSamples}}),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
     Object.assign(this,{getContext,mediaDevices,continuous,createNode,schedule,clear});this.version=0;this.timer=null;this.flushTimer=null;
   }
   cleanup(){
@@ -41,7 +41,7 @@ export class RealtimeCapture {
       if(!stream?.getTracks?.().length)throw failure('microphone_unavailable',t('Mikrofon tidak tersedia. Periksa perangkat lalu tekan Lanjutkan.'));
       this.stream=stream;
       stream.getTracks().forEach(track=>track.addEventListener?.('ended',()=>{if(!this.finalizing)fail(Object.assign(Error(t('Mikrofon terputus.')),{code:'microphone_unavailable'}));},{once:true}));
-      await this.bounded(controller.signal,()=>context.audioWorklet.addModule('/static/kilas_live_translator_pcm.mjs?v=realtime-input-20261013'),10000,failure('realtime_module_timeout',t('Input audio belum dapat dimuat. Periksa koneksi lalu tekan Lanjutkan.')));
+      await this.bounded(controller.signal,()=>context.audioWorklet.addModule('/static/kilas_live_translator_pcm.mjs?v=utterance-pcm-20261016'),10000,failure('realtime_module_timeout',t('Input audio belum dapat dimuat. Periksa koneksi lalu tekan Lanjutkan.')));
       if(ticket!==this.version)throw aborted();
       this.finalizing=false;this.done=()=>{if(ticket!==this.version)return;this.cleanup();blob(null);};
       const node=this.createNode(context);this.node=node;
@@ -58,7 +58,7 @@ export class RealtimeCapture {
         if(heard||rms>=.015){
           if(!heard){heard=true;if(!this.continuous)this.timer=this.schedule(()=>fail(Object.assign(Error(t('Ucapan terlalu panjang. Sesi dijeda tanpa menerjemahkan sebagian.')),{code:'utterance_limit'})),179000);for(const previous of preRoll)pcm(new Uint8Array(previous));preRoll=[];}
           pcm(new Uint8Array(bytes));
-        }else{preRoll.push(bytes);if(preRoll.length>2)preRoll.shift();}
+        }else{preRoll.push(bytes);while(preRoll.length>1&&preRoll.reduce((total,value)=>total+value.byteLength,0)>12800)preRoll.shift();}
         level(rms);
       };
       this.source=context.createMediaStreamSource(stream);this.source.connect(node);node.connect(context.destination);

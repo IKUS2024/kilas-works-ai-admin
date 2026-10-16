@@ -1,4 +1,11 @@
 {
+  "Bahasa sumber diterjemahkan ke bahasa tujuan.": "The source language is translated into the target language.",
+  "Bicara, lalu diam sekitar 1,5 detik. Gunakan headset.": "Speak, then pause for about 1.5 seconds. Use a headset.",
+  "Pemakaian berjalan selama sesi aktif. End menghentikan sesi. Ucapan tidak diulang otomatis.": "Usage continues during an active session. End stops the session. Speech is not retried automatically.",
+  "Saya mengizinkan pemrosesan ucapan oleh Google.": "I consent to speech processing by Google.",
+  "Batas biaya tercapai. Sesi dihentikan.": "The spending limit was reached. The session has stopped.",
+  "Sesi terputus. Periksa koneksi sebelum mulai lagi.": "The session disconnected. Check your connection before starting again.",
+  "Bagian akhir terjemahan belum terkonfirmasi.": "The end of the translation is not confirmed.",
   "Pilih dua bahasa, lalu mulai percakapan.": "Choose two languages, then start the conversation.",
   "Translator belum tersedia untuk akun ini.": "Translator is not available for this account yet.",
   "Pemulihan sesi": "Session recovery",

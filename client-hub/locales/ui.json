@@ -1,4 +1,11 @@
 {
+  "Bahasa sumber diterjemahkan ke bahasa tujuan.": {"en": "The source language is translated into the target language.", "es": "El idioma de origen se traduce al idioma de destino.", "zh": "将源语言翻译为目标语言。"},
+  "Bicara, lalu diam sekitar 1,5 detik. Gunakan headset.": {"en": "Speak, then pause for about 1.5 seconds. Use a headset.", "es": "Habla y luego haz una pausa de unos 1,5 segundos. Usa auriculares.", "zh": "说完后暂停约1.5秒。请使用耳机。"},
+  "Pemakaian berjalan selama sesi aktif. End menghentikan sesi. Ucapan tidak diulang otomatis.": {"en": "Usage continues during an active session. End stops the session. Speech is not retried automatically.", "es": "El uso continúa durante la sesión activa. End detiene la sesión. La voz no se reenvía automáticamente.", "zh": "会话期间持续计费。End结束会话。语音不会自动重试。"},
+  "Saya mengizinkan pemrosesan ucapan oleh Google.": {"en": "I consent to speech processing by Google.", "es": "Autorizo el procesamiento de voz por Google.", "zh": "我同意由Google处理语音。"},
+  "Batas biaya tercapai. Sesi dihentikan.": {"en": "The spending limit was reached. The session has stopped.", "es": "Se alcanzó el límite de gasto. La sesión se ha detenido.", "zh": "已达到费用限额。会话已停止。"},
+  "Sesi terputus. Periksa koneksi sebelum mulai lagi.": {"en": "The session disconnected. Check your connection before starting again.", "es": "La sesión se desconectó. Comprueba la conexión antes de empezar de nuevo.", "zh": "会话已断开。重新开始前请检查连接。"},
+  "Bagian akhir terjemahan belum terkonfirmasi.": {"en": "The end of the translation is not confirmed.", "es": "El final de la traducción no está confirmado.", "zh": "译文结尾尚未确认。"},
   "Batas penggunaan Live Translator tercapai. Sesi dijeda.": {"en": "The Live Translator usage limit was reached. The session is paused.", "es": "Se alcanzó el límite de uso de Live Translator. La sesión está en pausa.", "zh": "已达到实时翻译用量限额。会话已暂停。"},
 
   "Melanjutkan sesi...": {"en": "Continuing the session...", "es": "Continuando la sesión...", "zh": "正在继续会话…"},

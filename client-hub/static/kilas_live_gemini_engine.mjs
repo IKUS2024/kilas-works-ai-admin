@@ -1,12 +1,12 @@
 // One owned logical session; bounded native turns are admitted serially, never retried.
-import {GeminiPlayer} from './kilas_live_gemini_player.mjs?v=gemini-continuous-v2';
+import {GeminiPlayer} from './kilas_live_gemini_player.mjs?v=utterance-gate-20261016';
 export {GeminiPlayer};
 const abort=()=>new DOMException('Aborted','AbortError');
 const failure=code=>Object.assign(Error(code),{code});
 const INPUT_BYTES=59*32000,QUEUE_BYTES=8*32000;
 export class GeminiSession {
- constructor({json,capture,player,prepare,csrf,endOwned=null,onIdle=()=>{},onAdmissionChange=()=>{},key=()=>crypto.randomUUID().replaceAll('-',''),onState=()=>{},onText=()=>{},onError=()=>{},onWarning=()=>{},onTiming=()=>{},now=()=>performance.now(),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id)}){
-  Object.assign(this,{json,capture,player,prepare,csrf,endOwned,onIdle,onAdmissionChange,key,onState,onText,onError,onWarning,onTiming,now,schedule,clear});this.version=0;this.id=null;this.active=false;this.admissionPending=false;
+ constructor({json,capture,player,prepare,csrf,endOwned=null,onIdle=()=>{},onAdmissionChange=()=>{},key=()=>crypto.randomUUID().replaceAll('-',''),onState=()=>{},onText=()=>{},onError=()=>{},onWarning=()=>{},onTiming=()=>{},utterancePlayback=false,isEcho=()=>false,now=()=>performance.now(),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id)}){
+  Object.assign(this,{json,capture,player,prepare,csrf,endOwned,onIdle,onAdmissionChange,key,onState,onText,onError,onWarning,onTiming,utterancePlayback,isEcho,now,schedule,clear});this.version=0;this.id=null;this.active=false;this.admissionPending=false;
  }
  get firstInputAt(){return this.turn?.firstInputAt??null;}
  get cursor(){return this.turn?.cursor??0;}
@@ -23,9 +23,10 @@ export class GeminiSession {
    try{result=await this.json('/kilas-translator/live/gemini/sessions',{method:'POST',body:form,signal:this.controller.signal,timeoutMs:15000});}finally{this.admissionPending=false;try{this.onAdmissionChange();}catch{}}
    if(!/^[a-f0-9]{48}$/.test(result?.session_id)||result.input_mode!=='gemini-live-v1')throw failure('gemini_session_invalid');
    if(ticket!==this.version){this.closeRemote(result.session_id);return;}
-   this.id=result.session_id;this.turn=null;this.usedKeys=new Set();this.carry=[];this.carryBytes=0;this.stopping=false;this.player.reset();
+   this.id=result.session_id;this.turn=null;this.usedKeys=new Set();this.carry=[];this.carryBytes=0;this.stopping=false;this.player.reset();this.speech={active:false,silenceSamples:0,preRoll:[]};
+   if(this.utterancePlayback)this.player.hold();
    await this.capture.start({ready:()=>{if(ticket===this.version)this.state('listening');},level:()=>{},
-    pcm:bytes=>{try{this.current(ticket);this.push(bytes,ticket);}catch(error){this.fail(error,ticket);}},
+    pcm:bytes=>{try{if(this.failureEndpoint&&ticket===this.version){this.failureInput(bytes);return;}this.current(ticket);if(this.utterancePlayback)this.input(bytes,ticket);else this.push(bytes,ticket);}catch(error){this.fail(error,ticket);}},
     blob:()=>this.fail(failure('gemini_capture_stopped'),ticket),error:error=>this.fail(error,ticket)});this.current(ticket);
    this.state('listening');
   }catch(error){this.fail(error,ticket);}
@@ -35,6 +36,36 @@ export class GeminiSession {
   if(this.usedKeys.has(operation))throw failure('gemini_operation_invalid');this.usedKeys.add(operation);
   const turn={operation,index:0,cursor:0,totalBytes:0,queuedBytes:0,pending:new Uint8Array(16000),pendingLength:0,begun:false,finishing:false,closed:false,generation:0,firstInputAt:null,outputSeen:false};
   this.turn=turn;return turn;
+ }
+ input(bytes,ticket){
+  this.current(ticket);if(this.stopping)return;
+  if(!(bytes instanceof Uint8Array)||!bytes.byteLength||bytes.byteLength%2||bytes.byteLength>6400)throw failure('gemini_input_invalid');
+  const echo=this.isEcho(bytes),raw=echo?new Uint8Array(bytes.length):bytes;
+  let energy=0;const view=new DataView(raw.buffer,raw.byteOffset,raw.byteLength);
+  for(let i=0;i<raw.length;i+=2)energy+=(view.getInt16(i,true)/32768)**2;
+  const voice=Math.sqrt(energy/(raw.length/2))>=.015,speech=this.speech;
+  if(!speech.active){
+   if(!voice){
+    // Keep the current paid stream alive during pauses, but never open a new
+    // reservation for standby silence or recognizable playback echo.
+    if(this.turn&&!this.turn.finishing){this.push(raw,ticket);if(this.turn.totalBytes>=45*32000)this.finish();}
+    else{speech.preRoll.push(raw.slice());while(speech.preRoll.length>1&&speech.preRoll.reduce((total,value)=>total+value.length,0)>12800)speech.preRoll.shift();}
+    return;
+   }
+   speech.active=true;speech.silenceSamples=0;this.player.hold();this.state('listening');
+   for(const previous of speech.preRoll)this.push(previous,ticket);speech.preRoll=[];
+  }
+  this.push(raw,ticket);
+  speech.silenceSamples=voice?0:speech.silenceSamples+raw.length/2;
+  // PCM samples drive the endpoint, so brief intra-sentence pauses and a slow
+  // UI clock cannot release audio early. Native100ms frames resolve at1.5s.
+  if(speech.silenceSamples>=24000){
+   speech.active=false;speech.silenceSamples=0;
+   this.state(this.player.pendingSamples?'playing':'processing');this.player.release();
+   // Prefer a quiet renewal near the physical bound. A speech endpoint opens
+   // playout, not a new paid connection or an unconditional stream close.
+   if(this.turn&&this.turn.totalBytes>=45*32000)this.finish();
+  }
  }
  push(bytes,ticket){
   this.current(ticket);if(this.stopping)return;
@@ -76,7 +107,7 @@ export class GeminiSession {
  async finishInput(ticket,turn=this.turn){
   this.current(ticket,turn);if(!turn||turn.finishing||turn.closed||this.stopping)return;turn.finishing=true;this.clear(turn.timer);
   // Keep the same capture/worklet alive: its partial PCM belongs to the next turn.
-  this.flush(ticket,turn);this.state('renewing');await turn.chain;this.current(ticket,turn);if(this.stopping)throw abort();
+  this.flush(ticket,turn);this.state(this.utterancePlayback?(this.speech.active?'listening':this.player.pendingSamples?'playing':'processing'):'renewing');await turn.chain;this.current(ticket,turn);if(this.stopping)throw abort();
   await this.json(this.path(turn)+'/finish',{method:'POST',body:this.form({count:turn.index}),signal:this.controller.signal,timeoutMs:10000});this.current(ticket,turn);
  }
  async pause(ticket,turn){
@@ -92,7 +123,10 @@ export class GeminiSession {
    for(const frame of result.frames){
     if(frame.index!==turn.cursor||!Number.isInteger(frame.generation)||frame.generation<0)throw failure('gemini_output_invalid');
     if(frame.type==='reset'){
-     if(frame.generation!==turn.generation+1)throw failure('gemini_output_invalid');turn.generation=frame.generation;this.player.interrupt?.(turn);
+     if(frame.generation!==turn.generation+1)throw failure('gemini_output_invalid');turn.generation=frame.generation;
+     // An interpreter keeps all accepted translated PCM. New input must not
+     // silently erase the sentence already waiting for the speaker to finish.
+     if(!this.utterancePlayback)this.player.interrupt?.(turn);
     }else if(frame.type==='audio'&&frame.generation===turn.generation&&typeof frame.pcm==='string'&&frame.pcm.length<=12800){
      const raw=Uint8Array.from(atob(frame.pcm),ch=>ch.charCodeAt(0));this.player.push(raw,turn);
      if(!turn.outputSeen){turn.outputSeen=true;try{this.onTiming({first_pcm_received_ms:Math.max(0,this.now()-turn.firstInputAt)});}catch{}}
@@ -113,29 +147,48 @@ export class GeminiSession {
      this.current(ticket,turn);
      // Old provider output is closed and fully cursor-consumed. Keep its accepted
      // PCM scheduled on the same player while the next reserved turn opens.
-     this.turn=null;const carry=this.carry;this.carry=[];this.carryBytes=0;this.state('listening');
-     for(const bytes of carry){this.current(ticket);this.push(bytes,ticket);}return;
+     this.turn=null;const carry=this.carry;this.carry=[];this.carryBytes=0;this.state(this.utterancePlayback&&!this.speech.active&&this.player.pendingSamples?'playing':'listening');
+     for(const bytes of carry){this.current(ticket);this.push(bytes,ticket);}
+     return;
     }
    }
    await this.pause(ticket,turn);
   }
  }
  closeRemote(id){if(this.endOwned)return this.endOwned(id);return this.json('/kilas-translator/live/sessions/'+encodeURIComponent(id)+'/end',{method:'POST',body:this.form(),keepalive:true,timeoutMs:10000}).catch(()=>{});}
+ failureInput(bytes){
+  if(!(bytes instanceof Uint8Array)||!bytes.length||bytes.length%2||bytes.length>6400)return;
+  let energy=0;const echo=this.isEcho(bytes),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  if(!echo)for(let i=0;i<bytes.length;i+=2)energy+=(view.getInt16(i,true)/32768)**2;
+  this.speech.silenceSamples=Math.sqrt(energy/(bytes.length/2))>=.015?0:this.speech.silenceSamples+bytes.length/2;
+  if(this.speech.silenceSamples>=24000){this.speech.active=false;this.failureEndpoint?.(true);}
+ }
  fail(error,ticket){
   if(ticket!==this.version||error?.name==='AbortError'||this.failureTask)return;
-  // Stop new capture, requests and admission immediately, but preserve accepted
-  // PCM through technical failure. Explicit End and a failed player cancel now.
+  // Stop requests/admission immediately and preserve accepted PCM. The opted-in
+  // gate may observe local silence briefly; End/a failed player cancels now.
   this.stopping=true;this.failureTask=true;this.controller?.abort();this.clear(this.turn?.timer);
-  try{this.capture.cancel();}catch{}this.state('draining');
+  const waitForSpeech=this.utterancePlayback&&this.speech?.active&&!this.player.failed;
+  if(!waitForSpeech){try{this.capture.cancel();}catch{}}this.state('draining');
   this.failureTask=(async()=>{
+   if(waitForSpeech){
+    // Failed network work cannot trigger translated speech over a speaker.
+    // Observe only local silence for a bounded interval; never dispatch again.
+    try{this.onError(error);}catch{}
+    const quiet=await new Promise(resolve=>{this.failureEndpoint=resolve;this.failureTimer=this.schedule(()=>resolve(false),10000);});
+    this.failureEndpoint=null;this.clear(this.failureTimer);this.failureTimer=null;
+    if(ticket!==this.version)return;
+    try{this.capture.cancel();}catch{}
+    if(!quiet){await this.end();return;}
+   }
    if(!this.player.failed){try{await this.player.drain();}catch{}}
    if(ticket!==this.version)return;
-   try{this.onError(error);}catch{}finally{await this.end();}
+   try{if(!waitForSpeech)this.onError(error);}catch{}finally{await this.end();}
   })();
   this.failureTask.catch(()=>{});return this.failureTask;
  }
  async end(){
-  const id=this.id;this.id=null;this.active=false;this.version++;this.controller?.abort();this.clear(this.turn?.timer);this.carry=[];this.carryBytes=0;
+  const id=this.id;this.id=null;this.active=false;this.version++;this.controller?.abort();this.clear(this.turn?.timer);this.clear(this.failureTimer);this.failureEndpoint?.(false);this.failureEndpoint=null;this.carry=[];this.carryBytes=0;
   try{this.capture.cancel();}catch{}try{this.player.cancel();}catch{}this.state('ended');
   if(id)await this.closeRemote(id);else this.onIdle();
  }

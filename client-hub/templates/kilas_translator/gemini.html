@@ -1,31 +1,29 @@
 {% extends 'base.html' %}
-{% block title %}Translator · Gemini · Kilas Works{% endblock %}
+{% block title %}Translator · Kilas Works{% endblock %}
 {% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_live_translator.css',v='call-viewport-20261013') }}">{% endblock %}
 {% block content %}
 <div class="kilas-live-page">
 {% set selected_feature='live' %}{% include 'kilas_ai/_feature_navigation.html' %}
 {% if not gemini_ready and not gemini_recovery_only %}
-<section class="kilas-live-translator"><header class="live-heading"><h1>Translator · Gemini</h1><p>{{ ui_t('Akses khusus owner') }}</p></header>
-<p role="status">{{ ui_t('Batas total Rp500.000 sudah disetujui. Start menunggu verifikasi pengaman biaya dan pemakaian sebelumnya.') }}</p>
-<p>{{ ui_t('Bagian akhir terjemahan masih diverifikasi. Mikrofon dan layanan Gemini belum dijalankan dari halaman ini.') }}</p>
+<section class="kilas-live-translator"><header class="live-heading"><h1>Translator</h1></header>
+<p role="status">{{ ui_t('Translator belum tersedia untuk akun ini.') }}</p>
 <button type="button" class="btn" disabled>{{ ui_t('Start') }}</button></section>
 {% else %}
 <section class="kilas-live-translator" data-gemini-live data-gemini-ready="{{ 'true' if gemini_ready else 'false' }}">
-<section id="live-setup"><header class="live-heading"><h1>Translator · Gemini</h1><p>{{ ui_t('Terjemahan langsung satu arah dengan suara Gemini. Pilih arah sebelum mulai.') }}</p></header>
-<p>{{ ui_t('Bahasa tujuan diabaikan oleh penerjemah. Gunakan headset untuk mengurangi suara speaker masuk kembali ke mikrofon.') }}</p>
+<section id="live-setup"><header class="live-heading"><h1>Translator</h1></header>
 <section id="live-recovery" hidden aria-label="{{ ui_t('Pemulihan sesi') }}"><p id="live-recovery-status" role="status"></p><p>{{ ui_t('Sesi mungkin masih digunakan di tab atau perangkat lain. Gunakan tab itu, atau akhiri sesi sebelumnya di sini. Mengakhiri sesi membatalkan ucapan yang masih diproses; biaya yang sudah dikirim tetap tercatat.') }}</p><button type="button" class="btn secondary" id="live-recovery-end">{{ ui_t('Akhiri sesi sebelumnya') }}</button></section>
 <form id="live-setup-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label>{{ ui_t('Bahasa sumber') }}<select name="language_a" required>{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='id' }}>{{ ui_t(label) }}</option>{% endfor %}</select></label>
 <label>{{ ui_t('Bahasa tujuan') }}<select name="language_b" required>{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }}>{{ ui_t(label) }}</option>{% endfor %}</select></label>
-<p>{{ ui_t('Gunakan bahasa sumber yang dipilih. Bahasa dikenali oleh Gemini; deteksi bahasa belum divalidasi pada perangkat ini.') }}</p>
-<label class="live-consent"><input type="checkbox" name="consent" value="gemini-live-v1" required><span>{{ ui_t('Saya memiliki izin mengirim ucapan ke Google Gemini untuk diterjemahkan langsung. Hasil sesi tidak dimasukkan ke riwayat Voice Over.') }} <a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">{{ ui_t('Kebijakan Privasi') }}</a></span></label>
+<p>{{ ui_t('Bahasa sumber diterjemahkan ke bahasa tujuan.') }} {{ ui_t('Bicara, lalu diam sekitar 1,5 detik. Gunakan headset.') }}</p>
+<p>{{ ui_t('Pemakaian berjalan selama sesi aktif. End menghentikan sesi. Ucapan tidak diulang otomatis.') }}</p>
+<label class="live-consent"><input type="checkbox" name="consent" value="gemini-live-v1" required><span>{{ ui_t('Saya mengizinkan pemrosesan ucapan oleh Google.') }} <a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">{{ ui_t('Kebijakan Privasi') }}</a></span></label>
 <button type="submit" class="btn" disabled>{{ ui_t('Start') }}</button></form></section>
-<section id="live-active" hidden aria-label="{{ ui_t('Sesi Translator') }}"><div class="live-call-body"><div class="kilas-live-orb" role="img" aria-label="{{ ui_t('Mendengarkan') }}" data-state="listening"></div><p id="live-state" role="status" aria-live="polite"></p><p id="live-translation" aria-label="{{ ui_t('Hasil terjemahan') }}" aria-live="polite"></p></div>
-<div class="live-call-controls"><button type="button" class="btn secondary" id="gemini-finish" title="{{ ui_t('Selesaikan ucapan ini; sesi tetap mendengarkan.') }}">{{ ui_t('Selesaikan ucapan') }}</button><button type="button" id="live-end" class="live-hangup" aria-label="{{ ui_t('Akhiri sesi') }}" title="{{ ui_t('Akhiri sesi') }}">{{ ui_t('End') }}</button></div></section>
-<p>{{ ui_t('Setelah ucapan pertama, mikrofon dan pemakaian Gemini berlanjut termasuk saat hening sampai Anda menekan End. Sesi diperbarui otomatis; End membatalkan sisa audio.') }}</p>
+<section id="live-active" hidden aria-label="{{ ui_t('Sesi Translator') }}"><div class="live-call-body"><div class="kilas-live-orb" role="img" aria-label="{{ ui_t('Mendengarkan') }}" data-state="listening"></div><p id="live-state" role="status" aria-live="polite"></p></div>
+<div class="live-call-controls"><button type="button" id="live-end" class="live-hangup" aria-label="{{ ui_t('Akhiri sesi') }}" title="{{ ui_t('Akhiri sesi') }}">{{ ui_t('End') }}</button></div></section>
 <p id="live-error" role="alert" hidden></p><p id="live-session-status" role="status" aria-live="polite"></p>
-<button type="button" class="btn secondary" id="live-recovery-check">{{ ui_t('Periksa sesi') }}</button>
+<button type="button" class="btn secondary" id="live-recovery-check" hidden>{{ ui_t('Coba lagi') }}</button>
 </section>
-<script type="module" src="{{ url_for('static',filename='kilas_live_gemini.mjs',v='gemini-recovery-v3') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_live_gemini.mjs',v='utterance-gate-20261016') }}"></script>
 {% endif %}</div>
 {% endblock %}
