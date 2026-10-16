@@ -461,8 +461,10 @@ def live_translator_cancel_turn(ident,key):
 @audio_bp.get('/live/gemini')
 def live_gemini_home():
     from . import live_gemini as native
-    native.require_ready(session['user_id'])
-    return render_template('kilas_translator/gemini.html', languages=provider.LANGUAGES)
+    enabled = native.ready(session['user_id'])
+    if not enabled and not native.preview_owner(session['user_id']):
+        native.require_ready(session['user_id'])
+    return render_template('kilas_translator/gemini.html', languages=provider.LANGUAGES, gemini_ready=enabled)
 
 
 @audio_bp.post('/live/gemini/sessions')

@@ -1,4 +1,4 @@
-"""Owner-only, fixed-expiry native Live allowance. No supplier-price claims.
+"""Owner-only native Live allowance. No supplier invoice/balance claims.
 
 One conservative, operator-approved lease estimate is retained after ANY dispatch.
 The ledger contains no key, audio or transcript. This does not extend ElevenLabs,
@@ -27,15 +27,34 @@ def policy():
         owner = int(os.environ['KILAS_LIVE_GEMINI_ALLOWED_OWNER_ID'])
         cap = int(os.environ['KILAS_LIVE_GEMINI_BUDGET_MICRO_USD'])
         reserve = int(os.environ['KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD'])
-        expiry = datetime.fromisoformat(os.environ['KILAS_LIVE_GEMINI_EXPIRES_AT'].replace('Z', '+00:00'))
-        now = datetime.now(timezone.utc)
+        mode = os.environ.get('KILAS_LIVE_GEMINI_POLICY', 'qa')
+        if mode == 'owner_lifetime':
+            # Operator must verify a tax/fee-inclusive USD->IDR upper bound.
+            # Never infer one from a claimed balance or a market spot quote.
+            if os.environ.get('KILAS_LIVE_GEMINI_IDR_CEILING_VERIFIED') != 'yes':
+                return None
+            ceiling = int(os.environ['KILAS_LIVE_GEMINI_IDR_PER_USD_CEILING'])
+            approved_idr = int(os.environ['KILAS_LIVE_GEMINI_TOTAL_IDR'])
+            if not 0 < approved_idr <= 500000 or ceiling <= 0 or cap*ceiling > approved_idr*1000000:
+                return None
+            # Stable TEXT value in the existing immutable policy ledger. This
+            # is a lifetime cap, not an artificial distant date or auto-renewal.
+            expiry_text = 'owner-lifetime-v1'
+        elif mode == 'qa':
+            expiry = datetime.fromisoformat(os.environ['KILAS_LIVE_GEMINI_EXPIRES_AT'].replace('Z', '+00:00'))
+            now = datetime.now(timezone.utc)
+            if expiry.tzinfo is None or not now < expiry <= now + timedelta(days=31):
+                return None
+            expiry_text = expiry.astimezone(timezone.utc).isoformat()
+        else:
+            return None
         if (not re.fullmatch(r'[A-Za-z0-9_-]{1,70}', campaign) or not 0 < owner <= 10**9
-                or not 1 <= reserve <= cap <= 10**9 or expiry.tzinfo is None
-                or not now < expiry <= now + timedelta(days=31)):
+                or not 1 <= reserve <= cap <= 10**9
+                or (mode == 'owner_lifetime' and reserve < 100000)):
             return None
         return {'id':'gml-'+campaign, 'allowed_owner':owner, 'global_micro':cap,
                 'account_micro':cap, 'reserve':reserve,
-                'expires_at':expiry.astimezone(timezone.utc).isoformat(), 'price_version':PRICE_VERSION}
+                'expires_at':expiry_text, 'price_version':PRICE_VERSION, 'mode':mode}
     except (ValueError, KeyError, TypeError, OverflowError):
         return None
 
@@ -68,7 +87,12 @@ def claim(owner, ident, key):
             if usage._query(conn, 'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?',
                             (owner, 'live-%', (now-timedelta(seconds=seconds)).isoformat()), one=True)[0] >= maximum:
                 raise ledger.BudgetError('attempt_limit', 429)
-        spent = usage._query(conn, 'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=?', (config['id'],), one=True)[0]
+        if config['mode'] == 'owner_lifetime':
+            # Same advisory lock as all admissions. Campaign rotation, earlier
+            # QA, failures and unknown outcomes cannot reset the total budget.
+            spent = usage._query(conn, 'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign LIKE ?', ('gml-%',), one=True)[0]
+        else:
+            spent = usage._query(conn, 'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign=?', (config['id'],), one=True)[0]
         if spent + config['reserve'] > config['global_micro']:
             raise ledger.BudgetError('budget_limit', 429)
         lease = secrets.token_hex(32)

@@ -110,6 +110,25 @@ def main():
                 assert not smoke.once(remaining)
                 recovered=db.query_one('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(owner,key+'-gm'))
                 assert recovered['status']=='UNKNOWN' and recovered['charge_micro']==1000
+                # Standing owner policy includes historical QA, even after
+                # campaign rotation; admission still uses the PG global lock.
+                prior=db.query_one('SELECT SUM(charge_micro) AS n FROM kilas_vo_stt_operations WHERE campaign LIKE ?',('gml-%',))['n']
+                lifetime={'KILAS_LIVE_GEMINI_POLICY':'owner_lifetime',
+                          'KILAS_LIVE_GEMINI_IDR_CEILING_VERIFIED':'yes',
+                          'KILAS_LIVE_GEMINI_IDR_PER_USD_CEILING':'25000',
+                          'KILAS_LIVE_GEMINI_TOTAL_IDR':'500000',
+                          'KILAS_LIVE_GEMINI_CAMPAIGN':'pg-standing',
+                          'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD':str(prior+100000),
+                          'KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD':'100000',
+                          'KILAS_LIVE_GEMINI_EXPIRES_AT':''}
+                with patch.dict(os.environ,lifetime):
+                    standing=budget.claim(owner,'c'*48,'live-'+'c'*32)
+                    budget.dispatch(standing);budget.finish(standing,False)
+                    assert budget.policy()['expires_at']=='owner-lifetime-v1'
+                    with patch.dict(os.environ,{'KILAS_LIVE_GEMINI_CAMPAIGN':'pg-standing-rotated'}):
+                        try:budget.claim(owner,'d'*48,'live-'+'d'*32)
+                        except budget.ledger.BudgetError as error:assert error.code=='budget_limit'
+                        else:raise AssertionError('Standing cap reset by campaign rotation')
             print('PASS Gemini PostgreSQL: serialized admission, duplicate exclusion, durable unknown dispatch cost, idempotent settlement, unchanged customer balance, private native history')
     finally:
         db._discard_cached_connection()

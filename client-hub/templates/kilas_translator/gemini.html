@@ -4,6 +4,12 @@
 {% block content %}
 <div class="kilas-live-page">
 {% set selected_feature='live' %}{% include 'kilas_ai/_feature_navigation.html' %}
+{% if not gemini_ready %}
+<section class="kilas-live-translator"><header class="live-heading"><h1>Translator · Gemini</h1><p>{{ ui_t('Akses khusus owner') }}</p></header>
+<p role="status">{{ ui_t('Batas total Rp500.000 sudah disetujui. Start menunggu verifikasi pengaman biaya dan pemakaian sebelumnya.') }}</p>
+<p>{{ ui_t('Bagian akhir terjemahan masih diverifikasi. Mikrofon dan layanan Gemini belum dijalankan dari halaman ini.') }}</p>
+<button type="button" class="btn" disabled>{{ ui_t('Start') }}</button></section>
+{% else %}
 <section class="kilas-live-translator" data-gemini-live>
 <section id="live-setup"><header class="live-heading"><h1>Translator · Gemini</h1><p>{{ ui_t('Terjemahan langsung satu arah dengan suara Gemini. Pilih arah sebelum mulai.') }}</p></header>
 <p>{{ ui_t('Bahasa tujuan diabaikan oleh penerjemah. Gunakan headset untuk mengurangi suara speaker masuk kembali ke mikrofon.') }}</p>
@@ -16,9 +22,10 @@
 <button type="submit" class="btn" disabled>{{ ui_t('Start') }}</button></form></section>
 <section id="live-active" hidden aria-label="{{ ui_t('Sesi Translator') }}"><div class="live-call-body"><div class="kilas-live-orb" role="img" aria-label="{{ ui_t('Mendengarkan') }}" data-state="listening"></div><p id="live-state" role="status" aria-live="polite"></p><p id="live-translation" aria-label="{{ ui_t('Hasil terjemahan') }}" aria-live="polite"></p></div>
 <div class="live-call-controls"><button type="button" class="btn secondary" id="gemini-finish">{{ ui_t('Selesaikan ucapan') }}</button><button type="button" id="live-end" class="live-hangup" aria-label="{{ ui_t('Akhiri sesi') }}" title="{{ ui_t('Akhiri sesi') }}">{{ ui_t('End') }}</button></div></section>
-<p>{{ ui_t('Sesi uji berhenti setelah sekitar satu menit. Selesaikan ucapan untuk mendengar bagian terakhir; End membatalkan sisa audio.') }}</p>
+<p>{{ ui_t('Satu sesi menerima sekitar satu menit ucapan. Bagian akhir terjemahan belum terverifikasi; End membatalkan sisa audio.') }}</p>
 <p id="live-error" role="alert" hidden></p><p id="live-session-status" role="status" aria-live="polite"></p>
 <button type="button" class="btn secondary" id="live-recovery-check">{{ ui_t('Periksa sesi') }}</button>
-</section></div>
+</section>
 <script type="module" src="{{ url_for('static',filename='kilas_live_gemini.mjs',v='gemini-isolated-v1') }}"></script>
+{% endif %}</div>
 {% endblock %}

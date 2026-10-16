@@ -54,6 +54,17 @@ def require_ready(owner):
         raise failure('gemini_unavailable', 404)
 
 
+def preview_owner(owner):
+    """Read-only landing access; never grants a session or paid dispatch."""
+    if str(owner) != os.environ.get('KILAS_LIVE_GEMINI_QA_OWNER_ID'):
+        return False
+    expected = os.environ.get('KILAS_LIVE_GEMINI_QA_OWNER_EMAIL', '').strip().lower()
+    if not expected:
+        return False
+    row = db.query_one('SELECT email,role FROM users WHERE id=?', (owner,))
+    return bool(row and row['role'] == 'CLIENT_OWNER' and row['email'].strip().lower() == expected)
+
+
 def setup(target):
     # Dedicated translation guide + Live API reference, checked 2026-10-16.
     # No user instructions, tools, text input, arbitrary model or custom voice.
@@ -108,6 +119,8 @@ class Relay:
         self.post_end_generation_complete = self.post_end_turn_complete = 0
         self.completion_kind = None
         self.first_input_at = self.first_output_at = None
+        self.sent_bytes = self.sent_packets = self.received_packets = self.rejected_output_bytes = 0
+        self.last_output_at = None
         self.expires = self.started + 600
 
     def check(self):
@@ -155,6 +168,11 @@ class Relay:
                     'generation_complete_after_end':self.post_end_generation_complete,
                     'turn_complete_after_end':self.post_end_turn_complete,
                     'completion_kind':self.completion_kind,
+                    'input_accepted_bytes':self.accepted, 'input_sent_bytes':self.sent_bytes,
+                    'input_sent_packets':self.sent_packets, 'output_accepted_bytes':self.output_bytes,
+                    'output_received_packets':self.received_packets,
+                    'output_rejected_bytes':self.rejected_output_bytes,
+                    'last_output_after_start_ms':None if self.last_output_at is None else round((self.last_output_at-self.started)*1000,1),
                     'first_error_code':getattr(self.first_error,'code',None)}
 
     def accept(self, index, raw):
@@ -212,6 +230,9 @@ class Relay:
                     self.ws.send(json.dumps({'realtimeInput':{'audio':{
                         'mimeType':'audio/pcm;rate=16000',
                         'data':base64.b64encode(raw[offset:offset+3200]).decode('ascii')}}}))
+                    with self.lock:
+                        self.sent_bytes += len(raw[offset:offset+3200])
+                        self.sent_packets += 1
         except Exception as error:
             self.stop(error if isinstance(error, audio_store.AudioError) else failure())
         finally:
@@ -273,9 +294,14 @@ class Relay:
                             or not isinstance(audio.get('data'), str)):
                         raise ValueError()
                     pcm = base64.b64decode(audio['data'], validate=True)
-                    if not pcm or len(pcm)%2 or self.output_bytes+len(pcm) > OUTPUT_BYTES:
+                    if not pcm or len(pcm)%2:
                         raise ValueError()
+                    self.received_packets += 1
+                    if self.output_bytes+len(pcm) > OUTPUT_BYTES:
+                        self.rejected_output_bytes += len(pcm)
+                        raise failure('gemini_output_limit', 429)
                     self.output_bytes += len(pcm)
+                    self.last_output_at = monotonic()
                     self.playout_until = max(self.playout_until,monotonic())+len(pcm)/48000
                     if self.first_output_at is None:
                         self.first_output_at = monotonic()

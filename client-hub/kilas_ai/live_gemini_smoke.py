@@ -259,6 +259,9 @@ def session(configured, source, target, raw):
         observation.update(input_ms=relay.accepted/32,output_ms=relay.output_bytes/48,
                            terminal_turn_complete=relay.completed.is_set(),settled=relay.finished,
                            output_cursor=after,total_frames=len(relay.frames),
+                           all_accepted_pcm_read=received==relay.output_bytes,
+                           # Compatibility key: rejected/unreceived provider PCM
+                           # was never counted. This is not proof of a full tail.
                            all_generated_pcm_read=received==relay.output_bytes,
                            source_text=relay.source_text,translated_text=relay.target_text,
                            code=getattr(relay.error,'code',None))
