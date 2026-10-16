@@ -71,13 +71,13 @@ def claim(owner,ident):
         ledger._campaign(conn,value)
         now=datetime.now(timezone.utc);stamp=now.isoformat()
         # Only this feature's expired90s leases; retained dispatch cost never falls.
-        usage._query(conn,"UPDATE kilas_vo_stt_operations SET status=CASE WHEN status='RESERVED' THEN 'CANCELLED' ELSE 'UNKNOWN' END,charge_micro=CASE WHEN status='RESERVED' THEN 0 ELSE charge_micro END,finished_at=? WHERE campaign LIKE 'gml-call-%' AND status IN ('RESERVED','DISPATCHED') AND created_at<?",(stamp,(now-timedelta(seconds=120)).isoformat()))
+        usage._query(conn,"UPDATE kilas_vo_stt_operations SET status=CASE WHEN status='RESERVED' THEN 'CANCELLED' ELSE 'UNKNOWN' END,charge_micro=CASE WHEN status='RESERVED' THEN 0 ELSE charge_micro END,finished_at=? WHERE campaign LIKE ? AND status IN ('RESERVED','DISPATCHED') AND created_at<?",(stamp,'gml-call-%',(now-timedelta(seconds=120)).isoformat()))
         if usage._query(conn,'SELECT 1 FROM kilas_vo_stt_operations WHERE operation_key=?',(operation,),one=True):
             raise ledger.BudgetError('duplicate_turn',409)
         if usage._query(conn,"SELECT 1 FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",(owner,),one=True):raise ledger.BudgetError('already_processing',429)
         if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status IN ('RESERVED','DISPATCHED')",one=True)[0]>=ledger.GLOBAL_CONCURRENCY:raise ledger.BudgetError('service_busy',429)
         for seconds,maximum in ((3600,ledger.OWNER_HOURLY_ATTEMPTS),(86400,ledger.OWNER_DAILY_ATTEMPTS)):
-            count=usage._query(conn,"SELECT COUNT(DISTINCT CASE WHEN campaign LIKE 'gml-%' THEN fingerprint ELSE operation_key END) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE 'live-%' AND created_at>=?",(owner,(now-timedelta(seconds=seconds)).isoformat()),one=True)[0]
+            count=usage._query(conn,"SELECT COUNT(DISTINCT CASE WHEN campaign LIKE ? THEN fingerprint ELSE operation_key END) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?",('gml-%',owner,'live-%',(now-timedelta(seconds=seconds)).isoformat()),one=True)[0]
             if count>=maximum:raise ledger.BudgetError('attempt_limit',429)
         if native._spend(conn,value)+value['reserve']>value['global_micro']:raise ledger.BudgetError('budget_limit',429)
         lease=secrets.token_hex(32)
@@ -122,7 +122,7 @@ def end(owner,ident):
         if not value or not native.allowed(owner,value,conn):return
         source(conn,value);ledger._campaign(conn,value)
         # End-before-admission tombstone: a late Start with this key cannot pay.
-        recent=usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND campaign LIKE 'gml-call-%' AND created_at>=?",(owner,(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()),one=True)[0]
+        recent=usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND campaign LIKE ? AND created_at>=?",(owner,'gml-call-%',(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()),one=True)[0]
         if recent>=ledger.OWNER_HOURLY_ATTEMPTS:return  # Admission is also fenced.
         stamp=datetime.now(timezone.utc).isoformat()
         usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at,finished_at) VALUES (?,?,?,?,'CANCELLED',0,90000,?,?,?)",(owner,operation,value['id'],hashlib.sha256(('call:'+ident).encode()).hexdigest(),ledger._hash(secrets.token_hex(32)),stamp,stamp))

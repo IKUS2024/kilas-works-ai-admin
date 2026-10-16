@@ -264,7 +264,7 @@ def main():
                 for user,ident in pair_sessions.items():sessions.end(user,ident)
                 # A conversational Call and the old native translator compete
                 # for the SAME last reserve, under the production PG lock.
-                prior_call=db.query_one("SELECT SUM(charge_micro) AS n FROM kilas_vo_stt_operations WHERE campaign LIKE 'gml-%'")['n']
+                prior_call=db.query_one('SELECT SUM(charge_micro) AS n FROM kilas_vo_stt_operations WHERE campaign LIKE ?',('gml-%',))['n']
                 call_config=dict(internal,KILAS_LIVE_GEMINI_CAMPAIGN='pg-call-shared',
                                  KILAS_LIVE_GEMINI_BUDGET_MICRO_USD=str(prior_call+250000),
                                  KILAS_LIVE_GEMINI_AUDIENCE='authenticated',KILAS_AI_CALL_ENABLED='true')
