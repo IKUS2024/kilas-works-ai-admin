@@ -4,12 +4,22 @@ timeout = 180
 
 
 def post_worker_init(worker):
+    import json
     import os
     from kilas_ai.live_gemini_budget import policy
     # Nonsecret release evidence only; never read keys or dispatch a request.
     enabled = os.environ.get('KILAS_LIVE_GEMINI_ENABLED', '').lower() in ('true', '1', 'on')
     armed = os.environ.get('KILAS_LIVE_GEMINI_QA_ARM', 'off') not in ('', 'off')
-    print(f'KILAS_GEMINI_GATE enabled={str(enabled).lower()} policy_valid={str(bool(policy())).lower()} qa_armed={str(armed).lower()}', flush=True)
+    configured = bool(policy())
+    print(f'KILAS_GEMINI_GATE enabled={str(enabled).lower()} policy_valid={str(configured).lower()} qa_armed={str(armed).lower()}', flush=True)
+    if configured:
+        # SELECT-only verification; never create a session or provider request.
+        try:
+            from kilas_ai.live_gemini_readiness import report
+            readiness = report()
+        except Exception:
+            readiness = {'start_eligible':False, 'reason':'readiness_check_failed'}
+        print('KILAS_GEMINI_OWNER_READY '+json.dumps(readiness,sort_keys=True), flush=True)
     # Default-off, once-only approved synthetic Gemini test in a separate process.
     from kilas_ai.live_gemini_smoke import launch
     launch()
