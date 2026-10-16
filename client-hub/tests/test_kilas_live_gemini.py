@@ -127,6 +127,72 @@ class GeminiTests(unittest.TestCase):
             self.assertNotIn('/static/kilas_live_gemini.mjs',original.text)
             connect.assert_not_called()
 
+    def test_owner_landing_is_read_only_until_funding_is_ready(self):
+        email=audio.f.db.query_one('SELECT email FROM users WHERE id=?',(self.user,))['email']
+        with self.config(KILAS_LIVE_GEMINI_ENABLED='false',KILAS_LIVE_GEMINI_QA_OWNER_ID=str(self.user),
+                         KILAS_LIVE_GEMINI_QA_OWNER_EMAIL=email), patch.object(native,'connect') as connect:
+            response=self.client.get('/kilas-translator/live/gemini')
+            self.assertEqual(response.status_code,200)
+            self.assertIn('Rp500.000',response.text)
+            self.assertNotIn('/static/kilas_live_gemini.mjs',response.text)
+            self.assertNotIn('id="live-setup-form"',response.text)
+            response=self.client.post('/kilas-translator/live/gemini/sessions',data={'csrf_token':'audio-csrf'})
+            self.assertEqual(response.status_code,404)
+            self.assertIsNone(self.row())
+            with patch.dict(os.environ,{'KILAS_LIVE_GEMINI_QA_OWNER_EMAIL':'wrong@example.test'}):
+                self.assertEqual(self.client.get('/kilas-translator/live/gemini').status_code,404)
+            self.assertFalse(native.preview_owner(self.other))
+            connect.assert_not_called()
+
+    def lifetime(self, **extra):
+        values={'KILAS_LIVE_GEMINI_POLICY':'owner_lifetime','KILAS_LIVE_GEMINI_IDR_CEILING_VERIFIED':'yes',
+                'KILAS_LIVE_GEMINI_TOTAL_IDR':'500000','KILAS_LIVE_GEMINI_IDR_PER_USD_CEILING':'25000',
+                'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD':'20000000',
+                'KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD':'100000',
+                'KILAS_LIVE_GEMINI_EXPIRES_AT':''}
+        values.update(extra)
+        return patch.dict(os.environ,values)
+
+    def test_lifetime_budget_requires_verified_currency_bound_and_finite_total(self):
+        with self.config(),self.lifetime():
+            config=budget.policy()
+            self.assertEqual(config['mode'],'owner_lifetime')
+            self.assertEqual(config['expires_at'],'owner-lifetime-v1')
+            for extra in ({'KILAS_LIVE_GEMINI_IDR_CEILING_VERIFIED':''},
+                          {'KILAS_LIVE_GEMINI_IDR_PER_USD_CEILING':'0'},
+                          {'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD':'20000001'},
+                          {'KILAS_LIVE_GEMINI_TOTAL_IDR':'500001'},
+                          {'KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD':'99999'},
+                          {'KILAS_LIVE_GEMINI_POLICY':'unknown'}):
+                with patch.dict(os.environ,extra):self.assertIsNone(budget.policy(),extra)
+
+    def test_lifetime_budget_includes_previous_qa_unknown_cost_across_campaigns(self):
+        with self.config():
+            old=budget.claim(self.user,'a'*48,self.key())
+            budget.dispatch(old);budget.finish(old,False)
+            with self.lifetime(KILAS_LIVE_GEMINI_CAMPAIGN='standing-one',KILAS_LIVE_GEMINI_BUDGET_MICRO_USD='100000'):
+                with self.assertRaises(budget.ledger.BudgetError) as caught:
+                    budget.claim(self.user,'b'*48,'live-'+'b'*32)
+                self.assertEqual(caught.exception.code,'budget_limit')
+                with patch.dict(os.environ,{'KILAS_LIVE_GEMINI_CAMPAIGN':'standing-two'}):
+                    with self.assertRaises(budget.ledger.BudgetError) as caught:
+                        budget.claim(self.user,'b'*48,'live-'+'c'*32)
+                    self.assertEqual(caught.exception.code,'budget_limit')
+            self.assertEqual(self.row()['charge_micro'],1000)
+
+    def test_valid_pcm_at_output_boundary_reports_limit_not_bad_format(self):
+        with self.config(),patch.object(native,'OUTPUT_BYTES',len(PCM)):
+            relay=self.make()
+            packet=json.dumps({'serverContent':{'modelTurn':{'parts':[{'inlineData':{
+                'mimeType':'audio/pcm;rate=24000','data':base64.b64encode(PCM).decode()}}]}}})
+            relay.receive(packet)
+            with self.assertRaises(audio_store.AudioError) as caught:relay.receive(packet)
+            self.assertEqual(caught.exception.code,'gemini_output_limit')
+            self.assertEqual(relay.output_bytes,len(PCM))
+            self.assertEqual(relay.diagnostics()['output_rejected_bytes'],len(PCM))
+            self.assertEqual(relay.diagnostics()['output_received_packets'],2)
+            budget.finish(relay.capability,False);audio_store.fail(self.user,relay.job,'synthetic')
+
     def test_native_consent_pair_locale_and_no_secret_in_rendered_page(self):
         with self.config(), patch.object(native,'connect') as connect:
             self.credit(300)

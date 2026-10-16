@@ -1,4 +1,9 @@
 {
+  "Akses khusus owner": {"en": "Owner access", "es": "Acceso del propietario", "zh": "所有者访问"},
+  "Batas total Rp500.000 sudah disetujui. Start menunggu verifikasi pengaman biaya dan pemakaian sebelumnya.": {"en": "The Rp500,000 total limit is approved. Start is waiting for verification of spending safeguards and previous usage.", "es": "El límite total de 500.000 Rp está aprobado. Start espera la verificación del control de gastos y del uso anterior.", "zh": "已批准总计500,000印尼盾的限额。开始功能正在等待费用保护措施和既往用量核实。"},
+  "Bagian akhir terjemahan masih diverifikasi. Mikrofon dan layanan Gemini belum dijalankan dari halaman ini.": {"en": "The end of the translation is still being verified. This page has not started the microphone or Gemini service.", "es": "El final de la traducción aún se está verificando. Esta página no ha iniciado el micrófono ni el servicio Gemini.", "zh": "译文结尾仍在验证中。此页面尚未启用麦克风或Gemini服务。"},
+  "Satu sesi menerima sekitar satu menit ucapan. Bagian akhir terjemahan belum terverifikasi; End membatalkan sisa audio.": {"en": "One session accepts about one minute of speech. The end of the translation is not yet verified; End cancels the remaining audio.", "es": "Una sesión acepta aproximadamente un minuto de voz. El final de la traducción aún no está verificado; End cancela el audio restante.", "zh": "每次会话接受约一分钟的语音。译文结尾尚未验证；结束会取消剩余音频。"},
+
   "Salin Prompt Gambar": {"en": "Copy Image Prompt", "es": "Copiar Prompt de Imagen", "zh": "复制图片提示词"},
   "Salin Prompt Video": {"en": "Copy Video Prompt", "es": "Copiar Prompt de Video", "zh": "复制视频提示词"},
   "1. Buat gambar referensi": {"en": "1. Create a reference image", "es": "1. Crea una imagen de referencia", "zh": "1. 创建参考图片"},

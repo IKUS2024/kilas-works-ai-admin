@@ -20,9 +20,12 @@ The project ID is documentation/attribution, not an authentication credential;
 there is no project-ID environment variable or claim that Tier 1 is a spend cap.
 Do not enable the candidate merely because a key is present.
 
-## Required activation policy
+## Application activation policy
 
-All values below belong to the Client Hub service. No production values were set.
+Campaigns, reserves, caps and QA expiry are Kilas admission controls, not Google
+requirements. The original QA policy remains separate from standing owner access.
+All values below belong to the Client Hub service; historical QA settings are
+not authorization for continuing use.
 
 | Variable | Required value/meaning |
 | --- | --- |
@@ -33,7 +36,11 @@ All values below belong to the Client Hub service. No production values were set
 | `KILAS_LIVE_GEMINI_CAMPAIGN` | New fixed campaign identifier, 1–70 ASCII letters/digits/underscore/hyphen |
 | `KILAS_LIVE_GEMINI_BUDGET_MICRO_USD` | Explicit finite total internal allowance; no default amount |
 | `KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD` | Verified conservative allowance per 90-second possible dispatch; no invented price/default |
-| `KILAS_LIVE_GEMINI_EXPIRES_AT` | Fixed future RFC3339 expiry, at most 31 days away; no automatic renewal |
+| `KILAS_LIVE_GEMINI_POLICY` | `qa` (default) or explicit `owner_lifetime` |
+| `KILAS_LIVE_GEMINI_EXPIRES_AT` | QA only: fixed future RFC3339 expiry, at most 31 days away |
+| `KILAS_LIVE_GEMINI_TOTAL_IDR` | Standing owner approval, positive and at most 500000; no automatic increase |
+| `KILAS_LIVE_GEMINI_IDR_PER_USD_CEILING` | Verified tax/fee-inclusive upper conversion bound; no guessed spot rate |
+| `KILAS_LIVE_GEMINI_IDR_CEILING_VERIFIED` | Standing mode requires `yes` after independent verification |
 
 Existing customer audio balance/exemption, `KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS`
 and usage-mode bounds still apply. Native output reserves 90 seconds before
@@ -58,9 +65,11 @@ speech is ignored (`echoTargetLanguage:false`), which is not acoustic AEC.
 
 Start admits an owned session; paid dispatch is lazy until voice PCM arrives.
 Capture stays active while translated PCM is played. **Finish speaking** flushes
-the last partial capture frame, sends `audioStreamEnd`, waits for the provider's
-terminal `turnComplete`, then drains every queued output sample. A missing final
-marker times out visibly; silence alone never means the tail is complete.
+the last partial capture frame and sends `audioStreamEnd`. The conservative
+implementation accepts an observed post-EOS terminal `turnComplete` and then
+drains queued PCM. Live Translate does not guarantee that marker; without it,
+the current implementation stops with an explicit unconfirmed-tail error.
+This limitation remains unresolved; silence alone never proves a full tail.
 **End** immediately cancels capture/playback and closes only that owned stream.
 Read-only recovery never terminates another legitimate session automatically.
 
@@ -213,3 +222,32 @@ Official protocol references checked 2026-10-16:
 
 - https://ai.google.dev/api/live#BidiGenerateContentServerContent
 - https://ai.google.dev/gemini-api/docs/live-api/live-translate?hl=en
+
+
+## Standing owner access: prepared, not activated
+
+The owner approved continuing use of existing Gemini funds with a **total
+Rp500,000 ceiling**, including earlier use, no automatic top-up and no public
+rollout. The `owner_lifetime` policy has no QA expiry. It counts retained
+allowances across **all** `gml-` campaigns under the same PostgreSQL advisory
+lock, including previous QA, failures and unknown outcomes. Campaign rotation
+cannot reset that total. Every dispatch keeps its full allowance permanently;
+no refund, paid retry or balance purchase is introduced. The per-lease minimum
+internal reserve is USD0.10; that is not a supplier invoice guarantee.
+
+Activation remains OFF because current connectors cannot verify the supplier
+balance/debits, tax/fee-inclusive IDR conversion bound or a hard provider-side
+spending ceiling. Do not mark those facts verified merely because an API key
+exists, the user approved a rupiah total, or a public spot rate is available.
+An application ledger cannot constrain use of the same key/project elsewhere.
+If these facts become independently available, choose the finite USD cap so
+`cap_micro_usd * verified_idr_ceiling <= approved_total_idr * 1_000_000`;
+the historical local retained USD0.40 is already included, not added as new
+spending permission. Reconcile any outside usage conservatively before ON.
+No policy values, flags, keys or funding were changed for this code preparation.
+
+The existing verified QA owner ID/email may view the landing page while OFF.
+This GET checks both configured identity and the database CLIENT_OWNER account,
+loads no Gemini capture/player module and grants no POST/session permission.
+The private route remains `/kilas-translator/live/gemini`; it has no global link.
+See [round-B offline diagnosis](KILAS_GEMINI_ROUND_B_DIAGNOSIS_20261016.md).

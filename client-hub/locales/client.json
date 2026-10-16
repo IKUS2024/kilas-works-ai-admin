@@ -563,5 +563,9 @@
   "Selesaikan ucapan",
   "Sesi uji berhenti setelah sekitar satu menit. Selesaikan ucapan untuk mendengar bagian terakhir; End membatalkan sisa audio.",
   "Sesi Gemini terputus. Ucapan ini tidak diulang otomatis.",
-  "Menyiapkan sesi..."
+  "Menyiapkan sesi...",
+  "Akses khusus owner",
+  "Bagian akhir terjemahan masih diverifikasi. Mikrofon dan layanan Gemini belum dijalankan dari halaman ini.",
+  "Batas total Rp500.000 sudah disetujui. Start menunggu verifikasi pengaman biaya dan pemakaian sebelumnya.",
+  "Satu sesi menerima sekitar satu menit ucapan. Bagian akhir terjemahan belum terverifikasi; End membatalkan sisa audio."
 ]
