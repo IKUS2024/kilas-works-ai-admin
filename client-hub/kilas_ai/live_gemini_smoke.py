@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import subprocess
 import sys
@@ -15,7 +16,7 @@ import time
 import wave
 from datetime import datetime, timezone, timedelta
 
-RUN = 'gmlqa20261016a'
+RUN = 'gmlqa20261016b'
 SERVICE = 'srv-da7ti2psrm7s73dh9i2g'
 ARM = 'KILAS_LIVE_GEMINI_QA_ARM'
 FIXTURES = {
@@ -66,6 +67,40 @@ def fixture(language):
 
 def report(value):
     print('KILAS_GEMINI_QA '+json.dumps(value,separators=(',',':')),flush=True)
+
+
+def tail_word(text, language):
+    words=re.findall(r'\w+',text.casefold()) if isinstance(text,str) else []
+    return bool(words and words[-1]=={'id':'air','en':'water'}[language])
+
+
+def passed(result):
+    # These are backend fixture checks, never an audible/Android quality claim.
+    return bool(not result.get('code') and result.get('setup_complete')
+                and result.get('input_ms')==15000 and result.get('output_ms',0)>0
+                and result.get('streamed_before_input_finished')
+                and result.get('source_tail_word_confirmed') and result.get('target_tail_word_confirmed')
+                and result.get('terminal_turn_complete') and result.get('all_generated_pcm_read')
+                and result.get('settled_after_end') and result.get('post_end_frames')==0
+                and result.get('post_end_output_access')=='blocked'
+                and 0<=result.get('backend_end_ms',float('inf'))<2000)
+
+
+def production_policy_check(owner):
+    # Only nonsecret policy names; never inspect GEMINI_API_KEY. This child-only
+    # parse does not enable the public service or admit/dispatch any request.
+    from . import live_gemini_budget as budget
+    names=('BILLING_VERIFIED','ALLOWED_OWNER_ID','CAMPAIGN','BUDGET_MICRO_USD',
+           'LEASE_RESERVE_MICRO_USD','EXPIRES_AT')
+    present={name:bool(os.environ.get('KILAS_LIVE_GEMINI_'+name)) for name in names}
+    flag='KILAS_LIVE_GEMINI_ENABLED';previous=os.environ.get(flag)
+    try:
+        os.environ[flag]='true'
+        valid=budget.ready(owner)
+    finally:
+        if previous is None:os.environ.pop(flag,None)
+        else:os.environ[flag]=previous
+    return {'nonsecret_fields_present':present,'valid_for_owner_if_enabled':valid}
 
 
 class ProbeSocket:
@@ -201,6 +236,7 @@ def session(configured, source, target, raw):
                 break
             relay.accept(index,raw[offset:offset+16000])
             time.sleep(max(0,started+(index+1)*.5-time.monotonic()))
+        input_finished_at=time.monotonic()
         if not relay.finished:
             relay.finish_input(relay.expected)
         deadline = started+45
@@ -226,6 +262,11 @@ def session(configured, source, target, raw):
                            all_generated_pcm_read=received==relay.output_bytes,
                            source_text=relay.source_text,translated_text=relay.target_text,
                            code=getattr(relay.error,'code',None))
+        observation.update(streamed_before_input_finished=relay.first_output_at is not None and relay.first_output_at<input_finished_at,
+                           input_stream_ms=round((input_finished_at-started)*1000,1),
+                           source_tail_word_confirmed=tail_word(relay.source_text,source),
+                           target_tail_word_confirmed=tail_word(relay.target_text,target),
+                           first_audible_ms=None)
         if relay.first_output_at is not None and relay.first_input_at is not None:
             observation['backend_first_pcm_ms'] = round((relay.first_output_at-relay.first_input_at)*1000,1)
         if relay.end_at is not None:
@@ -264,6 +305,7 @@ def session(configured, source, target, raw):
         else:
             observation['post_end_output_access'] = 'unexpectedly_available'
         native.connect = original
+        observation['backend_checks_passed']=passed(observation)
         report(observation)
 
 
@@ -272,6 +314,7 @@ def run():
     if configured is None:
         return
     os.environ[ARM] = 'off'
+    production=production_policy_check(configured['owner'])
     # These nonsecret values affect this child process only. The public web
     # service remains OFF; the approved campaign has exactly two $0.10 leases.
     os.environ.update({'KILAS_LIVE_GEMINI_ENABLED':'true','KILAS_LIVE_GEMINI_BILLING_VERIFIED':'yes',
@@ -296,13 +339,16 @@ def run():
             return
         signal.alarm(105)  # Process-level backstop; restart cannot repeat marker.
         directions=(('en','id'),) if configured['remaining'] else (('id','en'),('en','id'))
-        report({'run':RUN,'status':'started','max_sessions':len(directions),'allowance_micro':200000})
+        report({'run':RUN,'status':'started','max_sessions':len(directions),'allowance_micro':200000,
+                'existing_production_policy':production})
+        outcomes=[]
         for source,target in directions:
             result = session(configured,source,target,samples[source])
-            if result.get('code') or not result.get('terminal_turn_complete') or not result.get('all_generated_pcm_read'):
-                report({'run':RUN,'status':'stopped_after_failure_no_retry'})
-                return
-        report({'run':RUN,'status':'completed_remaining_en_id' if configured['remaining'] else 'completed_two_sessions'})
+            outcomes.append({'direction':source+'-'+target,'passed':passed(result)})
+            # Each authorized direction is independent and runs at most once.
+            # A failed outcome is reported; it is never retried or regenerated.
+        report({'run':RUN,'status':'completed_checks','outcomes':outcomes,
+                'all_backend_checks_passed':all(outcome['passed'] for outcome in outcomes)})
     except Exception as error:
         # Never print exception text/traceback: supplier errors can contain keys.
         code = getattr(error,'code',None)
