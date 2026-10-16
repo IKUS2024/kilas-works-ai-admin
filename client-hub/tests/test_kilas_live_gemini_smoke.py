@@ -54,6 +54,17 @@ class SmokeTests(unittest.TestCase):
         self.assertNotIn('secret',str(observation))
         self.assertTrue(observation['setup_complete'])
 
+    def test_remaining_arm_is_one_named_direction_and_binary_setup_is_observed(self):
+        with self.config(**{smoke.ARM:smoke.RUN+'-remaining-en-id'}):
+            self.assertTrue(smoke.config()['remaining'])
+        raw=b'{"setupComplete":{"sessionId":"synthetic"}}'
+        class Socket:
+            def recv(self):return raw
+        observation={'usage_snapshots':[]}
+        self.assertEqual(smoke.ProbeSocket(Socket(),observation).recv(),raw)
+        self.assertEqual(observation['first_frame_type'],'bytes')
+        self.assertTrue(observation['setup_complete'])
+
     def test_probe_stops_conservatively_before_internal_lease_limit(self):
         class Socket:
             def recv(self):return json.dumps({'usageMetadata':{'promptTokenCount':10,'responseTokenCount':5000}})

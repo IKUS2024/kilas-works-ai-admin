@@ -167,6 +167,30 @@ class GeminiTests(unittest.TestCase):
             self.assertNotIn('synthetic-native-key-not-real',str(relay.error))
             self.assertEqual(audio_store.get(self.user,relay.job)['status'],'FAILED')
 
+    def test_utf8_binary_protocol_frames_and_setup_metadata_complete_normally(self):
+        class BinarySocket(Socket):
+            def recv(self):
+                value=json.loads(super().recv())
+                if 'setupComplete' in value:value['setupComplete']={'sessionId':'synthetic-opaque'}
+                return json.dumps(value).encode('utf-8')
+        with self.config():
+            relay=self.make()
+            gate=Event();socket=BinarySocket(gate)
+            relay.accept(0,b'\x01\x00'*1600)
+            relay.finish_input(1)
+            def tail():
+                relay.end_sent.wait(2);gate.set()
+            Thread(target=tail,daemon=True).start()
+            with patch.object(native,'connect',return_value=socket):relay.run()
+            self.assertTrue(relay.completed.is_set())
+            self.assertIsNone(relay.error)
+            self.assertGreater(relay.output_bytes,0)
+            self.assertEqual(self.row()['status'],'COMPLETED')
+
+    def test_binary_protocol_rejects_non_utf8_non_object_and_oversized_frames(self):
+        for raw in (b'\xff',b'[]',b'x'*(native.MAX_MESSAGE+1),None):
+            with self.assertRaises(audio_store.AudioError):native.message(raw)
+
     def test_undispatched_end_releases_reservation_and_never_connects(self):
         with self.config():
             relay=self.make()

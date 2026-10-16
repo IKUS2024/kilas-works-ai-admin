@@ -26,7 +26,8 @@ FIXTURES = {
 
 def config():
     try:
-        if os.environ.get(ARM) != RUN or os.environ.get('RENDER_SERVICE_ID') != SERVICE:
+        mode=os.environ.get(ARM)
+        if mode not in (RUN,RUN+'-remaining-en-id') or os.environ.get('RENDER_SERVICE_ID') != SERVICE:
             return None
         owner = int(os.environ['KILAS_LIVE_GEMINI_QA_OWNER_ID'])
         email = os.environ['KILAS_LIVE_GEMINI_QA_OWNER_EMAIL'].strip().lower()
@@ -34,7 +35,8 @@ def config():
         now = datetime.now(timezone.utc)
         if not 0 < owner <= 10**9 or '@' not in email or expiry.tzinfo is None or not now < expiry <= now+timedelta(minutes=30):
             return None
-        return {'owner':owner, 'email':email, 'expiry':expiry.astimezone(timezone.utc).isoformat()}
+        return {'owner':owner, 'email':email, 'expiry':expiry.astimezone(timezone.utc).isoformat(),
+                'remaining':mode==RUN+'-remaining-en-id'}
     except (KeyError, ValueError, TypeError, OverflowError):
         return None
 
@@ -76,9 +78,13 @@ class ProbeSocket:
 
     def recv(self):
         raw = self.socket.recv()
-        if isinstance(raw,str) and len(raw) <= 1024*1024:
+        self.observation.setdefault('first_frame_type',type(raw).__name__)
+        if isinstance(raw,(str,bytes)) and len(raw) <= 1024*1024:
             value = json.loads(raw)
             if isinstance(value,dict):
+                types=self.observation.setdefault('message_types',[])
+                for name in ('setupComplete','serverContent','error','usageMetadata','goAway'):
+                    if name in value and name not in types:types.append(name)
                 if 'setupComplete' in value:
                     self.observation['setup_complete'] = True
                 error = value.get('error')
@@ -121,12 +127,28 @@ def once(configured):
         row = usage._query(conn,'SELECT email,role FROM users WHERE id=?',(owner,),one=True)
         if not row or row[0].strip().lower()!=configured['email'] or row[1]!='CLIENT_OWNER':
             raise ValueError('owner_mismatch')
-        marker = 'gemini-qa-'+RUN
+        remaining=configured.get('remaining',False)
+        marker = 'gemini-qa-'+RUN+('-remaining' if remaining else '')
         if budget.ledger._row(conn,owner,marker):
             return False
         # Read-only detection; never End/reset a legitimate owner's session.
         if usage._query(conn,"SELECT 1 FROM kilas_live_translator_sessions WHERE user_id=? AND status='ACTIVE' AND (expires_at='' OR expires_at>?)",(owner,datetime.now(timezone.utc).isoformat()),one=True):
             raise ValueError('owner_session_busy')
+        if remaining:
+            first='live-'+hashlib.sha256((RUN+'id'+'en').encode()).hexdigest()[:32]
+            second='live-'+hashlib.sha256((RUN+'en'+'id').encode()).hexdigest()[:32]
+            # Reconcile only this known failed setup after its child has exited.
+            # Retain the entire estimate; no credit/refund and no provider IO.
+            usage._query(conn,"UPDATE kilas_vo_stt_operations SET status='UNKNOWN',finished_at=? WHERE user_id=? AND campaign=? AND operation_key=? AND status='DISPATCHED' AND created_at<? AND EXISTS(SELECT 1 FROM kilas_audio_jobs j JOIN kilas_live_translator_turns t ON t.audio_job_id=j.id JOIN kilas_live_translator_sessions s ON s.id=t.session_id WHERE j.user_id=? AND t.operation_key=? AND j.status='FAILED' AND j.error_code='gemini_setup_invalid' AND j.actual_ms=0 AND s.status='ENDED')",
+                         (datetime.now(timezone.utc).isoformat(),owner,budget.policy()['id'],first+'-gm',
+                          (datetime.now(timezone.utc)-timedelta(seconds=120)).isoformat(),owner,first))
+            previous=budget.ledger._row(conn,owner,first+'-gm')
+            failed=usage._query(conn,"SELECT 1 FROM kilas_audio_jobs WHERE user_id=? AND operation_key=? AND status='FAILED' AND error_code='gemini_setup_invalid' AND actual_ms=0",(owner,first+'-audio'),one=True)
+            if (not budget.ledger._row(conn,owner,'gemini-qa-'+RUN) or not previous
+                    or previous[1]!=budget.policy()['id'] or previous[3]!='UNKNOWN'
+                    or previous[4]!=budget.policy()['reserve'] or not failed
+                    or budget.ledger._row(conn,owner,second+'-gm')):
+                raise ValueError('remaining_test_not_available')
         usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at,finished_at) VALUES (?,?,?,?,'CANCELLED',0,0,?,?,?)",
                      (owner,marker,budget.policy()['id'],hashlib.sha256(RUN.encode()).hexdigest(),'unpaid-run-marker',
                       datetime.now(timezone.utc).isoformat(),datetime.now(timezone.utc).isoformat()))
@@ -203,6 +225,12 @@ def session(configured, source, target, raw):
         sessions.end(owner,ident)
         native.cancel(owner,ident)
         observation['backend_end_ms'] = round((time.monotonic()-ended)*1000,1)
+        # A failed input check can race the relay's durable settlement. Allow
+        # settlement to finish before this test process exits its daemon threads.
+        settlement_deadline=time.monotonic()+10
+        while relay is not None and not relay.finished and time.monotonic()<settlement_deadline:
+            time.sleep(.05)
+        observation['settled_after_end']=relay.finished if relay else False
         observation['post_end_frames'] = len(relay.frames) if relay else 0
         try:
             native.owned(owner,ident,key)
@@ -242,13 +270,14 @@ def run():
             report({'run':RUN,'status':'already_attempted_no_retry'})
             return
         signal.alarm(105)  # Process-level backstop; restart cannot repeat marker.
-        report({'run':RUN,'status':'started','max_sessions':2,'allowance_micro':200000})
-        for source,target in (('id','en'),('en','id')):
+        directions=(('en','id'),) if configured['remaining'] else (('id','en'),('en','id'))
+        report({'run':RUN,'status':'started','max_sessions':len(directions),'allowance_micro':200000})
+        for source,target in directions:
             result = session(configured,source,target,samples[source])
             if result.get('code') or not result.get('terminal_turn_complete') or not result.get('all_generated_pcm_read'):
                 report({'run':RUN,'status':'stopped_after_failure_no_retry'})
                 return
-        report({'run':RUN,'status':'completed_two_sessions'})
+        report({'run':RUN,'status':'completed_remaining_en_id' if configured['remaining'] else 'completed_two_sessions'})
     except Exception as error:
         # Never print exception text/traceback: supplier errors can contain keys.
         code = getattr(error,'code',None)
