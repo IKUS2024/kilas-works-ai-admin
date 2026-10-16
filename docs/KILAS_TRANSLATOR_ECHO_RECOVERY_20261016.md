@@ -89,12 +89,21 @@ Ruff E9/F checks. The four DOM tests also use freshly rendered HTML. Independent
 review passed 49 focused JavaScript and 49 focused Python tests with no remaining
 code blockers. These tests use synthetic PCM and mocked provider transports.
 
-The first cloud CI attempt passed PostgreSQL18 but its completion suite hit the
-existing120s deadline. The runner drops stderr on timeout, so its stdout alone
+The first cloud CI attempt passed PostgreSQL 18 but its completion suite hit the
+existing 120s deadline. The runner drops stderr on timeout, so its stdout alone
 cannot locate the blocked test or establish a startup failure. A fresh local
-run passed in2.3s. Completion-only delayed thread-stack diagnostics now write to
+run passed in 2.3s. Completion-only delayed thread-stack diagnostics now write to
 stdout while retaining the same deadline and assertions; the final exact CI
-result is recorded separately. No production behavior was changed for this.
+result is recorded separately.
+
+The diagnostic CI run located the existing frozen-clock hard-lease test. For a
+short fractional uptime such as 38.003, `(started + 90) - started` is
+89.99999999999999. That misses the subtraction-based lease check while the
+absolute drain guard refuses completion. A frozen clock and an always-false
+mocked wait can then spin indefinitely. Twenty local runs at higher uptime all
+passed, so repetition alone did not expose the boundary. Both native and paired
+checks now use the same absolute deadline as their timers and drain guard. The
+90s lease remains unchanged, and focused fractional-clock tests guard this case.
 
 Exact CI/source/deploy, runtime owner/nonowner readiness and read-only ledger
 results are recorded in the release artifact. No browser,

@@ -281,8 +281,9 @@ class CompletionTests(unittest.TestCase):
             relay.end_sent.set()
             relay.input_closed = True
             with patch.object(native, 'monotonic', return_value=relay.started + 90), \
-                 patch.object(relay.cancelled, 'wait', return_value=False):
+                 patch.object(relay.cancelled, 'wait', side_effect=[False, True]):
                 relay.watch()
+            self.assertIsNotNone(relay.error)
             self.assertEqual(relay.error.code, 'gemini_deadline')
             self.assertFalse(relay.completed.is_set())
             self.assertFalse(relay.tail_confirmed)

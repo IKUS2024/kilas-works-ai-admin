@@ -132,7 +132,7 @@ class Pair(native.Relay):
     def check(self):
         if self.cancelled.is_set():
             raise self.error or failure('turn_cancelled', 409)
-        if monotonic()-self.started >= budget.LEASE_MS/1000:
+        if monotonic() >= self.started+budget.LEASE_MS/1000:
             raise failure('gemini_deadline')
         require_ready(self.owner)
         info = sessions.check(self.owner, self.ident, self.key)

@@ -1,6 +1,7 @@
 """Fixed parser diagnostics and the completion boundary; no sockets or DB IO."""
 import base64
 import json
+import math
 import unittest
 from threading import Event, Thread
 from unittest.mock import patch
@@ -22,6 +23,37 @@ def audio(data=None, mime='audio/pcm;rate=24000'):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_absolute_lease_deadline_precedes_auth_and_db_even_at_short_uptime(self):
+        # Subtracting these short start times from start+90 may round below90.
+        # Timer, drain and active checks must share the same absolute boundary.
+        for module, cls, voice in ((native, native.Relay, native.VOICE), (pair, pair.Pair, pair.VOICE)):
+            info = {'language_a':'en', 'language_b':'id', 'voice_alias':voice}
+            for began in (38.003, 100.01, native.monotonic()):
+                with self.subTest(relay=cls.__name__, began=began):
+                    relay = cls(9, 'synthetic-session', 'synthetic-operation', info, None, None,
+                                lease_started=began)
+                    deadline = began+native.budget.LEASE_MS/1000
+                    with patch.object(module, 'monotonic', return_value=deadline), \
+                         patch.object(module, 'require_ready', side_effect=AssertionError('authorization after deadline')) as auth, \
+                         patch.object(module.sessions, 'check', side_effect=AssertionError('DB after deadline')) as database:
+                        with self.assertRaises(audio_store.AudioError) as caught:
+                            relay.check()
+                    self.assertEqual(caught.exception.code, 'gemini_deadline')
+                    auth.assert_not_called()
+                    database.assert_not_called()
+                    with patch.object(module, 'monotonic', return_value=math.nextafter(deadline, -math.inf)), \
+                         patch.object(module, 'require_ready') as auth, \
+                         patch.object(module.sessions, 'check', return_value=info) as database:
+                        relay.check()
+                    auth.assert_called_once_with(9)
+                    database.assert_called_once_with(9, relay.ident, relay.key)
+                    relay.error = native.failure('turn_cancelled', 409)
+                    relay.cancelled.set()
+                    with patch.object(module, 'monotonic', side_effect=AssertionError('clock after cancellation')):
+                        with self.assertRaises(audio_store.AudioError) as cancelled:
+                            relay.check()
+                    self.assertEqual(cancelled.exception.code, 'turn_cancelled')
+
     def relay(self, paired=False):
         info = {'language_a':'en', 'language_b':'id',
                 'voice_alias':pair.VOICE if paired else native.VOICE}
