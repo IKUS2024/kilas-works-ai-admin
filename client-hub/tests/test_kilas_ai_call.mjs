@@ -88,6 +88,11 @@ test('Playback rejection ends microphone/transport and never auto-admits a repla
  await started;assert.equal(f.session.state,'ended');assert.equal(f.stops,1);assert.equal(f.audioStops,1);assert.deepEqual(f.errors,['call_transport']);
  assert.equal(f.posts.filter(x=>!x.includes('/chunks/')&&!x.endsWith('/end')).length,1);
 });
+test('A synchronous audio failure fences the rest of its poll batch after End',async()=>{
+ let f;f=fixture({player:{push(){f.session.fail({code:'call_audio'});}}});const started=f.session.start();await tick();
+ f.hold.resolve({state:'SPEAKING',frames:[{index:0,type:'audio',pcm:Buffer.from(pcm()).toString('base64')},{index:1,type:'text',text:'Late answer'},{index:2,type:'turn_complete'}],next_index:3,total_frames:3});
+ await started;assert.equal(f.session.state,'ended');assert.deepEqual(f.errors,['call_audio']);assert.equal(f.captions.at(-1),'');assert.ok(!f.captions.includes('Late answer'));assert.equal(f.stops,1);
+});
 test('Client hard limit ends capture even while server polling is pending',async()=>{
  const f=fixture(),started=f.session.start();await tick();
  const hard=[...f.timers.values()].find(x=>x.ms===90000);assert.ok(hard);hard.fn();

@@ -71,6 +71,7 @@ export class CallSession {
    if(!this.current(ticket))return;
    if(!Array.isArray(value.frames)||!Number.isInteger(value.next_index)||value.next_index!==this.cursor+value.frames.length)throw failure('call_protocol');
    for(const frame of value.frames){
+    if(!this.current(ticket))return;
     if(frame.index!==this.cursor++)throw failure('call_protocol');
     if(frame.type==='audio'){
      if(typeof frame.pcm!=='string'||frame.pcm.length>12800)throw failure('call_protocol');
