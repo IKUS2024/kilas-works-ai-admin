@@ -22,7 +22,7 @@ class SidebarProductsTests(unittest.TestCase):
                 html=response.text;self.assertIn('<html lang="'+locale+'">',html)
                 self.assertLess(html.index('chat-library-entry'),html.index('class="chat-products"'))
                 self.assertLess(html.index('class="chat-products"'),html.index('data-chat-history-toggle'))
-                self.assertIn('<summary><span>'+label+'</span>',html)
+                self.assertIn('<span>'+label+'</span>',html)
                 self.assertEqual(html.count('name="product" value="finance"'),1)
                 self.assertNotIn('class="kilas-finance-entry"',html)
                 pages[name+'_'+locale]=html
