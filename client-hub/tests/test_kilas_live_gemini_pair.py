@@ -320,6 +320,73 @@ class PairTests(unittest.TestCase):
             self.assertTrue(all(stream['completion_kind'] == 'bounded_drain'
                                 for stream in final['streams'].values()))
 
+    def test_validation_log_records_fixed_first_and_stream_reasons_without_payload(self):
+        with self.config():
+            relay = self.make()
+            private = 'private-provider-payload-token'
+            sockets = [Socket(), Socket()]
+            sockets[0].incoming.put(json.dumps({'serverContent':{
+                'outputTranscription':{'text':private, 'languageCode':'id'}}}))
+            output = io.StringIO()
+            with patch.object(native, 'connect', side_effect=sockets), redirect_stdout(output):
+                relay.run()
+            line = next(line for line in output.getvalue().splitlines() if line.startswith('KILAS_GEMINI_PAIR '))
+            record = json.loads(line.split(' ',1)[1])
+            self.assertEqual(record['code'], 'gemini_response_invalid')
+            self.assertEqual(record['first_code'], 'gemini_response_invalid')
+            self.assertEqual(record['validation_reason'], 'output_language')
+            self.assertEqual(record['streams']['en']['validation_reason'], 'output_language')
+            self.assertIsNone(record['streams']['id']['validation_reason'])
+            self.assertNotIn(private, line)
+            self.assertNotIn(relay.ident, line)
+            self.assertNotIn(relay.key, line)
+            final = relay.snapshot(0)
+            self.assertEqual(final['code'], 'gemini_response_invalid')
+            self.assertNotIn('validation_reason', final)
+            self.assertTrue(all('validation_reason' not in stream for stream in final['streams'].values()))
+
+    def test_settlement_failure_keeps_original_validation_reason_and_redacts_supplier_values(self):
+        with self.config():
+            relay = self.make()
+            private = 'private-provider-mime-and-exception-token'
+            sockets = [Socket(), Socket()]
+            sockets[0].incoming.put(json.dumps({'serverContent':{'modelTurn':{'parts':[
+                {'inlineData':{'mimeType':private,'data':base64.b64encode(PCM).decode('ascii')}}]}}}))
+            output = io.StringIO()
+            with patch.object(native, 'connect', side_effect=sockets), \
+                 patch.object(budget, 'finish', side_effect=RuntimeError(private)), redirect_stdout(output):
+                relay.run()
+            line = next(line for line in output.getvalue().splitlines() if line.startswith('KILAS_GEMINI_PAIR '))
+            record = json.loads(line.split(' ',1)[1])
+            self.assertEqual(record['code'], 'gemini_settlement_failed')
+            self.assertEqual(record['first_code'], 'gemini_response_invalid')
+            self.assertEqual(record['validation_reason'], 'audio_mime')
+            self.assertEqual(record['streams']['en']['validation_reason'], 'audio_mime')
+            self.assertNotIn(private, line)
+            self.assertNotIn(private, repr(vars(relay.error)))
+            budget.finish(relay.capability, False)
+
+    def test_provider_error_log_contains_only_safe_status_and_fixed_reason(self):
+        with self.config():
+            relay = self.make()
+            private = 'private-provider-error-details-token'
+            sockets = [Socket(), Socket()]
+            sockets[0].incoming.put(json.dumps({'error':{'code':429, 'message':private, 'details':[private]}}))
+            output = io.StringIO()
+            with patch.object(native, 'connect', side_effect=sockets), redirect_stdout(output):
+                relay.run()
+            line = next(line for line in output.getvalue().splitlines() if line.startswith('KILAS_GEMINI_PAIR '))
+            record = json.loads(line.split(' ',1)[1])
+            self.assertEqual(record['code'], 'gemini_response_invalid')
+            self.assertEqual(record['validation_reason'], 'provider_error')
+            self.assertEqual(record['provider_status'], 429)
+            self.assertEqual(record['streams']['en']['provider_status'], 429)
+            self.assertIsNone(record['streams']['id']['provider_status'])
+            self.assertEqual(relay.first_error.status, 503)
+            self.assertNotIn(private, line)
+            self.assertNotIn(private, repr(vars(relay.first_error)))
+            self.assertNotIn('provider_status', relay.snapshot(0))
+
     def test_one_explicit_tail_does_not_close_or_confirm_the_whole_pair(self):
         with self.config(), patch.object(native, 'TAIL_GRACE_SECONDS', .2), \
              patch.object(native, 'TAIL_MAX_SECONDS', .3), patch.object(native, 'TAIL_QUIET_SECONDS', .05):

@@ -281,8 +281,9 @@ class CompletionTests(unittest.TestCase):
             relay.end_sent.set()
             relay.input_closed = True
             with patch.object(native, 'monotonic', return_value=relay.started + 90), \
-                 patch.object(relay.cancelled, 'wait', return_value=False):
+                 patch.object(relay.cancelled, 'wait', side_effect=[False, True]):
                 relay.watch()
+            self.assertIsNotNone(relay.error)
             self.assertEqual(relay.error.code, 'gemini_deadline')
             self.assertFalse(relay.completed.is_set())
             self.assertFalse(relay.tail_confirmed)
@@ -386,4 +387,12 @@ class CompletionTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    import faulthandler
+    import sys
+    # The aggregate runner retains stdout but drops stderr on its 120s timeout.
+    # Expose blocked thread stacks without extending that test deadline.
+    faulthandler.dump_traceback_later(30, repeat=True, file=sys.__stdout__)
+    try:
+        unittest.main(verbosity=2)
+    finally:
+        faulthandler.cancel_dump_traceback_later()

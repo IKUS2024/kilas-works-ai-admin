@@ -74,17 +74,17 @@ class Stream(native.Relay):
         self.pair.check()
 
     def receive(self, raw):
-        value = native.message(raw)
-        content = value.get('serverContent', {})
-        if isinstance(content, dict):
-            transcript = content.get('outputTranscription')
-            if isinstance(transcript, dict) and transcript.get('languageCode') is not None:
-                if live.canonical_language(transcript['languageCode']) != self.target:
-                    raise failure('gemini_response_invalid')
         try:
             super().receive(raw)
         finally:
             self.pair.publish_stream(self)
+
+    def validate_content(self, content):
+        # The base parser holds the child lock and has already fenced completion.
+        transcript = content.get('outputTranscription')
+        if isinstance(transcript, dict) and transcript.get('languageCode') is not None:
+            if live.canonical_language(transcript['languageCode']) != self.target:
+                raise native.invalid_response('output_language')
 
     def accept_pcm(self, pcm):
         # The child lock is held by receive. Aggregate admission happens before
@@ -94,7 +94,7 @@ class Stream(native.Relay):
             if pair.cancelled.is_set():
                 raise pair.error or failure('turn_cancelled', 409)
             if self.stopped:
-                raise failure('gemini_response_invalid')
+                raise native.invalid_response('closed_stream')
             pair.received_packets += 1
             if pair.output_bytes+len(pcm) > native.OUTPUT_BYTES:
                 pair.rejected_output_bytes += len(pcm)
@@ -132,7 +132,7 @@ class Pair(native.Relay):
     def check(self):
         if self.cancelled.is_set():
             raise self.error or failure('turn_cancelled', 409)
-        if monotonic()-self.started >= budget.LEASE_MS/1000:
+        if monotonic() >= self.started+budget.LEASE_MS/1000:
             raise failure('gemini_deadline')
         require_ready(self.owner)
         info = sessions.check(self.owner, self.ident, self.key)
@@ -321,7 +321,11 @@ class Pair(native.Relay):
                 stream.ws = native.connect()
                 self.check()
                 stream.ws.send(json.dumps(native.setup(stream.target)))
-                value = native.message(stream.ws.recv())
+                try:
+                    value = native.message(stream.ws.recv())
+                except audio_store.AudioError as error:
+                    stream.note_validation(error)
+                    raise
                 if (not isinstance(value.get('setupComplete'), dict)
                         or any(name in value for name in ('error', 'toolCall', 'goAway'))):
                     raise failure('gemini_setup_invalid')
@@ -402,11 +406,15 @@ class Pair(native.Relay):
                         'streams':{target:{
                             'output_ms':round(stream.output_bytes/48, 1),
                             'first_output_ms':None if stream.first_output_at is None else round((stream.first_output_at-self.started)*1000, 1),
-                            'completion_kind':stream.completion_kind}
+                            'completion_kind':stream.completion_kind,
+                            'validation_reason':stream.validation_reason,
+                            'provider_status':stream.provider_status}
                             for target, stream in self.streams.items()},
                         'completion_kind':self.completion_kind, 'tail_confirmed':self.tail_confirmed,
                         'code':getattr(self.error, 'code', None),
-                        'first_code':getattr(self.first_error, 'code', None)}), flush=True)
+                        'first_code':getattr(self.first_error, 'code', None),
+                        'validation_reason':native.validation_reason(self.first_error),
+                        'provider_status':native.provider_status(self.first_error)}), flush=True)
                 except OSError:
                     pass
 
