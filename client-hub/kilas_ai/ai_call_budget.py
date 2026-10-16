@@ -1,0 +1,128 @@
+"""Call uses the existing lifetime Gemini cap, never a fresh allowance."""
+import hashlib
+import re
+import secrets
+from datetime import datetime, timezone, timedelta
+from . import live_gemini_budget as native, audio_transcription_budget as ledger, usage
+from .autonomous_store import transaction
+
+MODEL = 'gemini-3.8-live'
+LEASE_SECONDS = 90
+
+
+def config(*, for_end=False):
+    base = native.policy(enabled_key='KILAS_AI_ENABLED' if for_end else 'KILAS_AI_CALL_ENABLED')
+    if not base or base['mode'] != 'owner_lifetime' or base['reserve'] < 250000:
+        return None
+    return {**base, 'base':base, 'id':'gml-call-'+hashlib.sha256(base['id'].encode()).hexdigest()[:24],
+            'price_version':'gemini-3.8-live-bounded90-v1:'+base['price_version']}
+
+
+def key(ident):
+    if not isinstance(ident,str) or not re.fullmatch(r'[a-f0-9]{32}',ident):
+        raise ledger.BudgetError('invalid_operation',400)
+    return 'live-'+ident+'-gc'
+
+
+def source(conn, value):
+    base=value['base']
+    row=usage._query(conn,'SELECT global_micro,account_micro,expires_at,price_version,blocked FROM kilas_vo_stt_campaigns WHERE id=?',(base['id'],),one=True)
+    if not row or row[4] or tuple(row[:4])!=tuple(base[k] for k in ('global_micro','account_micro','expires_at','price_version')):
+        raise ledger.BudgetError('call_unavailable',503)
+
+
+def owned(owner,ident):
+    return ledger.db.query_one('SELECT status,charge_micro,campaign FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(owner,key(ident)))
+
+
+def active(owner,ident):
+    value=config()
+    if not value or not native.allowed(owner,value):return False
+    with transaction() as conn:
+        source(conn,value)
+        row=ledger._row(conn,owner,key(ident))
+        campaign=usage._query(conn,'SELECT global_micro,account_micro,expires_at,price_version,blocked FROM kilas_vo_stt_campaigns WHERE id=?',(value['id'],),one=True)
+        return bool(row and row[1]==value['id'] and row[3] in ('RESERVED','DISPATCHED')
+                    and campaign and not campaign[4]
+                    and tuple(campaign[:4])==tuple(value[k] for k in ('global_micro','account_micro','expires_at','price_version')))
+
+
+def status(owner):
+    value=config()
+    if not value or not native.allowed(owner,value):
+        return {'available':False,'reason':'call_unavailable'}
+    with transaction() as conn:
+        ledger._global_lock(conn);source(conn,value)
+        campaign=usage._query(conn,'SELECT global_micro,account_micro,expires_at,price_version,blocked FROM kilas_vo_stt_campaigns WHERE id=?',(value['id'],),one=True)
+        if campaign and (campaign[4] or tuple(campaign[:4])!=tuple(value[k] for k in ('global_micro','account_micro','expires_at','price_version'))):
+            return {'available':False,'reason':'call_unavailable'}
+        remaining=max(0,value['global_micro']-native._spend(conn,value))
+        busy=bool(usage._query(conn,"SELECT 1 FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",(owner,),one=True))
+    return {'available':not busy and remaining>=value['reserve'],
+            'reason':'already_processing' if busy else 'budget_limit' if remaining<value['reserve'] else None,
+            'remaining_micro_usd':remaining,'reserve_micro_usd':value['reserve'],'lease_seconds':LEASE_SECONDS}
+
+
+def claim(owner,ident):
+    operation=key(ident);value=config()
+    if not value or not native.allowed(owner,value):raise ledger.BudgetError('call_unavailable',503)
+    with transaction() as conn:
+        ledger._global_lock(conn);source(conn,value);native._authorize(conn,owner,value)
+        ledger._campaign(conn,value)
+        now=datetime.now(timezone.utc);stamp=now.isoformat()
+        # Only this feature's expired90s leases; retained dispatch cost never falls.
+        usage._query(conn,"UPDATE kilas_vo_stt_operations SET status=CASE WHEN status='RESERVED' THEN 'CANCELLED' ELSE 'UNKNOWN' END,charge_micro=CASE WHEN status='RESERVED' THEN 0 ELSE charge_micro END,finished_at=? WHERE campaign LIKE ? AND status IN ('RESERVED','DISPATCHED') AND created_at<?",(stamp,'gml-call-%',(now-timedelta(seconds=120)).isoformat()))
+        if usage._query(conn,'SELECT 1 FROM kilas_vo_stt_operations WHERE operation_key=?',(operation,),one=True):
+            raise ledger.BudgetError('duplicate_turn',409)
+        if usage._query(conn,"SELECT 1 FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",(owner,),one=True):raise ledger.BudgetError('already_processing',429)
+        if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status IN ('RESERVED','DISPATCHED')",one=True)[0]>=ledger.GLOBAL_CONCURRENCY:raise ledger.BudgetError('service_busy',429)
+        for seconds,maximum in ((3600,ledger.OWNER_HOURLY_ATTEMPTS),(86400,ledger.OWNER_DAILY_ATTEMPTS)):
+            count=usage._query(conn,"SELECT COUNT(DISTINCT CASE WHEN campaign LIKE ? THEN fingerprint ELSE operation_key END) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?",('gml-%',owner,'live-%',(now-timedelta(seconds=seconds)).isoformat()),one=True)[0]
+            if count>=maximum:raise ledger.BudgetError('attempt_limit',429)
+        if native._spend(conn,value)+value['reserve']>value['global_micro']:raise ledger.BudgetError('budget_limit',429)
+        lease=secrets.token_hex(32)
+        usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at) VALUES (?,?,?,?,'RESERVED',?,?,?,?)",(owner,operation,value['id'],hashlib.sha256(('call:'+ident).encode()).hexdigest(),value['reserve'],90000,ledger._hash(lease),stamp))
+        return ledger.Reservation(owner,operation,lease)
+
+
+def dispatch(capability):
+    value=config()
+    if not value:raise ledger.BudgetError('call_unavailable',503)
+    with transaction() as conn:
+        ledger._global_lock(conn);source(conn,value);native._authorize(conn,capability.owner,value)
+        ledger._campaign(conn,value)
+        row=ledger._lock_existing_campaign(conn,capability.owner,capability.key)
+        if not row or row[1]!=value['id'] or row[3]!='RESERVED' or row[5]!=ledger._hash(capability.lease):raise ledger.BudgetError('call_ended',409)
+        created=usage._query(conn,'SELECT created_at FROM kilas_vo_stt_operations WHERE id=?',(row[0],),one=True)[0]
+        if not 0<=(datetime.now(timezone.utc)-datetime.fromisoformat(created.replace('Z','+00:00'))).total_seconds()<=20:raise ledger.BudgetError('reservation_expired',409)
+        usage._query(conn,"UPDATE kilas_vo_stt_operations SET status='DISPATCHED',dispatched_at=? WHERE id=?",(datetime.now(timezone.utc).isoformat(),row[0]))
+
+
+def finish(capability):
+    # Delegate only this feature's settlement to End; dispatch estimates stay.
+    if type(capability) is not ledger.Reservation or not re.fullmatch(r'live-[a-f0-9]{32}-gc',capability.key):raise ledger.BudgetError('invalid_reservation')
+    with transaction() as conn:
+        row=ledger._lock_existing_campaign(conn,capability.owner,capability.key)
+        if not row or row[5]!=ledger._hash(capability.lease):raise ledger.BudgetError('invalid_reservation')
+        if row[3] not in ('RESERVED','DISPATCHED'):return
+        usage._query(conn,"UPDATE kilas_vo_stt_operations SET status=?,charge_micro=?,finished_at=? WHERE id=?",('UNKNOWN' if row[3]=='DISPATCHED' else 'CANCELLED',row[4] if row[3]=='DISPATCHED' else 0,datetime.now(timezone.utc).isoformat(),row[0]))
+
+
+def end(owner,ident):
+    operation=key(ident)
+    with transaction() as conn:
+        ledger._global_lock(conn)
+        row=ledger._row(conn,owner,operation)
+        if row:
+            if row[3] in ('RESERVED','DISPATCHED'):
+                usage._query(conn,"UPDATE kilas_vo_stt_operations SET status=?,charge_micro=?,finished_at=? WHERE id=?",('UNKNOWN' if row[3]=='DISPATCHED' else 'CANCELLED',row[4] if row[3]=='DISPATCHED' else 0,datetime.now(timezone.utc).isoformat(),row[0]))
+            return
+        if usage._query(conn,'SELECT 1 FROM kilas_vo_stt_operations WHERE operation_key=?',(operation,),one=True):raise ledger.BudgetError('not_owned',404)
+        value=config(for_end=True)
+        if not value or not native.allowed(owner,value,conn):return
+        source(conn,value);ledger._campaign(conn,value)
+        # End-before-admission tombstone: a late Start with this key cannot pay.
+        recent=usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND campaign LIKE ? AND created_at>=?",(owner,'gml-call-%',(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()),one=True)[0]
+        if recent>=ledger.OWNER_HOURLY_ATTEMPTS:return  # Admission is also fenced.
+        stamp=datetime.now(timezone.utc).isoformat()
+        usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at,finished_at) VALUES (?,?,?,?,'CANCELLED',0,90000,?,?,?)",(owner,operation,value['id'],hashlib.sha256(('call:'+ident).encode()).hexdigest(),ledger._hash(secrets.token_hex(32)),stamp,stamp))

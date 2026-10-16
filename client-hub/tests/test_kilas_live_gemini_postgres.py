@@ -17,6 +17,7 @@ import repo
 from kilas_ai import audio_schema, audio_store, live_translator_store as sessions
 from kilas_ai import live_gemini as native, live_gemini_budget as budget, live_gemini_smoke as smoke
 from kilas_ai import live_gemini_pair as pair
+from kilas_ai import ai_call_budget as call_budget
 
 
 def main():
@@ -261,6 +262,45 @@ def main():
                     assert audio_store.balance(owner)['available']==300
                     pair.cancel(owner,pair_sessions[owner])
                 for user,ident in pair_sessions.items():sessions.end(user,ident)
+                # A conversational Call and the old native translator compete
+                # for the SAME last reserve, under the production PG lock.
+                prior_call=db.query_one('SELECT SUM(charge_micro) AS n FROM kilas_vo_stt_operations WHERE campaign LIKE ?',('gml-%',))['n']
+                call_config=dict(internal,KILAS_LIVE_GEMINI_CAMPAIGN='pg-call-shared',
+                                 KILAS_LIVE_GEMINI_BUDGET_MICRO_USD=str(prior_call+500000),
+                                 KILAS_LIVE_GEMINI_AUDIENCE='authenticated',KILAS_AI_CALL_ENABLED='true',KILAS_AI_ENABLED='true')
+                with patch.dict(os.environ,call_config):
+                    with call_budget.transaction() as conn:budget.ledger._campaign(conn,budget.policy())
+                    cancelled=uuid.uuid4().hex
+                    call_budget.end(owner,cancelled)
+                    try:call_budget.claim(owner,cancelled)
+                    except budget.ledger.BudgetError as error:assert error.code=='duplicate_turn'
+                    else:raise AssertionError('End-before-Start did not fence a late Call')
+                    trial_id=uuid.uuid4().hex
+                    trial=call_budget.claim(owner,trial_id)
+                    call_budget.dispatch(trial)
+                    try:call_budget.end(peer,trial_id)
+                    except budget.ledger.BudgetError as error:assert error.code=='not_owned'
+                    else:raise AssertionError('Cross-account Call End accepted')
+                    call_budget.end(owner,trial_id);call_budget.finish(trial)
+                    assert call_budget.owned(owner,trial_id)['status']=='UNKNOWN'
+                    assert call_budget.owned(owner,trial_id)['charge_micro']==250000
+                    def call_contend(kind):
+                        try:
+                            return call_budget.claim(owner,uuid.uuid4().hex) if kind=='call' else budget.claim(peer,'8'*48,'live-'+uuid.uuid4().hex)
+                        except budget.ledger.BudgetError as error:return error.code
+                        finally:db._discard_cached_connection()
+                    with ThreadPoolExecutor(max_workers=2) as pool:raced=list(pool.map(call_contend,('call','native')))
+                    winners=[x for x in raced if isinstance(x,budget.ledger.Reservation)]
+                    assert len(winners)==1 and 'budget_limit' in raced,raced
+                    winner=winners[0]
+                    if winner.key.endswith('-gc'):
+                        call_budget.dispatch(winner);call_budget.finish(winner)
+                    else:
+                        budget.dispatch(winner);budget.finish(winner,False)
+                    assert budget.status(owner)['charged_micro_usd']==prior_call+500000
+                    assert call_budget.status(peer)['reason']=='budget_limit'
+                    assert db.query_one('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',(winner.key,))['charge_micro']==250000
+                print('PASS AI Call PostgreSQL: native and conversational models contend for one final existing global reserve; retained dispatch costs and history preserved')
             print('PASS Gemini PostgreSQL: serialized owner/cross-account/paired admission, two weighted capacity rows, one global lifetime cap, malformed first handshake retains full pair cost, authenticated/nonce fences, historical accounting, unchanged customer balance/history')
     finally:
         db._discard_cached_connection()
