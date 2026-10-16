@@ -72,6 +72,16 @@ class GeminiTests(unittest.TestCase):
     credit = fixture.LiveTranslatorTests.credit
     key = fixture.LiveTranslatorTests.key
 
+    def test_provider_contract_keeps_one_fixed_target_and_disables_target_echo_for_both_directions(self):
+        # This proves the actual fixed-target contract, not automatic language
+        # routing. Bidirectional translation needs a separate compound design.
+        for target in ('id', 'en'):
+            setup = native.setup(target)['setup']
+            self.assertEqual(setup['generationConfig']['translationConfig'],
+                             {'targetLanguageCode':target, 'echoTargetLanguage':False})
+            self.assertNotIn('systemInstruction', setup)
+            self.assertNotIn('speechConfig', setup['generationConfig'])
+
     def config(self, **extra):
         values = {'KILAS_LIVE_GEMINI_ENABLED':'true', 'KILAS_LIVE_GEMINI_BILLING_VERIFIED':'yes',
                   'KILAS_LIVE_GEMINI_ALLOWED_OWNER_ID':str(self.user),
@@ -133,7 +143,7 @@ class GeminiTests(unittest.TestCase):
                          KILAS_LIVE_GEMINI_QA_OWNER_EMAIL=email), patch.object(native,'connect') as connect:
             response=self.client.get('/kilas-translator/live/gemini')
             self.assertEqual(response.status_code,200)
-            self.assertIn('Rp500.000',response.text)
+            self.assertIn('Translator belum tersedia untuk akun ini.',response.text)
             self.assertNotIn('/static/kilas_live_gemini.mjs',response.text)
             self.assertNotIn('id="live-setup-form"',response.text)
             response=self.client.post('/kilas-translator/live/gemini/sessions',data={'csrf_token':'audio-csrf'})
@@ -382,7 +392,11 @@ class GeminiTests(unittest.TestCase):
                 response = self.client.get('/kilas-translator/live/gemini')
                 self.assertEqual(response.status_code,200)
                 self.assertIn('<html lang="'+locale+'">',response.text)
-                self.assertIn('One-way live translation' if locale=='en' else 'Terjemahan langsung satu arah',response.text)
+                self.assertIn('The source language is translated into the target language.' if locale=='en' else 'Bahasa sumber diterjemahkan ke bahasa tujuan.',response.text)
+                self.assertNotIn('Translator · Gemini',response.text)
+                self.assertNotIn('id="gemini-finish"',response.text)
+                self.assertNotIn('id="live-translation"',response.text)
+                self.assertIn('id="live-recovery-check" hidden',response.text)
                 self.assertNotIn('synthetic-native-key-not-real',response.text)
                 self.assertNotIn('voice_id',response.text)
                 pages[locale]=response.text

@@ -1,13 +1,15 @@
 // Stateful bounded PCM16k mono encoder. No media/network merely on import.
 export class PcmEncoder {
-  constructor(rate,emit){
+  constructor(rate,emit,frameSamples=3200){
     if(!Number.isFinite(rate)||rate<16000||rate>96000)throw Error('Unsupported capture rate');
+    if(![1600,3200].includes(frameSamples))throw Error('Unsupported capture frame');
+    this.frameSamples=frameSamples;
     this.ratio=rate/16000;this.remaining=this.ratio;this.sum=0;this.used=0;
     this.samples=[];this.emit=emit;this.closed=false;
   }
   sample(value){
     this.samples.push(Math.max(-32768,Math.min(32767,Math.round(value*(value<0?32768:32767)))));
-    if(this.samples.length===3200)this.output();
+    if(this.samples.length===this.frameSamples)this.output();
   }
   feed(channels){
     if(this.closed)return;
@@ -33,7 +35,7 @@ export class PcmEncoder {
 // local microphone feedback; playback only starts after capture is detached.
 if(typeof registerProcessor==='function'){
   class KilasPcm extends AudioWorkletProcessor {
-    constructor(){super();this.encoder=new PcmEncoder(sampleRate,value=>this.port.postMessage(value,[value.bytes]));this.port.onmessage=event=>{if(event.data?.finish){this.encoder.finish();this.port.postMessage({finished:true});}};}
+    constructor(options){super();this.encoder=new PcmEncoder(sampleRate,value=>this.port.postMessage(value,[value.bytes]),options?.processorOptions?.frameSamples);this.port.onmessage=event=>{if(event.data?.finish){this.encoder.finish();this.port.postMessage({finished:true});}};}
     process(inputs){if(!this.encoder.closed&&inputs[0]?.length)this.encoder.feed(inputs[0]);return !this.encoder.closed;}
   }
   registerProcessor('kilas-pcm',KilasPcm);

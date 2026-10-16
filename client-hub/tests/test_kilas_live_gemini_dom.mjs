@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {GeminiSession} from '../static/kilas_live_gemini_engine.mjs?v=gemini-continuous-v2';
+import {GeminiSession} from '../static/kilas_live_gemini_engine.mjs?v=utterance-gate-20261016';
 const pages=JSON.parse(readFileSync(process.env.KILAS_GEMINI_UI_FIXTURE_PATH,'utf8'));
 const {JSDOM}=createRequire(pathToFileURL(join(process.env.KILAS_UI_DOM_TOOLS||'/tmp/kilas-gemini-dom','package.json')))('jsdom');
 const tick=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
@@ -18,7 +18,7 @@ for(const locale of ['en','id']){
   const values={window,document,KilasUI:window.KilasUI,FormData:window.FormData,
    navigator:{mediaDevices:{getUserMedia(){microphones++;throw Error('No microphone QA');}}},
    AudioContext:class{constructor(){contexts++;throw Error('No audio-context QA');}},
-   fetch:async(url,options={})=>{requests.push({url,...options});assert.equal(options.method||'GET','GET');assert.ok(url.endsWith('/live/sessions/active'));return {ok:true,redirected:false,json:async()=>({session:active})};}};
+   fetch:async(url,options={})=>{requests.push({url,...options});if(options.method==='POST'){assert.equal(url,'/kilas-translator/live/sessions/'+active.session_id+'/end');active=null;return {ok:true,redirected:false,json:async()=>({status:'ENDED'})};}assert.ok(url.endsWith('/live/sessions/active'));return {ok:true,redirected:false,json:async()=>({session:active})};}};
   const previous={};for(const [key,value] of Object.entries(values)){previous[key]=Object.getOwnPropertyDescriptor(globalThis,key);Object.defineProperty(globalThis,key,{value,writable:true,configurable:true});}
   t.after(()=>{for(const [key,value] of Object.entries(previous)){if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}});
   await import('../static/kilas_live_gemini.mjs?dom-'+locale);await tick();
@@ -26,27 +26,27 @@ for(const locale of ['en','id']){
   assert.equal(start.disabled,true);assert.equal(document.querySelector('#live-recovery').hidden,false);
   assert.equal(document.querySelector('#live-recovery-status').textContent,locale==='en'?'The previous session is still active.':'Sesi sebelumnya masih aktif.');
   assert.equal(requests.length,1);assert.equal(microphones,0);assert.equal(contexts,0);
-  active=null;document.querySelector('#live-recovery-check').click();await tick();assert.equal(start.disabled,false);
+  assert.equal(document.querySelector('#live-recovery-check').hidden,true);document.querySelector('#live-recovery-end').click();await tick();assert.equal(start.disabled,false);
   first.value='en';first.dispatchEvent(new window.Event('change'));assert.notEqual(first.value,second.value);assert.equal(start.disabled,false);
   assert.equal(document.querySelector('[name=consent]').value,'gemini-live-v1');
   assert.equal(document.querySelector('[name=consent]').checked,false);
   assert.equal(document.querySelector('#live-active').hidden,true);assert.equal(microphones,0);assert.equal(contexts,0);
-  assert.equal(document.documentElement.lang,locale);assert.equal(requests.length,2);
+  assert.equal(document.documentElement.lang,locale);assert.equal(requests.length,3);
   // Drive the real DOM callbacks with synthetic engine states; never start media.
   const originalStart=GeminiSession.prototype.start;let submitted=false;
   GeminiSession.prototype.start=function(){
    submitted=true;this.active=true;this.state('renewing');
-   assert.equal(document.querySelector('#live-active').hidden,false);assert.equal(document.querySelector('#gemini-finish').disabled,true);
-   assert.equal(document.querySelector('#live-state').textContent,locale==='en'?'Continuing the session...':'Melanjutkan sesi...');
+   assert.equal(document.querySelector('#live-active').hidden,false);assert.equal(document.querySelector('#gemini-finish'),null);assert.equal(document.querySelector('#live-translation'),null);assert.deepEqual([...document.querySelectorAll('#live-active button')].map(node=>node.id),['live-end']);assert.equal(document.querySelector('#live-recovery-check').hidden,true);
+   assert.equal(document.querySelector('#live-state').textContent,locale==='en'?'Processing':'Memproses');
    this.onWarning({code:'gemini_tail_unconfirmed',completion_kind:'bounded_drain',tail_confirmed:false});
-   assert.equal(document.querySelector('#live-session-status').textContent,locale==='en'?'Received audio keeps playing. The end of the translation has not been confirmed as complete.':'Suara yang diterima tetap diputar. Kelengkapan bagian akhir terjemahan belum dikonfirmasi.');
+   assert.equal(document.querySelector('#live-session-status').textContent,locale==='en'?'The end of the translation is not confirmed.':'Bagian akhir terjemahan belum terkonfirmasi.');
    this.onError({code:'budget_limit'});this.active=false;this.state('ended');
   };
   t.after(()=>{GeminiSession.prototype.start=originalStart;});
   document.querySelector('[name=consent]').checked=true;document.querySelector('#live-setup-form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await tick();
   assert.equal(submitted,true);assert.equal(document.querySelector('#live-error').hidden,false);
-  assert.equal(document.querySelector('#live-error').textContent,locale==='en'?'The Gemini spending limit was reached. The session has stopped; speech is not retried automatically.':'Batas biaya Gemini tercapai. Sesi dihentikan; ucapan tidak diulang otomatis.');
-  assert.equal(document.querySelector('#live-active').hidden,true);assert.equal(microphones,0);assert.equal(contexts,0);assert.equal(requests.length,2);
+  assert.equal(document.querySelector('#live-error').textContent,locale==='en'?'The spending limit was reached. The session has stopped.':'Batas biaya tercapai. Sesi dihentikan.');
+  assert.equal(document.querySelector('#live-active').hidden,true);assert.equal(microphones,0);assert.equal(contexts,0);assert.equal(requests.length,3);
  });
 }
 
