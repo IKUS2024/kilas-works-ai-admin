@@ -16,6 +16,7 @@ import db
 import repo
 from kilas_ai import audio_schema, audio_store, live_translator_store as sessions
 from kilas_ai import live_gemini as native, live_gemini_budget as budget, live_gemini_smoke as smoke
+from kilas_ai import live_gemini_pair as pair
 
 
 def main():
@@ -211,7 +212,56 @@ def main():
                     retained=db.query_one('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(winner.owner,winner.key))
                     assert retained['status']=='UNKNOWN' and retained['charge_micro']==250000
                     assert budget.status(loser)['charged_micro_usd']==prior_shared+250000
-            print('PASS Gemini PostgreSQL: serialized owner/cross-account admission, one global lifetime cap, authenticated roles and disabled-account fences, nonce ownership, historical accounting, durable unknown dispatch cost, unchanged customer balance/history')
+                # A paired admission atomically consumes TWO physical slots
+                # under the unchanged global3 fence and one full pair reserve.
+                peer=repo.create_user('native-pair-peer@example.test','unused',role='CLIENT_MEMBER')
+                pair_sessions={user:sessions.create(user,'id','en',pair.VOICE) for user in (owner,peer)}
+                prior_pair=db.query_one('SELECT SUM(charge_micro) AS n FROM kilas_vo_stt_operations WHERE campaign LIKE ?',('gml-%',))['n']
+                paired=dict(internal,KILAS_LIVE_GEMINI_CAMPAIGN='pg-native-pair',
+                            KILAS_LIVE_GEMINI_BUDGET_MICRO_USD=str(prior_pair+500000),
+                            KILAS_LIVE_GEMINI_AUDIENCE='authenticated')
+                with patch.dict(os.environ,paired):
+                    def contend_pair(user):
+                        try:return budget.claim(user,pair_sessions[user],'live-'+format(user+1000,'032x'),streams=2)
+                        except budget.ledger.BudgetError as error:return error.code
+                        finally:db._discard_cached_connection()
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        pair_results=list(pool.map(contend_pair,(owner,peer)))
+                    pair_winners=[item for item in pair_results if isinstance(item,budget.ledger.Reservation)]
+                    assert len(pair_winners)==1 and 'service_busy' in pair_results, pair_results
+                    pair_capability=pair_winners[0]
+                    active=db.query_one("SELECT COUNT(*) AS n,SUM(charge_micro) AS charge FROM kilas_vo_stt_operations WHERE status IN ('RESERVED','DISPATCHED')")
+                    assert active['n']==2 and active['charge']==500000, active
+                    slot_key=pair_capability.key.removesuffix(':parent')+':slot'
+                    for internal_key in (pair_capability.key,slot_key):
+                        try:budget.ledger.cancel(pair_capability.owner,internal_key)
+                        except budget.ledger.BudgetError as error:assert error.code=='invalid_operation'
+                        else:raise AssertionError('Generic cancellation accepted paired capacity key')
+                    assert not budget.finish(pair_capability,False)
+                    # Known-undispatched cancellation frees the pair for this
+                    # actual relay rehearsal. The first malformed handshake
+                    # keeps BOTH reservations; the other socket is never tried.
+                    key='live-'+format(10**6,'032x')
+                    with patch.object(pair.Thread,'start'):
+                        pair_relay=pair.start(owner,pair_sessions[owner],key)
+                    class MalformedPairSetup:
+                        def send(self,raw):pass
+                        def recv(self):return '{"notSetupComplete":true}'
+                        def shutdown(self):pass
+                        def close(self):pass
+                    with patch.object(native,'connect',return_value=MalformedPairSetup()) as connect:
+                        pair_relay.run()
+                    assert connect.call_count==1, connect.call_count
+                    pair_rows=db.query_one('SELECT COUNT(*) AS n,MIN(status) AS low,MAX(status) AS high,SUM(charge_micro) AS charge FROM kilas_vo_stt_operations WHERE operation_key IN (?,?)',
+                                           (key+'-gm2:parent',key+'-gm2:slot'))
+                    assert pair_rows['n']==2 and pair_rows['low']==pair_rows['high']=='UNKNOWN' and pair_rows['charge']==500000, pair_rows
+                    snapshot=budget.status(peer,streams=2)
+                    assert snapshot['reason']=='budget_limit' and snapshot['charged_micro_usd']==prior_pair+500000
+                    assert snapshot['reserve_micro_usd']==500000 and snapshot['remaining_leases']==0
+                    assert audio_store.balance(owner)['available']==300
+                    pair.cancel(owner,pair_sessions[owner])
+                for user,ident in pair_sessions.items():sessions.end(user,ident)
+            print('PASS Gemini PostgreSQL: serialized owner/cross-account/paired admission, two weighted capacity rows, one global lifetime cap, malformed first handshake retains full pair cost, authenticated/nonce fences, historical accounting, unchanged customer balance/history')
     finally:
         db._discard_cached_connection()
         with control.cursor() as cur:

@@ -330,17 +330,7 @@ class Relay:
                     pcm = base64.b64decode(audio['data'], validate=True)
                     if not pcm or len(pcm)%2:
                         raise ValueError()
-                    self.received_packets += 1
-                    if self.output_bytes+len(pcm) > OUTPUT_BYTES:
-                        self.rejected_output_bytes += len(pcm)
-                        raise failure('gemini_output_limit', 429)
-                    self.output_bytes += len(pcm)
-                    self.last_output_at = monotonic()
-                    if self.first_output_at is None:
-                        self.first_output_at = monotonic()
-                    for offset in range(0, len(pcm), 9600):
-                        self.frames.append({'type':'audio', 'generation':self.generation,
-                                            'pcm':base64.b64encode(pcm[offset:offset+9600]).decode('ascii')})
+                    self.accept_pcm(pcm)
                 if len(self.frames) > 2000:
                     raise ValueError()
                 if content.get('generationComplete') is True:
@@ -360,6 +350,20 @@ class Relay:
             raise
         except (ValueError, TypeError, KeyError, binascii.Error):
             raise failure('gemini_response_invalid') from None
+
+    def accept_pcm(self, pcm):
+        """Accept validated PCM while receive holds the relay lock."""
+        self.received_packets += 1
+        if self.output_bytes+len(pcm) > OUTPUT_BYTES:
+            self.rejected_output_bytes += len(pcm)
+            raise failure('gemini_output_limit', 429)
+        self.output_bytes += len(pcm)
+        self.last_output_at = monotonic()
+        if self.first_output_at is None:
+            self.first_output_at = self.last_output_at
+        for offset in range(0, len(pcm), 9600):
+            self.frames.append({'type':'audio', 'generation':self.generation,
+                                'pcm':base64.b64encode(pcm[offset:offset+9600]).decode('ascii')})
 
     def snapshot(self, after):
         # Owner/session/expiry fences apply to every response, including terminal.

@@ -1,5 +1,9 @@
 # Native Translator utterance release — 2026-10-16
 
+The later same-day automatic-pair implementation is documented in
+[the native two-way note](KILAS_TRANSLATOR_NATIVE_TWO_WAY_20261016.md).
+This record describes the preceding fixed-target release.
+
 The active requirement uses Gemini's existing native voice. Kilas Male/Female
 and ElevenLabs integration were cancelled at 07:06 UTC. Playback now waits for
 **32000 silent PCM16k samples (2 seconds)** after speech. This is the local
