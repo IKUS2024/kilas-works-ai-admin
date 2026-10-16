@@ -458,6 +458,15 @@ def list_accounts(business_id, include_inactive=False, *, actor_user_id=None):
     return _label_accounts(business_id, rows, actor_user_id)
 
 
+def list_entry_accounts(business_id, *, actor_user_id):
+    """Existing active accounts for the explicitly authenticated entry workspace only."""
+    context = branches._current.get()
+    if not context or context[0] != business_id or context[1] is None or context[2] != actor_user_id:
+        raise FinanceError('branch_unavailable')
+    branches.get(business_id, context[1], active=True, actor_user_id=actor_user_id)
+    return list_accounts(business_id, actor_user_id=actor_user_id)
+
+
 def get_account(business_id, account_id, *, actor_user_id=None, active=False):
     _scope(business_id,actor_user_id)
     row=db.query_one(('SELECT * FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
@@ -1570,49 +1579,58 @@ def void_transaction(business_id, transaction_id, actor_user_id=None):
 
 
 def reset_branch_finance(business_id, actor_user_id=None):
-    """Reset the selected active branch to a clean Rp0 starting point without hard-deleting history.
-
-    Financial rows remain available for audit/export history, but no longer affect current balances
-    or receivables. Branches, accounts, categories, customers and projects remain configured.
-    """
+    """Internal owner-only reset of one active branch; HTTP requires a verified reset request."""
+    _id(actor_user_id)
     with _write(business_id, actor_user_id):
-        branch_id = branches.write_branch(business_id, actor_user_id)
-        now = repo._now()
-        # Include every source (manual, receipt, bank, recurring, invoice payment). Reset is the
-        # explicit branch-level escape hatch; ordinary source-specific void restrictions remain.
-        db.execute(
-            "UPDATE finance_transactions SET status='VOID',voided_at=COALESCE(voided_at,?),"
-            "voided_by_user_id=COALESCE(voided_by_user_id,?),updated_at=? "
-            "WHERE business_id=? AND branch_id=? AND status='POSTED'",
-            (now, actor_user_id, now, business_id, branch_id))
-        db.execute(
-            "UPDATE finance_accounts SET opening_balance_minor=0,updated_at=? "
-            "WHERE business_id=? AND branch_id=?",
-            (now, business_id, branch_id))
-        # A reset intentionally closes even paid/part-paid invoices. Payment rows remain immutable
-        # history, while VOID invoices are excluded from current receivables and aging.
-        db.execute(
-            "UPDATE finance_invoices SET status='VOID',voided_at=COALESCE(voided_at,?),"
-            "voided_by_user_id=COALESCE(voided_by_user_id,?),updated_at=? "
-            "WHERE business_id=? AND branch_id=? AND status<>'VOID'",
-            (now, actor_user_id, now, business_id, branch_id))
-        db.execute(
-            "UPDATE finance_recurring_expenses SET is_active=FALSE,updated_at=? "
-            "WHERE business_id=? AND branch_id=? AND is_active=TRUE",
-            (now, business_id, branch_id))
-        db.execute("UPDATE finance_internal_transfers SET status='VOID',voided_at=?,voided_by_user_id=? "
-                   "WHERE business_id=? AND branch_id=? AND status='POSTED'",
-                   (now, actor_user_id, business_id, branch_id))
-        db.execute("UPDATE finance_fx_exchanges SET status='VOID',voided_at=COALESCE(voided_at,?),voided_by_user_id=COALESCE(voided_by_user_id,?),updated_at=? WHERE business_id=? AND branch_id=? AND status='POSTED'",
-                   (now,actor_user_id,now,business_id,branch_id))
-        # In-progress bank work is closed; completed imports stay as historical reconciliation.
-        db.execute(
-            "UPDATE finance_bank_imports SET status='CANCELLED',updated_at=? "
-            "WHERE business_id=? AND branch_id=? AND status IN ('REVIEW','OPEN')",
-            (now, business_id, branch_id))
-        _audit(business_id, actor_user_id, 'FINANCE_BRANCH_RESET', branch_id)
-        return branch_id
+        branch_id=branches.write_branch(business_id,actor_user_id)
+        return _reset_branch_records(business_id,branch_id,actor_user_id)
 
+
+def _reset_branch_records(business_id,branch_id,actor_user_id):
+    """Caller holds the business write lock and has verified the exact reset target."""
+    if actor_user_id is None or _finance_write.get()!=(business_id,actor_user_id):
+        raise FinanceError('business_unavailable')
+    branch=branches.get(business_id,branch_id,actor_user_id=actor_user_id)
+    if branch['workspace_type']!='PERSONAL':
+        _workspace_move_owner(business_id,actor_user_id)
+    elif branch['owner_user_id']!=actor_user_id:
+        raise FinanceError('branch_unavailable')
+    now = repo._now()
+    # Include every source (manual, receipt, bank, recurring, invoice payment). Reset is the
+    # explicit branch-level escape hatch; ordinary source-specific void restrictions remain.
+    db.execute(
+        "UPDATE finance_transactions SET status='VOID',voided_at=COALESCE(voided_at,?),"
+        "voided_by_user_id=COALESCE(voided_by_user_id,?),updated_at=? "
+        "WHERE business_id=? AND branch_id=? AND status='POSTED'",
+        (now, actor_user_id, now, business_id, branch_id))
+    db.execute(
+        "UPDATE finance_accounts SET opening_balance_minor=0,updated_at=? "
+        "WHERE business_id=? AND branch_id=?",
+        (now, business_id, branch_id))
+    # A reset intentionally closes even paid/part-paid invoices. Payment rows remain immutable
+    # history, while VOID invoices are excluded from current receivables and aging.
+    db.execute(
+        "UPDATE finance_invoices SET status='VOID',voided_at=COALESCE(voided_at,?),"
+        "voided_by_user_id=COALESCE(voided_by_user_id,?),updated_at=? "
+        "WHERE business_id=? AND branch_id=? AND status<>'VOID'",
+        (now, actor_user_id, now, business_id, branch_id))
+    db.execute(
+        "UPDATE finance_recurring_expenses SET is_active=FALSE,updated_at=? "
+        "WHERE business_id=? AND branch_id=? AND is_active=TRUE",
+        (now, business_id, branch_id))
+    db.execute("UPDATE finance_internal_transfers SET status='VOID',voided_at=?,voided_by_user_id=? "
+               "WHERE business_id=? AND branch_id=? AND status='POSTED'",
+               (now, actor_user_id, business_id, branch_id))
+    db.execute("UPDATE finance_fx_exchanges SET status='VOID',voided_at=COALESCE(voided_at,?),voided_by_user_id=COALESCE(voided_by_user_id,?),updated_at=? WHERE business_id=? AND branch_id=? AND status='POSTED'",
+               (now,actor_user_id,now,business_id,branch_id))
+    # In-progress bank work is closed; completed imports stay as historical reconciliation.
+    db.execute(
+        "UPDATE finance_bank_imports SET status='CANCELLED',updated_at=? "
+        "WHERE business_id=? AND branch_id=? AND status IN ('REVIEW','OPEN')",
+        (now, business_id, branch_id))
+    db.execute('DELETE FROM finance_budgets WHERE business_id=? AND branch_id=?',(business_id,branch_id))
+    _audit(business_id, actor_user_id, 'FINANCE_BRANCH_RESET', branch_id)
+    return branch_id
 
 def get_finance_summary(business_id, start_date, end_date, *, currency='IDR', actor_user_id=None):
     """Inclusive dates, POSTED only. Cash-based movement, NOT accrual profit.

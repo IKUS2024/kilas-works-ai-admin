@@ -34,6 +34,8 @@ import finance_fx
 from flask import jsonify, current_app, g
 import security
 import finance_ui
+import finance_reset
+import finance_personal
 import repo
 
 finance_bp = Blueprint('finance', __name__)
@@ -107,6 +109,17 @@ def finance_access(view):
                     abort(403)
             selected_branch = selected_row
         branch_id = record_id(selected) if selected is not None else None
+        if workspace_type=='PERSONAL':
+            try:
+                home=finance_personal.resolve_home(user['id'])
+            except finance.FinanceError as error:
+                return render_template('finance_personal_conflict.html',business=business,user=user,
+                    error_message=ERRORS.get(str(error),'Ruang Pribadi belum dapat dibuka.')),409
+            if home and (home['business_id'],home['branch_id'])!=(business_id,branch_id):
+                args={key:request.args.get(key) for key in ('view','direction','month','period_mode','range_start','range_end','display_currency') if request.args.get(key)}
+                if request.method not in ('GET','HEAD'):
+                    flash('Gunakan ruang Pribadi utama. Tidak ada transaksi yang dicatat pada ruang lama.','info')
+                return redirect(url_for('finance.dashboard',business_id=home['business_id'],branch_id=home['branch_id'],**args),code=303)
         g.finance_business_id = business_id
         g.finance_branch_id = branch_id
         g.finance_branches = branch_list
@@ -137,6 +150,16 @@ def finance_access(view):
 
 
 ERRORS = {
+    'personal_home_elsewhere': 'Satu ruang Pribadi utama sudah tersedia. Buka Personal untuk memakai data yang sama; tidak ada akun baru yang dibuat.',
+    'personal_context_conflict': 'Ada beberapa dataset Pribadi lama yang berisi data. Tidak ada data digabung atau dihapus. Penyatuan perlu ditinjau pengelola terlebih dahulu.',
+    'personal_home_unavailable': 'Akses ruang Pribadi utama tidak tersedia. Tidak ada ruang pengganti atau akun duplikat yang dibuat.',
+
+    'reset_confirmation_required': 'Ketik RESET dan centang persetujuan penghapusan untuk melanjutkan.',
+    'reset_unavailable': 'Permintaan reset tidak tersedia. Buka verifikasi reset kembali.',
+    'reset_expired': 'Verifikasi reset kedaluwarsa. Periksa data dan siapkan verifikasi baru.',
+    'reset_target_changed': 'Ruang Finance berubah. Periksa target dan siapkan verifikasi baru.',
+    'reset_data_changed': 'Data Finance berubah sejak peringatan ditampilkan. Periksa data dan siapkan verifikasi baru.',
+
     'transfer_same_account': 'Pilih dua akun yang berbeda.',
     'transfer_currency_mismatch': 'Transfer internal hanya mendukung akun dengan mata uang yang sama. Tidak ada konversi mata uang.',
     'invalid_transfer_key': 'Form transfer kedaluwarsa. Muat ulang halaman lalu coba lagi.',
@@ -466,9 +489,24 @@ def enter_workspace(business_id,workspace_type):
     security.require_business_access(business_id,user=user)
     try:
         workspace_type=branches.workspace(workspace_type)
+        if workspace_type=='PERSONAL':
+            home=finance_personal.resolve_home(user['id'])
+            if home:
+                security.require_business_access(home['business_id'],user=user)
+                if not home['is_active']:
+                    branches.ensure_personal(home['business_id'],user['id'])
+                # Remember only an existing, explicit owner-selected Personal dataset.
+                if entitlement.state(home['business_id'])['active']:
+                    with finance._write(home['business_id'],user['id']):
+                        finance_personal.lock_owner(user['id'])
+                        finance_personal.bind_home(user['id'],home['business_id'],home['branch_id'])
+                return redirect(url_for('finance.dashboard',business_id=home['business_id'],branch_id=home['branch_id'],
+                    month=request.form.get('month'),display_currency=request.form.get('display_currency','IDR')),code=303)
         rows=branches.list_branches(
             business_id,user['id'],workspace_type=workspace_type)
-        active=next((row for row in rows if row['is_active'] and row['is_default']),None)
+        remembered_branch=request.form.get('return_branch_id') if workspace_type=='BUSINESS' else None
+        active=next((row for row in rows if row['is_active'] and str(row['id'])==remembered_branch),None)
+        active=active or next((row for row in rows if row['is_active'] and row['is_default']),None)
         active=active or next((row for row in rows if row['is_active']),None)
         if active is None:
             entitlement.require_write(business_id,user['id'])
@@ -983,7 +1021,9 @@ def dashboard(business_id, user, business):
         exchanges=finance.list_currency_exchanges(business_id,user['id'],50),
         supported_currencies=finance.SUPPORTED_CURRENCIES, branch_breakdown=breakdown,
         businesses=repo.list_businesses_for_user(user['id']),
-        accounts=accounts, account_balance_rows=account_balance_rows, selected_account=selected_account,
+        accounts=accounts, entry_accounts=(finance.list_entry_accounts(business_id, actor_user_id=user['id'])
+            if g.finance_branch_id is not None else []),
+        account_balance_rows=account_balance_rows, selected_account=selected_account,
         account_detail_mode=account_detail_mode,
         transaction_account=transaction_account, transaction_account_id=transaction_account_id,
         categories=categories, summary=summary, summaries=summaries,
@@ -1377,7 +1417,7 @@ def start(business_id, user, business):
 def create_transaction(business_id, user, business):
     def action():
         account_id=record_id(request.form.get('account_id'))
-        account=next((a for a in finance.list_accounts(business_id,actor_user_id=user['id']) if a['id']==account_id),None)
+        account=next((a for a in finance.list_entry_accounts(business_id,actor_user_id=user['id']) if a['id']==account_id),None)
         if not account:raise finance.FinanceError('account_unavailable')
         currency=account['currency']
         direction=request.form.get('direction')
@@ -1454,29 +1494,45 @@ def move_account_workspace(business_id, user, business, account_id):
                           branch_id=g.finance_branch_id, view='accounts'))
 
 
+@finance_bp.route('/business/<int:business_id>/finance/reset/prepare', methods=['POST'])
+@finance_access
+def reset_prepare(business_id, user, business):
+    try:
+        key=finance_reset.prepare(business_id,g.finance_branch_id,actor_user_id=user['id'])
+    except finance.FinanceError as error:
+        if str(error) in ('business_unavailable','branch_unavailable'):
+            abort(403)
+        flash(ERRORS.get(str(error),'Reset belum dapat disiapkan.'),'error')
+        return redirect(url_for('finance.dashboard',business_id=business_id,branch_id=g.finance_branch_id),code=303)
+    return redirect(url_for('finance.reset_preview',business_id=business_id,branch_id=g.finance_branch_id,request_key=key),code=303)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/reset/review/<request_key>', methods=['GET'])
+@finance_access
+def reset_preview(business_id,user,business,request_key):
+    try:
+        preview=finance_reset.preview(business_id,g.finance_branch_id,request_key,actor_user_id=user['id'])
+    except finance.FinanceError:
+        abort(404)
+    return render_template('finance_reset_preview.html',business=business,user=user,preview=preview)
+
+
 @finance_bp.route('/business/<int:business_id>/finance/reset', methods=['POST'])
 @finance_access
 def reset_finance(business_id, user, business):
-    personal = getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
-    if request.form.get('confirmation') != 'RESET':
-        flash(
-            'Ketik RESET untuk mengonfirmasi reset Finance Pribadi.' if personal
-            else 'Ketik RESET untuk mengonfirmasi reset Finance cabang ini.',
-            'error')
-        return redirect(
-            url_for('finance.dashboard', business_id=business_id, branch_id=g.finance_branch_id),
-            code=303)
-    branch_name = g.finance_branch['name']
-    success = (
-        'Finance Pribadi direset ke Rp0. Struktur tetap tersedia dan riwayat audit tetap tersimpan.'
-        if personal else
-        f'Finance cabang {branch_name} direset ke Rp0. Struktur tetap tersedia dan riwayat audit tetap tersimpan.'
-    )
-    return mutate(
-        business_id,
-        lambda: finance.reset_branch_finance(business_id, actor_user_id=user['id']),
-        success,
-        url_for('finance.dashboard', business_id=business_id, branch_id=g.finance_branch_id))
+    key=request.form.get('request_key')
+    try:
+        finance_reset.complete(business_id,g.finance_branch_id,key,actor_user_id=user['id'],
+            confirmation=request.form.get('confirmation'),acknowledged=request.form.get('acknowledged'))
+    except finance.FinanceError as error:
+        if str(error) in ('business_unavailable','branch_unavailable'):
+            abort(403)
+        flash(ERRORS.get(str(error),'Permintaan reset tidak valid. Buka verifikasi reset kembali.'),'error')
+        if isinstance(key,str) and re.fullmatch('[a-f0-9]{32}',key):
+            return redirect(url_for('finance.reset_preview',business_id=business_id,branch_id=g.finance_branch_id,request_key=key),code=303)
+    else:
+        flash('Reset Finance selesai. Saldo dan data aktif pada ruang yang dikonfirmasi telah dikosongkan.','success')
+    return redirect(url_for('finance.dashboard',business_id=business_id,branch_id=g.finance_branch_id),code=303)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/accounts', methods=['POST'])
@@ -3475,3 +3531,19 @@ def update_identity(business_id, user, business):
                          'personal identity' if personal else 'business identity')
     flash('Profil Finance diperbarui.', 'success')
     return redirect(destination, code=303)
+
+
+@finance_bp.route('/finance/personal',methods=['GET'])
+@security.login_required
+def personal_home():
+    user=security.current_user()
+    try:
+        home=finance_personal.resolve_home(user['id'])
+    except finance.FinanceError as error:
+        return render_template('finance_personal_conflict.html',user=user,business=None,
+            error_message=ERRORS.get(str(error),'Ruang Pribadi belum dapat dibuka.')),409
+    if home is None:
+        return redirect(url_for('products.finance_entry'),code=303)
+    security.require_business_access(home['business_id'],user=user)
+    context={key:request.args.get(key) for key in ('view','direction','month','period_mode','range_start','range_end','display_currency') if request.args.get(key)}
+    return redirect(url_for('finance.dashboard',business_id=home['business_id'],branch_id=home['branch_id'],**context),code=303)

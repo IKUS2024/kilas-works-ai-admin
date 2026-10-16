@@ -74,7 +74,13 @@ def validate(business_id, write=False):
         if write:
             error('all_branches_read_only')
     else:
-        get(business_id, context[1], active=write, actor_user_id=context[2])
+        selected=get(business_id, context[1], active=write, actor_user_id=context[2])
+        if write and selected['workspace_type']=='PERSONAL':
+            import finance_personal
+            finance_personal.lock_owner(context[2])
+            home=finance_personal.resolve_home(context[2])
+            if home and (home['business_id'],home['branch_id'])!=(business_id,context[1]):
+                error('personal_home_elsewhere')
 
 
 @contextmanager
@@ -157,11 +163,16 @@ def default(business_id, actor_user_id=None):
 
 
 def ensure_personal(business_id, actor_user_id):
-    """Create one owner-private Personal workspace on explicit entry."""
+    """Reuse the owner's canonical Personal home; explicit first entry can create it once."""
     from finance_service import _write, _audit, _create_account
     if actor_user_id is None:
         error('branch_unavailable')
     with _write(business_id, actor_user_id):
+        import finance_personal
+        finance_personal.lock_owner(actor_user_id)
+        home=finance_personal.resolve_home(actor_user_id)
+        if home and home['business_id']!=business_id:
+            error('personal_home_elsewhere')
         rows = list_branches(
             business_id, actor_user_id, workspace_type='PERSONAL')
         if rows:
@@ -171,6 +182,7 @@ def ensure_personal(business_id, actor_user_id):
                     'UPDATE finance_branches SET is_active=TRUE,updated_at=? '
                     'WHERE business_id=? AND id=?',
                     (repo._now(), business_id, row['id']))
+            finance_personal.bind_home(actor_user_id,business_id,row['id'])
             return row['id']
         now = repo._now()
         # Stored name is unique inside the business; UI always displays "Pribadi".
@@ -187,6 +199,7 @@ def ensure_personal(business_id, actor_user_id):
         _create_account(
             business_id, 'Kas', 'CASH', 'IDR', 0, actor_user_id,
             branch_id=branch_id)
+        finance_personal.bind_home(actor_user_id,business_id,branch_id)
         return branch_id
 
 

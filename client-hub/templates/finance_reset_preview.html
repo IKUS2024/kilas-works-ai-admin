@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}{{ ui_t('Verifikasi Reset Data Finance') }}{% endblock %}
+{% block content %}
+<section class="card finance-reset-review">
+<h1>{{ ui_t('Verifikasi Reset Data Finance') }}</h1>
+{% if preview.target.workspace_type=='BUSINESS' %}<p>{{ ui_t('Reset ini hanya mencakup cabang Bisnis yang disebutkan. Cabang lain, ruang Pribadi, dan bisnis lain tidak termasuk.') }}</p>{% endif %}
+<p>{{ ui_t('Target penghapusan') }}: <strong>{% if preview.target.workspace_type=='PERSONAL' %}{{ ui_t('Finance Pribadi') }} · {{ preview.target.owner_name }}{% else %}{{ ui_t('Finance Bisnis') }} · {{ preview.target.business_name }} · {{ preview.target.branch_names|join(', ') }}{% endif %}</strong></p>
+{% if preview.processed %}<p role="status">{{ ui_t('Reset ini sudah selesai. Pengiriman ulang tidak menghapus data baru.') }}</p>
+{% else %}
+<div class="finance-reset-warning" role="note"><strong>{{ ui_t('Konfirmasi akhir akan menghapus data Finance aktif pada target ini. Tindakan ini tidak dapat dibatalkan dari halaman ini.') }}</strong>
+<ul>
+<li>{{ ui_t('Saldo awal dan saldo sekarang semua akun pada target menjadi 0 dalam mata uang masing-masing.') }} ({{ preview.accounts }})</li>
+<li>{{ ui_t('Semua transaksi aktif dibatalkan dan dihapus dari perhitungan pemasukan/pengeluaran, termasuk pembayaran invoice, biaya rutin dan hasil impor bank.') }} ({{ preview.transactions }})</li>
+<li>{{ ui_t('Semua invoice pada target dibatalkan, termasuk invoice lunas atau dibayar sebagian. Piutang aktif menjadi 0.') }} ({{ preview.invoices }})</li>
+<li>{{ ui_t('Anggaran pada target dihapus dan biaya rutin dinonaktifkan.') }} ({{ preview.budgets }} / {{ preview.recurring }})</li>
+<li>{{ ui_t('Transfer internal dan penukaran mata uang dibatalkan pada kedua sisi; tidak ada saldo transfer yang tertinggal.') }} ({{ preview.transfers }} / {{ preview.exchanges }})</li>
+<li>{{ ui_t('Impor bank yang masih dalam proses ditutup agar tidak memposting data lama setelah reset.') }} ({{ preview.imports }})</li>
+</ul></div>
+<p>{{ ui_t('Nama akun, kategori, pelanggan/penerima, pengaturan invoice, identitas dan login tetap disimpan. Riwayat transaksi/pembayaran dan audit tetap disimpan untuk penelusuran. Ruang Finance lain dan bisnis lain tidak berubah.') }}</p>
+{% if preview.expired or preview.changed %}<p role="alert" class="flash error">{{ ui_t('Data atau masa berlaku verifikasi berubah. Periksa ulang sebelum mereset.') }}</p>
+{% else %}
+<form method="post" action="{{ url_for('finance.reset_finance',business_id=business.id,branch_id=selected_branch_id) }}" data-finance-once>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ preview.request_key }}">
+<label>{{ ui_t('Ketik RESET untuk memverifikasi penghapusan target di atas.') }}<input name="confirmation" required pattern="RESET" autocomplete="off" autocapitalize="characters"></label>
+<label class="finance-reset-ack"><input type="checkbox" name="acknowledged" value="yes" required>{{ ui_t('Saya memahami data Finance aktif pada target ini akan dihapus dan saldonya menjadi 0.') }}</label>
+<button type="submit" class="btn danger">{{ ui_t('Hapus Data Finance dan Reset ke 0') }}</button>
+</form>
+{% endif %}
+<form method="post" action="{{ url_for('finance.reset_prepare',business_id=business.id,branch_id=selected_branch_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="finance-mini-action">{{ ui_t('Periksa ulang data') }}</button></form>
+{% endif %}
+<a class="btn secondary" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id) }}">{{ ui_t('Batal / Kembali ke Finance') }}</a>
+</section>
+{% endblock %}

@@ -312,6 +312,7 @@ MIGRATIONS = [
     ("0098_kilas_live_session_output_sqlite.sql", "0098_kilas_live_session_output_postgres.sql"),
     ("0099_kilas_group_chat_sqlite.sql", "0099_kilas_group_chat_postgres.sql"),
     ("0100_finance_approved_revisions_sqlite.sql", "0100_finance_approved_revisions_postgres.sql"),
+    ("0101_finance_reset_requests_sqlite.sql", "0101_finance_reset_requests_postgres.sql"),
 ]
 
 

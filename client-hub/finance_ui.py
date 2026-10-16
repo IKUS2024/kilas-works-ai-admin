@@ -7,7 +7,7 @@ import finance_service as finance
 PAGE_ENDPOINTS = {'dashboard','operations','budget','payees','receivables','new_invoice','edit_invoice',
     'invoice_detail','invoice_settings','reports','assistant','receipt_new','edit_transaction',
     'collections','customer_statement','collection_reminder','bank_index','bank_new','bank_detail',
-    'analyst','operator','operator_action','receipt_analyze','receipt_confirm'}
+    'analyst','operator','operator_action','receipt_analyze','receipt_confirm','reset_preview'}
 
 
 def context(business_id, user):
@@ -44,8 +44,23 @@ def context(business_id, user):
     member = db.query_one('SELECT role_in_business FROM business_memberships WHERE business_id=? AND user_id=?',
                           (business_id, user['id']))
     can_edit = personal or user['role'] == 'KILAS_ADMIN' or (member and member['role_in_business'] == 'OWNER')
+    if not personal and request.method=='GET' and endpoint in PAGE_ENDPOINTS:
+        session['finance_business_context']={'business_id':business_id,'branch_id':g.finance_branch_id}
+    remembered=session.get('finance_business_context') or {}
+    return_business=business_id
+    return_branch=None
+    remembered_id=remembered.get('business_id')
+    if personal and type(remembered_id) is int and db.query_one(
+            'SELECT 1 FROM business_memberships WHERE business_id=? AND user_id=?',(remembered_id,user['id'])):
+        import finance_branches as branches
+        candidates=branches.list_branches(remembered_id,user['id'],workspace_type='BUSINESS')
+        selected=next((row for row in candidates if row['id']==remembered.get('branch_id') and row['is_active']),None)
+        if selected:
+            return_business,return_branch=remembered_id,selected['id']
     from routes_products import _product_businesses
     return dict(identity_name=(user.get('full_name') or user['email'].split('@')[0]) if personal else business['business_name'],
-                identity_photo=photo, can_edit_identity=can_edit, enabled=endpoint in PAGE_ENDPOINTS, month=month, currency=currency, area=area,
+                identity_photo=photo, can_edit_identity=can_edit,
+                business_return_id=return_business,business_return_branch=return_branch,
+                can_reset=bool(personal or (member and member['role_in_business']=='OWNER')), enabled=endpoint in PAGE_ENDPOINTS, month=month, currency=currency, area=area,
                 home=endpoint=='dashboard' and not view, businesses=_product_businesses(user['id'], 'finance') if endpoint in PAGE_ENDPOINTS else [],
                 currencies=finance.SUPPORTED_CURRENCIES)

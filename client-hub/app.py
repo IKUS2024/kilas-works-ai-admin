@@ -319,6 +319,7 @@ def create_app():
     app.jinja_env.globals["kilas_content_enabled"] = content_enabled
     import finance_schema
     finance_schema.apply_release()
+    finance_schema.apply_release('0101_finance_reset_requests')
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
     from routes_workspace import workspace_bp

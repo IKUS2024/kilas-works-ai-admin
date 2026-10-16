@@ -1,0 +1,11 @@
+{
+  "widths": [
+    1440,
+    390,
+    320
+  ],
+  "canonical_context": "single populated existing ledger",
+  "production_resets": 0,
+  "external_io": "blocked",
+  "result": "PASS"
+}
