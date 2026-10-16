@@ -228,6 +228,7 @@ class CallTests(unittest.TestCase):
             self.assertNotIn(forbidden,setup)
         self.assertEqual(setup['generationConfig']['responseModalities'],['AUDIO'])
         self.assertEqual(setup['generationConfig']['maxOutputTokens'],1024)
+        self.assertEqual(setup['realtimeInputConfig']['activityHandling'],'NO_INTERRUPTION')
         self.assertIn('new conversation',setup['systemInstruction']['parts'][0]['text'])
 
     def test_real_templates_localized_button_beside_send_without_provider_io(self):

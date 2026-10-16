@@ -13,23 +13,34 @@ for(const locale of ['en','id','es','zh'])test(`Call ${locale} actual chat place
  t.after(()=>dom.window.close());const {window}=dom,{document}=window;
  window.eval(readFileSync(new URL('../static/ui_i18n.js',import.meta.url),'utf8'));
  const button=document.querySelector('[data-ai-call-launch]'),dialog=document.querySelector('#ai-call-dialog'),end=document.querySelector('#ai-call-end');
+ // Load the actual conflicting global theme and Call styles; earlier tests
+ // only checked HTML and therefore missed the dialog's size/color cascade.
+ for(const path of ['kilas_premium.css','kilas_ai_call.css']){const style=document.createElement('style');style.textContent=readFileSync(new URL('../static/'+path,import.meta.url),'utf8');document.head.append(style);}
  assert.equal(button.type,'button');assert.ok(button.nextElementSibling.matches('.ai-send[type=submit]'));assert.equal(button.closest('form').querySelector('[name=csrf_token]')?.value,'audio-csrf');
  assert.equal(dialog.getAttribute('aria-describedby'),'ai-call-privacy');assert.ok(end.getAttribute('aria-label'));assert.equal(document.querySelectorAll('#ai-call-dialog').length,1);
  assert.equal(dialog.querySelectorAll('audio,video').length,0);
+ assert.equal(dialog.hidden,true);assert.equal(window.getComputedStyle(dialog).display,'none');
+ const viewport=new window.EventTarget();Object.assign(viewport,{height:740,width:393,offsetTop:0,offsetLeft:0});window.visualViewport=viewport;
  let microphones=0,contexts=0,requests=0;
  dialog.showModal=()=>{dialog.setAttribute('open','');};dialog.close=()=>{dialog.removeAttribute('open');dialog.dispatchEvent(new window.Event('close'));};
  const values={window,document,KilasUI:window.KilasUI,FormData:window.FormData,
   navigator:{mediaDevices:{getUserMedia(){microphones++;throw Error('Forbidden media QA');}},sendBeacon(){throw Error('No provider admission');}},
   fetch:async()=>{requests++;return {ok:true,redirected:false,json:async()=>({available:false,reason:'budget_limit'})};}};
- window.AudioContext=class{constructor(){contexts++;this.state='running';}resume(){return Promise.resolve();}close(){return Promise.resolve();}addEventListener(){}};
+ window.AudioContext=class{constructor(options){assert.equal(options.latencyHint,'playback');contexts++;this.state='running';}resume(){return Promise.resolve();}close(){return Promise.resolve();}addEventListener(){}};
  const previous={};for(const [key,value] of Object.entries(values)){previous[key]=Object.getOwnPropertyDescriptor(globalThis,key);Object.defineProperty(globalThis,key,{value,writable:true,configurable:true});}
  t.after(()=>{for(const [key,value] of Object.entries(previous)){if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}});
  await import('../static/kilas_ai_call.mjs?dom-'+locale);await tick();
  assert.equal(microphones,0);assert.equal(contexts,0);assert.equal(requests,0);assert.equal(dialog.open,false);
+ assert.equal(dialog.parentNode,document.body);assert.equal(dialog.hidden,true);
  button.click();await tick();assert.equal(dialog.open,true);assert.equal(document.activeElement,end);assert.equal(contexts,1);assert.equal(microphones,0);assert.equal(requests,1);
+ assert.equal(dialog.hidden,false);
+ const computed=window.getComputedStyle(dialog);assert.equal(computed.display,'flex');assert.equal(computed.position,'fixed');assert.equal(computed.maxWidth,'none');assert.equal(computed.maxHeight,'none');assert.equal(computed.borderRadius,'0');assert.equal(computed.backgroundColor,'rgb(17, 24, 32)');
+ assert.equal(dialog.style.getPropertyValue('--ai-call-height'),'740px');assert.equal(dialog.style.getPropertyValue('--ai-call-width'),'393px');
+ Object.assign(viewport,{height:390,width:740,offsetTop:5,offsetLeft:2});viewport.dispatchEvent(new window.Event('resize'));
+ assert.equal(dialog.style.getPropertyValue('--ai-call-height'),'390px');assert.equal(dialog.style.getPropertyValue('--ai-call-top'),'5px');assert.equal(dialog.style.getPropertyValue('--ai-call-width'),'740px');assert.equal(dialog.style.getPropertyValue('--ai-call-left'),'2px');
  assert.equal(dialog.querySelector('#ai-call-error').textContent,window.KilasUI.t('Batas biaya tercapai. Panggilan dihentikan.'));
  assert.equal(dialog.dataset.state,'ended');
  document.dispatchEvent(new window.Event('visibilitychange'));await tick();assert.equal(dialog.open,true);
- Object.defineProperty(document,'hidden',{value:true,configurable:true});document.dispatchEvent(new window.Event('visibilitychange'));assert.equal(dialog.open,false);assert.equal(document.body.classList.contains('kilas-ai-call-open'),false);
+ Object.defineProperty(document,'hidden',{value:true,configurable:true});document.dispatchEvent(new window.Event('visibilitychange'));assert.equal(dialog.open,false);assert.equal(dialog.hidden,true);assert.equal(window.getComputedStyle(dialog).display,'none');assert.equal(document.body.classList.contains('kilas-ai-call-open'),false);
  button.click();await tick();window.dispatchEvent(new window.Event('pagehide'));assert.equal(dialog.open,false);assert.equal(microphones,0);
 });

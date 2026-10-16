@@ -43,7 +43,7 @@ def setup():
             'Do not claim to perform external actions or to have current information you lack.'}]},
         'generationConfig':{'responseModalities':['AUDIO'],'maxOutputTokens':1024,
             'speechConfig':{'voiceConfig':{'prebuiltVoiceConfig':{'voiceName':'Kore'}}}},
-        'realtimeInputConfig':{'automaticActivityDetection':{'disabled':False,
+        'realtimeInputConfig':{'activityHandling':'NO_INTERRUPTION','automaticActivityDetection':{'disabled':False,
             'prefixPaddingMs':300,'silenceDurationMs':800}},
         'outputAudioTranscription':{}}}
 
@@ -55,7 +55,7 @@ class Call:
         self.last_seen=monotonic();self.lock=RLock();self.send_lock=Lock();self.closed=Event()
         self.queue=Queue(maxsize=64);self.ws=None;self.state='CONNECTING';self.code=None
         self.input_bytes=0;self.output_bytes=0;self.queued=0;self.expected=0
-        self.frames=[];self.caption='';self.turns=0;self.timer=None
+        self.frames=[];self.caption='';self.turns=0;self.interruptions=0;self.timer=None
 
     def check(self):
         if self.closed.is_set():raise CallError('call_ended',409)
@@ -106,7 +106,7 @@ class Call:
         with self.lock:
             if self.closed.is_set():return
             if content.get('interrupted') is True:
-                self.publish({'type':'reset'});self.caption=''
+                self.interruptions+=1;self.publish({'type':'reset'});self.caption=''
             turn=content.get('modelTurn',{})
             if not isinstance(turn,dict) or not isinstance(turn.get('parts',[]),list):raise CallError('call_output_invalid')
             for part in turn.get('parts',[]):
@@ -190,7 +190,10 @@ class Call:
             try:budget.finish(self.capability)
             except Exception:print('KILAS_AI_CALL settlement=unknown',flush=True)
             db._discard_cached_connection()
-            print(f'KILAS_AI_CALL closed=true input_ms={self.input_bytes/32:.1f} output_ms={self.output_bytes/48:.1f}',flush=True)
+            safe_reasons={'call_ended','call_limit','call_network','call_unavailable','call_backlog',
+                          'call_input_invalid','call_output_invalid','call_provider','call_transport'}
+            reason=self.code if self.code in safe_reasons else 'call_transport'
+            print(f'KILAS_AI_CALL closed=true reason={reason} input_ms={self.input_bytes/32:.1f} output_ms={self.output_bytes/48:.1f} interruptions={self.interruptions}',flush=True)
 
 
 def start(owner,ident):
