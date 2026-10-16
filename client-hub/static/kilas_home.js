@@ -3,26 +3,31 @@
   const root=document.querySelector('.kilas-home-workspace');if(!root)return;
   // Layout only: visualViewport shrinks when a mobile on-screen keyboard opens.
   const viewport=window.visualViewport;
+  let tallestHeight=window.innerHeight;
   const timeline=root.querySelector('#ai-messages,#agent-conversation');
   const following=()=>timeline&&timeline.scrollHeight-timeline.scrollTop-timeline.clientHeight<48;
   const fitViewport=()=>{
     const follow=following();
-    document.documentElement.style.setProperty('--home-viewport-height',`${viewport?viewport.height:window.innerHeight}px`);
+    const height=viewport?viewport.height:window.innerHeight;
+    tallestHeight=Math.max(tallestHeight,window.innerHeight);
+    const editing=document.activeElement?.matches?.('#ai-input,#agent-message');
+    document.documentElement.style.setProperty('--home-viewport-height',`${height}px`);
     document.documentElement.style.setProperty('--home-viewport-top',`${viewport?viewport.offsetTop:0}px`);
-    document.body.classList.toggle('home-keyboard-open',Boolean(viewport&&viewport.height<innerHeight-100));
-    document.documentElement.style.setProperty('--home-input-max-height',`${Math.max(40,Math.min(144,(viewport?viewport.height:innerHeight)-330))}px`);
+    document.body.classList.toggle('home-keyboard-open',Boolean(height<window.innerHeight-100||(editing&&height<tallestHeight-100)));
+    document.documentElement.style.setProperty('--home-input-max-height',`${Math.max(44,Math.min(144,height-330))}px`);
     root.dispatchEvent(new Event('home:viewport'));
     if(follow)timeline.scrollTop=timeline.scrollHeight;
   };
   fitViewport();window.addEventListener('resize',fitViewport);
   if(viewport){viewport.addEventListener('resize',fitViewport);viewport.addEventListener('scroll',fitViewport);}
-  window.addEventListener('orientationchange',fitViewport);
+  window.addEventListener('orientationchange',()=>{tallestHeight=window.innerHeight;fitViewport();});
+  root.addEventListener?.('focusin',fitViewport);root.addEventListener?.('focusout',fitViewport);
   const t=message=>window.KilasUI?window.KilasUI.t(message):message;
   const form=root.querySelector('#ai-composer,#agent-chat-form'),input=root.querySelector('#ai-input,#agent-message'),value=root.querySelector('#home-task-value')||document.querySelector('#home-task-handoff [name=task]'),send=root.querySelector('#ai-send')||form.querySelector('button[type=submit]'),notice=root.querySelector('#ai-notice,#agent-chat-error'),context=root.querySelector('#home-task-context');
   const agent=form.id==='agent-chat-form',pending=root.querySelector('#ai-pending,#work-pending-files');
   const drafts={chat:'',video:'',translate:'',voiceover:''};let current='chat';
   const tasks={
-    chat:{label:'Tulis pesan',placeholder:'Tulis pesan untuk Kilas AI...',button:'Kirim',limit:12000},
+    chat:{label:'Tulis pesan',placeholder:'Pesan',button:'Kirim',limit:12000},
     video:{title:'Naskah & ide video',description:'Susun naskah, storyboard, dan prompt. Produksi video dilakukan di tool eksternal.',label:'Ceritakan ide videomu',placeholder:'Produk, tujuan, penonton, atau ide yang ingin dikembangkan...',button:'Buka Video Plan',limit:2400},
     translate:{title:'Terjemahkan audio/video',description:'Pilih bahasa dan unggah audio atau video di formulir terjemahan.',label:'Catatan untuk terjemahan (opsional)',placeholder:'Bahasa tujuan atau catatan yang ingin kamu bawa...',button:'Buka formulir terjemahan',limit:2400},
     voiceover:{title:'Buat suara',description:'Bawa naskahmu, lalu pilih bahasa dan suara di formulir voiceover.',label:'Naskah suara (opsional)',placeholder:'Tulis naskah yang ingin dibacakan...',button:'Buka formulir suara',limit:4000}
@@ -55,7 +60,7 @@
     drafts[current]=input.value;
     if(agent){event.preventDefault();const handoff=document.querySelector('#home-task-handoff');handoff.elements.task.value=current;handoff.elements.brief.value=input.value;handoff.submit();}
   },true);
-  if(agent){const fit=()=>{const follow=following();input.style.height='auto';input.style.height=(input.value?Math.min(parseFloat(getComputedStyle(input).maxHeight)||144,Math.max(40,input.scrollHeight)):40)+'px';if(follow)timeline.scrollTop=timeline.scrollHeight;};input.addEventListener('input',fit);root.addEventListener('home:viewport',fit);fit();}
+  if(agent){const fit=()=>{const follow=following(),style=getComputedStyle(input),minimum=parseFloat(style.minHeight)||44;input.style.height='auto';input.style.height=(input.value?Math.min(parseFloat(style.maxHeight)||144,Math.max(minimum,input.scrollHeight)):minimum)+'px';if(follow)timeline.scrollTop=timeline.scrollHeight;};input.addEventListener('input',fit);root.addEventListener('home:viewport',fit);fit();}
   const initial=new URLSearchParams(location.search).get('task');if(initial)select(initial);
   // Reconcile controls after a browser restores this page from its back/forward cache.
   window.addEventListener('pageshow',event=>{if(event.persisted){send.disabled=false;input.disabled=false;select(current);}});

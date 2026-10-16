@@ -22,18 +22,19 @@ for(const locale of ['en','id','es','zh'])test(`Call ${locale} actual chat place
  assert.equal(button.type,'button');assert.equal(button.parentElement.lastElementChild,button);assert.ok(button.previousElementSibling.matches('.ai-stop'));assert.ok(button.previousElementSibling.previousElementSibling.matches('.ai-send[type=submit]'));assert.equal(button.closest('form').querySelector('[name=csrf_token]')?.value,'audio-csrf');
  assert.equal(button.textContent.trim(),'');assert.ok(button.getAttribute('aria-label'));
  const composer=button.closest('.ai-composer'),actions=button.parentElement,input=composer.querySelector('textarea');
+ assert.equal(input.placeholder,{en:'Message',id:'Pesan',es:'Mensaje',zh:'消息'}[locale]);
  assert.equal(window.getComputedStyle(composer).display,'grid');assert.equal(window.getComputedStyle(actions).display,'flex');assert.equal(window.getComputedStyle(actions).gridColumn,'3');assert.equal(window.getComputedStyle(input).gridColumn,'2');assert.equal(window.getComputedStyle(button).width,'44px');
  const attach=composer.querySelector('[data-work-attach],.ai-attach');
  assert.ok(attach.compareDocumentPosition(input)&window.Node.DOCUMENT_POSITION_FOLLOWING);
  assert.ok(input.compareDocumentPosition(actions.querySelector('.ai-send'))&window.Node.DOCUMENT_POSITION_FOLLOWING);
- assert.equal(window.getComputedStyle(input).resize,'none');assert.equal(window.getComputedStyle(input).lineHeight,'24px');
+ assert.equal(window.getComputedStyle(input).minHeight,'44px');assert.equal(window.getComputedStyle(input).paddingTop,'10px');assert.equal(window.getComputedStyle(input).resize,'none');assert.equal(window.getComputedStyle(input).lineHeight,'24px');
  assert.equal(window.getComputedStyle(input).whiteSpace,'pre');assert.equal(window.getComputedStyle(input).overflow,'hidden');
  // jsdom does not update :placeholder-shown for value changes. Remove the
  // placeholder to inspect the filled-state cascade without claiming pixel QA.
  const placeholder=input.getAttribute('placeholder');input.removeAttribute('placeholder');input.value='First line\nSecond line';input.focus();input.setSelectionRange(5,5);input.setRangeText(' draft');
  assert.equal(input.value,'First draft line\nSecond line');assert.equal(window.getComputedStyle(input).whiteSpace,'pre-wrap');assert.equal(window.getComputedStyle(input).overflow,'auto');
  input.value='';input.setAttribute('placeholder',placeholder);input.blur();
- assert.equal(dialog.getAttribute('aria-describedby'),'ai-call-privacy');assert.ok(end.getAttribute('aria-label'));assert.equal(document.querySelectorAll('#ai-call-dialog').length,1);
+ assert.equal(dialog.getAttribute('aria-describedby'),null);assert.equal(dialog.querySelectorAll('.ai-call-note,#ai-call-privacy').length,0);assert.ok(end.getAttribute('aria-label'));assert.equal(document.querySelectorAll('#ai-call-dialog').length,1);
  assert.equal(dialog.querySelectorAll('audio,video').length,0);
  assert.equal(dialog.hidden,true);assert.equal(window.getComputedStyle(dialog).display,'none');
  const viewport=new window.EventTarget();Object.assign(viewport,{height:740,width:393,offsetTop:0,offsetLeft:0});window.visualViewport=viewport;
@@ -51,7 +52,7 @@ for(const locale of ['en','id','es','zh'])test(`Call ${locale} actual chat place
  button.click();await tick();assert.equal(dialog.open,true);assert.equal(document.activeElement,end);assert.equal(contexts,1);assert.equal(microphones,0);assert.equal(requests,1);
  assert.equal(dialog.hidden,false);
  const computed=window.getComputedStyle(dialog);assert.equal(computed.display,'grid');assert.equal(computed.position,'fixed');assert.equal(computed.maxWidth,'none');assert.equal(computed.maxHeight,'none');assert.equal(computed.borderRadius,'0');assert.equal(computed.backgroundColor,'rgb(17, 24, 32)');
- const footer=end.closest('footer');assert.equal(footer.parentNode,dialog);assert.equal(window.getComputedStyle(footer).display,'flex');assert.equal(window.getComputedStyle(footer).padding,'0px');assert.equal(dialog.querySelector('#ai-call-privacy').parentNode.className,'ai-call-body');assert.equal(window.getComputedStyle(dialog.querySelector('.ai-call-body')).minHeight,'0');
+ const footer=end.closest('footer');assert.equal(footer.parentNode,dialog);assert.equal(window.getComputedStyle(footer).display,'flex');assert.equal(window.getComputedStyle(footer).padding,'0px');assert.equal(dialog.querySelector('#ai-call-privacy'),null);assert.equal(window.getComputedStyle(dialog.querySelector('.ai-call-body')).minHeight,'0');
  assert.equal(dialog.style.getPropertyValue('--ai-call-height'),'740px');assert.equal(dialog.style.getPropertyValue('--ai-call-width'),'393px');
  Object.assign(viewport,{height:390,width:740,offsetTop:5,offsetLeft:2});viewport.dispatchEvent(new window.Event('resize'));
  assert.equal(dialog.style.getPropertyValue('--ai-call-height'),'390px');assert.equal(dialog.style.getPropertyValue('--ai-call-top'),'5px');assert.equal(dialog.style.getPropertyValue('--ai-call-width'),'740px');assert.equal(dialog.style.getPropertyValue('--ai-call-left'),'2px');

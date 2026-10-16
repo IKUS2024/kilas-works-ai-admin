@@ -2,7 +2,7 @@ import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=app-language-20261015';
 import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=app-language-20261015';
 import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-jitter-20261016';
-import {CallSession} from './kilas_ai_call_engine.mjs?v=call-jitter-20261016';
+import {CallSession} from './kilas_ai_call_engine.mjs?v=call-continuous-20261016';
 
 const dialog=document.querySelector('#ai-call-dialog');
 if(dialog){
@@ -16,8 +16,9 @@ if(dialog){
  let session;
  const player=new CallPlayer({getContext:()=>context,onError:()=>session?.fail({code:'call_audio'})});
  const messages={call_unavailable:'Panggilan belum tersedia untuk akun ini.',budget_limit:'Batas biaya tercapai. Panggilan dihentikan.',
+  account_credit_limit:'Kapasitas Premium belum cukup untuk permintaan ini. Tambah kapasitas atau lanjutkan Chat biasa.',
   already_processing:'Selesaikan sesi suara yang sedang diproses sebelum memanggil.',service_busy:'Layanan sedang sibuk. Coba panggil lagi nanti.',
-  attempt_limit:'Batas panggilan tercapai. Coba lagi nanti.',call_limit:'Batas sesi tercapai. Panggilan dihentikan.',
+  attempt_limit:'Batas panggilan tercapai. Coba lagi nanti.',
   call_ended:'Panggilan berakhir.',call_audio:'Audio belum siap. Periksa izin audio lalu mulai panggilan baru.',
   microphone_permission_denied:'Izin mikrofon ditolak. Izinkan mikrofon lalu mulai panggilan baru.'};
  const stopAudio=()=>{const own=context;context=null;if(own){try{own.close().catch(()=>{});}catch{}}};

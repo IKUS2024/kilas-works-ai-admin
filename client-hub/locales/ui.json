@@ -8264,5 +8264,7 @@
   "Browser ini belum mendukung panggilan suara.": {"en": "This browser does not support voice calls yet.", "es": "Este navegador aún no admite llamadas de voz.", "zh": "此浏览器暂不支持语音通话。"},
   "Selesaikan jawaban chat sebelum memanggil.": {"en": "Wait for the chat response to finish before calling.", "es": "Espera a que termine la respuesta del chat antes de llamar.", "zh": "请等待聊天回复完成后再通话。"},
   "Kilas berbicara": {"en": "Kilas is speaking", "es": "Kilas está hablando", "zh": "Kilas正在说话"},
-  "Jasa Kreatif": {"id": "Jasa Kreatif", "en": "Creative Services", "es": "Servicios creativos", "zh": "创意服务"}
+  "Jasa Kreatif": {"id": "Jasa Kreatif", "en": "Creative Services", "es": "Servicios creativos", "zh": "创意服务"},
+  "Pesan": {"en": "Message", "es": "Mensaje", "zh": "消息"},
+  "Kapasitas Premium belum cukup untuk permintaan ini. Tambah kapasitas atau lanjutkan Chat biasa.": {"en": "Premium capacity is insufficient for this request. Add capacity or continue with regular Chat.", "es": "La capacidad Premium no es suficiente para esta solicitud. Añade capacidad o continúa con el Chat normal.", "zh": "高级额度不足以处理此请求。请增加额度或继续使用普通聊天。"}
 }

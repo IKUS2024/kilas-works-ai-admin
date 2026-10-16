@@ -9,7 +9,7 @@ export class CallInput {
  push(raw){
   if(this.signal.aborted)throw aborted();
   if(!(raw instanceof Uint8Array)||!raw.length||raw.length%2||raw.length>16000)throw failure('call_input_invalid');
-  if(this.queued+raw.length>8*32000||this.total+raw.length>60*32000)throw failure('call_limit');
+  if(this.queued+raw.length>8*32000)throw failure('call_backlog');
   this.queued+=raw.length;this.total+=raw.length;let at=0;
   while(at<raw.length){const count=Math.min(raw.length-at,16000-this.length);this.pending.set(raw.subarray(at,at+count),this.length);this.length+=count;at+=count;if(this.length===16000)this.flush();}
   if(this.firstPacket){this.firstPacket=false;this.flush();}
@@ -61,7 +61,7 @@ export class CallSession {
    const result=await this.request(this.path,{method:'POST',signal,timeoutMs:12000});
    if(!this.current(ticket))return;
    if(result.call_id!==this.ident)throw failure('call_protocol');
-   this.input.open();this.timer=this.schedule(()=>this.fail(failure('call_limit'),ticket),90000);
+   this.input.open();
    await this.poll(ticket);
   }catch(error){if(this.current(ticket))this.fail(error,ticket);}
  }
@@ -89,7 +89,7 @@ export class CallSession {
     }else throw failure('call_protocol');
    }
    if(value.state==='CLOSED'&&this.cursor>=value.total_frames){
-    if(value.code==='call_limit')await this.player.checkpoint();
+    if(['budget_limit','account_credit_limit'].includes(value.code))await this.player.checkpoint();
     if(this.current(ticket))this.fail(failure(value.code||'call_ended'),ticket);return;
    }
    if(value.state==='LISTENING'&&!this.speaking)this.stateTo('listening');

@@ -15,7 +15,7 @@ function layout({viewport = true, scrollTop = 1400} = {}) {
   const window = {innerHeight: 650, visualViewport: visual, addEventListener: (type, callback) => windowEvents.set(type, callback)};
   const document = {querySelector: () => root, documentElement: {style: {setProperty: (key, value) => styles.set(key, value)}}, body: {classList: {toggle: (key, value) => classes.set(key, value)}}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../static/kilas_home.js'), 'utf8'), {window, document, innerHeight: 650, location: {search: ''}, URLSearchParams, Event});
-  return {styles, classes, timeline, visual, window, windowEvents, viewportEvents};
+  return {styles, classes, timeline, visual, window, document, windowEvents, viewportEvents};
 }
 
 test('keyboard viewport height and offset keep layout immediately above the keyboard', () => {
@@ -24,11 +24,23 @@ test('keyboard viewport height and offset keep layout immediately above the keyb
   state.viewportEvents.get('resize')();
   assert.equal(state.styles.get('--home-viewport-height'), '350px');
   assert.equal(state.styles.get('--home-viewport-top'), '70px');
-  assert.equal(state.styles.get('--home-input-max-height'), '40px');
+  assert.equal(state.styles.get('--home-input-max-height'), '44px');
   assert.equal(state.classes.get('home-keyboard-open'), true);
   state.visual.height = 650; state.visual.offsetTop = 0;
   state.viewportEvents.get('resize')();
   assert.equal(state.styles.get('--home-viewport-height'), '650px');
+  assert.equal(state.classes.get('home-keyboard-open'), false);
+});
+
+test('Android layout resize recognizes an open keyboard even with no visual/layout height gap', () => {
+  const state = layout();
+  state.document.activeElement = {matches: () => true};
+  state.visual.height = 350; state.window.innerHeight = 350;
+  state.windowEvents.get('resize')();
+  assert.equal(state.classes.get('home-keyboard-open'), true);
+  assert.equal(state.styles.get('--home-input-max-height'), '44px');
+  state.visual.height = 650; state.window.innerHeight = 650;
+  state.windowEvents.get('resize')();
   assert.equal(state.classes.get('home-keyboard-open'), false);
 });
 

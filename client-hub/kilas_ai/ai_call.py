@@ -1,4 +1,4 @@
-"""Bounded one-person Gemini conversation. PCM/captions live only in RAM."""
+"""One-person Gemini conversation with bounded buffers and renewable funding."""
 import base64
 import binascii
 import json
@@ -30,7 +30,7 @@ def ready(owner):
                 and os.environ.get('GEMINI_API_KEY','').strip())
 
 
-def setup():
+def setup(handle=None):
     # Official conversational Live model, no translator config, tools or history.
     return {'setup':{'model':'models/'+budget.MODEL,
         'systemInstruction':{'parts':[{'text':
@@ -45,7 +45,9 @@ def setup():
             'speechConfig':{'voiceConfig':{'prebuiltVoiceConfig':{'voiceName':'Kore'}}}},
         'realtimeInputConfig':{'activityHandling':'NO_INTERRUPTION','automaticActivityDetection':{'disabled':False,
             'prefixPaddingMs':300,'silenceDurationMs':800}},
-        'outputAudioTranscription':{}}}
+        'outputAudioTranscription':{},
+        'contextWindowCompression':{'triggerTokens':12000,'slidingWindow':{'targetTokens':6000}},
+        'sessionResumption':{'handle':handle} if handle else {}}}
 
 
 class Call:
@@ -56,19 +58,33 @@ class Call:
         self.queue=Queue(maxsize=64);self.ws=None;self.state='CONNECTING';self.code=None
         self.input_bytes=0;self.output_bytes=0;self.queued=0;self.expected=0
         self.frames=[];self.caption='';self.turns=0;self.interruptions=0;self.timer=None
+        self.frame_base=0;self.frame_next=0
+        self.funded_at=self.started;self.funded_input=0;self.funded_output=0;self.funded_turns=0
+        self.renewing=Event();self.resume_handle=None;self.go_away=False;self.resume_pending=False
+        self.provider_started=self.started
 
     def check(self):
         if self.closed.is_set():raise CallError('call_ended',409)
-        if monotonic()>=self.started+budget.LEASE_SECONDS:raise CallError('call_limit',409)
         if monotonic()-self.last_seen>8:raise CallError('call_network',409)
         if not ready(self.owner):raise CallError('call_unavailable')
-        if not budget.active(self.owner,self.ident):raise CallError('call_ended',409)
+        with self.lock:
+            if self.closed.is_set():raise CallError('call_ended',409)
+            if self.go_away and monotonic()>=self.go_away_deadline:raise CallError('call_provider')
+            if not budget.active(self.owner,self.ident,self.capability):raise CallError('call_ended',409)
+            if monotonic()-self.funded_at>=budget.RENEW_SECONDS:self.fund()
+
+    def fund(self):
+        # Caller holds the Call lock; End cannot interleave a new reservation.
         if self.closed.is_set():raise CallError('call_ended',409)
+        self.capability=budget.renew(self.capability)
+        self.funded_at=monotonic();self.funded_input=self.input_bytes
+        self.funded_output=self.output_bytes;self.funded_turns=self.turns
 
     def stop(self,code='call_ended',*,erase=False):
         with self.lock:
             first=not self.closed.is_set()
             self.closed.set();self.state='CLOSED'
+            self.resume_handle=None;self.resume_pending=False
             if first:self.code=code
             if erase:self.frames.clear();self.caption=''
         if self.ws:
@@ -86,8 +102,8 @@ class Call:
         if type(index) is not int or not isinstance(raw,bytes) or not 2<=len(raw)<=16000 or len(raw)%2:raise CallError('call_input_invalid',400)
         with self.lock:
             if self.closed.is_set():raise CallError('call_ended',409)
-            if index!=self.expected or self.expected>=1000:raise CallError('call_input_invalid',409)
-            if self.input_bytes+len(raw)>INPUT_BYTES:raise CallError('call_limit',409)
+            if index!=self.expected:raise CallError('call_input_invalid',409)
+            if self.input_bytes-self.funded_input+len(raw)>INPUT_BYTES:self.fund()
             if self.queued+len(raw)>QUEUE_BYTES:raise CallError('call_backlog',409)
             try:self.queue.put_nowait(raw)
             except Full:raise CallError('call_backlog',409) from None
@@ -96,15 +112,30 @@ class Call:
 
     def publish(self,value):
         if len(self.frames)>=2048:raise CallError('call_output_invalid')
-        self.frames.append({'index':len(self.frames),**value})
+        self.frames.append({'index':self.frame_next,**value});self.frame_next+=1
 
     def receive(self,raw):
         value=wire.message(raw)
-        if any(k in value for k in ('error','toolCall','goAway')):raise CallError('call_provider')
+        if any(k in value for k in ('error','toolCall')):raise CallError('call_provider')
         content=value.get('serverContent',{})
         if not isinstance(content,dict):raise CallError('call_output_invalid')
         with self.lock:
             if self.closed.is_set():return
+            if 'goAway' in value:
+                if not isinstance(value['goAway'],dict) or monotonic()-self.provider_started<30:
+                    raise CallError('call_provider')
+                # Pause unsent PCM. Only a NEW resumable checkpoint after the
+                # provider's expiry warning can move this same conversation.
+                self.go_away=True;self.go_away_deadline=monotonic()+30
+                self.resume_handle=None;self.renewing.set()
+            update=value.get('sessionResumptionUpdate')
+            if update is not None:
+                if not isinstance(update,dict):raise CallError('call_provider')
+                handle=update.get('newHandle')
+                if update.get('resumable') is True and isinstance(handle,str) and 0<len(handle)<=8192:
+                    if self.go_away:
+                        self.resume_handle=handle;self.resume_pending=True
+                else:self.resume_handle=None;self.resume_pending=False
             if content.get('interrupted') is True:
                 self.interruptions+=1;self.publish({'type':'reset'});self.caption=''
             turn=content.get('modelTurn',{})
@@ -117,8 +148,8 @@ class Call:
                         or not isinstance(audio.get('data'),str)):raise CallError('call_output_invalid')
                 try:pcm=base64.b64decode(audio['data'],validate=True)
                 except (ValueError,binascii.Error):raise CallError('call_output_invalid') from None
-                if not pcm or len(pcm)%2 or self.output_bytes+len(pcm)>OUTPUT_BYTES:raise CallError('call_limit')
-                if self.turns>=MAX_TURNS:raise CallError('call_limit')
+                if not pcm or len(pcm)%2:raise CallError('call_output_invalid')
+                if self.output_bytes-self.funded_output+len(pcm)>OUTPUT_BYTES or self.turns-self.funded_turns>=MAX_TURNS:self.fund()
                 self.output_bytes+=len(pcm);self.state='SPEAKING'
                 for at in range(0,len(pcm),9600):self.publish({'type':'audio','pcm':base64.b64encode(pcm[at:at+9600]).decode('ascii')})
             transcript=content.get('outputTranscription')
@@ -129,15 +160,17 @@ class Call:
                 self.publish({'type':'text','text':self.caption})
             if content.get('turnComplete') is True and content.get('interactionStatus')!='IN_PROGRESS':
                 self.turns+=1;self.publish({'type':'turn_complete'});self.caption='';self.state='LISTENING'
-                if self.turns>=MAX_TURNS:self.stop('call_limit')
 
     def snapshot(self,after):
         with self.lock:
-            if type(after) is not int or not 0<=after<=len(self.frames):raise CallError('call_cursor_invalid',400)
+            if type(after) is not int or not self.frame_base<=after<=self.frame_next:raise CallError('call_cursor_invalid',400)
             self.last_seen=monotonic()
-            frames=[dict(x) for x in self.frames[after:after+24]]
+            # The next client cursor acknowledges prior frames. Drop consumed
+            # audio so a long call retains only the bounded outstanding backlog.
+            del self.frames[:after-self.frame_base];self.frame_base=after
+            frames=[dict(x) for x in self.frames[:24]]
             return {'state':self.state,'code':self.code,'frames':frames,'next_index':after+len(frames),
-                    'total_frames':len(self.frames),'remaining_seconds':max(0,int(self.started+90-monotonic()))}
+                    'total_frames':self.frame_next}
 
     def send(self):
         try:
@@ -146,10 +179,16 @@ class Call:
                 except Empty:continue
                 self.check()
                 with self.lock:self.queued-=len(raw)
-                with self.send_lock:
-                    if self.closed.is_set():return
-                    self.ws.send(json.dumps({'realtimeInput':{'audio':{
-                        'mimeType':'audio/pcm;rate=16000','data':base64.b64encode(raw).decode('ascii')}}}))
+                while not self.closed.is_set():
+                    if self.renewing.is_set():
+                        if self.closed.wait(.05):return
+                        continue
+                    with self.send_lock:
+                        if self.closed.is_set():return
+                        if self.renewing.is_set():continue
+                        self.ws.send(json.dumps({'realtimeInput':{'audio':{
+                            'mimeType':'audio/pcm;rate=16000','data':base64.b64encode(raw).decode('ascii')}}}))
+                        break
         except Exception as error:self.stop(getattr(error,'code','call_transport'))
         finally:db._discard_cached_connection()
 
@@ -160,8 +199,6 @@ class Call:
         finally:db._discard_cached_connection()
 
     def run(self):
-        self.timer=Timer(max(0,self.started+90-monotonic()),self.stop,args=('call_limit',))
-        self.timer.daemon=True;self.timer.start()
         try:
             self.check();budget.dispatch(self.capability);self.check()
             self.ws=wire.connect();self.check()
@@ -174,15 +211,16 @@ class Call:
             Thread(target=self.watch,name='kilas-call-fence',daemon=True).start()
             import websocket
             while not self.closed.is_set():
+                if self.resume_pending:self.resume()
                 try:raw=self.ws.recv()
                 except websocket.WebSocketTimeoutException:continue
                 if not raw:raise CallError('call_transport')
                 self.check();self.receive(raw)
         except Exception as error:
             code=getattr(error,'code','call_transport')
-            self.stop(code if code.startswith('call_') else 'call_transport')
+            self.stop(code if code.startswith('call_') or code in ('budget_limit','account_credit_limit') else 'call_transport')
         finally:
-            self.stop();self.timer.cancel()
+            self.stop()
             # Release queued raw input promptly even after a failed handshake.
             while True:
                 try:self.queue.get_nowait()
@@ -190,10 +228,30 @@ class Call:
             try:budget.finish(self.capability)
             except Exception:print('KILAS_AI_CALL settlement=unknown',flush=True)
             db._discard_cached_connection()
-            safe_reasons={'call_ended','call_limit','call_network','call_unavailable','call_backlog',
+            safe_reasons={'call_ended','call_network','call_unavailable','call_backlog','budget_limit','account_credit_limit',
                           'call_input_invalid','call_output_invalid','call_provider','call_transport'}
             reason=self.code if self.code in safe_reasons else 'call_transport'
             print(f'KILAS_AI_CALL closed=true reason={reason} input_ms={self.input_bytes/32:.1f} output_ms={self.output_bytes/48:.1f} interruptions={self.interruptions}',flush=True)
+
+    def resume(self):
+        # Exactly one supported handoff per provider warning, with no reconnect
+        # on network errors and no replay of already dispatched mic/output PCM.
+        with self.send_lock:
+            self.check()
+            with self.lock:
+                if not self.resume_pending or not self.resume_handle:raise CallError('call_provider')
+                handle=self.resume_handle;self.resume_handle=None;self.resume_pending=False
+            self.ws.shutdown()
+            socket=wire.connect()
+            with self.lock:
+                self.ws=socket
+                if self.closed.is_set():socket.shutdown();raise CallError('call_ended',409)
+            self.check();socket.send(json.dumps(setup(handle)))
+            hello=wire.message(socket.recv())
+            if not isinstance(hello.get('setupComplete'),dict) or any(k in hello for k in ('error','toolCall','goAway')):
+                raise CallError('call_provider')
+            self.check();socket.settimeout(.5)
+            self.provider_started=monotonic();self.go_away=False;self.renewing.clear()
 
 
 def start(owner,ident):

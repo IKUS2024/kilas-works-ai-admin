@@ -16,7 +16,7 @@ def failure(error):
     code=getattr(error,'code','call_unavailable')
     known={'call_unavailable','call_ended','call_input_invalid','call_limit','call_backlog',
            'call_cursor_invalid','call_transport','not_owned','invalid_operation','already_processing',
-           'service_busy','budget_limit','attempt_limit','duplicate_turn','reservation_expired'}
+           'service_busy','budget_limit','account_credit_limit','attempt_limit','duplicate_turn','reservation_expired'}
     return {'code':code if code in known else 'call_unavailable'},getattr(error,'status',503),HEADERS
 
 

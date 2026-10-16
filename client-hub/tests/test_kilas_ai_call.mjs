@@ -20,7 +20,7 @@ test('Input cancellation before admission sends no audio and bounded backlog fai
  const controller=new AbortController();let requests=0;
  const input=new CallInput({signal:controller.signal,path:'/call',request:async()=>{requests++;}});
  for(let i=0;i<16;i++)input.push(new Uint8Array(16000));
- assert.throws(()=>input.push(pcm()),/call_limit/);controller.abort();input.cancel();await tick();assert.equal(requests,0);
+ assert.throws(()=>input.push(pcm()),/call_backlog/);controller.abort();input.cancel();await tick();assert.equal(requests,0);
 });
 test('Input wrong acknowledgment is terminal and never retried',async()=>{
  let requests=0,error;const input=new CallInput({signal:new AbortController().signal,path:'/call',onError:e=>{error=e;},request:async()=>{requests++;return {accepted_index:99};}});
@@ -93,11 +93,17 @@ test('A synchronous audio failure fences the rest of its poll batch after End',a
  f.hold.resolve({state:'SPEAKING',frames:[{index:0,type:'audio',pcm:Buffer.from(pcm()).toString('base64')},{index:1,type:'text',text:'Late answer'},{index:2,type:'turn_complete'}],next_index:3,total_frames:3});
  await started;assert.equal(f.session.state,'ended');assert.deepEqual(f.errors,['call_audio']);assert.equal(f.captions.at(-1),'');assert.ok(!f.captions.includes('Late answer'));assert.equal(f.stops,1);
 });
-test('Client hard limit ends capture even while server polling is pending',async()=>{
+test('Call has no client duration deadline and End cancels pending polling',async()=>{
  const f=fixture(),started=f.session.start();await tick();
- const hard=[...f.timers.values()].find(x=>x.ms===90000);assert.ok(hard);hard.fn();
- assert.equal(f.session.state,'ended');assert.equal(f.stops,1);assert.deepEqual(f.errors,['call_limit']);
+ assert.equal([...f.timers.values()].find(x=>x.ms===90000),undefined);
+ assert.notEqual(f.session.state,'ended');f.session.end();
+ assert.equal(f.session.state,'ended');assert.equal(f.stops,1);assert.deepEqual(f.errors,[]);
  f.hold.resolve({state:'LISTENING',frames:[],next_index:0,total_frames:0});await started;
+});
+test('More than sixty seconds of sequential PCM retains all bytes without a session cap',async()=>{
+ let bytes=0,index=0;const input=new CallInput({signal:new AbortController().signal,path:'/call',request:async(url,{body})=>{bytes+=body.length;return {accepted_index:index++};}});
+ input.open();for(let i=0;i<300;i++){input.push(new Uint8Array(16000));await input.chain;}
+ input.flush();await input.chain;assert.equal(bytes,4800000);assert.equal(input.queued,0);
 });
 test('Malformed stream cursor fails once without passing any audio to player',async()=>{
  const f=fixture(),started=f.session.start();await tick();
