@@ -555,5 +555,13 @@
   "＋ Tambah / kelola Penerima",
   "Contoh: Listrik",
   "Contoh: Pendapatan Konten",
-  "Contoh: Perawatan"
+  "Contoh: Perawatan",
+  "Terjemahan langsung satu arah dengan suara Gemini. Pilih arah sebelum mulai.",
+  "Bahasa tujuan diabaikan oleh penerjemah. Gunakan headset untuk mengurangi suara speaker masuk kembali ke mikrofon.",
+  "Gunakan bahasa sumber yang dipilih. Bahasa dikenali oleh Gemini; deteksi bahasa belum divalidasi pada perangkat ini.",
+  "Saya memiliki izin mengirim ucapan ke Google Gemini untuk diterjemahkan langsung. Hasil sesi tidak dimasukkan ke riwayat Voice Over.",
+  "Selesaikan ucapan",
+  "Sesi uji berhenti setelah sekitar satu menit. Selesaikan ucapan untuk mendengar bagian terakhir; End membatalkan sisa audio.",
+  "Sesi Gemini terputus. Ucapan ini tidak diulang otomatis.",
+  "Menyiapkan sesi..."
 ]

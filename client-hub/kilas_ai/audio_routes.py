@@ -428,6 +428,8 @@ def live_translator_end(ident):
     sessions.end(session['user_id'],ident)
     from . import live_translator_realtime
     live_translator_realtime.cancel(session['user_id'],ident)
+    from . import live_gemini
+    live_gemini.cancel(session['user_id'],ident)
     return {'status':'ENDED'},200,{'Cache-Control':'private, no-store'}
 
 
@@ -451,7 +453,76 @@ def live_translator_cancel_turn(ident,key):
     status=sessions.cancel_turn(session['user_id'],ident,key)
     from . import live_translator_realtime
     live_translator_realtime.cancel(session['user_id'],ident,key)
+    from . import live_gemini
+    live_gemini.cancel(session['user_id'],ident,key)
     return {'status':status},200,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.get('/live/gemini')
+def live_gemini_home():
+    from . import live_gemini as native
+    native.require_ready(session['user_id'])
+    return render_template('kilas_translator/gemini.html', languages=provider.LANGUAGES)
+
+
+@audio_bp.post('/live/gemini/sessions')
+def live_gemini_session():
+    from . import live_gemini as native, live_translator_store as sessions
+    native.require_ready(session['user_id'])
+    if request.form.get('consent') != 'gemini-live-v1':
+        raise store.AudioError('Setujui pemrosesan ucapan sebelum mulai.', 'consent_required', 400)
+    a, b = request.form.get('language_a'), request.form.get('language_b')
+    sessions.require_pair(a, b)
+    store.require_balance(session['user_id'])
+    ident = sessions.create(session['user_id'], a, b, native.VOICE)
+    return {'session_id':ident, 'input_mode':'gemini-live-v1', 'target_language':b,
+            'max_input_ms':60000, 'max_output_ms':90000}, 201, {'Cache-Control':'private, no-store'}
+
+
+@audio_bp.route('/live/gemini/sessions/<ident>/turns/<key>', methods=['GET','POST'])
+def live_gemini_turn(ident, key):
+    from . import live_gemini as native
+    if not re.fullmatch(r'live-[a-f0-9]{32}', key):
+        abort(400)
+    if request.method == 'POST':
+        native.start(session['user_id'], ident, key)
+        return {'status':'LISTENING', 'input_mode':'gemini-live-v1'}, 202, {'Cache-Control':'private, no-store'}
+    try:
+        after = int(request.args.get('after','0'))
+    except ValueError:
+        abort(400)
+    result = native.owned(session['user_id'], ident, key).snapshot(after)
+    return result, 200, {'Cache-Control':'private, no-store', 'X-Content-Type-Options':'nosniff'}
+
+
+@audio_bp.post('/live/gemini/sessions/<ident>/turns/<key>/chunks/<int:index>')
+def live_gemini_chunk(ident, key, index):
+    from . import live_gemini as native
+    relay = native.owned(session['user_id'], ident, key)
+    try:
+        sample = request.files.get('pcm')
+        if not sample or sample.mimetype != 'application/octet-stream':
+            raise native.failure('gemini_input_invalid',400)
+        relay.accept(index, sample.stream.read(16001))
+    except Exception as error:
+        relay.stop(error)
+        raise
+    return {'accepted_index':index}, 202, {'Cache-Control':'private, no-store'}
+
+
+@audio_bp.post('/live/gemini/sessions/<ident>/turns/<key>/finish')
+def live_gemini_finish(ident, key):
+    from . import live_gemini as native
+    relay = native.owned(session['user_id'], ident, key)
+    try:
+        value = request.form.get('count','')
+        if not re.fullmatch(r'[0-9]{1,4}',value):
+            raise native.failure('gemini_input_invalid',400)
+        relay.finish_input(int(value))
+    except Exception as error:
+        relay.stop(error)
+        raise
+    return {'status':'DRAINING'}, 202, {'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/live/sessions/<ident>/turns/<key>/input/start')

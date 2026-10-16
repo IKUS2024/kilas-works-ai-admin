@@ -274,6 +274,7 @@ def start(owner,ident,key):
     capability=None;claimed=False
     try:
         info=sessions.claim(owner,ident,key);claimed=True
+        if info['voice_alias']=='gemini-live-native':raise failure('realtime_unverified')
         audio_store.require_balance(owner);live.require_audio_allowance(owner)
         capability=budget.claim(owner,ident,key)
         relay=Relay(owner,ident,key,info,capability)

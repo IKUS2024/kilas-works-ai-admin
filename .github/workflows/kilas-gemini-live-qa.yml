@@ -1,0 +1,48 @@
+name: Kilas Gemini Live Offline QA
+on:
+  push:
+    branches: [main, 'feature/kilas-gemini-*']
+    paths: ['client-hub/kilas_ai/live_gemini*.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/kilas_ai/live_translator_realtime.py', 'client-hub/static/kilas_live_gemini*', 'client-hub/templates/kilas_translator/gemini.html', 'client-hub/tests/test_kilas_live_gemini*', 'client-hub/locales/**', '.github/workflows/kilas-gemini-live-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt ruff
+      - run: npm install --prefix /tmp/kilas-gemini-dom --cache /tmp/kilas-gemini-npm-cache --no-audit --no-fund --save-exact jsdom@26.1.0
+      - run: ruff check --select E9,F client-hub/kilas_ai/live_gemini.py client-hub/kilas_ai/live_gemini_budget.py client-hub/tests/test_kilas_live_gemini.py client-hub/tests/test_kilas_live_gemini_postgres.py
+      - name: Mocked native protocol, owner fences, budgets, history and locales
+        run: |
+          for suite in test_kilas_live_gemini.py test_kilas_live_translator.py test_kilas_live_translator_realtime.py test_kilas_live_translator_whole.py test_kilas_audio.py test_kilas_personal_voice.py test_kilas_audio_history.py test_ui_i18n.py test_ui_english_consistency.py test_kilas_learning_retirement.py; do
+            python -B scripts/run_offline_tests.py --only "$suite" || exit 1
+          done
+        env: {PYTHONDONTWRITEBYTECODE: '1', KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json}
+      - name: Browser-free PCM playback, native lifecycle and original Live regression
+        run: node --test client-hub/tests/test_kilas_live_gemini.mjs client-hub/tests/test_kilas_live_gemini_dom.mjs client-hub/tests/test_kilas_live_translator*.mjs
+        env: {KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json, KILAS_UI_DOM_TOOLS: /tmp/kilas-gemini-dom}
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: native_live_qa}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d native_live_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python -B client-hub/tests/test_kilas_live_gemini_postgres.py
+        env: {DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/native_live_qa', KILAS_AI_POSTGRES_QA: '1', PYTHONDONTWRITEBYTECODE: '1'}
