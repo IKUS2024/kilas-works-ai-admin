@@ -25,7 +25,8 @@ class ReadinessTests(unittest.TestCase):
             'identity': stack.enter_context(patch.object(readiness.native, 'preview_owner', return_value=True)),
             'native': stack.enter_context(patch.object(readiness.native, 'ready', return_value=True)),
             'status': stack.enter_context(patch.object(readiness.budget, 'status', return_value={
-                'available':True, 'remaining_micro_usd':9600000, 'remaining_leases':38,
+                'available':True, 'remaining_micro_usd':8850000, 'remaining_leases':17,
+                'reserve_micro_usd':500000,
                 'valuation_mode':'conservative_internal'})),
             'active': stack.enter_context(patch.object(readiness.sessions, 'active', return_value=None)),
             'query': stack.enter_context(patch.object(readiness.usage, '_query', side_effect=[
@@ -51,7 +52,8 @@ class ReadinessTests(unittest.TestCase):
         checks = self.checks()
         result = readiness.report()
         self.assertEqual(result, {'owner_id':9, 'user_id':9, 'audience':'owner', 'start_eligible':True, 'reason':'ready',
-            'remaining_micro_usd':9600000, 'remaining_leases':38,
+            'input_mode':'gemini-live-two-way-v1', 'streams':2,
+            'remaining_micro_usd':8850000, 'remaining_leases':17, 'reserve_micro_usd':500000,
             'valuation_mode':'conservative_internal', 'audio_exempt':False})
         for call in checks['query'].call_args_list:
             self.assertTrue(call.args[1].startswith('SELECT '))
@@ -105,12 +107,13 @@ class ReadinessTests(unittest.TestCase):
         self.assertEqual(result['user_id'], 42)
         self.assertEqual(result['audience'], 'authenticated')
         self.assertTrue(result['start_eligible'])
-        self.assertEqual(result['remaining_micro_usd'], 9600000)
-        self.assertEqual(result['remaining_leases'], 38)
+        self.assertEqual(result['remaining_micro_usd'], 8850000)
+        self.assertEqual(result['remaining_leases'], 17)
+        self.assertEqual(result['reserve_micro_usd'], 500000)
         checks['allowed'].assert_called_once_with(42, checks['policy'].return_value)
         checks['identity'].assert_not_called()
         checks['native'].assert_called_once_with(42)
-        checks['status'].assert_called_once_with(42)
+        checks['status'].assert_called_once_with(42, streams=2)
         checks['allowance'].assert_called_once_with(42, 90)
         checks['exempt'].assert_called_once()
         self.assertEqual(checks['exempt'].call_args.args[1], 42)
@@ -131,7 +134,7 @@ class ReadinessTests(unittest.TestCase):
         result = readiness.report(42)
         self.assertFalse(result['start_eligible'])
         self.assertEqual(result['reason'], 'insufficient_balance')
-        self.assertEqual(result['remaining_micro_usd'], 9600000)
+        self.assertEqual(result['remaining_micro_usd'], 8850000)
         checks['allowance'].assert_not_called()
         checks['query'].side_effect = [(0,), (0,0)]
         checks['exempt'].return_value = True

@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {GeminiSession} from '../static/kilas_live_gemini_engine.mjs?v=utterance-gate-20261016';
+import {GeminiSession} from '../static/kilas_live_gemini_engine.mjs?v=native-pair-20261016';
 const pages=JSON.parse(readFileSync(process.env.KILAS_GEMINI_UI_FIXTURE_PATH,'utf8'));
 const {JSDOM}=createRequire(pathToFileURL(join(process.env.KILAS_UI_DOM_TOOLS||'/tmp/kilas-gemini-dom','package.json')))('jsdom');
 const tick=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
@@ -28,13 +28,23 @@ for(const locale of ['en','id']){
   assert.equal(requests.length,1);assert.equal(microphones,0);assert.equal(contexts,0);
   assert.equal(document.querySelector('#live-recovery-check').hidden,true);document.querySelector('#live-recovery-end').click();await tick();assert.equal(start.disabled,false);
   first.value='en';first.dispatchEvent(new window.Event('change'));assert.notEqual(first.value,second.value);assert.equal(start.disabled,false);
-  assert.equal(document.querySelector('[name=consent]').value,'gemini-live-v1');
+  const paired=document.querySelector('[data-gemini-live]').dataset.geminiTranslationMode==='two_way';
+  assert.equal(document.querySelector('[name=consent]').value,paired?'gemini-live-two-way-v1':'gemini-live-v1');
+  assert.equal(document.querySelector('[name=translation_mode]')?.value||null,paired?'two_way':null);
+  if(paired){
+   assert.equal(document.querySelector('#gemini-pair-summary').textContent,first.selectedOptions[0].textContent+' ↔ '+second.selectedOptions[0].textContent);
+   assert.ok(first.closest('label').textContent.includes(locale==='en'?'First language':'Bahasa pertama'));
+   assert.ok(second.closest('label').textContent.includes(locale==='en'?'Second language':'Bahasa kedua'));
+   assert.ok(document.querySelector('#live-setup-form').textContent.includes(locale==='en'?'The selected languages are translated automatically in both directions.':'Bahasa yang dipilih diterjemahkan otomatis dua arah.'));
+   assert.equal(document.querySelector('#live-setup-form').textContent.includes(locale==='en'?'The source language is translated into the target language.':'Bahasa sumber diterjemahkan ke bahasa tujuan.'),false);
+  }
   assert.equal(document.querySelector('[name=consent]').checked,false);
   assert.equal(document.querySelector('#live-active').hidden,true);assert.equal(microphones,0);assert.equal(contexts,0);
   assert.equal(document.documentElement.lang,locale);assert.equal(requests.length,3);
   // Drive the real DOM callbacks with synthetic engine states; never start media.
   const originalStart=GeminiSession.prototype.start;let submitted=false;
-  GeminiSession.prototype.start=function(){
+  GeminiSession.prototype.start=function(data){
+   assert.equal(data.get('translation_mode'),paired?'two_way':null);assert.equal(data.get('consent'),paired?'gemini-live-two-way-v1':'gemini-live-v1');
    submitted=true;this.active=true;this.state('renewing');
    assert.equal(document.querySelector('#live-active').hidden,false);assert.equal(document.querySelector('#gemini-finish'),null);assert.equal(document.querySelector('#live-translation'),null);assert.deepEqual([...document.querySelectorAll('#live-active button')].map(node=>node.id),['live-end']);assert.equal(document.querySelector('#live-recovery-check').hidden,true);
    assert.equal(document.querySelector('#live-state').textContent,locale==='en'?'Processing':'Memproses');

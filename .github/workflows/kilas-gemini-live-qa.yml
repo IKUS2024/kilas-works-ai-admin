@@ -21,7 +21,7 @@ jobs:
       - run: ruff check --select E9,F client-hub/kilas_ai/live_gemini*.py client-hub/gunicorn.conf.py client-hub/tests/test_kilas_live_gemini*.py
       - name: Mocked native protocol, tenant fences, shared budgets, history and locales
         run: |
-          for suite in test_kilas_live_gemini_smoke.py test_kilas_live_gemini.py test_kilas_live_gemini_completion.py test_kilas_live_gemini_capture.py test_kilas_live_gemini_budget.py test_kilas_live_gemini_capture_routes.py test_kilas_live_gemini_readiness.py test_kilas_live_translator.py test_kilas_live_translator_realtime.py test_kilas_live_translator_whole.py test_kilas_audio.py test_kilas_personal_voice.py test_kilas_audio_history.py test_ui_i18n.py test_ui_english_consistency.py test_kilas_learning_retirement.py; do
+          for suite in test_kilas_live_gemini_smoke.py test_kilas_live_gemini.py test_kilas_live_gemini_completion.py test_kilas_live_gemini_pair.py test_kilas_live_gemini_pair_budget.py test_kilas_live_gemini_pair_routes.py test_kilas_live_gemini_capture.py test_kilas_live_gemini_budget.py test_kilas_live_gemini_capture_routes.py test_kilas_live_gemini_readiness.py test_kilas_live_translator.py test_kilas_live_translator_realtime.py test_kilas_live_translator_whole.py test_kilas_audio.py test_kilas_personal_voice.py test_kilas_audio_history.py test_ui_i18n.py test_ui_english_consistency.py test_kilas_learning_retirement.py; do
             python -B scripts/run_offline_tests.py --only "$suite" || exit 1
           done
         env: {PYTHONDONTWRITEBYTECODE: '1', KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json}

@@ -1,4 +1,9 @@
 {
+  "Antrean audio penuh. Ucapan tidak diulang otomatis.": "The audio queue is full. Speech is not retried automatically.",
+  "Bahasa yang dipilih diterjemahkan otomatis dua arah.": "The selected languages are translated automatically in both directions.",
+  "Bicara bergantian dalam salah satu bahasa yang dipilih.": "Take turns speaking in either selected language.",
+  "Pemrosesan memakai batas biaya bersama. End menghentikan sesi. Ucapan tidak diulang otomatis.": "Processing uses the shared spending limit. End stops the session. Speech is not retried automatically.",
+  "Audio diputar setelah pemrosesan selesai.": "Audio plays when processing finishes.",
   "Bahasa sumber diterjemahkan ke bahasa tujuan.": "The source language is translated into the target language.",
   "Bicara, lalu diam sekitar 2 detik. Gunakan headset.": "Speak, then pause for about 2 seconds. Use a headset.",
   "Pemakaian berjalan selama sesi aktif. End menghentikan sesi. Ucapan tidak diulang otomatis.": "Usage continues during an active session. End stops the session. Speech is not retried automatically.",

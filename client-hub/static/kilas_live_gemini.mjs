@@ -5,8 +5,8 @@ import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=app-lan
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=app-language-20261015';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
-import {GeminiSession,GeminiPlayer} from './kilas_live_gemini_engine.mjs?v=utterance-gate-20261016';
-import {PlaybackEcho} from './kilas_live_gemini_echo.mjs?v=utterance-gate-20261016';
+import {GeminiSession,GeminiPlayer} from './kilas_live_gemini_engine.mjs?v=native-pair-20261016';
+import {PlaybackEcho} from './kilas_live_gemini_echo.mjs?v=native-pair-20261016';
 const root=document.querySelector('[data-gemini-live]');
 if(root){
  const admissionReady=root.dataset.geminiReady==='true';
@@ -14,7 +14,7 @@ if(root){
  const first=form.querySelector('[name=language_a]'),second=form.querySelector('[name=language_b]'),csrf=form.querySelector('[name=csrf_token]').value;
  let context=null,session,recovery;
  const json=(url,options={})=>requestJSON(url,{...options,csrf});
- const showError=e=>{error.hidden=false;error.textContent=t(e?.code==='budget_limit'?'Batas biaya tercapai. Sesi dihentikan.':e?.code==='attempt_limit'?'Batas penggunaan Live Translator tercapai. Sesi dijeda.':'Sesi terputus. Periksa koneksi sebelum mulai lagi.');};
+ const showError=e=>{error.hidden=false;error.textContent=t(e?.code==='budget_limit'?'Batas biaya tercapai. Sesi dihentikan.':e?.code==='attempt_limit'?'Batas penggunaan Live Translator tercapai. Sesi dijeda.':e?.code==='gemini_playback_backlog'?'Antrean audio penuh. Ucapan tidak diulang otomatis.':'Sesi terputus. Periksa koneksi sebelum mulai lagi.');};
  const getContext=()=>context;
  const prepare=new TranslatorPlayback({getContext});
  const capture=new RealtimeCapture({getContext,mediaDevices:navigator.mediaDevices,continuous:true,frameSamples:1600});
@@ -35,7 +35,8 @@ if(root){
   document.querySelector('#live-state').textContent=t(state==='listening'?'Mendengarkan':state==='playing'?'Memutar terjemahan':state==='renewing'||state==='processing'||state==='draining'?'Memproses':'Menyiapkan sesi...');update();
   if(state==='ended'){recovery.checked=false;update();}
  },onWarning:()=>{document.querySelector('#live-session-status').textContent=t('Bagian akhir terjemahan belum terkonfirmasi.');},onError:showError});
- for(const select of [first,second])select.addEventListener('change',()=>{syncLanguagePair(first,second,select);update();});syncLanguagePair(first,second);update();
+ const pairSummary=()=>{const summary=document.querySelector('#gemini-pair-summary');if(root.dataset.geminiTranslationMode==='two_way'&&summary)summary.textContent=(first.selectedOptions[0]?.textContent||'')+' ↔ '+(second.selectedOptions[0]?.textContent||'');};
+ for(const select of [first,second])select.addEventListener('change',()=>{syncLanguagePair(first,second,select);pairSummary();update();});syncLanguagePair(first,second);pairSummary();update();
  form.addEventListener('submit',event=>{event.preventDefault();if(!admissionReady||start.disabled||!form.reportValidity())return;error.hidden=true;document.querySelector('#live-session-status').textContent='';session.start(new FormData(form));});
  document.querySelector('#live-end').addEventListener('click',()=>session.end());
  document.querySelector('#live-recovery-end').addEventListener('click',()=>recovery.endPrevious());

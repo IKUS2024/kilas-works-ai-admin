@@ -189,7 +189,7 @@ class GeminiTests(unittest.TestCase):
                     response=self.client.get('/kilas-translator/live/gemini')
                     self.assertEqual(response.status_code,200)
                     self.assertEqual(response.headers['Cache-Control'],'private, no-store')
-                    self.assertIn('value="gemini-live-v1"',response.text)
+                    self.assertIn('value="gemini-live-two-way-v1"',response.text)
                     self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/live/gemini')
                     self.assertEqual(self.client.get('/kilas-translator?mode=live').location,'/kilas-translator/live/gemini')
                     for path in ('/kilas-translator','/kilas-translator?mode=voiceover',
@@ -392,7 +392,7 @@ class GeminiTests(unittest.TestCase):
                 response = self.client.get('/kilas-translator/live/gemini')
                 self.assertEqual(response.status_code,200)
                 self.assertIn('<html lang="'+locale+'">',response.text)
-                self.assertIn('The source language is translated into the target language.' if locale=='en' else 'Bahasa sumber diterjemahkan ke bahasa tujuan.',response.text)
+                self.assertIn('The selected languages are translated automatically in both directions.' if locale=='en' else 'Bahasa yang dipilih diterjemahkan otomatis dua arah.',response.text)
                 self.assertNotIn('Translator · Gemini',response.text)
                 self.assertNotIn('id="gemini-finish"',response.text)
                 self.assertNotIn('id="live-translation"',response.text)

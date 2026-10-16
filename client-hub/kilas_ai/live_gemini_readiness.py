@@ -41,8 +41,9 @@ def report(owner=None):
         if not native.ready(owner):
             result['reason'] = 'gemini_unavailable'
             return result
-        allowance = budget.status(owner)
-        for name in ('remaining_micro_usd', 'remaining_leases'):
+        allowance = budget.status(owner, streams=2)
+        result.update(input_mode='gemini-live-two-way-v1', streams=2)
+        for name in ('remaining_micro_usd', 'remaining_leases', 'reserve_micro_usd'):
             value = allowance.get(name)
             if type(value) is int and value >= 0:
                 result[name] = value
