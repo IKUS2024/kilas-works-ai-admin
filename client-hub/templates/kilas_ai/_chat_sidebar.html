@@ -7,7 +7,7 @@
   <details class="chat-products" open>
     <summary class="chat-history-all chat-library-entry"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>{{ ui_t('Products') }}</span>{{ drawer_icon('chevron') }}</summary>
     <form class="chat-product-entry" method="post" action="{{ url_for('products.product_start') }}" data-chat-navigation><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance"><button type="submit">{{ drawer_icon('finance') }}<span>Finance</span></button></form>
-    <a class="chat-product-entry" href="https://kilasworks.id" target="_blank" rel="noopener noreferrer">{{ drawer_icon('external') }}<span>{{ ui_t('Jasa Kreatif') }}</span></a>
+    <a class="chat-product-entry" href="https://kilasworks-creative-services.onrender.com" target="_blank" rel="noopener noreferrer">{{ drawer_icon('external') }}<span>{{ ui_t('Jasa Kreatif') }}</span></a>
   </details>
   <h2><button class="chat-history-toggle" type="button" aria-expanded="true" aria-controls="kilas-chat-history" data-chat-history-toggle><span>{{ ui_t('Chat') }}</span>{{ drawer_icon('chevron') }}</button></h2>
   <div class="chat-history-content" id="kilas-chat-history" data-chat-history-content>
