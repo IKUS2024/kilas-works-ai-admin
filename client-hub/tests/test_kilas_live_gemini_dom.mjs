@@ -5,6 +5,7 @@ import {createRequire} from 'node:module';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
+import {GeminiSession} from '../static/kilas_live_gemini_engine.mjs?v=gemini-continuous-v2';
 const pages=JSON.parse(readFileSync(process.env.KILAS_GEMINI_UI_FIXTURE_PATH,'utf8'));
 const {JSDOM}=createRequire(pathToFileURL(join(process.env.KILAS_UI_DOM_TOOLS||'/tmp/kilas-gemini-dom','package.json')))('jsdom');
 const tick=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
@@ -31,5 +32,20 @@ for(const locale of ['en','id']){
   assert.equal(document.querySelector('[name=consent]').checked,false);
   assert.equal(document.querySelector('#live-active').hidden,true);assert.equal(microphones,0);assert.equal(contexts,0);
   assert.equal(document.documentElement.lang,locale);assert.equal(requests.length,2);
+  // Drive the real DOM callbacks with synthetic engine states; never start media.
+  const originalStart=GeminiSession.prototype.start;let submitted=false;
+  GeminiSession.prototype.start=function(){
+   submitted=true;this.active=true;this.state('renewing');
+   assert.equal(document.querySelector('#live-active').hidden,false);assert.equal(document.querySelector('#gemini-finish').disabled,true);
+   assert.equal(document.querySelector('#live-state').textContent,locale==='en'?'Continuing the session...':'Melanjutkan sesi...');
+   this.onWarning({code:'gemini_tail_unconfirmed',completion_kind:'bounded_drain',tail_confirmed:false});
+   assert.equal(document.querySelector('#live-session-status').textContent,locale==='en'?'Received audio keeps playing. The end of the translation has not been confirmed as complete.':'Suara yang diterima tetap diputar. Kelengkapan bagian akhir terjemahan belum dikonfirmasi.');
+   this.onError({code:'budget_limit'});this.active=false;this.state('ended');
+  };
+  t.after(()=>{GeminiSession.prototype.start=originalStart;});
+  document.querySelector('[name=consent]').checked=true;document.querySelector('#live-setup-form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await tick();
+  assert.equal(submitted,true);assert.equal(document.querySelector('#live-error').hidden,false);
+  assert.equal(document.querySelector('#live-error').textContent,locale==='en'?'The Gemini spending limit was reached. The session has stopped; speech is not retried automatically.':'Batas biaya Gemini tercapai. Sesi dihentikan; ucapan tidak diulang otomatis.');
+  assert.equal(document.querySelector('#live-active').hidden,true);assert.equal(microphones,0);assert.equal(contexts,0);assert.equal(requests.length,2);
  });
 }

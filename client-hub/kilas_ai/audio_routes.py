@@ -467,6 +467,25 @@ def live_gemini_home():
     return render_template('kilas_translator/gemini.html', languages=provider.LANGUAGES, gemini_ready=enabled)
 
 
+@audio_bp.get('/live/gemini/fixtures')
+def live_gemini_fixtures():
+    from . import live_gemini_capture as capture
+    return {'fixtures':capture.list_for_owner(session['user_id'])}, 200, {
+        'Cache-Control':'private, no-store', 'X-Content-Type-Options':'nosniff'}
+
+
+@audio_bp.get('/live/gemini/fixtures/<opaque>/<kind>')
+def live_gemini_fixture_export(opaque, kind):
+    from . import live_gemini_capture as capture
+    artifact = capture.export(session['user_id'], opaque, kind)
+    response = send_file(io.BytesIO(artifact['data']), mimetype=artifact['mimetype'],
+                         as_attachment=True, download_name=artifact['filename'],
+                         conditional=False, etag=False, max_age=0)
+    response.headers['Cache-Control'] = 'private, no-store'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
 @audio_bp.post('/live/gemini/sessions')
 def live_gemini_session():
     from . import live_gemini as native, live_translator_store as sessions

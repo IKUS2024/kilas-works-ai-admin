@@ -44,7 +44,7 @@ class SmokeTests(unittest.TestCase):
     def test_fixture_checks_require_actual_streaming_terminal_tail_and_end(self):
         valid={'code':None,'setup_complete':True,'input_ms':15000,'output_ms':1000,
                'streamed_before_input_finished':True,'source_tail_word_confirmed':True,
-               'target_tail_word_confirmed':True,'terminal_turn_complete':True,
+               'target_tail_word_confirmed':True,'terminal_turn_complete':True,'tail_confirmed':True,
                'all_generated_pcm_read':True,'settled_after_end':True,'post_end_frames':0,
                'post_end_output_access':'blocked','backend_end_ms':50}
         self.assertTrue(smoke.passed(valid))
@@ -52,6 +52,7 @@ class SmokeTests(unittest.TestCase):
                       'terminal_turn_complete','all_generated_pcm_read','settled_after_end'):
             self.assertFalse(smoke.passed(dict(valid,**{field:False})))
         self.assertFalse(smoke.passed(dict(valid,code='gemini_tail_timeout')))
+        self.assertFalse(smoke.passed(dict(valid,tail_confirmed=False,completion_kind='bounded_drain')))
         self.assertFalse(smoke.passed(dict(valid,backend_end_ms=2500)))
         self.assertTrue(smoke.tail_word('A bottle of WATER.','en'))
         self.assertTrue(smoke.tail_word('Sebotol air!','id'))

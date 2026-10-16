@@ -567,5 +567,11 @@
   "Akses khusus owner",
   "Bagian akhir terjemahan masih diverifikasi. Mikrofon dan layanan Gemini belum dijalankan dari halaman ini.",
   "Batas total Rp500.000 sudah disetujui. Start menunggu verifikasi pengaman biaya dan pemakaian sebelumnya.",
-  "Satu sesi menerima sekitar satu menit ucapan. Bagian akhir terjemahan belum terverifikasi; End membatalkan sisa audio."
+  "Satu sesi menerima sekitar satu menit ucapan. Bagian akhir terjemahan belum terverifikasi; End membatalkan sisa audio.",
+  "Melanjutkan sesi...",
+  "Suara yang diterima tetap diputar. Kelengkapan bagian akhir terjemahan belum dikonfirmasi.",
+  "Batas biaya Gemini tercapai. Sesi dihentikan; ucapan tidak diulang otomatis.",
+  "Setelah ucapan pertama, mikrofon dan pemakaian Gemini berlanjut termasuk saat hening sampai Anda menekan End. Sesi diperbarui otomatis; End membatalkan sisa audio.",
+  "Selesaikan ucapan ini; sesi tetap mendengarkan.",
+  "Batas penggunaan Live Translator tercapai. Sesi dijeda."
 ]
