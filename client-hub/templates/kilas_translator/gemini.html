@@ -15,7 +15,7 @@
 <form id="live-setup-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label>{{ ui_t('Bahasa sumber') }}<select name="language_a" required>{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='id' }}>{{ ui_t(label) }}</option>{% endfor %}</select></label>
 <label>{{ ui_t('Bahasa tujuan') }}<select name="language_b" required>{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }}>{{ ui_t(label) }}</option>{% endfor %}</select></label>
-<p>{{ ui_t('Bahasa sumber diterjemahkan ke bahasa tujuan.') }} {{ ui_t('Bicara, lalu diam sekitar 1,5 detik. Gunakan headset.') }}</p>
+<p>{{ ui_t('Bahasa sumber diterjemahkan ke bahasa tujuan.') }} {{ ui_t('Bicara, lalu diam sekitar 2 detik. Gunakan headset.') }}</p>
 <p>{{ ui_t('Pemakaian berjalan selama sesi aktif. End menghentikan sesi. Ucapan tidak diulang otomatis.') }}</p>
 <label class="live-consent"><input type="checkbox" name="consent" value="gemini-live-v1" required><span>{{ ui_t('Saya mengizinkan pemrosesan ucapan oleh Google.') }} <a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">{{ ui_t('Kebijakan Privasi') }}</a></span></label>
 <button type="submit" class="btn" disabled>{{ ui_t('Start') }}</button></form></section>

@@ -1,6 +1,12 @@
 # Translator cloud checkpoint — 2026-10-16
 
-## Current state
+> Historical checkpoint. At 07:06 UTC the user cancelled Kilas/ElevenLabs voice
+> integration and restored native Gemini speech. At 07:09 UTC the final playback
+> silence endpoint became 2 seconds. The hybrid proposal below is archived,
+> unimplemented, and outside active scope. Current release work is recorded in
+> [the native utterance release note](KILAS_TRANSLATOR_NATIVE_UTTERANCE_20261016.md).
+
+## Historical state
 
 The latest user requirement is Gemini translation plus the **existing exact
 Kilas Male/Female ElevenLabs mappings**, automatic translation in either
