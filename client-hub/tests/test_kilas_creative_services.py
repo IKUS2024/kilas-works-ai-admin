@@ -1,7 +1,7 @@
 """Read-only creative-service draft pages; no checkout or external transport."""
 import unittest
 import test_kilas_home as fixture
-from ui_i18n import LANGUAGES
+from ui_i18n import LANGUAGES, CATALOG
 
 
 class CreativeServicesTests(unittest.TestCase):
@@ -30,9 +30,13 @@ class CreativeServicesTests(unittest.TestCase):
             content = page.text.split('class="premium-home kilas-creative-services"', 1)[1]
             self.assertLess(content.index('<h3>Basic</h3>'), content.index('<h3>Standard</h3>'))
             self.assertLess(content.index('<h3>Standard</h3>'), content.index('<h3>Premium</h3>'))
-            for value in ('Rp1.500.000', 'Rp3.000.000', five, eight):
+            for value in ('Rp1.500.000', 'Rp3.000.000', 'Rp5.000.000', five, eight):
                 self.assertIn(value, content)
-            self.assertEqual(content.count('<li>'), 9)
+            self.assertEqual(content.count('<li>'), 15)
+            self.assertEqual(content.count(CATALOG['1 kali revisi edit'][locale]), 2)
+            for key in ('2 kali revisi edit', 'Video Highlight Acara', 'Teaser Instagram Reels', 'Edit maksimal 100 foto pilihan klien', 'Draft untuk ditinjau', 'Revisi hanya untuk hasil edit, tidak termasuk pengambilan gambar ulang.'):
+                self.assertIn(CATALOG[key][locale], content)
+            self.assertNotIn('album', content.lower())
             for old_value in ('Rp1.200.000', 'Rp2.800.000', 'Rp4.400.000', 'Lengkap', 'add-on'):
                 self.assertNotIn(old_value, content)
             self.assertNotIn('<form', content)
@@ -40,7 +44,9 @@ class CreativeServicesTests(unittest.TestCase):
             self.assertEqual(page.status_code, 200)
             content = page.text.split('class="premium-home kilas-creative-services"', 1)[1]
             self.assertIn(social, content)
-            self.assertNotIn('creative-package-grid', content)
+            for tier in ('Basic', 'Standard', 'Premium'):
+                self.assertIn('<h3>'+tier+'</h3>', content)
+            self.assertNotIn('<li>', content)
             self.assertNotIn('Rp', content)
         self.assertEqual(client.get('/kilas-ai/creative-services?category=unknown').status_code, 404)
 

@@ -8279,5 +8279,12 @@
   "Maksimal 8 jam": {"id": "Maksimal 8 jam", "en": "Up to 8 hours", "es": "Hasta 8 horas", "zh": "最长8小时"},
   "Seluruh file foto dan video original": {"id": "Seluruh file foto dan video original", "en": "All original photo and video files", "es": "Todos los archivos de fotos y vídeos originales", "zh": "全部照片和视频原始文件"},
   "Video highlight": {"id": "Video highlight", "en": "Highlight video", "es": "Vídeo de momentos destacados", "zh": "精彩集锦视频"},
-  "Rincian paket sedang disiapkan.": {"id": "Rincian paket sedang disiapkan.", "en": "Package details are being prepared.", "es": "Los detalles del paquete se están preparando.", "zh": "套餐详情正在准备中。"}
+  "Rincian paket sedang disiapkan.": {"id": "Rincian paket sedang disiapkan.", "en": "Package details are being prepared.", "es": "Los detalles del paquete se están preparando.", "zh": "套餐详情正在准备中。"},
+  "1 kali revisi edit": {"id": "1 kali revisi edit", "en": "1 editing revision", "es": "1 revisión de edición", "zh": "1次后期修改"},
+  "2 kali revisi edit": {"id": "2 kali revisi edit", "en": "2 editing revisions", "es": "2 revisiones de edición", "zh": "2次后期修改"},
+  "Video Highlight Acara": {"id": "Video Highlight Acara", "en": "Event Highlight Video", "es": "Vídeo de momentos destacados del evento", "zh": "活动精彩集锦视频"},
+  "Teaser Instagram Reels": {"id": "Teaser Instagram Reels", "en": "Instagram Reels Teaser", "es": "Teaser de Instagram Reels", "zh": "Instagram Reels预告短片"},
+  "Edit maksimal 100 foto pilihan klien": {"id": "Edit maksimal 100 foto pilihan klien", "en": "Editing of up to 100 client-selected photos", "es": "Edición de hasta 100 fotos elegidas por el cliente", "zh": "精修客户选定的最多100张照片"},
+  "Draft untuk ditinjau": {"id": "Draft untuk ditinjau", "en": "Draft for review", "es": "Borrador para revisión", "zh": "草案待审核"},
+  "Revisi hanya untuk hasil edit, tidak termasuk pengambilan gambar ulang.": {"id": "Revisi hanya untuk hasil edit, tidak termasuk pengambilan gambar ulang.", "en": "Revisions apply to edits only and do not include reshoots.", "es": "Las revisiones se aplican solo a la edición y no incluyen repetir la sesión.", "zh": "修改仅限后期编辑，不包括重新拍摄。"}
 }

@@ -15,15 +15,20 @@
   {% if category == 'event' %}
   <div class="creative-package-grid">
     <article class="card" data-creative-package="basic"><h3>Basic</h3><p class="creative-price">Rp1.500.000</p><ul>
-      <li>{{ ui_t('1 fotografer') }}</li><li>{{ ui_t('Maksimal 5 jam') }}</li><li>{{ ui_t('Seluruh file foto original') }}</li><li>{{ ui_t('Edit maksimal 50 foto pilihan klien') }}</li>
+      <li>{{ ui_t('1 fotografer') }}</li><li>{{ ui_t('Maksimal 5 jam') }}</li><li>{{ ui_t('Seluruh file foto original') }}</li><li>{{ ui_t('Edit maksimal 50 foto pilihan klien') }}</li><li>{{ ui_t('1 kali revisi edit') }}</li>
     </ul></article>
     <article class="card" data-creative-package="standard"><h3>Standard</h3><p class="creative-price">Rp3.000.000</p><ul>
-      <li>{{ ui_t('1 fotografer + 1 videografer') }}</li><li>{{ ui_t('Maksimal 8 jam') }}</li><li>{{ ui_t('Seluruh file foto dan video original') }}</li><li>{{ ui_t('Edit maksimal 50 foto pilihan klien') }}</li><li>{{ ui_t('Video highlight') }}</li>
+      <li>{{ ui_t('1 fotografer + 1 videografer') }}</li><li>{{ ui_t('Maksimal 8 jam') }}</li><li>{{ ui_t('Seluruh file foto dan video original') }}</li><li>{{ ui_t('Edit maksimal 50 foto pilihan klien') }}</li><li>{{ ui_t('Video Highlight Acara') }}</li><li>{{ ui_t('1 kali revisi edit') }}</li>
     </ul></article>
-    <article class="card" data-creative-package="premium"><h3>Premium</h3><p>{{ ui_t('Rincian paket sedang disiapkan.') }}</p></article>
+    <article class="card" data-creative-package="premium"><h3>Premium</h3><p>{{ ui_t('Draft untuk ditinjau') }}</p><p class="creative-price">Rp5.000.000</p><ul>
+      <li>{{ ui_t('Edit maksimal 100 foto pilihan klien') }}</li><li>{{ ui_t('Video Highlight Acara') }}</li><li>{{ ui_t('Teaser Instagram Reels') }}</li><li>{{ ui_t('2 kali revisi edit') }}</li>
+    </ul><p>{{ ui_t('Rincian paket sedang disiapkan.') }}</p></article>
   </div>
+  <p>{{ ui_t('Revisi hanya untuk hasil edit, tidak termasuk pengambilan gambar ulang.') }}</p>
   {% else %}
-  <section class="card"><p>{{ ui_t('Rincian paket sedang disiapkan.') }}</p></section>
+  <div class="creative-package-grid">
+    {% for tier in ('Basic', 'Standard', 'Premium') %}<article class="card" data-creative-package="{{ tier|lower }}"><h3>{{ tier }}</h3><p>{{ ui_t('Rincian paket sedang disiapkan.') }}</p></article>{% endfor %}
+  </div>
   {% endif %}
   {% endif %}
 </section>
