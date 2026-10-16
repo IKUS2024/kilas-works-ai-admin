@@ -404,21 +404,17 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 {% for key,value in period_query.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
 {% if selected_category_id %}<input type="hidden" name="category_id" value="{{ selected_category_id }}">{% endif %}
 <label>{{ ui_t('Cari transaksi') }}<input type="search" name="search" value="{{ transaction_search }}" placeholder="{{ ui_t('Deskripsi atau penerima') }}" maxlength="160"></label>
-<label>{{ ui_t('Jenis') }}<select name="direction"><option value="">{{ ui_t('Semua') }}</option><option value="INCOME" {{ 'selected' if direction=='INCOME' }}>{{ ui_t('Pemasukan') }}</option><option value="EXPENSE" {{ 'selected' if direction=='EXPENSE' }}>{{ ui_t('Pengeluaran') }}</option></select></label>
+{% if direction %}<input type="hidden" name="direction" value="{{ direction }}">
+{% else %}<label>{{ ui_t('Jenis') }}<select name="direction"><option value="">{{ ui_t('Semua') }}</option><option value="INCOME">{{ ui_t('Pemasukan') }}</option><option value="EXPENSE">{{ ui_t('Pengeluaran') }}</option></select></label>{% endif %}
 <label>{{ ui_t('Akun') }}<select name="account_id"><option value="">{{ ui_t('Semua akun') }}</option>{% for a in account_balance_rows %}<option value="{{ a.id }}" {{ 'selected' if transaction_account_id==a.id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label><button class="btn secondary" type="submit">{{ ui_t('Terapkan') }}</button>
 {% if not direction and not branch_read_only %}<button type="button" class="btn" data-finance-open="add-transaction-dialog">{{ ui_t('＋ Catat') }}</button>{% endif %}
 </form>
 {% if direction and period_mode == 'month' %}
 <nav class="finance-month-nav finance-ledger-month" aria-label="{{ ui_t('Navigasi bulan') }}">
-  {% if selected_category_id %}
-  <a aria-label="{{ ui_t('Bulan sebelumnya') }}" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month,view='transactions',direction=direction,category_id=selected_category_id,display_currency=display_currency) }}">‹</a>
-  {% else %}
-  <a aria-label="{{ ui_t('Bulan sebelumnya') }}" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month,view='transactions',direction=direction,display_currency=display_currency) }}">‹</a>
-  {% endif %}
+  <a aria-label="{{ ui_t('Bulan sebelumnya') }}" href="{{ url_for('finance.dashboard',business_id=business.id,**dict(transaction_query,month=previous_month,page=1)) }}">‹</a>
   <button class="finance-period-button" type="button" data-finance-open="period-dialog">{{ period_label|ui_period }} <small>⌄</small></button>
   {% if next_month %}
-    {% if selected_category_id %}<a aria-label="{{ ui_t('Bulan berikutnya') }}" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=next_month,view='transactions',direction=direction,category_id=selected_category_id,display_currency=display_currency) }}">›</a>
-    {% else %}<a aria-label="{{ ui_t('Bulan berikutnya') }}" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=next_month,view='transactions',direction=direction,display_currency=display_currency) }}">›</a>{% endif %}
+    <a aria-label="{{ ui_t('Bulan berikutnya') }}" href="{{ url_for('finance.dashboard',business_id=business.id,**dict(transaction_query,month=next_month,page=1)) }}">›</a>
   {% else %}<span aria-disabled="true">›</span>{% endif %}
 </nav>
 {% endif %}
@@ -526,6 +522,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <div class="finance-sheet-body"><form method="get" class="finance-filter" data-finance-live-period>
 <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
 <input type="hidden" name="display_currency" value="{{ display_currency }}">
+{% if show_transactions %}{% for key in ('view','direction','account_id','category_id','search') if key in transaction_query %}<input type="hidden" name="{{ key }}" value="{{ transaction_query[key] }}">{% endfor %}{% endif %}
 {% include '_finance_dashboard_period_selector.html' %}
 <button class="btn">{{ ui_t('Tampilkan') }}</button>
 </form></div></dialog>

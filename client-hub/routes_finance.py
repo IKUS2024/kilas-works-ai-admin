@@ -606,12 +606,14 @@ def dashboard(business_id, user, business):
         return redirect(url_for('finance.dashboard', business_id=business_id,
                                 branch_id=g.finance_branch_id or 'all', month=current_value))
     branch_value = g.finance_branch_id or 'all'
+    ledger_filters = {key: request.args.get(key) for key in ('account_id','category_id','search')
+                      if view == 'transactions' and request.args.get(key)}
     if period_mode == 'month' and split_period:
         return redirect(url_for('finance.dashboard', business_id=business_id, branch_id=branch_value,
-                                direction=direction, view=view, **period_query))
+                                direction=direction, view=view, **period_query, **ledger_filters))
     if period_mode == 'range' and split_range:
         return redirect(url_for('finance.dashboard', business_id=business_id, branch_id=branch_value,
-                                direction=direction, view=view, **period_query))
+                                direction=direction, view=view, **period_query, **ledger_filters))
 
     selected_year = int(month[:4])
     current_year, current_month = today_value.year, today_value.month

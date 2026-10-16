@@ -1,6 +1,7 @@
 """Real local Flask/Chromium acceptance; disposable synthetic ledger, external IO blocked."""
 import io,json,os,shutil,threading
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 from PIL import Image
 from werkzeug.serving import make_server
 from playwright.sync_api import sync_playwright,expect
@@ -19,7 +20,7 @@ def main():
     f.set_monthly_budget(case.b,month,category,1000000,'IDR',actor_user_id=case.uid)
     server=make_server('127.0.0.1',0,fixtures.app,threaded=True);threading.Thread(target=server.serve_forever,daemon=True).start()
     origin=f'http://127.0.0.1:{server.server_port}';cookie=case.client.get_cookie('session')
-    report={'widths':[],'metrics':[],'production_writes':0,'external_io':'blocked'}
+    report={'widths':[],'metrics':[],'direction_filters':[],'production_writes':0,'external_io':'blocked'}
     try:
         with sync_playwright() as p:
             browser=p.chromium.launch(headless=True,executable_path=shutil.which('chromium'),args=['--no-sandbox'])
@@ -33,6 +34,31 @@ def main():
                     assert page.locator('.kilas-feature-navigation').count()==0
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),('overflow',width,page.url)
                 def shot(name):page.screenshot(path=str(output/f'{name}-{width}.png'),full_page=True)
+                for branch,account,mode in ((case.branch,case.a,'business'),(case.personal,case.pa,'personal')):
+                    for direction in ('INCOME','EXPENSE'):
+                        goto(branch,f'&view=transactions&direction={direction}')
+                        filters=page.locator('.finance-transaction-search')
+                        assert filters.locator('select[name=direction]').count()==0
+                        expect(filters.locator('input[type=hidden][name=direction]')).to_have_value(direction)
+                        filters.locator('[name=search]').fill('Synthetic')
+                        filters.locator('[name=account_id]').select_option(str(account))
+                        filters.get_by_role('button',name='Terapkan',exact=True).click();page.wait_for_load_state('networkidle')
+                        expected={'branch_id':str(branch),'view':'transactions','direction':direction,'search':'Synthetic','account_id':str(account)}
+                        def assert_context():
+                            query=parse_qs(urlsplit(page.url).query)
+                            for key,value in expected.items():assert query.get(key)==[value],(key,page.url)
+                        assert_context();shot(f'{mode}-{direction.lower()}-filters')
+                        page.locator('.finance-ledger-month a').first.click();page.wait_for_load_state('networkidle');assert_context()
+                        page.locator('.finance-ledger-month [data-finance-open="period-dialog"]').click()
+                        period=page.locator('#period-dialog')
+                        period.locator('[name=period_mode]').select_option('month')
+                        period.locator('[name=period_year]').select_option(month[:4])
+                        period.locator('[name=period_month]').select_option(month[5:])
+                        period.get_by_role('button',name='Tampilkan',exact=True).click();page.wait_for_load_state('networkidle');assert_context()
+                        assert parse_qs(urlsplit(page.url).query).get('month')==[month]
+                        report['direction_filters'].append({'width':width,'mode':mode,'direction':direction,'result':'PASS'})
+                    goto(branch,'&view=transactions')
+                    expect(page.locator('.finance-transaction-search select[name=direction]')).to_be_visible()
                 goto();expect(page.locator('.finance-identity-name')).to_have_text('Synthetic Studio')
                 expect(page.locator('.finance-app-greeting h1')).to_have_text('Synthetic Studio')
                 assert page.locator('#finance-app-currency,#finance-app-business').count()==0
