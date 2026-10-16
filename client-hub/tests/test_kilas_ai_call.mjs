@@ -26,6 +26,15 @@ test('Input wrong acknowledgment is terminal and never retried',async()=>{
  let requests=0,error;const input=new CallInput({signal:new AbortController().signal,path:'/call',onError:e=>{error=e;},request:async()=>{requests++;return {accepted_index:99};}});
  input.push(pcm());input.open();await input.chain.catch(()=>{});await tick();assert.equal(error.code,'call_input_invalid');assert.equal(requests,1);
 });
+test('Speaking discards only unsent prior-turn PCM and the next question retains sequential indexes',async()=>{
+ const inFlight=deferred(),requests=[];
+ const input=new CallInput({signal:new AbortController().signal,path:'/call',request:async(url,{body})=>{requests.push({url,body});if(requests.length===1)return inFlight.promise;return {accepted_index:requests.length-1};}});
+ input.push(pcm());input.open();await tick();
+ input.push(new Uint8Array(16000).fill(2));input.push(pcm());
+ input.discardPending();input.push(new Uint8Array([7,0]));inFlight.resolve({accepted_index:0});await input.chain;
+ assert.deepEqual(requests.map(x=>x.url),['/call/chunks/0','/call/chunks/1']);assert.deepEqual([...requests[1].body],[7,0]);assert.equal(input.queued,0);
+ assert.equal(input.total,16010); // Captured usage is never refunded by dropping an unsent tail.
+});
 function fixture(options={}){
  const posts=[],states=[],errors=[],captions=[],timers=new Map();let timer=0,captureOptions,stops=0,audioStops=0,plays=0;
  const hold=deferred();

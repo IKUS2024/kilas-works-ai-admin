@@ -4,16 +4,17 @@
 .ai-composer-actions .ai-call-launch:disabled{opacity:.5;cursor:wait}
 .ai-call-launch:focus-visible,.ai-call-end:focus-visible{outline:3px solid #d58c50;outline-offset:4px}
 body.kilas-ai-call-open{overflow:hidden}
-.ai-call-dialog{box-sizing:border-box;position:fixed;inset:0;width:100vw;max-width:none;height:100vh;height:100dvh;max-height:none;margin:0;border:0;padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));background:#111820;color:#f3f6f9;font:16px/1.5 system-ui,-apple-system,sans-serif;overflow:auto}
-.ai-call-dialog[open]{display:flex;flex-direction:column;align-items:center;gap:16px}
-.ai-call-dialog::backdrop{background:#111820}
+#ai-call-dialog[hidden],#ai-call-dialog:not([open]){display:none!important}
+#ai-call-dialog{box-sizing:border-box;position:fixed;inset:0;left:var(--ai-call-left,0px);top:var(--ai-call-top,0px);right:auto;bottom:auto;width:var(--ai-call-width,100vw);max-width:none;height:100vh;height:var(--ai-call-height,100dvh);max-height:none;margin:0;border:0;border-radius:0;box-shadow:none;padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));background:#111820;color:#f3f6f9;font:16px/1.5 system-ui,-apple-system,sans-serif;overflow:auto}
+#ai-call-dialog[open]{display:flex;flex-direction:column;align-items:center;gap:16px}
+#ai-call-dialog::backdrop{background:#111820}
 .ai-call-header{text-align:center;flex:none}
 .ai-call-header h2{font-size:20px;font-weight:650;margin:0 0 5px;color:inherit}
 .ai-call-header p{font-size:15px;color:#cad5e0;margin:0}
 .ai-call-body{flex:1;min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;max-width:650px;text-align:center}
 .ai-call-identity{width:clamp(100px,28vw,190px);height:clamp(100px,28vw,190px);display:grid;place-items:center;border-radius:50%;background:#e5edf2;overflow:hidden}
 .ai-call-identity img{width:82%;height:82%;object-fit:contain}
-.ai-call-dialog[data-state=speaking] .ai-call-identity{animation:kilas-call-speak 1.5s ease-in-out infinite}
+#ai-call-dialog[data-state=speaking] .ai-call-identity{animation:kilas-call-speak 1.5s ease-in-out infinite}
 .ai-call-name{font-size:20px;font-weight:600;margin:15px 0 0}
 .ai-call-caption{font-size:17px;line-height:1.5;max-width:55ch;max-height:25dvh;overflow:auto;overflow-wrap:anywhere;white-space:pre-wrap;margin:16px 0 0;color:#edf3f7}
 .ai-call-error{font-size:15px;max-width:45ch;color:#ffd1cc;margin:16px 0 0}
@@ -25,6 +26,6 @@ body.kilas-ai-call-open{overflow:hidden}
 .ai-call-footer a{color:#e6d0bc;text-underline-offset:3px}
 .ai-call-footer .ai-call-limit{margin-top:6px}
 @keyframes kilas-call-speak{50%{transform:scale(1.025)}}
-@media(max-width:400px){.ai-composer-actions .ai-call-launch{padding:8px;gap:4px;font-size:13px}.ai-call-dialog{gap:10px}.ai-call-caption{font-size:16px}}
-@media(max-height:550px) and (orientation:landscape){.ai-call-dialog[open]{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto 1fr;align-items:center}.ai-call-header{grid-column:1/-1}.ai-call-body{min-height:0}.ai-call-identity{width:85px;height:85px}.ai-call-name{display:none}.ai-call-caption{max-height:25vh}.ai-call-footer{max-width:370px}.ai-call-footer p{margin-top:6px}}
-@media(prefers-reduced-motion:reduce){.ai-call-dialog[data-state=speaking] .ai-call-identity{animation:none}}
+@media(max-width:400px){.ai-composer-actions .ai-call-launch{padding:8px;gap:4px;font-size:13px}#ai-call-dialog{gap:10px}.ai-call-caption{font-size:16px}}
+@media(max-height:550px) and (orientation:landscape){#ai-call-dialog[open]{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto 1fr;align-items:center}.ai-call-header{grid-column:1/-1}.ai-call-body{min-height:0}.ai-call-identity{width:85px;height:85px}.ai-call-name{display:none}.ai-call-caption{max-height:25vh}.ai-call-footer{max-width:370px}.ai-call-footer p{margin-top:6px}}
+@media(prefers-reduced-motion:reduce){#ai-call-dialog[data-state=speaking] .ai-call-identity{animation:none}}
