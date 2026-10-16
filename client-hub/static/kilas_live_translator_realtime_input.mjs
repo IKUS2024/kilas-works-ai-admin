@@ -28,6 +28,10 @@ export class RealtimeInput {
     turn.queued+=bytes.byteLength;turn.total+=bytes.byteLength;
     let offset=0;
     while(offset<bytes.byteLength){const length=Math.min(bytes.byteLength-offset,32000-turn.length);turn.pending.set(bytes.subarray(offset,offset+length),turn.length);turn.length+=length;offset+=length;if(turn.length===32000)this.flush(turn);}
+    // Prime the existing STT lease with the first capture frame immediately.
+    // Subsequent PCM still batches1s for bounded serialHTTP throughput. No
+    // second lease, input replay or earlier utterance commit is introduced.
+    if(turn.index===0)this.flush(turn);
     return turn.chain;
   }
   flush(turn){

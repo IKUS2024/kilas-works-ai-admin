@@ -83,7 +83,8 @@ class GeminiTests(unittest.TestCase):
             self.assertNotIn('speechConfig', setup['generationConfig'])
 
     def config(self, **extra):
-        values = {'KILAS_LIVE_GEMINI_ENABLED':'true', 'KILAS_LIVE_GEMINI_BILLING_VERIFIED':'yes',
+        values = {'KILAS_TRANSLATOR_PROVIDER':'gemini',
+                  'KILAS_LIVE_GEMINI_ENABLED':'true', 'KILAS_LIVE_GEMINI_BILLING_VERIFIED':'yes',
                   'KILAS_LIVE_GEMINI_ALLOWED_OWNER_ID':str(self.user),
                   'KILAS_LIVE_GEMINI_CAMPAIGN':'synthetic-gemini-'+str(self.user),
                   'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD':'5000',

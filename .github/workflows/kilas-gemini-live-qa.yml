@@ -2,7 +2,7 @@ name: Kilas Gemini Live Offline QA
 on:
   push:
     branches: [main, 'feature/kilas-gemini-*']
-    paths: ['client-hub/kilas_ai/live_gemini*.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/kilas_ai/live_translator_realtime.py', 'client-hub/gunicorn.conf.py', 'client-hub/tests/fixtures/gemini_live_synthetic/**', 'client-hub/static/kilas_live_gemini*', 'client-hub/static/kilas_live_translator_engine.mjs', 'client-hub/static/kilas_live_translator.mjs', 'client-hub/static/kilas_live_translator_realtime_capture.mjs', 'client-hub/static/kilas_live_translator_pcm.mjs', 'client-hub/templates/kilas_translator/gemini.html', 'client-hub/templates/kilas_translator/live.html', 'client-hub/tests/test_kilas_live_gemini*', 'client-hub/tests/test_kilas_live_translator*.mjs', 'client-hub/locales/**', '.github/workflows/kilas-gemini-live-qa.yml']
+    paths: ['client-hub/kilas_ai/live_gemini*.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/kilas_ai/live_translator*.py', 'client-hub/gunicorn.conf.py', 'client-hub/tests/fixtures/gemini_live_synthetic/**', 'client-hub/static/kilas_live_gemini*', 'client-hub/static/kilas_live_translator_engine.mjs', 'client-hub/static/kilas_live_translator.mjs', 'client-hub/static/kilas_live_translator_realtime_capture.mjs', 'client-hub/static/kilas_live_translator_pcm.mjs', 'client-hub/templates/kilas_translator/gemini.html', 'client-hub/templates/kilas_translator/live.html', 'client-hub/tests/test_kilas_live_gemini*', 'client-hub/tests/test_kilas_live_translator*.mjs', 'client-hub/tests/test_kilas_live_translator*.py', 'client-hub/locales/**', '.github/workflows/kilas-gemini-live-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,10 +18,10 @@ jobs:
         with: {node-version: '22'}
       - run: pip install -r client-hub/requirements.txt ruff
       - run: npm install --prefix /tmp/kilas-gemini-dom --cache /tmp/kilas-gemini-npm-cache --no-audit --no-fund --save-exact jsdom@26.1.0
-      - run: ruff check --select E9,F client-hub/kilas_ai/live_gemini*.py client-hub/gunicorn.conf.py client-hub/tests/test_kilas_live_gemini*.py
+      - run: ruff check --select E9,F client-hub/kilas_ai/live_gemini*.py client-hub/gunicorn.conf.py client-hub/tests/test_kilas_live_gemini*.py client-hub/kilas_ai/live_translator_readiness.py client-hub/tests/test_kilas_live_translator_restore.py
       - name: Mocked native protocol, tenant fences, shared budgets, history and locales
         run: |
-          for suite in test_kilas_live_gemini_smoke.py test_kilas_live_gemini.py test_kilas_live_gemini_validation.py test_kilas_live_gemini_completion.py test_kilas_live_gemini_pair.py test_kilas_live_gemini_pair_budget.py test_kilas_live_gemini_pair_routes.py test_kilas_live_gemini_capture.py test_kilas_live_gemini_budget.py test_kilas_live_gemini_capture_routes.py test_kilas_live_gemini_readiness.py test_kilas_live_translator.py test_kilas_live_translator_realtime.py test_kilas_live_translator_whole.py test_kilas_audio.py test_kilas_personal_voice.py test_kilas_audio_history.py test_ui_i18n.py test_ui_english_consistency.py test_kilas_learning_retirement.py; do
+          for suite in test_kilas_live_gemini_smoke.py test_kilas_live_gemini.py test_kilas_live_gemini_validation.py test_kilas_live_gemini_completion.py test_kilas_live_gemini_pair.py test_kilas_live_gemini_pair_budget.py test_kilas_live_gemini_pair_routes.py test_kilas_live_gemini_capture.py test_kilas_live_gemini_budget.py test_kilas_live_gemini_capture_routes.py test_kilas_live_gemini_readiness.py test_kilas_live_translator_restore.py test_kilas_live_translator_incremental.py test_kilas_live_translator_transport.py test_kilas_live_translator_realtime_check.py test_kilas_free_test.py test_kilas_live_translator_flow.py test_kilas_live_translator_segments.py test_kilas_live_translator_sse.py test_kilas_live_translator.py test_kilas_live_translator_realtime.py test_kilas_live_translator_whole.py test_kilas_audio.py test_kilas_personal_voice.py test_kilas_audio_history.py test_ui_i18n.py test_ui_english_consistency.py test_kilas_learning_retirement.py; do
             python -B scripts/run_offline_tests.py --only "$suite" || exit 1
           done
         env: {PYTHONDONTWRITEBYTECODE: '1', KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json}
