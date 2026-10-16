@@ -5,7 +5,7 @@ import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=app-lan
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=app-language-20261015';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
-import {GeminiSession,GeminiPlayer} from './kilas_live_gemini_engine.mjs?v=native-pair-20261016';
+import {GeminiSession,GeminiPlayer} from './kilas_live_gemini_engine.mjs?v=native-progressive-20261016';
 import {PlaybackEcho} from './kilas_live_gemini_echo.mjs?v=native-pair-20261016';
 const root=document.querySelector('[data-gemini-live]');
 if(root){

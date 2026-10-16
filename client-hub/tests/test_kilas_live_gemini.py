@@ -189,7 +189,7 @@ class GeminiTests(unittest.TestCase):
                     response=self.client.get('/kilas-translator/live/gemini')
                     self.assertEqual(response.status_code,200)
                     self.assertEqual(response.headers['Cache-Control'],'private, no-store')
-                    self.assertIn('value="gemini-live-two-way-v1"',response.text)
+                    self.assertIn('value="gemini-live-two-way-v2"',response.text)
                     self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/live/gemini')
                     self.assertEqual(self.client.get('/kilas-translator?mode=live').location,'/kilas-translator/live/gemini')
                     for path in ('/kilas-translator','/kilas-translator?mode=voiceover',

@@ -1,5 +1,6 @@
 """Two-way HTTP protocol and tenant fences; disposable SQLite, offline only."""
 import io
+import os
 import unittest
 from unittest.mock import Mock, patch
 
@@ -21,7 +22,8 @@ class PairRouteTests(unittest.TestCase):
 
     def fields(self,**extra):
         return {'csrf_token':'audio-csrf','language_a':'id','language_b':'en',
-                'consent':pair.INPUT_MODE,'translation_mode':'two_way',**extra}
+                'consent':pair.INPUT_MODE,'translation_mode':'two_way',
+                'output_order':pair.OUTPUT_ORDER,**extra}
 
     def create(self,user=None,voice=None):
         owner=self.user if user is None else user
@@ -84,6 +86,7 @@ class PairRouteTests(unittest.TestCase):
                     self.assertEqual(response.status_code,201)
                     self.assertEqual(response.json['input_mode'],pair.INPUT_MODE)
                     self.assertEqual(response.json['translation_mode'],'two_way')
+                    self.assertEqual(response.json['output_order'],pair.OUTPUT_ORDER)
                     self.assertEqual(response.json['streams'],['id','en'])
                     self.assertNotIn('target_language',response.json)
                     self.assertEqual(response.json['max_input_ms'],60000)
@@ -112,6 +115,50 @@ class PairRouteTests(unittest.TestCase):
             self.assertIsNone(sessions.active(self.user))
             start.assert_not_called();connect.assert_not_called()
 
+    def test_progressive_capability_must_match_fresh_consent_before_any_session_or_operation(self):
+        with self.config(),self.shared(),patch.object(native,'connect') as connect,patch.object(pair,'start') as start:
+            for changed in ({'consent':pair.LEGACY_INPUT_MODE},
+                            {'output_order':pair.LEGACY_OUTPUT_ORDER},
+                            {'output_order':'unknown'}, {'output_order':''}):
+                self.assertEqual(self.client.post('/kilas-translator/live/gemini/sessions',data=self.fields(**changed)).status_code,400)
+            missing=self.fields();missing.pop('output_order')
+            self.assertEqual(self.client.post('/kilas-translator/live/gemini/sessions',data=missing).status_code,400)
+            self.assertIsNone(sessions.active(self.user))
+            for table in ('kilas_audio_jobs','kilas_vo_stt_operations'):
+                self.assertEqual(audio.f.db.query_one('SELECT COUNT(*) AS n FROM '+table+' WHERE user_id=?',(self.user,))['n'],0)
+            start.assert_not_called();connect.assert_not_called()
+
+    def test_cached_pair_v1_forms_and_turns_keep_legacy_marker_and_full_turn_contract(self):
+        audio.f.db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,300)',(self.user,))
+        with self.config(),self.shared(),patch.object(native,'connect') as connect:
+            for order in (None,pair.LEGACY_OUTPUT_ORDER):
+                fields=self.fields(consent=pair.LEGACY_INPUT_MODE)
+                if order is None:fields.pop('output_order')
+                else:fields['output_order']=order
+                response=self.client.post('/kilas-translator/live/gemini/sessions',data=fields)
+                self.assertEqual(response.status_code,201)
+                self.assertEqual(response.json['input_mode'],pair.LEGACY_INPUT_MODE)
+                self.assertEqual(response.json['output_order'],pair.LEGACY_OUTPUT_ORDER)
+                ident=response.json['session_id'];key=self.key(7 if order is None else 8)
+                row=audio.f.db.query_one('SELECT voice_alias FROM kilas_live_translator_sessions WHERE id=?',(ident,))
+                self.assertEqual(row['voice_alias'],pair.LEGACY_VOICE)
+                base='/kilas-translator/live/gemini/sessions/'+ident+'/turns/'+key
+                with patch.object(pair.Thread,'start'):
+                    response=self.client.post(base,data=self.fields())
+                self.assertEqual(response.status_code,202)
+                relay=pair.owned(self.user,ident,key)
+                try:
+                    self.assertFalse(relay.progressive)
+                    self.assertEqual(response.json['input_mode'],pair.LEGACY_INPUT_MODE)
+                    self.assertEqual(response.json['output_order'],pair.LEGACY_OUTPUT_ORDER)
+                    self.assertEqual(relay.frames,[])
+                    connect.assert_not_called()
+                finally:
+                    budget.finish(relay.capability,False)
+                    audio_store.fail(self.user,relay.job,'synthetic')
+                    sessions.end(self.user,ident);pair.cancel(self.user,ident)
+                    native._slots.release();native._slots.release()
+
     def test_cached_one_way_admission_and_turn_cannot_select_pair_backend(self):
         audio.f.db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,300)',(self.user,))
         old={'csrf_token':'audio-csrf','language_a':'id','language_b':'en','consent':'gemini-live-v1'}
@@ -133,7 +180,8 @@ class PairRouteTests(unittest.TestCase):
         with self.config(),self.shared(),patch.object(pair,'start') as paired,patch.object(native,'start') as one_way,patch.object(native,'connect') as connect:
             response=self.client.post(base,data={'csrf_token':'audio-csrf','translation_mode':'one_way','target_language':'fr'})
             self.assertEqual(response.status_code,202)
-            self.assertEqual(response.json,{'status':'LISTENING','input_mode':pair.INPUT_MODE,'translation_mode':'two_way','streams':['id','en']})
+            self.assertEqual(response.json,{'status':'LISTENING','input_mode':pair.INPUT_MODE,'translation_mode':'two_way',
+                                           'output_order':pair.OUTPUT_ORDER,'streams':['id','en']})
             paired.assert_called_once_with(self.user,ident,self.key())
             one_way.assert_not_called();connect.assert_not_called()
 
@@ -250,6 +298,39 @@ class PairRouteTests(unittest.TestCase):
             cancel.assert_called_once_with(self.other,ident)
             self.assertEqual(self.client.get('/kilas-translator/live/sessions/active').json,{'session':None})
             self.assertEqual(self.client.post('/kilas-translator/live/gemini/sessions',data=self.fields()).status_code,404)
+            connect.assert_not_called()
+
+    def test_existing_pair_v1_member_keeps_owned_routes_and_recovery_without_upgrade(self):
+        self.login_other();ident=self.create(self.other,voice=pair.LEGACY_VOICE)
+        key=self.key();base='/kilas-translator/live/gemini/sessions/'+ident+'/turns/'+key
+        before=dict(audio.f.db.query_one('SELECT * FROM kilas_live_translator_sessions WHERE id=?',(ident,)))
+        relay=Mock();relay.snapshot.return_value={**pair.protocol(before),'frames':[]}
+        with self.config(),self.shared(),patch.object(native,'connect') as connect,patch.object(pair,'start') as start,patch.object(pair,'owned',return_value=relay):
+            for path in ('/kilas-translator/live','/kilas-translator?mode=live'):
+                self.assertEqual(self.client.get(path).location,'/kilas-translator/live/gemini')
+            page=self.client.get('/kilas-translator/live/gemini')
+            self.assertTrue('value="'+pair.LEGACY_INPUT_MODE+'"' in page.text)
+            self.assertTrue('name="output_order"' not in page.text)
+            self.assertEqual(dict(audio.f.db.query_one('SELECT * FROM kilas_live_translator_sessions WHERE id=?',(ident,))),before)
+            response=self.client.post(base,data=self.fields())
+            self.assertEqual(response.status_code,202)
+            self.assertEqual(response.json['input_mode'],pair.LEGACY_INPUT_MODE)
+            self.assertEqual(response.json['output_order'],pair.LEGACY_OUTPUT_ORDER)
+            start.assert_called_once_with(self.other,ident,key)
+            self.assertEqual(self.client.get(base+'?output_order='+pair.OUTPUT_ORDER).json['input_mode'],pair.LEGACY_INPUT_MODE)
+            self.assertEqual(self.client.post(base+'/chunks/0',data={'csrf_token':'audio-csrf','pcm':(io.BytesIO(b'\x01\x00'*80),'part.pcm','application/octet-stream')}).status_code,202)
+            self.assertEqual(self.client.post(base+'/finish',data={'csrf_token':'audio-csrf','count':'1'}).status_code,202)
+            with patch.dict(os.environ,{'KILAS_LIVE_GEMINI_ENABLED':'false'}):
+                self.assertEqual(self.client.get('/kilas-translator/live/sessions/active').json['session']['session_id'],ident)
+                self.assertEqual(self.client.get('/kilas-translator/live/sessions/'+ident).status_code,200)
+                page=self.client.get('/kilas-translator/live/gemini')
+                self.assertTrue('value="'+pair.LEGACY_INPUT_MODE+'"' in page.text)
+                self.assertTrue('data-gemini-ready="false"' in page.text)
+                self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/turns/'+key+'/cancel',data={'csrf_token':'audio-csrf'}).status_code,200)
+                self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+ident+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
+                self.assertEqual(self.client.get('/kilas-translator/live/sessions/active').json,{'session':None})
+            row=audio.f.db.query_one('SELECT voice_alias,status FROM kilas_live_translator_sessions WHERE id=?',(ident,))
+            self.assertEqual((row['voice_alias'],row['status']),(pair.LEGACY_VOICE,'ENDED'))
             connect.assert_not_called()
 
     def test_disabled_or_unauthenticated_account_cannot_admit_pair(self):
