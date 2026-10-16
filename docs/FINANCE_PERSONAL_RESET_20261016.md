@@ -22,4 +22,9 @@ Migration 0101 adds only reset-request and canonical-home metadata tables with f
 
 ## Deployment verification
 
-Pending release verification. Target: existing Client Hub service srv-da7ti2psrm7s73dh9i2g, main, https://app.kilasworks.id. Auto-deploy is disabled; one explicit deploy follows the approved main push. Authenticated production UI access from this environment is unavailable; local authenticated browser coverage is recorded above. No production reset/prepare endpoint or transaction is used for verification.
+- Application commit `75f4d373ba8cefd80641e6d6132dbd6b932dfca2` pushed to main, preserving `2426c24` and earlier Creative Services commits.
+- Existing Client Hub service `srv-da7ti2psrm7s73dh9i2g`: deploy `dep-db97vl3bc2fs73en5i60` reports **LIVE**, finished **2026-10-16 19:50:56 UTC**, at that exact commit. Running worker independently confirms the SHA. One explicit deploy; auto-deploy remains disabled.
+- Production migration 0101 checksum `b506c4799d8badc1af743771ba9f5db960016d876cbf9ea566dc85971445291c` matches the committed SQL. Existing 0100 checksum unchanged.
+- Read-only post-deploy comparison: **31/31 original Finance tables unchanged**, including transaction Notes, budgets, accounts and histories. [Counts/fingerprints](evidence/finance-personal-reset-20261016/production-data-preservation.json). Reset request count and completed-reset count both **0**; no production financial writes, reset preparation or reset invocation by this release.
+- User URL: https://app.kilasworks.id. Direct HTTPS verification is blocked by the execution proxy (`CONNECT tunnel failed, response 403`); authenticated production UI verification remains unavailable from this environment. Local authenticated Chromium evidence is recorded above. No production browser success is claimed.
+- The evidence follow-up changes documentation only; application source remains identical to the LIVE commit.
