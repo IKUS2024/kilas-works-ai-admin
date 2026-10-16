@@ -386,4 +386,12 @@ class CompletionTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    import faulthandler
+    import sys
+    # The aggregate runner retains stdout but drops stderr on its 120s timeout.
+    # Expose blocked thread stacks without extending that test deadline.
+    faulthandler.dump_traceback_later(30, repeat=True, file=sys.__stdout__)
+    try:
+        unittest.main(verbosity=2)
+    finally:
+        faulthandler.cancel_dump_traceback_later()
