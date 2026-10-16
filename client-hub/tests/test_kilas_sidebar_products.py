@@ -28,7 +28,7 @@ class SidebarProductsTests(unittest.TestCase):
                 self.assertIn('<span>'+label+'</span>',html)
                 self.assertEqual(html.count('name="product" value="finance"'),1)
                 self.assertNotIn('class="kilas-finance-entry"',html)
-                creative='<a class="chat-product-entry" href="https://kilasworks.id" target="_blank" rel="noopener noreferrer">'
+                creative='<a class="chat-product-entry" href="/kilas-ai/creative-services" data-chat-navigation>'
                 self.assertEqual(html.count(creative),1)
                 self.assertLess(html.index('name="product" value="finance"'),html.index(creative))
                 self.assertLess(html.index(creative),html.index('</details>',html.index('class="chat-products"')))

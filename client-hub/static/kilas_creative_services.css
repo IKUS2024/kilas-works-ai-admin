@@ -1,0 +1,11 @@
+/* Creative Services page only; reuse the existing app cards and buttons. */
+.kilas-creative-services .creative-categories{gap:20px;padding-top:0}
+.kilas-creative-services .creative-categories h2{font-size:20px;line-height:1.4}
+.kilas-creative-services .creative-back{display:inline-flex;align-items:center;min-height:44px;margin-bottom:12px}
+.kilas-creative-services .creative-package-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.kilas-creative-services .card{min-width:0;padding:24px}
+.kilas-creative-services .card h3{margin:0 0 12px}
+.kilas-creative-services .creative-price{font-size:24px;font-weight:700}
+.kilas-creative-services ul{padding-left:20px;line-height:1.7}
+.kilas-creative-services li+li{margin-top:8px}
+@media(max-width:900px){.kilas-creative-services .creative-package-grid{grid-template-columns:1fr}}

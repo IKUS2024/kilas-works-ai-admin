@@ -37,6 +37,14 @@ def require_access():
         abort(404)
 
 
+@ai_bp.get("/creative-services")
+def creative_services():
+    category = request.args.get("category", "")
+    if category not in ("", "event", "social"):
+        abort(404)
+    return render_template("kilas_ai/creative_services.html", category=category)
+
+
 @ai_bp.get("")
 def home(initial_brief=None):
     from . import model_policy, autonomous_runner

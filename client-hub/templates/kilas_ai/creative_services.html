@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}{{ ui_t('Jasa Kreatif') }} · Kilas Works{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='kilas_creative_services.css', v='draft-20261016') }}">
+<section class="premium-home kilas-creative-services">
+  <header class="premium-page-heading"><h1>{{ ui_t('Jasa Kreatif') }}</h1><p>{{ ui_t('Pilih kategori jasa yang kamu butuhkan.') }}</p></header>
+  {% if not category %}
+  <div class="premium-home-secondary creative-categories">
+    <section class="card"><h2>{{ ui_t('Foto & Video Acara') }}</h2><a class="btn secondary" href="{{ url_for('kilas_ai.creative_services', category='event') }}">{{ ui_t('Lihat paket acara') }}</a></section>
+    <section class="card"><h2>{{ ui_t('Paket Konten Media Sosial') }}</h2><a class="btn secondary" href="{{ url_for('kilas_ai.creative_services', category='social') }}">{{ ui_t('Lihat paket konten') }}</a></section>
+  </div>
+  {% else %}
+  <a class="creative-back" href="{{ url_for('kilas_ai.creative_services') }}">← {{ ui_t('Semua jasa kreatif') }}</a>
+  <h2>{{ ui_t('Foto & Video Acara') if category == 'event' else ui_t('Paket Konten Media Sosial') }}</h2>
+  {% if category == 'event' %}
+  <div class="creative-package-grid">
+    <article class="card" data-creative-package="basic"><h3>Basic</h3><p class="creative-price">Rp1.500.000</p><ul>
+      <li>{{ ui_t('1 fotografer') }}</li><li>{{ ui_t('Maksimal 5 jam') }}</li><li>{{ ui_t('Seluruh file foto original') }}</li><li>{{ ui_t('Edit maksimal 50 foto pilihan klien') }}</li>
+    </ul></article>
+    <article class="card" data-creative-package="standard"><h3>Standard</h3><p class="creative-price">Rp3.000.000</p><ul>
+      <li>{{ ui_t('1 fotografer + 1 videografer') }}</li><li>{{ ui_t('Maksimal 8 jam') }}</li><li>{{ ui_t('Seluruh file foto dan video original') }}</li><li>{{ ui_t('Edit maksimal 50 foto pilihan klien') }}</li><li>{{ ui_t('Video highlight') }}</li>
+    </ul></article>
+    <article class="card" data-creative-package="premium"><h3>Premium</h3><p>{{ ui_t('Rincian paket sedang disiapkan.') }}</p></article>
+  </div>
+  {% else %}
+  <section class="card"><p>{{ ui_t('Rincian paket sedang disiapkan.') }}</p></section>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}
