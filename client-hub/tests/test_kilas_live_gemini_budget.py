@@ -24,8 +24,10 @@ class GeminiBudgetTests(unittest.TestCase):
         self.path = str(Path(self.folder.name)/'native-budget.sqlite')
         with closing(sqlite3.connect(self.path)) as conn:
             conn.execute('CREATE TABLE users(id INTEGER PRIMARY KEY,role TEXT NOT NULL)')
+            conn.execute('CREATE TABLE customer_auth_account_state(user_id INTEGER PRIMARY KEY,disabled INTEGER NOT NULL DEFAULT 0)')
             conn.executescript((Path(__file__).resolve().parents[1]/'migrations/0091_kilas_voice_script_transcription_sqlite.sql').read_text())
-            conn.executemany('INSERT INTO users(id,role) VALUES (?,?)', [(1, 'CLIENT_OWNER'), (2, 'CLIENT_OWNER')])
+            conn.executemany('INSERT INTO users(id,role) VALUES (?,?)',
+                             [(1, 'CLIENT_OWNER'), (2, 'CLIENT_MEMBER'), (3, 'KILAS_ADMIN')])
             conn.commit()
         self.env = {'KILAS_LIVE_GEMINI_ENABLED': 'true', 'KILAS_LIVE_GEMINI_BILLING_VERIFIED': 'yes',
                     'KILAS_LIVE_GEMINI_ALLOWED_OWNER_ID': '1', 'KILAS_LIVE_GEMINI_CAMPAIGN': 'synthetic-standing',
@@ -38,6 +40,7 @@ class GeminiBudgetTests(unittest.TestCase):
                     'KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD': '250000'}
         for changing in (patch.dict(os.environ, self.env, clear=True),
                          patch.object(db, 'BACKEND', 'sqlite'),
+                         patch.object(db, 'query_one', side_effect=self.query),
                          patch.object(budget.usage, '_connect', side_effect=self.connect)):
             changing.start()
             self.addCleanup(changing.stop)
@@ -120,6 +123,118 @@ class GeminiBudgetTests(unittest.TestCase):
             self.assertIsNone(budget.policy())
             with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_IDR_CEILING_VERIFIED': 'yes'}):
                 self.assertEqual(budget.policy()['valuation_mode'], 'verified_ceiling')
+
+    def test_authenticated_audience_is_explicit_and_preserves_campaign_policy(self):
+        original = budget.policy()
+        self.assertEqual(original['audience'], 'owner')
+        self.assertTrue(budget.allowed(1, original))
+        self.assertFalse(budget.allowed(2, original))
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE': 'authenticated'}):
+            shared = budget.policy()
+            for field in ('id', 'allowed_owner', 'global_micro', 'account_micro', 'expires_at', 'price_version'):
+                self.assertEqual(shared[field], original[field], field)
+            self.assertEqual(shared['audience'], 'authenticated')
+            self.assertTrue(budget.ready(2))
+            self.assertTrue(budget.ready(3))
+            self.assertEqual(self.query('SELECT role FROM users WHERE id=2'), ('CLIENT_MEMBER',))
+            with budget.transaction() as conn:
+                self.assertTrue(budget.allowed(2, shared, conn))
+                self.assert_denied('not_owned', lambda: budget.ledger._owner(conn, 2))
+            with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_POLICY': 'qa',
+                                        'KILAS_LIVE_GEMINI_EXPIRES_AT': (datetime.now(timezone.utc)+timedelta(hours=1)).isoformat()}):
+                self.assertEqual(budget.policy()['audience'], 'owner')
+                self.assertFalse(budget.ready(2))
+                self.assert_denied('gemini_unavailable', lambda: budget.claim(2, 'a'*48, self.key()))
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE': 'unknown'}):
+            self.assertIsNone(budget.policy())
+
+    def test_shared_audience_rejects_untrusted_or_missing_account_ids(self):
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE': 'authenticated'}):
+            for invalid in (None, True, False, '1', 1.0, 0, -1, 10**9+1, 999):
+                self.assertFalse(budget.allowed(invalid), repr(invalid))
+                self.assertFalse(budget.ready(invalid), repr(invalid))
+                self.assertEqual(budget.status(invalid), {'available': False, 'reason': 'gemini_unavailable'})
+                self.assert_denied('gemini_unavailable', lambda: budget.claim(invalid, 'a'*48, self.key()))
+                forged = budget.ledger.Reservation(invalid, self.key()+'-gm', 'untrusted')
+                self.assert_denied('gemini_unavailable', lambda: budget.dispatch(forged))
+            self.assertTrue(budget.allowed(3))
+            self.execute('DELETE FROM users WHERE id=3')
+            self.assertFalse(budget.allowed(3))
+            self.assert_denied('gemini_unavailable', lambda: budget.claim(3, 'c'*48, self.key()))
+        self.assertEqual(self.query('SELECT COUNT(*) FROM kilas_vo_stt_operations'), (0,))
+
+    def test_accounts_share_one_global_lifetime_cap_including_all_historical_users(self):
+        for n in range(100, 104):
+            self.seed(100000, 'UNKNOWN', 'gml-historical-'+str(n), n, owner=1 if n%2 else 2)
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE': 'authenticated',
+                                    'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD': '900000'}):
+            second = budget.claim(2, 'b'*48, self.key(1))
+            self.assert_denied('already_processing', lambda: budget.claim(2, 'b'*48, self.key(2)))
+            third = budget.claim(3, 'c'*48, self.key(3))
+            self.assert_denied('budget_limit', lambda: self.claim(4))
+            budget.dispatch(second)
+            budget.dispatch(third)
+            budget.finish(second, False)
+            budget.finish(third, True)
+            for owner in (1, 2, 3):
+                snapshot = budget.status(owner)
+                self.assertEqual(snapshot['charged_micro_usd'], 900000)
+                self.assertEqual(snapshot['remaining_micro_usd'], 0)
+                self.assertEqual(snapshot['reason'], 'budget_limit')
+            with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_CAMPAIGN': 'rotated-standing'}):
+                self.assert_denied('budget_limit', lambda: budget.claim(2, 'b'*48, self.key(5)))
+        self.assertEqual(self.query("SELECT COUNT(*),SUM(charge_micro) FROM kilas_vo_stt_operations WHERE campaign LIKE 'gml-%'"),
+                         (6, 900000))
+
+    def test_shared_scope_is_rechecked_before_dispatch_and_settlement_survives_revocation(self):
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE': 'authenticated'}):
+            capability = budget.claim(2, 'b'*48, self.key())
+            with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE': 'owner'}):
+                self.assert_denied('gemini_unavailable', lambda: budget.dispatch(capability))
+                self.assertFalse(budget.finish(capability, False))
+            self.assertEqual(self.query('SELECT status,charge_micro FROM kilas_vo_stt_operations'), ('CANCELLED', 0))
+            dispatched = budget.claim(2, 'b'*48, self.key(2))
+            budget.dispatch(dispatched)
+            with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE': 'owner', 'KILAS_LIVE_GEMINI_ENABLED': 'false'}):
+                self.assertFalse(budget.ready(2))
+                self.assertFalse(budget.finish(dispatched, False))
+                self.assertFalse(budget.finish(dispatched, True))
+            self.assertEqual(self.query('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',
+                                        (self.key(2)+'-gm',)), ('UNKNOWN', 250000))
+
+    def test_disabled_accounts_are_rechecked_without_blocking_existing_settlement(self):
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE': 'authenticated'}):
+            reserved = budget.claim(2, 'b'*48, self.key())
+            dispatched = budget.claim(3, 'c'*48, self.key(2))
+            budget.dispatch(dispatched)
+            self.execute('INSERT INTO customer_auth_account_state(user_id,disabled) VALUES (2,1)')
+            self.execute('INSERT INTO customer_auth_account_state(user_id,disabled) VALUES (3,1)')
+            for owner in (2, 3):
+                self.assertFalse(budget.allowed(owner))
+                self.assertFalse(budget.ready(owner))
+                self.assertEqual(budget.status(owner), {'available': False, 'reason': 'gemini_unavailable'})
+                self.assert_denied('gemini_unavailable', lambda: budget.claim(owner, 'b'*48, self.key(3)))
+            self.assert_denied('gemini_unavailable', lambda: budget.dispatch(reserved))
+            self.assertFalse(budget.finish(reserved, False))
+            self.assertFalse(budget.finish(dispatched, False))
+            self.assertEqual(self.query('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE user_id=2'), ('CANCELLED', 0))
+            self.assertEqual(self.query('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE user_id=3'), ('UNKNOWN', 250000))
+
+    def test_shared_scope_never_allows_foreign_nonce_key_or_boolean_owner(self):
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE': 'authenticated'}):
+            capability = budget.claim(2, 'b'*48, self.key())
+            for forged in (budget.ledger.Reservation(1, capability.key, capability.lease),
+                           budget.ledger.Reservation(3, capability.key, capability.lease),
+                           budget.ledger.Reservation(2, self.key(2)+'-gm', capability.lease),
+                           budget.ledger.Reservation(2, capability.key, 'wrong-nonce')):
+                self.assert_denied('invalid_reservation', lambda: budget.dispatch(forged))
+                self.assert_denied('invalid_reservation', lambda: budget.finish(forged, False))
+            forged = budget.ledger.Reservation(True, capability.key, capability.lease)
+            self.assert_denied('gemini_unavailable', lambda: budget.dispatch(forged))
+            self.assert_denied('invalid_reservation', lambda: budget.finish(forged, False))
+            self.assertEqual(self.query('SELECT status,charge_micro FROM kilas_vo_stt_operations'), ('RESERVED', 250000))
+            budget.dispatch(capability)
+            budget.finish(capability, False)
 
     def test_status_is_read_only_private_and_counts_all_historical_native_outcomes(self):
         for n, outcome in enumerate(('COMPLETED', 'UNKNOWN', 'CANCELLED', 'DISPATCHED', 'FAILED'), 100):

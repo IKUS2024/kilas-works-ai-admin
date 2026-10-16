@@ -20,12 +20,72 @@ from . import audio_transcription_budget as video_budget, audio_transcription_pr
 audio_bp=Blueprint('kilas_audio',__name__,url_prefix='/kilas-translator')
 
 
+def _shared_native_user(user):
+    from . import live_gemini_budget as budget
+    config=budget.policy()
+    return bool(config and config['mode']=='owner_lifetime'
+                and config.get('audience')=='authenticated' and budget.allowed(user,config))
+
+
+def _native_default_ready(user):
+    from . import live_gemini as native
+    if request.args.get('classic')=='1':return False
+    row=db.query_one("SELECT voice_alias FROM kilas_live_translator_sessions WHERE user_id=? AND status='ACTIVE' AND (expires_at='' OR expires_at>?) ORDER BY created_at DESC LIMIT 1",(user,usage._now().isoformat()))
+    # An old session stays on its original page until its user explicitly ends
+    # it. A GET cannot migrate it or imply that its old pipeline uses Gemini.
+    return row['voice_alias']==native.VOICE if row else native.ready(user)
+
+
+def _active_native_session(user):
+    from . import live_gemini as native
+    return bool(db.query_one("SELECT 1 FROM kilas_live_translator_sessions WHERE user_id=? AND voice_alias=? AND status='ACTIVE' AND (expires_at='' OR expires_at>?)",(user,native.VOICE,usage._now().isoformat())))
+
+
+def _native_route_access(user):
+    """An explicit native exception; legacy audio keeps its existing role gate."""
+    from . import live_gemini as native
+    endpoint=request.endpoint
+    shared=_shared_native_user(user)
+    if endpoint=='kilas_audio.live_gemini_home':
+        return shared or _active_native_session(user)
+    if endpoint in {
+        'kilas_audio.live_gemini_session',
+        'kilas_audio.live_gemini_turn','kilas_audio.live_gemini_chunk',
+        'kilas_audio.live_gemini_finish',
+    }:
+        return shared
+    if (endpoint=='kilas_audio.live_translator_home'
+            or (endpoint=='kilas_audio.home' and request.view_args.get('ident') is None
+                and request.args.get('mode')=='live')):
+        return (shared or _active_native_session(user)) and _native_default_ready(user)
+    if endpoint=='kilas_audio.live_translator_active':
+        # The browser discovers only its own session. An existing native user
+        # can still recover after rollout is disabled; never expose legacy
+        # sessions through the native-only exception.
+        row=db.query_one("SELECT voice_alias FROM kilas_live_translator_sessions WHERE user_id=? AND status='ACTIVE' AND (expires_at='' OR expires_at>?) ORDER BY created_at DESC LIMIT 1",(user,usage._now().isoformat()))
+        if row:return row['voice_alias']==native.VOICE
+        # After a successful explicit End the recovery UI checks once more.
+        # Native participation grants this empty discovery response even OFF.
+        return shared or bool(db.query_one('SELECT 1 FROM kilas_live_translator_sessions WHERE user_id=? AND voice_alias=? LIMIT 1',(user,native.VOICE)))
+    if endpoint in {'kilas_audio.live_translator_session_status',
+                    'kilas_audio.live_translator_end','kilas_audio.live_translator_cancel_turn'}:
+        row=db.query_one('SELECT voice_alias FROM kilas_live_translator_sessions WHERE user_id=? AND id=?',
+                         (user,request.view_args['ident']))
+        return bool(row and row['voice_alias']==native.VOICE)
+    return False
+
+
 @audio_bp.before_request
 def access():
     if not enabled():abort(404)
     if not session.get('user_id'):return redirect(url_for('auth.login_page'))
+    if type(session['user_id']) is not int or not 0<session['user_id']<=10**9:abort(404)
     user=security.current_user()
-    if not user or session.get('role')!=user['role'] or (user['role']!='CLIENT_OWNER' and not free_test.eligible(session["user_id"])):abort(404)
+    if not user or user['id']!=session['user_id'] or session.get('role')!=user['role']:abort(404)
+    # The app's customer_auth middleware has already checked the revocable
+    # login, disabled state and fresh DB role. A signed cookie alone cannot
+    # establish access. This exception grants no legacy product entitlement.
+    if user['role']!='CLIENT_OWNER' and not free_test.eligible(session['user_id']) and not _native_route_access(session['user_id']):abort(404)
 
 
 @audio_bp.errorhandler(store.AudioError)
@@ -71,6 +131,8 @@ def history_fragment():
 @audio_bp.get('')
 @audio_bp.get('/jobs/<int:ident>')
 def home(ident=None,initial_brief=None,home_task=None):
+    if ident is None and request.args.get('mode')=='live':
+        return live_translator_home()
     from .content_projects import draft
     content_draft = draft(session['user_id'])
     user=session['user_id'];job=owned(ident) if ident else None
@@ -404,6 +466,10 @@ def audio_review(ident):
 @audio_bp.get('/live')
 def live_translator_home():
     from . import live_translator as live
+    if _native_default_ready(session['user_id']):
+        # Navigation never ends or replaces an active session. Native Start
+        # retains the existing session_busy fence and explicit recovery UI.
+        return redirect(url_for('kilas_audio.live_gemini_home')),302,{'Cache-Control':'private, no-store'}
     return render_template('kilas_translator/live.html',live_ready=live.ready(session['user_id']),voices=branded.public_choices(),languages=provider.LANGUAGES),200,{'Cache-Control':'private, no-store'}
 
 
@@ -462,14 +528,17 @@ def live_translator_cancel_turn(ident,key):
 def live_gemini_home():
     from . import live_gemini as native
     enabled = native.ready(session['user_id'])
-    if not enabled and not native.preview_owner(session['user_id']):
+    recovery_only = not enabled and _active_native_session(session['user_id'])
+    if not enabled and not recovery_only and not native.preview_owner(session['user_id']):
         native.require_ready(session['user_id'])
-    return render_template('kilas_translator/gemini.html', languages=provider.LANGUAGES, gemini_ready=enabled)
+    return render_template('kilas_translator/gemini.html', languages=provider.LANGUAGES, gemini_ready=enabled,
+                           gemini_recovery_only=recovery_only),200,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.get('/live/gemini/fixtures')
 def live_gemini_fixtures():
     from . import live_gemini_capture as capture
+    capture.require_owner(session['user_id'])
     return {'fixtures':capture.list_for_owner(session['user_id'])}, 200, {
         'Cache-Control':'private, no-store', 'X-Content-Type-Options':'nosniff'}
 
@@ -477,6 +546,7 @@ def live_gemini_fixtures():
 @audio_bp.get('/live/gemini/fixtures/<opaque>/<kind>')
 def live_gemini_fixture_export(opaque, kind):
     from . import live_gemini_capture as capture
+    capture.require_owner(session['user_id'])
     artifact = capture.export(session['user_id'], opaque, kind)
     response = send_file(io.BytesIO(artifact['data']), mimetype=artifact['mimetype'],
                          as_attachment=True, download_name=artifact['filename'],

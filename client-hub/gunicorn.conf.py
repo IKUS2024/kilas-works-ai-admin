@@ -15,11 +15,16 @@ def post_worker_init(worker):
     if configured:
         # SELECT-only verification; never create a session or provider request.
         try:
-            from kilas_ai.live_gemini_readiness import report
+            from kilas_ai.live_gemini_readiness import audience_report, report
             readiness = report()
         except Exception:
             readiness = {'start_eligible':False, 'reason':'readiness_check_failed'}
         print('KILAS_GEMINI_OWNER_READY '+json.dumps(readiness,sort_keys=True), flush=True)
+        try:
+            audience = audience_report(readiness)
+        except Exception:
+            audience = {'audience':None, 'nonowner':None, 'nonowner_reason':'readiness_check_failed'}
+        print('KILAS_GEMINI_AUDIENCE_READY '+json.dumps(audience,sort_keys=True), flush=True)
     # Default-off, once-only approved synthetic Gemini test in a separate process.
     from kilas_ai.live_gemini_smoke import launch
     launch()

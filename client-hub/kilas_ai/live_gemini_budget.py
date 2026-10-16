@@ -1,4 +1,4 @@
-"""Owner-only native Live allowance. No supplier invoice/balance claims.
+"""Native Live allowance with an explicit audience. No invoice/balance claims.
 
 One conservative, operator-approved lease estimate is retained after ANY dispatch.
 The ledger contains no key, audio or transcript. This does not extend ElevenLabs,
@@ -37,6 +37,9 @@ def policy():
         cap = int(os.environ['KILAS_LIVE_GEMINI_BUDGET_MICRO_USD'])
         reserve = int(os.environ['KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD'])
         mode = os.environ.get('KILAS_LIVE_GEMINI_POLICY', 'qa')
+        audience = os.environ.get('KILAS_LIVE_GEMINI_AUDIENCE', 'owner')
+        if audience not in ('owner', 'authenticated'):
+            return None
         valuation = {}
         price_version = PRICE_VERSION
         if mode == 'owner_lifetime':
@@ -85,19 +88,57 @@ def policy():
             return None
         if (not re.fullmatch(r'[A-Za-z0-9_-]{1,70}', campaign) or not 0 < owner <= 10**9
                 or not 1 <= reserve <= cap <= 10**9
-                or (mode == 'owner_lifetime' and reserve < 100000)):
+                or (mode == 'owner_lifetime' and reserve < 100000)
+                or (mode == 'owner_lifetime' and audience == 'authenticated'
+                    and (reserve < INTERNAL_RESERVE_MIN_MICRO_USD or cap > 10000000))):
             return None
         return {'id':'gml-'+campaign, 'allowed_owner':owner, 'global_micro':cap,
                 'account_micro':cap, 'reserve':reserve,
                 'expires_at':expiry_text, 'price_version':price_version, 'mode':mode,
+                # Audience changes authorization, never the existing funding
+                # policy, campaign, historical spend or lifetime ceiling.
+                'audience': audience if mode == 'owner_lifetime' else 'owner',
                 **valuation}
     except (ValueError, KeyError, TypeError, OverflowError):
         return None
 
 
+def allowed(owner, config=None, conn=None):
+    """Authorize an existing account ID supplied by server authentication.
+
+    An ID is not a login credential. Routes must still obtain it from their
+    authenticated user and keep session/turn ownership fences. The authenticated
+    audience accepts every existing account role without granting any new role.
+    """
+    if type(owner) is not int or not 0 < owner <= 10**9:
+        return False
+    config = policy() if config is None else config
+    if not config:
+        return False
+    shared = config['mode'] == 'owner_lifetime' and config.get('audience') == 'authenticated'
+    if not shared and config['allowed_owner'] != owner:
+        return False
+    query = ('SELECT u.id FROM users u LEFT JOIN customer_auth_account_state a ON a.user_id=u.id '
+             'WHERE u.id=? AND COALESCE(a.disabled,0)=0')
+    if conn is None:
+        return bool(ledger.db.query_one(query, (owner,)))
+    # PostgreSQL cannot lock the nullable side of an outer join. Keep the
+    # owner row fence while rechecking disabled state without creating it.
+    lock = ' FOR UPDATE OF u' if ledger.db.BACKEND == 'postgres' else ''
+    return bool(usage._query(conn, query+lock, (owner,), one=True))
+
+
+def _authorize(conn, owner, config):
+    if not allowed(owner, config, conn):
+        raise ledger.BudgetError('gemini_unavailable', 404)
+    if not (config['mode'] == 'owner_lifetime' and config.get('audience') == 'authenticated'):
+        # Preserve owner/QA eligibility and every other STT policy. The shared
+        # native audience alone bypasses this owner/free-test role restriction.
+        ledger._owner(conn, owner)
+
+
 def ready(owner):
-    config = policy()
-    return bool(config and config['allowed_owner'] == owner)
+    return allowed(owner)
 
 
 def _spend(conn, config):
@@ -117,11 +158,11 @@ def status(owner):
     """
     config = policy()
     unavailable = {'available': False, 'reason': 'gemini_unavailable'}
-    if not config or config['allowed_owner'] != owner:
+    if not config or not allowed(owner, config):
         return unavailable
     with transaction() as conn:
         ledger._global_lock(conn)
-        ledger._owner(conn, owner)
+        _authorize(conn, owner, config)
         row = usage._query(conn,
             'SELECT global_micro,account_micro,expires_at,price_version,blocked FROM kilas_vo_stt_campaigns WHERE id=?',
             (config['id'],), one=True)
@@ -133,7 +174,7 @@ def status(owner):
             "SELECT 1 FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",
             (owner,), one=True))
     reason = 'already_processing' if active else 'budget_limit' if remaining < config['reserve'] else None
-    return {'available': reason is None, 'reason': reason, 'policy_mode': config['mode'],
+    return {'available': reason is None, 'reason': reason, 'policy_mode': config['mode'], 'audience': config['audience'],
             'valuation_mode': config.get('valuation_mode'), 'total_idr': config.get('total_idr'),
             'guard_idr': config.get('guard_idr'), 'idr_per_usd': config.get('idr_per_usd'),
             'cap_micro_usd': config['global_micro'], 'charged_micro_usd': charged,
@@ -143,7 +184,7 @@ def status(owner):
 
 def claim(owner, ident, key):
     config = policy()
-    if not config or config['allowed_owner'] != owner:
+    if not config or not allowed(owner, config):
         raise ledger.BudgetError('gemini_unavailable', 404)
     if not re.fullmatch(r'live-[a-f0-9]{32}', key):
         raise ledger.BudgetError('invalid_operation', 400)
@@ -155,7 +196,7 @@ def claim(owner, ident, key):
                                   else ident+':'+key).encode()).hexdigest()
     with transaction() as conn:
         ledger._campaign(conn, config)
-        ledger._owner(conn, owner)
+        _authorize(conn, owner, config)
         ledger._expire(conn, owner=owner)
         if ledger._row(conn, owner, operation):
             raise ledger.BudgetError('duplicate_turn', 409)
@@ -203,12 +244,12 @@ def dispatch(capability):
     if type(capability) is not ledger.Reservation:
         raise ledger.BudgetError('invalid_reservation')
     config = policy()
-    if not config or config['allowed_owner'] != capability.owner:
+    if not config or not allowed(capability.owner, config):
         raise ledger.BudgetError('gemini_unavailable', 404)
     with transaction() as conn:
         ledger._campaign(conn, config)  # Recheck campaign block/config before dispatch.
         row = ledger._lock_existing_campaign(conn, capability.owner, capability.key)
-        ledger._owner(conn, capability.owner)
+        _authorize(conn, capability.owner, config)
         if (not row or row[1] != config['id'] or row[3] != 'RESERVED'
                 or row[4] != config['reserve'] or row[5] != ledger._hash(capability.lease)
                 or row[6] != LEASE_MS):
@@ -227,6 +268,8 @@ def dispatch(capability):
 
 def finish(capability, success):
     # Settlement remains possible after expiry, flag-off, End or policy edits.
+    if type(capability) is not ledger.Reservation or type(capability.owner) is not int or not 0 < capability.owner <= 10**9:
+        raise ledger.BudgetError('invalid_reservation')
     with transaction() as conn:
         row = ledger._lock_existing_campaign(conn, capability.owner, capability.key)
         ledger._owner(conn, capability.owner, settlement=True)

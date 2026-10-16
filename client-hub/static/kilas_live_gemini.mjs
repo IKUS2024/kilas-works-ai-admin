@@ -8,6 +8,7 @@ import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=ca
 import {GeminiSession,GeminiPlayer} from './kilas_live_gemini_engine.mjs?v=gemini-continuous-v2';
 const root=document.querySelector('[data-gemini-live]');
 if(root){
+ const admissionReady=root.dataset.geminiReady==='true';
  const form=document.querySelector('#live-setup-form'),start=form.querySelector('[type=submit]'),active=document.querySelector('#live-active'),error=document.querySelector('#live-error');
  const first=form.querySelector('[name=language_a]'),second=form.querySelector('[name=language_b]'),csrf=form.querySelector('[name=csrf_token]').value;
  let context=null,session,recovery;
@@ -19,7 +20,7 @@ if(root){
  const layout=new TranslatorCallLayout({document,root,endButton:document.querySelector('#live-end')});
  const latency=values=>{try{console.info('KILAS_GEMINI_CLIENT_LATENCY '+Object.entries(values).filter(([,v])=>Number.isFinite(v)&&v>=0).map(([k,v])=>k+'='+v.toFixed(1)).join(' '));}catch{}};
  const player=new GeminiPlayer({getContext,onTiming:latency,onStarted:()=>{if(session.firstInputAt!==null)latency({first_audio_scheduled_ms:Math.max(0,performance.now()-session.firstInputAt)});},onError:e=>session.fail(e,session.version)});
- const update=()=>{start.disabled=Boolean(session?.active)||Boolean(session?.admissionPending)||!recovery?.canStart()||!validLanguagePair(first,second);};
+ const update=()=>{start.disabled=!admissionReady||Boolean(session?.active)||Boolean(session?.admissionPending)||!recovery?.canStart()||!validLanguagePair(first,second);};
  recovery=new TranslatorRecovery({api:{active:()=>json('/kilas-translator/live/sessions/active'),end:id=>json('/kilas-translator/live/sessions/'+id+'/end',{method:'POST',body:session.form(),timeoutMs:10000})},
   isIdle:()=>!session?.active,onError:showError,onChange:state=>{
    document.querySelector('#live-recovery').hidden=!state.active;document.querySelector('#live-recovery-status').textContent=state.active?t('Sesi sebelumnya masih aktif.'):'';update();
@@ -33,7 +34,7 @@ if(root){
   if(state==='ended'){recovery.checked=false;update();}
  },onText:text=>{document.querySelector('#live-translation').textContent=text;},onWarning:()=>{document.querySelector('#live-session-status').textContent=t('Suara yang diterima tetap diputar. Kelengkapan bagian akhir terjemahan belum dikonfirmasi.');},onError:showError});
  for(const select of [first,second])select.addEventListener('change',()=>{syncLanguagePair(first,second,select);update();});syncLanguagePair(first,second);update();
- form.addEventListener('submit',event=>{event.preventDefault();if(!form.reportValidity()||start.disabled)return;error.hidden=true;document.querySelector('#live-translation').textContent='';document.querySelector('#live-session-status').textContent='';session.start(new FormData(form));});
+ form.addEventListener('submit',event=>{event.preventDefault();if(!admissionReady||start.disabled||!form.reportValidity())return;error.hidden=true;document.querySelector('#live-translation').textContent='';document.querySelector('#live-session-status').textContent='';session.start(new FormData(form));});
  document.querySelector('#gemini-finish').addEventListener('click',()=>session.finish());
  document.querySelector('#live-end').addEventListener('click',()=>session.end());
  document.querySelector('#live-recovery-end').addEventListener('click',()=>recovery.endPrevious());
