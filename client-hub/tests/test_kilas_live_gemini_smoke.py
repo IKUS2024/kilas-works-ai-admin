@@ -41,6 +41,31 @@ class SmokeTests(unittest.TestCase):
             self.assertEqual(len(pcm),480000)
             self.assertTrue(any(pcm))
 
+    def test_fixture_checks_require_actual_streaming_terminal_tail_and_end(self):
+        valid={'code':None,'setup_complete':True,'input_ms':15000,'output_ms':1000,
+               'streamed_before_input_finished':True,'source_tail_word_confirmed':True,
+               'target_tail_word_confirmed':True,'terminal_turn_complete':True,
+               'all_generated_pcm_read':True,'settled_after_end':True,'post_end_frames':0,
+               'post_end_output_access':'blocked','backend_end_ms':50}
+        self.assertTrue(smoke.passed(valid))
+        for field in ('streamed_before_input_finished','source_tail_word_confirmed','target_tail_word_confirmed',
+                      'terminal_turn_complete','all_generated_pcm_read','settled_after_end'):
+            self.assertFalse(smoke.passed(dict(valid,**{field:False})))
+        self.assertFalse(smoke.passed(dict(valid,code='gemini_tail_timeout')))
+        self.assertFalse(smoke.passed(dict(valid,backend_end_ms=2500)))
+        self.assertTrue(smoke.tail_word('A bottle of WATER.','en'))
+        self.assertTrue(smoke.tail_word('Sebotol air!','id'))
+        self.assertFalse(smoke.tail_word('A bottle of','en'))
+
+    def test_policy_check_restores_child_flag_and_never_reads_or_reports_secret_names(self):
+        from kilas_ai import live_gemini_budget as budget
+        with patch.dict(os.environ,{'KILAS_LIVE_GEMINI_ENABLED':'false'}),\
+             patch.object(budget,'ready',return_value=False):
+            value=smoke.production_policy_check(9)
+            self.assertFalse(value['valid_for_owner_if_enabled'])
+            self.assertEqual(os.environ['KILAS_LIVE_GEMINI_ENABLED'],'false')
+            self.assertNotIn('GEMINI_API_KEY',str(value))
+
     def test_probe_retains_only_numeric_usage_and_preserves_wire_response(self):
         raw=json.dumps({'usageMetadata':{'promptTokenCount':375,'responseTokenCount':750,
                                         'totalTokenCount':1125,'secret':'synthetic-not-output'},
@@ -90,6 +115,17 @@ class SmokeTests(unittest.TestCase):
             smoke.run()
             self.assertNotIn('synthetic-secret',output.getvalue())
             self.assertIn('stopped_no_retry',output.getvalue())
+            self.assertEqual(os.environ['KILAS_LIVE_GEMINI_ENABLED'],'false')
+
+    def test_new_round_runs_each_direction_once_without_retrying_a_failed_outcome(self):
+        with self.config(),patch.dict(os.environ,{'KILAS_LIVE_GEMINI_ENABLED':'false'}),\
+             patch.object(smoke,'once',return_value=True),\
+             patch.object(smoke,'session',side_effect=[{'code':'gemini_tail_timeout'},{'code':'gemini_deadline'}]) as execute,\
+             redirect_stdout(io.StringIO()) as output:
+            smoke.run()
+            self.assertEqual([(call.args[1],call.args[2]) for call in execute.call_args_list],[('id','en'),('en','id')])
+            self.assertEqual(execute.call_count,2)
+            self.assertIn('"all_backend_checks_passed":false',output.getvalue())
             self.assertEqual(os.environ['KILAS_LIVE_GEMINI_ENABLED'],'false')
 
 
