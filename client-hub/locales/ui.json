@@ -8263,5 +8263,6 @@
   "Panggilan terputus. Periksa mikrofon dan koneksi lalu mulai panggilan baru.": {"en": "The call disconnected. Check your microphone and connection, then start a new call.", "es": "La llamada se desconectó. Revisa el micrófono y la conexión e inicia otra llamada.", "zh": "通话已断开。请检查麦克风和网络连接后重新通话。"},
   "Browser ini belum mendukung panggilan suara.": {"en": "This browser does not support voice calls yet.", "es": "Este navegador aún no admite llamadas de voz.", "zh": "此浏览器暂不支持语音通话。"},
   "Selesaikan jawaban chat sebelum memanggil.": {"en": "Wait for the chat response to finish before calling.", "es": "Espera a que termine la respuesta del chat antes de llamar.", "zh": "请等待聊天回复完成后再通话。"},
-  "Kilas berbicara": {"en": "Kilas is speaking", "es": "Kilas está hablando", "zh": "Kilas正在说话"}
+  "Kilas berbicara": {"en": "Kilas is speaking", "es": "Kilas está hablando", "zh": "Kilas正在说话"},
+  "Jasa Kreatif": {"id": "Jasa Kreatif", "en": "Creative Services", "es": "Servicios creativos", "zh": "创意服务"}
 }

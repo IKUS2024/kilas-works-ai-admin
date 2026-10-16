@@ -7,6 +7,7 @@ import test_kilas_home as fixture
 import db
 import repo
 import finance_service as finance
+from ui_i18n import LANGUAGES
 
 
 class SidebarProductsTests(unittest.TestCase):
@@ -15,6 +16,8 @@ class SidebarProductsTests(unittest.TestCase):
 
     def test_products_below_library_and_finance_absent_from_peer_tools_in_all_locales(self):
         pages={};client=self.client()
+        creative_labels={'en':'Creative Services','id':'Jasa Kreatif','es':'Servicios creativos','zh':'创意服务'}
+        self.assertEqual(set(creative_labels),set(LANGUAGES))
         for locale,label in (('en','Products'),('id','Produk'),('es','Productos'),('zh','产品')):
             client.set_cookie('kilas_language',locale)
             for name,path in (('home','/products/start'),('agent','/kilas-ai/agent?conversation='+str(self.conversation)),('library','/kilas-ai/library')):
@@ -25,6 +28,11 @@ class SidebarProductsTests(unittest.TestCase):
                 self.assertIn('<span>'+label+'</span>',html)
                 self.assertEqual(html.count('name="product" value="finance"'),1)
                 self.assertNotIn('class="kilas-finance-entry"',html)
+                creative='<a class="chat-product-entry" href="https://kilasworks.id" target="_blank" rel="noopener noreferrer">'
+                self.assertEqual(html.count(creative),1)
+                self.assertLess(html.index('name="product" value="finance"'),html.index(creative))
+                self.assertLess(html.index(creative),html.index('</details>',html.index('class="chat-products"')))
+                self.assertIn('<span>'+creative_labels[locale]+'</span></a>',html)
                 pages[name+'_'+locale]=html
             audio=client.get('/kilas-translator?mode=voiceover')
             self.assertEqual(audio.status_code,200);self.assertNotIn('class="kilas-finance-entry"',audio.text)
