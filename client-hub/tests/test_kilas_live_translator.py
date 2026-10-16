@@ -246,7 +246,8 @@ class LiveTranslatorTests(unittest.TestCase):
         self.assertIn('id="live-recovery" hidden',html)
         self.assertIn('id="live-session-status" class="live-session-status" role="status" aria-live="polite"',html)
         self.assertIn('name="consent" value="yes" required',html)
-        for label in ('AI Chat','Translator','Voice Over','Finance'):self.assertIn(label,html)
+        for label in ('AI Chat','Translator','Voice Over'):self.assertIn(label,html)
+        self.assertNotIn('class="kilas-finance-entry"',html)
 
     def test_owner_restricted_preview_propagates_owner_without_opening_other_accounts(self):
         self.credit(300)

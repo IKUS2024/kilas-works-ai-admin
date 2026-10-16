@@ -60,7 +60,7 @@ def main():
 
                 def tabs(active):
                     row = page.locator('.home-task-choices').first
-                    assert row.inner_text().splitlines() == ['AI Chat','Translator','Voice Over','Finance'], row.inner_text()
+                    assert row.inner_text().splitlines() == ['AI Chat','Translator','Voice Over'], row.inner_text()
                     controls = row.locator(':scope>a,:scope>button,:scope>form>button')
                     assert controls.count() == 4
                     geometry = controls.evaluate_all('(es)=>es.map(e=>({h:e.getBoundingClientRect().height,r:getComputedStyle(e).borderRadius,f:getComputedStyle(e).fontSize,b:getComputedStyle(e).borderStyle}))')
