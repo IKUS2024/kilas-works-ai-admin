@@ -21,6 +21,13 @@ class SearchSmokeTests(unittest.TestCase):
             self.assertFalse(smoke.launch());popen.assert_not_called()
         self.assertEqual(len(smoke.fixture()),185600)
         self.assertEqual(hashlib.sha256(smoke.fixture()).hexdigest(),smoke.RAW_SHA)
+        paused=smoke.paused_fixture();self.assertEqual(len(paused),211200)
+        self.assertEqual(hashlib.sha256(paused).hexdigest(),
+                         '3293ecbeb5c8f731bc6340b8f35113bda2280394762c6145119e57c72cb1de74')
+        at=2220*32
+        self.assertEqual(paused[:at],smoke.fixture()[:at])
+        self.assertEqual(paused[at:at+800*32],bytes(800*32))
+        self.assertEqual(paused[at+800*32:],smoke.fixture()[at:])
 
     def test_existing_durable_marker_never_starts_again(self):
         env={smoke.ARM:smoke.RUN,'RENDER_SERVICE_ID':smoke.SERVICE,
@@ -104,6 +111,7 @@ class SearchSmokeTests(unittest.TestCase):
                 self.closed=Event();self.frames=[]
                 self.input_bytes=self.sent_chunks=self.queued=self.output_bytes=self.expected=self.turns=0
                 self.public_search=Mock(job=None);self.public_search.diagnostic.return_value={}
+                self.turn_timing=Mock();self.turn_timing.report.return_value={'recent_first_audio':[]}
                 self.ws=calls.wire.connect();self.ws.send(json.dumps(calls.setup()));self.ws.recv()
             def accept(self,index,raw):
                 self.ws.send(json.dumps({'realtimeInput':{'audio':{'mimeType':'audio/pcm;rate=16000',
@@ -158,6 +166,11 @@ class SearchSmokeTests(unittest.TestCase):
         self.assertEqual(result['search_reserve_attempts'],1)
         self.assertTrue(result['search_settled']);self.assertTrue(result['call_settled'])
         self.assertTrue(result['search_worker_finished']);self.assertEqual(result['manual_markers'],0)
+        self.assertLessEqual(result['sent_bytes'],12*32000)
+        self.assertEqual(result['sent_bytes'],result['accepted_bytes'])
+        self.assertEqual(result['fixture_input_ms'],6600)
+        self.assertEqual(result['fixture_original_sha256'],smoke.RAW_SHA)
+        self.assertEqual(result['turn_timing'],{'recent_first_audio':[]})
 
     def test_missing_failure_speech_has_bounded_wait_and_no_retry(self):
         result=self.failure_scenario(False)
@@ -165,13 +178,51 @@ class SearchSmokeTests(unittest.TestCase):
         self.assertLessEqual(result['duration_ms']-result['bridge_sent_ms'],30200)
         self.assertEqual(result['provider_connections'],1);self.assertEqual(result['web_http_requests'],1)
         self.assertTrue(result['search_settled']);self.assertTrue(result['call_settled'])
-        self.assertLessEqual(result['accepted_bytes'],40*32000)
+        self.assertLessEqual(result['accepted_bytes'],12*32000)
 
     def test_normal_metering_boundaries_and_both_completion_outcomes(self):
+        self.assertEqual(smoke.RUN,'call-search-news-20261017-0943')
+        self.assertEqual(smoke.SESSION_SECONDS,55);self.assertEqual(smoke.INPUT_SECONDS,12)
         self.assertLess(smoke.SESSION_SECONDS,budget.RENEW_SECONDS)
         self.assertLess(smoke.INPUT_SECONDS*32000,calls.INPUT_BYTES)
         self.assertIsNone(smoke.completion_status({'response_turn_target':1,'bridge':{'available':False}},0))
         self.assertEqual(smoke.completion_status({'response_turn_target':1,'bridge':{'available':True}},1),
                          'completed_transport')
+
+    def test_pre_dispatch_setup_and_tool_response_byte_fences(self):
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'offline','KILAS_AI_OPENAI_WEB_MODEL':'gpt-6-luna'}):
+            value=calls.setup()
+        smoke.validate_send(value)
+        value['setup']['systemInstruction']['parts'][0]['text']='x'*8192
+        with self.assertRaisesRegex(ValueError,'setup_changed'):smoke.validate_send(value)
+        with self.assertRaisesRegex(ValueError,'tool_response_fence'):
+            smoke.validate_send({'toolResponse':{'functionResponses':[{'response':{'findings':'x'*8192}}]}})
+
+    def test_request_and_query_byte_fences_prevent_http_dispatch(self):
+        result={'web_http_requests':0,'search_reserved':True};post=Mock()
+        fence=smoke.SearchFence(result,lambda:None,Mock(),Mock(),post,1)
+        payload={'model':'gpt-6-luna','input':search.public_query('general',datetime.now(timezone.utc).strftime('%Y-%m-%d')),
+                 'tools':[{'type':'web_search'}],'tool_choice':'required','max_tool_calls':1,
+                 'max_output_tokens':2048,'store':False,'instructions':'x'*8192}
+        with self.assertRaisesRegex(ValueError,'web_request_fence'):
+            fence.post('https://api.openai.com/v1/responses',json=payload)
+        payload.pop('instructions');payload['input']='x'*513
+        with patch.object(search,'public_query',return_value=payload['input']):
+            with self.assertRaisesRegex(ValueError,'web_request_fence'):
+                fence.post('https://api.openai.com/v1/responses',json=payload)
+        post.assert_not_called();self.assertEqual(result['web_http_requests'],0)
+
+    def test_usage_modalities_and_replay_fixture_are_bounded(self):
+        used=smoke.usage_summary({'promptTokenCount':50,'responseTokenCount':True,
+            'promptTokensDetails':[{'modality':'AUDIO','tokenCount':25,'secret':'NEVER_LOG'},
+                                   {'modality':'SECRET','tokenCount':30}], 'secret':'NEVER_LOG'})
+        self.assertEqual(used,{'promptTokenCount':50,'promptTokensDetails':[{'modality':'AUDIO','tokenCount':25}]})
+        data={'input':'NEVER_LOG','headers':{'Authorization':'NEVER_LOG'},'status':'completed','max_tool_calls':1,
+              'output':[{'id':'a','type':'web_search_call','status':'incomplete','action':{'type':'search','query':'public synthetic'}},
+                        {'id':'b','type':'reasoning','status':'completed','summary':'NEVER_LOG'}]}
+        fixture=smoke.replay_response(data)
+        self.assertFalse(fixture['truncated']);self.assertNotIn('NEVER_LOG',json.dumps(fixture))
+        self.assertEqual(fixture['response']['output'][0],data['output'][0])
+        self.assertEqual(smoke.replay_response({'output':['x'*32769]})['truncated'],True)
 
 if __name__=='__main__':unittest.main()

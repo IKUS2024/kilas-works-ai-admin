@@ -18,16 +18,68 @@ from threading import Lock, Timer
 import time
 import wave
 
-RUN = 'call-search-indonesia-recovery-20261017'
+RUN = 'call-search-news-20261017-0943'
 IDENT = hashlib.sha256(RUN.encode()).hexdigest()[:32]
 ARM = 'KILAS_AI_CALL_SMOKE_RUN'
 SERVICE = 'srv-da7ti2psrm7s73dh9i2g'
 RAW_SHA = 'dc3170ff1cecf5d6a41170037847421a8f283ff7943e821492464f2f23292967'
 CORE = os.environ.get('RENDER_GIT_COMMIT', '')
 CORE = CORE if re.fullmatch('[a-f0-9]{40}', CORE) else 'unavailable'
-SESSION_SECONDS = 75  # Below the unchanged 80s normal funding renewal.
-INPUT_SECONDS = 40    # Below the unchanged 60s PCM funding envelope.
+SESSION_SECONDS = 55  # Connection/cleanup also bounded by the 60s process alarm.
+INPUT_SECONDS = 12    # Pinned 5.8s speech plus its natural silence tail.
 SPOKEN_WAIT_SECONDS = 30
+MAX_JSON_BYTES = 8192
+MAX_QUERY_BYTES = 512
+PAUSE_AT_MS = 2220
+PAUSE_MS = 800
+
+
+def json_bytes(value):
+    return len(json.dumps(value).encode('utf-8'))
+
+
+def validate_send(message):
+    """Bound setup/tool evidence before forwarding; preserve production setup."""
+    if 'setup' in message:
+        value = message['setup']
+        if (json_bytes(message) > MAX_JSON_BYTES
+                or value['realtimeInputConfig']['automaticActivityDetection']['disabled'] is not False
+                or value['generationConfig']['maxOutputTokens'] != 1024):
+            raise ValueError('setup_changed')
+    if 'toolResponse' in message and json_bytes(message) > MAX_JSON_BYTES:
+        raise ValueError('tool_response_fence')
+
+
+def usage_summary(used):
+    """Bounded non-content provider usage; retain modality splits when present."""
+    if not isinstance(used, dict):
+        return {}
+    result = {k: v for k, v in used.items() if k in ('promptTokenCount', 'responseTokenCount',
+        'totalTokenCount', 'thoughtsTokenCount', 'cachedContentTokenCount') and type(v) is int and 0 <= v <= 10**9}
+    for key in ('promptTokensDetails', 'responseTokensDetails', 'cacheTokensDetails'):
+        values = used.get(key)
+        if isinstance(values, list):
+            result[key] = [{'modality': item['modality'], 'tokenCount': item['tokenCount']}
+                for item in values[:8] if isinstance(item, dict)
+                and item.get('modality') in ('TEXT', 'AUDIO', 'IMAGE', 'VIDEO')
+                and type(item.get('tokenCount')) is int and 0 <= item['tokenCount'] <= 10**9]
+    return result
+
+
+def replay_response(data):
+    """Synthetic-only public response fixture; no input, headers or reasoning."""
+    value = {key: data[key] for key in ('status', 'incomplete_details', 'max_tool_calls', 'output', 'usage') if key in data}
+    error = data.get('error')
+    value['error'] = ({key: error[key] for key in ('code', 'type', 'param') if isinstance(error.get(key), str)
+                       and re.fullmatch(r'[A-Za-z0-9_.\[\]-]{1,80}', error[key])}
+                      if isinstance(error, dict) else None if error is None else {'present': True})
+    if isinstance(value.get('output'), list):
+        value['output'] = [{key: item[key] for key in ('id', 'type', 'status') if key in item}
+                           if isinstance(item, dict) and item.get('type') == 'reasoning' else item
+                           for item in value['output']]
+    size = json_bytes(value)
+    return {'truncated': True, 'serialized_bytes': size} if size > 32768 else {
+        'truncated': False, 'serialized_bytes': size, 'response': value}
 
 
 def armed():
@@ -56,6 +108,12 @@ def fixture():
     if len(raw) != 185600 or hashlib.sha256(raw).hexdigest() != RAW_SHA:
         raise ValueError('fixture_changed')
     return raw
+
+
+def paused_fixture():
+    raw = fixture()  # Verify the original pinned capture before augmentation.
+    at = PAUSE_AT_MS*32
+    return raw[:at]+bytes(PAUSE_MS*32)+raw[at:]
 
 
 class SearchFence:
@@ -92,6 +150,7 @@ class SearchFence:
         expected = search.public_query('general', datetime.now(timezone.utc).strftime('%Y-%m-%d'))
         with self.lock:
             if (self.result['web_http_requests'] != 0 or not self.result.get('search_reserved')
+                    or json_bytes(payload) > MAX_JSON_BYTES or len(expected.encode('utf-8')) > MAX_QUERY_BYTES
                     or url != 'https://api.openai.com/v1/responses'
                     or payload.get('model') != 'gpt-6-luna' or payload.get('input') != expected
                     or payload.get('tools') != [{'type': 'web_search'}] or payload.get('tool_choice') != 'required'
@@ -101,6 +160,8 @@ class SearchFence:
             self.result['web_http_requests'] += 1
             self.result['public_query'] = expected
             self.result['web_model'] = payload['model']
+            self.result['web_request_bytes'] = json_bytes(payload)
+            self.result['web_query_bytes'] = len(expected.encode('utf-8'))
         before = time.monotonic()
         try:
             response = self.original_post(url, **kwargs)
@@ -119,6 +180,7 @@ class SearchFence:
             return response
         from .ai_call_search_contract import envelope_summary
         self.result['web_response_envelope'] = envelope_summary(data)
+        self.result['web_response_fixture'] = replay_response(data)
         if response.status_code >= 400:
             # Only non-content machine error fields; never message/body/headers.
             error = data.get('error', {})
@@ -159,7 +221,8 @@ def run():
               'search_reserved': False, 'search_settled': False, 'tool_calls': 0,
               'input_text': '', 'response_text': '', 'completed_responses': 0, 'response_turns': [],
               'gemini_usage_events': [], 'source_frames': 0, 'manual_markers': 0,
-              'fixture_sha256': RAW_SHA, 'semantic_review_required': True,
+              'fixture_original_sha256': RAW_SHA, 'fixture_pause_at_ms': PAUSE_AT_MS,
+              'fixture_pause_ms': PAUSE_MS, 'semantic_review_required': True,
               'physical_android_verified': False, 'fx_verified': False}
     accepted_hash, sent_hash = hashlib.sha256(), hashlib.sha256()
     sent_bytes = 0
@@ -187,29 +250,33 @@ def run():
             nonlocal sent_bytes
             check()
             message = json.loads(payload)
+            validate_send(message)
             inner = message.get('realtimeInput', {})
             if any(k in inner for k in ('activityStart','activityEnd','audioStreamEnd')) or 'clientContent' in message:
                 result['manual_markers'] += 1
                 raise ValueError('manual_marker_forbidden')
             if 'setup' in message:
                 value = message['setup']
-                if (value['realtimeInputConfig']['automaticActivityDetection']['disabled'] is not False
-                        or value['generationConfig']['maxOutputTokens'] != 1024):
-                    raise ValueError('setup_changed')
                 result['setup_sha256'] = hashlib.sha256(json.dumps(message,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+                result['setup_bytes'] = json_bytes(message)
             responses = message.get('toolResponse', {}).get('functionResponses', [])
             if responses:
+                result['tool_response_bytes'] = json_bytes(message)
                 if len(responses) != 1 or responses[0].get('name') != search.NAME:
                     raise ValueError('unexpected_tool_response')
                 bridge = responses[0].get('response', {})
                 result['bridge'] = {k: bridge[k] for k in ('available','reason','checked_on','findings','sources') if k in bridge}
                 result['response_turn_target'] = (call.turns if call else 0)+1
+            audio_raw = None
+            if 'audio' in inner:
+                audio_raw = base64.b64decode(inner['audio']['data'],validate=True)
+                if sent_bytes+len(audio_raw) > INPUT_SECONDS*32000:
+                    raise ValueError('input_fence')
             answer = self.socket.send(payload)
             if responses:
                 result['bridge_sent_ms'] = tick()
             if 'audio' in inner:
-                raw = base64.b64decode(inner['audio']['data'],validate=True)
-                sent_hash.update(raw);sent_bytes += len(raw)
+                sent_hash.update(audio_raw);sent_bytes += len(audio_raw)
             if responses and not responses[0].get('response', {}).get('available'):
                 result['search_failure'] = responses[0].get('response', {}).get('reason','search_unavailable')
             return answer
@@ -222,7 +289,7 @@ def run():
                 items = message['toolCall'].get('functionCalls', [])
                 result['tool_calls'] += len(items)
                 result.setdefault('first_tool_call_ms',tick())
-                if (len(items) != 1 or items[0].get('name') != search.NAME
+                if (result['tool_calls'] != 1 or len(items) != 1 or items[0].get('name') != search.NAME
                         or items[0].get('args') != {'country':'ID','topic':'general'}):
                     raise ValueError('unexpected_tool_call')
             content = message.get('serverContent', {})
@@ -240,8 +307,7 @@ def run():
                 result['last_complete_ms'] = tick()
             used = message.get('usageMetadata')
             if isinstance(used,dict) and len(result['gemini_usage_events']) < 8:
-                result['gemini_usage_events'].append({k:v for k,v in used.items() if k in ('promptTokenCount',
-                    'responseTokenCount','totalTokenCount','thoughtsTokenCount','cachedContentTokenCount') and type(v) is int and v >= 0})
+                result['gemini_usage_events'].append(usage_summary(used))
             return raw
 
     def connect_once():
@@ -250,7 +316,9 @@ def run():
         return ProbeSocket(original_connect())
 
     try:
-        payload = fixture()
+        payload = paused_fixture()
+        result['fixture_sha256'] = hashlib.sha256(payload).hexdigest()
+        result['fixture_input_ms'] = len(payload)//32
         value = budget.config()
         if db.BACKEND != 'postgres' or not value:raise ValueError('production_policy_required')
         owner = value['allowed_owner']
@@ -264,7 +332,8 @@ def run():
         calls.wire.connect = connect_once
         search.usage.reserve, search.usage.finish, search.tools.requests.post = fence.reserve, fence.finish, fence.post
         print('KILAS_AI_CALL_SEARCH_SMOKE '+json.dumps({'run':RUN,'status':'started','deadline_seconds':SESSION_SECONDS,
-              'max_call_reservations':1,'max_search_reservations':1,'max_web_requests':1,'input_ms':5800}),flush=True)
+              'max_call_reservations':1,'max_search_reservations':1,'max_web_requests':1,
+              'input_ms':len(payload)//32}),flush=True)
         call = calls.start(owner,IDENT)
         def no_renewal():raise calls.CallError('call_smoke_limit')
         call.fund = no_renewal
@@ -306,7 +375,7 @@ def run():
         safe = {'diagnostic_deadline','spoken_response_timeout','call_closed','fixture_changed','fixture_invalid',
                 'production_policy_required','configuration_changed','no_second_connection','input_fence',
                 'output_fence','manual_marker_forbidden','setup_changed','unexpected_tool_call',
-                'unexpected_tool_response','tool_not_invoked','search_reserve_fence','web_request_fence'}
+                'unexpected_tool_response','tool_response_fence','tool_not_invoked','search_reserve_fence','web_request_fence'}
         result['code'] = str(error) if type(error) is ValueError and str(error) in safe else 'diagnostic_failed'
         if call is None and owner is not None:
             try:budget.end(owner,IDENT)
@@ -317,10 +386,10 @@ def run():
             result.update(duration_ms=tick(),accepted_bytes=call.input_bytes,sent_bytes=sent_bytes,
                           sent_chunks=call.sent_chunks,queued_bytes=call.queued,output_ms=call.output_bytes/48,
                           dispatch_matches_accepted=accepted_hash.digest()==sent_hash.digest(),dispatched_sha256=sent_hash.hexdigest(),
-                          search_diagnostics=call.public_search.diagnostic())
+                          search_diagnostics=call.public_search.diagnostic(), turn_timing=call.turn_timing.report())
             before = time.monotonic();calls.end(call.owner,call.ident)
             result['end_ms'] = round((time.monotonic()-before)*1000);result['post_end_frames'] = len(call.frames)
-            until = time.monotonic()+10
+            until = min(began+59, time.monotonic()+4)
             while time.monotonic()<until and (budget.active(call.owner,call.ident,call.capability)
                     or call.public_search.job is not None):time.sleep(.05)
             result['call_settled'] = not budget.active(call.owner,call.ident,call.capability)
@@ -332,5 +401,5 @@ def run():
 
 
 if __name__ == '__main__':
-    signal.alarm(90)  # 75s session plus the existing bounded settlement cleanup.
+    signal.alarm(60)  # Entire QA process, including connection and cleanup.
     run()
