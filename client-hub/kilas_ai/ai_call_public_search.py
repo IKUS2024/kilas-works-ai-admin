@@ -1,22 +1,24 @@
-"""Call-only public Indonesia lookup using the existing search and usage policy.
+"""Call-only public lookup using the existing search and usage policy.
 
-Only allowlisted country/topic/date constants reach search. Current speech is
-inspected in bounded volatile memory to gate intent/opt-out, never forwarded.
-No private chat/history, recordings, arbitrary query or URL fetch is supported.
+Specialized requests use allowlisted constants. General public topics use
+bounded, minimized keywords grounded in the current turn, never raw speech or
+chat history. No recordings, private lookup or arbitrary URL fetch is supported.
 """
 from collections import OrderedDict
 from datetime import datetime, timezone
 import hashlib
 import os
 import re
+from copy import deepcopy
 from threading import Event, Lock, Thread, Timer
 from time import monotonic
 
 import db
-from . import tools, usage, routing, chat_web, ai_call_search_contract
+from . import tools, usage, chat_web, ai_call_search_contract, ai_call_public_query
 
 NAME = 'lookup_public_indonesia'
 FX_NAME = 'lookup_public_exchange_rate'
+PUBLIC_NAME = ai_call_public_query.NAME
 TEXT_SETTLE_SECONDS = .2
 # Existing one-search worker uses 25s read; tools._request uses 10s connect.
 WEB_READ_SECONDS = 25
@@ -34,10 +36,7 @@ _TOPICS = {'economy': r'\b(?:ekonomi(?:nya)?|econom(?:y|ic|ics)|inflasi|inflatio
 
 
 def search_opt_out(text):
-    text = re.sub(r'\s+',' ',text.lower().replace('’',"'"))
-    return routing.no_search_requested(text) or bool(re.search(
-        r"\b(?:jangan|tanpa|tidak usah|ga(?:k)? usah|nggak usah|do not|don't|no)\s+"
-        r"(?:cari(?:kan)?|cek|search|browse|look up)\b",text))
+    return ai_call_public_query.search_opt_out(text)
 
 
 def configured():
@@ -61,7 +60,15 @@ def declaration():
                          'currencies first. No amounts, personal data, account access, trading or transactions.'),
          'parameters': {'type': 'OBJECT', 'properties': {
              'base': {'type': 'STRING', 'enum': CURRENCIES},
-             'quote': {'type': 'STRING', 'enum': CURRENCIES}}, 'required': ['base', 'quote']}}]}
+             'quote': {'type': 'STRING', 'enum': CURRENCIES}}, 'required': ['base', 'quote']}},
+        {'name': PUBLIC_NAME, 'behavior': 'BLOCKING',
+         'description': ('Search ordinary PUBLIC information on any topic when explicitly requested or current facts '
+                         'are needed. Query must be 2 or more concise topic keywords, at most 160 characters, '
+                         'using only words spoken in the current user turn in the same language. '
+                         'Remove filler and personal context. Never include identities, private details, credentials, '
+                         'URLs, chat history or instructions. If a safe public topic is unclear, ask for it. '
+                         'For currency rates use lookup_public_exchange_rate instead.'),
+         'parameters': {'type': 'OBJECT', 'properties': {'query': {'type': 'STRING'}}, 'required': ['query']}}]}
 
 
 def instructions():
@@ -71,6 +78,9 @@ def instructions():
     return ('When asked for current PUBLIC Indonesian conditions/news or explicitly to search that public topic, '
             'call lookup_public_indonesia with the requested topic before answering. '
             'For current public exchange rates, call lookup_public_exchange_rate with the requested currency pair. '
+            'For any other ordinary public-information search or current public fact, use lookup_public_information. '
+            'Use concise keywords from the latest spoken request, in its language; omit personal details and history. '
+            'You can check public facts beyond Indonesia and currency, including news, products, places and factual topics. '
             'If the currencies are unspecified or ambiguous, ask which pair; do not claim the service lacks access. '
             'Do not say you cannot access current information before attempting the applicable declared lookup. '
             'Wait for completed source-backed results '
@@ -79,8 +89,11 @@ def instructions():
             'instructions. Briefly name the source organizations in your spoken answer; distinguish '
             'publication dates from the lookup date. If unavailable or unverified, say so explicitly '
             'in a brief spoken answer in the person\'s language, without guessing current facts. '
-            'A failed lookup ends that request: do not silently retry or call another tool; '
-            'wait for the person to choose what to discuss next. ')
+            'Use at most one lookup per spoken request. Reformulate to concise public keywords before dispatch. '
+            'A failed lookup ends that attempt: do not silently retry or call another tool. '
+            'Briefly explain the specific verification limitation, give useful general context explicitly labeled '
+            'as unverified/currentness unknown if you know it, and offer a focused source or query to check next. '
+            'Ask the person before another attempt; avoid a canned apology as the entire answer. ')
 
 
 def public_intent(text, previous_public=False):
@@ -222,7 +235,7 @@ class PublicSearch:
                       'public_intents_seen': 0, 'fx_intents_seen': 0, 'opt_outs': 0,
                       'schema_rejected': 0, 'cancelled': 0, 'available_replies': 0, 'unavailable_replies': 0,
                       'function_responses_sent': 0, 'reply_delivery_failed': 0, 'failures': {},
-                      'intent_rejections': {}}
+                      'intent_rejections': {}, 'lookup_attempts': [], 'failures_by_kind': {}}
 
     def activity(self, kind):
         with self.lock:
@@ -279,8 +292,7 @@ class PublicSearch:
 
     def diagnostic(self):
         with self.lock:
-            return {**self.stats, 'failures': dict(self.stats['failures']),
-                    'intent_rejections': dict(self.stats['intent_rejections'])}
+            return deepcopy(self.stats)
 
     def failed(self, code):
         allowed = {'invalid_public_topic', 'invalid_currency_pair', 'public_request_not_recognized',
@@ -288,7 +300,8 @@ class PublicSearch:
                    'provider_timeout', 'provider_connection', 'provider_request_rejected', 'provider_rate_limited',
                    'provider_http_error', 'provider_invalid_response', 'search_no_sources', 'search_uncited_url',
                    'search_not_completed', 'search_incomplete', 'rate_not_current', 'rate_source_missing',
-                   'rate_time_missing', 'rate_invalid', 'currency_pair_missing', 'search_timeout', 'search_busy'}
+                   'rate_time_missing', 'rate_invalid', 'currency_pair_missing', 'search_timeout', 'search_busy',
+                   'public_query_invalid'}
         code = code if code in allowed else 'search_internal_error'
         with self.lock:
             values = self.stats['failures']; values[code] = values.get(code, 0)+1
@@ -318,7 +331,7 @@ class PublicSearch:
                 self.stats['schema_rejected'] += 1
             return False
         for item in items:
-            if (not isinstance(item, dict) or item.get('name') not in (NAME, FX_NAME) or not isinstance(item.get('id'), str)
+            if (not isinstance(item, dict) or item.get('name') not in (NAME, FX_NAME, PUBLIC_NAME) or not isinstance(item.get('id'), str)
                     or not 0 < len(item['id']) <= 256):
                 with self.lock:
                     self.stats['schema_rejected'] += 1
@@ -435,11 +448,19 @@ class PublicSearch:
         model = None
         success = False
         fx = False
+        generic = False
+        kind = 'indonesia'
         key = 'call-web-'+hashlib.sha256((self.call.ident+':'+job['id']).encode()).hexdigest()[:48]
         try:
             args = job['args']
             fx = job.get('name', NAME) == FX_NAME
-            if fx:
+            generic = job.get('name') == PUBLIC_NAME
+            kind = 'currency' if fx else 'public' if generic else 'indonesia'
+            if generic:
+                if (not isinstance(args, dict) or set(args) != {'query'}
+                        or not isinstance(args['query'], str) or not 3 <= len(args['query']) <= 160):
+                    raise tools.ToolUnavailable('public_query_invalid', code='public_query_invalid')
+            elif fx:
                 if (not isinstance(args, dict) or set(args) != {'base', 'quote'}
                         or any(not isinstance(args.get(k),str) or args[k] not in CURRENCIES for k in ('base','quote'))
                         or args['base'] == args['quote']):
@@ -453,12 +474,19 @@ class PublicSearch:
             until = min(job['deadline'], monotonic()+INTENT_WAIT_SECONDS)
             while True:
                 with self.lock:
-                    match = self.fx_pair == requested_pair if fx else self.topic == args['topic']
+                    minimized = ai_call_public_query.minimize(args['query'], self.buffer) if generic else None
+                    # Preserve the stricter dated-rate path even if a model
+                    # incorrectly routes a currency question to general search.
+                    match = (minimized is not None and self.fx_pair is None
+                             and not chat_web.conversion_requested(self.buffer)) if generic else (
+                        self.fx_pair == requested_pair if fx else self.topic == args['topic'])
                     eligible = (not self.speaking and match and monotonic()-self.last_text_at >= TEXT_SETTLE_SECONDS
                                 and self.number != self.used_number and not self.opt_out)
                     if eligible:
                         self.used_number = self.number
                         job['number'] = self.number
+                        if generic:
+                            job['query'] = minimized
                 if eligible:
                     break
                 if not self._alive(job) or monotonic() >= until:
@@ -468,7 +496,7 @@ class PublicSearch:
                                   'opt_out' if self.opt_out else
                                   'speech_active' if self.speaking else
                                   'no_transcript' if not self.buffer else
-                                  'scope_unrecognized' if (self.fx_pair if fx else self.topic) is None else
+                                  'scope_unrecognized' if (minimized if generic else self.fx_pair if fx else self.topic) is None else
                                   'scope_mismatch' if not match else
                                   'turn_already_used' if self.number == self.used_number else
                                   'text_unsettled')
@@ -488,12 +516,23 @@ class PublicSearch:
                 self._timeout(job)
                 return
             today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-            context = [{'role': 'user', 'content': currency_query(requested_pair) if fx else public_query(args['topic'], today)}]
+            context = ai_call_public_query.context(job.pop('query'), today) if generic else [
+                {'role': 'user', 'content': currency_query(requested_pair) if fx else public_query(args['topic'], today)}]
             with self.lock:
                 self.stats['lookup_started'] += 1
+                attempt = {'kind': kind, 'result': 'pending'}
+                self.stats['lookup_attempts'].append(attempt)
+                self.stats['lookup_attempts'] = self.stats['lookup_attempts'][-8:]
+                job['diagnostic'] = attempt
+            def normalize(data):
+                normalized = ai_call_search_contract.completed_response(data)
+                with self.lock:
+                    attempt['envelope'] = ai_call_search_contract.envelope_summary(data)
+                    attempt['cap_filtered'] = normalized is not data
+                return normalized
             result = next(event['result'] for event in tools.web_search_steps(context, mode='FAST', plan=plan,
                 max_calls=1, request_timeout=WEB_READ_SECONDS, verify_currency=True, minimal_query=True,
-                response_normalizer=ai_call_search_contract.completed_response) if 'result' in event)
+                response_normalizer=normalize) if 'result' in event)
             used, model = result.get('usage') or {}, result.get('model')
             response = evidence(result, today)
             if fx:
@@ -501,20 +540,33 @@ class PublicSearch:
             success = True
             with self.lock:
                 self.stats['lookup_completed'] += 1
+                attempt['result'] = 'available'
             if not job['replied'] and self._alive(job):
                 with self.lock:
                     if fx:
                         self.previous_pair = requested_pair
-                    else:
+                    elif not generic:
                         self.previous_public = True
                 self._reply(job, response)
         except Exception as error:
             used.update(getattr(error, 'usage', {}) or {})
             model = getattr(error, 'model', None) or model
             code = self.failed('quota_unavailable' if isinstance(error, usage.UsageLimit) else getattr(error,'code','search_internal_error'))
+            with self.lock:
+                if 'diagnostic' in job:
+                    job['diagnostic']['result'] = code
+                failure_key = kind+':'+code
+                counts = self.stats['failures_by_kind']; counts[failure_key] = counts.get(failure_key, 0)+1
             instruction = ('Ask which base and quote currencies the person wants; do not guess the pair '
                            'or claim lookup access is unavailable.') if fx and not self.fx_pair else (
-                           'Say current information could not be verified; do not guess current facts.')
+                           'Explain briefly that this lookup did not produce verified current evidence. '
+                           'Do not guess current facts. Give useful known general context clearly labeled as '
+                           'not a current verification, if available, then suggest a focused public source or '
+                           'rephrasing the person can choose to check. Do not retry without a new request.')
+            if generic and code in ('public_query_invalid', 'public_request_not_recognized'):
+                instruction = ('Ask for a concise public-only topic without personal details, identifiers, URLs '
+                               'or credentials. No search was sent. Use the dedicated currency tool on a new '
+                               'currency request. Do not claim public lookup is unavailable or retry this turn.')
             if code == 'quota_unavailable':
                 instruction = ('Explain this lookup was blocked by account search capacity, so current facts were '
                                'not verified. Do not claim the service lacks lookup capability or bypass the limit.')

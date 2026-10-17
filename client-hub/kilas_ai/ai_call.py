@@ -11,6 +11,7 @@ from time import monotonic
 import db
 from . import ai_call_budget as budget, live_gemini as wire, live_translator_output as storage
 from . import ai_call_public_search as public_search
+from .ai_call_timing import TurnTiming
 
 _lock=Lock()
 _calls={}
@@ -81,6 +82,7 @@ class Call:
         self.input_energy=0;self.input_samples=0;self.input_peak=0;self.input_transcript_chars=0
         self.sent_bytes=0;self.sent_chunks=0;self.provider_messages=0
         self.public_search = public_search.PublicSearch(self)
+        self.turn_timing = TurnTiming()
         # Claim has just authorized this capability. The provider worker also
         # rechecks it before setup; only the watchdog renews this short lease.
         self.authorized_until=self.started+POLICY_TTL_SECONDS
@@ -179,6 +181,7 @@ class Call:
         if 'error' in value:raise CallError('call_provider')
         activity = value.get('voiceActivity')
         if isinstance(activity,dict):
+            self.turn_timing.activity(activity.get('type'))
             self.public_search.activity(activity.get('type'))
         if 'toolCall' in value and not self.public_search.handle(value['toolCall']):raise CallError('call_provider')
         cancellation = value.get('toolCallCancellation')
@@ -208,6 +211,7 @@ class Call:
                         self.resume_handle=handle;self.resume_pending=True
                 else:self.resume_handle=None;self.resume_pending=False
             if content.get('interrupted') is True:
+                self.turn_timing.boundary()
                 self.interruptions+=1;self.publish({'type':'reset'});self.caption=''
             turn=content.get('modelTurn',{})
             if not isinstance(turn,dict) or not isinstance(turn.get('parts',[]),list):raise CallError('call_output_invalid')
@@ -220,6 +224,7 @@ class Call:
                 try:pcm=base64.b64decode(audio['data'],validate=True)
                 except (ValueError,binascii.Error):raise CallError('call_output_invalid') from None
                 if not pcm or len(pcm)%2:raise CallError('call_output_invalid')
+                self.turn_timing.audio()
                 if self.output_bytes-self.funded_output+len(pcm)>OUTPUT_BYTES or self.turns-self.funded_turns>=MAX_TURNS:self.fund()
                 self.output_bytes+=len(pcm);self.state='SPEAKING'
                 for at in range(0,len(pcm),9600):self.publish({'type':'audio','pcm':base64.b64encode(pcm[at:at+9600]).decode('ascii')})
@@ -238,6 +243,7 @@ class Call:
                 if len(self.caption)>4000:raise CallError('call_output_invalid')
                 self.publish({'type':'text','text':self.caption})
             if content.get('turnComplete') is True and content.get('interactionStatus')!='IN_PROGRESS':
+                self.turn_timing.boundary()
                 self.public_search.turn_complete()
                 self.turns+=1;self.publish({'type':'turn_complete'});self.caption='';self.state='LISTENING'
 
@@ -316,6 +322,7 @@ class Call:
             # Counts and enumerated outcomes only; no text, function IDs, queries
             # or customer/account identifiers are included.
             print('KILAS_AI_CALL_SEARCH '+json.dumps(self.public_search.diagnostic(),sort_keys=True),flush=True)
+            print('KILAS_AI_CALL_TIMING '+json.dumps(self.turn_timing.report(),sort_keys=True),flush=True)
 
     def resume(self):
         # Exactly one supported handoff per provider warning, with no reconnect

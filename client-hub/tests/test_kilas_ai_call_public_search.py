@@ -82,7 +82,8 @@ class PublicSearchTests(unittest.TestCase):
         self.assertEqual(kwargs['max_calls'], 1)
         self.assertTrue(kwargs['minimal_query'])
         self.assertEqual(kwargs['request_timeout'], 25)
-        self.assertIs(kwargs['response_normalizer'], search.ai_call_search_contract.completed_response)
+        sentinel = {'status': 'failed', 'output': []}
+        self.assertIs(kwargs['response_normalizer'](sentinel), sentinel)
         self.reserve.assert_called_once()
         self.assertEqual(self.reserve.call_args.args[2][:9], 'call-web-')
         self.assertTrue(self.response()['available'])
@@ -246,6 +247,82 @@ class PublicSearchTests(unittest.TestCase):
                 self.assertEqual(gate.diagnostic()['intent_rejections'], {reason: 1})
                 self.assertEqual(self.response()['reason'], 'public_request_not_recognized')
         self.reserve.assert_not_called(); self.lookup.assert_not_called()
+
+    def generic(self, query, ident='public-one'):
+        return self.search.handle({'functionCalls': [{'id': ident, 'name': search.PUBLIC_NAME,
+            'args': {'query': query}}]})
+
+    def test_general_public_lookup_uses_minimized_current_turn_keywords_once(self):
+        self.search.observe('Tolong cari jadwal museum nasional terbaru.')
+        self.generic('jadwal museum nasional terbaru'); self.wait()
+        self.assertTrue(self.response()['available'])
+        context, kwargs = self.lookups[0]
+        self.assertIn('Public topic keywords: jadwal museum nasional terbaru', context[0]['content'])
+        self.assertNotIn('Tolong cari', context[0]['content'])
+        self.assertEqual(kwargs['max_calls'], 1)
+        self.reserve.assert_called_once(); self.finish.assert_called_once()
+        self.assertEqual(self.search.diagnostic()['lookup_attempts'][0]['kind'], 'public')
+        self.assertEqual(self.search.diagnostic()['lookup_attempts'][0]['result'], 'available')
+
+    def test_generic_unsafe_ungrounded_and_currency_queries_never_dispatch(self):
+        for speech, query in (
+            ('Cari password rahasia otter saya', 'rahasia otter'),
+            ('Cari informasi produk untuk me@example.org', 'informasi produk'),
+            ('Cari nomor telepon 08123456789', 'nomor telepon'),
+            ('Cari jadwal museum nasional', 'jadwal museum rahasia'),
+            ('Jangan cari jadwal museum nasional', 'jadwal museum nasional'),
+            ('Berapa kurs SGD ke IDR sekarang?', 'kurs SGD IDR sekarang'),
+            ('Berapa kurs saat ini?', 'kurs saat ini'),
+            ('Halo', 'Halo teman'),
+        ):
+            with self.subTest(query=query):
+                self.search.turn_complete(); self.search.observe(speech)
+                job = {'id': query, 'name': search.PUBLIC_NAME, 'args': {'query': query},
+                       'deadline': monotonic()+20, 'cancelled': Event(), 'replied': False, 'timer': Mock()}
+                with patch.object(search, 'INTENT_WAIT_SECONDS', 0): self.search._execute(job)
+                self.assertFalse(self.response()['available'])
+        self.reserve.assert_not_called(); self.lookup.assert_not_called()
+
+    def test_generic_adapter_records_safe_envelope_and_does_not_retry_failure(self):
+        payload = {'status': 'completed', 'max_tool_calls': 1, 'output': [
+            {'id': 'SECRET_ID', 'type': 'web_search_call', 'status': 'searching',
+             'action': {'type': 'search', 'query': 'PRIVATE_QUERY'}},
+            {'type': 'message', 'status': 'completed', 'content': [
+                {'type': 'output_text', 'text': 'PRIVATE_TEXT', 'annotations': []}]}]}
+        self.lookup.side_effect = self.original_lookup
+        with patch.object(search.tools, '_request', return_value=payload) as request:
+            self.search.observe('Cari jadwal museum nasional terbaru.')
+            self.generic('jadwal museum nasional terbaru'); self.wait()
+        request.assert_called_once(); self.reserve.assert_called_once(); self.finish.assert_called_once()
+        self.assertEqual(self.response()['reason'], 'search_not_completed')
+        self.assertIn('Do not retry', self.response()['instruction'])
+        stats = self.search.diagnostic()
+        self.assertEqual(stats['lookup_attempts'][0]['envelope']['items']['web_search_call:searching'], 1)
+        self.assertEqual(stats['failures_by_kind'], {'public:search_not_completed': 1})
+        self.assertNotIn('PRIVATE', json.dumps(stats)); self.assertNotIn('SECRET', json.dumps(stats))
+        stats['lookup_attempts'].clear()
+        self.assertEqual(len(self.search.diagnostic()['lookup_attempts']), 1)
+
+    def test_generic_actual_adapter_keeps_citations_and_bounds_attempt_metadata(self):
+        payload = {'status': 'completed', 'output': [
+            {'type': 'web_search_call', 'status': 'completed'},
+            {'type': 'message', 'status': 'completed', 'content': [
+                {'type': 'output_text', 'text': 'Synthetic museum finding.', 'annotations': [
+                    {'type': 'url_citation', 'url': 'https://example.org/museum', 'title': 'Synthetic Museum'}]}]}],
+            'usage': {'input_tokens': 20, 'output_tokens': 15}}
+        self.lookup.side_effect = self.original_lookup
+        with patch.object(search.tools, '_request', return_value=payload) as request:
+            for number in range(9):
+                self.search.turn_complete(); self.search.observe('Cari jadwal museum nasional terbaru.')
+                self.generic('jadwal museum nasional terbaru', ident='public-'+str(number)); self.wait()
+                self.assertTrue(self.response()['available'])
+                self.assertEqual(self.response()['sources'][0]['url'], 'https://example.org/museum')
+                self.assertEqual(request.call_count, number+1)
+        self.assertEqual(self.reserve.call_count, 9); self.assertEqual(self.finish.call_count, 9)
+        stats = self.search.diagnostic()
+        self.assertEqual(stats['lookup_completed'], 9)
+        self.assertEqual(len(stats['lookup_attempts']), 8)
+        self.assertNotIn('museum', json.dumps(stats))
 
     def test_provider_tool_cancellation_discards_reply_but_settles_already_started_work(self):
         entered, release = Event(), Event(); self.addCleanup(release.set)

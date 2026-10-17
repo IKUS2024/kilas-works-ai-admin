@@ -83,7 +83,7 @@ def completed_response(data):
 
 
 def envelope_summary(data):
-    """Default-off QA observer metadata; never text, URLs, IDs or headers."""
+    """Bounded observer metadata for Call/QA; never text, URLs, IDs or headers."""
     statuses = {'completed', 'failed', 'in_progress', 'searching', 'incomplete', 'queued', 'cancelled'}
     types = {'web_search_call', 'message', 'reasoning'}
     if not isinstance(data, dict):
