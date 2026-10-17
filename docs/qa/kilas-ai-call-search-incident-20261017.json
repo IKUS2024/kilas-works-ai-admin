@@ -1,0 +1,46 @@
+{
+  "incident_utc": "2026-10-17T04:01:54Z",
+  "read_window_utc": [
+    "2026-10-17T03:59:00Z",
+    "2026-10-17T04:03:00Z"
+  ],
+  "deployed_revision_at_incident": "d5413c22f7faac7b8876cf45cc4827873e3aa2d3",
+  "evidence": {
+    "call_summaries": 1,
+    "call_turns": 2,
+    "input_ms": 33600,
+    "sent_ms": 33600,
+    "heard_character_count": 105,
+    "close_reason": "call_network",
+    "call_on_new_deployment_instance": true,
+    "new_instance_public_search_configured": true,
+    "call_web_usage_operations": 0,
+    "adapter_failure_logs": 0,
+    "historical_tool_invocation_trace_available": false
+  },
+  "confirmed_defects": [
+    {
+      "name": "unsupported mandatory final-transcription field",
+      "introduced_in": "c9ff98f",
+      "reproduction": "Documented Live inputTranscription containing recognized public question without finished field => no reservation and unavailable function response.",
+      "protocol": "Live BidiGenerateContentTranscription defines text/languageCode/startOffset/endOffset, not finished; input transcriptions have no guaranteed ordering with other events.",
+      "correction": "Use documented VoiceActivity.type START/END, named function request, bounded stable-transcript wait, and no-search opt-out; no mandatory finished flag."
+    },
+    {
+      "name": "exchange-rate request cannot pass narrow news gate or encode pair",
+      "reproduction": "Kurs USD ke IDR sekarang berapa => old public_intent None; old schema has only country/topic and economy query contains no pair.",
+      "correction": "Separate readonly exchange-rate function with allowlisted base/quote codes; constant one-unit public query, existing dated/cited rate validation, no amounts/history/private text forwarded."
+    }
+  ],
+  "historical_limit": "Old diagnostics cannot distinguish an uninvoked tool from pre-reservation schema/intent/quota failure. No admitted lookup occurred. Do not attribute the exact two historical responses to one branch as a measured fact.",
+  "other_checks": {
+    "enabled_prompt_denies_external_tools": false,
+    "new_public_model_and_failure_counts_logging": "content-free enums/counts only; no customer identifiers, raw text, queries or secrets"
+  },
+  "protected_modules_changed": false,
+  "paid_qa_calls_this_pass": 0,
+  "sources": [
+    "https://ai.google.dev/api/live#BidiGenerateContentTranscription",
+    "https://ai.google.dev/api/live#VoiceActivity"
+  ]
+}

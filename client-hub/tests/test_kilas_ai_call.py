@@ -345,8 +345,10 @@ class CallTests(unittest.TestCase):
             result={'text':'Synthetic public finding.','citations':[{'url':'https://example.org/news','title':'Synthetic source'}],
                     'model':'gpt-6.1-sol','usage':{'input_tokens':10,'output_tokens':3,'web_search_calls':1}}
             with patch.object(search.tools,'web_search_steps',return_value=iter([{'result':result}])) as lookup:
+                call.receive(json.dumps({'voiceActivity':{'type':'ACTIVITY_START'}}))
                 call.receive(json.dumps({'serverContent':{'inputTranscription':{
-                    'text':'Gimana keadaan Indonesia sekarang?','finished':True}}}))
+                    'text':'Gimana keadaan Indonesia sekarang?'}}}))
+                call.receive(json.dumps({'voiceActivity':{'type':'ACTIVITY_END'}}))
                 message={'toolCall':{'functionCalls':[{'id':'public-one','name':search.NAME,'args':{'country':'ID','topic':'general'}}]}}
                 call.receive(json.dumps(message))
                 until=time.monotonic()+2

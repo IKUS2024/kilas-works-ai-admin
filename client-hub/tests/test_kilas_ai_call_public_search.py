@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import sys
 from threading import Event, Lock, RLock
+from datetime import datetime, timezone, timedelta
 from time import monotonic, sleep
 import unittest
 from unittest.mock import patch, Mock
@@ -31,6 +32,7 @@ class PublicSearchTests(unittest.TestCase):
         self.env = patch.dict(os.environ, {'OPENAI_API_KEY': 'offline-not-a-key',
             'KILAS_AI_OPENAI_WEB_MODEL': 'offline-model', 'KILAS_AI_CALL_PUBLIC_SEARCH_ENABLED': 'true'})
         self.env.start(); self.addCleanup(self.env.stop)
+        patch.object(search,"TEXT_SETTLE_SECONDS",0).start()
         self.call = Call(); self.search = search.PublicSearch(self.call)
         self.addCleanup(self.search.cancel)
         self.reserve = patch.object(search.usage, 'reserve', return_value=('PLUS', ('WEB_SEARCH',))).start()
@@ -43,6 +45,7 @@ class PublicSearchTests(unittest.TestCase):
         self.lookups = []
         def lookup(context, **kwargs):
             self.lookups.append((context, kwargs)); yield {'result': self.result}
+        self.original_lookup = search.tools.web_search_steps
         self.lookup = patch.object(search.tools, 'web_search_steps', side_effect=lookup).start()
 
     def handle(self, ident='one', args=None):
@@ -50,7 +53,7 @@ class PublicSearchTests(unittest.TestCase):
             'args': {'country': 'ID', 'topic': 'general'} if args is None else args}]})
 
     def wait(self):
-        deadline = monotonic()+3
+        deadline = monotonic()+4
         while self.search.job is not None and monotonic() < deadline: sleep(.005)
         self.assertIsNone(self.search.job, 'worker did not finish')
 
@@ -66,7 +69,7 @@ class PublicSearchTests(unittest.TestCase):
 
     def test_full_request_uses_only_server_public_constants_never_transcript(self):
         private = 'PRIVATE HISTORY SENTINEL: private account 723836. '
-        self.search.observe(private+'Gimana keadaan Indonesia sekarang?', finished=True)
+        self.search.observe(private+'Gimana keadaan Indonesia sekarang?')
         self.assertTrue(self.handle()); self.wait()
         context, kwargs = self.lookups[0]
         self.assertEqual(len(context), 1)
@@ -86,18 +89,19 @@ class PublicSearchTests(unittest.TestCase):
         self.assertEqual(self.call.checks, 1)
         self.search.turn_complete(); self.assertEqual(self.search.buffer, '')
 
-    def test_tool_before_final_transcript_waits_without_charging_partial_speech(self):
-        self.search.observe('Gimana keadaan Indonesia sekarang?', finished=False)
+    def test_tool_waits_for_documented_activity_end_without_charging_live_speech(self):
+        self.search.activity('ACTIVITY_START')
+        self.search.observe('Gimana keadaan Indonesia sekarang?')
         self.handle(); sleep(.025)
         self.reserve.assert_not_called()
-        self.search.observe('', finished=True)
+        self.search.activity('ACTIVITY_END')
         self.wait(); self.reserve.assert_called_once()
 
     def test_split_no_search_optout_prevents_lookup_and_no_speech_is_not_a_request(self):
         self.search.observe('Gimana keadaan Indonesia sekarang? Jangan ')
-        self.search.observe('cari di internet.', finished=True)
+        self.search.observe('cari di internet.')
         # Force only the intent wait's deadline; no provider/deadline sleeps.
-        with patch.object(search, 'monotonic', side_effect=[0, 0, 0, 3]):
+        with patch.object(search, 'monotonic', side_effect=[0, 0, 4]):
             # Direct execution is deterministic here; handle's Timer is not needed.
             job = {'id': 'denied', 'args': {'country': 'ID', 'topic': 'general'},
                    'deadline': 20, 'cancelled': Event(), 'replied': False, 'timer': Mock()}
@@ -114,30 +118,32 @@ class PublicSearchTests(unittest.TestCase):
         self.assertFalse(self.response()['available'])
 
     def test_duplicate_and_same_spoken_turn_cannot_pay_twice(self):
-        self.search.observe('Gimana keadaan Indonesia sekarang?', finished=True)
+        self.search.observe('Gimana keadaan Indonesia sekarang?')
         self.handle(); self.wait(); self.handle(); self.wait()
         self.reserve.assert_called_once(); self.lookup.assert_called_once()
         self.assertEqual(len(self.call.messages), 1)
         # Same recognized utterance cannot authorize another new function ID.
         job = {'id': 'again', 'args': {'country': 'ID', 'topic': 'general'}, 'deadline': 20,
                'cancelled': Event(), 'replied': False, 'timer': Mock()}
-        with patch.object(search, 'monotonic', side_effect=[0, 0, 3]): self.search._execute(job)
+        with patch.object(search, 'monotonic', side_effect=[0, 0, 4]): self.search._execute(job)
         self.reserve.assert_called_once()
 
     def test_quota_provider_timeout_and_missing_sources_fail_explicitly(self):
-        self.search.observe('Ada berita terbaru di Indonesia?', finished=True)
+        self.search.observe('Ada berita terbaru di Indonesia?')
         self.reserve.side_effect = search.usage.UsageLimit('offline limit')
         self.handle(); self.wait(); self.lookup.assert_not_called()
         self.finish.assert_not_called(); self.assertFalse(self.response()['available'])
         self.reserve.side_effect = None
-        self.search.observe('Ada berita terbaru di Indonesia?', finished=True)
+        self.search.turn_complete()
+        self.search.observe('Ada berita terbaru di Indonesia?')
         self.lookup.side_effect = search.tools.ToolUnavailable('offline', model='offline-model',
             usage={'input_tokens': 10}, code='provider_timeout')
         self.handle('timeout'); self.wait()
         self.assertFalse(self.response()['current_verified'])
         self.assertFalse(self.finish.call_args.kwargs['success'])
         self.assertEqual(self.finish.call_args.kwargs['usage']['input_tokens'], 10)
-        self.search.observe('Ada berita terbaru di Indonesia?', finished=True)
+        self.search.turn_complete()
+        self.search.observe('Ada berita terbaru di Indonesia?')
         self.lookup.side_effect = lambda *a, **k: iter([{'result': {**self.result, 'citations': []}}])
         self.handle('uncited'); self.wait()
         self.assertFalse(self.response()['available'])
@@ -149,7 +155,7 @@ class PublicSearchTests(unittest.TestCase):
         def blocked(*args, **kwargs):
             entered.set(); release.wait(2); yield {'result': self.result}
         self.lookup.side_effect = blocked
-        self.search.observe('Gimana keadaan Indonesia sekarang?', finished=True)
+        self.search.observe('Gimana keadaan Indonesia sekarang?')
         before = monotonic(); self.handle(); self.assertLess(monotonic()-before, .2)
         self.assertTrue(entered.wait(1))
         self.assertTrue(self.call.lock.acquire(timeout=.1)); self.call.lock.release()
@@ -162,7 +168,7 @@ class PublicSearchTests(unittest.TestCase):
         def blocked(*args, **kwargs):
             entered.set(); release.wait(2); yield {'result': self.result}
         self.lookup.side_effect = blocked
-        self.search.observe('Gimana keadaan Indonesia sekarang?', finished=True)
+        self.search.observe('Gimana keadaan Indonesia sekarang?')
         self.handle(); self.assertTrue(entered.wait(1))
         job = self.search.job
         self.search._reply(job, {'available': False, 'reason': 'search_timeout', 'current_verified': False})
@@ -184,7 +190,7 @@ class PublicSearchTests(unittest.TestCase):
         def blocked(*args, **kwargs):
             entered.set(); release.wait(2); yield {'result': self.result}
         self.lookup.side_effect = blocked
-        self.search.observe('Gimana keadaan Indonesia sekarang?', finished=True)
+        self.search.observe('Gimana keadaan Indonesia sekarang?')
         self.handle(); self.assertTrue(entered.wait(1))
         self.search.cancel(['one']); release.set(); self.wait()
         self.assertFalse(self.call.closed.is_set())
@@ -196,13 +202,124 @@ class PublicSearchTests(unittest.TestCase):
         def blocked(*args, **kwargs):
             entered.set(); release.wait(2); yield {'result': self.result}
         self.lookup.side_effect = blocked
-        self.search.observe('Gimana keadaan Indonesia sekarang?', finished=True)
+        self.search.observe('Gimana keadaan Indonesia sekarang?')
         self.handle(); self.assertTrue(entered.wait(1))
-        self.search.observe('Sekarang saya mau membahas masalah pribadi.', finished=True)
+        self.search.turn_complete()
+        self.search.observe('Sekarang saya mau membahas masalah pribadi.')
         release.set(); self.wait()
         self.assertFalse(self.response()['available'])
         self.assertEqual(self.call.frames[0]['citations'], [])
         self.finish.assert_called_once()
+
+    def fx(self, args=None, ident='fx-one'):
+        return self.search.handle({'functionCalls':[{'id':ident,'name':search.FX_NAME,
+            'args':{'base':'USD','quote':'IDR'} if args is None else args}]})
+
+    def test_documented_live_transcript_without_finished_is_searchable(self):
+        self.search.activity('ACTIVITY_START')
+        self.search.observe('Bagaimana keadaan Indonesia saat ini?')
+        self.search.activity('ACTIVITY_END')
+        self.handle();self.wait()
+        self.assertTrue(self.response()['available'])
+        self.reserve.assert_called_once()
+        self.assertEqual(self.search.diagnostic()['activity_end'],1)
+
+    def test_transcript_after_tool_and_activity_end_does_not_need_extra_marker(self):
+        self.search.activity('ACTIVITY_START');self.search.activity('ACTIVITY_END')
+        self.handle();sleep(.01);self.reserve.assert_not_called()
+        self.search.observe('Bagaimana keadaan Indonesia saat ini?')
+        self.wait();self.assertTrue(self.response()['available'])
+
+    def test_transcript_before_start_event_is_not_discarded(self):
+        self.search.observe('Bagaimana keadaan Indonesia saat ini?')
+        self.search.activity('ACTIVITY_START');self.search.activity('ACTIVITY_END')
+        self.handle();self.wait();self.assertTrue(self.response()['available'])
+
+    def test_fx_pair_aliases_and_direction_are_allowlisted_not_raw_queries(self):
+        for text,expected in [('Berapa kurs dolar ke rupiah hari ini?',('USD','IDR')),
+            ('Kurs USD ke IDR sekarang berapa?',('USD','IDR')),
+            ('Berapa rupiah per dolar?',('USD','IDR')),
+            ('Berapa rupiah untuk satu dolar?',('USD','IDR')),
+            ('Kurs IDR ke USD hari ini?',('IDR','USD')),
+            ('100 yuan ke rupiah berapa?',('CNY','IDR')),
+            ('Berapa kurs dolar Singapura ke rupiah?',('SGD','IDR')),
+            ('Current Australian dollars to rupiah rate?',('AUD','IDR')),
+            ('Kurs dolar Hong Kong ke rupiah sekarang?',('HKD','IDR'))]:
+            self.assertEqual(search.currency_pair(text),expected)
+        self.assertIsNone(search.currency_pair('Berapa kurs saat ini?'))
+        self.assertIsNone(search.currency_pair('My USD account and IDR account are private.'))
+        self.assertIsNone(search.currency_pair('Jangan cari kurs USD ke IDR.'))
+
+    def test_fx_uses_one_unit_constants_and_matching_function_name(self):
+        self.search.observe('PRIVATE ACCOUNT 998123. Berapa kurs 100 dolar ke rupiah hari ini?')
+        self.fx();self.wait()
+        context,kwargs=self.lookups[0]
+        self.assertEqual(context,[{'role':'user','content':'1 USD to IDR: current published exchange rate'}])
+        self.assertTrue(kwargs['verify_currency']);self.assertEqual(kwargs['max_calls'],1)
+        response=self.response();self.assertTrue(response['available'])
+        self.assertEqual((response['base'],response['quote'],response['unit_amount']),('USD','IDR',1))
+        self.assertEqual(self.call.messages[0]['toolResponse']['functionResponses'][0]['name'],search.FX_NAME)
+        self.assertNotIn('998123',json.dumps(context))
+        self.finish.assert_called_once()
+
+    def test_fx_rejects_extra_private_query_or_unknown_currency_before_reserving(self):
+        self.fx({'base':'USD','quote':'IDR','amount':998123});self.wait()
+        self.reserve.assert_not_called();self.lookup.assert_not_called()
+        self.assertEqual(self.response()['reason'],'invalid_currency_pair')
+        self.fx({'base':'PRIVATE','quote':'IDR'},ident='unknown');self.wait()
+        self.reserve.assert_not_called()
+        self.assertIn('which base and quote',self.response()['instruction'])
+
+    def test_fx_actual_adapter_requires_matching_current_dated_cited_rate(self):
+        today=datetime.now(timezone.utc)
+        payload={'status':'completed','usage':{'input_tokens':100,'output_tokens':40},'output':[
+            {'type':'web_search_call','status':'completed','action':{'sources':[{'url':'https://example.org/rate'}]}},
+            {'type':'message','status':'completed','content':[{'type':'output_text',
+                'text':json.dumps({'base':'USD','quote':'IDR','rate':'12345.67','as_of':today.date().isoformat(),
+                                   'source_url':'https://example.org/rate'}),
+                'annotations':[{'type':'url_citation','url':'https://example.org/rate','title':'Synthetic rate source'}]}]}]}
+        # Remove only our outer adapter mock; retain normal usage spies. The
+        # actual search adapter and currency verifier run on synthetic API data.
+        from kilas_ai import tools
+        self.lookup.side_effect=self.original_lookup
+        with patch.dict(os.environ,{'KILAS_AI_OPENAI_WEB_MODEL':'gpt-6.1-sol'}),patch.object(tools,'_request',return_value=payload) as request:
+            self.search.observe('Berapa kurs USD ke IDR hari ini?');self.fx();self.wait()
+            self.assertTrue(self.response()['available'])
+            self.assertIn('Waktu sumber:',self.response()['findings'])
+            self.assertIn('12.345,67',self.response()['findings'])
+            self.assertEqual(request.call_args.args[0]['max_tool_calls'],1)
+            self.assertFalse(request.call_args.args[0]['store'])
+            payload['output'][1]['content'][0]['text']=json.dumps({'base':'USD','quote':'IDR','rate':'12345.67',
+                'as_of':(today-timedelta(days=8)).date().isoformat(),'source_url':'https://example.org/rate'})
+            self.search.turn_complete();self.search.observe('Berapa kurs USD ke IDR hari ini?')
+            self.fx(ident='stale');self.wait()
+            self.assertFalse(self.response()['available'])
+            self.assertEqual(self.response()['reason'],'rate_not_current')
+            self.assertNotIn('findings',self.response())
+
+    def test_failed_public_scope_and_currency_pair_remain_for_safe_followup(self):
+        self.search.observe('Bagaimana keadaan Indonesia hari ini?');self.search.turn_complete()
+        self.search.observe('Cari lagi informasinya di internet.')
+        self.assertEqual(self.search.topic,'general')
+        self.search.turn_complete();self.search.observe('Berapa kurs USD ke IDR sekarang?');self.search.turn_complete()
+        self.search.observe('Cek lagi kursnya sekarang.')
+        # Indonesian suffix doesn't widen the outbound query vocabulary.
+        self.assertEqual(self.search.previous_pair,('USD','IDR'))
+        self.assertEqual(self.search.fx_pair,('USD','IDR'))
+
+    def test_safe_configuration_report_and_failure_counts_do_not_log_text_or_keys(self):
+        with patch.dict(os.environ,{'KILAS_AI_OPENAI_WEB_MODEL':'gpt-6.1-sol'}):
+            report=search.configuration_report()
+        self.assertEqual(report['public_search_model'],'gpt-6.1-sol')
+        self.assertEqual(report['public_search_model_input_usd_per_million'],'2.00')
+        self.assertEqual(report['public_search_forecast_usd'],'0.12')
+        with patch.dict(os.environ,{'KILAS_AI_OPENAI_WEB_MODEL':'sk-PRIVATE-SECRET'}):
+            self.assertNotIn('PRIVATE',json.dumps(search.configuration_report()))
+        self.search.observe('PRIVATE TRANSCRIPT SENTINEL')
+        self.search.failed('provider_timeout')
+        stats=self.search.diagnostic()
+        self.assertEqual(stats['failures']['provider_timeout'],1)
+        self.assertNotIn('PRIVATE',json.dumps(stats))
 
 
 if __name__ == '__main__': unittest.main()

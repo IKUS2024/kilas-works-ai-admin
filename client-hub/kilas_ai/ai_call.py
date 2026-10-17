@@ -174,6 +174,9 @@ class Call:
     def receive(self,raw):
         value=wire.message(raw)
         if 'error' in value:raise CallError('call_provider')
+        activity = value.get('voiceActivity')
+        if isinstance(activity,dict):
+            self.public_search.activity(activity.get('type'))
         if 'toolCall' in value and not self.public_search.handle(value['toolCall']):raise CallError('call_provider')
         cancellation = value.get('toolCallCancellation')
         if cancellation is not None:
@@ -222,7 +225,9 @@ class Call:
                 if not isinstance(heard,dict) or not isinstance(heard.get('text',''),str) or len(heard.get('text',''))>4000:
                     raise CallError('call_output_invalid')
                 self.input_transcript_chars+=len(heard.get('text',''))
-                self.public_search.observe(heard.get('text',''), finished=heard.get('finished') is True)
+                # Live inputTranscription has no required "finished" field.
+                # It is delivered independently from activity and tool events.
+                self.public_search.observe(heard.get('text',''))
             transcript=content.get('outputTranscription')
             if transcript is not None:
                 if not isinstance(transcript,dict) or not isinstance(transcript.get('text',''),str):raise CallError('call_output_invalid')
@@ -305,6 +310,9 @@ class Call:
                           'call_input_invalid','call_output_invalid','call_provider','call_transport'}
             reason=self.code if self.code in safe_reasons else 'call_transport'
             print(f'KILAS_AI_CALL closed=true reason={reason} input_ms={self.input_bytes/32:.1f} sent_ms={self.sent_bytes/32:.1f} sent_chunks={self.sent_chunks} provider_messages={self.provider_messages} output_ms={self.output_bytes/48:.1f} interruptions={self.interruptions} turns={self.turns} input_rms={math.sqrt(self.input_energy/max(1,self.input_samples)):.5f} input_peak={self.input_peak:.5f} heard_chars={self.input_transcript_chars}',flush=True)
+            # Counts and enumerated outcomes only; no text, function IDs, queries
+            # or customer/account identifiers are included.
+            print('KILAS_AI_CALL_SEARCH '+json.dumps(self.public_search.diagnostic(),sort_keys=True),flush=True)
 
     def resume(self):
         # Exactly one supported handoff per provider warning, with no reconnect
