@@ -42,3 +42,14 @@
 @media(max-width:600px){.home-workspace-top.has-model-selector .chat-model-trigger [data-model-label]{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35}}
 
 .chat-model-warning{flex:1 0 100%;max-width:100%;margin:0 6px 3px;color:#813a10;font-size:11px;line-height:1.4;text-align:center}.chat-model-warning[hidden]{display:none}
+
+/* Optional image estimate belongs beside the composer, outside model selectors. */
+.chat-image-cost-preview{flex:none;max-width:100%;margin:0 0 6px;color:#77716a;font-size:11px;line-height:1.45}
+.chat-image-cost-preview[hidden]{display:none}
+.chat-image-cost-preview>summary{width:max-content;max-width:100%;cursor:pointer;padding:3px 8px;border-radius:6px}
+.chat-image-cost-preview>summary:focus-visible{outline:2px solid #a74406;outline-offset:2px}
+.chat-image-cost-preview[open]>div{max-height:160px;overflow:auto;overscroll-behavior:contain;margin:4px 8px 6px;padding:8px 10px;border:1px solid #e8e5df;border-radius:8px;background:#fff;color:#57534e;overflow-wrap:anywhere}
+.chat-image-cost-preview p{margin:0 0 6px}.chat-image-cost-preview p:last-child{margin-bottom:0}
+/* Neutral backing preserves the monochrome OpenAI mark in either theme. */
+.model-provider-icon{box-sizing:content-box;width:17px;height:17px;flex:0 0 17px;padding:3px;border-radius:6px;background:#fff}
+.model-provider-icon[data-provider=openai]{box-shadow:0 0 0 1px #e6e6e6}

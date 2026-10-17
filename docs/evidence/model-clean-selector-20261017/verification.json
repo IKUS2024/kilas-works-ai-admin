@@ -1,0 +1,185 @@
+{
+  "checks": [
+    {
+      "surface": "home",
+      "width": 320,
+      "color_scheme": "light",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "agent",
+      "width": 320,
+      "color_scheme": "light",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "legacy",
+      "width": 320,
+      "color_scheme": "light",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "home",
+      "width": 768,
+      "color_scheme": "light",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "agent",
+      "width": 768,
+      "color_scheme": "light",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "legacy",
+      "width": 768,
+      "color_scheme": "light",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "home",
+      "width": 1440,
+      "color_scheme": "light",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "agent",
+      "width": 1440,
+      "color_scheme": "light",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "legacy",
+      "width": 1440,
+      "color_scheme": "light",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "home",
+      "width": 320,
+      "color_scheme": "dark",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "agent",
+      "width": 320,
+      "color_scheme": "dark",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "legacy",
+      "width": 320,
+      "color_scheme": "dark",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "home",
+      "width": 768,
+      "color_scheme": "dark",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "agent",
+      "width": 768,
+      "color_scheme": "dark",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "legacy",
+      "width": 768,
+      "color_scheme": "dark",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "home",
+      "width": 1440,
+      "color_scheme": "dark",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "agent",
+      "width": 1440,
+      "color_scheme": "dark",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "legacy",
+      "width": 1440,
+      "color_scheme": "dark",
+      "clean_selector": "PASS",
+      "centered": "PASS",
+      "composer_estimate": "PASS",
+      "brand_icons": "PASS",
+      "overflow": false
+    }
+  ],
+  "paid_inference": false
+}

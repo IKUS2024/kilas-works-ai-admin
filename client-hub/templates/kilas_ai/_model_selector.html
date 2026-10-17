@@ -4,13 +4,12 @@
 <div class="chat-model-selector" data-chat-model-selector data-model-kind="{{ kind }}" data-surface="{{ ui_model_surface.surface }}" data-conversation-id="{{ ui_model_surface.id or '' }}">
   <button type="button" class="chat-model-trigger" aria-label="{{ ui_t(heading) }}" aria-haspopup="dialog" aria-expanded="false" aria-controls="{{ kind }}-model-dialog"><img class="model-provider-icon" data-selected-provider-icon alt="" hidden><span data-model-label>{{ ui_t(heading) }}</span><svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="m5 7 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
   <dialog id="{{ kind }}-model-dialog" class="chat-model-dialog" aria-labelledby="{{ kind }}-model-heading"><div class="chat-model-heading"><h2 id="{{ kind }}-model-heading">{{ ui_t(heading) }}</h2><button type="button" data-model-close aria-label="{{ ui_t('Tutup') }}">×</button></div><div class="chat-model-options" data-model-options role="radiogroup" aria-labelledby="{{ kind }}-model-heading" aria-busy="true"></div><p class="chat-model-state" data-model-state role="status"></p>
-  {% if kind=='image' %}<p class="chat-model-note" data-model-price></p><p class="chat-model-note">{{ ui_t('Urutan biaya output untuk ukuran dan kualitas yang ditampilkan. Kualitas antarpenyedia berbeda. Total termasuk input, referensi gambar, dan thinking jika ada; dihitung dari pemakaian aktual. Satu gambar per permintaan.') }}</p>
-  {% else %}<p class="chat-model-note">{{ ui_t('Pilihan berlaku untuk Chat dan penulisan dokumen. Search mengambil sumber lewat layanan Kilas terpisah; jawaban disusun model pilihan. Gambar memakai model gambar yang dipilih terpisah. Kode tidak dijalankan di Chat.') }}</p>{% endif %}</dialog>
+  </dialog>
 </div>
 {% endfor %}
 <p class="chat-model-warning" data-model-warning="chat" role="status" hidden></p>
 <p class="chat-model-warning" data-model-warning="image" role="status" hidden></p>
-<p class="chat-image-cost" data-image-cost-preview role="status"></p>
 </div>
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_models.css',v='model-preference-center-20261017') }}"><script src="{{ url_for('static',filename='kilas_chat_models.js',v='model-preference-center-20261017') }}" defer></script>
+<template data-image-cost-template><details class="chat-image-cost-preview" data-image-cost-disclosure hidden><summary>{{ ui_t('Estimasi biaya gambar') }}</summary><div><p data-image-cost-preview></p><p data-model-price></p><p>{{ ui_t('Estimasi output untuk ukuran dan kualitas yang ditampilkan. Kualitas antarpenyedia berbeda. Total termasuk input, referensi gambar, dan thinking jika ada; dihitung dari pemakaian aktual. Satu gambar per permintaan.') }}</p></div></details></template>
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_models.css',v='model-clean-prices-20261017') }}"><script src="{{ url_for('static',filename='kilas_chat_models.js',v='model-clean-prices-20261017') }}" defer></script>
 {% endif %}
