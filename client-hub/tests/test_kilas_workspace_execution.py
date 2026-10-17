@@ -86,7 +86,7 @@ class ExecutionTests(unittest.TestCase):
         with patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':''}),patch.object(proof.threading,'Thread') as thread:
             proof.maybe_start(None);thread.assert_not_called()
             with self.assertRaisesRegex(ValueError,'proof_not_authorized'):execution.execute(job,step,SOURCE,_proof=True)
-        with patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':execution.POLICY}):
+        with patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':proof.PROOF_POLICY}):
             with self.assertRaisesRegex(ValueError,'proof_not_authorized'):execution.execute({**job,'user_id':9},{'idempotency_key':proof.key()},SOURCE,_proof=True)
         create.assert_not_called()
 
@@ -97,7 +97,7 @@ class ExecutionTests(unittest.TestCase):
         report={'exit_code':0,'stdout':'KILAS_PROOF_OK\n','stderr':'','timed_out':False,
                 'outputs':{'proof.json':base64.b64encode(json.dumps({'answer':42,'checks':proof.CHECKS}).encode()).decode()}}
         create=self.enabled(self.sandbox(report))
-        with patch.object(proof,'OWNER_ID',self.owner),patch.object(execution,'accepted',side_effect=real_accepted),patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':execution.POLICY}):
+        with patch.object(proof,'OWNER_ID',self.owner),patch.object(execution,'accepted',side_effect=real_accepted),patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':proof.PROOF_POLICY}):
             self.assertFalse(execution.capability(self.owner)['available'])
             proof.run(app.app)
             self.assertTrue(execution.capability(self.owner)['available'])
@@ -122,7 +122,7 @@ class ExecutionTests(unittest.TestCase):
         import app
         report={'exit_code':1,'stdout':'','stderr':'KILAS_GUEST_FAILURE:sandbox_disk_limit_unverified','timed_out':False,'outputs':{}}
         real_accepted=execution.accepted;create=self.enabled(self.sandbox(report))
-        with patch.object(proof,'OWNER_ID',self.owner),patch.object(execution,'accepted',side_effect=real_accepted),patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':execution.POLICY}):
+        with patch.object(proof,'OWNER_ID',self.owner),patch.object(execution,'accepted',side_effect=real_accepted),patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':proof.PROOF_POLICY}):
             proof.run(app.app);proof.run(app.app)
             self.assertFalse(execution.capability(self.owner)['available'])
         create.assert_called_once()
@@ -251,6 +251,40 @@ class ExecutionTests(unittest.TestCase):
         with patch.object(execution.time,'monotonic',side_effect=[0,100,101]):
             with self.assertRaisesRegex(ValueError,'execution_timeout'):execution.execute(job,step,SOURCE)
         create.assert_called_once();sandbox.kill.assert_called_once();sandbox.files.read.assert_not_called()
+        row=db.query_one('SELECT outcome_json FROM kilas_workspace_executions')
+        self.assertEqual(json.loads(row['outcome_json'])['phase'],'waiting_report')
+
+    def test_diagnostic_has_distinct_approval_and_preserves_consumed_initial_attempt(self):
+        from kilas_ai import workspace_execution_proof as proof
+        import app
+        job,step=self.claimed();initial=execution.reserve(job,'execution:initial-proof-v1')
+        execution.update(initial,state='UNKNOWN',cleanup_confirmed=1)
+        db.execute("UPDATE kilas_workspace_executions SET expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(initial,))
+        real_accepted=execution.accepted
+        report={'exit_code':1,'stdout':'','stderr':'KILAS_GUEST_FAILURE:guest_launch_error','timed_out':False,'outputs':{}}
+        create=self.enabled(self.sandbox(report))
+        with patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':execution.POLICY}):
+            self.assertFalse(proof.authorized())
+        with patch.object(proof,'OWNER_ID',self.owner),patch.object(execution,'accepted',side_effect=real_accepted),patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':proof.PROOF_POLICY}):
+            proof.run(app.app);proof.run(app.app)
+            self.assertFalse(execution.capability(self.owner)['available'])
+        create.assert_called_once()
+        rows=db.query_all('SELECT operation_key,state,reserved_micro_usd FROM kilas_workspace_executions ORDER BY id')
+        self.assertEqual([r['operation_key'] for r in rows],['execution:initial-proof-v1','execution:diagnostic-proof-v1'])
+        self.assertEqual(rows[0]['state'],'UNKNOWN');self.assertEqual(sum(r['reserved_micro_usd'] for r in rows),17760)
+
+    def test_attestation_and_upload_failures_keep_distinct_safe_phase(self):
+        for location,expected in [('get_info','attesting'),('files.write','uploading_input')]:
+            with self.subTest(location=location):
+                db.execute('DELETE FROM kilas_workspace_executions')
+                db.execute('DELETE FROM kilas_ai_subscriptions WHERE user_id=?',(self.owner,))
+                job,step=self.claimed();sandbox=self.sandbox();create=self.enabled(sandbox)
+                target=sandbox.get_info if location=='get_info' else sandbox.files.write
+                target.side_effect=RuntimeError('never echo secret')
+                with self.assertRaisesRegex(ValueError,'remote_execution_error'):execution.execute(job,step,SOURCE)
+                outcome=json.loads(db.query_one('SELECT outcome_json FROM kilas_workspace_executions')['outcome_json'])
+                self.assertEqual(outcome['phase'],expected);self.assertNotIn('secret',json.dumps(outcome))
+                sandbox.kill.assert_called_once()
 
     def test_budget_reservation_survives_job_deletion(self):
         job,step=self.claimed();run=execution.reserve(job,'durable-budget')
@@ -348,7 +382,7 @@ class ExecutionTests(unittest.TestCase):
         job,step=self.claimed();create=self.enabled(self.sandbox())
         with patch.dict(os.environ,{'KILAS_EXECUTION_APPROVAL':'e2b-hobby-60s-1usd-v1','KILAS_EXECUTION_PROOF_APPROVAL':'e2b-hobby-60s-1usd-v1'}):
             self.assertFalse(execution.capability(self.owner)['available']);self.assertFalse(proof.authorized())
-        self.assertEqual(proof.key(),'initial-proof-v1');create.assert_not_called()
+        self.assertEqual(proof.key(),'diagnostic-proof-v1');create.assert_not_called()
 
     def test_project_author_and_execution_have_distinct_single_usage_entries(self):
         from kilas_ai import workspace_model_tools as native

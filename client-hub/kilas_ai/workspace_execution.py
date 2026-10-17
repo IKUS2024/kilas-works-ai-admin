@@ -14,6 +14,9 @@ GLOBAL_BUDGET_MICRO_USD=5000000
 BUDGET_WINDOW_DAYS=35  # Stricter than any monthly billing period; no guessed anchor.
 RESERVE_MICRO_USD=8880  # Worst Hobby ceiling (8 vCPU/8 GiB), including failed boundary attestation.
 MAX_REPORT=512*1024
+RUNNER_COMMAND=("env -i PATH=/usr/bin:/bin KILAS_REMOTE_GUEST=e2b-ephemeral-v1 /usr/bin/python3 -I -B /root/kilas-runner.py; "
+    "code=$?; if [ \"$code\" -ne 0 ] && [ ! -f /root/kilas-done.json ]; then "
+    "printf '%s' '{\"exit_code\":1,\"stdout\":\"\",\"stderr\":\"KILAS_GUEST_FAILURE:guest_launch_error\",\"timed_out\":false,\"outputs\":{}}' > /root/kilas-done.json; fi")
 
 
 def accepted():
@@ -106,7 +109,7 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
     from .work_runtime import progress
     key='execution:'+step['idempotency_key']
     run_id=reserve(job,key,customer=not _proof);sandbox=None;outcome={'execution':'unknown','run_id':run_id}
-    terminal='UNKNOWN';started=time.monotonic();deadline=started+45;boundary_verified=False
+    terminal='UNKNOWN';started=time.monotonic();deadline=started+45;boundary_verified=False;phase='creating'
     try:
         progress(job,'STARTING_SANDBOX','Menyiapkan sandbox…')
         sandbox=Sandbox.create(template='base',api_key=os.environ['E2B_API_KEY'],timeout=MAX_SECONDS,
@@ -114,6 +117,7 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
             allow_internet_access=False,network={'allow_public_traffic':False,'deny_out':['0.0.0.0/0']},
             lifecycle={'on_timeout':'kill','auto_resume':False},request_timeout=10,retries=0)
         update(run_id,sandbox_id=sandbox.sandbox_id,state='RUNNING')
+        phase='attesting'
         info=sandbox.get_info(request_timeout=5)
         if not (0<info.cpu_count<=2 and 0<info.memory_mb<=4096 and
                 info.network and not info.network.get('allow_out') and
@@ -123,12 +127,16 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
                 info.lifecycle.get('auto_resume') is False):raise ValueError('execution_boundary_unverified')
         boundary_verified=True
         if not active(job):raise ValueError('execution_cancelled')
+        phase='uploading_input'
         sandbox.files.write('/root/kilas-input.json',json.dumps(payload),user='root',request_timeout=5)
         harness=Path(__file__).with_name('workspace_guest.py').read_text()
+        phase='uploading_runner'
         sandbox.files.write('/root/kilas-runner.py',harness,user='root',request_timeout=5)
-        sandbox.commands.run('env -i PATH=/usr/bin:/bin KILAS_REMOTE_GUEST=e2b-ephemeral-v1 /usr/bin/python3 -I -B /root/kilas-runner.py',
+        phase='launching'
+        sandbox.commands.run(RUNNER_COMMAND,
                              user='root',background=True,timeout=35,request_timeout=5)
         progress(job,'RUNNING_CODE','Menjalankan Python…')
+        phase='waiting_report'
         while True:
             if not active(job):raise ValueError('execution_cancelled')
             if time.monotonic()>deadline:raise ValueError('execution_timeout')
@@ -136,7 +144,9 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
             if state.stdout=='ready':break
             time.sleep(.25)
         progress(job,'VERIFYING','Memeriksa hasil…')
+        phase='reading_report'
         report=json.loads(bounded_read(sandbox,'/root/kilas-done.json'))
+        phase='validating_report'
         if set(report)!={'exit_code','stdout','stderr','outputs','timed_out'} or type(report['exit_code']) is not int or type(report['timed_out']) is not bool:raise ValueError('invalid_execution_report')
         outputs={}
         import base64
@@ -159,7 +169,7 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
                  'timed_out':bool(report['timed_out']),'stdout':report['stdout'],'stderr':report['stderr'],
                  'outputs':outputs,'entrypoint':entrypoint,'tests_asserted':False}
         guest_failures={'sandbox_disk_limit_unverified','guest_process_cleanup_unverified',
-                        'unsafe_output','output_limit','guest_runner_error'}
+                        'unsafe_output','output_limit','guest_runner_error','guest_launch_error'}
         if report['stderr'].startswith('KILAS_GUEST_FAILURE:'):
             code=report['stderr'].removeprefix('KILAS_GUEST_FAILURE:')
             if code in guest_failures:outcome['guest_failure']=code
@@ -167,7 +177,7 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
         return outcome
     except Exception as exc:
         terminal='CANCELLED' if str(exc)=='execution_cancelled' else 'UNKNOWN'
-        outcome={'execution':'cancelled' if terminal=='CANCELLED' else 'unknown','run_id':run_id,'reason':str(exc) if isinstance(exc,ValueError) else 'remote_execution_error'}
+        outcome={'execution':'cancelled' if terminal=='CANCELLED' else 'unknown','run_id':run_id,'phase':phase,'reason':str(exc) if isinstance(exc,ValueError) else 'remote_execution_error'}
         raise ValueError(outcome['reason']) from None
     finally:
         cleaned=False

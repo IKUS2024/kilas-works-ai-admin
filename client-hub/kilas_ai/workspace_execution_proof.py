@@ -12,6 +12,7 @@ from . import workspace_execution as execution,autonomous_store as store,usage
 
 CHECKS=['uid','no_root','environment','root_path_denied','resources','network_denied','answer']
 OWNER_ID=9
+PROOF_POLICY='e2b-diagnostic-60s-5usd-v1'
 FIXTURE={'main.py':'''import json,os,resource,urllib.request
 from pathlib import Path
 assert os.getuid()==65534
@@ -48,11 +49,13 @@ def fingerprint():
 def key():
     # Fixed across restarts AND code changes: a future release cannot silently
     # spend another proof attempt while the old approval setting remains present.
-    return 'initial-proof-v1'
+    # Owner separately approved this ONE diagnostic attempt after the consumed
+    # initial-proof-v1 timeout. Its row remains untouched and counted in budget.
+    return 'diagnostic-proof-v1'
 
 
 def authorized():
-    return os.environ.get('KILAS_EXECUTION_PROOF_APPROVAL')==execution.POLICY and bool(os.environ.get('E2B_API_KEY'))
+    return os.environ.get('KILAS_EXECUTION_PROOF_APPROVAL')==PROOF_POLICY and bool(os.environ.get('E2B_API_KEY'))
 
 
 def run(app):
