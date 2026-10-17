@@ -1,0 +1,32 @@
+{
+  "checks": [
+    {
+      "width": 320,
+      "long_names_unclipped": "PASS",
+      "centered": "PASS",
+      "saved_unavailable_choice_retained": "PASS",
+      "visible_warnings": "PASS",
+      "explicit_replacement": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 768,
+      "long_names_unclipped": "PASS",
+      "centered": "PASS",
+      "saved_unavailable_choice_retained": "PASS",
+      "visible_warnings": "PASS",
+      "explicit_replacement": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "long_names_unclipped": "PASS",
+      "centered": "PASS",
+      "saved_unavailable_choice_retained": "PASS",
+      "visible_warnings": "PASS",
+      "explicit_replacement": "PASS",
+      "overflow": false
+    }
+  ],
+  "paid_inference": false
+}

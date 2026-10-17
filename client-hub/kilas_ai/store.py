@@ -25,7 +25,12 @@ def list_threads(user_id, limit=50):
 def create_thread(user_id, mode="SMART"):
     if mode not in MODES:
         raise ValueError("invalid_mode")
-    return db.insert_returning_id("INSERT INTO kilas_ai_threads(user_id,selected_mode) VALUES (?,?)", (user_id, mode))
+    from .autonomous_store import transaction
+    from . import usage,model_preferences
+    with transaction() as conn:
+        ident=usage._query(conn,"INSERT INTO kilas_ai_threads(user_id,selected_mode) VALUES (?,?) RETURNING id",(user_id,mode),one=True)[0]
+        model_preferences.inherit(conn,user_id,'thread',ident)
+        return ident
 
 
 def rename_thread(user_id, thread_id, title):

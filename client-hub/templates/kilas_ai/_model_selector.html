@@ -8,7 +8,9 @@
   {% else %}<p class="chat-model-note">{{ ui_t('Pilihan berlaku untuk Chat dan penulisan dokumen. Search mengambil sumber lewat layanan Kilas terpisah; jawaban disusun model pilihan. Gambar memakai model gambar yang dipilih terpisah. Kode tidak dijalankan di Chat.') }}</p>{% endif %}</dialog>
 </div>
 {% endfor %}
+<p class="chat-model-warning" data-model-warning="chat" role="status" hidden></p>
+<p class="chat-model-warning" data-model-warning="image" role="status" hidden></p>
 <p class="chat-image-cost" data-image-cost-preview role="status"></p>
 </div>
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_models.css',v='image-models-20261017') }}"><script src="{{ url_for('static',filename='kilas_chat_models.js',v='image-models-20261017') }}" defer></script>
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_models.css',v='model-preference-center-20261017') }}"><script src="{{ url_for('static',filename='kilas_chat_models.js',v='model-preference-center-20261017') }}" defer></script>
 {% endif %}

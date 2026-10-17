@@ -14,7 +14,10 @@ def new_conversation(user_id):
     from .autonomous_store import transaction
     with transaction() as conn:
         now = datetime.now(timezone.utc).isoformat()
-        return usage._query(conn, 'INSERT INTO kilas_ai_conversations(user_id,created_at,updated_at) VALUES (?,?,?) RETURNING id', (user_id, now, now), one=True)[0]
+        ident=usage._query(conn, 'INSERT INTO kilas_ai_conversations(user_id,created_at,updated_at) VALUES (?,?,?) RETURNING id', (user_id, now, now), one=True)[0]
+        from . import model_preferences
+        model_preferences.inherit(conn,user_id,'conversation',ident)
+        return ident
 
 
 def recent_conversations(user_id):

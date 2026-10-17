@@ -2,7 +2,7 @@
 import os
 from flask import abort, request, session
 from .routes import ai_bp, enabled
-from . import chat_models
+from . import chat_models,model_preferences
 
 
 @ai_bp.record_once
@@ -30,7 +30,7 @@ def _surface():
 def model_catalog():
     surface,ident=_surface()
     result=chat_models.catalog()
-    selected=chat_models.preference(session['user_id'],surface,ident) if surface else None
+    selected=chat_models.preference(session['user_id'],surface,ident) if surface else model_preferences.get(session['user_id'],'chat')
     return {**result,'selected':selected or result['default']},200,{'Cache-Control':'private, no-store'}
 
 
@@ -40,10 +40,15 @@ def select_model():
     surface=body.get('surface');ident=body.get('conversation_id')
     if not isinstance(body.get('model'),str) or body['model'] not in chat_models.CATALOG:
         return {'error':'Model tidak valid. Pilih model dari daftar.'},400
+    if ident is not None:
+        try:chat_models.owned(session['user_id'],surface,ident)
+        except chat_models.SelectionError:abort(404)
+    elif surface not in (None,'thread','conversation'):abort(400)
     try:
-        chat_models.owned(session['user_id'],surface,ident)
-    except chat_models.SelectionError:abort(404)
-    try:model=chat_models.choose(session['user_id'],surface,ident,body.get('model'))
+        model=body['model']
+        if ident is not None:model=chat_models.choose(session['user_id'],surface,ident,model)
+        elif not chat_models.check(model)['available']:raise chat_models.SelectionError('Model pilihan tidak tersedia. Pilih model lain; permintaan tidak dialihkan.')
+        model_preferences.remember(session['user_id'],'chat',model)
     except chat_models.SelectionError as error:return {'error':str(error)},400
     return {'selected':model,'name':chat_models.spec(model)['name']}
 
@@ -65,16 +70,24 @@ def selector_context():
 def image_catalog():
     from . import image_models
     surface,ident=_surface();result=image_models.catalog()
-    selected=image_models.preference(session['user_id'],surface,ident) if surface else None
-    return {**result,'selected':selected or result['default']},200,{'Cache-Control':'private, no-store'}
+    selected=image_models.preference(session['user_id'],surface,ident) if surface else model_preferences.get(session['user_id'],'image')
+    selected=selected or result['default']
+    return {**result,'selected':selected,'selected_info':image_models.check(selected) if selected else None},200,{'Cache-Control':'private, no-store'}
 
 
 @ai_bp.post('/chat/image-model')
 def select_image_model():
     from . import image_models
     body=request.get_json(silent=True) or {};surface=body.get('surface');ident=body.get('conversation_id')
-    try:image_models.spec(body.get('model'));chat_models.owned(session['user_id'],surface,ident)
+    try:
+        image_models.spec(body.get('model'))
+        if ident is not None:chat_models.owned(session['user_id'],surface,ident)
+        elif surface not in (None,'thread','conversation'):raise chat_models.SelectionError('invalid_surface')
     except chat_models.SelectionError:return {'error':'Model atau percakapan tidak valid.'},400
-    try:model=image_models.choose(session['user_id'],surface,ident,body['model'])
+    try:
+        model=body['model']
+        if ident is not None:model=image_models.choose(session['user_id'],surface,ident,model)
+        elif not image_models.check(model)['available']:raise chat_models.SelectionError('Model gambar pilihan tidak tersedia. Pilih model lain; permintaan tidak dialihkan.')
+        model_preferences.remember(session['user_id'],'image',model)
     except chat_models.SelectionError as error:return {'error':str(error)},400
     return {'selected':model,'name':image_models.spec(model)['name']}

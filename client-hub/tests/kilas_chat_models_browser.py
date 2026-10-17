@@ -55,8 +55,31 @@ def main():
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                     image_trigger.click();page.screenshot(path=str(output/f'image-{surface}-{width}.png'));page.keyboard.press('Escape')
                     expect(image_trigger).to_be_focused()
+                    group=page.locator('.chat-model-controls').bounding_box();header=page.locator('.home-workspace-top').bounding_box()
+                    assert abs(group['x']+group['width']/2-header['x']-header['width']/2)<2,(width,group,header)
+                    brand=page.locator('.home-workspace-title').bounding_box()
+                    assert group['y']>=brand['y']+brand['height']-1 or group['x']>=brand['x']+brand['width']-1
                     assert not errors,errors
-                    rows.append({'surface':surface,'width':width,'overflow':False,'keyboard_focus':'PASS','persisted':'PASS','draft_retained':True})
+                    rows.append({'surface':surface,'width':width,'overflow':False,'keyboard_focus':'PASS','persisted':'PASS','draft_retained':True,'centered_header':'PASS'})
+                page.goto(origin+'/products/start',wait_until='networkidle')
+                trigger=page.locator('[data-model-kind=chat] .chat-model-trigger');image_trigger=page.locator('[data-model-kind=image] .chat-model-trigger')
+                trigger.click();page.locator('#chat-model-dialog').get_by_role('radio',name='GPT-6 Luna',exact=False).click()
+                trigger.click();expect(page.locator('#chat-model-dialog [aria-checked=true]')).to_contain_text('GPT-6 Luna');page.keyboard.press('Escape')
+                image_trigger.click();page.locator('#image-model-dialog').get_by_role('radio',name='GPT Image 1 Mini',exact=False).click()
+                page.reload(wait_until='networkidle');expect(trigger).to_contain_text('GPT-6 Luna');expect(image_trigger).to_contain_text('GPT Image 1 Mini')
+                group=page.locator('.chat-model-controls').bounding_box();header=page.locator('.home-workspace-top').bounding_box()
+                assert abs(group['x']+group['width']/2-header['x']-header['width']/2)<2
+                assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+                page.screenshot(path=str(output/f'centered-home-{width}.png'))
+                created=context.request.post(origin+'/kilas-ai/agent/conversations',form={'csrf_token':'work-csrf'},max_redirects=0)
+                assert created.status==303
+                page.goto(origin+created.headers['location'],wait_until='networkidle');expect(trigger).to_contain_text('GPT-6 Luna');expect(image_trigger).to_contain_text('GPT Image 1 Mini')
+                # Saved older chats keep their own choices after the account default changes.
+                page.goto(origin+f'/kilas-ai/threads/{case.thread}',wait_until='networkidle');expect(trigger).to_contain_text('Claude Sonnet 5.5');expect(image_trigger).to_contain_text('Gemini 3 Pro Image')
+                other=case.client(case.other).get_cookie('session');context.add_cookies([{'name':other.key,'value':other.value,'url':origin}])
+                page.goto(origin+'/products/start',wait_until='networkidle');expect(trigger).to_contain_text('GPT-6.1 Sol');expect(image_trigger).to_contain_text('GPT Image 2')
+                assert not errors,errors
+                rows.append({'surface':'home','width':width,'unsent_reload_reopen':'PASS','new_chat_inheritance':'PASS','existing_chat_retained':'PASS','same_browser_account_isolation':'PASS','centered_header':'PASS','overflow':False})
                 context.close()
             browser.close()
         (output/'verification.json').write_text(json.dumps({'checks':rows,'paid_inference':False},indent=2));print(json.dumps(rows))

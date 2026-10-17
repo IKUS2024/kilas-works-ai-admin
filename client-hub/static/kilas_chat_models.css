@@ -29,3 +29,16 @@
 .chat-model-option>span:first-of-type{flex:1;min-width:0}
 .chat-image-cost{flex:1 0 100%;font-size:11px;line-height:1.35;color:#77716a;margin:0 8px 4px;overflow-wrap:anywhere}
 @media(max-width:600px){.home-workspace-title{width:100%}.chat-model-controls{width:100%;gap:4px}.chat-model-controls>.chat-model-selector{flex:1;min-width:0}.chat-model-trigger{max-width:100%;width:100%;padding:6px}.chat-model-trigger [data-model-label]{min-width:0}.chat-image-cost{margin:0 6px 3px;font-size:11px}}
+
+/* Center model controls independently of the title and optional header action. */
+.home-workspace-top.has-model-selector{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,auto) minmax(0,1fr);align-items:start;column-gap:12px;row-gap:4px}
+.home-workspace-top.has-model-selector>.home-workspace-title{grid-column:1;grid-row:1;align-self:center;flex-wrap:nowrap;width:auto}
+.home-workspace-top.has-model-selector>.chat-model-controls{grid-column:2;grid-row:1;justify-self:center;justify-content:center;max-width:460px}
+.home-workspace-top.has-model-selector>.home-workspace-actions{grid-column:3;grid-row:1;justify-self:end;align-self:center;max-width:100%}
+.home-workspace-top.has-model-selector .chat-image-cost{text-align:center}
+@media(max-width:1100px){.home-workspace-top.has-model-selector{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.home-workspace-top.has-model-selector>.chat-model-controls{grid-column:1/-1;grid-row:2;width:100%}.home-workspace-top.has-model-selector>.home-workspace-actions{grid-column:2}.home-workspace-top.has-model-selector .chat-model-selector{flex:0 1 auto}.home-workspace-top.has-model-selector .chat-model-trigger{max-width:100%}}
+@media(max-width:600px){.home-workspace-top.has-model-selector{column-gap:8px}.home-workspace-top.has-model-selector>.chat-model-controls{gap:2px;width:100%;max-width:440px}.home-workspace-top.has-model-selector .chat-model-selector{flex:1 1 0;min-width:0}.home-workspace-top.has-model-selector .chat-model-trigger{padding-inline:4px;gap:5px;justify-content:center}.home-workspace-top.has-model-selector .home-workspace-actions{font-size:11px}}
+
+@media(max-width:600px){.home-workspace-top.has-model-selector .chat-model-trigger [data-model-label]{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35}}
+
+.chat-model-warning{flex:1 0 100%;max-width:100%;margin:0 6px 3px;color:#813a10;font-size:11px;line-height:1.4;text-align:center}.chat-model-warning[hidden]{display:none}

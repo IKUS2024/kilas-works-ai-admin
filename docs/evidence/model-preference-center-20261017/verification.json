@@ -1,0 +1,145 @@
+{
+  "checks": [
+    {
+      "surface": "agent",
+      "width": 320,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true,
+      "centered_header": "PASS"
+    },
+    {
+      "surface": "legacy",
+      "width": 320,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true,
+      "centered_header": "PASS"
+    },
+    {
+      "surface": "home",
+      "width": 320,
+      "unsent_reload_reopen": "PASS",
+      "new_chat_inheritance": "PASS",
+      "existing_chat_retained": "PASS",
+      "same_browser_account_isolation": "PASS",
+      "centered_header": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "agent",
+      "width": 390,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true,
+      "centered_header": "PASS"
+    },
+    {
+      "surface": "legacy",
+      "width": 390,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true,
+      "centered_header": "PASS"
+    },
+    {
+      "surface": "home",
+      "width": 390,
+      "unsent_reload_reopen": "PASS",
+      "new_chat_inheritance": "PASS",
+      "existing_chat_retained": "PASS",
+      "same_browser_account_isolation": "PASS",
+      "centered_header": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "agent",
+      "width": 768,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true,
+      "centered_header": "PASS"
+    },
+    {
+      "surface": "legacy",
+      "width": 768,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true,
+      "centered_header": "PASS"
+    },
+    {
+      "surface": "home",
+      "width": 768,
+      "unsent_reload_reopen": "PASS",
+      "new_chat_inheritance": "PASS",
+      "existing_chat_retained": "PASS",
+      "same_browser_account_isolation": "PASS",
+      "centered_header": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "agent",
+      "width": 1024,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true,
+      "centered_header": "PASS"
+    },
+    {
+      "surface": "legacy",
+      "width": 1024,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true,
+      "centered_header": "PASS"
+    },
+    {
+      "surface": "home",
+      "width": 1024,
+      "unsent_reload_reopen": "PASS",
+      "new_chat_inheritance": "PASS",
+      "existing_chat_retained": "PASS",
+      "same_browser_account_isolation": "PASS",
+      "centered_header": "PASS",
+      "overflow": false
+    },
+    {
+      "surface": "agent",
+      "width": 1440,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true,
+      "centered_header": "PASS"
+    },
+    {
+      "surface": "legacy",
+      "width": 1440,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true,
+      "centered_header": "PASS"
+    },
+    {
+      "surface": "home",
+      "width": 1440,
+      "unsent_reload_reopen": "PASS",
+      "new_chat_inheritance": "PASS",
+      "existing_chat_retained": "PASS",
+      "same_browser_account_isolation": "PASS",
+      "centered_header": "PASS",
+      "overflow": false
+    }
+  ],
+  "paid_inference": false
+}
