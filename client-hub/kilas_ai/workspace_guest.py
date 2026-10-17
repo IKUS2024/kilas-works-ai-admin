@@ -99,4 +99,20 @@ def main():
     Path('/root/kilas-done.json').write_text(json.dumps(report,ensure_ascii=False))
 
 
-if __name__=='__main__':main()
+def run():
+    # An early trusted-runner error must produce a bounded terminal report too.
+    # Otherwise the host sees only a later timeout and loses the actual phase.
+    if os.environ.get('KILAS_REMOTE_GUEST')!='e2b-ephemeral-v1' or os.getuid()!=0:
+        raise RuntimeError('remote_guest_only')
+    try:
+        main()
+    except Exception as error:
+        allowed={'sandbox_disk_limit_unverified','guest_process_cleanup_unverified',
+                 'unsafe_output','output_limit'}
+        code=str(error) if str(error) in allowed else 'guest_runner_error'
+        # Do not echo exception messages, paths, source, environment or secrets.
+        Path('/root/kilas-done.json').write_text(json.dumps({'exit_code':1,
+            'stdout':'','stderr':'KILAS_GUEST_FAILURE:'+code,'timed_out':False,'outputs':{}}))
+
+
+if __name__=='__main__':run()

@@ -106,6 +106,32 @@ class ExecutionTests(unittest.TestCase):
         row=db.query_one('SELECT outcome_json,cleanup_confirmed FROM kilas_workspace_executions')
         self.assertTrue(json.loads(row['outcome_json'])['proof_passed']);self.assertEqual(row['cleanup_confirmed'],1)
 
+    def test_trusted_guest_early_failure_reports_bounded_safe_diagnostic(self):
+        # Pure report handling only: no subprocess or generated code is run here.
+        with patch.dict(os.environ,{'KILAS_REMOTE_GUEST':'e2b-ephemeral-v1'}),patch.object(guest.os,'getuid',return_value=0),patch.object(guest,'main',side_effect=RuntimeError('sandbox_disk_limit_unverified')),patch.object(guest.Path,'write_text') as write:
+            guest.run()
+        report=json.loads(write.call_args.args[0])
+        self.assertEqual(report,{'exit_code':1,'stdout':'','stderr':'KILAS_GUEST_FAILURE:sandbox_disk_limit_unverified','timed_out':False,'outputs':{}})
+        with patch.dict(os.environ,{'KILAS_REMOTE_GUEST':'e2b-ephemeral-v1'}),patch.object(guest.os,'getuid',return_value=0),patch.object(guest,'main',side_effect=RuntimeError('sensitive source or environment')),patch.object(guest.Path,'write_text') as write:
+            guest.run()
+        self.assertNotIn('sensitive',write.call_args.args[0])
+        self.assertIn('guest_runner_error',write.call_args.args[0])
+
+    def test_failed_fixed_proof_retains_diagnostics_and_cannot_dispatch_again(self):
+        from kilas_ai import workspace_execution_proof as proof
+        import app
+        report={'exit_code':1,'stdout':'','stderr':'KILAS_GUEST_FAILURE:sandbox_disk_limit_unverified','timed_out':False,'outputs':{}}
+        real_accepted=execution.accepted;create=self.enabled(self.sandbox(report))
+        with patch.object(proof,'OWNER_ID',self.owner),patch.object(execution,'accepted',side_effect=real_accepted),patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':execution.POLICY}):
+            proof.run(app.app);proof.run(app.app)
+            self.assertFalse(execution.capability(self.owner)['available'])
+        create.assert_called_once()
+        row=db.query_one('SELECT outcome_json,cleanup_confirmed,state FROM kilas_workspace_executions')
+        outcome=json.loads(row['outcome_json'])
+        self.assertFalse(outcome['proof_passed']);self.assertEqual(outcome['guest_failure'],'sandbox_disk_limit_unverified')
+        self.assertEqual(row['state'],'FAILED');self.assertEqual(row['cleanup_confirmed'],1)
+        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_agent_artifacts WHERE name='execution-result.json'")['n'],1)
+
     def test_success_exact_remote_boundary_and_bounded_artifact_download(self):
         job,step=self.claimed();sandbox=self.sandbox();create=self.enabled(sandbox)
         with patch('subprocess.Popen',side_effect=AssertionError('host process forbidden')):

@@ -158,6 +158,11 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
         outcome={'execution':'completed','provider':'e2b','run_id':run_id,'exit_code':report['exit_code'],
                  'timed_out':bool(report['timed_out']),'stdout':report['stdout'],'stderr':report['stderr'],
                  'outputs':outputs,'entrypoint':entrypoint,'tests_asserted':False}
+        guest_failures={'sandbox_disk_limit_unverified','guest_process_cleanup_unverified',
+                        'unsafe_output','output_limit','guest_runner_error'}
+        if report['stderr'].startswith('KILAS_GUEST_FAILURE:'):
+            code=report['stderr'].removeprefix('KILAS_GUEST_FAILURE:')
+            if code in guest_failures:outcome['guest_failure']=code
         if not active(job):raise ValueError('execution_cancelled')
         return outcome
     except Exception as exc:

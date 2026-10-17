@@ -78,7 +78,8 @@ def run(app):
             result=workspace_execution_worker.result(outcome)
             if not passed:
                 from .agent_workers import Result
-                result=Result('FAILED','Hasil eksekusi belum terverifikasi.',{'reason':'execution_proof_failed'})
+                result=Result('FAILED','Hasil eksekusi belum terverifikasi.',
+                              {**public,'reason':'execution_proof_failed'},result.artifacts,verified=False)
             autonomous_runner.finish(job,token,step,result)
             logging.getLogger(__name__).warning('KILAS_EXECUTION_PROOF state=%s','PASSED' if passed else 'FAILED')
         except Exception:
