@@ -258,7 +258,7 @@ class PublicSearch:
         self.previous_topic = None
         self.fx_pair = None
         self.previous_pair = None
-        self.query = None
+        self.selected_scope = None
         self.previous_query = None
         self.stats = {'tool_calls': 0, 'lookup_started': 0, 'lookup_completed': 0,
                       'transcript_events': 0, 'activity_start': 0, 'activity_end': 0,
@@ -277,7 +277,7 @@ class PublicSearch:
                 if not self.input_active or self.activity_seen:
                     self.input_active = True; self.number += 1; self.buffer = ''
                     self.topic = None; self.fx_pair = None; self.opt_out = False
-                    self.query = None
+                    self.selected_scope = None
                 self.speaking = True; self.activity_seen = True
                 self.stats['activity_start'] += 1
             elif kind == 'ACTIVITY_END':
@@ -298,7 +298,7 @@ class PublicSearch:
                 self.opt_out = False
                 self.activity_seen = False
                 self.fx_pair = None
-                self.query = None
+                self.selected_scope = None
             self.buffer = (self.buffer + text)[-2048:]
             self.last_text_at = monotonic()
             self.stats['transcript_events'] += 1
@@ -336,13 +336,22 @@ class PublicSearch:
         self._clear_context_locked()
         if self.opt_out or not ai_call_public_query.context_allowed(self.buffer):
             return
-        if self.fx_pair:
+        # The validated selected tool owns this request's scope, including
+        # after late transcript fragments recreate other lexical hints.
+        if self.selected_scope:
+            kind, value = self.selected_scope
+            if kind == 'public':
+                self.previous_query = value
+            elif kind == 'currency':
+                self.previous_pair = value
+            else:
+                self.previous_public = True
+                self.previous_topic = value
+        elif self.fx_pair:
             self.previous_pair = self.fx_pair
         elif self.topic:
             self.previous_public = True
             self.previous_topic = self.topic
-        elif self.query:
-            self.previous_query = self.query
 
     def diagnostic(self):
         with self.lock:
@@ -368,7 +377,7 @@ class PublicSearch:
                 self.buffer = ''
                 self.topic = None
                 self.fx_pair = None
-                self.query = None
+                self.selected_scope = None
                 self._clear_context_locked()
             if self.job and (ids is None or self.job['id'] in ids):
                 if not self.job['cancelled'].is_set():
@@ -551,7 +560,7 @@ class PublicSearch:
                         job['number'] = self.number
                         if generic:
                             job['query'] = minimized
-                            self.query = minimized
+                        self.selected_scope = (kind, minimized if generic else requested_pair if fx else args['topic'])
                         self._remember_context_locked()
                 if eligible:
                     break

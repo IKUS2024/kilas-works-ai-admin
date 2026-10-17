@@ -508,6 +508,38 @@ class PublicSearchTests(unittest.TestCase):
         self.assertIsNone(search.currency_pair('What is the latest inflation rate?', ('USD', 'IDR')))
         self.assertEqual(search.currency_pair('What is the rate now?', ('USD', 'IDR')), ('USD', 'IDR'))
 
+    def test_new_general_topic_owns_context_after_indonesia_news(self):
+        self.search.observe('Ada berita terbaru di Indonesia?'); self.handle(); self.wait()
+        self.search.turn_complete(); self.search.observe('Bagaimana cuaca New York hari ini?')
+        query = 'cuaca New York hari ini'
+        self.generic(query); self.wait(); self.assertTrue(self.response()['available'])
+        self.search.observe('.')
+        self.search.turn_complete()
+        self.assertIsNone(self.search.previous_topic)
+        self.assertEqual(self.search.previous_query, query)
+        self.search.observe('Coba cari lagi.')
+        with patch.object(search, 'INTENT_WAIT_SECONDS', 0):
+            self.generic(query, ident='same-new-topic'); self.wait()
+        self.assertTrue(self.response()['available'])
+        self.assertEqual(self.lookups[-1][0], self.lookups[-2][0])
+        self.assertEqual(self.reserve.call_count, 3); self.assertEqual(self.finish.call_count, 3)
+
+    def test_selected_specialized_tool_owns_retry_scope_despite_other_topic_hints(self):
+        for number, kind in enumerate(('indonesia', 'currency')):
+            self.search.turn_complete()
+            self.search.observe('Bagaimana kondisi ekonomi Indonesia dan berapa kurs USD ke IDR sekarang?')
+            if kind == 'indonesia': self.handle(ident='mixed-'+str(number), args={'country': 'ID', 'topic': 'economy'})
+            else: self.fx(ident='mixed-'+str(number))
+            self.wait(); self.assertTrue(self.response()['available'])
+            self.search.turn_complete()
+            self.assertEqual(self.search.previous_topic, 'economy' if kind == 'indonesia' else None)
+            self.assertEqual(self.search.previous_pair, ('USD', 'IDR') if kind == 'currency' else None)
+            self.search.observe('Coba cari lagi.')
+            if kind == 'indonesia': self.handle(ident='mixed-retry-'+str(number), args={'country': 'ID', 'topic': 'economy'})
+            else: self.fx(ident='mixed-retry-'+str(number))
+            self.wait(); self.assertTrue(self.response()['available'])
+        self.assertEqual(self.reserve.call_count, 4); self.assertEqual(self.finish.call_count, 4)
+
     def test_news_fx_general_and_repeated_changed_queries_share_one_call(self):
         requests = (
             ('Ada berita terbaru di Indonesia?', search.NAME, {'country': 'ID', 'topic': 'general'}),

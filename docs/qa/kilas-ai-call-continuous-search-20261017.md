@@ -76,8 +76,9 @@ speech latency.
 
 ## Offline validation
 
-All **135 focused Python Call tests passed in 1.576s**. The public-search module
-has 48 tests, including 11 new regressions. Coverage includes:
+All **137 focused Python Call tests passed in 1.614s**. The public-search module
+has 50 tests, including 13 new regressions. Independent review also passed all
+50 public-search tests in 0.539s and found no remaining blocking issue in scope. Coverage includes:
 
 - Six successive requests in one Call: news → FX → general → identical general
   request → changed general request → changed FX pair, with six unique usage
@@ -92,12 +93,15 @@ has 48 tests, including 11 new regressions. Coverage includes:
   its first transcript can still bind to that request.
 - Topic/private/opt-out context clearing; inflation/unemployment rates remain
   ordinary public topics after an FX discussion.
+- Selected-tool scope ownership across Indonesia-news → New York weather →
+  explicit same-topic retry, plus mixed-topic hints and harmless late transcript
+  fragments. A prior inferred scope cannot replace the actual selected scope.
 - Specific rate-evidence failure instructions; no unverified rate is forwarded
   as findings. Existing completed-response/citation/date checks remain tested.
 
 All HTTP/provider/usage/DB work was mocked in these tests. This is code-level
 regression evidence, not real-provider or physical Android acceptance.
-Test log: `/workspace/scratch/kilas-ai-call-continuous/python-tests.log`.
+Test log: `/workspace/scratch/kilas-ai-call-continuous/python-tests-final.log`.
 `git diff --check` passed. Only Call query/search code, its tests and this QA
 note are changed.
 
