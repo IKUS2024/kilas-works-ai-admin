@@ -1,0 +1,1 @@
+Provider marks are local Simple Icons SVG copies (CC0-1.0), used solely to identify model providers, without endorsement. Sources: https://github.com/simple-icons/simple-icons (Claude/Gemini develop; OpenAI 13.21.0). Brand trademark rights remain with their owners. Icons have accessible provider names in the selector.

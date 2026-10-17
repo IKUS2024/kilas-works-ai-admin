@@ -93,12 +93,19 @@ def new_thread():
         abort(400)
     from . import chat_models
     selected_model=body.get('selected_model')
+    selected_image=body.get('selected_image_model')
+    if selected_image:
+        from . import image_models
+        try:
+            if not image_models.check(selected_image)['available']:raise chat_models.SelectionError('Model gambar belum tersedia.')
+        except chat_models.SelectionError as error:return {'error':str(error)},400
     if selected_model:
         try:
             if not chat_models.check(selected_model)['available']:raise chat_models.SelectionError('Model belum tersedia.')
         except chat_models.SelectionError as error:return {'error':str(error)},400
     thread_id = store.create_thread(session["user_id"], routing.mode_for(first_message))
     if selected_model:chat_models.choose(session['user_id'],'thread',thread_id,selected_model)
+    if selected_image:image_models.choose(session['user_id'],'thread',thread_id,selected_image)
     return {"thread_id": thread_id, "url": url_for("kilas_ai.thread_page", thread_id=thread_id)}, 201
 
 
@@ -377,6 +384,11 @@ def send(thread_id, *, script_only=False):
                         mimetype="text/event-stream")
     from . import chat_models
     selected_model=None
+    selected_image=None
+    from . import image_models
+    if not script_only:
+        try:selected_image=image_models.requested(user_id,'thread',thread_id,body.get('selected_image_model'),required=tool in ('IMAGE_GENERATE','IMAGE_EDIT') and 'selected_image_model' in body)
+        except chat_models.SelectionError as error:return {'error':str(error)},400
     preview=model_policy.ChatContext(store.context(user_id,thread_id)+[{'role':'user','content':attachments.prompt_content(content,prepared)}])
     try:
         if not script_only:
@@ -384,11 +396,11 @@ def send(thread_id, *, script_only=False):
             if selected_model:
                 preview=model_policy.ChatContext(store.context(user_id,thread_id,selected_model=selected_model)+[{'role':'user','content':attachments.prompt_content(content,prepared)}])
                 chat_models.bind(preview,selected_model)
-                chat_models.validate_messages(selected_model,preview)
+                if tool not in ('IMAGE_GENERATE','IMAGE_EDIT'):chat_models.validate_messages(selected_model,preview)
     except chat_models.SelectionError as error:return {'error':str(error)},400
     try:
         plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool,
-            profile=model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF') else None)
+            profile={'image_model':selected_image} if selected_image and tool in ('IMAGE_GENERATE','IMAGE_EDIT') else model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF') else None)
     except ai_usage.UsageLimit as error:
         from .chat_web import UNVERIFIED
         return {"error": str(error) + (' ' + UNVERIFIED if tool == 'WEB' else '')}, 429
@@ -522,12 +534,14 @@ def send(thread_id, *, script_only=False):
                     source = next((item for item in prepared if item["mime_type"].startswith("image/")), None) or prior_image
                     yield _sse("activity", {"label": "Mengedit gambar…" if tool == "IMAGE_EDIT" else "Membuat gambar…"})
                     prompt = routing.enhance_image_prompt(routing.image_prompt(content, prior_answer), content) if tool == "IMAGE_GENERATE" else content
-                    result = ai_tools.image(prompt, source if tool == "IMAGE_EDIT" else None)
-                    provider, model = "openai", result["model"]
-                    usage.update({k: int(v or 0) for k, v in result["usage"].items() if k in usage})
+                    result = ai_tools.image(prompt, source if tool == "IMAGE_EDIT" else None,**({'selected_model':selected_image} if selected_image else {}))
+                    if result.get('model_provenance'):yield _sse('model',result['model_provenance'])
+                    provider, model = result.get("provider","openai"), result["model"]
+                    if selected_image:usage.update(result["usage"])
+                    else:usage.update({k: int(v or 0) for k, v in result["usage"].items() if k in usage})
                     label = "Gambar selesai diedit." if tool == "IMAGE_EDIT" else "Gambar selesai dibuat."
                     assistant_id = store.append_assistant(user_id, thread_id, label, mode, provider, model, key,
-                        {"status": "complete", "tool": tool.lower(), "usage": result["usage"]})
+                        {"status": "complete", "tool": tool.lower(), "usage": result["usage"], "model_metadata":result.get("model_provenance")})
                     extension = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}[result["mime"]]
                     image_id = store.save_attachments(user_id, thread_id, assistant_id, [{"filename": "kilas-ai-image." + extension,
                         "mime_type": result["mime"], "byte_size": len(result["raw"]), "content": result["raw"],
@@ -540,7 +554,7 @@ def send(thread_id, *, script_only=False):
                     return
                 except ai_tools.ToolUnavailable as error:
                     if error.model:
-                        provider, model = (chat_models.spec(selected_model)['provider'] if selected_model and error.model==selected_model else 'openai'), error.model
+                        provider, model = (image_models.spec(selected_image)['provider'] if selected_image and error.model==selected_image else chat_models.spec(selected_model)['provider'] if selected_model and error.model==selected_model else 'openai'), error.model
                         usage.update(error.usage)
                     from .chat_web import search_failure_message
                     if tool == 'WEB': ai_tools.log_search_failure(error)

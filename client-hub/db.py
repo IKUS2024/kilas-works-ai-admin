@@ -314,6 +314,7 @@ MIGRATIONS = [
     ("0100_finance_approved_revisions_sqlite.sql", "0100_finance_approved_revisions_postgres.sql"),
     ("0101_finance_reset_requests_sqlite.sql", "0101_finance_reset_requests_postgres.sql"),
     ("0102_kilas_chat_models_sqlite.sql", "0102_kilas_chat_models_postgres.sql"),
+    ("0103_kilas_image_models_sqlite.sql", "0103_kilas_image_models_postgres.sql"),
 ]
 
 

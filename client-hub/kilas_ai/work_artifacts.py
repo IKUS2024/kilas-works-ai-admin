@@ -43,7 +43,7 @@ def validate(file):
 
 def persist(conn,job,step,file):
     raw=validate(file)
-    metadata=json.dumps({'source':(file.get('extracted_text') or '')[:24000],'title':file.get('title',''),'format':file['filename'].rsplit('.',1)[-1],'input':bool(file.get('input'))},ensure_ascii=False)
+    metadata=json.dumps({'source':(file.get('extracted_text') or '')[:24000],'title':file.get('title',''),'format':file['filename'].rsplit('.',1)[-1],'input':bool(file.get('input')), 'model_provenance':file.get('model_provenance')},ensure_ascii=False)
     digest=hashlib.sha256(raw).hexdigest()
     row=usage._query(conn,'INSERT INTO kilas_agent_artifacts(job_id,step_id,name,media_type,content,digest) VALUES (?,?,?,?,?,?) ON CONFLICT(step_id,name,digest) DO NOTHING RETURNING id',(job['id'],step['id'],file['filename'][:100],file['mime_type'],metadata,digest),one=True)
     if row:usage._query(conn,'INSERT INTO kilas_agent_artifact_files(artifact_id,content,byte_size) VALUES (?,?,?)',(row[0],raw,len(raw)))
@@ -54,7 +54,7 @@ def listing(user_id,job_id=None,conversation_id=None):
     where='j.user_id=?';params=[user_id]
     if job_id is not None:where+=' AND j.id=?';params.append(job_id)
     if conversation_id is not None:where+=' AND j.origin_conversation_id=?';params.append(conversation_id)
-    return [dict(r) for r in db.query_all('SELECT a.id,a.job_id,a.name,a.media_type,a.content,f.byte_size FROM kilas_agent_artifacts a JOIN kilas_agent_jobs j ON j.id=a.job_id JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE '+where+' ORDER BY a.id DESC LIMIT 20',tuple(params)) if not json.loads(r['content']).get('input')]
+    return [{**dict(r),'model_provenance':json.loads(r['content']).get('model_provenance')} for r in db.query_all('SELECT a.id,a.job_id,a.name,a.media_type,a.content,f.byte_size FROM kilas_agent_artifacts a JOIN kilas_agent_jobs j ON j.id=a.job_id JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE '+where+' ORDER BY a.id DESC LIMIT 20',tuple(params)) if not json.loads(r['content']).get('input')]
 
 
 def latest_document(user_id,conversation_id):

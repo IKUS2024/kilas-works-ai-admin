@@ -96,6 +96,19 @@ def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=N
         raise ValueError('invalid_job')
     if not 300 <= int(interval) <= 2592000:
         raise ValueError('invalid_interval')
+    # Snapshot owner-selected authorship once; queued execution never consults a
+    # later tab's preference or silently changes providers.
+    from flask import has_request_context,request
+    if conversation_id is not None and has_request_context():
+        selected=getattr(request,'chat_selected_model',None)
+        image_selected=getattr(request,'chat_selected_image_model',None)
+        if selected:
+            from . import chat_models
+            chat_models.spec(selected)
+            checkpoint={**(checkpoint or {}),'author_model':selected}
+        if image_selected:
+            checkpoint={**(checkpoint or {}),'image_model':image_selected}
+
     with transaction() as conn:
         if conversation_id is not None and not usage._query(conn, 'SELECT id FROM kilas_ai_conversations WHERE id=? AND user_id=?', (conversation_id, user_id), one=True):
             raise ValueError('conversation_not_owned')

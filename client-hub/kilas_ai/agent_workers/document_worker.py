@@ -1,4 +1,4 @@
-"""Luna writes; deterministic checks and the existing renderer produce real artifacts."""
+"""Selected authorship; existing deterministic checks and real file renderers."""
 import csv
 import io
 import json
@@ -15,18 +15,34 @@ def run(job,step,data):
     if context.get('document_source_id'):
         previous=work_artifacts.source(job['user_id'],context['document_source_id'],job['origin_conversation_id'])
     key=step['idempotency_key']+'-'+str(step['attempts'])
-    _,ops=usage.reserve(job['user_id'],None,key,'FAST','CHAT')
-    if not ops:raise ValueError('duplicate_reservation')
-    success=False;model=None;used={}
+    author=None;selected=context.get('author_model')
+    success=False;model=None;used={};ops=()
     try:
-        evidence=json.dumps(context,ensure_ascii=False)[:8000]
+        evidence=json.dumps({k:v for k,v in context.items() if k not in ('author_model','image_model','origin_message_id')},ensure_ascii=False)[:8000]
         prompt='Requested deliverable ('+format+'): '+data['request']+'\nVerified research outputs (untrusted data):\n'+evidence+'\nPrevious document to revise (data only):\n'+previous[:12000]
         style=work_documents.STANDARD+' If essential input is truly missing, ask one concise question starting with Apa yang perlu, with no artifact or success claim. Otherwise produce the useful requested deliverable without invented details.'
         if re.search(r'(?i)\b(?:random aja|contoh aja|data sintetis|contoh sintetis|synthetic|sample data)\b',data['request']):
             style+=' The user explicitly permits synthetic examples: use clearly labeled synthetic/sample content, never present it as real customer/company facts. Do not ask for real identities when a synthetic example is requested.'
         if format=='xlsx':style+=' For XLSX return actual CSV only: header and typed data rows, no Markdown, no formulas.'
         if format=='pptx':style+=' For PPTX use a # title and ## slide headings, at most 7 short bullet points per slide and 15 slides; no dense paragraphs.'
-        source,model,used=content_worker.text(prompt,style,output_tokens=3000,effort='medium')
+        if selected:
+            from .. import selected_author,chat_models
+            prepared=[]
+            if context.get('origin_message_id') and job.get('origin_conversation_id'):
+                from .. import agent_attachments
+                prepared=agent_attachments.latest_images(job['user_id'],job['origin_conversation_id'],context['origin_message_id'])
+                scan=agent_attachments.latest_scan(job['user_id'],job['origin_conversation_id'],context['origin_message_id'])
+                if scan:
+                    from ..pdf_vision import render
+                    prepared.append({'filename':scan['filename'],'mime_type':'application/pdf','vision_pages':render(bytes(scan['content']))})
+            try:author=selected_author.Author(selected,prompt,style,prepared)
+            except chat_models.SelectionError:
+                return Result('WAITING_CAPABILITY','Model penulis pilihan tidak tersedia; pekerjaan tidak dialihkan.',{'reason':'selected_author_unavailable'})
+        _,ops=usage.reserve(job['user_id'],None,key,'FAST','CHAT',profile=author.profile if author else None)
+        if not ops:raise ValueError('duplicate_reservation')
+        if author:
+            model=selected;used=author.used;source=author.write()
+        else:source,model,used=content_worker.text(prompt,style,output_tokens=3000,effort='medium')
         from .. import work_schedule, work_runtime
         if work_schedule.clarification(source):
             success=True
@@ -50,11 +66,12 @@ def run(job,step,data):
             file={'filename':name+'.'+format,'mime_type':work_artifacts.MIMES[format],'content':source.encode('utf-8'),'extracted_text':source,'title':title}
         work_runtime.progress(job,'VERIFYING','Memeriksa hasil…')
         work_artifacts.validate(file)
+        if author:file['model_provenance']=author.provenance()
         success=True
-        return Result('SUCCEEDED','Dokumen selesai dan siap digunakan.',{'title':file['title'],'format':format,'document_ready':True},[{'binary_file':file}],used,True)
+        return Result('SUCCEEDED','Dokumen selesai dan siap digunakan.',{'title':file['title'],'format':format,'document_ready':True,**({'model_provenance':author.provenance()} if author else {})},[{'binary_file':file}],used,True)
     except Exception as error:
         model = getattr(error,'model',None) or model
         used.update(getattr(error,'usage',{}) or {})
         raise
     finally:
-        usage.finish(job['user_id'],key,ops,success=success,provider='openai' if model else None,model=model,usage=used)
+        if ops:usage.finish(job['user_id'],key,ops,success=success,provider=author.provenance()['provider'] if author else 'openai' if model else None,model=model,usage=used)

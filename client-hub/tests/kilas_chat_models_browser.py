@@ -7,7 +7,7 @@ from unittest.mock import patch
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 import test_kilas_chat_models as f
-from kilas_ai import chat_models
+from kilas_ai import chat_models,image_models
 
 
 def main():
@@ -18,7 +18,7 @@ def main():
     rows=[]
     def access(model):return {**f.available(model),'available':model!='claude-fable-5-1','status':'verified' if model!='claude-fable-5-1' else 'access_unavailable'}
     try:
-        with patch.object(chat_models,'check',side_effect=access),sync_playwright() as pw:
+        with patch.object(chat_models,'check',side_effect=access),patch.object(image_models,'check',side_effect=lambda m:{**image_models.spec(m),'available':True,'status':'verified'}),sync_playwright() as pw:
             browser=pw.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
             for width in (320,390,768,1024,1440):
                 context=browser.new_context(viewport={'width':width,'height':900})
@@ -27,7 +27,7 @@ def main():
                 page.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin) else route.abort())
                 for surface,path in [('agent',f'/kilas-ai/agent?conversation={case.conversation}'),('legacy',f'/kilas-ai/threads/{case.thread}')]:
                     response=page.goto(origin+path,wait_until='networkidle');assert response.status==200
-                    trigger=page.locator('.chat-model-trigger');expect(trigger).to_contain_text('GPT-6.1 Sol' if width==320 else 'Claude Sonnet 5.5') if width!=320 else expect(trigger).to_contain_text('GPT-6.1 Sol')
+                    trigger=page.locator('[data-model-kind=chat] .chat-model-trigger');expect(trigger).to_contain_text('GPT-6.1 Sol' if width==320 else 'Claude Sonnet 5.5') if width!=320 else expect(trigger).to_contain_text('GPT-6.1 Sol')
                     field=page.locator('#agent-message' if surface=='agent' else '#ai-input');field.fill('Synthetic unsent draft')
                     trigger.click();dialog=page.locator('#chat-model-dialog');expect(dialog).to_be_visible()
                     expect(dialog.locator('.chat-model-option')).to_have_count(10)
@@ -42,6 +42,19 @@ def main():
                     expect(dialog).not_to_be_visible();expect(trigger).to_contain_text('Claude Sonnet 5.5');expect(field).to_have_value('Synthetic unsent draft')
                     page.reload(wait_until='networkidle');expect(trigger).to_contain_text('Claude Sonnet 5.5')
                     trigger.click();page.keyboard.press('Escape');expect(dialog).not_to_be_visible();expect(trigger).to_be_focused()
+                    image_trigger=page.locator('[data-model-kind=image] .chat-model-trigger')
+                    image_trigger.click();image_dialog=page.locator('#image-model-dialog');expect(image_dialog).to_be_visible()
+                    expect(image_dialog.locator('.chat-model-option')).to_have_count(6)
+                    expect(image_dialog.locator('.model-provider-icon')).to_have_count(6)
+                    image_dialog.get_by_role('radio',name='GPT Image 1 Mini',exact=False).click()
+                    expect(page.locator('[data-image-cost-preview]')).to_contain_text('US$0.005')
+                    expect(trigger).to_contain_text('Claude Sonnet 5.5')
+                    image_trigger.click();image_dialog.get_by_role('radio',name='Gemini 3 Pro Image',exact=False).click()
+                    expect(page.locator('[data-image-cost-preview]')).to_contain_text('US$0.1344')
+                    page.reload(wait_until='networkidle');expect(image_trigger).to_contain_text('Gemini 3 Pro Image');expect(trigger).to_contain_text('Claude Sonnet 5.5')
+                    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+                    image_trigger.click();page.screenshot(path=str(output/f'image-{surface}-{width}.png'));page.keyboard.press('Escape')
+                    expect(image_trigger).to_be_focused()
                     assert not errors,errors
                     rows.append({'surface':surface,'width':width,'overflow':False,'keyboard_focus':'PASS','persisted':'PASS','draft_retained':True})
                 context.close()

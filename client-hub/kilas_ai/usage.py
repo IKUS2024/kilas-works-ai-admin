@@ -368,6 +368,10 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
                              operation, usage.get("web_search_calls", 1), cached_tokens,
                              selected_pricing=selected, cache_write_input_tokens=usage.get('cache_write_input_tokens',0),
                              pricing_at=pricing_at) if model else None)
+            if billable and model and usage.get('selected_image_model')==model:
+                from . import image_models
+                image_cost=image_models.cost(model,usage.get('image_token_usage'))
+                cost=str(image_cost.quantize(Decimal('.000001'))) if image_cost is not None else None
             if billable and usage.get('cost_components'):
                 components = [estimate(c['model'],c['input_tokens'],c['output_tokens'],c['operation'],
                     web_search_calls=c.get('web_search_calls',1), cached_input_tokens=c.get('cached_input_tokens',0),

@@ -158,13 +158,18 @@ def agent_chat():
     key = request.form.get('operation_key') or secrets.token_urlsafe(24)
     if not re.fullmatch(r'[A-Za-z0-9_-]{16,96}', key):
         abort(400)
-    from . import chat_models
+    from . import chat_models,image_models,routing
+    image_task=routing.tool_for(text,getattr(request,'work_attachments',())) in ('IMAGE_GENERATE','IMAGE_EDIT')
+    try:
+        image_selected=image_models.requested(owner,'conversation',conversation_id,request.form.get('selected_image_model'),required=image_task and 'selected_image_model' in request.form)
+        if image_selected:request.chat_selected_image_model=image_selected
+    except chat_models.SelectionError as error:return {'error':str(error)},400
     selected_model=request.form.get('selected_model') or chat_models.preference(owner,'conversation',conversation_id)
     if selected_model:
         try:
             request.chat_selected_model=chat_models.choose(owner,'conversation',conversation_id,selected_model)
             from . import agent_chat as chat_pipeline
-            chat_pipeline.context(owner,conversation_id,pending=text)
+            if not image_task:chat_pipeline.context(owner,conversation_id,pending=text)
         except chat_models.SelectionError as error:return {'error':str(error)},400
     if not agent_store.claim_request(owner, conversation_id, key):
         return {'error': 'Pesan ini sudah diterima. Buka kembali chat untuk melihat hasilnya.'}, 409

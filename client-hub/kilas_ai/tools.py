@@ -346,7 +346,10 @@ def finalize_scheduled_search(instruction, search_text, citations):
     return {"text": answer[:12000], "model": model, "usage": data.get("usage") or {}}
 
 
-def image(prompt, source=None, *, request_timeout=120):
+def image(prompt, source=None, *, request_timeout=120, selected_model=None):
+    if selected_model:
+        from .selected_image import generate
+        return generate(selected_model,prompt,source,request_timeout)
     model = os.environ.get("KILAS_AI_OPENAI_IMAGE_MODEL", "").strip()
     if not model:
         raise ToolUnavailable("Pembuatan gambar belum tersedia.")

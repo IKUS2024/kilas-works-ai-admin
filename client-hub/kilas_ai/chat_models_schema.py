@@ -4,9 +4,9 @@ from pathlib import Path
 import db
 
 
-def apply_release():
+def apply_release(name='0102_kilas_chat_models'):
+    if name not in ('0102_kilas_chat_models','0103_kilas_image_models'):raise ValueError('invalid_chat_schema')
     if db.BACKEND != 'postgres': return
-    name='0102_kilas_chat_models'
     script=(Path(__file__).resolve().parent.parent/'migrations'/(name+'_postgres.sql')).read_text()
     digest=hashlib.sha256(script.encode()).hexdigest()
     conn=db.psycopg2.connect(db.DATABASE_URL,**db._postgres_connect_kwargs())
