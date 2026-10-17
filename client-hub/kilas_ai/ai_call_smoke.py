@@ -40,6 +40,9 @@ def report(value):
 
 
 def launch():
+    from . import ai_call_search_smoke
+    if os.environ.get(ARM) == ai_call_search_smoke.RUN:
+        return ai_call_search_smoke.launch()
     from . import ai_call_auto_smoke
     if os.environ.get(ARM) == ai_call_auto_smoke.RUN:
         return ai_call_auto_smoke.launch()

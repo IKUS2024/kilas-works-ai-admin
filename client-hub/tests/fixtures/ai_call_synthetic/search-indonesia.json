@@ -1,0 +1,9 @@
+{
+  "source": "Real Chromium synthetic getUserMedia -> production capture/worklet/conditioning/batching, local stub HTTP",
+  "raw_sha256": "dc3170ff1cecf5d6a41170037847421a8f283ff7943e821492464f2f23292967",
+  "duration_ms": 5800.0,
+  "independent_asr": "what is the latest news in indonesia search and name is ours",
+  "public_request_intent_recovered": true,
+  "physical_device": false,
+  "provider_calls": 0
+}
