@@ -16,7 +16,29 @@ RESERVE_MICRO_USD=8880  # Worst Hobby ceiling (8 vCPU/8 GiB), including failed b
 MAX_REPORT=512*1024
 RUNNER_COMMAND=("env -i PATH=/usr/bin:/bin KILAS_REMOTE_GUEST=e2b-ephemeral-v1 /usr/bin/python3 -I -B /root/kilas-runner.py; "
     "code=$?; if [ \"$code\" -ne 0 ] && [ ! -f /root/kilas-done.json ]; then "
-    "printf '%s' '{\"exit_code\":1,\"stdout\":\"\",\"stderr\":\"KILAS_GUEST_FAILURE:guest_launch_error\",\"timed_out\":false,\"outputs\":{}}' > /root/kilas-done.json; fi")
+    "printf '%s' '{\"exit_code\":1,\"stdout\":\"\",\"stderr\":\"KILAS_GUEST_FAILURE:guest_launch_error\",\"timed_out\":false,\"outputs\":{},\"evidence\":{}}' > /root/kilas-done.json; fi")
+
+
+def validated_evidence(value,success):
+    # Only fixed labels/scalars. Never persist raw mount tables, paths or options.
+    if not isinstance(value,dict) or set(value)-{'root','scratch','child'}:raise ValueError('invalid_boundary_evidence')
+    for label in ('root','scratch'):
+        if label not in value:continue
+        item=value[label]
+        if not isinstance(item,dict) or set(item)!={'total_bytes','available_bytes','total_inodes','readonly','filesystem'}:raise ValueError('invalid_boundary_evidence')
+        if any(type(item[k]) is not int or not 0<=item[k]<2**63 for k in ('total_bytes','available_bytes','total_inodes')) or type(item['readonly']) is not bool or item['filesystem'] not in ('ext4','xfs','overlay','tmpfs','other'):raise ValueError('invalid_boundary_evidence')
+    child=value.get('child',{})
+    if not isinstance(child,dict):raise ValueError('invalid_boundary_evidence')
+    fields={'ready','root_readonly','scratch_writable','mount_namespace_private','ipc_namespace_private','capabilities_zero','seccomp','no_new_privs','scratch_bytes','scratch_inodes'}
+    if child:
+        if child.get('ready') is False:
+            from .workspace_guest import FAILURES
+            if set(child)!={'ready','error'} or child['error'] not in FAILURES:raise ValueError('invalid_boundary_evidence')
+        elif set(child)!=fields or any(type(child[k]) is not bool for k in fields-{'seccomp','scratch_bytes','scratch_inodes'}) or any(type(child[k]) is not int for k in ('seccomp','scratch_bytes','scratch_inodes')):raise ValueError('invalid_boundary_evidence')
+    if success:
+        scratch=value.get('scratch',{})
+        if not ('root' in value and set(child)==fields and all(child[k] is True for k in fields-{'seccomp','scratch_bytes','scratch_inodes'}) and child['seccomp']==2 and child['scratch_bytes']==67108864 and child['scratch_inodes']==4096 and scratch.get('filesystem')=='tmpfs' and scratch.get('readonly') is False and 0<scratch.get('total_bytes',0)<=67108864 and 0<scratch.get('total_inodes',0)<=4096):raise ValueError('execution_boundary_unverified')
+    return value
 
 
 def accepted():
@@ -148,7 +170,8 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
         phase='reading_report'
         report=json.loads(bounded_read(sandbox,'/root/kilas-done.json'))
         phase='validating_report'
-        if set(report)!={'exit_code','stdout','stderr','outputs','timed_out'} or type(report['exit_code']) is not int or type(report['timed_out']) is not bool:raise ValueError('invalid_execution_report')
+        if set(report)!={'exit_code','stdout','stderr','outputs','timed_out','evidence'} or type(report['exit_code']) is not int or type(report['timed_out']) is not bool:raise ValueError('invalid_execution_report')
+        evidence=validated_evidence(report['evidence'],report['exit_code']==0 and not report['timed_out'])
         outputs={}
         import base64
         if not isinstance(report['outputs'],dict) or len(report['outputs'])>8:raise ValueError('execution_output_limit')
@@ -168,9 +191,9 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
         terminal='SUCCEEDED' if report['exit_code']==0 and not report['timed_out'] else 'FAILED'
         outcome={'execution':'completed','provider':'e2b','run_id':run_id,'exit_code':report['exit_code'],
                  'timed_out':bool(report['timed_out']),'stdout':report['stdout'],'stderr':report['stderr'],
-                 'outputs':outputs,'entrypoint':entrypoint,'tests_asserted':False}
-        guest_failures={'sandbox_disk_limit_unverified','guest_process_cleanup_unverified',
-                        'unsafe_output','output_limit','guest_runner_error','guest_launch_error'}
+                 'outputs':outputs,'entrypoint':entrypoint,'tests_asserted':False,'boundary_evidence':evidence}
+        from .workspace_guest import FAILURES
+        guest_failures=FAILURES|{'guest_runner_error'}
         if report['stderr'].startswith('KILAS_GUEST_FAILURE:'):
             code=report['stderr'].removeprefix('KILAS_GUEST_FAILURE:')
             if code in guest_failures:outcome['guest_failure']=code

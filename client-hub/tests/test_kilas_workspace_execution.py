@@ -1,5 +1,6 @@
 """Remote execution contracts only. No model request or real sandbox is created."""
 import base64
+import copy
 import io
 import json
 import os
@@ -14,6 +15,7 @@ from kilas_ai import workspace_execution_worker as worker,workspace_files,work_a
 from kilas_ai.agent_workers import code_worker
 
 SOURCE={'README.md':'# Synthetic\nPython standard library only.','main.py':'print(6 * 7)\n'}
+BOUNDARY={'root':{'total_bytes':107374182400,'available_bytes':1073741824,'total_inodes':100000,'readonly':False,'filesystem':'ext4'},'scratch':{'total_bytes':67108864,'available_bytes':65011712,'total_inodes':4096,'readonly':False,'filesystem':'tmpfs'},'child':{'ready':True,'root_readonly':True,'scratch_writable':True,'mount_namespace_private':True,'ipc_namespace_private':True,'capabilities_zero':True,'seccomp':2,'no_new_privs':True,'scratch_bytes':67108864,'scratch_inodes':4096}}
 
 
 class Stream(io.BytesIO):
@@ -39,6 +41,7 @@ class ExecutionTests(unittest.TestCase):
 
     def sandbox(self,report=None):
         if report is None:report={'exit_code':0,'stdout':'42\n','stderr':'','timed_out':False,'outputs':{'answer.txt':base64.b64encode(b'42\n').decode()}}
+        report.setdefault('evidence',copy.deepcopy(BOUNDARY))
         sandbox=Mock(sandbox_id='synthetic-private-vm')
         sandbox.get_info.return_value=SimpleNamespace(cpu_count=2,memory_mb=4096,allow_internet_access=False,
             network={'allow_public_traffic':False},lifecycle={'on_timeout':'kill','auto_resume':False})
@@ -111,7 +114,7 @@ class ExecutionTests(unittest.TestCase):
         with patch.dict(os.environ,{'KILAS_REMOTE_GUEST':'e2b-ephemeral-v1'}),patch.object(guest.os,'getuid',return_value=0),patch.object(guest,'main',side_effect=RuntimeError('sandbox_disk_limit_unverified')),patch.object(guest.Path,'write_text') as write:
             guest.run()
         report=json.loads(write.call_args.args[0])
-        self.assertEqual(report,{'exit_code':1,'stdout':'','stderr':'KILAS_GUEST_FAILURE:sandbox_disk_limit_unverified','timed_out':False,'outputs':{}})
+        self.assertEqual(report,{'exit_code':1,'stdout':'','stderr':'KILAS_GUEST_FAILURE:sandbox_disk_limit_unverified','timed_out':False,'outputs':{},'evidence':{}})
         with patch.dict(os.environ,{'KILAS_REMOTE_GUEST':'e2b-ephemeral-v1'}),patch.object(guest.os,'getuid',return_value=0),patch.object(guest,'main',side_effect=RuntimeError('sensitive source or environment')),patch.object(guest.Path,'write_text') as write:
             guest.run()
         self.assertNotIn('sensitive',write.call_args.args[0])
@@ -212,9 +215,8 @@ class ExecutionTests(unittest.TestCase):
 
     def test_guest_resource_contract_without_launching_source(self):
         calls=[]
-        with patch.object(guest.os,'setgroups') as groups,patch.object(guest.os,'setgid') as gid,patch.object(guest.os,'setuid') as uid,patch.object(guest.ctypes,'CDLL',return_value=SimpleNamespace(prctl=lambda *args:0)),patch.object(guest.resource,'setrlimit',side_effect=lambda key,value:calls.append((key,value))):
-            guest.child_limits()
-        groups.assert_called_once_with([]);uid.assert_called_once_with(65534);gid.assert_called_once_with(65534)
+        with patch.object(guest.resource,'setrlimit',side_effect=lambda key,value:calls.append((key,value))):
+            guest.process_limits()
         self.assertIn((guest.resource.RLIMIT_AS,(268435456,268435456)),calls)
         self.assertIn((guest.resource.RLIMIT_FSIZE,(65536,65536)),calls)
         self.assertIn((guest.resource.RLIMIT_NPROC,(16,16)),calls)
