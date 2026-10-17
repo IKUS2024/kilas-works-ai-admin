@@ -206,3 +206,25 @@ provider attempts did not establish relevant Indonesian/English multi-turn
 answers or retained context. Physical Android capture/playback and long provider
 resumption remain unverified. Do not describe the user's complaint as resolved
 until the corrected dispatch path is verified against the provider and device.
+
+
+## Final authorized three-turn verification
+
+The continuation authorizes one final bounded session on the 83bf993 corrected
+Call implementation: Indonesian question, dependent Indonesian follow-up, English
+switch. Only the smoke module and its tests change to select these three fixtures;
+the production Call implementation remains byte-identical to 83bf993.
+
+The run ID is `call-understanding-final-20261017`. Existing one-connection,
+one-reservation, 74-second session / 88-second process / 55-second input fences
+remain. No retry or reconnect is allowed. A short final drain distinguishes an
+unsent silence tail at End from lost speech. The smoke trigger will be disabled
+after this single attempt.
+
+The requested semantic assessment uses bounded input and output text exclusively
+from the hash-verified offline synthetic fixtures. This reporting path is a private
+child process with no public microphone input, chat history or tools. It does not
+log private user audio/transcripts, secrets, session handles or provider errors.
+Reports explicitly label this text synthetic. Keyword checks are harness assertions;
+semantic and context correctness must be assessed separately from actual synthetic
+responses. No success is asserted here before the run completes.

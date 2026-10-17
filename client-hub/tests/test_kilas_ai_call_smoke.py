@@ -60,7 +60,7 @@ class SmokeTests(unittest.TestCase):
         from kilas_ai import ai_call as calls, ai_call_budget as budget
         import db
         now=[0.0]
-        samples=smoke.fixtures()
+        samples=smoke.fixtures()[:smoke.TURNS]
         targets=[];total=2*32000
         for item,raw in samples:
             total+=len(raw);targets.append((total,item))
@@ -73,7 +73,7 @@ class SmokeTests(unittest.TestCase):
                 audio=message.get('realtimeInput',{}).get('audio')
                 if audio:
                     self.total+=len(base64.b64decode(audio['data']))
-                    if respond_to_audio and self.at<4 and self.total>=targets[self.at][0]:
+                    if respond_to_audio and self.at<len(targets) and self.total>=targets[self.at][0]:
                         item=targets[self.at][1];self.at+=1
                         self.incoming.append({'serverContent':{'inputTranscription':{'text':item['heard'][0]+' synthetic-hidden'},'outputTranscription':{'text':item['answer'][0]+' synthetic-hidden'},'turnComplete':True}})
                 if 'clientContent' in message:
@@ -119,14 +119,15 @@ class SmokeTests(unittest.TestCase):
              patch.object(smoke.time,'sleep',side_effect=sleep), \
              contextlib.redirect_stdout(io.StringIO()) as output:
             smoke.run()
-        self.assertNotIn('synthetic-hidden',output.getvalue())
+        self.assertNotIn('\"heard\":',output.getvalue())
         result=json.loads(output.getvalue().splitlines()[-1].split(' ',1)[1])
         return result,socket
 
     def test_entire_harness_retains_pacing_and_all_dispatch_bytes_with_slow_admission(self):
         result,socket=self.synthetic_session(True)
         self.assertTrue(result['all_checks_passed'])
-        self.assertEqual(len(result['checks']),4)
+        self.assertEqual(len(result['checks']),3)
+        self.assertTrue(all(check['fixture_source']=='hash_verified_offline_synthetic' for check in result['checks']))
         self.assertTrue(result['dispatch_matches_accepted'])
         self.assertEqual(result['accepted_ms'],result['sent_ms'])
         self.assertEqual(result['provider_connections'],1)

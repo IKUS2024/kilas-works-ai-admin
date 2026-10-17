@@ -1,7 +1,8 @@
 """Default-off, once-only synthetic Call smoke in a separate process.
 
 Uses the existing provider credential, feature policy and normal Call metering.
-No retries, policy overrides, private microphone input, or transcript logging.
+No retries, policy overrides or private microphone input. Only this hash-verified
+synthetic run reports bounded synthetic text for explicitly requested semantic review.
 """
 from datetime import datetime, timezone, timedelta
 import hashlib
@@ -17,7 +18,8 @@ import sys
 import time
 import wave
 
-RUN = 'call-understanding-clear-20261017'
+RUN = 'call-understanding-final-20261017'
+TURNS = 3
 IDENT = hashlib.sha256(RUN.encode()).hexdigest()[:32]
 ARM = 'KILAS_AI_CALL_SMOKE_RUN'
 SERVICE = 'srv-da7ti2psrm7s73dh9i2g'
@@ -76,10 +78,11 @@ def run():
     call = None
     original = calls.wire.connect
     result = {'status': 'stopped_no_retry', 'provider_connections': 0, 'checks': [],
-              'device_microphone_verified': False, 'device_playback_verified': False}
+              'device_microphone_verified': False, 'device_playback_verified': False,
+              'synthetic_only':True,'core_revision':'83bf993','turns_requested':TURNS}
     try:
         result['stage'] = 'fixtures'
-        samples = fixtures()  # Validate all synthetic input BEFORE paid admission.
+        samples = fixtures()[:TURNS]  # Validate all input hashes BEFORE paid admission.
         value = budget.config()
         if db.BACKEND != 'postgres' or not value:
             raise ValueError('production_policy_required')
@@ -144,6 +147,8 @@ def run():
                     if name in content:
                         observed['events'][name]=observed['events'].get(name,0)+1
                         observed.setdefault('first_'+name+'_ms',now)
+                if any(part.get('inlineData') for part in content.get('modelTurn',{}).get('parts',[]) if isinstance(part,dict)):
+                    if observed.get('turn_first_audio_ms') is None:observed['turn_first_audio_ms']=now
                 heard = message.get('serverContent', {}).get('inputTranscription', {}).get('text', '')
                 if isinstance(heard, str):
                     observed['heard'] = (observed['heard'] + heard)[-8000:]
@@ -222,8 +227,9 @@ def run():
             output = ''
             heard_start = len(observed['heard'])
             previous = completed
-            first = time.monotonic()
+            first = time.monotonic();observed['turn_first_audio_ms']=None
             send(raw)
+            input_ended=time.monotonic()
             response_deadline=min(deadline,time.monotonic()+12)
             while completed == previous:
                 if time.monotonic()>=response_deadline:raise ValueError('smoke_no_audio_response')
@@ -236,6 +242,14 @@ def run():
                 'relevant_answer': any(word in response for word in item['answer']),
                 'response_ms': round((time.monotonic() - first) * 1000),
                 'output_chars': len(output),
+                # This private child accepts only the prevalidated offline WAVs.
+                # No public microphone route can reach this reporting path.
+                # These bounded texts enable semantic review of SYNTHETIC turns.
+                'fixture_source':'hash_verified_offline_synthetic',
+                'synthetic_input_text':observed['heard'][heard_start:][:1024],
+                'synthetic_response_text':output[:1024],
+                'first_audio_ms':None if observed.get('turn_first_audio_ms') is None else round(observed['turn_first_audio_ms']-(first-epoch)*1000),
+                'first_audio_from_input_end_ms':None if observed.get('turn_first_audio_ms') is None else round(observed['turn_first_audio_ms']-(input_ended-epoch)*1000),
             })
         result['stage'] = 'non_speech'
         previous = completed
@@ -245,13 +259,18 @@ def run():
         noise = b''.join(struct.pack('<h', int(40 * math.sin(i * .37))) for i in range(16000))
         send(noise + bytes(32000 * 3))
         result['non_speech_no_response'] = call.output_bytes == previous_bytes and completed == previous
+        # Account for the sender thread finishing the last accepted silence
+        # packet; do not mistake an unsent End tail for speech corruption.
+        until=min(deadline,time.monotonic()+1)
+        while call.sent_bytes<call.input_bytes and time.monotonic()<until:
+            drain();time.sleep(.05)
         result.update(status='completed', input_ms=round(call.input_bytes / 32),
                       output_ms=round(call.output_bytes / 48), turns=call.turns,
                       duration_ms=round((time.monotonic() - began) * 1000),
                       observed_token_estimate_micro=observed['usage_micro'])
         result['all_checks_passed'] = (result['initial_silence_no_response']
                                       and result['non_speech_no_response']
-                                      and len(result['checks']) == 4
+                                      and len(result['checks']) == TURNS
                                       and all(check['heard_expected_subject'] and check['relevant_answer']
                                               for check in result['checks']))
     except Exception as error:
