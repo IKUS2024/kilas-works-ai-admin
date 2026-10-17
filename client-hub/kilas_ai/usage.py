@@ -280,7 +280,7 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
                      (now - timedelta(minutes=10)).isoformat()), one=True)[0]
                 if daily >= PLANS[plan]["CHAT_DAILY"]:
                     needs_topup = True
-        is_premium = capacity.premium(operations[0], mode, thread_id, key)
+        is_premium = capacity.premium(operations[0], mode, thread_id, key, model=profile.get('selected_model') if profile else None)
         predicted = capacity.forecast(operations[0], mode, profile)
         if not qa_exempt:
             if plan != 'FREE' and is_premium:
@@ -301,9 +301,9 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
             except topups.TopupError:
                 raise UsageLimit('Kapasitas Premium belum cukup untuk permintaan ini. Tambah kapasitas atau lanjutkan Chat biasa.') from None
         for operation in operations:
-            _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,created_at) "
-                   "VALUES (?,?,?,?,?,'PENDING',?,?,?)", (user_id, thread_id, key, operation, mode,
-                       'TOPUP' if needs_topup else 'BASE', str(predicted), now.isoformat()))
+            _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,model,created_at) "
+                   "VALUES (?,?,?,?,?,'PENDING',?,?,?,?)", (user_id, thread_id, key, operation, mode,
+                       'TOPUP' if needs_topup else 'BASE', str(predicted), profile.get('selected_model') if profile and operation==operations[0] else None, now.isoformat()))
         conn.commit()
         return plan, operations
     except Exception:
@@ -313,9 +313,16 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
         conn.close()
 
 
-def estimate(model, input_tokens, output_tokens, operation, web_search_calls=1, cached_input_tokens=0):
+def estimate(model, input_tokens, output_tokens, operation, web_search_calls=1, cached_input_tokens=0,
+             *, selected_pricing=False, cache_write_input_tokens=0, pricing_at=None):
     """Only explicit verified server price maps produce an estimate."""
     try:
+        if selected_pricing:
+            from . import chat_models
+            value = chat_models.estimate(model, input_tokens, output_tokens, cached_input_tokens,
+                                         cache_write_input_tokens, pricing_at)
+            if operation == 'PDF': value += Decimal('0.001')
+            return str(value.quantize(Decimal('0.000001')))
         rates = json.loads(os.environ.get("KILAS_AI_MODEL_PRICING_JSON", "{}"))
         rate = rates.get(model)
         if operation in ("IMAGE_GENERATION", "IMAGE_EDIT"):
@@ -351,15 +358,23 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
         if db.BACKEND == "postgres":
             _query(conn, "SELECT id FROM users WHERE id=? FOR UPDATE", (user_id,), one=True)
         first_cost = None
+        selected = usage.get('selected_model') == model and model is not None
+        pricing_row = (_query(conn, 'SELECT created_at FROM kilas_ai_usage WHERE user_id=? AND operation_key=? LIMIT 1',
+                              (user_id,key), one=True) if selected else None)
+        pricing_at = _as_utc(pricing_row[0]) if pricing_row else None
         for index, operation in enumerate(operations):
             billable = index == 0
             cost = (estimate(model, input_tokens if billable else 0, output_tokens if billable else 0,
-                             operation, usage.get("web_search_calls", 1), cached_tokens) if model else None)
+                             operation, usage.get("web_search_calls", 1), cached_tokens,
+                             selected_pricing=selected, cache_write_input_tokens=usage.get('cache_write_input_tokens',0),
+                             pricing_at=pricing_at) if model else None)
             if billable and usage.get('cost_components'):
                 components = [estimate(c['model'],c['input_tokens'],c['output_tokens'],c['operation'],
-                    web_search_calls=c.get('web_search_calls',1), cached_input_tokens=c.get('cached_input_tokens',0)) for c in usage['cost_components'][:6]]
+                    web_search_calls=c.get('web_search_calls',1), cached_input_tokens=c.get('cached_input_tokens',0),
+                    selected_pricing=c.get('selected_pricing',False), cache_write_input_tokens=c.get('cache_write_input_tokens',0),
+                    pricing_at=pricing_at) for c in usage['cost_components'][:12 if usage.get('selected_model') else 6]]
                 cost = str(sum((Decimal(c) for c in components),Decimal(0))) if all(c is not None for c in components) else None
-            if cost is None and model and (input_tokens or output_tokens or success):
+            if usage.get('billing_unknown') or (cost is None and model and (input_tokens or output_tokens or success)):
                 pending_cost = _query(conn, "SELECT estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? AND operation_key=? AND operation_type=?", (user_id,key,operation), one=True)
                 cost = pending_cost[0] if pending_cost else None
             if billable:

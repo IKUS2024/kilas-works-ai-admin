@@ -91,7 +91,14 @@ def new_thread():
     first_message = str(body.get("first_message") or "").strip()
     if not first_message or len(first_message) > 12000:
         abort(400)
+    from . import chat_models
+    selected_model=body.get('selected_model')
+    if selected_model:
+        try:
+            if not chat_models.check(selected_model)['available']:raise chat_models.SelectionError('Model belum tersedia.')
+        except chat_models.SelectionError as error:return {'error':str(error)},400
     thread_id = store.create_thread(session["user_id"], routing.mode_for(first_message))
+    if selected_model:chat_models.choose(session['user_id'],'thread',thread_id,selected_model)
     return {"thread_id": thread_id, "url": url_for("kilas_ai.thread_page", thread_id=thread_id)}, 201
 
 
@@ -211,6 +218,15 @@ def regenerate(thread_id):
     context = store.context(user_id, thread_id)
     while context and context[-1]["role"] == "assistant":
         context.pop()
+    from . import chat_models
+    try:
+        selected_model=chat_models.request_model(user_id,'thread',thread_id,body.get('selected_model'))
+        if selected_model:
+            context=store.context(user_id,thread_id,selected_model=selected_model)
+            while context and context[-1]['role']=='assistant':context.pop()
+            chat_models.bind(context,selected_model)
+            chat_models.validate_messages(selected_model,context)
+    except chat_models.SelectionError as error:return {'error':str(error)},400
     try:
         plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, "CHAT", profile=model_policy.chat_profile(context))
     except ai_usage.UsageLimit as error:
@@ -236,7 +252,8 @@ def regenerate(thread_id):
         pieces = []
         size = 0
         provider = model = None
-        usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens":0}
+        usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens":0, "cache_write_input_tokens":0}
+        model_metadata = {}
         completed = False
         quality_source = None
         try:
@@ -245,10 +262,13 @@ def regenerate(thread_id):
             for event in quality_source:
                 if event["type"] == "provider":
                     provider, model = event["provider"], event["model"]
+                elif event["type"] == "model_metadata":
+                    model_metadata.update(event)
+                    yield _sse('model',event)
                 elif event["type"] == "delta":
                     pieces.append(event["text"])
                     size += len(event["text"])
-                    if size > 60000:
+                    if size > (120000 if selected_model else 60000):
                         raise providers.ProviderError("response_too_long")
                     yield _sse("delta", {"text": event["text"]})
                 elif event["type"] == "reset":
@@ -267,8 +287,11 @@ def regenerate(thread_id):
         finally:
             store.finish_regeneration(user_id, thread_id, message_id, "".join(pieces), provider, model,
                                       {"status": "complete" if completed else "interrupted" if pieces else "failed",
-                                       "usage": usage, "regenerated": True,
+                                       "usage": usage, "model_metadata":model_metadata, "regenerated": True,
                                        "reasoning_tier":providers.model_policy.chat_profile(context)['tier']})
+            if selected_model:
+                usage['selected_model']=selected_model
+                if provider and not usage.get('input_tokens') and not usage.get('output_tokens'):usage['billing_unknown']=True
             if not quality_source or not quality_source.initial_finalized:
                 ai_usage.finish(user_id, key, operations, success=completed, provider=provider, model=model, usage=usage)
         if completed:
@@ -352,9 +375,20 @@ def send(thread_id, *, script_only=False):
                             mimetype="text/event-stream")
         return Response(_sse("busy", {"message": "Permintaan ini sedang diproses."}), status=409,
                         mimetype="text/event-stream")
+    from . import chat_models
+    selected_model=None
+    preview=model_policy.ChatContext(store.context(user_id,thread_id)+[{'role':'user','content':attachments.prompt_content(content,prepared)}])
     try:
-        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool, profile=model_policy.chat_profile(
-            store.context(user_id, thread_id) + [{'role':'user','content':attachments.prompt_content(content, prepared)}]) if tool == 'CHAT' else None)
+        if not script_only:
+            selected_model=chat_models.request_model(user_id,'thread',thread_id,body.get('selected_model'))
+            if selected_model:
+                preview=model_policy.ChatContext(store.context(user_id,thread_id,selected_model=selected_model)+[{'role':'user','content':attachments.prompt_content(content,prepared)}])
+                chat_models.bind(preview,selected_model)
+                chat_models.validate_messages(selected_model,preview)
+    except chat_models.SelectionError as error:return {'error':str(error)},400
+    try:
+        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool,
+            profile=model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF') else None)
     except ai_usage.UsageLimit as error:
         from .chat_web import UNVERIFIED
         return {"error": str(error) + (' ' + UNVERIFIED if tool == 'WEB' else '')}, 429
@@ -371,13 +405,15 @@ def send(thread_id, *, script_only=False):
         return Response(_sse("busy", {"message": "Permintaan ini sedang diproses."}),
                         status=409, mimetype="text/event-stream")
     store.save_attachments(user_id, thread_id, message_id, prepared)
-    context = store.context(user_id, thread_id)
+    context = store.context(user_id, thread_id,selected_model=selected_model)
+    if selected_model:chat_models.bind(context,selected_model)
 
     def generate():
         pieces = []
         size = 0
         provider = model = None
-        usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens":0}
+        usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens":0, "cache_write_input_tokens":0}
+        model_metadata = {}
         finished = False
         quality_source = None
         persisted = False
@@ -411,9 +447,15 @@ def send(thread_id, *, script_only=False):
             if tool == "PDF":
                 yield _sse("activity", {"label": "Menyusun dokumen…"})
                 document_context = ai_pdf.document_context(context, previous_document["extracted_text"] if previous_document else None)
+                if selected_model:
+                    document_context=chat_models.bind(model_policy.ChatContext(document_context),selected_model)
+                document_finish=None
                 for event in providers.stream(mode, document_context):
                     if event["type"] == "provider":
                         provider, model = event["provider"], event["model"]
+                    elif event["type"] == "model_metadata":
+                        model_metadata.update(event)
+                        yield _sse('model',event)
                     elif event["type"] == "delta":
                         pieces.append(event["text"])
                         size += len(event["text"])
@@ -421,6 +463,8 @@ def send(thread_id, *, script_only=False):
                             raise providers.ProviderError("document_too_long")
                     elif event["type"] == "usage":
                         usage.update({k: int(v or 0) for k, v in event.items() if k in usage})
+                    elif event["type"]=="finish":document_finish=event["reason"]
+                if selected_model and document_finish!="stop":raise providers.ProviderError("incomplete_document")
                 if not pieces:
                     raise providers.ProviderError("empty_document")
                 if not routing.response_safe(content, "".join(pieces)):
@@ -435,7 +479,7 @@ def send(thread_id, *, script_only=False):
                     raise providers.ProviderError("pdf_render_failed") from None
                 label = "PDF siap: " + result["title"]
                 assistant_id = store.append_assistant(user_id, thread_id, label, mode, provider, model, key,
-                    {"status": "complete", "tool": "pdf", "usage": usage})
+                    {"status": "complete", "tool": "pdf", "usage": usage,"model_metadata":model_metadata})
                 file_id = store.save_attachments(user_id, thread_id, assistant_id, [result])[0]
                 path = url_for("kilas_ai.attachment_download", thread_id=thread_id, attachment_id=file_id)
                 finished = persisted = True
@@ -458,12 +502,18 @@ def send(thread_id, *, script_only=False):
                             else:
                                 result = update["result"]
                         yield _sse("activity", {"label": "Memeriksa sumber…"})
+                        from . import chat_model_tools
                         provider, model = "openai", result["model"]
                         usage.update(result["usage"])
+                        result=chat_model_tools.compose(result,context)
+                        provider,model=result.get('provider','openai'),result['model']
+                        model_metadata.update(result.get('model_metadata') or {})
+                        if model_metadata:yield _sse('model',model_metadata)
+                        usage.update(result['usage'])
                         text = result["text"]
                         store.append_assistant(user_id, thread_id, text, mode, provider, model, key,
                             {"status": "complete", "tool": "web", "citations": result["citations"],
-                             "search_calls": result.get("search_calls", 1), "usage": result["usage"]})
+                             "search_calls": result.get("search_calls", 1), "usage": result["usage"], "model_metadata":model_metadata})
                         finished = True
                         yield _sse("delta", {"text": text})
                         yield _sse("sources", {"citations": result["citations"]})
@@ -490,7 +540,7 @@ def send(thread_id, *, script_only=False):
                     return
                 except ai_tools.ToolUnavailable as error:
                     if error.model:
-                        provider, model = 'openai', error.model
+                        provider, model = (chat_models.spec(selected_model)['provider'] if selected_model and error.model==selected_model else 'openai'), error.model
                         usage.update(error.usage)
                     from .chat_web import search_failure_message
                     if tool == 'WEB': ai_tools.log_search_failure(error)
@@ -503,10 +553,13 @@ def send(thread_id, *, script_only=False):
             for event in quality_source:
                 if event["type"] == "provider":
                     provider, model = event["provider"], event["model"]
+                elif event["type"] == "model_metadata":
+                    model_metadata.update(event)
+                    yield _sse('model',event)
                 elif event["type"] == "delta":
                     pieces.append(event["text"])
                     size += len(event["text"])
-                    if size > 60000:
+                    if size > (120000 if selected_model else 60000):
                         raise providers.ProviderError("response_too_long")
                     if not routing.visual_result_requested(content):
                         yield _sse("delta", {"text": event["text"]})
@@ -527,7 +580,7 @@ def send(thread_id, *, script_only=False):
                     yield _sse("delta", {"text": "".join(pieces)})
                 finished = True
                 store.append_assistant(user_id, thread_id, "".join(pieces), mode, provider, model, key,
-                                       {"status": "complete", "finish_reason": reason, "usage": usage,
+                                       {"status": "complete", "finish_reason": reason, "usage": usage, "model_metadata":model_metadata,
                                         "reasoning_tier":providers.model_policy.chat_profile(context)['tier']})
                 persisted = True
                 yield _sse("done", {"finish_reason": reason or "stop"})
@@ -540,6 +593,9 @@ def send(thread_id, *, script_only=False):
                 store.append_assistant(user_id, thread_id, "".join(pieces), mode, provider, model, key,
                                        {"status": "interrupted",
                                         "finish_reason": reason, "usage": usage})
+            if selected_model:
+                usage['selected_model']=selected_model
+                if provider and not usage.get('input_tokens') and not usage.get('output_tokens'):usage['billing_unknown']=True
             if not quality_source or not quality_source.initial_finalized:
                 ai_usage.finish(user_id, key, operations, success=finished, provider=provider, model=model, usage=usage)
 
@@ -547,3 +603,6 @@ def send(thread_id, *, script_only=False):
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Accel-Buffering"] = "no"
     return response
+
+# Registers only Chat selection; existing product authorization/CSRF still wraps it.
+from . import chat_model_routes

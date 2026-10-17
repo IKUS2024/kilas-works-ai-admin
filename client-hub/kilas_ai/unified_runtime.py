@@ -90,7 +90,7 @@ def search(owner,key,conversation):
     context=agent_chat.context(owner,conversation)
     meter='agent-web-'+key
     mode=routing.mode_for(model_policy.request_text(context[-1]['content']))
-    try:plan,operations=usage.reserve(owner,None,meter,mode,'WEB')
+    try:plan,operations=usage.reserve(owner,None,meter,mode,'WEB',profile=model_policy.chat_profile(context) if getattr(context,'selected_model',None) else None)
     except usage.UsageLimit as error:return work_runtime.reply(owner,str(error)+' '+UNVERIFIED,conversation)
     if not operations:return work_runtime.reply(owner,'Permintaan ini sudah diterima.',conversation)
     def generate():
@@ -102,16 +102,21 @@ def search(owner,key,conversation):
                 if 'activity' in update:yield {'type':'activity','label':update['activity']}
                 else:result=update['result']
             if not result or not result.get('citations'):raise tools.ToolUnavailable('sources_missing')
+            from . import chat_model_tools
+            # Retain retrieval usage on a failed selected-model synthesis.
             model=result['model'];used=result['usage']
+            result=chat_model_tools.compose(result,context)
+            model=result['model'];used=result['usage']
+            if result.get('model_metadata'):yield result['model_metadata']
             from .agent_results import compact_sources
             sources=compact_sources(result['citations'])[:8]
             if not sources:raise tools.ToolUnavailable('sources_missing')
             text=result['text']
             links=['['+s['title'].replace('[','').replace(']','')+']('+s['url']+')' for s in sources if s['url'] not in text]
             if links:text+='\n\nSumber: '+', '.join(links)
-            agent_store.append(owner,'assistant',text[:12000],conversation)
+            agent_store.append(owner,'assistant',text[:120000 if getattr(context,'selected_model',None) else 12000],conversation,selected_model=getattr(context,'selected_model',None),model_metadata=result.get('model_metadata'))
             success=True
-            yield {'type':'delta','text':text[:12000]}
+            yield {'type':'delta','text':text[:120000 if getattr(context,'selected_model',None) else 12000]}
             yield {'type':'done'}
         except Exception as error:
             model = getattr(error,'model',None) or model
@@ -121,7 +126,7 @@ def search(owner,key,conversation):
             message=search_failure_message(error)
             agent_store.append(owner,'assistant',message,conversation)
             yield {'type':'error','message':message}
-        finally:usage.finish(owner,meter,operations,success=success,provider='openai' if model else None,model=model,usage=used)
+        finally:usage.finish(owner,meter,operations,success=success,provider=(result.get('provider','openai') if result else 'openai') if model else None,model=model,usage=used)
     if request.headers.get('X-Agent-Chat')=='1':
         return Response(stream_with_context(('data: '+json.dumps(event,ensure_ascii=False)+'\n\n' for event in generate())),mimetype='text/event-stream',headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'})
     for _ in generate():pass

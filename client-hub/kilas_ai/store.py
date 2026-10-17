@@ -56,10 +56,11 @@ def messages(user_id, thread_id, limit=100):
     return list(reversed(rows))
 
 
-def context(user_id, thread_id):
+def context(user_id, thread_id, *, selected_model=None):
     from . import usage, fair_use, conversation_context, model_policy
     level = usage.chat_level(user_id)
     recent, budget, _ = fair_use.budgets(level)
+    if selected_model:recent,budget=32,64000
     rows = messages(user_id, thread_id, 200)
     if rows is None:
         return None

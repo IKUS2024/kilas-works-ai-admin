@@ -62,17 +62,18 @@ def messages(user_id, limit=60, conversation_id=None, before=None):
     if not conversation(user_id, conversation_id):
         return []
     rows = db.query_all(
-        "SELECT id,role,content,created_at FROM kilas_ai_agent_messages "
-        "WHERE user_id=? AND conversation_id=? AND (? IS NULL OR id<?) ORDER BY id DESC LIMIT ?",
+        "SELECT m.id,m.role,m.content,m.created_at,r.requested_model,r.returned_model,r.provider FROM kilas_ai_agent_messages m "
+        "LEFT JOIN kilas_ai_chat_model_results r ON r.user_id=m.user_id AND r.surface='conversation' AND r.message_id=m.id "
+        "WHERE m.user_id=? AND m.conversation_id=? AND (? IS NULL OR m.id<?) ORDER BY m.id DESC LIMIT ?",
         (user_id, conversation_id, before, before, limit))
     return list(reversed(rows))
 
 
-def append(user_id, role, content, conversation_id=None, attachments=()):
+def append(user_id, role, content, conversation_id=None, attachments=(), selected_model=None, model_metadata=None):
     if role not in ("user", "assistant"):
         raise ValueError("invalid_agent_role")
     content = str(content or "").strip()
-    if not content or len(content) > (60000 if role=='assistant' else 2400):
+    if not content or len(content) > ((120000 if selected_model else 60000) if role=='assistant' else 2400):
         raise ValueError("invalid_agent_message")
     conversation_id = conversation_id or current_conversation(user_id)
     if not conversation(user_id, conversation_id):
@@ -81,6 +82,12 @@ def append(user_id, role, content, conversation_id=None, attachments=()):
     with transaction() as conn:
         message_id = usage._query(conn, "INSERT INTO kilas_ai_agent_messages(user_id,role,content,conversation_id) VALUES (?,?,?,?) RETURNING id",
                      (user_id, role, content, conversation_id), one=True)[0]
+        if selected_model and role=='assistant':
+            from . import chat_models
+            item=chat_models.spec(selected_model)
+            returned=(model_metadata or {}).get('returned_model') or 'unreported'
+            usage._query(conn, 'INSERT INTO kilas_ai_chat_model_results(user_id,surface,message_id,requested_model,returned_model,provider) VALUES (?,?,?,?,?,?)',
+                         (user_id,'conversation',message_id,selected_model,returned,item['provider']))
         if attachments:
             from . import agent_attachments
             agent_attachments.save(conn, user_id, message_id, attachments)

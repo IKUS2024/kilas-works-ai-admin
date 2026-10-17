@@ -114,7 +114,7 @@
     const draft=input.value;
     const data = new FormData(form);
     if (!canAutoFocus()) input.blur();
-    busy = true; send.disabled = true; input.readOnly = true;
+    busy = true;document.dispatchEvent(new Event('kilas:request-started')); send.disabled = true; input.readOnly = true;
     controller=new AbortController();if(stop) stop.hidden=false;
     error.hidden = true; chat.querySelector('.agent-welcome')?.remove();
     const userMessage=message('user', input.value.trim());
@@ -147,7 +147,7 @@
             if (update.type === 'delta') {
               answer ||= message('assistant', ''); window.KilasMarkdown.stream(answer,update.text);
               chat.scrollTop = chat.scrollHeight;
-            } else if (update.type === 'activity') thinking.lastElementChild.textContent = t(update.label);
+            } else if (update.type === 'model_metadata') { answer ||= message('assistant','');window.KilasChatModels?.badge(answer,update); } else if (update.type === 'activity') thinking.lastElementChild.textContent = t(update.label);
             else if (update.type === 'reset') { if(answer) window.KilasMarkdown.render(answer,''); }
             else if (update.type === 'error') throw new Error('provider');
             else if (update.type === 'done') { complete = true; if (answer) { answer.classList.add('ai-markdown'); window.KilasMarkdown.finish(answer); } }

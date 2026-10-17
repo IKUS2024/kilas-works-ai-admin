@@ -1,0 +1,85 @@
+{
+  "checks": [
+    {
+      "surface": "agent",
+      "width": 320,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true
+    },
+    {
+      "surface": "legacy",
+      "width": 320,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true
+    },
+    {
+      "surface": "agent",
+      "width": 390,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true
+    },
+    {
+      "surface": "legacy",
+      "width": 390,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true
+    },
+    {
+      "surface": "agent",
+      "width": 768,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true
+    },
+    {
+      "surface": "legacy",
+      "width": 768,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true
+    },
+    {
+      "surface": "agent",
+      "width": 1024,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true
+    },
+    {
+      "surface": "legacy",
+      "width": 1024,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true
+    },
+    {
+      "surface": "agent",
+      "width": 1440,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true
+    },
+    {
+      "surface": "legacy",
+      "width": 1440,
+      "overflow": false,
+      "keyboard_focus": "PASS",
+      "persisted": "PASS",
+      "draft_retained": true
+    }
+  ],
+  "paid_inference": false
+}

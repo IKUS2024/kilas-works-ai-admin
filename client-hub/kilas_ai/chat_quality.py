@@ -32,7 +32,7 @@ def arithmetic_mismatch(request, answer):
     return bool(re.fullmatch(r'-?\d{1,25}',plain)) and int(plain)!=expected
 
 
-def violations(request, answer, *, tier='NORMAL', finish='stop'):
+def violations(request, answer, *, tier='NORMAL', finish='stop', selected=False):
     """Return structural reasons, not a judgment of truth or general prose quality."""
     issues = []
     if not isinstance(answer, str) or not answer.strip():
@@ -48,7 +48,7 @@ def violations(request, answer, *, tier='NORMAL', finish='stop'):
     prose = re.sub(r'```.*?```', '', answer, flags=re.S)
     if finish in ('length', 'max_tokens'):
         issues.append('truncated')
-    if re.search(r'\b(?:reasoning_effort|invalid_provider_configuration|providers_unavailable|fair_use_level|gpt-6(?:\.1)?-(?:luna|sol))\b', prose, re.I):
+    if re.search(r'\b(?:reasoning_effort|invalid_provider_configuration|providers_unavailable|fair_use_level)\b', prose, re.I) or (not selected and re.search(r'\bgpt-6(?:\.1)?-(?:luna|sol)\b',prose,re.I)):
         issues.append('private_terminology')
     if re.search(r'\b(?:my|our|internal|saya memakai|aku menggunakan)\s+(?:provider|router|worker)\b', prose, re.I):
         issues.append('private_terminology')
@@ -113,7 +113,9 @@ class ChatQualityStream:
             repair_ops = ()
             repair_key = self.key + ':quality-retry'
             if attempt:
-                messages = model_policy.ChatContext(conversation_context.bounded(self.messages, fair_use.budgets('NORMAL')[1]), 'NORMAL')
+                messages = model_policy.ChatContext(conversation_context.bounded(self.messages, 64000 if getattr(self.messages,'selected_model',None) else fair_use.budgets('NORMAL')[1]), 'NORMAL')
+                if getattr(self.messages, 'selected_model', None):
+                    messages.selected_model = self.messages.selected_model
                 messages.quality_retry = True
                 try:
                     plan, repair_ops = usage.reserve(self.user_id, self.thread_id, repair_key, self.mode, 'CHAT', profile=model_policy.chat_profile(messages))
@@ -125,7 +127,9 @@ class ChatQualityStream:
             try:
                 if attempt:
                     level = usage.chat_level(self.user_id)
-                    messages = model_policy.ChatContext(conversation_context.bounded(self.messages, fair_use.budgets(level)[1]), level)
+                    messages = model_policy.ChatContext(conversation_context.bounded(self.messages, 64000 if getattr(self.messages,'selected_model',None) else fair_use.budgets(level)[1]), level)
+                    if getattr(self.messages, 'selected_model', None):
+                        messages.selected_model = self.messages.selected_model
                     messages.quality_retry = True
                     yield {'type': 'activity', 'label': 'Menganalisis…'}
                 source = (providers.stream(self.mode, messages, system=providers.SYSTEM + ' ' + REPAIR + repair_detail)
@@ -137,20 +141,20 @@ class ChatQualityStream:
                     elif kind == 'delta':
                         pieces.append(event['text'])
                         size += len(event['text'])
-                        if size > 60000:
+                        if size > (120000 if getattr(self.messages,'selected_model',None) else 60000):
                             raise providers.ProviderError('response_too_long')
                         if not buffered:
                             yield event
                         continue
                     elif kind == 'usage':
-                        token_usage.update({k: int(event[k] or 0) for k in ('input_tokens', 'output_tokens', 'cached_input_tokens') if k in event})
+                        token_usage.update({k: int(event[k] or 0) for k in ('input_tokens', 'output_tokens', 'cached_input_tokens', 'cache_write_input_tokens') if k in event})
                         if attempt:
                             continue  # separately metered; never overwrite first-call usage
                     elif kind == 'finish':
                         finish = event['reason']
                         continue
                     yield event
-                issues = violations(request, ''.join(pieces), tier=model_policy.chat_profile(self.messages)['tier'], finish=finish)
+                issues = violations(request, ''.join(pieces), tier=model_policy.chat_profile(self.messages)['tier'], finish=finish, selected=bool(getattr(self.messages,'selected_model',None)))
                 if not finish:
                     raise providers.ProviderError('incomplete_provider_stream')
                 if finish in ('content_filter', 'refusal'):
@@ -169,13 +173,15 @@ class ChatQualityStream:
                 # Do not finalize at zero and unlock another unmetered request.
                 if not token_usage:
                     usage.finish(self.user_id, self.key, self.operations, success=False,
-                                 provider=provider, model=None, usage={})
+                                 provider=provider, model=None, usage={'billing_unknown':True} if getattr(self.messages,'selected_model',None) else {})
                     self.initial_finalized = True
                     raise providers.ProviderError('quality_usage_missing')
                 usage.finish(self.user_id, self.key, self.operations, success=False,
-                             provider=provider, model=model, usage=token_usage)
+                             provider=provider, model=model, usage={**token_usage, **({'selected_model':self.messages.selected_model} if getattr(self.messages,'selected_model',None) else {})})
                 self.initial_finalized = True
             finally:
                 if attempt and repair_ops:
                     usage.finish(self.user_id, repair_key, repair_ops, success=valid,
-                                 provider=provider, model=model if token_usage else None, usage=token_usage)
+                                 provider=provider, model=model if token_usage else None,
+                                 usage={**token_usage, **({'selected_model':self.messages.selected_model,
+                                     'billing_unknown':not bool(token_usage)} if getattr(self.messages,'selected_model',None) else {})})

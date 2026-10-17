@@ -55,8 +55,17 @@ def request_text(content):
 
 
 def chat_profile(messages):
-    profile=intelligence.classify(messages)
-    if profile['model']==LUNA:profile['model']=luna_model()
+    profile=dict(messages.chat_task_profile) if getattr(messages,'chat_task_profile',None) else intelligence.classify(messages)
+    selected = getattr(messages, 'selected_model', None)
+    if selected:
+        from .chat_models import spec
+        profile.update(model=spec(selected)['id'], selected_model=selected)
+        profile['input_token_bound'] = max(12000, 4096+sum(len((m['content'] if isinstance(m['content'],str) else ''.join(b.get('text','') for b in m['content'])).encode('utf-8')) +
+            (sum(32000 for b in m['content'] if b.get('type')=='image_url') if isinstance(m['content'],list) else 0)
+            for m in messages))
+        profile['output_tokens'] = {'QUICK':2048,'STANDARD':8192,'DEEP':16384,'EXPERT':24576}[profile['depth']]
+        profile['effort'] = 'low' if profile['depth']=='QUICK' else 'high' if profile['difficulty'] in ('HARD','EXPERT') else 'medium'
+    if profile['model']==LUNA and not selected:profile['model']=luna_model()
     profile['tier']='NORMAL' if profile['depth']=='STANDARD' else profile['depth']
     profile['activity']='Menganalisis…' if profile['difficulty'] in ('HARD','EXPERT') else 'Menyiapkan jawaban…'
     return profile

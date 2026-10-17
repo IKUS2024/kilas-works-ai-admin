@@ -143,6 +143,10 @@ def _anthropic(model, key, messages, mode, system=SYSTEM):
 
 def stream(mode, messages, system=None):
     """One server-selected candidate; only the separately metered guard may repair."""
+    if getattr(messages, 'selected_model', None):
+        from .selected_provider import stream as exact_stream
+        yield from exact_stream(mode, messages, system)
+        return
     from .capabilities import instruction
     system=(SYSTEM if system is None else system)+'\n'+instruction()+'\n'+model_policy.intelligence.playbook(model_policy.chat_profile(messages))
     from .chat_video_planning import instruction as video_instruction

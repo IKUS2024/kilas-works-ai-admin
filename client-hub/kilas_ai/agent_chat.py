@@ -6,10 +6,12 @@ from flask import Response, stream_with_context, request
 from . import agent_store, providers, usage, model_policy, fair_use, conversation_context, chat_quality
 
 
-def context(user_id, conversation_id):
+def context(user_id, conversation_id, pending=None):
     level = usage.chat_level(user_id)
     recent,budget,_ = fair_use.budgets(level)
+    if getattr(request,'chat_selected_model',None):recent,budget=32,64000
     rows = agent_store.messages(user_id,100,conversation_id)
+    if pending:rows=list(rows)+[{'role':'user','content':pending}]
     context = [{'role':r['role'],'content':r['content']} for r in rows[-recent:]]
     summary = conversation_context.summary(rows[:-recent])
     from . import agent_attachments
@@ -51,7 +53,13 @@ def context(user_id, conversation_id):
     if prepared and context:
         from .attachments import prompt_content
         context[-1]['content']=prompt_content(context[-1]['content'],prepared)
-    return model_policy.ChatContext(conversation_context.bounded(context,budget),level)
+    result=model_policy.ChatContext(conversation_context.bounded(context,budget),level)
+    selected=getattr(request,'chat_selected_model',None)
+    if selected:
+        from . import chat_models
+        chat_models.bind(result,selected)
+        chat_models.validate_messages(selected,result)
+    return result
 
 
 def ordinary(user_id, conversation_id, operation_key):
@@ -68,6 +76,7 @@ def ordinary(user_id, conversation_id, operation_key):
     def generate():
         pieces, used = [], {}
         provider = model = None
+        model_metadata = {}
         success = False
         quality = chat_quality.ChatQualityStream(user_id,None,meter_key,'FAST',operations,messages)
         yield {'type': 'activity', 'label': model_policy.chat_profile(messages)['activity']}
@@ -75,11 +84,14 @@ def ordinary(user_id, conversation_id, operation_key):
             for event in quality:
                 if event['type'] == 'provider':
                     provider, model = event['provider'], event['model']
+                elif event['type'] == 'model_metadata':
+                    model_metadata.update(event)
+                    yield event
                 elif event['type'] == 'usage':
-                    used.update({k: event[k] for k in ('input_tokens', 'output_tokens','cached_input_tokens') if k in event})
+                    used.update({k: event[k] for k in ('input_tokens', 'output_tokens','cached_input_tokens','cache_write_input_tokens') if k in event})
                 elif event['type'] == 'delta':
                     pieces.append(event['text'])
-                    if sum(map(len, pieces)) > 60000:
+                    if sum(map(len, pieces)) > (120000 if getattr(messages,'selected_model',None) else 60000):
                         raise providers.ProviderError('response_too_long')
                     yield event
                 elif event['type'] == 'reset':
@@ -96,14 +108,20 @@ def ordinary(user_id, conversation_id, operation_key):
             yield {'type':'reset'}
             yield {'type': 'error', 'message': 'Kilas belum bisa menjawab sekarang. Coba lagi sebentar.'}
         finally:
-            # Preserve useful partial output, without claiming a finished external action.
-            if pieces:
-                agent_store.append(user_id, 'assistant', ''.join(pieces)[:60000], conversation_id)
-            elif not success:
-                agent_store.append(user_id, 'assistant', 'Kilas belum bisa menjawab sekarang. Coba lagi sebentar.', conversation_id)
-            if not quality.initial_finalized:
-                usage.finish(user_id, meter_key, operations, success=success,
-                             provider=provider, model=model, usage=used)
+            # Settle even if persistence fails.
+            try:
+                if pieces:
+                    agent_store.append(user_id, 'assistant', ''.join(pieces), conversation_id,
+                                       selected_model=getattr(messages,'selected_model',None),model_metadata=model_metadata)
+                elif not success:
+                    agent_store.append(user_id, 'assistant', 'Kilas belum bisa menjawab sekarang. Coba lagi sebentar.', conversation_id)
+            finally:
+                if getattr(messages,'selected_model',None):
+                    used['selected_model']=messages.selected_model
+                    if provider and not used.get('input_tokens') and not used.get('output_tokens'):used['billing_unknown']=True
+                if not quality.initial_finalized:
+                    usage.finish(user_id, meter_key, operations, success=success,
+                                 provider=provider, model=model, usage=used)
 
     if request.headers.get('X-Agent-Chat') == '1':
         def events():

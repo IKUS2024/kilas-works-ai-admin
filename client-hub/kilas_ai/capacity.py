@@ -13,6 +13,9 @@ def allowance():
 
 def premium(operation, mode, thread_id, key, model=None):
     from . import fair_use
+    from . import chat_models
+    if model in chat_models.CATALOG and chat_models.rates(model)['output'] > Decimal('.50'):
+        return True
     return (operation != 'CHAT' or mode in ('SMART', 'EXPERT')
             or (model and '-sol' in model)
             or not fair_use.normal_chat(thread_id, key, 'CHAT'))
@@ -20,6 +23,13 @@ def premium(operation, mode, thread_id, key, model=None):
 
 def forecast(operation, mode, profile=None):
     from . import usage
+    if operation in ('CHAT','WEB_SEARCH','PDF') and profile and profile.get('selected_model'):
+        from . import chat_models
+        bound=profile.get('input_token_bound',12000)+(90000 if operation=='WEB_SEARCH' else 0)
+        value = usage.estimate(profile['model'], bound, profile['output_tokens'], 'CHAT', selected_pricing=True,
+                               cache_write_input_tokens=bound if chat_models.spec(profile['model'])['provider'] in ('openai','anthropic') else 0)
+        if value is not None:
+            return Decimal(value) + (Decimal('.12') if operation=='WEB_SEARCH' else Decimal('.001') if operation=='PDF' else Decimal(0))
     if operation == 'CHAT' and profile:
         value = usage.estimate(profile['model'], 12000, profile['output_tokens'], 'CHAT')
         if value is not None:
