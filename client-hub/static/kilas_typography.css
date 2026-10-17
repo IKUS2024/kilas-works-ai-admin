@@ -1,0 +1,55 @@
+/* Shared white-app typography. Manrope is bundled under SIL OFL 1.1.
+   Finance never loads this sheet. Keep feature placement and audio UI intact. */
+body.kilas-light:not(.finance-app){
+  --font-ui:Manrope,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",sans-serif;
+  --font-code:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --type-body:1rem;--type-ui:.875rem;--type-small:.8125rem;
+  --type-control:1rem;--control-size:2.75rem;--composer-leading:1.5rem;
+  font-family:var(--font-ui);font-size:var(--type-body);font-weight:400;
+  line-height:1.6;letter-spacing:normal;word-spacing:normal;
+}
+body.kilas-light:not(.finance-app) :is(.kilas-home-workspace,.audio-studio,.kilas-live-translator,.agent-body){font-family:var(--font-ui);font-size:var(--type-body);line-height:1.6}
+body.kilas-light:not(.finance-app) :is(button,input,select,textarea,summary,legend){font-family:var(--font-ui);letter-spacing:normal}
+body.kilas-light:not(.finance-app) :is(button,summary,legend){font-size:var(--type-ui);line-height:1.5}
+body.kilas-light:not(.finance-app) :is(input:not([type=checkbox],[type=radio],[type=hidden]),select,textarea){font-size:var(--type-control);line-height:1.5}
+body.kilas-light:not(.finance-app) :is(h1,h2,h3){font-family:var(--font-ui);font-weight:600;letter-spacing:-.02em}
+body.kilas-light:not(.finance-app) :is(.audio-heading h1,.live-heading h1){font-size:clamp(1.5rem,1.125rem + 1vw,1.875rem);line-height:1.25}
+body.kilas-light:not(.finance-app) .kilas-home-workspace :is(.ai-empty h1,.agent-welcome h3){font-size:clamp(1.5rem,2.6vw,2rem);font-weight:600;line-height:1.25;letter-spacing:-.02em}
+body.kilas-light:not(.finance-app) :is(.premium-navigation,.kilas-chat-sidebar,.home-task-choices,.chat-model-trigger){font-family:var(--font-ui)}
+body.kilas-light:not(.finance-app) .kilas-chat-sidebar{font-size:var(--type-ui)}
+body.kilas-light:not(.finance-app) .kilas-chat-sidebar .chat-history-all{font-size:var(--type-small);line-height:1.5}
+body.kilas-light:not(.finance-app) .chat-model-trigger{font-size:var(--type-small)!important;line-height:1.4;font-weight:500}
+body.kilas-light:not(.finance-app) :is(.audio-studio label,.audio-studio legend,#live-setup-form label){font-size:var(--type-ui);line-height:1.5;font-weight:500}
+
+/* Readable prose, natural spacing and a separate code face; never justify text. */
+body.kilas-light:not(.finance-app) :is(.ai-shell .ai-message-text,.kilas-home-workspace .agent-message-text,.agent-result-text){font-family:var(--font-ui);font-size:var(--type-body);font-weight:400;line-height:1.65;letter-spacing:normal;word-spacing:normal;text-align:start}
+body.kilas-light:not(.finance-app) :is(.ai-assistant .ai-message-text,.agent-message-assistant .agent-message-text){max-width:min(100%,72ch)}
+body.kilas-light:not(.finance-app) .ai-markdown :is(p,li){line-height:1.65}
+body.kilas-light:not(.finance-app) .ai-markdown p{margin-block:0 .875em}
+body.kilas-light:not(.finance-app) .ai-markdown>:last-child{margin-bottom:0}
+body.kilas-light:not(.finance-app) .ai-markdown :is(ul,ol){padding-inline-start:1.5em;margin-block:.5em .875em}
+body.kilas-light:not(.finance-app) :is(pre,code,kbd,samp){font-family:var(--font-code);font-size:.875rem;line-height:1.6;letter-spacing:normal;word-spacing:normal}
+body.kilas-light:not(.finance-app) pre{max-width:100%;overflow:auto;text-align:start}
+body.kilas-light:not(.finance-app) pre code{font-size:inherit;line-height:inherit;white-space:pre}
+
+/* Existing plus / textarea / send+Call grid, with a shared optical baseline. */
+body.kilas-light:not(.finance-app) .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch){
+  grid-template-columns:var(--control-size) minmax(0,1fr) auto;
+  gap:.375rem;padding:.5rem;align-items:end;
+}
+body.kilas-light:not(.finance-app) .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch)>textarea{
+  align-self:end;font-family:var(--font-ui);font-size:var(--type-control);font-weight:400;
+  line-height:var(--composer-leading);min-height:var(--control-size);
+  padding:.625rem .125rem;margin:0;border-radius:0;
+}
+body.kilas-light:not(.finance-app) .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch) .ai-composer-actions>.ai-send,
+body.kilas-light:not(.finance-app) .kilas-home-workspace :is(.ai-attach,.work-add-file,.ai-composer-actions>.ai-send,.ai-composer-actions>.ai-call-launch){
+  display:inline-flex;align-items:center;justify-content:center;flex:none;
+  box-sizing:border-box;width:var(--control-size);height:var(--control-size);
+  min-width:var(--control-size);min-height:var(--control-size);padding:0;margin:0;
+  font-family:var(--font-ui);line-height:1;border-radius:50%;
+}
+body.kilas-light:not(.finance-app) .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch) .ai-composer-actions{align-items:center;gap:.375rem}
+body.kilas-light:not(.finance-app) .kilas-home-workspace .ai-pending:empty{display:none}
+body.kilas-light:not(.finance-app) .kilas-home-workspace .ai-composer-actions>.ai-stop{display:inline-flex;align-items:center;justify-content:center;height:var(--control-size);min-height:var(--control-size);padding-inline:.625rem;line-height:1.25}
+body.kilas-light:not(.finance-app) .kilas-home-workspace :is(.ai-attach,.work-add-file,.ai-composer-actions>.ai-send,.ai-composer-actions>.ai-call-launch)>svg{display:block;flex:none;width:1.25rem;height:1.25rem}

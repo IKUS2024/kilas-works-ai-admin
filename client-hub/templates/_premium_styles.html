@@ -1,2 +1,3 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='kilas_premium.css', v='consistent-ui-20261012') }}">
+{% if request.blueprint != 'finance' and 'finance' not in (request.endpoint or '') and not (finance_ui and finance_ui.enabled) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_typography.css',v='type-alignment-20261017') }}">{% endif %}
 {% if request.blueprint == 'finance' %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_premium_finance.css', v='consistent-ui-20261012') }}">{% endif %}
