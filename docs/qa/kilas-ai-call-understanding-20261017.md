@@ -115,3 +115,35 @@ health/asset probes, including an escalated public read. Render's deploy status
 and production logs are the available LIVE evidence. A physical Android test and
 an explicitly authorized additional bounded provider test are still needed before
 claiming the original end-to-end complaint is resolved.
+
+
+## Second authorized bounded check
+
+The continuation explicitly authorizes one additional provider session, maximum
+90 seconds. No other paid runs are authorized by this continuation. The clear-run
+ID has its own durable normal metering marker; the earlier marker is retained.
+
+The first run's safe logs do not contain dispatch counters, websocket event
+counts or provider timing. These cannot be reconstructed after its process ended.
+Its 39.164 seconds accepted over 70 seconds show substantial pacing loss, and its
+input bypassed browser gain. Those limitations prevent attribution of the silent
+result solely to a provider defect or solely to quiet VAD.
+
+The new harness uses the browser's 500 ms packet size and one continuous sample
+clock. It sends the first fixture after the exact production JavaScript gain
+function, with RMS 0.04949 / peak 0.45190. It records accepted and actually sent
+bytes, their in-memory digest equality, queue duration, setup completion, numeric
+provider errors, known protocol event counts, first-event times, socket send
+latency, send gaps, admission latency and pacing lag. No transcripts, raw audio,
+keys, session handles or exception bodies are reported.
+
+An audio-response timeout after 12 seconds may use exactly one same-connection
+text control to distinguish generation/output transport from audio recognition.
+That control never counts as an audio success. There is no reconnect or speech
+retry. The entire session deadline is 74 seconds, below renewal at 80 seconds,
+with one normal reservation, a 55-second input fence, and an 88-second process
+backstop. No policy, plan, credential or quota is changed.
+
+Two complete simulated harness tests verify all four checks and dispatch byte
+identity under 300 ms admission latency, and verify the failure/control path
+cannot claim audio success. They do not substitute for the provider run.

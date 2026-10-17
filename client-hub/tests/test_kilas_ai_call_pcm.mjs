@@ -22,3 +22,10 @@ test('A quiet frame containing a large transient cannot clip, and no source buff
  const before=raw.slice(),after=prepareCallPcm(raw);assert.deepEqual(raw,before);assert.ok(stats(after).peak<=.951);
  for(const bad of [null,new Uint8Array(3),new Uint8Array(16002)])assert.throws(()=>prepareCallPcm(bad),/call_input_invalid/);
 });
+
+test('Provider clear fixture is the exact current production gain output for each quiet worklet frame',()=>{
+ const folder=new URL('./fixtures/ai_call_synthetic/',import.meta.url),raw=new Uint8Array(readFileSync(new URL('id-first.wav',folder)).subarray(44));
+ const parts=[];for(let i=0;i<raw.length;i+=6400)parts.push(Buffer.from(prepareCallPcm(raw.subarray(i,i+6400))));
+ const actual=readFileSync(new URL('id-first-clear.wav',folder)).subarray(44);
+ assert.deepEqual(actual,Buffer.concat(parts));assert.ok(stats(actual).rms>.04);
+});

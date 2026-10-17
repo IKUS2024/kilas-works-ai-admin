@@ -11,7 +11,9 @@
       "5"
     ],
     "sha256": "32a07ac201de01e83c7d1ebe58ac1f8eab6dad8d93c0f02d632b297e0e3fd641",
-    "duration_ms": 6363.9375
+    "duration_ms": 6363.9375,
+    "clear_file": "id-first-clear.wav",
+    "clear_sha256": "d5554ee80e6a074302efdfd2e9fefbceb7bc91ca1c7e67fc99e46cadc217717c"
   },
   {
     "id": "id-followup",

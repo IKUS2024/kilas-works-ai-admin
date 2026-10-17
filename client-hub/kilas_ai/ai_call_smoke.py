@@ -5,6 +5,9 @@ No retries, policy overrides, private microphone input, or transcript logging.
 """
 from datetime import datetime, timezone, timedelta
 import hashlib
+import base64
+import math
+import struct
 import json
 import os
 from pathlib import Path
@@ -14,7 +17,7 @@ import sys
 import time
 import wave
 
-RUN = 'call-understanding-20261017'
+RUN = 'call-understanding-clear-20261017'
 IDENT = hashlib.sha256(RUN.encode()).hexdigest()[:32]
 ARM = 'KILAS_AI_CALL_SMOKE_RUN'
 SERVICE = 'srv-da7ti2psrm7s73dh9i2g'
@@ -50,8 +53,8 @@ def fixtures():
     manifest = json.loads((folder / 'manifest.json').read_text())
     result = []
     for item in manifest:
-        path = folder / (item['id'] + '.wav')
-        if hashlib.sha256(path.read_bytes()).hexdigest() != item['sha256']:
+        path = folder / item.get('clear_file', item['id'] + '.wav')
+        if hashlib.sha256(path.read_bytes()).hexdigest() != item.get('clear_sha256',item['sha256']):
             raise ValueError('fixture_changed')
         with wave.open(str(path), 'rb') as wav:
             if (wav.getnchannels(), wav.getsampwidth(), wav.getframerate()) != (1, 2, 16000):
@@ -87,7 +90,13 @@ def run():
         if not budget.status(owner)['available']:
             result['status'] = 'account_unavailable_no_retry'
             return
-        observed = {'heard': '', 'usage_micro': 0}
+        observed = {'heard': '', 'usage_micro': 0, 'setup_complete':False,
+                    'events':{}, 'sent_bytes':0, 'sent_chunks':0, 'max_send_gap_ms':0,
+                    'max_socket_send_ms':0, 'max_accept_ms':0, 'max_pacing_lag_ms':0}
+        epoch=time.monotonic()
+        last_sent=None
+        accepted_hash=hashlib.sha256()
+        sent_hash=hashlib.sha256()
 
         class ProbeSocket:
             def __init__(self, socket):
@@ -96,9 +105,45 @@ def run():
             def __getattr__(self, name):
                 return getattr(self.socket, name)
 
+            def send(self, payload):
+                nonlocal last_sent
+                before=time.monotonic()
+                result=self.socket.send(payload)
+                after=time.monotonic()
+                observed['max_socket_send_ms']=max(observed['max_socket_send_ms'],round((after-before)*1000))
+                message=json.loads(payload)
+                audio=message.get('realtimeInput',{}).get('audio')
+                if audio:
+                    pcm=base64.b64decode(audio['data'],validate=True)
+                    sent_hash.update(pcm)
+                    observed['sent_bytes']+=len(pcm);observed['sent_chunks']+=1
+                    observed.setdefault('first_send_ms',round((after-epoch)*1000))
+                    if last_sent is not None:
+                        observed['max_send_gap_ms']=max(observed['max_send_gap_ms'],round((after-last_sent)*1000))
+                    last_sent=after
+                return result
+
             def recv(self):
-                raw = self.socket.recv()
+                try:raw = self.socket.recv()
+                except Exception as error:
+                    if type(error).__name__=='WebSocketTimeoutException':
+                        observed['receive_timeouts']=observed.get('receive_timeouts',0)+1
+                    else:observed['receive_failed']=True
+                    raise
                 message = calls.wire.message(raw)
+                now=round((time.monotonic()-epoch)*1000)
+                for name in ('setupComplete','serverContent','usageMetadata','sessionResumptionUpdate','goAway','error','voiceActivity'):
+                    if name in message:
+                        observed['events'][name]=observed['events'].get(name,0)+1
+                        observed.setdefault('first_'+name+'_ms',now)
+                if isinstance(message.get('setupComplete'),dict):observed['setup_complete']=True
+                error=message.get('error',{})
+                if isinstance(error,dict) and type(error.get('code')) is int:observed['provider_error_code']=error['code']
+                content=message.get('serverContent',{})
+                for name in ('inputTranscription','outputTranscription','modelTurn','turnComplete','generationComplete'):
+                    if name in content:
+                        observed['events'][name]=observed['events'].get(name,0)+1
+                        observed.setdefault('first_'+name+'_ms',now)
                 heard = message.get('serverContent', {}).get('inputTranscription', {}).get('text', '')
                 if isinstance(heard, str):
                     observed['heard'] = (observed['heard'] + heard)[-8000:]
@@ -121,14 +166,14 @@ def run():
         calls.wire.connect = connect_once
         # A fixed operation ID is a durable once marker. Normal claim's unique
         # constraint prevents parallel workers/restarts from paying twice.
-        report({'status':'started','max_provider_connections':1,'max_reservations':1,'max_duration_seconds':70,'max_input_seconds':55})
+        report({'status':'started','max_provider_connections':1,'max_reservations':1,'max_duration_seconds':74,'max_input_seconds':55})
         result['stage'] = 'admission'
         call = calls.start(owner, IDENT)
         def no_renewal():
             raise calls.CallError('call_smoke_limit')
         call.fund = no_renewal  # Child-only fence: at most ONE normal reservation.
         began = time.monotonic()
-        deadline = began + 70  # Before normal 80s metering renewal.
+        deadline = began + 74  # Before normal 80s metering renewal.
         cursor = 0
         output = ''
         completed = 0
@@ -147,19 +192,29 @@ def run():
             if call.closed.is_set():
                 raise ValueError('call_closed')
 
+        # Match browser batching. One sample-clock spans all calls to send;
+        # time spent in admission checks is measured rather than added as sleep.
+        sample_clock=time.monotonic()
+        sample_bytes=0
         def send(raw):
-            start = time.monotonic()
-            for index, offset in enumerate(range(0, len(raw), 6400)):
+            nonlocal sample_bytes
+            for offset in range(0,len(raw),16000):
                 drain()
-                if call.input_bytes + min(6400, len(raw) - offset) > 55 * 32000:
-                    raise ValueError('smoke_input_fence')
-                call.accept(call.expected, raw[offset:offset + 6400])
-                time.sleep(max(0, start + (index + 1) * .2 - time.monotonic()))
+                packet=raw[offset:offset+16000]
+                if call.input_bytes+len(packet)>55*32000:raise ValueError('smoke_input_fence')
+                due=sample_clock+sample_bytes/32000
+                time.sleep(max(0,due-time.monotonic()))
+                observed['max_pacing_lag_ms']=max(observed['max_pacing_lag_ms'],round(max(0,time.monotonic()-due)*1000))
+                before=time.monotonic();call.accept(call.expected,packet)
+                observed['max_accept_ms']=max(observed['max_accept_ms'],round((time.monotonic()-before)*1000))
+                accepted_hash.update(packet);sample_bytes+=len(packet)
+                time.sleep(max(0,sample_clock+sample_bytes/32000-time.monotonic()))
 
         result['stage'] = 'handshake'
         while call.state == 'CONNECTING':
             drain()
             time.sleep(.05)
+        sample_clock=time.monotonic()
         send(bytes(32000 * 2))
         result['initial_silence_no_response'] = call.output_bytes == 0 and completed == 0
         for item, raw in samples:
@@ -169,8 +224,10 @@ def run():
             previous = completed
             first = time.monotonic()
             send(raw)
+            response_deadline=min(deadline,time.monotonic()+12)
             while completed == previous:
-                send(bytes(6400))  # Continuous silence, as the browser sends.
+                if time.monotonic()>=response_deadline:raise ValueError('smoke_no_audio_response')
+                send(bytes(16000))  # Continuous silence, as the browser sends.
             heard = observed['heard'][heard_start:].casefold()
             response = output.casefold()
             result['checks'].append({
@@ -185,8 +242,6 @@ def run():
         previous_bytes = call.output_bytes
         # Quiet non-speech + silence should not elicit an invented question or
         # a repetitive generic response. No private audio is ever used here.
-        import struct
-        import math
         noise = b''.join(struct.pack('<h', int(40 * math.sin(i * .37))) for i in range(16000))
         send(noise + bytes(32000 * 3))
         result['non_speech_no_response'] = call.output_bytes == previous_bytes and completed == previous
@@ -200,14 +255,40 @@ def run():
                                       and all(check['heard_expected_subject'] and check['relevant_answer']
                                               for check in result['checks']))
     except Exception as error:
-        safe={'smoke_deadline','smoke_input_fence','fixture_invalid','fixture_changed','call_closed','production_policy_required'}
+        safe={'smoke_deadline','smoke_no_audio_response','smoke_input_fence','fixture_invalid','fixture_changed','call_closed','production_policy_required'}
         result['code']=str(error) if isinstance(error,ValueError) and str(error) in safe else 'smoke_failed'
         if call is not None and call.code in {'call_provider','call_transport','call_output_invalid','call_smoke_limit'}:
             result['code']=call.code
+        # One same-socket text control ONLY after the first audio failure. It
+        # distinguishes output transport from audio recognition; never counts
+        # as a successful audio turn or repeats the speech fixture.
+        if (call is not None and result.get('code')=='smoke_no_audio_response'
+                and not result['checks'] and not call.closed.is_set()):
+            result['text_control_attempted']=True
+            try:
+                output='';previous=completed
+                with call.send_lock:
+                    call.ws.send(json.dumps({'clientContent':{'turns':[{'role':'user','parts':[{'text':'Say only the word ready.'}]}],'turnComplete':True}}))
+                until=min(deadline,time.monotonic()+8)
+                while completed==previous and time.monotonic()<until:
+                    drain();time.sleep(.1)
+                result['text_control_responded']=completed>previous
+                result['text_control_expected_word']='ready' in output.casefold()
+            except Exception:result['text_control_responded']=False
         # Never report exceptions, credentials, provider text or transcripts.
         result['all_checks_passed'] = False
     finally:
         if call is not None:
+            # Record safe evidence BEFORE End erases the output. No words or
+            # exception messages are retained by this report.
+            safe_observed={key:value for key,value in observed.items() if key!='heard'}
+            result['transport']=safe_observed
+            result.update(accepted_ms=round(call.input_bytes/32),sent_ms=round(call.sent_bytes/32),
+                          sent_chunks=call.sent_chunks,queued_ms=round(call.queued/32),
+                          provider_messages=call.provider_messages,heard_chars=call.input_transcript_chars,
+                          output_ms=round(call.output_bytes/48),turns=call.turns,
+                          duration_ms=round((time.monotonic()-began)*1000),
+                          dispatch_matches_accepted=accepted_hash.digest()==sent_hash.digest())
             before = time.monotonic()
             calls.end(call.owner, call.ident)
             result['end_ms'] = round((time.monotonic() - before) * 1000)
@@ -223,5 +304,5 @@ def run():
 
 if __name__ == '__main__':
     # Process backstop if an unexpected library operation blocks cleanup.
-    signal.alarm(78)
+    signal.alarm(88)
     run()
