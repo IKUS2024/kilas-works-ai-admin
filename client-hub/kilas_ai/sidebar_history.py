@@ -1,37 +1,45 @@
-"""Read-only, bounded owned history in the sidebar's existing group order."""
+"""Owned meaningful history, ordered by submitted message/work activity."""
 import db
-from flask import abort, current_app, url_for
-from itsdangerous import BadData, URLSafeSerializer
+from flask import abort,current_app,url_for
+from itsdangerous import BadData,URLSafeSerializer
 
 PAGE_SIZE=20
 
 
 def _signer():
-    return URLSafeSerializer(current_app.secret_key,salt='kilas-sidebar-history-v1')
+    return URLSafeSerializer(current_app.secret_key,salt='kilas-sidebar-meaningful-history-v2')
 
 
-def _cursor(owner,kind,row=None):
-    return _signer().dumps({'owner':owner,'kind':kind,
-                           'at':str(row['updated_at']) if row else None,
-                           'id':row['id'] if row else None})
-
-
-def _rows(owner,kind,after,limit=PAGE_SIZE+1):
-    if kind=='conversation':
-        table='kilas_ai_conversations';condition='archived_at IS NULL'
-    else:
-        table='kilas_ai_threads'
-        condition="NOT EXISTS (SELECT 1 FROM kilas_ai_messages b WHERE b.thread_id=kilas_ai_threads.id AND b.operation_key LIKE 'agent-attachments:%')"
-    params=[owner];boundary=''
-    if after and after['id'] is not None:
-        boundary=' AND (updated_at<? OR (updated_at=? AND id<?))'
-        params.extend((after['at'],after['at'],after['id']))
-    params.append(limit)
-    return db.query_all(f'SELECT id,title,updated_at FROM {table} WHERE user_id=? AND {condition}{boundary} ORDER BY updated_at DESC,id DESC LIMIT ?',tuple(params))
+def recent(owner,*,include_conversations=True,kind=None,after=None,limit=12,offset=0):
+    def stamp(field):return field if db.BACKEND=='postgres' else "strftime('%Y-%m-%dT%H:%M:%fZ',"+field+')'
+    # Opening, renaming, changing model, and job lease heartbeats do not count.
+    visible="t.user_id=? AND NOT EXISTS (SELECT 1 FROM kilas_ai_messages b WHERE b.thread_id=t.id AND b.operation_key LIKE 'agent-attachments:%')"
+    streams=["SELECT 'thread' AS kind,t.id,t.title,"+stamp('m.created_at')+" AS at FROM kilas_ai_threads t JOIN kilas_ai_messages m ON m.thread_id=t.id WHERE "+visible+" AND TRIM(m.content)<>''",
+             "SELECT 'thread',t.id,t.title,"+stamp('a.created_at')+" FROM kilas_ai_threads t JOIN kilas_ai_attachments a ON a.thread_id=t.id AND a.user_id=t.user_id JOIN kilas_ai_messages m ON m.id=a.message_id AND m.thread_id=t.id WHERE "+visible]
+    params=[owner,owner]
+    if include_conversations:
+        base=' FROM kilas_ai_conversations c '
+        owned=' WHERE c.user_id=? AND c.archived_at IS NULL'
+        streams.extend([
+            "SELECT 'conversation',c.id,c.title,"+stamp('m.created_at')+base+'JOIN kilas_ai_agent_messages m ON m.conversation_id=c.id AND m.user_id=c.user_id'+owned,
+            "SELECT 'conversation',c.id,c.title,"+stamp('COALESCE(j.completed_at,j.stopped_at,j.created_at)')+base+'JOIN kilas_agent_jobs j ON j.origin_conversation_id=c.id AND j.user_id=c.user_id'+owned,
+            "SELECT 'conversation',c.id,c.title,"+stamp('e.created_at')+base+'JOIN kilas_agent_jobs j ON j.origin_conversation_id=c.id AND j.user_id=c.user_id JOIN kilas_agent_events e ON e.job_id=j.id'+owned,
+            "SELECT 'conversation',c.id,c.title,"+stamp('a.created_at')+base+'JOIN kilas_agent_jobs j ON j.origin_conversation_id=c.id AND j.user_id=c.user_id JOIN kilas_agent_artifacts a ON a.job_id=j.id'+owned])
+        params.extend([owner]*4)
+    sql='WITH activity AS ('+' UNION ALL '.join(streams)+'), items AS (SELECT kind,id,title,MAX(at) AS updated_at FROM activity GROUP BY kind,id,title) SELECT * FROM items WHERE updated_at IS NOT NULL'
+    if kind:
+        if kind not in ('thread','conversation'):raise ValueError('invalid_history_kind')
+        sql+=' AND kind=?';params.append(kind)
+    if after:
+        sql+=' AND (updated_at<? OR (updated_at=? AND (kind>? OR (kind=? AND id<?))))'
+        params.extend((after['at'],after['at'],after['kind'],after['kind'],after['id']))
+    sql+=' ORDER BY updated_at DESC,kind ASC,id DESC LIMIT ? OFFSET ?'
+    params.extend((max(1,min(int(limit),200)),max(0,int(offset))))
+    return db.query_all(sql,tuple(params))
 
 
 def page(owner,token=None,*,include_conversations=True):
-    kind='conversation' if include_conversations else 'thread';after=None
+    after=None
     if token is not None:
         if not isinstance(token,str) or not 1<=len(token)<=2048:abort(400)
         try:after=_signer().loads(token)
@@ -39,16 +47,8 @@ def page(owner,token=None,*,include_conversations=True):
         if not isinstance(after,dict) or set(after)!={'owner','kind','at','id'}:abort(400)
         if type(after['owner']) is not int or after['owner']!=owner:abort(400)
         if after['kind'] not in ('conversation','thread') or (after['kind']=='conversation' and not include_conversations):abort(400)
-        if after['id'] is None:
-            if after['at'] is not None:abort(400)
-        elif type(after['id']) is not int or after['id']<=0 or not isinstance(after['at'],str) or not 1<=len(after['at'])<=128:abort(400)
-        kind=after['kind']
-    rows=_rows(owner,kind,after)
-    if kind=='conversation' and not rows:
-        kind='thread';rows=_rows(owner,kind,None)
+        if type(after['id']) is not int or after['id']<=0 or not isinstance(after['at'],str) or not 1<=len(after['at'])<=128:abort(400)
+    rows=recent(owner,include_conversations=include_conversations,after=after,limit=PAGE_SIZE+1)
     visible=rows[:PAGE_SIZE]
-    next_cursor=(_cursor(owner,kind,visible[-1]) if len(rows)>PAGE_SIZE else
-                 _cursor(owner,'thread') if kind=='conversation' and _rows(owner,'thread',None,1) else None)
-    return {'items':[{'kind':kind,'id':row['id'],'title':row['title'],
-                      'href':url_for('kilas_ai.agent_home',conversation=row['id']) if kind=='conversation' else url_for('kilas_ai.thread_page',thread_id=row['id'])}
-                     for row in visible], 'next_cursor':next_cursor}
+    cursor=_signer().dumps({'owner':owner,'kind':visible[-1]['kind'],'at':str(visible[-1]['updated_at']),'id':visible[-1]['id']}) if len(rows)>PAGE_SIZE else None
+    return {'items':[{'kind':r['kind'],'id':r['id'],'title':r['title'],'href':url_for('kilas_ai.agent_home',conversation=r['id']) if r['kind']=='conversation' else url_for('kilas_ai.thread_page',thread_id=r['id'])} for r in visible],'next_cursor':cursor}

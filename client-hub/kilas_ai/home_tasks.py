@@ -4,10 +4,11 @@ from .routes import ai_bp, automation_enabled
 
 
 def context(owner):
-    from . import agent_store, attachments, live_assist, live_qa_budget, store, usage
+    from . import agent_store, attachments, live_assist, live_qa_budget, store, usage,sidebar_history
     return {
         'automation_enabled': automation_enabled(),
         'limits': attachments.limits(usage.attachment_plan(owner)),
+        'history_items': sidebar_history.recent(owner,include_conversations=automation_enabled()),
         'threads': store.list_threads(owner, 6),
         'conversations': agent_store.recent_conversations(owner)[:6] if automation_enabled() else [],
         'live_available': live_qa_budget.enabled() and live_assist.ready(owner) and live_qa_budget.ready(owner,for_start=True),
@@ -40,8 +41,8 @@ def chat_sidebar_context():
         return {}
 
     def history():
-        from . import agent_store, store
-        return {'threads': store.list_threads(session['user_id'], 6),
+        from . import agent_store, store,sidebar_history
+        return {'history_items':sidebar_history.recent(session['user_id'],include_conversations=automation_enabled()),'threads': store.list_threads(session['user_id'], 6),
                 'conversations': agent_store.recent_conversations(session['user_id'])[:6] if automation_enabled() else [],
                 'automation_enabled': automation_enabled()}
     import security

@@ -75,11 +75,23 @@
     });
     more.addEventListener('click',load);
     window.KilasChatHistory={
+      async refreshRecent(){
+        try{const response=await fetch(all.dataset.historyUrl,{cache:'no-store',credentials:'same-origin'});if(!response.ok||response.redirected)return;const data=await response.json();if(!Array.isArray(data.items))return;const source=document.createElement('nav');source.append(...data.items.slice(0,12).map(anchor));this.replaceRecent(source);}catch(_){}
+      },
+      rename(href,title){
+        const update=nodes=>{for(const node of nodes)if(node.matches('a')&&address(node)===href){node.textContent=title;node.title=title;}};
+        update(recent);update(full);update([...list.children]);cacheValid=false;
+      },
+      remove(href){
+        stop();recent=recent.filter(n=>!n.matches('a')||address(n)!==href);full=full.filter(n=>!n.matches('a')||address(n)!==href);for(const node of list.querySelectorAll('a'))if(node.href===href)node.remove();cacheValid=false;
+        if(!list.querySelector('a')){const empty=document.createElement('p');empty.className='ai-sidebar-empty';empty.textContent=all.dataset.empty;list.insertBefore(empty,more);}
+      },
       replaceRecent(source){
         recent=rows(source);cacheValid=false;
         if(!expanded)recentView();else{
-          const fresh=new Map(recent.filter(node=>node.matches('a')).map(node=>[address(node),node]));
-          for(const node of list.querySelectorAll('a')){const updated=fresh.get(node.href);if(updated){node.textContent=updated.textContent;node.title=updated.title;}}
+          const top=list.getBoundingClientRect().top,visible=[...list.querySelectorAll('a')].find(n=>n.getBoundingClientRect().bottom>top),offset=visible?visible.getBoundingClientRect().top-top:0;
+          for(const incoming of [...recent].reverse())if(incoming.matches('a')){const node=[...list.querySelectorAll('a')].find(n=>n.href===address(incoming))||incoming.cloneNode(true);node.textContent=incoming.textContent;node.title=incoming.title;list.prepend(node);}
+          full=rows(list);if(visible?.isConnected)list.scrollTop+=visible.getBoundingClientRect().top-top-offset;
           markCurrent();
         }
       },
@@ -119,5 +131,6 @@
   // Voice Over has an asynchronous Generate -> result redirect. Only chat gets
   // the unload guard; explicit sidebar navigation still protects its script.
   window.addEventListener('beforeunload',event=>{if(!leaving&&!carrying&&chatDirty()){event.preventDefault();event.returnValue='';}});
+  document.addEventListener('kilas:conversation-deleted',()=>{leaving=true;});
   window.addEventListener('pageshow',()=>{leaving=false;carrying=false;});
 })();

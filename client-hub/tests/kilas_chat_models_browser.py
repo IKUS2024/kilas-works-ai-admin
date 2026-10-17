@@ -47,18 +47,17 @@ def main():
                     expect(image_dialog.locator('.chat-model-option')).to_have_count(6)
                     expect(image_dialog.locator('.model-provider-icon')).to_have_count(6)
                     image_dialog.get_by_role('radio',name='GPT Image 1 Mini',exact=False).click()
-                    expect(page.locator('[data-image-cost-preview]')).to_contain_text('US$0.005')
+                    expect(page.locator('[data-image-cost-preview]')).to_have_count(0)
                     expect(trigger).to_contain_text('Claude Sonnet 5.5')
                     image_trigger.click();image_dialog.get_by_role('radio',name='Gemini 3 Pro Image',exact=False).click()
-                    expect(page.locator('[data-image-cost-preview]')).to_contain_text('US$0.1344')
+                    expect(page.locator('[data-image-cost-preview]')).to_have_count(0)
                     page.reload(wait_until='networkidle');expect(image_trigger).to_contain_text('Gemini 3 Pro Image');expect(trigger).to_contain_text('Claude Sonnet 5.5')
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                     image_trigger.click();page.screenshot(path=str(output/f'image-{surface}-{width}.png'));page.keyboard.press('Escape')
                     expect(image_trigger).to_be_focused()
                     group=page.locator('.chat-model-controls').bounding_box();header=page.locator('.home-workspace-top').bounding_box()
                     assert abs(group['x']+group['width']/2-header['x']-header['width']/2)<2,(width,group,header)
-                    brand=page.locator('.home-workspace-title').bounding_box()
-                    assert group['y']>=brand['y']+brand['height']-1 or group['x']>=brand['x']+brand['width']-1
+                    assert page.locator('.home-workspace-title').count()==0
                     assert not errors,errors
                     rows.append({'surface':surface,'width':width,'overflow':False,'keyboard_focus':'PASS','persisted':'PASS','draft_retained':True,'centered_header':'PASS'})
                 page.goto(origin+'/products/start',wait_until='networkidle')

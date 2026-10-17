@@ -100,3 +100,10 @@ body.home-keyboard-open.kilas-light .kilas-home-workspace .home-task-choices :is
 body:has(.kilas-home-workspace) .premium-sidebar .language-selector :is(select,button){font-size:13px;padding-inline:6px}
 body:has(.kilas-home-workspace) .premium-sidebar .language-selector{grid-template-columns:minmax(0,1fr) 54px;gap:4px}
 body:has(.kilas-home-workspace) .premium-sidebar .language-selector button{font-size:12px}
+
+/* Empty welcomes fit the viewport; transcript scrolling starts with real content. */
+.kilas-light .kilas-home-workspace #agent-conversation:has(>.agent-welcome:only-child){display:flex;overflow:clip;padding:0;box-sizing:border-box;overscroll-behavior-y:none}
+.kilas-light .kilas-home-workspace .ai-empty:not([hidden]),.kilas-light .kilas-home-workspace #agent-conversation>.agent-welcome:only-child{flex:1 1 0;min-height:0;height:100%;width:100%;margin:0;padding-block:0;box-sizing:border-box;overflow:clip;justify-content:center}
+.kilas-light .kilas-home-workspace :is(.ai-empty,.agent-welcome)>.kilas-new-chat-logo{flex:0 1 96px;min-height:0;max-height:96px;object-fit:contain;margin-block:0 12px}
+.kilas-light .kilas-home-workspace :is(.ai-empty h1,.agent-welcome h3){flex:none;margin-block:0;line-height:1.25}
+.kilas-light .kilas-home-workspace .ai-messages{box-sizing:border-box}

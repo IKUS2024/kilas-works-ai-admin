@@ -23,8 +23,7 @@ def check_chat_presentation(page):
     assistant=page.locator('.ai-assistant .ai-message-text').last
     assert user.evaluate('e=>Math.abs(e.getBoundingClientRect().right-e.closest(".ai-message").getBoundingClientRect().right)<3 && e.getBoundingClientRect().width<=e.closest(".ai-message").clientWidth*.91')
     assert assistant.evaluate('e=>Math.abs(e.getBoundingClientRect().left-e.closest(".ai-message").getBoundingClientRect().left)<3')
-    assert page.locator('.ai-thread-menu summary').inner_text()==''
-    assert page.locator('.ai-thread-menu summary svg').count()==1
+    assert page.locator('.ai-thread-menu,.home-chat-heading').count()==0
     copy=page.locator('.ai-assistant .ai-copy').last
     assert copy.inner_text()=='' and copy.locator('svg').count()==1
     page.evaluate('navigator.clipboard.writeText=async text=>{window.qaCopiedText=text}')
@@ -32,9 +31,6 @@ def check_chat_presentation(page):
     assert page.evaluate('window.qaCopiedText')==assistant.text_content()
     assert copy.inner_text()==''
     expect(page.locator('#ai-notice')).to_have_text('Tersalin')
-    page.locator('.ai-thread-menu summary').click()
-    assert page.locator('[data-action=rename] input[name=title]').is_visible()
-    page.locator('.ai-thread-menu summary').click()
 
 
 def main():

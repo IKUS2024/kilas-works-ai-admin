@@ -8393,5 +8393,12 @@
   "Tautan undangan dicabut.": {"en": "Invitation link revoked.", "es": "Enlace de invitación revocado.", "zh": "邀请链接已撤销。"},
   "Tautan disalin.": {"en": "Link copied.", "es": "Enlace copiado.", "zh": "链接已复制。"},
   "Salin tautan yang dipilih.": {"en": "Copy the selected link.", "es": "Copia el enlace seleccionado.", "zh": "请复制选中的链接。"},
-  "Kirim ulang": {"en": "Retry", "es": "Reintentar", "zh": "重试"}
+  "Kirim ulang": {"en": "Retry", "es": "Reintentar", "zh": "重试"},
+  "Ubah Nama": {"en": "Rename", "es": "Cambiar nombre", "zh": "重命名"},
+  "Opsi chat": {"en": "Chat options", "es": "Opciones del chat", "zh": "对话选项"},
+  "Hapus chat ini?": {"en": "Delete this chat?", "es": "¿Eliminar este chat?", "zh": "删除此对话？"},
+  "Tindakan ini tidak dapat dibatalkan.": {"en": "This action cannot be undone.", "es": "Esta acción no se puede deshacer.", "zh": "此操作无法撤销。"},
+  "Chat akan dihapus dari riwayat. Pekerjaan dan file tetap tersimpan.": {"en": "This chat will be removed from history. Work and files remain saved.", "es": "Este chat se quitará del historial. El trabajo y los archivos se conservarán.", "zh": "此对话将从历史记录中移除。工作和文件仍会保留。"},
+  "Nama chat belum dapat disimpan. Coba lagi.": {"en": "The chat name could not be saved. Try again.", "es": "No se pudo guardar el nombre. Inténtalo de nuevo.", "zh": "无法保存对话名称，请重试。"},
+  "Chat belum dapat dihapus. Coba lagi.": {"en": "The chat could not be deleted. Try again.", "es": "No se pudo eliminar el chat. Inténtalo de nuevo.", "zh": "无法删除对话，请重试。"}
 }

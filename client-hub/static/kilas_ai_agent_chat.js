@@ -2,6 +2,7 @@
 (() => {
   const t=(message, values)=>window.KilasUI ? window.KilasUI.t(message, values) : message;
   function refreshCounts(doc) {
+    const history=doc.querySelector('[data-chat-sidebar] .ai-history');if(history)window.KilasChatHistory?.replaceRecent(history);
     for (const selector of ['[data-active-count]','[data-notification-count]']) {
       const incoming=doc.querySelector(selector), current=document.querySelector(selector);
       if(incoming && current) current.textContent=incoming.textContent;
@@ -91,12 +92,10 @@
     chat.replaceChildren(...current.childNodes);
     window.KilasAttachmentPreview?.clear();
     window.KilasMarkdown.hydrate(chat);copyAnswers();
-    const history=doc.querySelector('[data-chat-sidebar] .ai-history'),currentHistory=document.querySelector('[data-chat-sidebar] .ai-history');
-    if(history&&currentHistory){if(window.KilasChatHistory)window.KilasChatHistory.replaceRecent(history);else currentHistory.replaceChildren(...history.childNodes);}
     const chats = doc.querySelector('.agent-chats');
     if (chats) document.querySelector('.agent-chats')?.replaceChildren(...chats.childNodes);
     const heading = doc.querySelector('.agent-section-head h2');
-    if (heading) document.querySelector('.agent-section-head h2').textContent = heading.textContent;
+    if (heading) document.querySelector('.agent-section-head h2')?.replaceChildren(document.createTextNode(heading.textContent));
     const permission=doc.querySelector('.work-context-permission');
     const currentPermission=form.querySelector('.work-context-permission');
     if(permission) { if(currentPermission) currentPermission.replaceWith(permission);else form.prepend(permission); }

@@ -51,7 +51,19 @@ def rename_chat(conversation_id):
     if not 1 <= len(title) <= 60:
         abort(400)
     db.execute('UPDATE kilas_ai_conversations SET title=? WHERE id=? AND user_id=?', (title, conversation_id, _owner()))
+    if request.accept_mimetypes.best=='application/json':return {'id':conversation_id,'title':title}
     return redirect(url_for('kilas_ai.agent_home', conversation=conversation_id), code=303)
+
+
+@ai_bp.post('/agent/conversations/<int:conversation_id>/delete',endpoint='agent_delete_chat')
+def delete_chat(conversation_id):
+    if not agent_store.conversation(_owner(),conversation_id):abort(404)
+    db.execute('UPDATE kilas_ai_conversations SET archived_at=? WHERE id=? AND user_id=? AND archived_at IS NULL',(datetime.now(timezone.utc).isoformat(),conversation_id,_owner()))
+    if session.get('agent_conversation_id')==conversation_id:
+        session.pop('agent_conversation_id',None);_clear_chat_context()
+    next_url=url_for('kilas_ai.agent_home')
+    if request.accept_mimetypes.best=='application/json':return {'deleted':True,'next_url':next_url}
+    return redirect(next_url,code=303)
 
 
 def _tasks():
@@ -116,9 +128,10 @@ def agent_home():
     if view=='history' and autonomous_runner.enabled():
         history_jobs=db.query_all('SELECT * FROM kilas_agent_jobs WHERE user_id=? ORDER BY id DESC LIMIT 21 OFFSET ?',(owner,(page-1)*20))
         autonomous_jobs=[job_card(dict(row)) for row in history_jobs[:20]]
-    history_chats, more_chats = agent_store.conversation_page(owner,page) if view=='history' else ([],False)
-    from . import store as legacy_store
-    legacy_chats=legacy_store.list_threads(owner) if view=='history' else []
+    from . import sidebar_history
+    history_rows=sidebar_history.recent(owner,kind='conversation',limit=21,offset=(page-1)*20) if view=='history' else []
+    history_chats,more_chats=history_rows[:20],len(history_rows)>20
+    legacy_chats=sidebar_history.recent(owner,kind='thread',limit=50) if view=='history' else []
     more_chats=more_chats or (view=='history' and autonomous_runner.enabled() and len(history_jobs)>20)
     from .work_runtime import LABELS
     notifications = [{**dict(e),'label':e['summary'] if e['kind']=='REMINDER' else LABELS.get(e['kind'],'Pekerjaan diperbarui'),'time_label':time_label(e['created_at'],store.setting(owner))} for e in db.query_all('SELECT e.*,j.origin_conversation_id FROM kilas_agent_events e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE j.user_id=? AND e.unread=1 AND e.kind IN (\'REMINDER\',\'CONDITION_MET\',\'COMPLETED\',\'FAILED\',\'WAITING_INPUT\',\'WAITING_CAPABILITY\',\'NEEDS_APPROVAL\',\'BLOCKED\') ORDER BY e.id DESC LIMIT 30',(owner,))] if view=='notifications' else []

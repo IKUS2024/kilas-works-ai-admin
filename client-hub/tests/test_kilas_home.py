@@ -93,6 +93,8 @@ class HomeTests(unittest.TestCase):
         from kilas_ai import store
         owned=store.create_thread(self.owner);store.rename_thread(self.owner,owned,'My <script> saved title')
         foreign=store.create_thread(self.other);store.rename_thread(self.other,foreign,'Foreign private history')
+        store.append_user_once(self.owner,owned,'Submitted synthetic history','FAST','home_owned_history')
+        store.append_user_once(self.other,foreign,'Submitted synthetic history','FAST','home_foreign_history')
         for route in ('/products/start','/account?workspace=home','/kilas-translator?mode=voiceover','/kilas-ai/video','/kilas-ai/usage','/kilas-ai/threads/'+str(owned)):
             response=self.client().get(route);self.assertEqual(response.status_code,200)
             html=response.text
@@ -115,6 +117,7 @@ class HomeTests(unittest.TestCase):
         owned=store.create_thread(self.owner)
         title='Riwayat percakapan <script> My Library'
         store.rename_thread(self.owner,owned,title)
+        store.append_user_once(self.owner,owned,'Submitted synthetic history','FAST','home_locale_history')
         labels={'id':('Chat baru','Pustaka saya','Chat','Lihat semua'),
                 'en':('New chat','My Library','Chat','See all'),
                 'es':('Nuevo chat','Mi biblioteca','Chat','Ver todo'),

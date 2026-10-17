@@ -16,6 +16,10 @@ class SidebarHistoryTests(unittest.TestCase):
         legacy=[store.create_thread(self.owner) for _ in range(threads)]
         for table,ids in (('kilas_ai_conversations',agents),('kilas_ai_threads',legacy)):
             for ident in ids:self.database.execute(f'UPDATE {table} SET title=?,updated_at=? WHERE id=?',('Saved <script> '+str(ident),'2026-10-14T04:00:00+00:00',ident))
+        for ident in agents:agent_store.append(self.owner,'user','Submitted synthetic history',ident)
+        for ident in legacy:store.append_user_once(self.owner,ident,'Submitted synthetic history','FAST','history_seed_'+str(ident))
+        self.database.execute('UPDATE kilas_ai_agent_messages SET created_at=? WHERE user_id=?',('2026-10-14T04:00:00+00:00',self.owner))
+        self.database.execute('UPDATE kilas_ai_messages SET created_at=? WHERE thread_id IN (SELECT id FROM kilas_ai_threads WHERE user_id=?)',('2026-10-14T04:00:00+00:00',self.owner))
         # Keep fixture conversations outside the expected walk without deleting them.
         if agents:
             self.database.execute('UPDATE kilas_ai_conversations SET archived_at=? WHERE user_id=? AND id NOT IN ('+','.join('?' for _ in agents)+')',('2026-10-14T04:00:00+00:00',self.owner,*agents))
@@ -84,6 +88,9 @@ class SidebarHistoryTests(unittest.TestCase):
         while cursor:
             body=client.get('/kilas-ai/sidebar/history',query_string={'cursor':cursor}).json;items.extend(body['items']);cursor=body['next_cursor']
         self.assertEqual([item['id'] for item in items],list(reversed(legacy)))
+        self.assertNotIn(newest,[item['id'] for item in client.get('/kilas-ai/sidebar/history').json['items']])
+        store.append_user_once(self.owner,newest,'New submitted message','FAST','history_new_head')
+        self.database.execute('UPDATE kilas_ai_messages SET created_at=? WHERE thread_id=?',('2026-10-14T05:00:00+00:00',newest))
         self.assertEqual(client.get('/kilas-ai/sidebar/history').json['items'][0]['id'],newest)
 
     def test_empty_and_exact_page_boundary_can_reach_legacy_group(self):

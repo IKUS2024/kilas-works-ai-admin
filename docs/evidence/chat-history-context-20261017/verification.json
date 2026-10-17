@@ -1,0 +1,108 @@
+{
+  "checks": [
+    {
+      "surface": "home",
+      "width": 320,
+      "empty_no_scroll": "PASS",
+      "empty_history_hidden": "PASS",
+      "keyboard_fit": true
+    },
+    {
+      "surface": "agent",
+      "width": 320,
+      "empty_no_scroll": "PASS",
+      "empty_history_hidden": "PASS",
+      "keyboard_fit": true
+    },
+    {
+      "surface": "legacy",
+      "width": 320,
+      "empty_no_scroll": "PASS",
+      "empty_history_hidden": "PASS",
+      "keyboard_fit": true
+    },
+    {
+      "surface": "sidebar",
+      "width": 320,
+      "touch_or_right_click": "PASS",
+      "move_cancel": "PASS",
+      "keyboard": "PASS",
+      "rename_preserves_draft": "PASS",
+      "delete_confirmation": "PASS",
+      "synthetic_delete": "PASS",
+      "normal_tap": "PASS",
+      "paginated_menu": "PASS",
+      "populated_scroll": "PASS"
+    },
+    {
+      "surface": "home",
+      "width": 820,
+      "empty_no_scroll": "PASS",
+      "empty_history_hidden": "PASS",
+      "keyboard_fit": false
+    },
+    {
+      "surface": "agent",
+      "width": 820,
+      "empty_no_scroll": "PASS",
+      "empty_history_hidden": "PASS",
+      "keyboard_fit": false
+    },
+    {
+      "surface": "legacy",
+      "width": 820,
+      "empty_no_scroll": "PASS",
+      "empty_history_hidden": "PASS",
+      "keyboard_fit": false
+    },
+    {
+      "surface": "sidebar",
+      "width": 820,
+      "touch_or_right_click": "PASS",
+      "move_cancel": "PASS",
+      "keyboard": "PASS",
+      "rename_preserves_draft": "PASS",
+      "delete_confirmation": "PASS",
+      "synthetic_delete": "PASS",
+      "normal_tap": "PASS",
+      "paginated_menu": "PASS",
+      "populated_scroll": "PASS"
+    },
+    {
+      "surface": "home",
+      "width": 1440,
+      "empty_no_scroll": "PASS",
+      "empty_history_hidden": "PASS",
+      "keyboard_fit": false
+    },
+    {
+      "surface": "agent",
+      "width": 1440,
+      "empty_no_scroll": "PASS",
+      "empty_history_hidden": "PASS",
+      "keyboard_fit": false
+    },
+    {
+      "surface": "legacy",
+      "width": 1440,
+      "empty_no_scroll": "PASS",
+      "empty_history_hidden": "PASS",
+      "keyboard_fit": false
+    },
+    {
+      "surface": "sidebar",
+      "width": 1440,
+      "touch_or_right_click": "PASS",
+      "move_cancel": "PASS",
+      "keyboard": "PASS",
+      "rename_preserves_draft": "PASS",
+      "delete_confirmation": "PASS",
+      "synthetic_delete": "PASS",
+      "normal_tap": "PASS",
+      "paginated_menu": "PASS",
+      "populated_scroll": "PASS"
+    }
+  ],
+  "paid_inference": false,
+  "production_mutations": false
+}

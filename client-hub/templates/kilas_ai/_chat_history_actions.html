@@ -1,0 +1,10 @@
+<dialog id="chat-history-menu" class="chat-history-menu" role="menu" aria-label="{{ ui_t('Opsi chat') }}" data-chat-context-menu>
+  <button type="button" role="menuitem" data-chat-action="rename">{{ ui_t('Ubah Nama') }}</button>
+  <button type="button" role="menuitem" data-chat-action="delete">{{ ui_t('Hapus') }}</button>
+</dialog>
+<dialog class="chat-history-action-dialog" aria-labelledby="chat-history-rename-heading" data-chat-rename-dialog>
+  <form data-chat-rename-form><h2 id="chat-history-rename-heading">{{ ui_t('Ubah Nama') }}</h2><label for="chat-history-title">{{ ui_t('Nama chat') }}</label><input id="chat-history-title" name="title" maxlength="100" required autocomplete="off"><p role="alert" data-chat-action-error hidden>{{ ui_t('Nama chat belum dapat disimpan. Coba lagi.') }}</p><div class="chat-history-dialog-actions"><button type="button" data-chat-action-cancel>{{ ui_t('Batal') }}</button><button type="submit">{{ ui_t('Simpan') }}</button></div></form>
+</dialog>
+<dialog class="chat-history-action-dialog" aria-labelledby="chat-history-delete-heading" data-chat-delete-dialog>
+  <form data-chat-delete-form><h2 id="chat-history-delete-heading">{{ ui_t('Hapus chat') }}</h2><p data-chat-delete-title></p><p>{{ ui_t('Hapus chat ini?') }}</p><p data-chat-delete-permanent>{{ ui_t('Tindakan ini tidak dapat dibatalkan.') }}</p><p data-chat-delete-archive hidden>{{ ui_t('Chat akan dihapus dari riwayat. Pekerjaan dan file tetap tersimpan.') }}</p><p role="alert" data-chat-action-error hidden>{{ ui_t('Chat belum dapat dihapus. Coba lagi.') }}</p><div class="chat-history-dialog-actions"><button type="button" data-chat-action-cancel>{{ ui_t('Batal') }}</button><button type="submit" class="chat-history-delete-confirm">{{ ui_t('Hapus') }}</button></div></form>
+</dialog>

@@ -159,6 +159,7 @@ def rename(thread_id):
         abort(400)
     if not changed:
         abort(404)
+    if request.accept_mimetypes.best=="application/json":return {"id":thread_id,"title":store.thread(session["user_id"],thread_id)["title"]}
     return redirect(url_for("kilas_ai.thread_page", thread_id=thread_id), code=303)
 
 
@@ -167,6 +168,7 @@ def delete(thread_id):
     from . import store
     if not store.delete_thread(session["user_id"], thread_id):
         abort(404)
+    if request.accept_mimetypes.best=="application/json":return {"deleted":True,"next_url":url_for("kilas_ai.home")}
     return redirect(url_for("kilas_ai.home"), code=303)
 
 

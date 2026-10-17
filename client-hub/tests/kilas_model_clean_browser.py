@@ -36,19 +36,15 @@ def main():
                         assert 'US$' not in dialog.inner_text() and 'Urutan biaya' not in dialog.inner_text() and 'Satu gambar' not in dialog.inner_text()
                         dialog.get_by_role('radio',name='Gemini 3 Pro Image',exact=False).click()
                         expect(trigger.locator('img')).to_have_attribute('data-provider','anthropic');expect(image_trigger.locator('img')).to_have_attribute('data-provider','google')
-                        preview=page.locator('[data-image-cost-disclosure]');expect(preview).to_be_visible();assert preview.get_attribute('open') is None
+                        expect(page.locator('[data-image-cost-disclosure]')).to_have_count(0)
                         assert 'US$' not in page.locator('body').inner_text()
-                        assert page.locator('.chat-model-controls [data-image-cost-preview]').count()==0
-                        preview.locator('summary').click();expect(preview.locator('[data-image-cost-preview]')).to_be_visible();expect(preview).to_contain_text('US$0.1344');expect(preview).to_contain_text('1024x1024');expect(preview).to_contain_text('Text US$2/M');expect(preview).to_contain_text('input / thinking')
-                        assert preview.bounding_box()['y']>header.bounding_box()['y']+header.bounding_box()['height']
                         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-                        preview.locator('summary').click()
                         group=page.locator('.chat-model-controls').bounding_box();head=header.bounding_box();assert abs(group['x']+group['width']/2-head['x']-head['width']/2)<2
                         assert page.locator('.chat-model-trigger .model-provider-icon').evaluate_all("nodes=>nodes.every(e=>e.complete&&e.naturalWidth>0&&getComputedStyle(e).backgroundColor==='rgb(255, 255, 255)'&&e.getBoundingClientRect().width===23&&e.getBoundingClientRect().height===23)")
                         if scheme=='light' and surface=='home':page.screenshot(path=str(output/f'home-{width}.png'))
                         if scheme=='light' and surface=='agent' and width in (320,1440):image_trigger.click();page.screenshot(path=str(output/f'image-dialog-{width}.png'));page.keyboard.press('Escape')
                         assert not errors,errors
-                        rows.append({'surface':surface,'width':width,'color_scheme':scheme,'clean_selector':'PASS','centered':'PASS','composer_estimate':'PASS','brand_icons':'PASS','overflow':False})
+                        rows.append({'surface':surface,'width':width,'color_scheme':scheme,'clean_selector':'PASS','centered':'PASS','composer_estimate_removed':'PASS','brand_icons':'PASS','overflow':False})
                     context.close()
             browser.close()
         assert 'fill="#D97757"' in case.client().get('/static/provider-icons/claude.svg').text
