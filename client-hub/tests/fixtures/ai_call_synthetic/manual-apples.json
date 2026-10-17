@@ -1,0 +1,20 @@
+{
+  "fixture": "apples-wire.wav",
+  "source": "Local FFmpeg flite filter, bundled slt voice; no remote TTS or private audio",
+  "source_text": "I have three apples. I buy two more apples. How many apples do I have?",
+  "expected_answer_semantics": "Five apples total, explicitly or in equivalent unambiguous wording; retain both quantities and the addition operation. A generic repeat request fails.",
+  "source_sha256": "658f9f559cc5719475ffe829b45f0936d2bf54091063da16eebdeaa7e891650f",
+  "raw_sha256": "58f4508dd47c1e57eef14c2fc150e98ae4c9631c16547af3a5562d77877e8cbc",
+  "raw_bytes": 163520,
+  "duration_ms": 5110.0,
+  "encoding": "mono s16le 16000 Hz; no WAV header on wire",
+  "conditioning": "Exact production prepareCallPcm at 200 ms boundaries",
+  "local_asr": {
+    "implementation": "PocketSphinx 5.1.1 bundled en-US open LM",
+    "hypothesis": "i have three apples i buy two more apples how many apples here i have",
+    "forced_grammar": false,
+    "recognizes_required_proposition": true,
+    "limits": "This is independent offline ASR evidence, not human listening, a guarantee of Gemini recognition, or Indonesian/multi-turn verification."
+  },
+  "paid_inference_run": false
+}
