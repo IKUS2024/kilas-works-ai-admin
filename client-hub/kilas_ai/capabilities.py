@@ -5,18 +5,20 @@ import os
 
 def current():
     from . import autonomous_runner, routes
-    key=bool(os.environ.get('OPENAI_API_KEY','').strip())
+    key=any(bool(os.environ.get(name,'').strip()) for name in ('OPENAI_API_KEY','ANTHROPIC_API_KEY','GEMINI_API_KEY'))
     background=routes.automation_enabled() and autonomous_runner.enabled()
-    images=background and key and bool(os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL','').strip())
+    images=background and any(bool(os.environ.get(name,'').strip()) for name in ('OPENAI_API_KEY','GEMINI_API_KEY'))
     return {
         'conversation':key,
         'public_search_and_research':key and bool(os.environ.get('KILAS_AI_OPENAI_WEB_MODEL','').strip()),
         'uploaded_image_understanding':key,
         'image_generation':images, 'image_editing':images,
-        'document_reading':['PDF','DOCX','XLSX','PPTX','TXT','CSV'],
+        'document_reading':['PDF','DOCX','XLSX','PPTX','TXT','CSV','source code','safe source ZIP'],
         'document_creation':['PDF','DOCX','XLSX','PPTX'] if background and key else [],
         'background_work':background and key, 'reminders_and_schedules':background,
         'external_account_actions':False, 'interactive_browser':False,
+        'source_project_creation':background,'code_execution':False,
+        'source_project_validation':'paths, archive structure, Python AST and JSON syntax only; no runtime tests',
     }
 
 

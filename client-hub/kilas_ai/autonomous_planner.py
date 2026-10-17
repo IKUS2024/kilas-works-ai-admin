@@ -53,6 +53,9 @@ def propose(job, completed):
     from .agent_workers import capabilities, market_request, market_worker
     from . import work_documents
     from . import routing
+    from .workspace_projects import plan as project_plan
+    project=project_plan(job)
+    if project:return validate(project,job['mode'],job['instruction'])
     document_plan=work_documents.plan(job)
     if document_plan:
         return validate(document_plan,job['mode'],job['instruction'])

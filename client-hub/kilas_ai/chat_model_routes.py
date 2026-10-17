@@ -11,6 +11,7 @@ def prepare_chat_models(state):
         from .chat_models_schema import apply_release
         apply_release()
         apply_release('0103_kilas_image_models')
+        apply_release('0105_kilas_workspace_streams')
         if os.environ.get('RENDER_SERVICE_ID') and not state.app.testing:
             chat_models.warmup()  # Read-only Models APIs; never inference.
             from . import image_models
@@ -32,6 +33,12 @@ def model_catalog():
     result=chat_models.catalog()
     selected=chat_models.preference(session['user_id'],surface,ident) if surface else model_preferences.get(session['user_id'],'chat')
     return {**result,'selected':selected or result['default']},200,{'Cache-Control':'private, no-store'}
+
+
+@ai_bp.get('/chat/capabilities')
+def workspace_capabilities():
+    from .workspace_registry import registry
+    return registry(),200,{'Cache-Control':'private, no-store'}
 
 
 @ai_bp.post('/chat/model')

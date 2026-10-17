@@ -68,8 +68,12 @@
   const copyAnswers=()=>chat.querySelectorAll('.agent-message-assistant').forEach(copyButton);copyAnswers();
   let busy = false;
   let controller;
+  let activeStream=null,lastEvent=0;
   const stop=form.querySelector('[data-unified-stop]');
-  stop?.addEventListener('click',()=>controller?.abort());
+  stop?.addEventListener('click',async()=>{
+    if(activeStream){try{await fetch(`/kilas-ai/work/streams/${activeStream}/cancel`,{method:'POST',headers:{'X-CSRF-Token':form.elements.csrf_token.value,'Content-Type':'application/json'},body:'{}'});}catch(_){} }
+    controller?.abort();
+  });
   const canAutoFocus = () => Boolean(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
   function message(role, text) {
     const article = document.createElement('article');
@@ -120,11 +124,11 @@
     const selected=data.getAll('source_files').filter(file=>file instanceof File && file.name);
     if(selected.length && window.KilasAttachmentPreview) userMessage.parentElement.append(window.KilasAttachmentPreview(selected));
     thinking.hidden = false;
-    thinking.lastElementChild.textContent = /\b(riset|research)\b/i.test(input.value) ? t('Menyiapkan riset…') : /\b(kerjain|kerjakan|pantau|perbaiki|setiap|besok)\b/i.test(input.value) ? t('Menyiapkan pekerjaan…') : t('Menyiapkan jawaban…');
+    thinking.lastElementChild.textContent = t('Berpikir…');
     chat.setAttribute('aria-busy', 'true');
     let accepted = false, draftCleared = false, answer;
     try {
-      const response = await fetch(form.action, {method:'POST',body:data,headers:{'X-Agent-Chat':'1'},signal:controller.signal});
+      const response = await fetch(form.action, {method:'POST',body:data,headers:{'X-Agent-Chat':'1','X-Workspace-Stream':'1'},signal:controller.signal});
       if (!response.ok) {
         const failure=new Error('request');
         try { const payload=await response.json(); if(typeof payload.error==='string') failure.publicMessage=payload.error; } catch (_) { /* Preserve a safe fallback. */ }
@@ -133,16 +137,22 @@
       accepted = true;
       if(input.value===draft){input.value='';draftCleared=true;input.dispatchEvent(new Event('input'));}
       if (response.headers.get('content-type')?.includes('text/event-stream')) {
-        const reader = response.body.getReader(), decoder = new TextDecoder();
+        activeStream=response.headers.get('X-Workspace-Stream');lastEvent=0;
+        let streamResponse=response,reconnections=0;
+        const decoder = new TextDecoder();
         let pending = '', complete = false;
+        while(!complete){
+        const reader=streamResponse.body.getReader();
         while (true) {
           const {value,done} = await reader.read();
           pending += decoder.decode(value || new Uint8Array(), {stream: !done});
           let end;
           while ((end = pending.indexOf('\n\n')) >= 0) {
             const block = pending.slice(0,end); pending = pending.slice(end+2);
-            if (!block.startsWith('data: ')) continue;
-            const update = JSON.parse(block.slice(6));
+            const lines=block.split('\n'),payload=lines.find(line=>line.startsWith('data: '));
+            const eventId=lines.find(line=>line.startsWith('id: '));if(eventId)lastEvent=Number(eventId.slice(4));
+            if(!payload)continue;
+            const update = JSON.parse(payload.slice(6));
             if (update.type === 'delta') {
               answer ||= message('assistant', ''); window.KilasMarkdown.stream(answer,update.text);
               chat.scrollTop = chat.scrollHeight;
@@ -152,6 +162,11 @@
             else if (update.type === 'done') { complete = true; if (answer) { answer.classList.add('ai-markdown'); window.KilasMarkdown.finish(answer); } }
           }
           if (done) break;
+        }
+        if(complete)break;
+        if(!activeStream||++reconnections>16)throw Error('interrupted');
+        pending='';streamResponse=await fetch(`/kilas-ai/work/streams/${activeStream}?after=${lastEvent}`,{cache:'no-store',signal:controller.signal});
+        if(!streamResponse.ok)throw Error('reconnect');
         }
         if (!complete || !answer?.textContent.trim()) throw new Error('interrupted');
       }
@@ -170,7 +185,7 @@
       if (accepted) { try { await refresh(); } catch (_) { /* Keep visible local messages. */ } }
     } finally {
       document.dispatchEvent(new Event('kilas:request-finished'));
-      if(stop) stop.hidden=true;controller=null;
+      if(stop) stop.hidden=true;controller=null;activeStream=null;
       busy = false; send.disabled = false; input.readOnly = false;
       thinking.hidden = true; chat.removeAttribute('aria-busy');
       if (canAutoFocus()) input.focus({preventScroll:true});
@@ -203,7 +218,7 @@
       }
       chat.scrollTop = position;
     } catch (_) { /* Existing progress stays visible until the next read. */ }
-    finally {polling=false;}
+    finally {polling=false;if(!starting)startDue();}
   }
   let starting=false;
   async function startDue() {
@@ -214,7 +229,7 @@
     try {
       // Bounded, persisted owner-scoped execution; cron remains the recovery path.
       for(let pass=0;pass<3;pass++) {
-        const response=await fetch(`/kilas-ai/work/jobs/${job.dataset.jobId}/start`,{method:'POST',headers:{'X-CSRF-Token':form.elements.csrf_token.value,'Content-Type':'application/json'},body:'{}'});
+        const response=await fetch(`/kilas-ai/work/jobs/${job.dataset.jobId}/start`,{method:'POST',headers:{'X-CSRF-Token':form.elements.csrf_token.value,'Content-Type':'application/json','X-Workspace-Async':'1'},body:'{}'});
         if(!response.ok) break;
         const result=await response.json();if(!result.started) break;
         await refreshTasks();
@@ -224,6 +239,36 @@
     finally {starting=false;}
   }
   startDue();
+  // Refresh reattaches to the existing stream; this GET never dispatches inference.
+  async function resumeStream(){
+    if(busy)return;
+    try{
+      const response=await fetch(`/kilas-ai/work/streams?conversation_id=${encodeURIComponent(form.elements.conversation_id.value)}`,{cache:'no-store'});
+      if(!response.ok)return;const result=await response.json();if(!result.streams.length)return;
+      activeStream=result.streams[0].id;busy=true;send.disabled=true;input.readOnly=true;controller=new AbortController();if(stop)stop.hidden=false;
+      thinking.hidden=false;thinking.lastElementChild.textContent=t('Berpikir…');chat.setAttribute('aria-busy','true');
+      document.dispatchEvent(new Event('kilas:request-started'));
+      let after=0,complete=false,answer,pending='';const decoder=new TextDecoder();
+      for(let attempt=0;attempt<16&&!complete;attempt++){
+        const stream=await fetch(`/kilas-ai/work/streams/${activeStream}?after=${after}`,{cache:'no-store',signal:controller.signal});if(!stream.ok)throw Error('reattach');
+        const reader=stream.body.getReader();
+        while(true){
+          const part=await reader.read();pending+=decoder.decode(part.value||new Uint8Array(),{stream:!part.done});let end;
+          while((end=pending.indexOf('\n\n'))>=0){const block=pending.slice(0,end);pending=pending.slice(end+2);const lines=block.split('\n'),id=lines.find(s=>s.startsWith('id: ')),data=lines.find(s=>s.startsWith('data: '));if(id)after=Number(id.slice(4));if(!data)continue;const item=JSON.parse(data.slice(6));
+            if(item.type==='delta'){answer||=message('assistant','');window.KilasMarkdown.stream(answer,item.text);}
+            else if(item.type==='reset'&&answer)window.KilasMarkdown.render(answer,'');
+            else if(item.type==='activity')thinking.lastElementChild.textContent=t(item.label);
+            else if(item.type==='model_metadata'){answer||=message('assistant','');window.KilasChatModels?.badge(answer,item);}
+            else if(item.type==='error'){error.textContent=t(item.message);error.hidden=false;}
+            else if(item.type==='done')complete=true;
+          }if(part.done)break;
+        }
+      }
+      if(answer)window.KilasMarkdown.finish(answer);await refresh();
+    }catch(_){error.textContent=t('Jawaban terhenti. Buka riwayat; permintaan tidak diulang otomatis.');error.hidden=false;}
+    finally{if(activeStream){busy=false;send.disabled=false;input.readOnly=false;thinking.hidden=true;chat.removeAttribute('aria-busy');if(stop)stop.hidden=true;activeStream=null;controller=null;document.dispatchEvent(new Event('kilas:request-finished'));}}
+  }
+  resumeStream();
   setInterval(refreshTasks, 3000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshTasks(true); });
   window.addEventListener('focus', () => refreshTasks(true));

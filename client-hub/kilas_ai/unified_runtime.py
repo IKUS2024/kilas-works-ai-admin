@@ -32,6 +32,8 @@ def intent(text, prepared=(), previous=None, previous_answer=''):
     tool=routing.tool_for(text,images,has_previous_content=bool(previous),previous_answer=previous_answer)
     if tool in ('WEB','IMAGE_GENERATE','IMAGE_EDIT'):
         return tool
+    from .workspace_projects import requested as project_requested
+    if project_requested(text):return 'PROJECT'
     if routing.explicit_code(text):return 'CHAT'
     if work_documents.intent(text,bool(previous and not previous['media_type'].startswith('image/'))):return 'DOCUMENT'
     return tool

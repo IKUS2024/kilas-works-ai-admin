@@ -8,6 +8,9 @@ from . import autonomous_store as store, agent_store, automation_store, work_sch
 LABELS={'CONDITION_MET':'Kondisi terpantau terpenuhi.','CREATED':'Pekerjaan tersimpan','PLANNED':'Memahami permintaan…','EXECUTING':'Sedang mengerjakan…','ACCEPTED':'Pekerjaan tersimpan','PLANNING':'Memahami permintaan…','WORKING':'Sedang mengerjakan…','SEARCHING':'Mencari sumber…','WRITING':'Menulis isi…','CREATING_FILE':'Membuat file…','VERIFYING':'Memeriksa hasil…','WAITING_INPUT':'Menunggu jawabanmu','SCHEDULED':'Terjadwal','COMPLETED':'Selesai','FAILED':'Perlu perhatian','STOP':'Dihentikan','STOPPED':'Dihentikan','WAITING_CAPABILITY':'Kemampuan belum tersedia','SUCCEEDED':'Langkah selesai','BLOCKED':'Perlu perhatian','PAUSE':'Dijeda','RESUME':'Dilanjutkan','FEEDBACK':'Instruksi diperbarui','REMINDER':'Pengingat'}
 
 
+LABELS.update(READING_INPUTS='Membaca lampiran…',STRUCTURE='Membuat struktur…',WRITING_CODE='Menulis kode…',PACKAGING='Mengemas ZIP…',GENERATING_IMAGE='Membuat gambar…',DOWNLOADING='Menyiapkan unduhan…')
+
+
 def progress(job,kind,label):
     if kind not in LABELS:raise ValueError('invalid_progress')
     with store.transaction() as conn:

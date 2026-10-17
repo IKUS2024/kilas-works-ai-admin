@@ -130,8 +130,12 @@ def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=N
         if image_input:
             from . import work_artifacts
             step_id=usage._query(conn,"INSERT INTO kilas_agent_steps(job_id,sequence,worker,action,instruction,input_json,idempotency_key,status) VALUES (?,0,'SOURCE','provided','Lampiran customer','{}',?,'SUCCEEDED') RETURNING id",(job_id,secrets.token_hex(24)),one=True)[0]
-            image_id=work_artifacts.persist(conn,{'id':job_id},{'id':step_id},{**image_input,'filename':'source-'+image_input['filename'][-90:],'input':True})
-            checkpoint={**(checkpoint or {}),'image_source_id':image_id}
+            images=image_input if isinstance(image_input,list) else [image_input]
+            if not 1<=len(images)<=5:raise ValueError('image_reference_limit')
+            image_ids=[]
+            for index,image in enumerate(images):
+                image_ids.append(work_artifacts.persist(conn,{'id':job_id},{'id':step_id},{**image,'filename':'source-'+str(index)+'-'+image['filename'][-85:],'input':True}))
+            checkpoint={**(checkpoint or {}),'image_source_id':image_ids[0],'image_source_ids':image_ids}
         event(conn, job_id, 'CREATED' , 'Pekerjaan tersimpan. Kilas akan menyiapkan langkahnya.')
         if conversation_id is not None or schedule or checkpoint:
             usage._query(conn, 'UPDATE kilas_agent_jobs SET origin_conversation_id=?,schedule_json=?,checkpoint_json=? WHERE id=?',
@@ -217,6 +221,11 @@ def begin_step(job, token):
             return None
         row = usage._query(conn, "SELECT id FROM kilas_agent_steps WHERE job_id=? AND status IN ('PENDING','RUNNING','FAILED','WAITING') ORDER BY sequence LIMIT 1", (job['id'],), one=True)
         if not row:
+            return None
+        prior=usage._query(conn,'SELECT worker,status,attempts FROM kilas_agent_steps WHERE id=?',(row[0],),one=True)
+        if prior[0] in ('DOCUMENT','IMAGE','PROJECT') and prior[1] in ('RUNNING','FAILED') and prior[2]>0:
+            usage._query(conn,"UPDATE kilas_agent_jobs SET status='FAILED',last_error='uncertain_provider_outcome',next_wake_at=NULL WHERE id=?",(job['id'],))
+            event(conn,job['id'],'FAILED','Hasil penyedia belum dapat dipastikan; permintaan tidak diulang otomatis.',unread=False)
             return None
         daily = usage._query(conn, "SELECT COUNT(*) FROM kilas_agent_events e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE j.user_id=? AND e.kind='EXECUTING' AND e.created_at>=?", (job['user_id'], stamp(now().replace(hour=0, minute=0, second=0, microsecond=0))), one=True)[0]
         if daily >= 100 and not usage._qa_quota_exempt(conn, job['user_id'], now()):

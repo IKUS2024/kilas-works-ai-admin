@@ -62,6 +62,10 @@ def finish(job, token, step, result):
             store.approval(conn, job['id'], step, {'worker': step['worker'], 'action': step['action'], 'input': json.loads(step['input_json'])})
         elif state == 'WAITING':
             state_job, delay = 'WAITING', max(300, min(result.delay, 86400))
+        elif state == 'FAILED' and step['worker'] in ('DOCUMENT','IMAGE','PROJECT'):
+            # A timeout/crash may already have been billed. Keep terminal evidence;
+            # never repeat generation implicitly on cron, refresh or reconnect.
+            state_job='FAILED';delay=0
         elif state == 'FAILED':
             if step['attempts'] >= job['max_attempts'] or failures >= 3:
                 if job['replans'] < 1:

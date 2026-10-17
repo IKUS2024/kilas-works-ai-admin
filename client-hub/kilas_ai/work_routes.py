@@ -2,11 +2,13 @@
 import json
 import math
 import secrets
+import threading
 from datetime import timedelta
 from flask import request, session, abort
 import db
 from .routes import ai_bp, automation_enabled
 from . import autonomous_store as store, usage, automation_store, work_push
+_work_slots=threading.BoundedSemaphore(1)
 
 
 @ai_bp.before_request
@@ -59,8 +61,30 @@ def work_start(job_id):
     with store.transaction() as conn:
         token=secrets.token_hex(24)
         row=usage._query(conn,"UPDATE kilas_agent_jobs SET lease_token=?,lease_until=? WHERE id=? AND user_id=? AND status IN ('PLANNING','RUNNING','WAITING') AND next_wake_at<=? AND (lease_until IS NULL OR lease_until<=?) RETURNING id",(token,store.stamp(store.now()+timedelta(seconds=180)),job_id,session['user_id'],store.stamp(),store.stamp()),one=True)
-    if row:autonomous_runner.execute(job_id,token)
+    if row and request.headers.get('X-Workspace-Async')=='1':
+        if not _work_slots.acquire(blocking=False):
+            store.release(job_id,token);return {'started':False}
+        from flask import current_app
+        app=current_app._get_current_object()
+        def run():
+            try:
+                with app.app_context():autonomous_runner.execute(job_id,token)
+            finally:_work_slots.release()
+        threading.Thread(target=run,name='workspace-job-'+str(job_id),daemon=True).start()
+    elif row:autonomous_runner.execute(job_id,token)
     return {'started':bool(row)}
+
+
+@ai_bp.get('/work/jobs/<int:job_id>/events')
+def workspace_job_events(job_id):
+    job=store.get(session['user_id'],job_id)
+    if not job:abort(404)
+    from .work_runtime import LABELS
+    from . import work_artifacts
+    after=max(0,request.args.get('after',0,type=int))
+    events=db.query_all('SELECT id,kind,created_at FROM kilas_agent_events WHERE job_id=? AND id>? ORDER BY id LIMIT 100',(job_id,after))
+    return {'job_id':job_id,'state':job['status'],'events':[{**dict(item),'label':LABELS.get(item['kind'],'Pekerjaan diperbarui')} for item in events],
+            'artifacts':[{'id':item['id'],'name':item['name'],'media_type':item['media_type'],'byte_size':item['byte_size']} for item in work_artifacts.listing(session['user_id'],job_id=job_id)]},200,{'Cache-Control':'private, no-store'}
 
 
 def location_payload(raw):

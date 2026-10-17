@@ -123,6 +123,12 @@ def ordinary(user_id, conversation_id, operation_key):
                     usage.finish(user_id, meter_key, operations, success=success,
                                  provider=provider, model=model, usage=used)
 
+    if request.headers.get('X-Workspace-Stream')=='1':
+        from . import workspace_streams
+        try:return workspace_streams.start(user_id,conversation_id,operation_key,generate())
+        except Exception:
+            usage.finish(user_id,meter_key,operations,success=False)
+            raise
     if request.headers.get('X-Agent-Chat') == '1':
         def events():
             for event in generate():

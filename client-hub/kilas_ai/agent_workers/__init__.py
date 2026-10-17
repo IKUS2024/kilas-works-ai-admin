@@ -23,6 +23,7 @@ FIELDS = {
     ('MARKET', 'observe'): {'symbol', 'timeframe', 'operator', 'threshold'},
     ('FILE', 'create'): {'name', 'format', 'content'},
     ('DOCUMENT', 'create'): {'request', 'format'},
+    ('PROJECT', 'create'): {'request'},
     ('IMAGE', 'generate'): {'prompt'},
     ('IMAGE', 'edit'): {'prompt','source_id'},
     ('REMINDER', 'deliver'): {'subject'},
@@ -51,6 +52,7 @@ def validate_step(step):
         raise ValueError('input_too_large')
     if any(not isinstance(v, (str, int, float, list)) or isinstance(v, bool) for v in data.values()):
         raise ValueError('invalid_input')
+    if step['worker']=='PROJECT' and (not isinstance(data['request'],str) or not 1<=len(data['request'])<=1200):raise ValueError('invalid_project_input')
     if step['worker']=='DOCUMENT':
         from ..work_documents import FORMATS
         if data['format'] not in FORMATS or not isinstance(data['request'],str) or not 1 <= len(data['request']) <= 1200:
@@ -91,6 +93,8 @@ def execute(job, step):
         from .image_worker import run
     elif step['worker'] == 'DOCUMENT':
         from .document_worker import run
+    elif step['worker'] == 'PROJECT':
+        from ..workspace_projects import run
     elif step['worker'] == 'CODE':
         from .code_worker import run
     elif step['worker'] == 'MARKET':

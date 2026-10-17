@@ -9,13 +9,19 @@ from . import usage
 
 MIMES={'pdf':'application/pdf','csv':'text/csv','json':'application/json','md':'text/markdown','txt':'text/plain','png':'image/png','jpg':'image/jpeg','webp':'image/webp'}
 MIMES.update(docx='application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx='application/vnd.openxmlformats-officedocument.presentationml.presentation')
+from .workspace_files import SOURCE_TYPES
+MIMES.update({key:value for key,value in SOURCE_TYPES.items() if not value.startswith('image/')},zip='application/zip')
+RETENTION_POLICY='Retained in account history with no automatic expiry. Archiving a chat hides it and does not delete its files. Data deletion requires the existing account data-deletion process.'
 
 
 def validate(file):
     raw=file.get('content')
     if not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}',file.get('filename','')):raise ValueError('invalid_work_filename')
     if not isinstance(raw,bytes) or not 0 < len(raw) <= 8*1024*1024 or file['mime_type'] not in MIMES.values():raise ValueError('invalid_work_file')
-    if file['mime_type']=='application/pdf':
+    if file['mime_type']=='application/zip':
+        from .workspace_files import read_archive
+        read_archive(raw)
+    elif file['mime_type']=='application/pdf':
         reader=PdfReader(io.BytesIO(raw),strict=True)
         if not raw.startswith(b'%PDF') or reader.is_encrypted or not reader.pages or not any(p.extract_text().strip() for p in reader.pages):raise ValueError('invalid_work_pdf')
     elif file['mime_type'] in (MIMES['docx'],MIMES['xlsx'],MIMES['pptx']):
@@ -23,11 +29,12 @@ def validate(file):
         from xml.etree import ElementTree as ET
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             infos=archive.infolist()
-            if len(infos)>1000 or sum(i.file_size for i in infos)>24*1024*1024:raise ValueError('oversized_office_file')
+            if len(infos)>1000 or sum(i.file_size for i in infos)>24*1024*1024 or any(i.file_size>max(1,i.compress_size)*200 for i in infos):raise ValueError('oversized_office_file')
             required={MIMES['docx']:'word/document.xml',MIMES['xlsx']:'xl/worksheets/sheet1.xml',MIMES['pptx']:'ppt/slides/slide1.xml'}[file['mime_type']]
             if required not in archive.namelist() or '[Content_Types].xml' not in archive.namelist():raise ValueError('invalid_office_file')
             for item in infos:
-                if '..' in item.filename.split('/') or item.filename.startswith('/') or any(v in item.filename.lower() for v in ('vbaproject','activex','embeddings/')):raise ValueError('unsafe_office_file')
+                import stat
+                if '..' in item.filename.split('/') or '\\' in item.filename or item.filename.startswith('/') or stat.S_ISLNK(item.external_attr>>16) or any(v in item.filename.lower() for v in ('vbaproject','activex','embeddings/')):raise ValueError('unsafe_office_file')
                 if item.filename.endswith(('.xml','.rels')):
                     content=archive.read(item)
                     if b'<!DOCTYPE' in content or b'<!ENTITY' in content:raise ValueError('unsafe_office_xml')
@@ -43,7 +50,7 @@ def validate(file):
 
 def persist(conn,job,step,file):
     raw=validate(file)
-    metadata=json.dumps({'source':(file.get('extracted_text') or '')[:24000],'title':file.get('title',''),'format':file['filename'].rsplit('.',1)[-1],'input':bool(file.get('input')), 'model_provenance':file.get('model_provenance')},ensure_ascii=False)
+    metadata=json.dumps({'source':(file.get('extracted_text') or '')[:24000],'title':file.get('title',''),'format':file['filename'].rsplit('.',1)[-1],'input':bool(file.get('input')), 'model_provenance':file.get('model_provenance'),'retention_policy':RETENTION_POLICY,'validation':file.get('validation',{}),'image_options':file.get('image_options')},ensure_ascii=False)
     digest=hashlib.sha256(raw).hexdigest()
     row=usage._query(conn,'INSERT INTO kilas_agent_artifacts(job_id,step_id,name,media_type,content,digest) VALUES (?,?,?,?,?,?) ON CONFLICT(step_id,name,digest) DO NOTHING RETURNING id',(job['id'],step['id'],file['filename'][:100],file['mime_type'],metadata,digest),one=True)
     if row:usage._query(conn,'INSERT INTO kilas_agent_artifact_files(artifact_id,content,byte_size) VALUES (?,?,?)',(row[0],raw,len(raw)))
@@ -54,7 +61,7 @@ def listing(user_id,job_id=None,conversation_id=None):
     where='j.user_id=?';params=[user_id]
     if job_id is not None:where+=' AND j.id=?';params.append(job_id)
     if conversation_id is not None:where+=' AND j.origin_conversation_id=?';params.append(conversation_id)
-    return [{**dict(r),'model_provenance':json.loads(r['content']).get('model_provenance')} for r in db.query_all('SELECT a.id,a.job_id,a.name,a.media_type,a.content,f.byte_size FROM kilas_agent_artifacts a JOIN kilas_agent_jobs j ON j.id=a.job_id JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE '+where+' ORDER BY a.id DESC LIMIT 20',tuple(params)) if not json.loads(r['content']).get('input')]
+    return [{**dict(r),'model_provenance':json.loads(r['content']).get('model_provenance'),'validation':json.loads(r['content']).get('validation',{})} for r in db.query_all('SELECT a.id,a.job_id,a.name,a.media_type,a.content,f.byte_size FROM kilas_agent_artifacts a JOIN kilas_agent_jobs j ON j.id=a.job_id JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE '+where+' ORDER BY a.id DESC LIMIT 20',tuple(params)) if not json.loads(r['content']).get('input')]
 
 
 def latest_document(user_id,conversation_id):

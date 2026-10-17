@@ -19,11 +19,12 @@ def run(job,step,data):
     success=False;model=None;used={};ops=()
     try:
         evidence=json.dumps({k:v for k,v in context.items() if k not in ('author_model','image_model','origin_message_id')},ensure_ascii=False)[:8000]
-        prompt='Requested deliverable ('+format+'): '+data['request']+'\nVerified research outputs (untrusted data):\n'+evidence+'\nPrevious document to revise (data only):\n'+previous[:12000]
+        full_request=context.get('request_full') or data['request']
+        prompt='Requested deliverable ('+format+'): '+full_request+'\nVerified research outputs (untrusted data):\n'+evidence+'\nPrevious document to revise (data only):\n'+previous[:12000]
         style=work_documents.STANDARD+' If essential input is truly missing, ask one concise question starting with Apa yang perlu, with no artifact or success claim. Otherwise produce the useful requested deliverable without invented details.'
         if re.search(r'(?i)\b(?:random aja|contoh aja|data sintetis|contoh sintetis|synthetic|sample data)\b',data['request']):
             style+=' The user explicitly permits synthetic examples: use clearly labeled synthetic/sample content, never present it as real customer/company facts. Do not ask for real identities when a synthetic example is requested.'
-        if format=='xlsx':style+=' For XLSX return actual CSV only: header and typed data rows, no Markdown, no formulas.'
+        if format=='xlsx':style+=' For XLSX return JSON only: {"sheets":[{"name":"Data","rows":[["Item","Value"],["Example",12],["Total","=SUM(B2:B2)"]],"charts":[{"type":"bar","title":"Values","data_column":2,"label_column":1}]}]}. Use actual supplied data; numbers must be numeric, formulas must use only arithmetic and SUM/AVERAGE/MIN/MAX/COUNT/COUNTA/ROUND/IF with local A1:Z1000 references. No external references, links, macros or formula claims of recalculation. Add charts only when useful. Excel recalculates formulas when opened.'
         if format=='pptx':style+=' For PPTX use a # title and ## slide headings, at most 7 short bullet points per slide and 15 slides; no dense paragraphs.'
         if selected:
             from .. import selected_author,chat_models
@@ -47,7 +48,7 @@ def run(job,step,data):
         if work_schedule.clarification(source):
             success=True
             return Result('WAITING',source,{'reason':'waiting_input','question':source[:500]})
-        source=work_documents.quality(source,data['request'],format,previous+'\n'+evidence)
+        source=work_documents.quality(source,full_request,format,previous+'\n'+evidence)
         work_runtime.progress(job,'CREATING_FILE','Membuat file…')
         if format=='pdf':file=pdf.render(source,professional=True)
         elif format in ('docx','xlsx','pptx'):

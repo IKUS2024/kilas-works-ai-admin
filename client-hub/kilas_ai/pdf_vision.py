@@ -41,10 +41,12 @@ def _worker():
         from pypdf import PdfReader
         reader=PdfReader(io.BytesIO(raw),strict=True)
         if reader.is_encrypted:raise ValueError('pdf_locked')
-        texts=[];scan=False
+        texts=[];scan=False;visual=False
         for number,page in enumerate(reader.pages[:15],1):
             text=(page.extract_text() or '')[:12000]
-            if number<=3 and '/XObject' in (page.get('/Resources') or {}) and len(text.strip())<30:scan=True
+            if number<=3 and '/XObject' in (page.get('/Resources') or {}):
+                visual=True
+                if len(text.strip())<30:scan=True
             texts.append('Page '+str(number)+':\n'+text)
             if sum(map(len,texts))>=12000:break
         actual=any(value.split(':\n',1)[1].strip() for value in texts)
@@ -52,7 +54,7 @@ def _worker():
         if len(texts)<len(reader.pages) or len(value)>12000:
             note='Cakupan terbatas: '+str(len(texts))+' dari '+str(len(reader.pages))+' halaman diproses, maksimal 12000 karakter; bagian lain belum dibaca.\n'
             value=note+value[:12000-len(note)]
-        sys.stdout.write(json.dumps({'text':value[:12000].strip(),'scan':scan or not actual,'has_text':actual}))
+        sys.stdout.write(json.dumps({'text':value[:12000].strip(),'scan':scan or not actual,'has_visual':visual,'has_text':actual}))
         return
     import pypdfium2 as pdfium
     pages=[];total=0

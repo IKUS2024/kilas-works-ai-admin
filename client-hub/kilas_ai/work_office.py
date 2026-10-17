@@ -1,8 +1,67 @@
 """Safe local Office formatting: no macros, remote templates or untrusted formulas."""
 import csv
 import io
+import json
+import math
 import re
 from . import work_artifacts
+
+
+def checked_formula(value):
+    """Small arithmetic/range subset; no external workbooks, DDE, URLs or macros."""
+    if not isinstance(value,str) or len(value)>200 or not re.fullmatch(r'=[A-Za-z0-9:,+*/(). <>=-]+',value):raise ValueError('unsafe_spreadsheet_formula')
+    functions=re.findall(r'([A-Za-z]+)\s*\(',value)
+    if any(name.upper() not in ('SUM','AVERAGE','MIN','MAX','COUNT','COUNTA','ROUND','IF') for name in functions):raise ValueError('unsafe_spreadsheet_function')
+    for col,row in re.findall(r'([A-Z]+)(\d+)',value.upper()):
+        if len(col)>1 or not 1<=int(row)<=1000:raise ValueError('formula_range_limit')
+    # Reject arbitrary named ranges; cell references and allowlisted functions only.
+    residue=re.sub(r'[A-Za-z]+\d+|(?:SUM|AVERAGE|MIN|MAX|COUNT|COUNTA|ROUND|IF)\s*(?=\()', '',value,flags=re.I)
+    if re.search(r'[A-Za-z_]',residue) or value.count('(')!=value.count(')'):raise ValueError('invalid_spreadsheet_formula')
+    return value
+
+
+def spreadsheet(source,output):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font,PatternFill
+    from openpyxl.chart import BarChart,LineChart,PieChart,Reference
+    from openpyxl.workbook.properties import CalcProperties
+    # CSV remains supported for existing clients; formulas require explicit JSON.
+    structured=source.lstrip().startswith('{')
+    spec=json.loads(source) if structured else {'sheets':[{'name':'Data','rows':list(csv.reader(io.StringIO(source)))}]}
+    sheets=spec.get('sheets')
+    if not isinstance(sheets,list) or not 1<=len(sheets)<=8:raise ValueError('invalid_workbook')
+    book=Workbook();book.remove(book.active);names=set()
+    for item in sheets:
+        name=item.get('name','Data');rows=item.get('rows')
+        if not isinstance(name,str) or not 1<=len(name)<=31 or re.search(r'[\\/*?:\[\]]',name) or name.casefold() in names:raise ValueError('invalid_sheet_name')
+        if not isinstance(rows,list) or not 2<=len(rows)<=1000 or not isinstance(rows[0],list) or not 1<=len(rows[0])<=26 or any(not isinstance(r,list) or len(r)!=len(rows[0]) for r in rows):raise ValueError('invalid_spreadsheet')
+        names.add(name.casefold());sheet=book.create_sheet(name);sheet.freeze_panes='A2'
+        for row in rows:
+            converted=[]
+            for value in row:
+                if isinstance(value,str):
+                    value=value.strip()
+                    if structured and value.startswith('='):value=checked_formula(value)
+                    elif re.fullmatch(r'-?\d+(?:\.\d+)?',value):value=float(value) if '.' in value else int(value)
+                    elif value.startswith(('=','+','-','@')):raise ValueError('unsafe_spreadsheet_formula')
+                    elif len(value)>2000:raise ValueError('spreadsheet_cell_limit')
+                elif value is not None and (not isinstance(value,(int,float,bool)) or isinstance(value,float) and not math.isfinite(value)):raise ValueError('invalid_spreadsheet_cell')
+                converted.append(value)
+            sheet.append(converted)
+        for cell in sheet[1]:cell.font=Font(bold=True,color='FFFFFF');cell.fill=PatternFill('solid',fgColor='263244')
+        from openpyxl.utils import get_column_letter
+        for i in range(1,sheet.max_column+1):sheet.column_dimensions[get_column_letter(i)].width=min(45,max(14,max(len(str(sheet.cell(r,i).value or '')) for r in range(1,sheet.max_row+1))+2))
+        sheet.auto_filter.ref=sheet.dimensions
+        charts=item.get('charts',[])
+        if not isinstance(charts,list) or len(charts)>3:raise ValueError('chart_limit')
+        for n,definition in enumerate(charts):
+            kind=definition.get('type');column=definition.get('data_column',2);labels=definition.get('label_column',1)
+            if kind not in ('bar','line','pie') or type(column) is not int or type(labels) is not int or not 1<=column<=sheet.max_column or not 1<=labels<=sheet.max_column:raise ValueError('invalid_chart')
+            chart={'bar':BarChart,'line':LineChart,'pie':PieChart}[kind]();chart.title=str(definition.get('title','Chart'))[:80]
+            chart.add_data(Reference(sheet,min_col=column,min_row=1,max_row=sheet.max_row),titles_from_data=True)
+            chart.set_categories(Reference(sheet,min_col=labels,min_row=2,max_row=sheet.max_row));sheet.add_chart(chart,'A'+str(sheet.max_row+3+n*16))
+    book.calculation=CalcProperties(calcId=191029,fullCalcOnLoad=True,forceFullCalc=True)
+    book.save(output)
 
 
 def render(source, format, title=None):
@@ -31,23 +90,7 @@ def render(source, format, title=None):
             elif line.strip():doc.add_paragraph(re.sub(r'\*\*(.*?)\*\*',r'\1',line))
         flush();doc.save(output)
     elif format == 'xlsx':
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill
-        from openpyxl.utils import get_column_letter
-        rows=list(csv.reader(io.StringIO(source)))
-        if not 2<=len(rows)<=1000 or not 1<=len(rows[0])<=20 or any(len(r)!=len(rows[0]) for r in rows):raise ValueError('invalid_spreadsheet')
-        book=Workbook();sheet=book.active;sheet.title='Data';sheet.freeze_panes='A2'
-        for row in rows:
-            converted=[]
-            for value in row:
-                value=value.strip()
-                if re.fullmatch(r'-?\d+(?:\.\d+)?',value):converted.append(float(value) if '.' in value else int(value))
-                elif value.lstrip().startswith(('=','+','-','@')):raise ValueError('unsafe_spreadsheet_formula')
-                else:converted.append(value[:2000])
-            sheet.append(converted)
-        for cell in sheet[1]:cell.font=Font(bold=True,color='FFFFFF');cell.fill=PatternFill('solid',fgColor='263244')
-        for i in range(1,sheet.max_column+1):sheet.column_dimensions[get_column_letter(i)].width=min(45,max(14,max(len(str(sheet.cell(r,i).value or '')) for r in range(1,sheet.max_row+1))+2))
-        sheet.auto_filter.ref=sheet.dimensions;book.save(output)
+        spreadsheet(source,output)
     else:
         from pptx import Presentation
         from pptx.util import Inches, Pt

@@ -11,6 +11,25 @@ def prepare_many(files, plan):
     result=[]
     for upload in files:
         extension=(upload.filename or '').rsplit('.',1)[-1].lower()
+        from . import workspace_files
+        if extension=='zip' or extension in workspace_files.SOURCE_TYPES and extension not in ('txt','csv'):
+            name=re.sub(r'[^A-Za-z0-9._-]+','_',os.path.basename(upload.filename))[:100]
+            raw=upload.stream.read(attachments.MAX_FILE_BYTES+1)
+            try:
+                if not 0<len(raw)<=attachments.MAX_FILE_BYTES:raise ValueError('input_limit')
+                if extension=='zip':
+                    source=workspace_files.describe(workspace_files.read_archive(raw))
+                    mime='application/zip'
+                else:
+                    workspace_files.safe_path(name)
+                    source=raw.decode('utf-8-sig')
+                    if '\0' in source:raise ValueError('invalid_source')
+                    if len(source)>18000:source='Coverage limited: source truncated after 18000 characters; remainder not read.\n'+source[:18000]
+                    mime=workspace_files.SOURCE_TYPES[extension]
+                result.append({'filename':name,'mime_type':mime,'byte_size':len(raw),'content':raw,'extracted_text':source})
+            except Exception:
+                raise attachments.AttachmentError('Arsip atau kode tidak dapat dibaca dengan aman. Gunakan ZIP sumber UTF-8 tanpa tautan, enkripsi, atau folder dependensi.') from None
+            continue
         if extension not in ('xlsx','pptx'):
             item=attachments.prepare(upload)
             if extension=='docx':
@@ -60,7 +79,9 @@ def prepare_many(files, plan):
                         notes=slide.notes_slide.notes_text_frame
                         if notes and notes.text.strip():parts.append('Notes: '+notes.text)
                 text='\n'.join(parts)
-            file.update(byte_size=len(raw),extracted_text=text[:12000])
+            note='Coverage limited: only the first 5 sheets / 200 rows / 20 columns, or first 30 slides, were read. Embedded images and formulas were not executed.\n'
+            if len(text)>12000:note+='Extracted text truncated; remainder not read.\n'
+            file.update(byte_size=len(raw),extracted_text=note+text[:12000])
             result.append(file)
         except Exception:
             raise attachments.AttachmentError('File Office tidak dapat dibaca dengan aman. Gunakan file tanpa macro atau tautan eksternal.') from None

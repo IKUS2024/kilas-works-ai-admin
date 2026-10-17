@@ -154,6 +154,8 @@ def diff(workspace):
 
 
 def test_command(workspace):
+    from ..workspace_execution import capability
+    if not capability()['available']:return None
     bwrap = shutil.which('bwrap')
     python = '/usr/bin/python3' if Path('/usr/bin/python3').is_file() else None
     if not bwrap or not python or os.name != 'posix':

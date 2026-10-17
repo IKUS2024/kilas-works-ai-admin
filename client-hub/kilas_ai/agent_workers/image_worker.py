@@ -18,11 +18,15 @@ def run(job,step,data):
     success=False;result={}
     try:
         source=work_artifacts.image_source(job['user_id'],data['source_id'],job['origin_conversation_id']) if step['action']=='edit' else None
+        source_ids=json.loads(job['checkpoint_json']).get('image_source_ids',[])
+        if source and len(source_ids)>1:source=[work_artifacts.image_source(job['user_id'],ident,job['origin_conversation_id']) for ident in source_ids]
+        from ..work_runtime import progress
+        progress(job,'GENERATING_IMAGE','Membuat gambar…')
         result=tools.image(routing.enhance_image_prompt(data['prompt']),source=source,request_timeout=60,**({'selected_model':selected} if selected else {}))
         extension={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[result['mime']]
         title=' '.join(data['prompt'].split()[:8])
         name=re.sub(r'[^a-z0-9-]+','-',title.lower()).strip('-')[:70] or 'gambar-kilas'
-        file={'filename':name+'.'+extension,'mime_type':result['mime'],'content':result['raw'],'title':title,**({'model_provenance':result['model_provenance']} if result.get('model_provenance') else {})}
+        file={'filename':name+'.'+extension,'mime_type':result['mime'],'content':result['raw'],'title':title,'image_options':result.get('image_options'),**({'model_provenance':result['model_provenance']} if result.get('model_provenance') else {})}
         work_artifacts.validate(file);success=True
         return Result('SUCCEEDED','Gambar selesai dan siap digunakan.',{'title':title,'image_ready':True,**({'model_provenance':result['model_provenance']} if result.get('model_provenance') else {})},[{'binary_file':file}],result.get('usage',{}),True)
     except tools.ToolUnavailable as error:

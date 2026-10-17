@@ -165,7 +165,7 @@ def prepare(upload, max_file_bytes=MAX_FILE_BYTES, max_image_bytes=MAX_IMAGE_BYT
             raise
         except Exception:
             raise AttachmentError("PDF tidak dapat dibaca dengan aman. Periksa apakah file terkunci, rusak, atau terlalu kompleks.") from None
-        if parsed['scan']:
+        if parsed['scan'] or parsed.get('has_visual'):
             from .capabilities import current
             if not current()['uploaded_image_understanding']:
                 if not parsed['has_text']:
@@ -177,7 +177,8 @@ def prepare(upload, max_file_bytes=MAX_FILE_BYTES, max_image_bytes=MAX_IMAGE_BYT
                 vision_pages=render(raw)
             except Exception:
                 raise AttachmentError('Halaman scan PDF belum dapat diproses dengan aman. Unggah maksimal tiga halaman sebagai JPG/PNG atau gunakan PDF teks.') from None
-            extracted=extracted[:MAX_EXTRACTED_CHARS-200]+'\nPDF scan: hanya '+str(len(vision_pages))+' halaman pertama disertakan sebagai gambar; jangan menebak halaman lain.'
+            marker='PDF scan: ' if parsed['scan'] else 'PDF visual pages: '
+            extracted=extracted[:MAX_EXTRACTED_CHARS-200]+'\n'+marker+'hanya '+str(len(vision_pages))+' halaman pertama disertakan sebagai gambar; jangan menebak halaman lain.'
     elif extension == "docx":
         try:
             with zipfile.ZipFile(io.BytesIO(raw)) as archive:
@@ -233,7 +234,7 @@ def prepare(upload, max_file_bytes=MAX_FILE_BYTES, max_image_bytes=MAX_IMAGE_BYT
         note='Cakupan terbatas: teks lampiran terpotong. Bagian setelah cuplikan belum dibaca; jangan menyimpulkan total atau isi seluruh file.\n'
         extracted=note+extracted[:MAX_EXTRACTED_CHARS-len(note)]
     return {"filename": filename, "mime_type": mime, "byte_size": len(raw), "content": raw,
-            "extracted_text": extracted, 'vision_pages':vision_pages}
+            "extracted_text": extracted, 'vision_pages':vision_pages,'normalized':is_image and total!=len(raw),'source_byte_size':total}
 
 
 def prepare_many(files, plan=None):

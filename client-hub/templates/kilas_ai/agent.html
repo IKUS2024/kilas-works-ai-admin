@@ -41,10 +41,10 @@
       <p id="agent-chat-error" class="auto-error" role="alert" hidden></p>
       <form class="agent-composer ai-composer-area" method="post" enctype="multipart/form-data" action="{{ url_for('kilas_ai.agent_chat') }}" id="agent-chat-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="conversation_id" value="{{ conversation.id }}"><input type="hidden" name="operation_key" value="{{ operation_key }}"><label class="ai-visually-hidden" for="agent-message">{{ ui_t('Pesan untuk Kilas') }}</label>
         <input type="hidden" name="browser_timezone"><input type="hidden" name="work_location">
-        <div class="work-attachment-bar"><button type="button" class="work-add-file" data-work-attach aria-label="{{ ui_t('Tambah lampiran') }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></button><input id="work-source-files" name="source_files" type="file" accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp" multiple class="ai-visually-hidden"><span>{{ ui_t('Dokumen atau gambar') }}</span></div>
+        <div class="work-attachment-bar"><button type="button" class="work-add-file" data-work-attach aria-label="{{ ui_t('Tambah lampiran') }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></button><input id="work-source-files" name="source_files" type="file" accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip,.md,.json,.html,.css,.js,.jsx,.ts,.tsx,.py,.yaml,.yml,.toml,.sql" multiple class="ai-visually-hidden"><span>{{ ui_t('Dokumen atau gambar') }}</span></div>
         <div id="work-pending-files" class="work-pending-files" aria-live="polite"></div>
         {% if location_request %}<div class="work-context-permission"><p>{{ ui_t('Lokasi hanya digunakan untuk pekerjaan ini.') }}</p><button type="button" data-work-location data-request="{{ location_request.text }}">{{ ui_t('Izinkan lokasi') }}</button><span>{{ ui_t('Atau ketik nama daerah.') }}</span></div>{% endif %}
-        <div class="ai-composer"><textarea id="agent-message" name="message" rows="2" maxlength="1200" required placeholder="{{ ui_t('Tulis pesan untuk Kilas AI…') }}">{{ prefill }}</textarea><div class="ai-composer-actions"><button class="ai-send" type="submit">{{ ui_t('Kirim') }}</button><button class="ai-stop" data-unified-stop type="button" hidden>{{ ui_t('Stop') }}</button>{% include 'kilas_ai/_ai_call_button.html' %}</div></div>
+        <div class="ai-composer"><textarea id="agent-message" name="message" rows="2" maxlength="24000" required placeholder="{{ ui_t('Tulis pesan untuk Kilas AI…') }}">{{ prefill }}</textarea><div class="ai-composer-actions"><button class="ai-send" type="submit">{{ ui_t('Kirim') }}</button><button class="ai-stop" data-unified-stop type="button" hidden>{{ ui_t('Stop') }}</button>{% include 'kilas_ai/_ai_call_button.html' %}</div></div>
 
       </form>
     {% elif view == 'tasks' %}
@@ -72,7 +72,7 @@
   {% include 'kilas_ai/_capacity_notice.html' %}</main>
 </div>
 <script src="{{ url_for('static',filename='kilas_work.js',v='auto-timezone-20261005') }}" defer></script>
-<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='history-context-20261017') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='workspace-streams-20261017') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_ai_shell.js',v='drawer-20261004') }}" defer></script>
 {% if view == 'chat' %}{% include 'kilas_ai/_ai_call_surface.html' %}{% endif %}
 </body>

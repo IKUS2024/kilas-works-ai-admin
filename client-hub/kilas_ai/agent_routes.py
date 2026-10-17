@@ -16,6 +16,7 @@ from .home_tasks import context as home_context
 from . import work_routes  # Register the scoped Work endpoints on the existing blueprint.
 from . import chat_project_routes  # Real project controls; independently gated from demos.
 from . import transcription_routes  # Default-off STT; paid transport locked pending budget.
+from . import workspace_streams  # Durable private events; no provider call on reconnect.
 
 
 @ai_bp.before_request
@@ -148,7 +149,7 @@ def agent_home():
 @ai_bp.post("/agent/chat", endpoint="agent_chat")
 def agent_chat():
     text = str(request.form.get("message") or "").strip()
-    if not 1 <= len(text) <= 1200:
+    if not 1 <= len(text) <= 24000:
         return redirect(url_for("kilas_ai.agent_home", error="message"), code=303)
     owner = _owner()
     files=[f for f in request.files.getlist('source_files') if f.filename]
@@ -173,6 +174,8 @@ def agent_chat():
         abort(400)
     from . import chat_models,image_models,routing
     image_task=routing.tool_for(text,getattr(request,'work_attachments',())) in ('IMAGE_GENERATE','IMAGE_EDIT')
+    if image_task and any(item.get('normalized') for item in getattr(request,'work_attachments',())):
+        return {'error':'Gunakan gambar asli maksimal 5 MB dan 20 megapiksel untuk penyuntingan tanpa perubahan input.'},400
     try:
         image_selected=image_models.requested(owner,'conversation',conversation_id,request.form.get('selected_image_model'),required=image_task and 'selected_image_model' in request.form)
         if image_selected:request.chat_selected_image_model=image_selected
@@ -185,6 +188,8 @@ def agent_chat():
             if not image_task:chat_pipeline.context(owner,conversation_id,pending=text)
         except chat_models.SelectionError as error:return {'error':str(error)},400
     if not agent_store.claim_request(owner, conversation_id, key):
+        prior=db.query_one('SELECT id FROM kilas_workspace_streams WHERE user_id=? AND conversation_id=? AND operation_key=?',(owner,conversation_id,key))
+        if prior:return workspace_streams.response(prior['id'])
         return {'error': 'Pesan ini sudah diterima. Buka kembali chat untuk melihat hasilnya.'}, 409
     from . import work_runtime, work_routes
     zone=request.form.get('browser_timezone')

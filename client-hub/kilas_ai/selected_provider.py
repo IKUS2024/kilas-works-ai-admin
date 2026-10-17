@@ -40,7 +40,7 @@ def stream(mode, messages, system=None):
     facts=capabilities.current()
     facts.update(conversation=True, uploaded_image_understanding=chat_models.check(model)['images'])
     system=(providers.SYSTEM if system is None else system)+'\nCurrent runtime capabilities: '+json.dumps(facts)+'. '
-    system+='The selected Chat model is '+item['name']+'. Use only actual tool evidence; never claim to execute code or actions in Chat. '
+    system+='The selected Chat model is '+item['name']+'. Use only actual tool evidence; never claim to execute code or actions in this answer. Requested documents, images and source projects use separate registered workspace tools and appear as real artifact cards. Code execution is unavailable until a secure isolated service is configured. '
     system+=model_policy.intelligence.playbook(profile)
     headers={'Content-Type':'application/json'}
     if provider=='openai':

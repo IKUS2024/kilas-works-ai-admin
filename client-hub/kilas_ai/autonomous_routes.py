@@ -28,6 +28,15 @@ def owned(job_id):
     return job
 
 
+@ai_bp.after_request
+def workspace_preview_parent_policy(response):
+    # Also constrain iframe navigations at the parent: connect-src inside a
+    # preview alone does not prevent a script navigating its frame elsewhere.
+    if request.endpoint=='kilas_ai.agent_home' and response.mimetype=='text/html':
+        response.headers.setdefault('Content-Security-Policy',"frame-src 'self'; object-src 'none'; base-uri 'self'")
+    return response
+
+
 def chat(user_id, text):
     """Infer autonomous lifecycle without capturing normal Q&A or connector actions."""
     from . import agent_intents, agent_presentation
@@ -36,12 +45,13 @@ def chat(user_id, text):
         return False
     conversation_id = agent_store.current_conversation(user_id)
     from . import work_documents,work_artifacts
+    from .workspace_projects import requested as project_requested
     previous=work_artifacts.latest_document(user_id,conversation_id)
     document_format=work_documents.intent(text,bool(previous))
     from . import routing
     image_inputs=[item for item in getattr(request,'work_attachments',[]) if item['mime_type'].startswith('image/')]
     image_previous=next((item for item in work_artifacts.listing(user_id,conversation_id=conversation_id) if item['media_type'].startswith('image/')),None)
-    editing_image=routing.tool_for(text)== 'IMAGE_EDIT' or (image_inputs and routing.may_edit_image(text))
+    editing_image=routing.tool_for(text)== 'IMAGE_EDIT' or (image_inputs and (routing.may_edit_image(text) or work_documents.image_request(text)))
     if editing_image:document_format=None
     if editing_image and not image_inputs and not image_previous:
         agent_store.append(user_id,'assistant','Tambahkan gambar yang ingin diubah.')
@@ -73,7 +83,7 @@ def chat(user_id, text):
     if pending and pending.get('conversation_id') == conversation_id and re.fullmatch(r'(?i)(?:jam |pukul |di bawah |di atas |target |\d).{0,100}', text):
         text = pending['text'] + ' ' + text
     spec = agent_intents.infer(text)
-    if (document_format or work_documents.image_request(text) or editing_image) and not spec:
+    if (document_format or project_requested(text) or work_documents.image_request(text) or editing_image) and not spec:
         spec={'mode':'ONE_SHOT','wake_at':None,'interval':3600,'schedule':{},'clarify':None}
     selected_mode = request.form.get('autonomous_mode', '')
     if selected_mode:
@@ -100,13 +110,14 @@ def chat(user_id, text):
     session.pop('agent_work_clarification', None)
     try:
         checkpoint={}
+        if len(text)>1200:checkpoint['request_full']=text[:24000]
         if document_format and previous and work_documents.REVISE.search(text):checkpoint['document_source_id']=previous['id']
         if editing_image and not image_inputs:checkpoint['image_source_id']=image_previous['id']
         sources=getattr(request,'work_source_materials',None)
         if sources:checkpoint['source_materials']=sources
-        job_id=store.create(user_id,agent_intents.research_instruction(text),mode=spec['mode'],constraints=[text],
+        job_id=store.create(user_id,agent_intents.research_instruction(text)[:1200],mode=spec['mode'],constraints=[text[:1200]],
             wake_at=spec['wake_at'],interval=spec['interval'],conversation_id=conversation_id,schedule=spec['schedule'],
-            checkpoint=checkpoint,image_input=image_inputs[0] if editing_image and image_inputs else None,
+            checkpoint=checkpoint,image_input=image_inputs if editing_image and image_inputs else None,
             origin_message_id=getattr(request,'work_origin_message_id',None))
         if market_request(text) and market_worker.provider is None:
             message = 'Pekerjaan pemantauan tersimpan. Data market real-time belum tersedia; Kilas belum memantau harga atau menghasilkan sinyal.'
@@ -200,5 +211,18 @@ def artifact(job_id, artifact_id):
     response=send_file(io.BytesIO(raw),mimetype=row['media_type'],as_attachment=request.args.get('download')=='1' or row['binary_content'] is None,download_name=row['name'],max_age=0)
     response.headers['Cache-Control']='private, no-store'
     response.headers['X-Content-Type-Options']='nosniff'
-    response.headers['Content-Security-Policy']="default-src 'none'; sandbox"
+    response.headers['Content-Security-Policy']="default-src 'none'; sandbox; base-uri 'none'; form-action 'none'"
     return response
+
+
+@ai_bp.get('/agent/jobs/<int:job_id>/artifacts/<int:artifact_id>/preview',endpoint='autonomous_preview')
+def preview(job_id,artifact_id):
+    owned(job_id)
+    row=db.query_one('SELECT a.media_type,a.content,f.content AS raw FROM kilas_agent_artifacts a JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE a.id=? AND a.job_id=?',(artifact_id,job_id))
+    if not row or row['media_type']!='text/html' or json.loads(row['content']).get('input'):abort(404)
+    from flask import Response
+    return Response(bytes(row['raw']),mimetype='text/html',headers={
+        'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',
+        'X-Frame-Options':'SAMEORIGIN',
+        'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; frame-ancestors 'self'; sandbox allow-scripts",
+        'Referrer-Policy':'no-referrer'})
