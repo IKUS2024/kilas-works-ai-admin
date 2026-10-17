@@ -1,4 +1,5 @@
 // Injectable Call lifecycle. No microphone, provider or network work on import.
+import {prepareCallPcm} from './kilas_ai_call_pcm.mjs?v=call-understanding-gain-20261017';
 const aborted=()=>new DOMException('Aborted','AbortError');
 const failure=code=>Object.assign(Error(code),{code});
 export class CallInput {
@@ -57,7 +58,7 @@ export class CallSession {
     pcm:raw=>{if(this.current(ticket)){try{
      // Keep the provider's VAD clock running during playback, without sending
      // speaker echo back as another question. Never reuse microphone PCM here.
-     this.input.push(this.speaking?new Uint8Array(raw.length):raw);
+     this.input.push(this.speaking?new Uint8Array(raw.length):prepareCallPcm(raw));
     }catch(error){this.fail(error,ticket);}}},
     error:error=>this.fail(error,ticket)});
    if(!this.current(ticket))return;

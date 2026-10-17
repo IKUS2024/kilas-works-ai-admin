@@ -36,14 +36,18 @@ late output, End and new-answer races through this interval.
   the provider without a local speech threshold.
 - Existing PCM conversion remains mono signed PCM16 little endian, 16 kHz input,
   24 kHz output. Device rate conversion tests pass at 16, 44.1 and 48 kHz.
-- Provider VAD allows 1,200 ms pauses with low end-of-speech sensitivity. Existing
+- Quiet input receives bounded Call-only gain when RMS is between 0.002 and
+  0.06: target RMS 0.06, maximum 8x gain, peak capped below 0.95. Silence, very
+  low-level noise and strong browser AGC output remain byte-identical.
+- Provider VAD allows 1,200 ms pauses with high start and low end sensitivity. Existing
   NO_INTERRUPTION turn-taking remains: speak when Listening; End always works.
 - The conversation stays in the same provider session, including existing context
   compression and supported fresh-checkpoint resumption. No local transcript replay
   or new per-turn session is introduced. Prompt instructions explicitly retain
   prior call details and avoid inventing requests from silence or unclear input.
 - Input transcription is enabled for safe counts only. Runtime logs contain aggregate
-  RMS, peak, duration, turn count and transcription character count; they never log
+  RMS, peak, accepted/successfully sent duration, packet/event counts, turn count
+  and transcription character count; they never log
   user audio, words, secrets or provider exception bodies.
 
 ## Local verification
@@ -52,7 +56,7 @@ late output, End and new-answer races through this interval.
   long-call renewals, End, bounded transport, provider resumption and diagnostics.
 - 5 Python smoke-fence tests: default off, service and short-expiry checks, child
   launch, fixture hashes and durable once marker preventing restart duplicates.
-- 31 Node AI Call tests: quiet capture, source-rate/channel conversion, sequential
+- 34 Node AI Call tests: quiet capture, source-rate/channel conversion, sequential
   dispatch, playback silence and echo clearance, cancellation and jitter buffer.
 - 4 actual Flask-rendered DOM locales: unchanged composer, modal and End controls.
 - 19 existing shared capture/encoding/Translator transport regression tests pass.
@@ -81,3 +85,33 @@ Checks include initial silence, a non-speech interval, provider-heard subject,
 expected answer, output PCM, normal settlement and End cleanup. Only booleans and
 numeric measurements are logged. Run results and LIVE deployment evidence must be
 reported separately after execution; no provider success is asserted by this file.
+
+## Actual provider attempt and follow-up correction
+
+At 01:58:33 UTC, deployment dep-db9dc1navr4c73dl2t1g (7667d077fda7e72397236663afcde8f66d9fb5ed)
+started exactly one production smoke. It established one provider connection and
+passed setup. Initial silence generated no response. It stopped at the 70-second
+deadline on the first quiet Indonesian fixture: 39,163.9 ms of total input was
+accepted, output was 0 ms, transcription character count 0 and completed turns 0.
+The aggregate input RMS was 0.00285 with peak 0.05685. End took 204 ms, no output
+frames remained and normal metering settled. No second paid attempt was made.
+
+This does NOT verify a working multi-turn conversation. At this revision there
+was no successful-send byte counter, so accepted bytes must not be described as
+proof that every byte reached the provider. The silent result is consistent with
+low-level input not triggering provider VAD, but does not establish that as the
+sole cause. Physical Android input and provider resumption remain unverified.
+
+The browser measurement showed AGC can raise the same fixture substantially,
+while the direct backend smoke lacked browser AGC. The follow-up adds the bounded
+Call-only gain above so quiet input is less dependent on a device's AGC, requests
+sensitive provider speech onset, and records successful socket-send byte counts
+separately from acceptance. Tests show 27 quiet frames receive gain, no sample is
+lost or clipped, and the fixture peak reaches 0.45190. This correction has local
+verification only; no claim of a successful real-provider retest is made.
+
+The environment proxy returned HTTP 403 for direct custom-domain and Render-host
+health/asset probes, including an escalated public read. Render's deploy status
+and production logs are the available LIVE evidence. A physical Android test and
+an explicitly authorized additional bounded provider test are still needed before
+claiming the original end-to-end complaint is resolved.

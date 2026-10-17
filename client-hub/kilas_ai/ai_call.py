@@ -50,7 +50,8 @@ def setup(handle=None):
         'generationConfig':{'responseModalities':['AUDIO'],'maxOutputTokens':1024,
             'speechConfig':{'voiceConfig':{'prebuiltVoiceConfig':{'voiceName':'Kore'}}}},
         'realtimeInputConfig':{'activityHandling':'NO_INTERRUPTION','automaticActivityDetection':{'disabled':False,
-            'prefixPaddingMs':300,'silenceDurationMs':1200,'endOfSpeechSensitivity':'END_SENSITIVITY_LOW'}},
+            'prefixPaddingMs':300,'silenceDurationMs':1200,'startOfSpeechSensitivity':'START_SENSITIVITY_HIGH',
+            'endOfSpeechSensitivity':'END_SENSITIVITY_LOW'}},
         'inputAudioTranscription':{},'outputAudioTranscription':{},
         'contextWindowCompression':{'triggerTokens':12000,'slidingWindow':{'targetTokens':6000}},
         'sessionResumption':{'handle':handle} if handle else {}}}
@@ -69,6 +70,7 @@ class Call:
         self.renewing=Event();self.resume_handle=None;self.go_away=False;self.resume_pending=False
         self.provider_started=self.started
         self.input_energy=0;self.input_samples=0;self.input_peak=0;self.input_transcript_chars=0
+        self.sent_bytes=0;self.sent_chunks=0;self.provider_messages=0
 
     def check(self):
         if self.closed.is_set():raise CallError('call_ended',409)
@@ -132,6 +134,7 @@ class Call:
         if not isinstance(content,dict):raise CallError('call_output_invalid')
         with self.lock:
             if self.closed.is_set():return
+            self.provider_messages+=1
             if 'goAway' in value:
                 if not isinstance(value['goAway'],dict) or monotonic()-self.provider_started<30:
                     raise CallError('call_provider')
@@ -204,6 +207,7 @@ class Call:
                         if self.renewing.is_set():continue
                         self.ws.send(json.dumps({'realtimeInput':{'audio':{
                             'mimeType':'audio/pcm;rate=16000','data':base64.b64encode(raw).decode('ascii')}}}))
+                        with self.lock:self.sent_bytes+=len(raw);self.sent_chunks+=1
                         break
         except Exception as error:self.stop(getattr(error,'code','call_transport'))
         finally:db._discard_cached_connection()
@@ -247,7 +251,7 @@ class Call:
             safe_reasons={'call_ended','call_network','call_unavailable','call_backlog','budget_limit','account_credit_limit',
                           'call_input_invalid','call_output_invalid','call_provider','call_transport'}
             reason=self.code if self.code in safe_reasons else 'call_transport'
-            print(f'KILAS_AI_CALL closed=true reason={reason} input_ms={self.input_bytes/32:.1f} output_ms={self.output_bytes/48:.1f} interruptions={self.interruptions} turns={self.turns} input_rms={math.sqrt(self.input_energy/max(1,self.input_samples)):.5f} input_peak={self.input_peak:.5f} heard_chars={self.input_transcript_chars}',flush=True)
+            print(f'KILAS_AI_CALL closed=true reason={reason} input_ms={self.input_bytes/32:.1f} sent_ms={self.sent_bytes/32:.1f} sent_chunks={self.sent_chunks} provider_messages={self.provider_messages} output_ms={self.output_bytes/48:.1f} interruptions={self.interruptions} turns={self.turns} input_rms={math.sqrt(self.input_energy/max(1,self.input_samples)):.5f} input_peak={self.input_peak:.5f} heard_chars={self.input_transcript_chars}',flush=True)
 
     def resume(self):
         # Exactly one supported handoff per provider warning, with no reconnect
