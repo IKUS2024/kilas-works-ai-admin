@@ -1,7 +1,7 @@
 """Owned metadata pagination beyond legacy caps; no providers or history mutation."""
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import test_kilas_home as fixture
 from kilas_ai import agent_store, store
 
@@ -9,6 +9,28 @@ from kilas_ai import agent_store, store
 class SidebarHistoryTests(unittest.TestCase):
     setUp=fixture.HomeTests.setUp
     client=fixture.HomeTests.client
+
+    def test_postgres_history_binds_wildcards_as_values_through_database_adapter(self):
+        from kilas_ai import sidebar_history
+        database=fixture.fixture.base.f.fixture.db
+        connection=MagicMock()
+        cursor=connection.cursor.return_value
+        cursor.description=[]
+        cursor.fetchall.return_value=[]
+        def execute(query,params):
+            # Enforce psycopg's percent-placeholder binding contract at execute().
+            # A literal LIKE '...:%' in this parameterized SQL raised IndexError live.
+            query % tuple(repr(value) for value in params)
+            self.assertEqual(query.count('%s'),len(params))
+            self.assertEqual(params.count('agent-attachments:%'),2)
+            self.assertNotIn("LIKE 'agent-attachments:%'",query)
+        cursor.execute.side_effect=execute
+        with patch.object(database,'BACKEND','postgres'),patch.object(database,'get_connection',return_value=connection):
+            for include in (True,False):
+                for kind in (None,'thread','conversation'):
+                    with self.subTest(include=include,kind=kind):
+                        self.assertEqual(sidebar_history.recent(self.owner,include_conversations=include,kind=kind,after={'at':'2026-10-17T00:00:00Z','kind':'thread','id':1}),[])
+        self.assertEqual(cursor.execute.call_count,6)
 
     def seed(self,conversations=35,threads=125):
         self.database=fixture.fixture.base.f.fixture.db

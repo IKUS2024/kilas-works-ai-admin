@@ -13,10 +13,10 @@ def _signer():
 def recent(owner,*,include_conversations=True,kind=None,after=None,limit=12,offset=0):
     def stamp(field):return field if db.BACKEND=='postgres' else "strftime('%Y-%m-%dT%H:%M:%fZ',"+field+')'
     # Opening, renaming, changing model, and job lease heartbeats do not count.
-    visible="t.user_id=? AND NOT EXISTS (SELECT 1 FROM kilas_ai_messages b WHERE b.thread_id=t.id AND b.operation_key LIKE 'agent-attachments:%')"
+    visible="t.user_id=? AND NOT EXISTS (SELECT 1 FROM kilas_ai_messages b WHERE b.thread_id=t.id AND b.operation_key LIKE ?)"
     streams=["SELECT 'thread' AS kind,t.id,t.title,"+stamp('m.created_at')+" AS at FROM kilas_ai_threads t JOIN kilas_ai_messages m ON m.thread_id=t.id WHERE "+visible+" AND TRIM(m.content)<>''",
              "SELECT 'thread',t.id,t.title,"+stamp('a.created_at')+" FROM kilas_ai_threads t JOIN kilas_ai_attachments a ON a.thread_id=t.id AND a.user_id=t.user_id JOIN kilas_ai_messages m ON m.id=a.message_id AND m.thread_id=t.id WHERE "+visible]
-    params=[owner,owner]
+    params=[owner,'agent-attachments:%',owner,'agent-attachments:%']
     if include_conversations:
         base=' FROM kilas_ai_conversations c '
         owned=' WHERE c.user_id=? AND c.archived_at IS NULL'

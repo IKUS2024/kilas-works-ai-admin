@@ -25,3 +25,9 @@ The empty modern welcome panel retained 63px top and 24px bottom margins in the 
 - JavaScript syntax and diff checks passed. No paid inference, microphone/media access, credentials, billing, subscription/quota changes, Finance, Group, Translator, Voice Over or Creative Services implementation changes.
 
 Limit: mobile touch/keyboard geometry was verified in Chromium fixtures, not a physical Android IME session. Older pre-release pagination cursors use a different history order and are invalidated; refreshing the page starts the current signed pagination.
+
+## Production parameter-binding correction
+
+Authenticated browser checks after deployment found `/products/start` and saved chat pages returning 500. Production tracebacks identify `sidebar_history.recent` calling `db.query_all`, then psycopg2 `cursor.execute`, raising `IndexError: tuple index out of range`. The new history SQL embedded the literal wildcard `LIKE 'agent-attachments:%'` alongside bound parameters. PostgreSQL's driver treats that unescaped percent as parameter syntax. Both wildcard patterns now travel as bound values; shared database adaptation is unchanged.
+
+The earlier read-only PostgreSQL check interpolated values before execution and therefore did not exercise the production binding boundary. SQLite and browser fixtures also missed this driver-specific failure. A regression now executes all six history filter combinations through the PostgreSQL branch of the actual database adapter with a cursor enforcing percent-placeholder binding, including pagination parameters. All 15 focused history/action tests pass. This is an adapter-contract regression with a synthetic cursor, not a live psycopg2 or authenticated production browser check; browser acceptance remains required after deployment.
