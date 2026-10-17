@@ -82,6 +82,7 @@ class PublicSearchTests(unittest.TestCase):
         self.assertEqual(kwargs['max_calls'], 1)
         self.assertTrue(kwargs['minimal_query'])
         self.assertEqual(kwargs['request_timeout'], 25)
+        self.assertIs(kwargs['response_normalizer'], search.ai_call_search_contract.completed_response)
         self.reserve.assert_called_once()
         self.assertEqual(self.reserve.call_args.args[2][:9], 'call-web-')
         self.assertTrue(self.response()['available'])

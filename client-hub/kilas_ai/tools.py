@@ -187,7 +187,7 @@ def _synthesize_research(chunks, citations):
     return answer, model, data.get("usage") or {}
 
 
-def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_timeout=None, *, verify_currency=False, minimal_query=False):
+def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_timeout=None, *, verify_currency=False, minimal_query=False, response_normalizer=None):
     from . import chat_web, model_policy
     model = os.environ.get("KILAS_AI_OPENAI_WEB_MODEL", "").strip()
     if not model:
@@ -235,6 +235,8 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
                     continue
                 break
             continue
+        if response_normalizer is not None:
+            data = response_normalizer(data)
         searched, answer, found = _web_response(data)
         found = _search_sources(data, answer, found) if searched and answer else found
         used = data.get("usage") or {}

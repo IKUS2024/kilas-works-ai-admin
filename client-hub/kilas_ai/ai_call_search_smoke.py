@@ -117,6 +117,8 @@ class SearchFence:
             return response
         if not isinstance(data, dict):
             return response
+        from .ai_call_search_contract import envelope_summary
+        self.result['web_response_envelope'] = envelope_summary(data)
         if response.status_code >= 400:
             # Only non-content machine error fields; never message/body/headers.
             error = data.get('error', {})

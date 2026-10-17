@@ -13,7 +13,7 @@ from threading import Event, Lock, Thread, Timer
 from time import monotonic
 
 import db
-from . import tools, usage, routing, chat_web
+from . import tools, usage, routing, chat_web, ai_call_search_contract
 
 NAME = 'lookup_public_indonesia'
 FX_NAME = 'lookup_public_exchange_rate'
@@ -156,7 +156,7 @@ def configuration_report():
     model = os.environ.get('KILAS_AI_OPENAI_WEB_MODEL', '').strip()
     known = model in usage.MODEL_RATES
     rates = usage.MODEL_RATES.get(model)
-    return {'public_search_contract': 'activity-public-fx-v2',
+    return {'public_search_contract': 'activity-public-fx-v3-capped-complete',
             'public_search_read_timeout_seconds': WEB_READ_SECONDS,
             'public_search_deadline_seconds': LOOKUP_SECONDS,
             'public_search_reply_handoff_seconds': HANDOFF_SECONDS,
@@ -464,7 +464,8 @@ class PublicSearch:
             with self.lock:
                 self.stats['lookup_started'] += 1
             result = next(event['result'] for event in tools.web_search_steps(context, mode='FAST', plan=plan,
-                max_calls=1, request_timeout=WEB_READ_SECONDS, verify_currency=True, minimal_query=True) if 'result' in event)
+                max_calls=1, request_timeout=WEB_READ_SECONDS, verify_currency=True, minimal_query=True,
+                response_normalizer=ai_call_search_contract.completed_response) if 'result' in event)
             used, model = result.get('usage') or {}, result.get('model')
             response = evidence(result, today)
             if fx:
