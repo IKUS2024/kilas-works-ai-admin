@@ -530,7 +530,7 @@ class PublicSearchTests(unittest.TestCase):
             self.search.observe('Bagaimana kondisi ekonomi Indonesia dan berapa kurs USD ke IDR sekarang?')
             if kind == 'indonesia': self.handle(ident='mixed-'+str(number), args={'country': 'ID', 'topic': 'economy'})
             else: self.fx(ident='mixed-'+str(number))
-            self.wait(); self.assertTrue(self.response()['available'])
+            self.wait(); self.assertTrue(self.response()['available']); self.search.observe('.')
             self.search.turn_complete()
             self.assertEqual(self.search.previous_topic, 'economy' if kind == 'indonesia' else None)
             self.assertEqual(self.search.previous_pair, ('USD', 'IDR') if kind == 'currency' else None)
