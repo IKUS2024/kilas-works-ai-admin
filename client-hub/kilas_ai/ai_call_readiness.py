@@ -5,10 +5,8 @@ from . import ai_call as calls, ai_call_budget as budget, routes
 
 def report():
     result={'model':budget.MODEL,'configured_ready':False,'paid_qa':False,
+            'conversation_contract':'user-first-v1','automatic_opening':False,
             'model_access_verified':False,'audio_persisted':False,'metering_seconds':budget.LEASE_SECONDS,'continuous':True,
-            'conversation_contract':'ready-once-guidance-v1','opening_live_verified':False,
-            'barge_in_configured':calls.setup()['setup']['realtimeInputConfig']['activityHandling']=='START_OF_ACTIVITY_INTERRUPTS',
-            'barge_in_live_verified':False,
             'public_search_configured':calls.public_search.configured(),'public_search_live_verified':False,
             **calls.public_search.configuration_report()}
     value=budget.config()

@@ -11,7 +11,6 @@ from time import monotonic
 import db
 from . import ai_call_budget as budget, live_gemini as wire, live_translator_output as storage
 from . import ai_call_public_search as public_search
-from . import ai_call_conversation as conversation
 
 _lock=Lock()
 _calls={}
@@ -20,7 +19,6 @@ OUTPUT_BYTES=60*48000
 QUEUE_BYTES=8*32000
 MAX_TURNS=4
 POLICY_TTL_SECONDS=3
-OPENING_SETTLE_SECONDS=.5
 
 
 class CallError(ValueError):
@@ -45,16 +43,19 @@ def setup(handle=None):
             'Respond naturally in the language the person uses, including Indonesian or English. '
             'Keep spoken answers concise but useful. Remember the details, constraints, decisions and references from earlier turns in this call. '
             'Answer the latest question in that context; follow-up questions may omit details already given. '
+            'Answer directly in clear, natural short sentences, using relevant facts and examples when helpful. '
+            'Distinguish uncertainty from established knowledge and avoid repetitive generic replies or canned menus. '
+            'Ask for clarification only when a missing detail changes the answer; use the available context instead of asking the person to repeat it. '
             'Wait silently for intelligible speech; silence, noise and playback echo are not requests. '
             'Never invent words or a topic from unclear audio. If speech is partly clear, briefly state the specific part you understood and ask only for the missing detail. '
             'If nothing is intelligible, ask once briefly for a clearer repeat, then wait for speech. '
             'This is a new conversation, not an automatic translation or a group meeting. '
             'You have no access to their chat history, accounts or files. '
-            + conversation.instructions() + public_search.instructions() +
+            + public_search.instructions() +
             'Do not claim to perform external actions or to have current information you lack.'}]},
         'generationConfig':{'responseModalities':['AUDIO'],'maxOutputTokens':1024,
             'speechConfig':{'voiceConfig':{'prebuiltVoiceConfig':{'voiceName':'Kore'}}}},
-        'realtimeInputConfig':{'activityHandling':'START_OF_ACTIVITY_INTERRUPTS','automaticActivityDetection':{'disabled':False,
+        'realtimeInputConfig':{'activityHandling':'NO_INTERRUPTION','automaticActivityDetection':{'disabled':False,
             'prefixPaddingMs':300,'silenceDurationMs':1200,'startOfSpeechSensitivity':'START_SENSITIVITY_HIGH',
             'endOfSpeechSensitivity':'END_SENSITIVITY_LOW'}},
         'inputAudioTranscription':{},'outputAudioTranscription':{},
@@ -73,18 +74,12 @@ class Call:
         self.queue=Queue(maxsize=64);self.ws=None;self.state='CONNECTING';self.code=None
         self.input_bytes=0;self.output_bytes=0;self.queued=0;self.expected=0
         self.frames=[];self.caption='';self.turns=0;self.interruptions=0;self.timer=None
-        self.output_interrupted=False
         self.frame_base=0;self.frame_next=0
         self.funded_at=self.started;self.funded_input=0;self.funded_output=0;self.funded_turns=0
         self.renewing=Event();self.resume_handle=None;self.go_away=False;self.resume_pending=False
         self.provider_started=self.started
         self.input_energy=0;self.input_samples=0;self.input_peak=0;self.input_transcript_chars=0
         self.sent_bytes=0;self.sent_chunks=0;self.provider_messages=0
-        # These belong to the user-started Call, not a renewable provider socket.
-        # Diagnostics that bypass the browser readiness handshake never open it.
-        self.provider_ready=False;self.client_is_ready=False;self.opening_language=None
-        self.opening_ready_at=None
-        self.greeting_state='pending';self.opening_user_started=False
         self.public_search = public_search.PublicSearch(self)
         # Claim has just authorized this capability. The provider worker also
         # rechecks it before setup; only the watchdog renews this short lease.
@@ -144,7 +139,6 @@ class Call:
         with self.lock:
             first=not self.closed.is_set()
             self.closed.set();self.state='CLOSED'
-            self.provider_ready=False
             self.resume_handle=None;self.resume_pending=False
             if first:self.code=code
             if erase:self.frames.clear();self.caption=''
@@ -176,55 +170,6 @@ class Call:
             self.expected+=1;self.input_bytes+=len(raw);self.queued+=len(raw)
             self.last_seen=monotonic()
 
-    def _opening_user_activity(self):
-        # Caller holds the Call lock. Once suppressed, no later ready/reconnect
-        # can insert an introduction into a conversation already under way.
-        self.opening_user_started=True
-        if self.greeting_state=='pending':self.greeting_state='skipped'
-
-    def client_ready(self,language,*,user_started_speaking=False):
-        if type(language) is not str or language not in conversation.GREETINGS or type(user_started_speaking) is not bool:
-            raise CallError('call_input_invalid',400)
-        self.transport_check()
-        with self.lock:
-            if self.closed.is_set():raise CallError('call_ended',409)
-            if not self.client_is_ready:
-                self.client_is_ready=True;self.opening_language=language
-            if user_started_speaking:self._opening_user_activity()
-        self._maybe_greet()
-
-    def _maybe_greet(self):
-        def connected_and_drained():
-            return (not self.closed.is_set() and self.provider_ready and self.client_is_ready
-                    and self.greeting_state=='pending' and not self.renewing.is_set() and self.queued==0)
-        def eligible():
-            return (connected_and_drained() and self.opening_ready_at is not None
-                    and monotonic()>=self.opening_ready_at)
-        with self.lock:
-            if not connected_and_drained():return False
-            # Provider events lag streamed PCM. Start this nonblocking grace
-            # only after both readies and the initial unsent audio have drained.
-            if self.opening_ready_at is None:self.opening_ready_at=monotonic()+OPENING_SETTLE_SECONDS
-            if not eligible():return False
-        self.transport_check()
-        failed=False
-        with self.send_lock:
-            with self.lock:
-                if not eligible():return False
-                # Mark before send: even a failed or interrupted opening must
-                # never be replayed on a duplicate ready request or renewal.
-                self.greeting_state='sent'
-                payload=json.dumps(conversation.opening(self.opening_language))
-            # Socket latency must not hold the PCM/End/snapshot lock. A user
-            # starting now flows through normal native speech interruption.
-            if self.closed.is_set():return False
-            try:self.ws.send(payload)
-            except Exception:failed=True
-        if failed:
-            self.stop('call_transport')
-            raise CallError('call_transport') from None
-        return True
-
     def publish(self,value):
         if len(self.frames)>=2048:raise CallError('call_output_invalid')
         self.frames.append({'index':self.frame_next,**value});self.frame_next+=1
@@ -234,8 +179,6 @@ class Call:
         if 'error' in value:raise CallError('call_provider')
         activity = value.get('voiceActivity')
         if isinstance(activity,dict):
-            if activity.get('type')=='ACTIVITY_START':
-                with self.lock:self._opening_user_activity()
             self.public_search.activity(activity.get('type'))
         if 'toolCall' in value and not self.public_search.handle(value['toolCall']):raise CallError('call_provider')
         cancellation = value.get('toolCallCancellation')
@@ -264,10 +207,8 @@ class Call:
                     if self.go_away:
                         self.resume_handle=handle;self.resume_pending=True
                 else:self.resume_handle=None;self.resume_pending=False
-            interrupted=content.get('interrupted') is True
-            if interrupted:
-                self.output_interrupted=True
-                self.interruptions+=1;self.publish({'type':'reset'});self.caption='';self.state='LISTENING'
+            if content.get('interrupted') is True:
+                self.interruptions+=1;self.publish({'type':'reset'});self.caption=''
             turn=content.get('modelTurn',{})
             if not isinstance(turn,dict) or not isinstance(turn.get('parts',[]),list):raise CallError('call_output_invalid')
             for part in turn.get('parts',[]):
@@ -280,36 +221,23 @@ class Call:
                 except (ValueError,binascii.Error):raise CallError('call_output_invalid') from None
                 if not pcm or len(pcm)%2:raise CallError('call_output_invalid')
                 if self.output_bytes-self.funded_output+len(pcm)>OUTPUT_BYTES or self.turns-self.funded_turns>=MAX_TURNS:self.fund()
-                self.output_bytes+=len(pcm)
-                if interrupted:continue
-                self.output_interrupted=False
-                # Output already under way wins over a late browser ready cue.
-                if self.greeting_state=='pending':self.greeting_state='skipped'
-                self.state='SPEAKING'
+                self.output_bytes+=len(pcm);self.state='SPEAKING'
                 for at in range(0,len(pcm),9600):self.publish({'type':'audio','pcm':base64.b64encode(pcm[at:at+9600]).decode('ascii')})
             heard=content.get('inputTranscription')
             if heard is not None:
                 if not isinstance(heard,dict) or not isinstance(heard.get('text',''),str) or len(heard.get('text',''))>4000:
                     raise CallError('call_output_invalid')
                 self.input_transcript_chars+=len(heard.get('text',''))
-                if heard.get('text','').strip():self._opening_user_activity()
                 # Live inputTranscription has no required "finished" field.
                 # It is delivered independently from activity and tool events.
                 self.public_search.observe(heard.get('text',''))
             transcript=content.get('outputTranscription')
             if transcript is not None:
                 if not isinstance(transcript,dict) or not isinstance(transcript.get('text',''),str):raise CallError('call_output_invalid')
-                if not interrupted:
-                    if self.greeting_state=='pending' and transcript.get('text','').strip():self.greeting_state='skipped'
-                    if transcript.get('text','').strip():self.output_interrupted=False
-                    self.caption+=transcript.get('text','')
-                    if len(self.caption)>4000:raise CallError('call_output_invalid')
-                    self.publish({'type':'text','text':self.caption})
-            # Completion of canceled output can arrive with or after a new
-            # input transcript. Keep that person's current search intent until
-            # a new model response actually starts and completes.
-            if (not self.output_interrupted and content.get('turnComplete') is True
-                    and content.get('interactionStatus')!='IN_PROGRESS'):
+                self.caption+=transcript.get('text','')
+                if len(self.caption)>4000:raise CallError('call_output_invalid')
+                self.publish({'type':'text','text':self.caption})
+            if content.get('turnComplete') is True and content.get('interactionStatus')!='IN_PROGRESS':
                 self.public_search.turn_complete()
                 self.turns+=1;self.publish({'type':'turn_complete'});self.caption='';self.state='LISTENING'
 
@@ -321,17 +249,16 @@ class Call:
             # audio so a long call retains only the bounded outstanding backlog.
             del self.frames[:after-self.frame_base];self.frame_base=after
             frames=[dict(x) for x in self.frames[:24]]
-            return {'state':self.state,'code':self.code,'provider_ready':self.provider_ready,
-                    'frames':frames,'next_index':after+len(frames),
+            return {'state':self.state,'code':self.code,'frames':frames,'next_index':after+len(frames),
                     'total_frames':self.frame_next}
 
     def send(self):
         try:
             while not self.closed.is_set():
                 try:raw=self.queue.get(timeout=.1)
-                except Empty:
-                    self._maybe_greet();continue
+                except Empty:continue
                 self.transport_check()
+                with self.lock:self.queued-=len(raw)
                 while not self.closed.is_set():
                     if self.renewing.is_set():
                         if self.closed.wait(.05):return
@@ -341,10 +268,8 @@ class Call:
                         if self.renewing.is_set():continue
                         self.ws.send(json.dumps({'realtimeInput':{'audio':{
                             'mimeType':'audio/pcm;rate=16000','data':base64.b64encode(raw).decode('ascii')}}}))
-                        with self.lock:
-                            self.queued-=len(raw);self.sent_bytes+=len(raw);self.sent_chunks+=1
+                        with self.lock:self.sent_bytes+=len(raw);self.sent_chunks+=1
                         break
-                self._maybe_greet()
         except Exception as error:self.stop(getattr(error,'code','call_transport'))
         finally:db._discard_cached_connection()
 
@@ -362,8 +287,7 @@ class Call:
             hello=wire.message(self.ws.recv())
             if not isinstance(hello.get('setupComplete'),dict) or any(k in hello for k in ('error','toolCall','goAway')):raise CallError('call_provider')
             self.check();self.ws.settimeout(.5)
-            with self.lock:self.state='LISTENING';self.provider_ready=True
-            self._maybe_greet()
+            with self.lock:self.state='LISTENING'
             Thread(target=self.send,name='kilas-call-input',daemon=True).start()
             Thread(target=self.watch,name='kilas-call-fence',daemon=True).start()
             import websocket
@@ -400,8 +324,6 @@ class Call:
             self.check()
             with self.lock:
                 if not self.resume_pending or not self.resume_handle:raise CallError('call_provider')
-                self.provider_ready=False
-                if self.greeting_state=='pending':self.opening_ready_at=None
                 handle=self.resume_handle;self.resume_handle=None;self.resume_pending=False
             self.ws.shutdown()
             socket=wire.connect()
@@ -413,9 +335,7 @@ class Call:
             if not isinstance(hello.get('setupComplete'),dict) or any(k in hello for k in ('error','toolCall','goAway')):
                 raise CallError('call_provider')
             self.check();socket.settimeout(.5)
-            with self.lock:
-                self.provider_started=monotonic();self.go_away=False;self.provider_ready=True;self.renewing.clear()
-        self._maybe_greet()
+            self.provider_started=monotonic();self.go_away=False;self.renewing.clear()
 
 
 def start(owner,ident):

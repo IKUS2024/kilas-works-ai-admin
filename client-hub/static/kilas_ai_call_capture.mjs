@@ -59,7 +59,7 @@ export class CallCapture {
         // Forward quiet speech AND silence, including the first frame. The
         // provider needs the continuous sample clock for automatic turn detection.
         pcm(new Uint8Array(bytes));
-        level(rms,bytes.byteLength/32);
+        level(rms);
       };
       this.source=context.createMediaStreamSource(stream);this.source.connect(node);node.connect(context.destination);
       // Permission and the first valid worklet frame still precede admission.
