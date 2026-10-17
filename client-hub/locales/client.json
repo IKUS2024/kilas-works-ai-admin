@@ -612,5 +612,13 @@
   "Tanggal pengeluaran",
   "Tambah Pemasukan",
   "Tambah Pengeluaran",
-  "Akun penerima"
+  "Akun penerima",
+  "Izinkan dan mulai",
+  "Izin pemrosesan ucapan",
+  "Cabut izin",
+  "Izin belum dapat diperiksa. Muat ulang halaman sebelum memulai.",
+  "Izin pemrosesan ucapan telah dicabut.",
+  "Izin dicabut. Mikrofon tidak digunakan sampai Anda mengizinkan kembali.",
+  "Izin pemrosesan ucapan belum ada, berubah, atau telah dicabut. Tinjau penjelasan lalu pilih Izinkan dan mulai.",
+  "Saya memiliki izin dari pembicara dan mengizinkan ucapan dikirim ke ElevenLabs untuk transkripsi dan suara terjemahan, serta teks ke OpenAI untuk diterjemahkan. Audio dapat dikirim saat berbicara. Izin ini diingat untuk akun saya dan dapat dicabut melalui Izin pemrosesan ucapan."
 ]

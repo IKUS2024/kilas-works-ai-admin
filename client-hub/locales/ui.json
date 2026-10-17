@@ -8405,5 +8405,45 @@
     "en": "I have permission and consent to speech processing. Audio may be sent while I speak.",
     "es": "Tengo permiso y doy mi consentimiento para el procesamiento de voz. El audio puede enviarse mientras hablo.",
     "zh": "我有权并同意处理语音。说话时可能会发送音频。"
+  },
+  "Izinkan dan mulai": {
+    "en": "Allow and start",
+    "es": "Permitir e iniciar",
+    "zh": "允许并开始"
+  },
+  "Izin pemrosesan ucapan": {
+    "en": "Speech processing permission",
+    "es": "Permiso de procesamiento de voz",
+    "zh": "语音处理权限"
+  },
+  "Cabut izin": {
+    "en": "Revoke permission",
+    "es": "Revocar permiso",
+    "zh": "撤销权限"
+  },
+  "Izin belum dapat diperiksa. Muat ulang halaman sebelum memulai.": {
+    "en": "Permission could not be checked. Reload this page before starting.",
+    "es": "No se pudo comprobar el permiso. Recarga la página antes de iniciar.",
+    "zh": "无法检查权限。开始前请重新加载页面。"
+  },
+  "Izin pemrosesan ucapan telah dicabut.": {
+    "en": "Speech processing permission has been revoked.",
+    "es": "Se ha revocado el permiso de procesamiento de voz.",
+    "zh": "语音处理权限已撤销。"
+  },
+  "Izin dicabut. Mikrofon tidak digunakan sampai Anda mengizinkan kembali.": {
+    "en": "Permission revoked. The microphone will not be used until you allow it again.",
+    "es": "Permiso revocado. No se usará el micrófono hasta que lo permitas de nuevo.",
+    "zh": "权限已撤销。在您再次允许前不会使用麦克风。"
+  },
+  "Izin pemrosesan ucapan belum ada, berubah, atau telah dicabut. Tinjau penjelasan lalu pilih Izinkan dan mulai.": {
+    "en": "Speech processing permission is missing, has changed, or was revoked. Review the explanation, then choose Allow and start.",
+    "es": "El permiso de procesamiento de voz falta, ha cambiado o fue revocado. Revisa la explicación y elige Permitir e iniciar.",
+    "zh": "语音处理权限缺失、已更改或已撤销。请阅读说明，然后选择允许并开始。"
+  },
+  "Saya memiliki izin dari pembicara dan mengizinkan ucapan dikirim ke ElevenLabs untuk transkripsi dan suara terjemahan, serta teks ke OpenAI untuk diterjemahkan. Audio dapat dikirim saat berbicara. Izin ini diingat untuk akun saya dan dapat dicabut melalui Izin pemrosesan ucapan.": {
+    "en": "I have the speakers’ permission and allow speech to be sent to ElevenLabs for transcription and translated speech, and text to OpenAI for translation. Audio may be sent while speaking. This permission is remembered for my account and can be revoked under Speech processing permission.",
+    "es": "Tengo el permiso de los hablantes y autorizo el envío de voz a ElevenLabs para transcripción y voz traducida, y de texto a OpenAI para traducción. El audio puede enviarse al hablar. Este permiso se recuerda para mi cuenta y puede revocarse en Permiso de procesamiento de voz.",
+    "zh": "我已获得说话者许可，并允许将语音发送至ElevenLabs进行转写和生成翻译语音，将文本发送至OpenAI进行翻译。说话时可能会发送音频。此权限会保存在我的账户中，可在语音处理权限中撤销。"
   }
 }

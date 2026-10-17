@@ -32,13 +32,16 @@ def locked(owner, ident, conn):
     return {'language_a':row[2],'language_b':row[3],'voice_alias':row[4]}
 
 
-def create(owner,a,b,voice):
+def create(owner,a,b,voice,*,processing_consent=None):
     require_pair(a,b)
     now=usage._now();ident=secrets.token_hex(24)
     with transaction() as conn:
         # One session per owner, including double Start from separate tabs.
         suffix=' FOR UPDATE' if db.BACKEND=='postgres' else ''
         usage._query(conn,'SELECT id FROM users WHERE id=?'+suffix,(owner,),one=True)
+        if processing_consent is not None:
+            from . import translator_consent
+            translator_consent.admit(owner,processing_consent,conn)
         active=usage._query(conn,"SELECT 1 FROM kilas_live_translator_sessions WHERE user_id=? AND status='ACTIVE' AND (expires_at='' OR expires_at>?)",(owner,now.isoformat()),one=True)
         if active:raise audio_store.AudioError('Sesi lain masih aktif. Akhiri sesi itu terlebih dahulu.','session_busy',409)
         usage._query(conn,"INSERT INTO kilas_live_translator_sessions VALUES (?,?,?,?,?,'ACTIVE',?,?)",(ident,owner,a,b,voice,now.isoformat(),''))

@@ -63,10 +63,11 @@ class LiveTranslatorTests(unittest.TestCase):
                 with patch.dict(os.environ,{'KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):self.assertFalse(live.ready())
 
     def test_pair_consent_voice_owner_and_concurrent_session_checks(self):
+        from kilas_ai import translator_consent
         self.credit(300)
-        fields={'csrf_token':'audio-csrf','language_a':'id','language_b':'en','voice':'kilas-male','consent':'yes'}
+        fields={'csrf_token':'audio-csrf','language_a':'id','language_b':'en','voice':'kilas-male','processing_consent':'accept','processing_scope':translator_consent.SCOPE,'processing_version':translator_consent.VERSION}
         with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE):
-            self.assertEqual(self.client.post('/kilas-translator/live/sessions',data={**fields,'consent':'no'}).status_code,400)
+            self.assertEqual(self.client.post('/kilas-translator/live/sessions',data={**fields,'processing_consent':'reject'}).status_code,409)
             self.assertEqual(self.client.post('/kilas-translator/live/sessions',data={**fields,'language_b':'id'}).status_code,400)
             response=self.client.post('/kilas-translator/live/sessions',data=fields);self.assertEqual(response.status_code,201)
             ident=response.json['session_id'];self.assertNotIn(VOICE['id'],response.text)

@@ -1,65 +1,86 @@
-"""Focused actual setup/form UX with synthetic admission/media; zero paid IO."""
-import json
+"""Actual Chromium -> authenticated Flask consent/Start/End; synthetic media only."""
 import os
+import tempfile
 import threading
+from pathlib import Path
 from unittest.mock import patch
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
-import test_kilas_home as home
 from test_kilas_live_translator_browser import MEDIA
-from kilas_ai import live_translator as live, audio_branded_voices as branded, audio_provider
+from test_kilas_translator_consent import TranslatorConsentTests
+import test_kilas_audio as audio
+from kilas_ai import translator_consent as consent
 
 
 def main():
-    case=home.HomeTests('test_old_routes_still_render')
-    case.id=lambda:'translator-consent-copy-browser'
-    case.setUp()
-    app=home.fixture.base.f.fixture.app.app
+    app=audio.f.app.app
     server=make_server('127.0.0.1',0,app,threaded=True)
     threading.Thread(target=server.serve_forever,daemon=True).start()
     origin=f'http://127.0.0.1:{server.server_port}'
+    output=Path(tempfile.gettempdir())/'kilas-translator-permission-browser';output.mkdir(exist_ok=True)
     try:
-        with patch.object(live,'ready',return_value=True),patch.object(branded,'public_choices',return_value=[{'alias':'kilas-male','name':'Kilas Male','style':'Natural'}]),patch.object(audio_provider,'request',side_effect=AssertionError('Paid IO forbidden')),sync_playwright() as pw:
+        with sync_playwright() as pw:
             browser=pw.chromium.launch(executable_path=os.environ.get('KILAS_QA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox'])
-            for width,locale,expected in ((360,'id','Saya punya izin'),(1440,'en','I have permission'),(360,'es','Tengo permiso'),(1440,'zh','我有权')):
+            for width,locale,allow in ((360,'id','Izinkan dan mulai'),(1440,'en','Allow and start'),(360,'es','Permitir e iniciar'),(1440,'zh','允许并开始')):
+                case=TranslatorConsentTests('test_first_use_has_no_backfill_or_checkbox_and_declares_recipients')
+                case.id=lambda locale=locale:'permission-browser-'+locale;case.setUp()
                 context=browser.new_context(viewport={'width':width,'height':900})
-                cookie=case.client().get_cookie('session')
+                cookie=case.client.get_cookie('session')
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':locale,'url':origin}])
                 context.add_init_script(MEDIA)
-                page=context.new_page(); errors=[];state={'starts':[],'policy':0}
+                page=context.new_page();errors=[];posts=[];policy=[]
+                context.on('request',lambda r: posts.append(r.post_data) if r.url.endswith('/live/sessions') and r.method=='POST' else policy.append(r.url) if '/privacy' in r.url else None)
+                context.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
                 page.on('pageerror',lambda e:errors.append(str(e)))
-                def route(r):
-                    path=r.request.url.removeprefix(origin)
-                    if path.startswith('/privacy'):state['policy']+=1
-                    if path=='/kilas-translator/live/sessions/active':
-                        r.fulfill(content_type='application/json',body='{"session":null}')
-                    elif path=='/kilas-translator/live/sessions':
-                        state['starts'].append(r.request.post_data)
-                        r.fulfill(status=201,content_type='application/json',body=json.dumps({'session_id':'a'*48}))
-                    elif path.endswith('/end'):
-                        r.fulfill(content_type='application/json',body='{"status":"ENDED"}')
-                    elif r.request.url.startswith(origin):r.continue_()
-                    else:r.abort()
-                page.route('**/*',route)
                 page.goto(origin+'/kilas-translator/live',wait_until='networkidle')
-                consent=page.locator('[name=consent]');start=page.locator('#live-setup-form button[type=submit]')
-                expect(start).to_be_enabled();expect(consent).not_to_be_checked()
-                expect(consent).to_have_attribute('required','')
-                expect(page.locator('.live-consent')).to_contain_text(expected)
-                expect(page.locator('.live-consent a')).to_have_count(0)
-                start.click();assert not state['starts'] and page.evaluate('qa.starts')==0
-                consent.check();start.click();page.wait_for_function('qa.starts===1')
-                assert len(state['starts'])==1 and 'name="consent"\r\n\r\nyes' in state['starts'][0]
-                assert state['policy']==0 and len(context.pages)==1
-                assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+                start=page.locator('#live-setup-form button[type=submit]')
+                expect(start).to_be_enabled();expect(start).to_have_text(allow)
+                expect(page.locator('#live-setup-form input[type=checkbox]')).to_have_count(0)
+                expect(page.locator('#live-permission-notice')).to_contain_text('ElevenLabs')
+                expect(page.locator('#live-permission-notice')).to_contain_text('OpenAI')
+                assert not case.rows() and page.evaluate('qa.starts')==0
+                # A generic form POST without the affirmative submitter cannot grant permission.
+                assert page.evaluate("async()=>{const r=await fetch('/kilas-translator/live/sessions',{method:'POST',body:new FormData(document.querySelector('#live-setup-form'))});return r.status}")==409
+                assert not case.rows() and page.evaluate('qa.starts')==0
+                page.screenshot(path=str(output/f'first-{locale}-{width}.png'),full_page=True)
+                start.click();page.wait_for_function('qa.starts===1')
+                assert consent._granted(case.user) and len(case.rows())==1
+                assert 'name="processing_consent"\r\n\r\naccept' in posts[-1]
+                assert not policy and len(context.pages)==1
                 page.locator('#live-end').click();page.wait_for_function('qa.mics===0')
+                before=case.rows()
+                page.reload(wait_until='networkidle');expect(start).to_have_text('Start')
+                expect(page.locator('#live-permission-notice')).to_be_hidden()
+                page.screenshot(path=str(output/f'remembered-{locale}-{width}.png'),full_page=True)
+                start.click();page.wait_for_function('qa.starts===1')
+                assert 'name="processing_consent"' not in posts[-1] and case.rows()==before
+                page.locator('#live-end').click();page.wait_for_function('qa.mics===0')
+                page.locator('#live-permission-settings summary').click();page.locator('#live-permission-revoke').click()
+                expect(start).to_have_text(allow);assert case.rows()[0]['revoked_at']
+                assert page.evaluate('qa.starts')==1 and page.evaluate('qa.mics')==0
+                start.click();page.wait_for_function('qa.starts===2')
+                assert not case.rows()[0]['revoked_at']
+                # Revoke from a second authenticated tab while the first is listening.
+                second=context.new_page();second.goto(origin+'/kilas-translator/live',wait_until='networkidle')
+                second.locator('#live-permission-settings summary').click();second.locator('#live-permission-revoke').click()
+                page.wait_for_function('qa.mics===0');expect(page.locator('#live-active')).to_be_hidden()
+                expect(start).to_have_text(allow);second.close()
+                if locale=='en':
+                    start.click();page.wait_for_function('qa.starts===3');page.locator('#live-end').click();page.wait_for_function('qa.mics===0')
+                    with patch.object(consent,'VERSION','next-browser-version'):
+                        # Stale remembered UI must fail server admission before microphone access.
+                        start.click();expect(start).to_have_text(allow)
+                        assert page.evaluate('qa.starts')==3 and page.evaluate('qa.mics')==0
+                        assert len(case.rows())==1
+                        start.click();page.wait_for_function('qa.starts===4')
+                        assert len(case.rows())==2
+                        page.locator('#live-end').click();page.wait_for_function('qa.mics===0')
+                assert not policy and page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 assert not errors,errors
-                print(f'PASS consent explicit / no link opening / Start / End / localized copy {locale} {width}',flush=True)
-                context.close()
+                print(f'PASS actual backend first/repeat/revoke/regrant/cross-tab/no-premature-mic {locale} {width}',flush=True)
+                context.close();case.doCleanups()
             browser.close()
-        assert case.client().get('/privacy').status_code==200
-    finally:
-        server.shutdown();case.doCleanups()
+    finally:server.shutdown()
 
 
 if __name__=='__main__':main()

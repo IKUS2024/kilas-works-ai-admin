@@ -19,8 +19,11 @@
 #live-setup-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 #live-setup-form label{display:grid;gap:8px;margin:0;color:var(--text);font-size:14px;font-weight:600;min-width:0}
 #live-setup-form select{width:100%;max-width:100%;min-width:0;min-height:48px;margin:0;font:inherit;font-size:16px;font-weight:400;line-height:1.5;box-sizing:border-box}
-#live-setup-form .live-consent{grid-column:1/-1;display:flex;align-items:flex-start;gap:10px;line-height:1.6;font-weight:400;border-top:1px solid var(--line);padding-top:20px;overflow-wrap:anywhere}
-#live-setup-form .live-consent input{flex:none;width:18px;height:18px;min-height:18px;margin:3px 0 0;accent-color:var(--accent)}
+#live-permission-notice{grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px;overflow-wrap:anywhere}
+#live-permission-settings{margin-top:20px;font-size:14px;line-height:1.6;color:var(--muted)}
+#live-permission-settings summary{cursor:pointer;min-height:44px;display:list-item;align-content:center}
+#live-permission-settings p{max-width:72ch;overflow-wrap:anywhere}
+#live-permission-settings button{min-height:44px}
 #live-setup-form>button{grid-column:1/-1;justify-self:start;min-width:120px;margin:0}
 #live-setup-form p{color:var(--muted);font-size:14px;line-height:1.6}
 @media(max-width:1000px){#live-setup-form{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 16px}#live-setup-form .live-voice{grid-column:1/-1}}
