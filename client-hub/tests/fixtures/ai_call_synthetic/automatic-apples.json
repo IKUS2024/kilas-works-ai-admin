@@ -1,0 +1,98 @@
+{
+  "fixture": "browser-apples.wav",
+  "raw_sha256": "7aea9275bf3a933da7ee15ad9a2653880af9c51ee4679da3a91899b75f108d60",
+  "raw_bytes": 236800,
+  "duration_ms": 7400.0,
+  "independent_asr": "PocketSphinx5.1.1 en-US open LM; no forced grammar",
+  "captured_hypothesis": "i have three ad else i'd like to marquette hills cow nanny apples year i have",
+  "captured_ASR_recovers_complete_proposition": false,
+  "source_fixture_independently_verified": true,
+  "word_times": [
+    {
+      "word": "i",
+      "start_ms": 240,
+      "end_ms": 360
+    },
+    {
+      "word": "have",
+      "start_ms": 360,
+      "end_ms": 540
+    },
+    {
+      "word": "three",
+      "start_ms": 540,
+      "end_ms": 800
+    },
+    {
+      "word": "ad",
+      "start_ms": 800,
+      "end_ms": 1090
+    },
+    {
+      "word": "else",
+      "start_ms": 1090,
+      "end_ms": 1510
+    },
+    {
+      "word": "i'd",
+      "start_ms": 1550,
+      "end_ms": 1790
+    },
+    {
+      "word": "like",
+      "start_ms": 1790,
+      "end_ms": 1950
+    },
+    {
+      "word": "to",
+      "start_ms": 1950,
+      "end_ms": 2170
+    },
+    {
+      "word": "marquette",
+      "start_ms": 2170,
+      "end_ms": 2620
+    },
+    {
+      "word": "hills",
+      "start_ms": 2620,
+      "end_ms": 3010
+    },
+    {
+      "word": "cow",
+      "start_ms": 3010,
+      "end_ms": 3340
+    },
+    {
+      "word": "nanny",
+      "start_ms": 3340,
+      "end_ms": 3720
+    },
+    {
+      "word": "apples",
+      "start_ms": 3720,
+      "end_ms": 4270
+    },
+    {
+      "word": "year",
+      "start_ms": 4270,
+      "end_ms": 4460
+    },
+    {
+      "word": "i",
+      "start_ms": 4460,
+      "end_ms": 4550
+    },
+    {
+      "word": "have",
+      "start_ms": 4550,
+      "end_ms": 5000
+    }
+  ],
+  "last_speech_reference_ms": 5000,
+  "reference_method": "Last20ms RMS>.005 and independent ASR last-word end. Approximate acoustic boundary, not Gemini VAD.",
+  "source": "Verified manual-apples.wav through unchanged real Chromium synthetic getUserMedia, production capture/conditioning/batching",
+  "comparison_limit": "Browser-captured PCM is independently reproducible but local ASR is weaker than on direct source. A provider failure cannot by itself isolate automatic VAD from capture processing.",
+  "physical_android_verified": false,
+  "paid_calls": 0
+}

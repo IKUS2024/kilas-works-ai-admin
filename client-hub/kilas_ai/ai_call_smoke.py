@@ -40,6 +40,9 @@ def report(value):
 
 
 def launch():
+    from . import ai_call_auto_smoke
+    if os.environ.get(ARM) == ai_call_auto_smoke.RUN:
+        return ai_call_auto_smoke.launch()
     # A separately authorized single explicit-turn diagnostic. Both harnesses
     # remain default-off; the run IDs cannot arm each other.
     from . import ai_call_manual_smoke
