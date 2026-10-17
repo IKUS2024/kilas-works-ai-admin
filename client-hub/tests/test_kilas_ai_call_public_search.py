@@ -188,6 +188,65 @@ class PublicSearchTests(unittest.TestCase):
         self.assertIsNone(search.public_intent('What is the economy?', True))
         self.assertIsNone(search.public_intent('Jangan cari di internet. Gimana keadaan Indonesia sekarang?'))
 
+    def test_general_public_information_and_country_questions_are_recognized(self):
+        for text in ('Cari informasi terkini tentang Indonesia.',
+                     'Tolong carikan informasi tentang Indonesia.',
+                     'Informasi terbaru mengenai Indonesia?',
+                     'Bagaimana Indonesia sekarang?', 'Gimana dengan Indonesia hari ini?',
+                     'Indonesia sekarang gimana?', 'How is Indonesia today?',
+                     'Search for information about Indonesia.', 'Current information about Indonesia?'):
+            with self.subTest(text=text):
+                self.assertEqual(search.public_intent(text), 'general')
+        for text in ('Saya sekarang di Indonesia.', 'Saya tinggal di Indonesia hari ini.',
+                     'Bagaimana rekening saya di Indonesia sekarang?',
+                     'Cari informasi pribadi saya di Indonesia.',
+                     'Informasi tentang Indonesia.', 'Bagaimana Indonesia merdeka?',
+                     'Halo Indonesia!', 'Apa itu informasi?',
+                     'Jangan cari informasi terkini tentang Indonesia.',
+                     "Don't search for current information about Indonesia."):
+            with self.subTest(text=text):
+                self.assertIsNone(search.public_intent(text))
+
+    def test_fragmented_general_information_request_dispatches_only_public_constants(self):
+        self.search.activity('ACTIVITY_START')
+        for fragment in ('Tolong cari ', 'informasi terkini ', 'tentang Indonesia.'):
+            self.search.observe(fragment)
+        self.search.activity('ACTIVITY_END')
+        self.handle(); self.wait()
+        self.assertTrue(self.response()['available'])
+        self.assertEqual(self.search.diagnostic()['lookup_started'], 1)
+        self.assertEqual(self.search.diagnostic()['function_responses_sent'], 1)
+        context, _ = self.lookups[0]
+        self.assertEqual(context, [{'role': 'user', 'content': search.public_query(
+            'general', self.response()['checked_on'])}])
+        self.reserve.assert_called_once(); self.finish.assert_called_once()
+
+    def test_intent_rejection_reasons_are_bounded_and_do_not_dispatch(self):
+        cases = (
+            ('no_transcript', '', None),
+            ('scope_unrecognized', 'PRIVATE SENTINEL saya tinggal di Indonesia sekarang.', None),
+            ('scope_mismatch', 'Bagaimana ekonomi Indonesia sekarang?', None),
+            ('opt_out', 'Jangan cari informasi terkini tentang Indonesia.', None),
+            ('speech_active', 'Bagaimana Indonesia sekarang?', 'speaking'),
+            ('turn_already_used', 'Bagaimana Indonesia sekarang?', 'used'),
+        )
+        for reason, text, state in cases:
+            with self.subTest(reason=reason):
+                gate = search.PublicSearch(self.call)
+                gate.observe(text)
+                if state == 'speaking': gate.speaking = True
+                if state == 'used': gate.used_number = gate.number
+                job = {'id': reason, 'args': {'country': 'ID', 'topic': 'general'},
+                       'deadline': monotonic()+20, 'cancelled': Event(), 'replied': False, 'timer': Mock()}
+                with patch.object(search, 'INTENT_WAIT_SECONDS', 0): gate._execute(job)
+                stats = gate.diagnostic()
+                self.assertEqual(stats['intent_rejections'], {reason: 1})
+                self.assertNotIn('PRIVATE', json.dumps(stats))
+                stats['intent_rejections'].clear()
+                self.assertEqual(gate.diagnostic()['intent_rejections'], {reason: 1})
+                self.assertEqual(self.response()['reason'], 'public_request_not_recognized')
+        self.reserve.assert_not_called(); self.lookup.assert_not_called()
+
     def test_provider_tool_cancellation_discards_reply_but_settles_already_started_work(self):
         entered, release = Event(), Event(); self.addCleanup(release.set)
         def blocked(*args, **kwargs):

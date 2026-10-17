@@ -98,10 +98,24 @@ def public_intent(text, previous_public=False):
     topic = next((key for key, pattern in _TOPICS.items() if re.search(pattern, text)), None)
     current = bool(re.search(r'\b(?:sekarang|hari ini|terbaru|terkini|saat ini|today|current|now|latest|lately)\b', text))
     conditions = bool(re.search(r'\b(?:keadaan|kondisi|situasi|conditions?|situation|happening|developments|berita|news)\b', text))
+    # General public-information requests need not contain "conditions/news".
+    # Bind these new forms to the country itself so personal information or
+    # merely being in Indonesia does not authorize a public lookup.
+    country_info = bool(re.search(
+        r'\b(?:info(?:rmasi)?|information|updates?)\s+'
+        r'(?:(?:terbaru|terkini|terakhir|latest|current)\s+)?'
+        r'(?:(?:tentang|mengenai|soal|about|on)\s+)?(?:indonesia|indo)\b', text))
+    explicit_search = bool(re.search(r'\b(?:cari(?:kan)?|cek|search|look up|check)\b', text))
+    country_question = bool(re.search(
+        r'\b(?:(?:bagaimana|gimana)\s+(?:dengan\s+)?(?:indonesia|indo)|'
+        r'(?:indonesia|indo)\s+(?:sekarang\s+)?(?:bagaimana|gimana)|'
+        r'how\s+is\s+indonesia)\b', text))
     # General definitions ("what is the economy") must not inherit a lookup.
     if topic and (current or conditions or followup or topic == 'weather'):
         return topic
-    return 'general' if conditions or (followup and retry) else None
+    return 'general' if (conditions or (followup and retry)
+                         or (country_info and (current or explicit_search))
+                         or (country_question and current)) else None
 
 
 def public_query(topic, today):
@@ -207,7 +221,8 @@ class PublicSearch:
                       'transcript_events': 0, 'activity_start': 0, 'activity_end': 0,
                       'public_intents_seen': 0, 'fx_intents_seen': 0, 'opt_outs': 0,
                       'schema_rejected': 0, 'cancelled': 0, 'available_replies': 0, 'unavailable_replies': 0,
-                      'function_responses_sent': 0, 'reply_delivery_failed': 0, 'failures': {}}
+                      'function_responses_sent': 0, 'reply_delivery_failed': 0, 'failures': {},
+                      'intent_rejections': {}}
 
     def activity(self, kind):
         with self.lock:
@@ -264,7 +279,8 @@ class PublicSearch:
 
     def diagnostic(self):
         with self.lock:
-            return {**self.stats, 'failures': dict(self.stats['failures'])}
+            return {**self.stats, 'failures': dict(self.stats['failures']),
+                    'intent_rejections': dict(self.stats['intent_rejections'])}
 
     def failed(self, code):
         allowed = {'invalid_public_topic', 'invalid_currency_pair', 'public_request_not_recognized',
@@ -446,6 +462,18 @@ class PublicSearch:
                 if eligible:
                     break
                 if not self._alive(job) or monotonic() >= until:
+                    with self.lock:
+                        # Fixed enums only: never retain speech or tool args.
+                        reason = ('cancelled' if not self._alive(job) else
+                                  'opt_out' if self.opt_out else
+                                  'speech_active' if self.speaking else
+                                  'no_transcript' if not self.buffer else
+                                  'scope_unrecognized' if (self.fx_pair if fx else self.topic) is None else
+                                  'scope_mismatch' if not match else
+                                  'turn_already_used' if self.number == self.used_number else
+                                  'text_unsettled')
+                        counts = self.stats['intent_rejections']
+                        counts[reason] = counts.get(reason, 0)+1
                     raise tools.ToolUnavailable('public_request_not_recognized', code='public_request_not_recognized')
                 self.changed.wait(.05); self.changed.clear()
             if not self._alive(job) or job['replied']:
