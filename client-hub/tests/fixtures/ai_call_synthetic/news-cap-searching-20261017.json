@@ -1,0 +1,253 @@
+{
+  "error": null,
+  "incomplete_details": null,
+  "max_tool_calls": 1,
+  "output": [
+    {
+      "action": {
+        "queries": [
+          "Indonesia latest news October 17 2026",
+          "Indonesia October 17 2026 news government economy Reuters",
+          "site:antaranews.com Indonesia 17 Oktober 2026 berita",
+          "Indonesia government official latest October 2026 developments"
+        ],
+        "query": "Indonesia latest news October 17 2026",
+        "sources": [
+          {
+            "type": "url",
+            "url": "https://setkab.go.id/en"
+          },
+          {
+            "type": "url",
+            "url": "https://presidenri.go.id/"
+          },
+          {
+            "type": "url",
+            "url": "https://www.setkab.go.id/"
+          },
+          {
+            "type": "url",
+            "url": "https://www.setneg.go.id/listcontent/listberita/berita_wakil_presiden"
+          },
+          {
+            "type": "url",
+            "url": "https://asean.bernama.com/news.php?id=2621577"
+          },
+          {
+            "type": "url",
+            "url": "https://presidenri.go.id/kategori_transkrip/keterangan-pers/"
+          },
+          {
+            "type": "url",
+            "url": "https://www.metrotvnews.com/index?id=48447"
+          },
+          {
+            "type": "url",
+            "url": "https://wantimpres.go.id/en/category/news/"
+          },
+          {
+            "type": "url",
+            "url": "https://www.ksp.go.id/berita"
+          },
+          {
+            "type": "url",
+            "url": "https://indonesia.go.id/berita"
+          },
+          {
+            "type": "url",
+            "url": "https://news.okezone.com/amp/2026/10/17/337/3248330/peristiwa-17-oktober-ulang-tahun-prabowo-hingga-desakan-pembubaran-dpr-sementara"
+          },
+          {
+            "type": "url",
+            "url": "https://jogja.antaranews.com/tag/17-oktober/1"
+          },
+          {
+            "type": "url",
+            "url": "https://en.wikipedia.org/wiki/2026_in_Indonesia"
+          },
+          {
+            "type": "url",
+            "url": "https://www.reddit.com/r/indonesia/comments/1x7w9q8/17_october_2026_weekend_chat_thread/"
+          },
+          {
+            "type": "url",
+            "url": "https://www.reddit.com/r/indonesia/comments/1x71waw/16_october_2026_daily_chat_thread/"
+          },
+          {
+            "type": "url",
+            "url": "https://www.reddit.com/r/asksg/comments/1x7fohg/the_indonesian_government_silences_the_facts/"
+          },
+          {
+            "type": "url",
+            "url": "https://api-djppr.kemenkeu.go.id/web/api/v1/media/6817B455-AC36-41B1-890E-4DADF7CC7565"
+          },
+          {
+            "type": "url",
+            "url": "https://en.wikipedia.org/wiki/Red_and_White_Cabinet"
+          },
+          {
+            "type": "url",
+            "url": "https://en.wikipedia.org/wiki/2025_in_Indonesia"
+          },
+          {
+            "type": "url",
+            "url": "https://www.reddit.com/r/oil/comments/1x7u7bm/bali_has_ordered_government_employees_to_work/"
+          },
+          {
+            "type": "url",
+            "url": "https://www.reddit.com/r/Economics/comments/1x7fwpc/indonesia_gets_wakeup_call_as_msci_prepares_to/"
+          },
+          {
+            "type": "url",
+            "url": "https://en.wikipedia.org/wiki/Cabinet_of_Indonesia"
+          },
+          {
+            "type": "url",
+            "url": "https://www.reddit.com/r/worldnews/comments/1x7fvv1/indonesia_gets_wakeup_call_as_msci_prepares_to/"
+          },
+          {
+            "type": "url",
+            "url": "https://en.wikipedia.org/wiki/2026_Southeast_Asian_haze"
+          },
+          {
+            "type": "url",
+            "url": "https://www.reddit.com/r/u_raytoei/comments/1x7cq7y/the_color_of_the_burning_forest_oct_16th_2026/"
+          },
+          {
+            "type": "url",
+            "url": "https://en.wikipedia.org/wiki/2025%E2%80%932026_Indonesian_protests"
+          },
+          {
+            "type": "url",
+            "url": "https://www.bi.go.id/en/publikasi/laporan/Documents/MPR-February-2026.pdf"
+          },
+          {
+            "type": "url",
+            "url": "https://www.reddit.com/r/indonesia/comments/1x4sfru/indonesia_secures_its_fuel_supply_at_the_cost_of/"
+          },
+          {
+            "type": "url",
+            "url": "https://www.reddit.com/r/indonesia/comments/1x1bhca/removed/"
+          },
+          {
+            "type": "url",
+            "url": "https://www.reddit.com/r/indonesia/comments/1v25fja/how_a_national_security_threat_label_has/"
+          },
+          {
+            "type": "url",
+            "url": "https://www.oecd.org/content/dam/oecd/en/publications/reports/2026/06/digital-government-outlook-2026-country-notes_296a844f/indonesia_9fd4f41f/3d267146-en.pdf"
+          },
+          {
+            "type": "url",
+            "url": "https://www.opengovpartnership.org/wp-content/uploads/2026/01/Indonesia_Action-Plan_2026-2027_EN.pdf"
+          },
+          {
+            "type": "url",
+            "url": "https://www.imf.org/-/media/files/publications/cr/2026/english/1idnea2026001-source-pdf.pdf"
+          },
+          {
+            "type": "url",
+            "url": "https://www.amcham.or.id/document/material/WEB_FINAL_-_Investment_Report_2025_FINAL_Single_Pages_691531da215f3.pdf"
+          }
+        ],
+        "type": "search"
+      },
+      "id": "completed-search",
+      "status": "completed",
+      "type": "web_search_call"
+    },
+    {
+      "action": {
+        "queries": [
+          "Indonesia MSCI October 16 2026 Reuters market pressure MSCI downgrade",
+          "site:antaranews.com \"17 October 2026\" Indonesia Bali fuel odd even",
+          "Indonesia October 2026 forest fires haze foreign aid October 15 2026 Reuters",
+          "Indonesia news October 17 2026 economy latest"
+        ],
+        "query": "Indonesia MSCI October 16 2026 Reuters market pressure MSCI downgrade",
+        "sources": [
+          {
+            "type": "url",
+            "url": "https://asean.bernama.com/news.php?id=2621577&utm_source=openai"
+          },
+          {
+            "type": "url",
+            "url": "https://setkab.go.id/en?utm_source=openai"
+          },
+          {
+            "type": "url",
+            "url": "https://presidenri.go.id/?utm_source=openai"
+          }
+        ],
+        "type": "search"
+      },
+      "id": "redundant-searching-attempt",
+      "status": "searching",
+      "type": "web_search_call"
+    },
+    {
+      "content": [
+        {
+          "annotations": [
+            {
+              "end_index": 656,
+              "start_index": 570,
+              "title": "Top News Headlines In Indonesia, Myanmar, Philippines, Singapore, Thailand & Vietnam: Oct 17, 2026 - BERNAMA",
+              "type": "url_citation",
+              "url": "https://asean.bernama.com/news.php?id=2621577&utm_source=openai"
+            },
+            {
+              "end_index": 908,
+              "start_index": 822,
+              "title": "Top News Headlines In Indonesia, Myanmar, Philippines, Singapore, Thailand & Vietnam: Oct 17, 2026 - BERNAMA",
+              "type": "url_citation",
+              "url": "https://asean.bernama.com/news.php?id=2621577&utm_source=openai"
+            },
+            {
+              "end_index": 1236,
+              "start_index": 1177,
+              "title": "Sekretariat Kabinet Republik Indonesia | Kabinet Merah Putih",
+              "type": "url_citation",
+              "url": "https://setkab.go.id/en?utm_source=openai"
+            },
+            {
+              "end_index": 1606,
+              "start_index": 1547,
+              "title": "Sekretariat Kabinet Republik Indonesia | Kabinet Merah Putih",
+              "type": "url_citation",
+              "url": "https://setkab.go.id/en?utm_source=openai"
+            },
+            {
+              "end_index": 1908,
+              "start_index": 1843,
+              "title": "Laman Resmi Presiden Republik Indonesia • Presiden RI",
+              "type": "url_citation",
+              "url": "https://presidenri.go.id/?utm_source=openai"
+            }
+          ],
+          "logprobs": [],
+          "text": "**Indonesia — sorotan berita publik per Sabtu, 17 Oktober 2026.** Ringkasan ini menggabungkan pengumuman resmi pemerintah dengan laporan media; untuk kabar pasar, sumber yang tersedia mengutip ANTARA melalui BERNAMA.\n\n- **Pasar saham menghadapi tekanan setelah pengumuman MSCI.** Bursa Efek Indonesia menyerukan agar investor tetap rasional dan berorientasi jangka panjang setelah saham Indonesia merosot menyusul usulan MSCI untuk mengubah klasifikasi pasar Indonesia. Detail soal dampak dan langkah berikutnya perlu dibaca sebagai perkembangan yang masih berlangsung. ([asean.bernama.com](https://asean.bernama.com/news.php?id=2621577&utm_source=openai))\n- **Bali mulai menerapkan pembelian BBM berdasarkan pelat nomor ganjil-genap pada 17 Oktober.** Kebijakan ini dijalankan Pemprov Bali bersama Pertamina Patra Niaga. ([asean.bernama.com](https://asean.bernama.com/news.php?id=2621577&utm_source=openai))\n- **Perombakan dan pelantikan pejabat berlangsung di pemerintahan pusat.** Pada 15 Oktober, Presiden Prabowo melantik empat wakil menteri, kepala BNPB dan pejabat badan baru yang menangani gambut dan mangrove, serta menunjuk pejabat baru untuk sejumlah posisi di TNI. ([setkab.go.id](https://setkab.go.id/en?utm_source=openai))\n- **Energi dan ketahanan pangan menjadi fokus kebijakan.** Pemerintah mengumumkan dorongan untuk biodiesel B50 dan pengembangan tenaga surya 100 GWp; pemerintah juga menyatakan Indonesia telah mencapai swasembada beras. Itu adalah klaim resmi pemerintah, bukan penilaian independen dalam sumber yang tersedia. ([setkab.go.id](https://setkab.go.id/en?utm_source=openai))\n- **Penanganan kebakaran hutan dan lahan masih menjadi perhatian.** Presiden meminta perhatian khusus untuk kebakaran di Taman Nasional Tanjung Puting, sementara pemerintah menyebut operasi pemadaman darat dan udara terus dioptimalkan. ([presidenri.go.id](https://presidenri.go.id/?utm_source=openai))\n\n**Gambaran singkat:** sorotan paling langsung pada 17 Oktober ialah tekanan pasar saham dan aturan pembelian BBM di Bali; agenda pemerintah beberapa hari sebelumnya berpusat pada pergantian pejabat, energi, pangan, dan karhutla. Saya tidak menemukan cukup laporan terverifikasi bertanggal tepat 17 Oktober untuk menyajikan ini sebagai daftar lengkap berita nasional hari itu.",
+          "type": "output_text"
+        }
+      ],
+      "id": "final-answer",
+      "phase": "final_answer",
+      "role": "assistant",
+      "status": "completed",
+      "type": "message"
+    }
+  ],
+  "status": "completed",
+  "usage": {
+    "input_tokens": 13454,
+    "input_tokens_details": {
+      "cache_write_tokens": 0,
+      "cached_tokens": 5028
+    },
+    "output_tokens": 594,
+    "output_tokens_details": {
+      "reasoning_tokens": 75
+    },
+    "total_tokens": 14048
+  }
+}

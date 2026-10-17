@@ -1,5 +1,47 @@
 # Call search response contract correction
 
+## Captured news-case replay correction (later October 17 follow-up)
+
+The one approved `call-search-news-20261017-0943` provider case finished with
+HTTP 200 after 11,116ms but `search_not_completed`. It used one Google
+connection and one OpenAI request. The call lasted 30,594ms, produced a spoken
+failure, ended in 64ms and settled both reservations. No additional paid
+attempt was made for this correction.
+
+The captured response now establishes the exact shape: outer status completed,
+no error/incomplete details, echoed cap 1, one completed search, one later
+`searching` item, and one completed assistant `final_answer`. The later item's
+three normalized source URLs all occur among the first search's 34 sources.
+Every final citation also belongs to that completed search. The former guard
+rejected both its `searching` status and its nonempty source list.
+
+The Call-only normalizer now admits this narrow additional shape: exactly one
+later `searching` search attempt, nonempty valid source URLs wholly contained
+in the completed search, and all existing outer/final completion, ordering,
+unique-ID, cap, error and final-citation provenance requirements. It retains
+the earlier source-free `incomplete` exception. Failed/running/unknown items,
+novel sources, absent sources, incomplete final answers and uncapped envelopes
+remain rejected. The SDK's processed-call cap supports interpreting a later
+attempt as ignored, but does not itself label `searching` as an ignored state;
+the exception therefore requires the additional observed evidence.
+
+The public-response fixture is stored at
+`client-hub/tests/fixtures/ai_call_synthetic/news-cap-searching-20261017.json`.
+Only provider item IDs were replaced with stable aliases. It is a historical
+response to synthetic public audio, not an assertion that its news claims have
+been independently verified.
+
+Offline replay through the actual adapter now returns one completed search,
+the identical 2,285-character answer, three citations and unchanged usage:
+13,454 input tokens, 594 output tokens, including 5,028 cached input tokens.
+Without the Call normalizer, that same fixture still rejects. **62 focused
+search tests passed** in 0.556s, including novel/missing/invalid source,
+completion/cap/error/order and unsupported-status mutations. All HTTP calls
+were mocked. This proves parser replay only; no successful real-provider
+spoken search answer has been verified after this correction.
+
+The remaining sections document the earlier correction and its evidence.
+
 No paid provider request was made for this correction. The smoke diagnostic
 remains off, its expiry empty, and the already-consumed run ID is unchanged.
 

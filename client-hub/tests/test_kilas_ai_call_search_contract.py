@@ -25,6 +25,10 @@ def capped():
         'usage':{'input_tokens':120,'output_tokens':40}}
 
 
+def captured_searching():
+    return json.loads((Path(__file__).parent / 'fixtures/ai_call_synthetic/news-cap-searching-20261017.json').read_text())
+
+
 class ContractTests(unittest.TestCase):
     def execute(self, data, *, normalizer=True, query=None):
         response=Mock();response.json.return_value=data
@@ -55,6 +59,47 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(result['usage']['input_tokens'],120)
         self.assertEqual(result['usage']['output_tokens'],40)
         self.assertEqual(result['usage']['cost_components'][0]['operation'],'WEB_SEARCH')
+
+    def test_captured_completed_cap_response_replays_with_redundant_searching_sources(self):
+        data=captured_searching();before=copy.deepcopy(data)
+        with self.assertRaises(tools.ToolUnavailable) as error:self.execute(data,normalizer=False)
+        self.assertEqual(error.exception.code,'search_not_completed')
+        normalized=contract.completed_response(data)
+        self.assertEqual(data,before)
+        self.assertEqual([item['id'] for item in normalized['output']],['completed-search','final-answer'])
+        result=self.execute(data)
+        self.assertEqual(result['text'],data['output'][-1]['content'][0]['text'])
+        self.assertEqual(result['search_calls'],1);self.assertEqual(len(result['citations']),3)
+        self.assertEqual(result['usage']['input_tokens'],13454)
+        self.assertEqual(result['usage']['output_tokens'],594)
+        self.assertEqual(normalized['usage'],data['usage'])
+        self.assertEqual(result['usage']['cost_components'][0]['cached_input_tokens'],5028)
+
+    def test_searching_exception_requires_nonempty_valid_previously_completed_sources(self):
+        for sources in (None,[],{},[{'type':'url','url':'https://example.org/novel'}],
+                        [{'type':'url','url':'https://user:secret@example.org/'}],
+                        [{'type':'other','url':'https://setkab.go.id/en'}]):
+            with self.subTest(sources=sources):
+                data=captured_searching();data['output'][1]['action']['sources']=sources;self.reject(data)
+        data=captured_searching();data['output'][-1]['content'][0]['annotations'][0]['url']='https://example.org/novel'
+        self.reject(data)
+        data=captured_searching();data['output'][1]['action']['type']='open_page';self.reject(data)
+        data=captured_searching();data['output'][1]['action']['results']=['unverified'];self.reject(data)
+
+    def test_searching_exception_keeps_completion_cap_order_and_error_guards(self):
+        for key,value in [('status','in_progress'),('max_tool_calls',None),('max_tool_calls',2),
+                          ('max_tool_calls',True),('error',{'code':'failed'}),
+                          ('incomplete_details',{'reason':'max_output_tokens'})]:
+            with self.subTest(key=key,value=value):
+                data=captured_searching();data[key]=value;self.reject(data)
+        for key,value in [('status','incomplete'),('role','user'),('phase','commentary')]:
+            data=captured_searching();data['output'][-1][key]=value;self.reject(data)
+        for order in ([1,0,2],[0,2,1]):
+            data=captured_searching();data['output']=[data['output'][i] for i in order];self.reject(data)
+        data=captured_searching();extra=copy.deepcopy(data['output'][1]);extra['id']='another-attempt'
+        data['output'].insert(2,extra);self.reject(data)
+        for status in ('failed','in_progress','cancelled',None,'unknown'):
+            data=captured_searching();data['output'][1]['status']=status;self.reject(data)
 
     def test_other_tools_callers_remain_strict_without_call_only_normalizer(self):
         with self.assertRaises(tools.ToolUnavailable) as error:self.execute(capped(),normalizer=False)

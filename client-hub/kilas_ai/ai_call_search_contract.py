@@ -3,7 +3,9 @@
 OpenAI's max_tool_calls caps processed calls, not attempted calls. Never infer
 that an arbitrary unfinished/failed tool is ignorable. This narrowly admits an
 explicitly completed response/final answer whose citations all belong to the
-one completed search, with only later incomplete attempts beyond the echoed cap.
+one completed search. Later attempts beyond the echoed cap must either be
+incomplete without sources or match the observed searching envelope with only
+redundant completed-search sources. No pending response is completed here.
 """
 from . import tools
 
@@ -64,13 +66,28 @@ def completed_response(data):
     action_fields = {'search': {'type', 'query', 'queries', 'sources'},
                      'open_page': {'type', 'url'}, 'find_in_page': {'type', 'url', 'pattern'}}
     for at, item in ignored:
-        if (not done_at < at < final_at or item.get('status') != 'incomplete'
+        if (not done_at < at < final_at or item.get('status') not in ('incomplete', 'searching')
                 or set(item) - {'id', 'type', 'status', 'action'}
-                or not isinstance(item.get('action'), dict) or item['action'].get('sources')):
+                or not isinstance(item.get('action'), dict)):
             return data
         kind = item['action'].get('type')
         if not isinstance(kind, str) or kind not in action_fields or set(item['action']) - action_fields[kind]:
             return data
+        if item['status'] == 'incomplete':
+            if item['action'].get('sources'):
+                return data
+        else:
+            # Captured cap=1 response: a completed final answer can follow a
+            # redundant "searching" attempt. Admit only that observed shape,
+            # never sources supplied exclusively by the unfinished attempt.
+            later_sources = item['action'].get('sources')
+            if (len(ignored) != 1 or kind != 'search' or not isinstance(later_sources, list)
+                    or not later_sources):
+                return data
+            for source in later_sources:
+                url = tools._source_url(source.get('url')) if isinstance(source, dict) and source.get('type') == 'url' else None
+                if not url or url not in urls:
+                    return data
     for item in output:
         if item.get('type') not in ('web_search_call', 'message', 'reasoning'):
             return data
