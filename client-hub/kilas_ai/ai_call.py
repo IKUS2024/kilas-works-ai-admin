@@ -10,6 +10,7 @@ from threading import Event, Lock, RLock, Thread, Timer
 from time import monotonic
 import db
 from . import ai_call_budget as budget, live_gemini as wire, live_translator_output as storage
+from . import ai_call_public_search as public_search
 
 _lock=Lock()
 _calls={}
@@ -34,8 +35,8 @@ def ready(owner):
 
 
 def setup(handle=None):
-    # Official conversational Live model, no translator config, tools or history.
-    return {'setup':{'model':'models/'+budget.MODEL,
+    # Separate conversational session; public lookup never imports chat history.
+    value = {'setup':{'model':'models/'+budget.MODEL,
         'systemInstruction':{'parts':[{'text':
             'You are Kilas, a helpful voice conversation partner for one person. '
             'Discuss ideas, answer questions, and help work through problems. '
@@ -46,7 +47,8 @@ def setup(handle=None):
             'Never invent words or a topic from unclear audio. If speech is partly clear, briefly state the specific part you understood and ask only for the missing detail. '
             'If nothing is intelligible, ask once briefly for a clearer repeat, then wait for speech. '
             'This is a new conversation, not an automatic translation or a group meeting. '
-            'You have no access to their chat history, accounts, files or external tools. '
+            'You have no access to their chat history, accounts or files. '
+            + public_search.instructions() +
             'Do not claim to perform external actions or to have current information you lack.'}]},
         'generationConfig':{'responseModalities':['AUDIO'],'maxOutputTokens':1024,
             'speechConfig':{'voiceConfig':{'prebuiltVoiceConfig':{'voiceName':'Kore'}}}},
@@ -56,6 +58,9 @@ def setup(handle=None):
         'inputAudioTranscription':{},'outputAudioTranscription':{},
         'contextWindowCompression':{'triggerTokens':12000,'slidingWindow':{'targetTokens':6000}},
         'sessionResumption':{'handle':handle} if handle else {}}}
+    if public_search.configured():
+        value['setup']['tools'] = [public_search.declaration()]
+    return value
 
 
 class Call:
@@ -72,6 +77,7 @@ class Call:
         self.provider_started=self.started
         self.input_energy=0;self.input_samples=0;self.input_peak=0;self.input_transcript_chars=0
         self.sent_bytes=0;self.sent_chunks=0;self.provider_messages=0
+        self.public_search = public_search.PublicSearch(self)
         # Claim has just authorized this capability. The provider worker also
         # rechecks it before setup; only the watchdog renews this short lease.
         self.authorized_until=self.started+POLICY_TTL_SECONDS
@@ -133,6 +139,7 @@ class Call:
             self.resume_handle=None;self.resume_pending=False
             if first:self.code=code
             if erase:self.frames.clear();self.caption=''
+        self.public_search.cancel()
         if self.ws:
             try:self.ws.shutdown()
             except Exception:pass
@@ -166,7 +173,14 @@ class Call:
 
     def receive(self,raw):
         value=wire.message(raw)
-        if any(k in value for k in ('error','toolCall')):raise CallError('call_provider')
+        if 'error' in value:raise CallError('call_provider')
+        if 'toolCall' in value and not self.public_search.handle(value['toolCall']):raise CallError('call_provider')
+        cancellation = value.get('toolCallCancellation')
+        if cancellation is not None:
+            ids = cancellation.get('ids') if isinstance(cancellation, dict) else None
+            if not isinstance(ids, list) or len(ids)>128 or any(not isinstance(i,str) or len(i)>256 for i in ids):
+                raise CallError('call_output_invalid')
+            self.public_search.cancel(ids)
         content=value.get('serverContent',{})
         if not isinstance(content,dict):raise CallError('call_output_invalid')
         with self.lock:
@@ -208,6 +222,7 @@ class Call:
                 if not isinstance(heard,dict) or not isinstance(heard.get('text',''),str) or len(heard.get('text',''))>4000:
                     raise CallError('call_output_invalid')
                 self.input_transcript_chars+=len(heard.get('text',''))
+                self.public_search.observe(heard.get('text',''), finished=heard.get('finished') is True)
             transcript=content.get('outputTranscription')
             if transcript is not None:
                 if not isinstance(transcript,dict) or not isinstance(transcript.get('text',''),str):raise CallError('call_output_invalid')
@@ -215,6 +230,7 @@ class Call:
                 if len(self.caption)>4000:raise CallError('call_output_invalid')
                 self.publish({'type':'text','text':self.caption})
             if content.get('turnComplete') is True and content.get('interactionStatus')!='IN_PROGRESS':
+                self.public_search.turn_complete()
                 self.turns+=1;self.publish({'type':'turn_complete'});self.caption='';self.state='LISTENING'
 
     def snapshot(self,after):

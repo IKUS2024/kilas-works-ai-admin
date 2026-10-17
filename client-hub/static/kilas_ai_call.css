@@ -18,6 +18,11 @@ body.kilas-ai-call-open{overflow:hidden}
 .ai-call-name{flex:none;font-size:20px;font-weight:600;margin:15px 0 0}
 .ai-call-caption{flex:none;font-size:17px;line-height:1.5;max-width:55ch;max-height:25dvh;overflow:auto;overflow-wrap:anywhere;white-space:pre-wrap;margin:16px 0 0;color:#edf3f7}
 .ai-call-error{font-size:15px;max-width:45ch;color:#ffd1cc;margin:16px 0 0}
+#ai-call-dialog .ai-call-sources{flex:none;max-width:55ch;margin:12px 0 0;font-size:14px;line-height:1.5;color:#cad5e0}
+#ai-call-dialog .ai-call-sources[hidden]{display:none}
+#ai-call-dialog .ai-call-sources ul{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;list-style:none;padding:0;margin:4px 0 0}
+#ai-call-dialog .ai-call-sources a{display:inline-flex;align-items:center;min-height:44px;color:#cad5e0;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
+#ai-call-dialog .ai-call-sources a:focus-visible{outline:3px solid #d58c50;outline-offset:4px}
 #ai-call-dialog .ai-call-footer{display:flex!important;flex-direction:column;align-items:center;justify-self:stretch;text-align:center;min-height:0;margin:0;padding:0;background:#111820}
 #ai-call-dialog .ai-call-end{display:grid;place-items:center;flex:none;width:68px;height:68px;min-height:68px;border:0;border-radius:50%;background:#c73435;color:#fff;cursor:pointer}
 #ai-call-dialog .ai-call-end:hover{background:#a32425}

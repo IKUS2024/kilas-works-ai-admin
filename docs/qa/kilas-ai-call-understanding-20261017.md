@@ -392,3 +392,99 @@ https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-live
 
 No paid request has been made or newly authorized by this proposal. Usability,
 relevant multi-turn context and physical Android audio remain unresolved.
+
+## Independently verified control and one approved manual-turn test
+
+The requestor subsequently lifted the hold for exactly one reviewed diagnostic.
+No private recording was used. An independent local PocketSphinx 5.1.1 open
+English language model failed to recover the old eSpeak picnic question reliably.
+This is evidence that the old fixture is a weak control, not proof that no human
+or provider could understand it. The Indonesian fixture remains independently
+unverified; its failed run alone cannot establish an automatic-VAD defect.
+
+A replacement was generated locally using FFmpeg's bundled Flite `slt` voice,
+converted to mono PCM16LE/16kHz, and passed through the exact production
+`prepareCallPcm` in 200 ms frames. Local ASR recovered the complete proposition:
+three apples, buy two more, ask the total. It used no forced grammar or remote
+inference. The checked-in `manual-apples.wav` is 5.110 seconds / 163,520 raw bytes;
+the approved wire input adds 500 ms silence: 179,520 bytes / 5.610 seconds,
+SHA256 `4da9349665483c93631b0a32311c8b7f9ea4c4313197fc2f4e6fecf3097eb6c9`.
+
+One production child ran on revision `797ee7fdb4c3149f7c515794f6db7dc1f44b617f`,
+deployment `dep-db9eivajnfac73c0e4bg`, at 03:21:44–03:21:54 UTC. Only this
+child used automatic detection disabled, explicit activityStart/activityEnd and
+128 output tokens. Production automatic-VAD settings were not changed.
+
+| Measurement | Actual result |
+| --- | --- |
+| Transcribed synthetic input | I have three apples. I buy two more apples. How many apples do I have? |
+| Response | You have five apples. |
+| Semantic assessment | Correct full proposition and answer, not just keyword matching |
+| Connections / normal reservations | One / one; unchanged $0.25 application reservation |
+| Dispatch | All 179,520 bytes, 29 packets, exact SHA256; no queued tail |
+| Explicit START / END | 1,490 ms / 7,111 ms after diagnostic began |
+| First audio | 7,755 ms; **644 ms after END**, not before the question finished |
+| Turn complete / duration | 9,461 ms / 9,472 ms |
+| Generated audio | 1,670.04 ms |
+| Reported usage | 844 prompt tokens, 48 response tokens, 892 total; also reports 50 thoughts tokens |
+| Modality details | Prompt: 510 TEXT, 307 AUDIO; response: 48 AUDIO |
+| End / cleanup | 109 ms; settled true, zero retained output frames |
+
+The raw provider usage fields above are reported as returned; their subdivisions
+do not fully reconcile. An actual supplier invoice is unavailable. The reviewed
+supplier estimate was $0.002–$0.003, distinct from the unchanged conservative
+application reservation. No credits, quotas, plans or metering were changed.
+
+The diagnostic is disabled (`KILAS_AI_CALL_SMOKE_RUN=off`, empty expiry). A second
+worker's durable guard reported `already_attempted_no_retry` and zero provider
+connections. No additional paid inference or search QA was run.
+
+This establishes a working provider speech-to-answer path for one verified
+synthetic English question with explicit boundaries. The fixture AND activity
+mode differ from the failed Indonesian run. It does **not** establish automatic
+VAD as the remaining cause, relevant multi-turn context, Indonesian recognition,
+silence/noise behavior in the new control, physical Android input/playback or
+real provider resumption. Do not report the original usability complaint fixed.
+
+## Call-only public Indonesia search
+
+The reviewed implementation reuses existing `tools.web_search_steps` and normal
+`usage.reserve`/`usage.finish` WEB metering, with existing credentials and model
+configuration. The only declared function accepts country `ID` and one public
+topic enum: general, economy, politics or weather. The backend requires a
+completed recognized public request (`inputTranscription.finished=true`), respects
+the no-search opt-out, and creates the query only from server country/topic/date
+constants. No Call words, private chat history, files, audio, identifiers or
+arbitrary model query are passed to search. Current request text is bounded in
+volatile RAM for intent gating, then cleared on turn completion or End.
+
+Each spoken turn can authorize one lookup. Function IDs are deduplicated and
+normal durable usage keys also prevent duplicate charging. Search and its
+authorization checks run outside the PCM lock. Cancellation, End, a newer spoken
+request, quota denial, missing configuration, timeout and missing citations fail
+explicitly without claiming current facts. Completed work is still settled if
+the user ends after dispatch. The response deadline is 20 seconds; late results
+cannot overwrite a timeout. The existing adapter has 10-second connect / 8-second
+read timeouts here; a read timeout alone is not a strict total duration guarantee.
+
+Source-backed public findings return through the function response, with spoken
+source attribution requested in the Call prompt and up to three safe clickable
+sources below the caption. The displayed date is the lookup date, not an invented
+publication date. Sources clear on the next answer or End. Fullscreen layout and
+End remain in place. No shared routing, Translator, Voice Over, Finance, Group,
+pricing or Creative Services files were changed.
+
+Verification: **58 Python Call tests and 44 Node tests passed**. This includes a
+real disposable-SQLite usage-ledger integration (one WEB_SEARCH COMPLETE row),
+privacy/opt-out/partial-transcript gates, timeout/cancellation/stale-result tests,
+existing PCM/capture/playback regressions, and four localized real-template DOM
+checks. Official Google SDK schema validation accepts the configured function
+setup without network IO. Chromium checks at 1280×800, 393×858, 740×390 and
+320×240 kept End visible/clickable and removed sources on End, with no horizontal
+overflow. These are desktop Chromium layout checks, not physical Android audio.
+
+No live search or provider function-call ordering was tested. If a provider omits
+the final transcription marker or it arrives too late, this integration fails
+closed without a paid lookup and returns explicit unavailability. Startup
+readiness reports search configuration separately from live search verification.
+Further paid QA needs its own bounded review; it does not run automatically.

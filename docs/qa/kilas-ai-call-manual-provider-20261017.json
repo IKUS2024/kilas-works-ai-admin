@@ -1,0 +1,100 @@
+{
+  "timestamp": "2026-10-17T03:21:54.102481893Z",
+  "commit": "797ee7fdb4c3149f7c515794f6db7dc1f44b617f",
+  "deployment": "dep-db9eivajnfac73c0e4bg",
+  "accepted_bytes": 179520,
+  "activityEnd_ms": 7111,
+  "activityStart_ms": 1490,
+  "activity_events": [
+    {
+      "at_ms": 1565,
+      "audioOffset": "0s",
+      "kind": "voiceActivity"
+    },
+    {
+      "at_ms": 7362,
+      "audioOffset": "5.610s",
+      "kind": "voiceActivity"
+    }
+  ],
+  "automatic_vad_production_changed": false,
+  "dispatch_matches_accepted": true,
+  "dispatched_sha256": "4da9349665483c93631b0a32311c8b7f9ea4c4313197fc2f4e6fecf3097eb6c9",
+  "duration_ms": 9472,
+  "end_ms": 109,
+  "events": {
+    "serverContent": 14,
+    "sessionResumptionUpdate": 1,
+    "setupComplete": 1,
+    "usageMetadata": 1,
+    "voiceActivity": 2
+  },
+  "first_audio_after_end_ms": 644,
+  "first_audio_ms": 7755,
+  "input_text": "I have three apples. I buy two more apples. How many apples do I have?",
+  "output_ms": 1670.0416666666667,
+  "post_end_frames": 0,
+  "provider_connections": 1,
+  "queued_bytes": 0,
+  "response_text": "You have five apples.",
+  "run": "call-understanding-manual-20261017",
+  "sent_bytes": 179520,
+  "sent_chunks": 29,
+  "settled": true,
+  "setup_complete": true,
+  "status": "completed",
+  "synthetic_only": true,
+  "turn_complete": true,
+  "turn_complete_ms": 9461,
+  "usage_events": [
+    {
+      "promptTokenCount": 844,
+      "promptTokensDetails": [
+        {
+          "modality": "TEXT",
+          "tokenCount": 510
+        },
+        {
+          "modality": "AUDIO",
+          "tokenCount": 307
+        }
+      ],
+      "responseTokenCount": 48,
+      "responseTokensDetails": [
+        {
+          "modality": "AUDIO",
+          "tokenCount": 48
+        }
+      ],
+      "thoughtsTokenCount": 50,
+      "totalTokenCount": 892
+    }
+  ],
+  "semantic_assessment": {
+    "input_complete_and_intelligible": true,
+    "answer_correct": true,
+    "reason": "The recognized proposition is three apples plus two more; response says five apples. Full source question was recognized, not just a keyword.",
+    "first_audio_after_explicit_end_ms": 644,
+    "automatic_vs_manual_cause_established": false,
+    "limits": "New clear English voice and manual mode differ from the failed Indonesian fixture. No same-fixture automatic control, multi-turn context, Indonesian or device playback proof."
+  },
+  "billing_assessment": {
+    "provider_usage_reported": true,
+    "actual_supplier_invoice_available": false,
+    "application_reservation_usd": 0.25,
+    "metering_changed": false,
+    "new_paid_search_requests": 0,
+    "estimated_supplier_cost_range_usd": [
+      0.002,
+      0.003
+    ]
+  },
+  "cleanup": {
+    "smoke_arm": "off",
+    "smoke_expiry": "",
+    "confirmed_update": true,
+    "duplicate_worker_result": "already_attempted_no_retry; provider_connections=0",
+    "call_settled": true,
+    "audio_frames_after_end": 0
+  }
+}

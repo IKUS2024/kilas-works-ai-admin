@@ -132,3 +132,22 @@ test('A new answer arriving before the prior checkpoint drains cannot reopen the
  f.capture.pcm(pcm());await tick();assert.deepEqual([...f.bodies.at(-1)],[0,0,0,0]);
  f.session.end();await started;
 });
+
+test('Public sources attach to their answer and clear for a subsequent answer',async()=>{
+ const sources=[],citations=[{url:'https://example.org/news',title:'Synthetic public source'}];
+ const f=fixture({onSources:(items,date)=>sources.push({items,date})}),started=f.session.start();await tick();
+ const encoded=Buffer.from(pcm()).toString('base64');
+ f.hold.resolve({state:'SPEAKING',frames:[{index:0,type:'sources',citations,checked_on:'2026-10-17'},
+  {index:1,type:'audio',pcm:encoded},{index:2,type:'turn_complete'},{index:3,type:'audio',pcm:encoded}],next_index:4,total_frames:4});
+ await tick();assert.deepEqual(sources.map(value=>value.items),[[],citations,[]]);
+ assert.equal(sources[1].date,'2026-10-17');assert.equal(f.plays,2);
+ f.session.end();await started;assert.deepEqual(sources.at(-1).items,[]);
+});
+test('Waiting for public lookup results keeps microphone live; End fences late sources',async()=>{
+ const sources=[],f=fixture({onSources:items=>sources.push(items)}),started=f.session.start();await tick();
+ assert.equal(f.session.speaking,false);f.capture.pcm(pcm());
+ assert.deepEqual([...f.session.input.pending.slice(0,f.session.input.length)],[1,0,2,0]);
+ f.session.end();
+ f.hold.resolve({state:'LISTENING',frames:[{index:0,type:'sources',citations:[{url:'https://example.org',title:'Late'}]}],next_index:1,total_frames:1});
+ await started;assert.ok(sources.every(items=>items.length===0));assert.equal(f.session.state,'ended');
+});

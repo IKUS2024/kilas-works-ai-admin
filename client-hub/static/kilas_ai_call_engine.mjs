@@ -35,9 +35,9 @@ export class CallInput {
 }
 
 export class CallSession {
- constructor({request,capture,player,prepare=async()=>{},stopAudio=()=>{},onState=()=>{},onError=()=>{},onText=()=>{},
+ constructor({request,capture,player,prepare=async()=>{},stopAudio=()=>{},onState=()=>{},onError=()=>{},onText=()=>{},onSources=()=>{},
   key=()=>crypto.randomUUID().replaceAll('-',''),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
-  Object.assign(this,{request,capture,player,prepare,stopAudio,onState,onError,onText,key,schedule,clear});this.version=0;this.state='ended';
+  Object.assign(this,{request,capture,player,prepare,stopAudio,onState,onError,onText,onSources,key,schedule,clear});this.version=0;this.state='ended';
  }
  stateTo(value){this.state=value;this.onState(value);}
  current(ticket){return ticket===this.version&&!this.controller?.signal.aborted;}
@@ -45,7 +45,7 @@ export class CallSession {
   if(this.state!=='ended')return;
   const ticket=++this.version;this.controller=new AbortController();const signal=this.controller.signal;
   this.ident=this.key();this.path='/kilas-ai/call/'+this.ident;this.admitted=false;this.speaking=false;this.turnSealed=false;this.cursor=0;this.playVersion=0;
-  this.stateTo('connecting');this.onText('');
+  this.stateTo('connecting');this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;
   this.input=new CallInput({request:this.request,path:this.path,signal,onError:error=>this.fail(error,ticket)});
   try{
    // Called synchronously from the click to preserve the audio user gesture.
@@ -80,12 +80,15 @@ export class CallSession {
     if(frame.index!==this.cursor++)throw failure('call_protocol');
     if(frame.type==='audio'){
      if(typeof frame.pcm!=='string'||frame.pcm.length>12800)throw failure('call_protocol');
-     if(!this.speaking||this.turnSealed){this.clear(this.echoTimer);this.echoTimer=null;this.turnSealed=false;this.speaking=true;this.playVersion++;this.input.discardPending();this.onText('');}
+     if(!this.speaking||this.turnSealed){this.clear(this.echoTimer);this.echoTimer=null;this.turnSealed=false;this.speaking=true;this.playVersion++;this.input.discardPending();this.onText('');if(!this.sourceAwaitingAudio)this.onSources([]);this.sourceAwaitingAudio=false;}
      this.stateTo('speaking');const raw=Uint8Array.from(atob(frame.pcm),c=>c.charCodeAt(0));this.player.push(raw,'call');
     }else if(frame.type==='text'){
      if(typeof frame.text!=='string'||frame.text.length>4000)throw failure('call_protocol');this.onText(frame.text);
+    }else if(frame.type==='sources'){
+     if(!Array.isArray(frame.citations)||frame.citations.length>3||frame.citations.some(item=>!item||typeof item.url!=='string'||item.url.length>2048||typeof item.title!=='string'||item.title.length>160))throw failure('call_protocol');
+     this.onSources(frame.citations,frame.checked_on);this.sourceAwaitingAudio=frame.citations.length>0&&(!this.speaking||this.turnSealed);
     }else if(frame.type==='reset'){
-     this.clear(this.echoTimer);this.player.cancel();this.turnSealed=false;this.speaking=false;this.playVersion++;this.onText('');
+     this.clear(this.echoTimer);this.player.cancel();this.turnSealed=false;this.speaking=false;this.playVersion++;this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;
     }else if(frame.type==='turn_complete'){
      this.turnSealed=true;const generation=this.playVersion;
      this.player.checkpoint().then(()=>{
@@ -112,7 +115,7 @@ export class CallSession {
   const path=this.path,admitted=this.admitted;this.admitted=false;this.ident=null;this.path=null;++this.version;
   this.controller?.abort();this.clear(this.timer);this.clear(this.echoTimer);this.clear(this.pollTimer);this.pollResolve?.();this.pollResolve=null;
   try{this.input?.cancel();}catch{}try{this.capture.cancel();}catch{}try{this.player.cancel();}catch{}try{this.stopAudio();}catch{}
-  this.speaking=false;this.onText('');this.stateTo('ended');
+  this.speaking=false;this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;this.stateTo('ended');
   if(path&&admitted){try{Promise.resolve(this.request(path+'/end',{method:'POST',keepalive:true,timeoutMs:8000})).catch(()=>{});}catch{}}
  }
 }

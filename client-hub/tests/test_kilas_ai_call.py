@@ -303,7 +303,8 @@ class CallTests(unittest.TestCase):
             self.assertEqual(call.input_bytes,0)
 
     def test_general_conversation_schema_and_server_only_key(self):
-        setup=calls.setup()['setup']
+        with patch.object(calls.public_search,'configured',return_value=False):
+            setup=calls.setup()['setup']
         self.assertEqual(setup['model'],'models/gemini-3.8-live')
         self.assertNotIn('translationConfig',setup['generationConfig'])
         for forbidden in ('tools','thinkingConfig'):
@@ -330,6 +331,34 @@ class CallTests(unittest.TestCase):
             self.assertEqual(call.frames,[])
             self.assertNotIn('synthetic question',str(vars(call)))
             with self.assertRaises(calls.CallError):call.receive('{"serverContent":{"inputTranscription":{"text":7}}}')
+
+    def test_public_lookup_uses_normal_usage_ledger_once_and_end_clears_current_speech(self):
+        import time
+        from kilas_ai import ai_call_public_search as search
+        with self.enabled(),patch.dict(os.environ,{'OPENAI_API_KEY':'offline-not-a-key',
+                'KILAS_AI_OPENAI_WEB_MODEL':'gpt-6.1-sol','KILAS_AI_CALL_PUBLIC_SEARCH_ENABLED':'true'}):
+            call=self.make();messages=[]
+            class Socket:
+                def send(self,raw):messages.append(json.loads(raw))
+                def shutdown(self):pass
+            call.ws=Socket()
+            result={'text':'Synthetic public finding.','citations':[{'url':'https://example.org/news','title':'Synthetic source'}],
+                    'model':'gpt-6.1-sol','usage':{'input_tokens':10,'output_tokens':3,'web_search_calls':1}}
+            with patch.object(search.tools,'web_search_steps',return_value=iter([{'result':result}])) as lookup:
+                call.receive(json.dumps({'serverContent':{'inputTranscription':{
+                    'text':'Gimana keadaan Indonesia sekarang?','finished':True}}}))
+                message={'toolCall':{'functionCalls':[{'id':'public-one','name':search.NAME,'args':{'country':'ID','topic':'general'}}]}}
+                call.receive(json.dumps(message))
+                until=time.monotonic()+2
+                while call.public_search.job is not None and time.monotonic()<until:time.sleep(.01)
+                self.assertIsNone(call.public_search.job)
+                call.receive(json.dumps(message));lookup.assert_called_once()
+            row=audio.f.db.query_one("SELECT COUNT(*) AS n,MIN(status) AS status FROM kilas_ai_usage WHERE user_id=? AND operation_key LIKE 'call-web-%' AND operation_type='WEB_SEARCH'",(self.user,))
+            self.assertEqual((row['n'],row['status']),(1,'COMPLETE'))
+            self.assertTrue(messages[0]['toolResponse']['functionResponses'][0]['response']['available'])
+            self.assertEqual(call.frames[0]['type'],'sources')
+            calls.end(self.user,call.ident)
+            self.assertEqual(call.public_search.buffer,'');self.assertEqual(call.frames,[])
 
     def test_renewal_keeps_shared_cap_and_end_fences_every_envelope(self):
         with self.enabled():
