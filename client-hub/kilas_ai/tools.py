@@ -14,11 +14,12 @@ from . import response_style
 
 
 class ToolUnavailable(Exception):
-    def __init__(self, message, *, model=None, usage=None, code='search_unavailable'):
+    def __init__(self, message, *, model=None, usage=None, code='search_unavailable', evidence_status=None):
         super().__init__(message)
         self.model = model
         self.usage = usage or {}
         self.code = code
+        self.evidence_status = evidence_status if evidence_status in ('missing', 'invalid_format', 'invalid_calendar_date') else None
 
 
 def _openai_key():
@@ -128,7 +129,11 @@ def _search_sources(data, answer, citations):
 def log_search_failure(error):
     # No prompts, URLs, response bodies, credentials or customer content in logs.
     code = getattr(error, 'code', 'search_internal_error')
-    logging.getLogger(__name__).warning('KILAS_SEARCH_FAILURE code=%s', code)
+    status = getattr(error, 'evidence_status', None)
+    if status in ('missing', 'invalid_format', 'invalid_calendar_date'):
+        logging.getLogger(__name__).warning('KILAS_SEARCH_FAILURE code=%s as_of_status=%s', code, status)
+    else:
+        logging.getLogger(__name__).warning('KILAS_SEARCH_FAILURE code=%s', code)
 
 
 def _cited_urls_only(answer, citations):
@@ -261,7 +266,8 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
                 code = reason if reason in {'currency_pair_missing','rate_invalid','rate_time_missing',
                     'rate_not_current','rate_source_missing'} else 'currency_evidence_invalid'
                 raise ToolUnavailable(chat_web.UNVERIFIED, model=model,
-                    usage={'input_tokens':input_tokens,'output_tokens':output_tokens,'cost_components':cost_components}, code=code) from None
+                    usage={'input_tokens':input_tokens,'output_tokens':output_tokens,'cost_components':cost_components},
+                    code=code, evidence_status=getattr(error, 'evidence_status', None)) from None
         new_sources = [item for item in found if item["url"] not in {source["url"] for source in citations}]
         if not new_sources and citations:
             break

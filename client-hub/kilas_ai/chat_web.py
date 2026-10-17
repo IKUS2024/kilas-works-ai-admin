@@ -96,8 +96,12 @@ def conversion_instructions(spec):
             f'base must be {spec["base"]}, quote must be {spec["quote"]}; '
             'rate is a decimal string for ONE base unit in quote units, taken from the cited source, '
             'using a dot decimal separator without grouping separators or currency symbols; '
-            'never a remembered or assumed rate. as_of must be the source rate date/time in ISO 8601 '
-            '(include timezone when a time is available). source_url must match a returned URL citation. '
+            'never a remembered or assumed rate. as_of is the quote\'s own as-of date/time in ISO 8601; '
+            'a source-established quote date YYYY-MM-DD alone is sufficient, with a timezone if a time is available. '
+            'It is not the article publication date or the retrieval/check time; do not substitute those for an absent quote date. '
+            'Within this one authorized search, prefer dated primary or reputable FX sources; if one returned source '
+            'lacks a quote date, use another returned cited source that establishes both rate and quote date. '
+            'Do not issue an additional search attempt or invent a date. source_url must match a returned URL citation. '
             'If the source does not establish the rate and its date/time, return null. '
             'Do not calculate the converted amount; the application will calculate it.')
 
@@ -128,6 +132,12 @@ def _published_rate(value):
     return rate
 
 
+class _QuoteTimeError(ValueError):
+    def __init__(self, status):
+        super().__init__('rate_time_missing')
+        self.evidence_status = status  # Fixed enum only; never retain the raw value.
+
+
 def conversion_answer(spec, raw, citations, normalize_url, now=None):
     """Require published-rate metadata and cited provenance before any arithmetic."""
     now = now or datetime.now(timezone.utc)
@@ -139,8 +149,11 @@ def conversion_answer(spec, raw, citations, normalize_url, now=None):
     rate = _published_rate(data.get('rate', ''))
     as_of = str(data.get('as_of', ''))
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2}))?', as_of):
-        raise ValueError('rate_time_missing')
-    dated = datetime.fromisoformat(as_of.replace('Z', '+00:00'))
+        raise _QuoteTimeError('missing' if data.get('as_of') in (None, '') else 'invalid_format')
+    try:
+        dated = datetime.fromisoformat(as_of.replace('Z', '+00:00'))
+    except ValueError:
+        raise _QuoteTimeError('invalid_calendar_date') from None
     if dated.tzinfo is None:
         dated = dated.replace(tzinfo=timezone.utc)
     if dated > now + timedelta(minutes=5) or now - dated > timedelta(days=7):

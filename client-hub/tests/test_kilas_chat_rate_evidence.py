@@ -98,5 +98,31 @@ class ChatRateEvidenceTests(unittest.TestCase):
         self.assertNotIn('koneksi', message.lower())
         self.assertNotIn('PRIVATE', message)
 
+    def test_quote_date_or_zoned_quote_time_suffices_without_article_publication_time(self):
+        for as_of in (self.now.date().isoformat(), self.now.isoformat(),
+                      self.now.isoformat().replace('+00:00', 'Z')):
+            with self.subTest(as_of=as_of):
+                answer = self.answer({**self.data, 'as_of': as_of, 'published_at': '2000-01-01'})
+                self.assertIn('Waktu sumber: '+as_of, answer)
+        for extra in ({'published_at': self.now.isoformat()}, {'retrieved_at': self.now.isoformat()}):
+            with self.subTest(extra=extra), self.assertRaisesRegex(ValueError, '^rate_time_missing$'):
+                self.answer({**self.data, 'as_of': '', **extra})
+
+    def test_bad_quote_time_diagnostics_are_bounded_and_do_not_log_source_content(self):
+        for value, status in (('', 'missing'), ('PRIVATE_SOURCE_SENTINEL', 'invalid_format'),
+                              ('2026-02-30', 'invalid_calendar_date')):
+            with self.subTest(status=status), patch.dict(os.environ, {'KILAS_AI_OPENAI_WEB_MODEL': 'gpt-6.1-sol'}), \
+                 patch.object(tools, '_request', return_value=self.payload({**self.data, 'as_of': value})):
+                with self.assertRaises(tools.ToolUnavailable) as error:
+                    list(tools.web_search_steps([{'role': 'user', 'content': '1 sgd berapa rupiah'}],
+                        verify_currency=True, minimal_query=True, max_calls=1))
+                self.assertEqual(error.exception.code, 'rate_time_missing')
+                self.assertEqual(error.exception.evidence_status, status)
+                with self.assertLogs('kilas_ai.tools', level='WARNING') as captured:
+                    tools.log_search_failure(error.exception)
+                self.assertIn('as_of_status='+status, str(captured.output))
+                self.assertNotIn('PRIVATE_SOURCE_SENTINEL', str(captured.output))
+                self.assertNotIn(self.source, str(captured.output))
+
 
 if __name__ == '__main__': unittest.main()

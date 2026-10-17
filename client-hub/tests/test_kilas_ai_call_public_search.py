@@ -252,6 +252,36 @@ class PublicSearchTests(unittest.TestCase):
         return self.search.handle({'functionCalls': [{'id': ident, 'name': search.PUBLIC_NAME,
             'args': {'query': query}}]})
 
+    def test_stable_camera_question_survives_an_ungrounded_optional_lookup(self):
+        self.search.observe('Apa perbedaan a6700 dan a6400?')
+        with patch.object(search, 'INTENT_WAIT_SECONDS', 0):
+            self.generic('Sony camera comparison'); self.wait()
+        response = self.response()
+        self.assertEqual(response.get('answer_mode'), 'established_knowledge')
+        self.assertFalse(response['search_performed'])
+        self.assertFalse(response['available'])
+        self.assertEqual(response.get('sources', []), [])
+        self.reserve.assert_not_called(); self.lookup.assert_not_called()
+        self.generic('perbedaan a6700 a6400', ident='same-turn-reformulation'); self.wait()
+        self.assertEqual(self.response().get('answer_mode'), 'established_knowledge')
+        self.reserve.assert_not_called(); self.lookup.assert_not_called()
+        self.search.turn_complete()
+        self.search.observe('Cari harga a6700 terbaru.')
+        self.generic('harga a6700 terbaru', ident='price'); self.wait()
+        self.assertTrue(self.response()['available'])
+        self.reserve.assert_called_once()
+
+    def test_new_session_does_not_inherit_stable_question_or_failed_lookup(self):
+        self.search.observe('Apa perbedaan a6700 dan a6400?')
+        with patch.object(search, 'INTENT_WAIT_SECONDS', 0):
+            self.generic('Sony cameras'); self.wait()
+        fresh = search.PublicSearch(self.call)
+        self.addCleanup(fresh.cancel)
+        self.assertEqual(fresh.number, 0)
+        self.assertEqual(fresh.buffer, '')
+        self.assertIsNone(fresh.previous_query)
+        self.assertIsNone(fresh.previous_pair)
+
     def test_general_public_lookup_uses_minimized_current_turn_keywords_once(self):
         self.search.observe('Tolong cari jadwal museum nasional terbaru.')
         self.generic('jadwal museum nasional terbaru'); self.wait()
@@ -715,7 +745,7 @@ class PublicSearchTests(unittest.TestCase):
         self.assertEqual(self.reserve.call_count, 4); self.assertEqual(self.finish.call_count, 4)
 
     def test_fx_verification_failures_explain_only_the_recorded_limitation(self):
-        cases = {'rate_time_missing': 'published source date/time', 'rate_not_current': 'too old or in the future',
+        cases = {'rate_time_missing': 'quote as-of date', 'rate_not_current': 'too old or in the future',
                  'rate_source_missing': 'validated cited source', 'rate_invalid': 'valid positive exchange rate',
                  'currency_pair_missing': 'requested base and quote currencies'}
         for number, (code, expected) in enumerate(cases.items()):

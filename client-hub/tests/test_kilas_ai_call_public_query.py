@@ -8,6 +8,16 @@ from kilas_ai import ai_call_public_query as query
 
 
 class PublicQueryTests(unittest.TestCase):
+    def test_stable_explanation_is_distinct_from_live_search_or_private_data(self):
+        for text in ('Apa perbedaan a6700 dan a6400?', 'Jelaskan cara kerja stabilisasi gambar.',
+                     'Compare optical and digital zoom.', 'Apa itu fotosintesis?'):
+            with self.subTest(text=text): self.assertTrue(query.stable_question(text))
+        for text in ('Cari perbedaan a6700 dan a6400.', 'Apa perbedaan harga a6700 sekarang?',
+                     'Apa perbedaan harga a6700 dan a6400?',
+                     'Compare current exchange rates USD IDR.', 'Apa perbedaan dosis obat untuk anak?',
+                     'Jelaskan password akun saya.', 'Halo', 'Coba cari lagi.'):
+            with self.subTest(text=text): self.assertFalse(query.stable_question(text))
+
     def test_public_topics_are_not_restricted_to_indonesia_or_exchange_rates(self):
         for speech, keywords in (
             ('Siapa presiden Jepang sekarang?', 'presiden Jepang sekarang'),

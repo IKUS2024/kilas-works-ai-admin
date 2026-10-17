@@ -63,6 +63,18 @@ def public_request(text):
         r'(?i)^\s*(?:tolong\s+)?(?:apa|siapa|berapa|bagaimana|kapan|di mana|who|what|when|where|how)\b', text))
 
 
+def stable_question(text):
+    """A failed optional lookup must not turn an explanation into a live-fact task."""
+    if (not context_allowed(text) or routing.fresh_information(text)
+            or re.search(r'(?i)\b(?:terbaru|terkini|sekarang|hari ini|saat ini|latest|current|today|now|'
+                         r'harga|prices?|stok|availability|ketersediaan|look\s+up|browse|search|'
+                         r'cari(?:kan)?|cek|verifikasi|verify)\b', text)):
+        return False
+    return bool(re.search(
+        r'(?i)\b(?:perbedaan|bedanya|beda|bandingkan|compare|comparison|difference|'
+        r'apa itu|what is|jelaskan|explain|cara kerja|how does)\b', text))
+
+
 def minimize(query, speech):
     """Return only safe, grounded public keywords; None means clarify first."""
     if not isinstance(query, str) or not 3 <= len(query) <= MAX_QUERY_CHARS:
