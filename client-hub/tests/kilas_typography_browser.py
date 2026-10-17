@@ -84,7 +84,9 @@ def main():
                     for control in controls.all():assert control.evaluate('e=>parseFloat(getComputedStyle(e).fontSize)>=16')
                     if surface=='translator':
                         expect(page.locator('[name=consent]')).not_to_be_checked();expect(page.locator('.live-consent a')).to_have_count(0);expect(page.locator('#live-setup-form button')).to_have_text('Start')
-                    else:expect(page.locator('#play-personal-preview,#open-recorder,#personal-preview')).to_have_count(0)
+                    else:
+                        expect(page.locator('#open-recorder')).to_have_count(0)
+                        expect(page.locator('#play-personal-preview,#personal-preview')).to_have_count(2)
                     if width in (320,768,1440):page.screenshot(path=str(output/f'{surface}-{width}.png'),full_page=True)
                     report.append({'surface':surface,'width':width,'editable_input_min_px':16,'overflow':False})
                 assert all(url==origin+'/kilas-ai/work/preferences' for url in posts) and not errors,(posts,errors)

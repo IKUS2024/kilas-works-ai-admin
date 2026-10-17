@@ -8,13 +8,24 @@
   const selected=document.querySelector('#selected-voice'),stock=document.querySelector('#kilas-voice-choice'),generate=document.querySelector('#voice-generate');
   const library=document.querySelector('#saved-voice-choice'),nameInput=document.querySelector('#record-voice-name');
   const upload=document.querySelector('#voice-sample-file'),selection=document.querySelector('#voice-sample-selection');
+  const sample=document.querySelector('#personal-preview'),playSample=document.querySelector('#play-personal-preview'),sampleError=document.querySelector('#voice-preview-error');
+  let sampleVersion=0;
+  function resetSample(){sampleVersion++;sample.pause();sample.removeAttribute('src');sample.hidden=true;sampleError.hidden=true;}
+  const kilasSample=document.querySelector('#kilas-preview'),playKilasSample=document.querySelector('#play-kilas-preview'),kilasSampleError=document.querySelector('#kilas-preview-error');
+  let kilasSampleVersion=0;
+  function resetKilasSample(){if(!kilasSample)return;kilasSampleVersion++;kilasSample.pause();kilasSample.removeAttribute('src');kilasSample.hidden=true;kilasSampleError.hidden=true;}
+  playKilasSample?.addEventListener('click',async()=>{
+    if(stock.selectedOptions[0]?.dataset.sample!=='true')return;
+    const current=++kilasSampleVersion;kilasSampleError.hidden=true;kilasSample.src='/kilas-translator/voices/'+stock.value+'/sample';kilasSample.hidden=false;
+    try{await kilasSample.play();}catch{if(current!==kilasSampleVersion)return;kilasSampleError.textContent=t('Contoh suara belum dapat diputar. Coba lagi.');kilasSampleError.hidden=false;}
+  });
   let recorder=null,stream=null,tick=null,blob=null,objectUrl='',started=0,version=0,saving=false,inspecting=false,inspection=null,inspectionTimer=null,filename='recording';
   function fail(text){error.textContent=t(text);error.hidden=false;}
   function tracksOff(){stream?.getTracks().forEach(t=>t.stop());stream=null;clearInterval(tick);tick=null;}
   function discard(){inspection?.abort();inspection=null;clearTimeout(inspectionTimer);inspectionTimer=null;inspecting=false;if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl='';blob=null;filename='recording';upload.value='';selection.textContent='';selection.hidden=true;playback.pause();playback.removeAttribute('src');playback.hidden=true;consent.checked=false;save.disabled=true;}
-  function choices(){const mine=document.querySelector('[name=voice_kind]:checked').value==='personal';setup.hidden=!mine;document.querySelector('#kilas-voice-options').hidden=mine;selected.value=mine?(library.value?'personal:'+library.value:''):stock.value;generate.disabled=setup.dataset.translationReady==='false'||saving||!panel.hidden||generate.dataset.enabled!=='true'||(mine?!library.value:!stock.value);}
+  function choices(){const mine=document.querySelector('[name=voice_kind]:checked').value==='personal';if(!mine)resetSample();resetKilasSample();if(playKilasSample)playKilasSample.hidden=mine||stock.selectedOptions[0]?.dataset.sample!=='true';setup.hidden=!mine;document.querySelector('#kilas-voice-options').hidden=mine;selected.value=mine?(library.value?'personal:'+library.value:''):stock.value;generate.disabled=setup.dataset.translationReady==='false'||saving||!panel.hidden||generate.dataset.enabled!=='true'||(mine?!library.value:!stock.value);}
   document.querySelectorAll('[name=voice_kind]').forEach(el=>el.addEventListener('change',()=>{if(!panel.hidden&&!saving){version++;if(recorder?.state==='recording')recorder.stop();tracksOff();discard();panel.hidden=true;document.querySelector('#personal-ready').hidden=false;}choices();}));stock.addEventListener('change',choices);document.addEventListener('voice-translation-state',choices);choices();
-  function openRecorder(){if(saving||generate.dataset.enabled!=='true')return;nameInput.value=t('Suara Saya');error.hidden=true;document.querySelector('#personal-ready').hidden=true;panel.hidden=false;state.textContent=t('Pilih file audio atau mulai merekam');timer.textContent='0:00';start.hidden=false;stop.hidden=true;again.hidden=true;choices();nameInput.focus({preventScroll:true});}
+  function openRecorder(){if(saving||generate.dataset.enabled!=='true')return;resetSample();nameInput.value=t('Suara Saya');error.hidden=true;document.querySelector('#personal-ready').hidden=true;panel.hidden=false;state.textContent=t('Pilih file audio atau mulai merekam');timer.textContent='0:00';start.hidden=false;stop.hidden=true;again.hidden=true;choices();nameInput.focus({preventScroll:true});}
   add.addEventListener('click',openRecorder);
   upload.addEventListener('change',async()=>{
     const file=upload.files?.[0];if(saving||!file)return; // Closing the picker keeps the current sample.
@@ -72,7 +83,7 @@
     }catch(e){fail(e instanceof SyntaxError||e instanceof TypeError?t('Suara belum berhasil dibuat. Rekamanmu tetap aman untuk dicoba kembali.'):e.message);state.textContent=t('Rekaman siap dicoba kembali');}
     finally{saving=false;setup.dataset.busy='false';controls.forEach(el=>el.disabled=false);add.disabled=false;save.disabled=!blob?.size||!consent.checked;updateLibrary();}
   });
-  window.addEventListener('pagehide',()=>{version++;if(recorder?.state==='recording')recorder.stop();tracksOff();discard();});
+  window.addEventListener('pagehide',()=>{version++;resetSample();resetKilasSample();if(recorder?.state==='recording')recorder.stop();tracksOff();discard();});
   const script=document.querySelector('#audio-script'),language=document.querySelector('#voice-language'),label=document.querySelector('#voice-language-status');
   function detect(){
     if(language.value!=='auto'){label.textContent=t('Bahasa mengikuti naskah, kecuali kamu memilih Terjemahkan ke.');return;}
@@ -82,8 +93,14 @@
     label.textContent=id>=2&&id>en?t('Bahasa terdeteksi: Indonesian'):en>=2&&en>id?t('Bahasa terdeteksi: English'):t('Bahasa mengikuti naskah, kecuali kamu memilih Terjemahkan ke.');
   }
   script.addEventListener('input',detect);language.addEventListener('change',detect);
+  playSample.addEventListener('click',async()=>{
+    if(saving||!library.value||library.selectedOptions[0]?.dataset.preview!=='true')return;
+    const current=++sampleVersion;sampleError.hidden=true;sample.src='/kilas-translator/personal-voices/'+library.value+'/preview';sample.hidden=false;
+    try{await sample.play();}catch{if(current!==sampleVersion)return;sampleError.textContent=t('Contoh suara belum dapat diputar. Coba lagi.');sampleError.hidden=false;}
+  });
   function updateLibrary(){
     const ready=!!library.value;
+    resetSample();playSample.disabled=!ready||library.selectedOptions[0]?.dataset.preview!=='true'||saving;
     setup.dataset.ready=String(ready);document.querySelector('#personal-voice-state').textContent=ready?t('Siap digunakan'):t('Suara kamu sendiri');
     [document.querySelector('#rename-saved-voice'),document.querySelector('#delete-saved-voice')].forEach(el=>el.disabled=!ready||saving);
     add.disabled=saving||generate.dataset.enabled!=='true';
@@ -98,7 +115,7 @@
     if(saving||!library.value)return;const ident=library.value;
     if(action==='delete'&&!confirm(t('Hapus suara “')+library.selectedOptions[0].textContent+t('”? Rekaman suara akan dihapus. MP3 yang sudah dibuat tetap tersedia.')))return;
     if(action==='rename'&&!newName.value.trim()){libraryError.textContent=t('Beri nama suara sebelum menyimpan.');libraryError.hidden=false;return;}
-    saving=true;libraryError.hidden=true;library.disabled=true;choices();const buttons=[...document.querySelector('#personal-ready').querySelectorAll('button')];buttons.forEach(el=>el.disabled=true);
+    saving=true;resetSample();libraryError.hidden=true;library.disabled=true;choices();const buttons=[...document.querySelector('#personal-ready').querySelectorAll('button')];buttons.forEach(el=>el.disabled=true);
     document.querySelector('#saved-voice-notice').textContent=action==='delete'?t('Menghapus suara…'):t('Menyimpan nama…');
     try{
       const data=new FormData();const csrf=document.querySelector('#audio-studio [name=csrf_token]').value;data.append('csrf_token',csrf);if(action==='rename')data.append('name',newName.value.trim());

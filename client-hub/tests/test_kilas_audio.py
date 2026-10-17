@@ -76,7 +76,8 @@ class AudioTests(unittest.TestCase):
         self.assertNotIn('Buat voice over dari naskah dengan suara pilihanmu.',html)
         self.assertNotIn('Voice over dengan suara kamu.',html)
         self.assertIn('<legend>Pilih suara</legend>',html)
-        self.assertIn('id="open-recorder"',html)
+        self.assertIn('id="add-saved-voice"',html)
+        self.assertNotIn('id="open-recorder"',html)
         self.assertNotIn('id="voice-video-file"',html)
         self.assertNotIn('Dikte belum aktif. Batas biaya transkripsi belum terverifikasi.',html)
         self.assertNotIn('id="dictation-consent"',html)
@@ -339,6 +340,12 @@ class AudioTests(unittest.TestCase):
 
     def test_voiceover_wav_is_real_private_pcm_without_recharging(self):
         self.credit();created,speech,_=self.create();ident=created.json['id']
+        for locale in ('id','en','es','zh'):
+            self.client.set_cookie('kilas_language',locale)
+            html=self.client.get(f'/kilas-translator/jobs/{ident}').text
+            self.assertIn('Download WAV',html);self.assertIn('download=1',html);self.assertIn('format=wav',html)
+            for helper in ('WAV dikonversi','WAV is converted','WAV se convierte','WAV 从'):
+                self.assertNotIn(helper,html)
         f.db.execute('UPDATE kilas_audio_balances SET seconds=0 WHERE user_id=?',(self.user,))
         before=store.balance(self.user)
         with patch.object(provider,'speech') as paid,patch.object(provider,'dub') as dub:

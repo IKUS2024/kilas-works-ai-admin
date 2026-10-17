@@ -1,12 +1,17 @@
 """Focused personal-voice consent, persistence, isolation and replacement regressions."""
 import io
+import hashlib
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch,Mock
 from werkzeug.datastructures import FileStorage
 import test_kilas_audio as audio
 from auth_test_helpers import authenticate
 from test_kilas_audio import f, wav, provider, store, media
 from kilas_ai import audio_personal_voice as personal
+from kilas_ai import audio_branded_voices as branded
 
 
 class PersonalVoiceTests(unittest.TestCase):
@@ -14,6 +19,39 @@ class PersonalVoiceTests(unittest.TestCase):
     setUp=audio.AudioTests.setUp
     credit=audio.AudioTests.credit
     create=audio.AudioTests.create
+
+    def test_branded_english_sample_is_explicit_cached_asset_without_provider_or_balance(self):
+        voice={'alias':'kilas-male','id':'syntheticBranded123','name':'Kilas Male','style':'Natural'}
+        with tempfile.TemporaryDirectory() as folder,patch.object(branded,'SAMPLE_ROOT',Path(folder)),patch.object(branded,'choices',return_value=[voice]),patch.object(provider,'request') as paid:
+            root=Path(folder)
+            entry={'text':branded.SAMPLE_TEXT,'voice_sha256':hashlib.sha256(voice['id'].encode()).hexdigest(),'audio_sha256':hashlib.sha256(self.audio).hexdigest()}
+            (root/'manifest.json').write_text(json.dumps({'kilas-male':entry}));(root/'kilas-male.mp3').write_bytes(self.audio)
+            before=store.balance(self.user)
+            response=self.client.get('/kilas-translator/voices/kilas-male/sample')
+            self.assertEqual(response.status_code,200);self.assertEqual(response.data,self.audio)
+            self.assertEqual(response.headers['Cache-Control'],'private, no-store')
+            self.assertEqual(response.headers['X-Content-Type-Options'],'nosniff')
+            self.assertEqual(before,store.balance(self.user))
+            page=self.client.get('/kilas-translator?mode=voiceover').text
+            self.assertIn('id="play-kilas-preview"',page);self.assertNotIn(voice['id'],page)
+            self.assertNotIn('voice_sha256',page);paid.assert_not_called()
+            self.assertEqual(f.app.app.test_client().get('/kilas-translator/voices/kilas-male/sample').status_code,302)
+
+    def test_branded_sample_fails_closed_for_missing_mismatched_or_corrupt_assets(self):
+        voice={'alias':'kilas-male','id':'syntheticBranded123','name':'Kilas Male','style':'Natural'}
+        with tempfile.TemporaryDirectory() as folder,patch.object(branded,'SAMPLE_ROOT',Path(folder)),patch.object(branded,'choices',return_value=[voice]),patch.object(provider,'request') as paid:
+            root=Path(folder);entry={'text':branded.SAMPLE_TEXT,'voice_sha256':hashlib.sha256(voice['id'].encode()).hexdigest(),'audio_sha256':hashlib.sha256(self.audio).hexdigest()}
+            self.assertEqual(self.client.get('/kilas-translator/voices/kilas-male/sample').status_code,404)
+            self.assertNotIn('id="play-kilas-preview"',self.client.get('/kilas-translator').text)
+            (root/'kilas-male.mp3').write_bytes(self.audio)
+            for field,value in (('text','Halo, ini contoh suara saya.'),('voice_sha256','old-voice'),('audio_sha256','corrupt')):
+                (root/'manifest.json').write_text(json.dumps({'kilas-male':{**entry,field:value}}))
+                self.assertEqual(self.client.get('/kilas-translator/voices/kilas-male/sample').status_code,404)
+            (root/'manifest.json').write_text(json.dumps({'kilas-male':entry}))
+            with patch.object(branded,'choices',return_value=[]):self.assertEqual(self.client.get('/kilas-translator/voices/kilas-male/sample').status_code,404)
+            self.assertEqual(self.client.get('/kilas-translator/voices/unknown/sample').status_code,404)
+            (root/'manifest.json').write_text('invalid json')
+            self.assertEqual(self.client.get('/kilas-translator/voices/kilas-male/sample').status_code,404);paid.assert_not_called()
 
     def clone(self,key='personal-operation-1234',**values):
         data={'csrf_token':'audio-csrf','operation_key':key,'consent':'yes','recording':(io.BytesIO(wav()),'recording','audio/wav'),**values}
@@ -30,10 +68,15 @@ class PersonalVoiceTests(unittest.TestCase):
         before=[dict(row) for row in f.db.query_all('SELECT * FROM kilas_audio_saved_voices WHERE user_id=?',(self.user,))]
         page=self.client.get('/kilas-translator').text
         self.assertNotIn('privateNamedA',page)
-        for removed in ('play-personal-preview','open-recorder','personal-preview','voice-preview-missing','voice-preview-error'):
+        for removed in ('open-recorder','voice-preview-missing'):
             self.assertNotIn('id="'+removed+'"',page)
-        for retained in ('add-saved-voice','rename-saved-voice','delete-saved-voice','saved-voice-choice','record-playback','voice-consent','voice-generate'):
+        for retained in ('play-personal-preview','personal-preview','voice-preview-error','add-saved-voice','rename-saved-voice','delete-saved-voice','saved-voice-choice','record-playback','voice-consent','voice-generate'):
             self.assertIn('id="'+retained+'"',page)
+        self.assertEqual(before,[dict(row) for row in f.db.query_all('SELECT * FROM kilas_audio_saved_voices WHERE user_id=?',(self.user,))])
+        with patch.object(provider,'request') as paid:
+            preview=self.client.get('/kilas-translator/personal-voices/'+str(first['id'])+'/preview')
+        self.assertEqual(preview.data,personal.saved_preview(self.user,first['id']))
+        self.assertEqual(preview.headers['Cache-Control'],'private, no-store');paid.assert_not_called()
         self.assertEqual(before,[dict(row) for row in f.db.query_all('SELECT * FROM kilas_audio_saved_voices WHERE user_id=?',(self.user,))])
         r,tts,_=self.create(voice='personal:'+str(second['id']))
         self.assertEqual(r.status_code,201);self.assertEqual(tts.call_args.args[1],'privateNamedB');self.assertTrue(tts.call_args.kwargs['personal'])

@@ -36,12 +36,14 @@
 <select id="saved-voice-choice">{% for voice in saved_voices %}<option value="{{ voice.id }}" data-preview="{{ 'true' if voice.has_preview else 'false' }}">{{ voice.name }}</option>{% else %}<option value="">{{ ui_t("Belum ada suara tersimpan") }}</option>{% endfor %}</select>
 <p id="saved-voice-notice" role="status">{{ ui_t("Pilih suara untuk digunakan pada naskah berikutnya.") }}</p>
 <div class="voice-preview-actions">
+<button type="button" class="btn secondary" id="play-personal-preview" {{ 'disabled' if not saved_voices or not saved_voices[0].has_preview }}>{{ ui_t("Putar Contoh Suara") }}</button>
 <button type="button" class="btn secondary" id="add-saved-voice" {{ 'disabled' if not provider_ready or (not balance.exempt and not balance.available) }}>{{ ui_t("Tambah Suara") }}</button>
 <button type="button" class="btn secondary" id="rename-saved-voice" {{ 'disabled' if not saved_voices }}>{{ ui_t("Ubah Nama") }}</button>
 <button type="button" class="btn secondary" id="delete-saved-voice" {{ 'disabled' if not saved_voices }}>{{ ui_t("Hapus Suara") }}</button>
 </div>
 <div id="saved-voice-rename" hidden><label for="saved-voice-new-name">{{ ui_t("Nama suara") }}</label><input type="text" id="saved-voice-new-name" maxlength="60"><div class="voice-preview-actions"><button type="button" class="btn secondary" id="save-voice-name">{{ ui_t("Simpan Nama") }}</button><button type="button" class="btn secondary" id="cancel-voice-name">{{ ui_t("Batal") }}</button></div></div>
 <p id="saved-voice-error" role="alert" hidden></p>
+<audio id="personal-preview" controls preload="none" hidden aria-label="{{ ui_t('Contoh rekaman asli suara tersimpan') }}"></audio><p id="voice-preview-error" role="alert" hidden></p>
 </div>
 <div id="voice-recorder" hidden>
 <h3>{{ ui_t("Tambah contoh suara") }}</h3><label for="record-voice-name">{{ ui_t("Nama suara") }}</label><input type="text" id="record-voice-name" maxlength="60" placeholder="{{ ui_t('Contoh: Suara Irvan') }}">
@@ -54,7 +56,7 @@
 <label class="voice-consent"><input type="checkbox" id="voice-consent"><span>{{ ui_t("Saya menyatakan bahwa suara ini adalah suara saya sendiri atau saya memiliki izin untuk menggunakannya.") }}</span></label>
 <button type="button" class="btn" id="save-personal-voice" disabled>{{ ui_t("Simpan Suara") }}</button><p id="record-error" role="alert" hidden></p>
 </div></section>
-<div id="kilas-voice-options"><label for="kilas-voice-choice">{{ ui_t("Suara Kilas") }}</label><select id="kilas-voice-choice">{% if voices and not voices|selectattr('alias','equalto','kilas-male')|list %}<option value="" selected disabled>{{ ui_t("Kilas Male belum tersedia") }}</option>{% endif %}{% for voice in voices %}<option value="{{ voice.alias }}">{{ voice.name }}</option>{% else %}<option value="">{{ ui_t("Suara belum tersedia") }}</option>{% endfor %}</select></div>
+<div id="kilas-voice-options"><label for="kilas-voice-choice">{{ ui_t("Suara Kilas") }}</label><select id="kilas-voice-choice">{% if voices and not voices|selectattr('alias','equalto','kilas-male')|list %}<option value="" selected disabled>{{ ui_t("Kilas Male belum tersedia") }}</option>{% endif %}{% for voice in voices %}<option value="{{ voice.alias }}" data-sample="{{ 'true' if voice.alias in voice_sample_aliases else 'false' }}">{{ voice.name }}</option>{% else %}<option value="">{{ ui_t("Suara belum tersedia") }}</option>{% endfor %}</select>{% if voice_sample_aliases %}<button type="button" class="btn secondary" id="play-kilas-preview" hidden>{{ ui_t("Putar Contoh Suara") }}</button><audio id="kilas-preview" controls preload="none" hidden aria-label="{{ ui_t('Putar Contoh Suara') }}"></audio><p id="kilas-preview-error" role="alert" hidden></p>{% endif %}</div>
 {% from 'kilas_ai/_chat_icons.html' import chat_icon %}
 <div class="voice-script-workspace">
 <div class="voice-script-label"><label for="audio-script">{{ ui_t("Naskah") }}</label><div class="voice-script-tools"><button type="button" class="btn secondary" id="voice-assist-copy" aria-label="{{ ui_t('Salin naskah') }}" title="{{ ui_t('Salin naskah') }}">{{ chat_icon('copy') }}</button></div></div><textarea id="audio-script" name="script" maxlength="4000" rows="7" required placeholder="{{ ui_t('Tulis apa yang ingin diucapkan...') }}" aria-describedby="voice-language-status">{{ initial_brief if home_task=='voiceover' and initial_brief is not none else content_draft.script if content_draft and not job else '' }}</textarea>
@@ -73,7 +75,7 @@
 </main><aside class="audio-history" id="audio-history" data-history-url="{{ url_for('kilas_audio.history_fragment') }}" data-selected-job="{{ job.id if job else '' }}"><h2>{{ ui_t('Recent') }}</h2><div data-audio-history-content>{% include 'kilas_translator/_history.html' %}</div><p data-audio-history-message role="status" aria-live="polite"></p></aside></div>
 </section>{% include '_generation_feedback.html' %}<script src="{{ url_for('static',filename='kilas_audio.js',v='app-language-20261015') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_audio_history.js',v='app-language-20261015') }}" defer></script>
-<script src="{{ url_for('static',filename='kilas_personal_voice.js',v='sample-controls-removed-20261017') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_personal_voice.js',v='original-sample-playback-20261017') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_voice_script.js',v='app-language-20261015') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_video_script.js',v='app-language-20261015') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_script_assist.js',v='app-language-20261015') }}" defer></script>

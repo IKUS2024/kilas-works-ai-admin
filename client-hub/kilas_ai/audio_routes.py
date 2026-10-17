@@ -149,7 +149,7 @@ def home(ident=None,initial_brief=None,home_task=None):
     recent=store.history_page(user,page,through=through,kind=active_mode)
     saved_voices=personal.saved_voices(user)
     return render_template('kilas_translator/home.html',**recent,selected_job_id=job['id'] if job else None,active_mode=active_mode,video_script_ready=video_budget.ready(user),content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,
-                           voices=branded.public_choices(),
+                           voices=branded.public_choices(),voice_sample_aliases=branded.sample_aliases(),
                            personal_voice=bool(personal.get(user)),personal_preview=personal.has_preview(user),voice_operation_key=secrets.token_hex(16),
                            saved_voices=saved_voices,
                            provider_ready=provider.configured(),languages=provider.LANGUAGES,packs=store.PACKS,
@@ -247,6 +247,15 @@ def create_personal_voice():
 @audio_bp.get('/personal-voice/preview')
 def personal_voice_preview():
     raw=personal.preview(session['user_id'])
+    if not raw:abort(404)
+    response=send_file(io.BytesIO(raw),mimetype='audio/mpeg')
+    response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
+    return response
+
+
+@audio_bp.get('/voices/<alias>/sample')
+def branded_voice_sample(alias):
+    raw=branded.sample(alias)
     if not raw:abort(404)
     response=send_file(io.BytesIO(raw),mimetype='audio/mpeg')
     response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
