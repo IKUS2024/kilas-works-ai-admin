@@ -317,7 +317,7 @@ class CallTests(unittest.TestCase):
         self.assertEqual(setup['generationConfig']['responseModalities'],['AUDIO'])
         self.assertEqual(setup['generationConfig']['maxOutputTokens'],1024)
         self.assertEqual(setup['realtimeInputConfig']['activityHandling'],'NO_INTERRUPTION')
-        self.assertIn('new conversation',setup['systemInstruction']['parts'][0]['text'])
+        self.assertIn('This call is separate from chats',setup['systemInstruction']['parts'][0]['text'])
 
     def test_input_diagnostics_count_quiet_pcm_and_transcription_without_retaining_content(self):
         with self.enabled():

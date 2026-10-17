@@ -401,6 +401,98 @@ class PublicSearchTests(unittest.TestCase):
         self.assertNotIn('998123',json.dumps(context))
         self.finish.assert_called_once()
 
+    def test_quote_first_currency_amounts_keep_the_requested_direction(self):
+        cases = (
+            ('Berapa rupiah untuk 100 dolar?', ('USD', 'IDR')),
+            ('Berapa rupiah untuk 10 dolar Singapura?', ('SGD', 'IDR')),
+            ('Berapa USD untuk 100 IDR?', ('IDR', 'USD')),
+            ('How much rupiah for 100 dollars?', ('USD', 'IDR')),
+            ('How much IDR is 100 USD?', ('USD', 'IDR')),
+            ('How much IDR are one hundred USD?', ('USD', 'IDR')),
+            ('Berapa rupiah untuk seratus dolar?', ('USD', 'IDR')),
+            ('Berapa rupiah untuk dua puluh dolar?', ('USD', 'IDR')),
+            ('Berapa rupiah untuk 1.000 dolar?', ('USD', 'IDR')),
+            ('Berapa 100 dolar dalam rupiah?', ('USD', 'IDR')),
+            ('Kurs IDR ke USD sekarang?', ('IDR', 'USD')),
+            ('Current USD to IDR rate?', ('USD', 'IDR')),
+            ('Convert USD to IDR for 100 dollars', ('USD', 'IDR')),
+            ('Konversi USD ke IDR untuk 100 dolar', ('USD', 'IDR')),
+            ('Berapa rupiah untuk 100 USD atau dolar Amerika?', ('USD', 'IDR')),
+            ('Berapa rupiah per dolar?', ('USD', 'IDR')),
+        )
+        for text, pair in cases:
+            with self.subTest(text=text):
+                self.assertEqual(search.currency_pair(text), pair)
+        for text in ('Berapa rupiah untuk dolar?', 'How much rupiah for some dollars?',
+                     'Berapa rupiah untuk beberapa dolar?', 'Berapa rupiah untuk -100 dolar?',
+                     'Berapa rupiah untuk 100 USD dan 100 EUR?',
+                     'Jangan cari berapa rupiah untuk 100 dolar?', 'What is rupiah against USD?'):
+            with self.subTest(text=text):
+                self.assertIsNone(search.currency_pair(text))
+
+    def test_supported_named_dollar_variants_do_not_fall_back_to_usd(self):
+        for name, base in (
+            ('dollar Singapura', 'SGD'), ('dolar Singapore', 'SGD'), ('Singapore dollar', 'SGD'),
+            ('dollar Australia', 'AUD'), ('Australian dollars', 'AUD'),
+            ('dollar Hong Kong', 'HKD'), ('dolar Hongkong', 'HKD'),
+            ('dollar Amerika Serikat', 'USD'), ('dolar US', 'USD'), ('U.S. dollars', 'USD'),
+        ):
+            with self.subTest(name=name):
+                self.assertEqual(search.currency_pair('Berapa kurs '+name+' ke rupiah?'), (base, 'IDR'))
+                self.assertEqual(search.currency_pair('Berapa rupiah untuk 100 '+name+'?'), (base, 'IDR'))
+
+    def test_quote_first_fx_request_dispatches_only_correct_one_unit_pair(self):
+        self.search.activity('ACTIVITY_START')
+        self.search.observe('Berapa rupiah untuk 100 dolar?')
+        self.search.activity('ACTIVITY_END')
+        with patch.object(search, 'INTENT_WAIT_SECONDS', 0):
+            self.fx(ident='quote-first-correct-direction'); self.wait()
+        self.assertTrue(self.response()['available'])
+        self.assertEqual(self.lookups[0][0], [{'role': 'user', 'content':
+            '1 USD to IDR: current published exchange rate'}])
+        self.assertEqual(self.lookups[0][1]['max_calls'], 1)
+        self.reserve.assert_called_once(); self.finish.assert_called_once()
+
+    def test_fx_scope_mismatch_clarifies_before_search_with_bounded_pair_diagnostics(self):
+        for number in range(9):
+            self.search.turn_complete()
+            self.search.observe('PRIVATE_SENTINEL_'+str(number)+'. Berapa kurs USD ke IDR sekarang?')
+            with patch.object(search, 'INTENT_WAIT_SECONDS', 0):
+                self.fx({'base': 'IDR', 'quote': 'USD'}, ident='private-tool-id-'+str(number)); self.wait()
+            response = self.response()
+            self.assertEqual(response['reason'], 'public_request_not_recognized')
+            self.assertIn('No exchange-rate search was sent', response['instruction'])
+            self.assertIn('one brief clarification', response['instruction'])
+            self.assertIn('direction', response['instruction'])
+        self.reserve.assert_not_called(); self.lookup.assert_not_called(); self.finish.assert_not_called()
+        diagnostics = self.search.diagnostic()
+        self.assertEqual(diagnostics['intent_rejections'], {'scope_mismatch': 9})
+        self.assertEqual(diagnostics['currency_pair_mismatches'], [
+            {'requested_pair': ['IDR', 'USD'], 'recognized_pair': ['USD', 'IDR']}]*8)
+        self.assertNotIn('PRIVATE', json.dumps(diagnostics))
+        self.assertNotIn('private-tool-id', json.dumps(diagnostics))
+        diagnostics['currency_pair_mismatches'].clear()
+        self.assertEqual(len(self.search.diagnostic()['currency_pair_mismatches']), 8)
+
+    def test_fx_mismatch_diagnostic_keeps_the_pair_used_by_the_rejected_comparison(self):
+        self.search.observe('Berapa kurs USD ke IDR sekarang?')
+        changed = Event()
+        original_alive = self.search._alive
+        def recognition_update(job):
+            if not changed.is_set():
+                changed.set()
+                with self.search.lock:
+                    self.search.fx_pair = ('IDR', 'USD')
+            return original_alive(job)
+        with patch.object(search, 'INTENT_WAIT_SECONDS', 0), \
+             patch.object(self.search, '_alive', side_effect=recognition_update):
+            self.fx({'base': 'IDR', 'quote': 'USD'}, ident='comparison-snapshot'); self.wait()
+        self.assertTrue(changed.is_set())
+        self.assertEqual(self.search.diagnostic()['currency_pair_mismatches'], [
+            {'requested_pair': ['IDR', 'USD'], 'recognized_pair': ['USD', 'IDR']}])
+        self.assertIn('one brief clarification', self.response()['instruction'])
+        self.reserve.assert_not_called(); self.lookup.assert_not_called()
+
     def test_fx_rejects_extra_private_query_or_unknown_currency_before_reserving(self):
         self.fx({'base':'USD','quote':'IDR','amount':998123});self.wait()
         self.reserve.assert_not_called();self.lookup.assert_not_called()

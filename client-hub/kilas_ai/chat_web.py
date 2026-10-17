@@ -25,6 +25,8 @@ def search_failure_message(error):
         detail = 'Layanan pencarian belum dapat memproses permintaan ini.'
     elif code == 'currency_query_ambiguous':
         detail = 'Permintaan pencarian belum dapat diproses. Perjelas pertanyaannya.'
+    elif code == 'rate_invalid':
+        detail = 'Nilai kurs dari hasil pencarian belum dapat divalidasi.'
     elif code in {'search_incomplete','search_not_completed','search_empty_answer'}:
         detail = 'Layanan pencarian belum mengembalikan hasil yang selesai.'
     else:
@@ -93,6 +95,7 @@ def conversion_instructions(spec):
             'Return ONLY a JSON object with base, quote, rate, as_of, source_url. '
             f'base must be {spec["base"]}, quote must be {spec["quote"]}; '
             'rate is a decimal string for ONE base unit in quote units, taken from the cited source, '
+            'using a dot decimal separator without grouping separators or currency symbols; '
             'never a remembered or assumed rate. as_of must be the source rate date/time in ISO 8601 '
             '(include timezone when a time is available). source_url must match a returned URL citation. '
             'If the source does not establish the rate and its date/time, return null. '
@@ -108,6 +111,23 @@ def conversion_followup(text, previous_request):
     return conversion(f'{match[1]} {previous["base"]} ke {previous["quote"]}')
 
 
+def _published_rate(value):
+    """Accept canonical decimals or explicit grouped decimals without guessing scale."""
+    raw = str(value)
+    if len(raw) > 64:
+        raise ValueError('rate_invalid')
+    if re.fullmatch(r'\d{1,3}(?:,\d{3})+\.\d{1,12}', raw):
+        raw = raw.replace(',', '')
+    elif re.fullmatch(r'\d{1,3}(?:\.\d{3})+,\d{1,12}', raw):
+        raw = raw.replace('.', '').replace(',', '.')
+    if not re.fullmatch(r'\d{1,13}(?:\.\d{1,12})?', raw):
+        raise ValueError('rate_invalid')
+    rate = Decimal(raw)
+    if not rate.is_finite() or not 0 < rate <= Decimal('1e12'):
+        raise ValueError('rate_invalid')
+    return rate
+
+
 def conversion_answer(spec, raw, citations, normalize_url, now=None):
     """Require published-rate metadata and cited provenance before any arithmetic."""
     now = now or datetime.now(timezone.utc)
@@ -116,12 +136,7 @@ def conversion_answer(spec, raw, citations, normalize_url, now=None):
     data = json.loads(wrapped[1] if wrapped else raw)
     if not isinstance(data, dict) or (data.get('base'), data.get('quote')) != (spec['base'], spec['quote']):
         raise ValueError('currency_pair_missing')
-    raw_rate = str(data.get('rate', ''))
-    if not re.fullmatch(r'\d{1,13}(?:\.\d{1,12})?', raw_rate):
-        raise ValueError('rate_invalid')
-    rate = Decimal(raw_rate)
-    if not rate.is_finite() or not 0 < rate <= Decimal('1e12'):
-        raise ValueError('rate_invalid')
+    rate = _published_rate(data.get('rate', ''))
     as_of = str(data.get('as_of', ''))
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2}))?', as_of):
         raise ValueError('rate_time_missing')

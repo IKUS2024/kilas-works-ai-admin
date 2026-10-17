@@ -36,6 +36,12 @@ _TOPICS = {'economy': r'\b(?:ekonomi(?:nya)?|econom(?:y|ic|ics)|inflasi|inflatio
            'weather': r'\b(?:cuaca(?:nya)?|weather)\b'}
 FX_WORDS = r'(?:kurs(?:nya)?|nilai\s+tukar(?:nya)?|exchange\s+rates?)'
 RATE_WORDS = r'(?:'+FX_WORDS+r'|rates?)'
+_QUANTITY_WORD = (r'(?:satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh|sebelas|'
+                  r'belas|puluh|seratus|ratus|seribu|ribu|juta|miliar|one|two|three|four|five|'
+                  r'six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|hundred|'
+                  r'thousand|million|billion)')
+_QUOTE_FIRST_AMOUNT = (r'(?:\d+(?:[.,]\d+)*(?:\s+(?:ribu|juta|miliar|thousand|million|billion))?|'
+                       +_QUANTITY_WORD+r'(?:\s+'+_QUANTITY_WORD+r'){0,5})')
 
 
 def search_opt_out(text):
@@ -168,10 +174,13 @@ def currency_pair(text, previous=None):
     if search_opt_out(text):
         return None
     for pattern, code in (
-        (r'\b(?:singapore dollars?|dolar singapura)\b','SGD'),
-        (r'\b(?:australian dollars?|dolar australia)\b','AUD'),
-        (r'\b(?:hong kong dollars?|dolar hong\s*kong)\b','HKD'),
-        (r'\b(?:u\.?s\.? dollars?|dolar (?:amerika|as))\b','USD'),
+        (r'\b(?:(?:singapore|singaporean|singapura)\s+(?:dollars?|dolars?)|'
+         r'(?:dollars?|dolars?)\s+(?:singapura|singapore))\b','SGD'),
+        (r'\b(?:(?:australian|australia)\s+(?:dollars?|dolars?)|'
+         r'(?:dollars?|dolars?)\s+australia)\b','AUD'),
+        (r'\b(?:hong\s*kong\s+(?:dollars?|dolars?)|(?:dollars?|dolars?)\s+hong\s*kong)\b','HKD'),
+        (r'\b(?:(?:u\.?s\.?|american|amerika(?:\s+serikat)?)\s+(?:dollars?|dolars?)|'
+         r'(?:dollars?|dolars?)\s+(?:amerika(?:\s+serikat)?|as|u\.?s\.?))\b','USD'),
         (r'\b(?:pounds? sterling|pound inggris|poundsterling)\b','GBP')):
         text = re.sub(pattern, code.lower(), text)
     text = re.sub(r'\bdollars\b','dollar',text)
@@ -183,10 +192,18 @@ def currency_pair(text, previous=None):
         spec = chat_web.conversion(text)
         if spec:
             return spec['base'], spec['quote']
-        # "rupiah per dolar" asks for IDR per one USD, the reverse of word order.
-        between = text[matches[0].end():matches[-1].start()]
-        if re.search(r'\b(?:per|untuk\s+(?:satu|1)|for\s+one)\b', between):
+        # Quote-first amounts ("rupiah untuk 100 dolar") ask for the second
+        # currency in the first. Amounts establish direction only; no amount
+        # or inspected speech becomes part of the one-unit outbound query.
+        # A later repeated name ("USD to IDR for 100 dollars") must not
+        # replace the second currency's directional boundary.
+        second = next(match for match in matches[1:] if chat_web.ALIASES[match.group()] == codes[1])
+        between = text[matches[0].end():second.start()]
+        if (re.search(r'\bper\b', between) or re.fullmatch(
+                r'\s*(?:untuk|for|is|are)\s+'+_QUOTE_FIRST_AMOUNT+r'\s*', between)):
             return codes[1], codes[0]
+        if re.search(r'\b(?:untuk|for|is|are)\b', between):
+            return None  # Unresolved amount wording must not guess a direction.
         return tuple(codes)
     bare_rate_followup = re.fullmatch(
         r"\s*(?:(?:what is|what's|check|what about)\s+)?(?:the\s+)?rate"
@@ -265,7 +282,8 @@ class PublicSearch:
                       'public_intents_seen': 0, 'fx_intents_seen': 0, 'opt_outs': 0,
                       'schema_rejected': 0, 'cancelled': 0, 'available_replies': 0, 'unavailable_replies': 0,
                       'function_responses_sent': 0, 'reply_delivery_failed': 0, 'failures': {},
-                      'intent_rejections': {}, 'lookup_attempts': [], 'failures_by_kind': {}}
+                      'intent_rejections': {}, 'lookup_attempts': [], 'failures_by_kind': {},
+                      'currency_pair_mismatches': []}
 
     def activity(self, kind):
         with self.lock:
@@ -517,6 +535,7 @@ class PublicSearch:
         fx = False
         generic = False
         kind = 'indonesia'
+        intent_rejection = None
         key = 'call-web-'+hashlib.sha256((self.call.ident+':'+job['id']).encode()).hexdigest()[:48]
         try:
             args = job['args']
@@ -542,6 +561,7 @@ class PublicSearch:
             while True:
                 with self.lock:
                     minimized = ai_call_public_query.minimize(args['query'], self.buffer) if generic else None
+                    recognized_pair = self.fx_pair if fx else None
                     if (generic and minimized is None and self.previous_query and same_topic_retry(self.buffer)
                             and ' '.join(args['query'].split()).casefold() == self.previous_query.casefold()):
                         minimized = self.previous_query
@@ -550,7 +570,7 @@ class PublicSearch:
                     match = (minimized is not None and self.fx_pair is None
                              and not re.search(r'\b'+FX_WORDS+r'\b', self.buffer, re.I)
                              and not chat_web.conversion_requested(self.buffer)) if generic else (
-                        self.fx_pair == requested_pair if fx else self.topic == args['topic'])
+                        recognized_pair == requested_pair if fx else self.topic == args['topic'])
                     eligible = (not self.speaking and match and monotonic()-self.last_text_at >= TEXT_SETTLE_SECONDS
                                 and self.number != self.used_number and not self.opt_out
                                 and self.number == job.get('request_number', self.number))
@@ -572,12 +592,18 @@ class PublicSearch:
                                   'opt_out' if self.opt_out else
                                   'speech_active' if self.speaking else
                                   'no_transcript' if not self.buffer else
-                                  'scope_unrecognized' if (minimized if generic else self.fx_pair if fx else self.topic) is None else
+                                  'scope_unrecognized' if (minimized if generic else recognized_pair if fx else self.topic) is None else
                                   'scope_mismatch' if not match else
                                   'turn_already_used' if self.number == self.used_number else
                                   'text_unsettled')
                         counts = self.stats['intent_rejections']
                         counts[reason] = counts.get(reason, 0)+1
+                        intent_rejection = reason
+                        if fx and reason == 'scope_mismatch':
+                            mismatches = self.stats['currency_pair_mismatches']
+                            mismatches.append({'requested_pair': list(requested_pair),
+                                               'recognized_pair': list(recognized_pair)})
+                            self.stats['currency_pair_mismatches'] = mismatches[-8:]
                     raise tools.ToolUnavailable('public_request_not_recognized', code='public_request_not_recognized')
                 self.changed.wait(.05); self.changed.clear()
             if not self._alive(job) or job['replied']:
@@ -638,6 +664,13 @@ class PublicSearch:
                 instruction = ('Ask for a concise public-only topic without personal details, identifiers, URLs '
                                'or credentials. No search was sent. Use the dedicated currency tool on a new '
                                'currency request. Do not claim public lookup is unavailable or retry this turn.')
+            if fx and code == 'public_request_not_recognized' and intent_rejection == 'scope_mismatch':
+                instruction = ('No exchange-rate search was sent because the requested currency direction did not '
+                               'match the recognized spoken pair. Ask one brief clarification of which currency '
+                               'to convert from and which to convert to. Do not mention internal parser or tool '
+                               'comparison to the person. Do not claim current rates cannot be '
+                               'verified, redirect to websites, invent a network/source failure, or retry before '
+                               'the person clarifies the direction.')
             if code == 'quota_unavailable':
                 instruction = ('Explain this lookup was blocked by account search capacity, so current facts were '
                                'not verified. Do not claim the service lacks lookup capability or bypass the limit.')
