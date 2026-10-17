@@ -269,6 +269,7 @@ class ExecutionTests(unittest.TestCase):
             proof.run(app.app);proof.run(app.app)
             self.assertFalse(execution.capability(self.owner)['available'])
         create.assert_called_once()
+        self.assertEqual(create.call_args.kwargs['timeout'],30)
         rows=db.query_all('SELECT operation_key,state,reserved_micro_usd FROM kilas_workspace_executions ORDER BY id')
         self.assertEqual([r['operation_key'] for r in rows],['execution:initial-proof-v1','execution:diagnostic-proof-v1'])
         self.assertEqual(rows[0]['state'],'UNKNOWN');self.assertEqual(sum(r['reserved_micro_usd'] for r in rows),17760)

@@ -109,10 +109,11 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
     from .work_runtime import progress
     key='execution:'+step['idempotency_key']
     run_id=reserve(job,key,customer=not _proof);sandbox=None;outcome={'execution':'unknown','run_id':run_id}
-    terminal='UNKNOWN';started=time.monotonic();deadline=started+45;boundary_verified=False;phase='creating'
+    seconds=30 if _proof else MAX_SECONDS
+    terminal='UNKNOWN';started=time.monotonic();deadline=started+(25 if _proof else 45);boundary_verified=False;phase='creating'
     try:
         progress(job,'STARTING_SANDBOX','Menyiapkan sandbox…')
-        sandbox=Sandbox.create(template='base',api_key=os.environ['E2B_API_KEY'],timeout=MAX_SECONDS,
+        sandbox=Sandbox.create(template='base',api_key=os.environ['E2B_API_KEY'],timeout=seconds,
             envs={},metadata={'operation':hashlib.sha256(key.encode()).hexdigest()},
             allow_internet_access=False,network={'allow_public_traffic':False,'deny_out':['0.0.0.0/0']},
             lifecycle={'on_timeout':'kill','auto_resume':False},request_timeout=10,retries=0)
@@ -134,7 +135,7 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
         sandbox.files.write('/root/kilas-runner.py',harness,user='root',request_timeout=5)
         phase='launching'
         sandbox.commands.run(RUNNER_COMMAND,
-                             user='root',background=True,timeout=35,request_timeout=5)
+                             user='root',background=True,timeout=23 if _proof else 35,request_timeout=5)
         progress(job,'RUNNING_CODE','Menjalankan Python…')
         phase='waiting_report'
         while True:
@@ -192,6 +193,6 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
             import math
             # Include creation, transfers and kill acknowledgement plus one second.
             # The accepted <=2 vCPU / <=4 GiB profile costs <=46 micro-USD/s.
-            micro=min(micro,46*min(MAX_SECONDS,max(1,math.ceil(time.monotonic()-started)+1)))
+            micro=min(micro,46*min(seconds,max(1,math.ceil(time.monotonic()-started)+1)))
         outcome['compute_cost_upper_estimate_micro_usd']=micro
         reconcile(run_id,terminal,outcome,cleaned,micro)
