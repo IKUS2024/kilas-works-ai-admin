@@ -27,7 +27,14 @@ class PersonalVoiceTests(unittest.TestCase):
             second=self.clone(key='named-second-key-1234',name='Suara Presentasi').json
             self.assertEqual(clone.call_count,2)
         self.assertEqual(len(personal.saved_voices(self.user)),2)
-        self.assertNotIn('privateNamedA',self.client.get('/kilas-translator').text)
+        before=[dict(row) for row in f.db.query_all('SELECT * FROM kilas_audio_saved_voices WHERE user_id=?',(self.user,))]
+        page=self.client.get('/kilas-translator').text
+        self.assertNotIn('privateNamedA',page)
+        for removed in ('play-personal-preview','open-recorder','personal-preview','voice-preview-missing','voice-preview-error'):
+            self.assertNotIn('id="'+removed+'"',page)
+        for retained in ('add-saved-voice','rename-saved-voice','delete-saved-voice','saved-voice-choice','record-playback','voice-consent','voice-generate'):
+            self.assertIn('id="'+retained+'"',page)
+        self.assertEqual(before,[dict(row) for row in f.db.query_all('SELECT * FROM kilas_audio_saved_voices WHERE user_id=?',(self.user,))])
         r,tts,_=self.create(voice='personal:'+str(second['id']))
         self.assertEqual(r.status_code,201);self.assertEqual(tts.call_args.args[1],'privateNamedB');self.assertTrue(tts.call_args.kwargs['personal'])
         job=r.json['id']
@@ -103,7 +110,7 @@ class PersonalVoiceTests(unittest.TestCase):
         self.credit()
         f.db.execute("INSERT INTO kilas_audio_personal_voices(user_id,voice_id) VALUES (?,?)",(self.user,'legacyPrivate123'))
         page=self.client.get('/kilas-translator').text
-        self.assertIn('Contoh rekaman belum tersedia',page);self.assertEqual(self.client.get('/kilas-translator/personal-voice/preview').status_code,404)
+        self.assertNotIn('id="voice-preview-missing"',page);self.assertEqual(self.client.get('/kilas-translator/personal-voice/preview').status_code,404)
         with patch.object(provider,'clone_voice',return_value='newPrivate123'),patch.object(provider,'delete_voice'):
             self.assertEqual(self.clone(replace='yes').status_code,200)
         preview=self.client.get('/kilas-translator/personal-voice/preview')

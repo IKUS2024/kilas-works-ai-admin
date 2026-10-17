@@ -35,7 +35,13 @@ def main():
                 assert response.value.ok,response.value.text()
                 expect(page.locator('#personal-voice-state')).to_have_text('Siap digunakan');assert personal.get(case.user)=='personalPrivate123'
                 page.reload(wait_until='networkidle');page.locator('#voiceover-tab').click();page.locator('[name=voice_kind][value=personal]').check();expect(page.locator('#personal-voice-state')).to_have_text('Siap digunakan');assert 'personalPrivate123' not in page.content() and 'stockPrivate123' not in page.content()
-                page.locator('#play-personal-preview').click();expect(page.locator('#personal-preview')).to_be_visible();assert not page.locator('#personal-preview').evaluate('el=>el.paused');page.locator('#personal-preview').evaluate('el=>el.pause()')
+                expect(page.locator('#play-personal-preview,#open-recorder,#personal-preview,#voice-preview-missing,#voice-preview-error')).to_have_count(0)
+                for ident in ('add-saved-voice','rename-saved-voice','delete-saved-voice','saved-voice-choice'):
+                    expect(page.locator('#'+ident)).to_be_visible()
+                before_cancel=clone.call_count
+                page.locator('#add-saved-voice').click();page.locator('#record-cancel').click()
+                expect(page.locator('#add-saved-voice')).to_be_focused();expect(page.locator('#voice-generate')).to_be_enabled()
+                assert clone.call_count==before_cancel
                 page.locator('#audio-script').fill('Halo, saya di Bali.');page.locator('#voice-translate-toggle').check();expect(page.locator('#voice-generate')).to_be_disabled()
                 before=speech.call_count
                 with patch.object(audio_voice_script,'translate',return_value={'text':'Hello, I am in Bali.','source_language':'id'}):
@@ -55,10 +61,10 @@ def main():
                     assert downloaded.value.suggested_filename.endswith('.mp3')
                     page.goto(origin+'/kilas-translator',wait_until='networkidle');page.locator('#voiceover-tab').click();page.locator('[name=voice_kind][value=personal]').check()
                 if width==390:
-                    page.once('dialog',lambda d:d.accept());page.locator('#open-recorder').click();page.locator('#record-start').click();expect(page.locator('#record-timer')).not_to_have_text('0:00');page.locator('#record-stop').click();expect(page.locator('#record-playback')).to_be_visible();page.locator('#voice-consent').check()
+                    page.locator('#add-saved-voice').click();page.locator('#record-start').click();expect(page.locator('#record-timer')).not_to_have_text('0:00');page.locator('#record-stop').click();expect(page.locator('#record-playback')).to_be_visible();page.locator('#voice-consent').check()
                     with patch.object(provider,'clone_voice',side_effect=provider.ProviderError()):
                         page.locator('#save-personal-voice').click();expect(page.locator('#record-error')).to_contain_text('belum berhasil');assert personal.get(case.user)=='personalPrivate123'
-                    page.locator('#save-personal-voice').click();expect(page.locator('#voice-recorder')).to_be_hidden()
+                    page.locator('#record-cancel').click();expect(page.locator('#voice-recorder')).to_be_hidden()
                     page.locator('#add-saved-voice').click();page.locator('#record-voice-name').fill('Suara Presentasi');page.locator('#record-start').click();expect(page.locator('#record-timer')).not_to_have_text('0:00');page.locator('#record-stop').click();expect(page.locator('#record-playback')).to_be_visible();page.locator('#voice-consent').check()
                     with patch.object(provider,'clone_voice',return_value='secondPersonalPrivate456'):
                         page.locator('#save-personal-voice').click();expect(page.locator('#voice-recorder')).to_be_hidden()

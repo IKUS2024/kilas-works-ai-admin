@@ -115,7 +115,8 @@ class VoiceUploadTests(unittest.TestCase):
         self.assertEqual(row['name'],'Synthetic upload')
         preview=self.client.get('/kilas-translator/personal-voices/'+str(ident)+'/preview')
         self.assertEqual(preview.status_code,200); self.assertEqual(preview.mimetype,'audio/mpeg'); self.assertLess(media.mp3_duration(preview.data),1000)
-        with self.client.session_transaction() as state:state['user_id']=self.other
+        from auth_test_helpers import authenticate
+        authenticate(self.client,f.repo.get_user_by_id(self.other),_csrf_token='audio-csrf')
         self.assertEqual(self.client.get('/kilas-translator/personal-voices/'+str(ident)+'/preview').status_code,404)
 
     def test_uploaded_replacement_keeps_saved_voice_until_success(self):

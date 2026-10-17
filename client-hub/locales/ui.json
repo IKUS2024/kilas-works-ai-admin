@@ -8400,5 +8400,10 @@
   "Tindakan ini tidak dapat dibatalkan.": {"en": "This action cannot be undone.", "es": "Esta acción no se puede deshacer.", "zh": "此操作无法撤销。"},
   "Chat akan dihapus dari riwayat. Pekerjaan dan file tetap tersimpan.": {"en": "This chat will be removed from history. Work and files remain saved.", "es": "Este chat se quitará del historial. El trabajo y los archivos se conservarán.", "zh": "此对话将从历史记录中移除。工作和文件仍会保留。"},
   "Nama chat belum dapat disimpan. Coba lagi.": {"en": "The chat name could not be saved. Try again.", "es": "No se pudo guardar el nombre. Inténtalo de nuevo.", "zh": "无法保存对话名称，请重试。"},
-  "Chat belum dapat dihapus. Coba lagi.": {"en": "The chat could not be deleted. Try again.", "es": "No se pudo eliminar el chat. Inténtalo de nuevo.", "zh": "无法删除对话，请重试。"}
+  "Chat belum dapat dihapus. Coba lagi.": {"en": "The chat could not be deleted. Try again.", "es": "No se pudo eliminar el chat. Inténtalo de nuevo.", "zh": "无法删除对话，请重试。"},
+  "Saya punya izin dan menyetujui pemrosesan ucapan. Audio dapat dikirim selagi saya berbicara.": {
+    "en": "I have permission and consent to speech processing. Audio may be sent while I speak.",
+    "es": "Tengo permiso y doy mi consentimiento para el procesamiento de voz. El audio puede enviarse mientras hablo.",
+    "zh": "我有权并同意处理语音。说话时可能会发送音频。"
+  }
 }

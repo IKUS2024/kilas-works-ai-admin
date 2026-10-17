@@ -36,17 +36,13 @@
 <select id="saved-voice-choice">{% for voice in saved_voices %}<option value="{{ voice.id }}" data-preview="{{ 'true' if voice.has_preview else 'false' }}">{{ voice.name }}</option>{% else %}<option value="">{{ ui_t("Belum ada suara tersimpan") }}</option>{% endfor %}</select>
 <p id="saved-voice-notice" role="status">{{ ui_t("Pilih suara untuk digunakan pada naskah berikutnya.") }}</p>
 <div class="voice-preview-actions">
-<button type="button" class="btn secondary" id="play-personal-preview" {{ 'hidden' if not saved_voices or not saved_voices[0].has_preview }}>{{ ui_t("Putar Contoh Suara") }}</button>
 <button type="button" class="btn secondary" id="add-saved-voice" {{ 'disabled' if not provider_ready or (not balance.exempt and not balance.available) }}>{{ ui_t("Tambah Suara") }}</button>
-<button type="button" class="btn secondary" id="open-recorder" {{ 'disabled' if not saved_voices }}>{{ ui_t("Ganti Contoh Suara") }}</button>
 <button type="button" class="btn secondary" id="rename-saved-voice" {{ 'disabled' if not saved_voices }}>{{ ui_t("Ubah Nama") }}</button>
 <button type="button" class="btn secondary" id="delete-saved-voice" {{ 'disabled' if not saved_voices }}>{{ ui_t("Hapus Suara") }}</button>
 </div>
 <div id="saved-voice-rename" hidden><label for="saved-voice-new-name">{{ ui_t("Nama suara") }}</label><input type="text" id="saved-voice-new-name" maxlength="60"><div class="voice-preview-actions"><button type="button" class="btn secondary" id="save-voice-name">{{ ui_t("Simpan Nama") }}</button><button type="button" class="btn secondary" id="cancel-voice-name">{{ ui_t("Batal") }}</button></div></div>
 <p id="saved-voice-error" role="alert" hidden></p>
 </div>
-<p id="voice-preview-missing" {{ 'hidden' if not saved_voices or saved_voices[0].has_preview }}>{{ ui_t("Contoh rekaman belum tersedia. Rekam ulang jika ingin menyimpan contoh suara.") }}</p>
-<audio id="personal-preview" controls preload="none" {{ 'hidden' if not saved_voices or not saved_voices[0].has_preview }} {% if saved_voices and saved_voices[0].has_preview %}src="{{ url_for('kilas_audio.saved_voice_preview',ident=saved_voices[0].id) }}"{% endif %} aria-label="{{ ui_t('Contoh rekaman asli suara tersimpan') }}"></audio><p id="voice-preview-error" role="alert" hidden></p>
 <div id="voice-recorder" hidden>
 <h3>{{ ui_t("Tambah contoh suara") }}</h3><label for="record-voice-name">{{ ui_t("Nama suara") }}</label><input type="text" id="record-voice-name" maxlength="60" placeholder="{{ ui_t('Contoh: Suara Irvan') }}">
 <label for="voice-sample-file">{{ ui_t("Upload audio") }}</label><input type="file" id="voice-sample-file" accept=".mp3,.wav,.m4a,.ogg,.webm,audio/mpeg,audio/wav,audio/mp4,audio/ogg,audio/webm" aria-describedby="voice-sample-limit"><p id="voice-sample-limit">{{ ui_t("MP3, WAV, M4A, OGG, WebM · maks. 10 MB dan 3 menit. Atau gunakan mikrofon di bawah.") }}</p><p id="voice-sample-selection" role="status" hidden></p>
@@ -77,7 +73,7 @@
 </main><aside class="audio-history" id="audio-history" data-history-url="{{ url_for('kilas_audio.history_fragment') }}" data-selected-job="{{ job.id if job else '' }}"><h2>{{ ui_t('Recent') }}</h2><div data-audio-history-content>{% include 'kilas_translator/_history.html' %}</div><p data-audio-history-message role="status" aria-live="polite"></p></aside></div>
 </section>{% include '_generation_feedback.html' %}<script src="{{ url_for('static',filename='kilas_audio.js',v='app-language-20261015') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_audio_history.js',v='app-language-20261015') }}" defer></script>
-<script src="{{ url_for('static',filename='kilas_personal_voice.js',v='app-language-20261015') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_personal_voice.js',v='sample-controls-removed-20261017') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_voice_script.js',v='app-language-20261015') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_video_script.js',v='app-language-20261015') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_script_assist.js',v='app-language-20261015') }}" defer></script>

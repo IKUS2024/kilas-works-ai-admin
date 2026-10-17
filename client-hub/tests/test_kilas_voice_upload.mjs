@@ -11,7 +11,7 @@ function fixture({saved=false}={}){
  const stats={requests:[],mics:0,revoked:[],urls:0,keys:0,now:0,recorders:[],mic:null,handler:null};
  const timers=new Map(),intervals=new Map(),events=new Map();let seq=0;
  function node(){return {hidden:false,disabled:false,value:'',textContent:'',checked:false,dataset:{},handlers:new Map(),addEventListener(type,fn){this.handlers.set(type,fn);},fire(type,event={}){return this.handlers.get(type)?.(event);},pause(){},removeAttribute(key){delete this[key];},focus(){},querySelectorAll(){return [];}};}
- const ids=['personal-voice-setup','voice-recorder','open-recorder','record-start','record-stop','record-again','record-cancel','record-playback','voice-consent','save-personal-voice','record-state','record-timer','record-error','selected-voice','kilas-voice-choice','voice-generate','saved-voice-choice','record-voice-name','voice-sample-file','voice-sample-selection','kilas-voice-options','personal-ready','add-saved-voice','personal-voice-state','audio-script','voice-language','voice-language-status','play-personal-preview','personal-preview','voice-preview-error','voice-preview-missing','rename-saved-voice','delete-saved-voice','saved-voice-notice','saved-voice-rename','saved-voice-new-name','saved-voice-error','cancel-voice-name','save-voice-name'];
+ const ids=['personal-voice-setup','voice-recorder','record-start','record-stop','record-again','record-cancel','record-playback','voice-consent','save-personal-voice','record-state','record-timer','record-error','selected-voice','kilas-voice-choice','voice-generate','saved-voice-choice','record-voice-name','voice-sample-file','voice-sample-selection','kilas-voice-options','personal-ready','add-saved-voice','personal-voice-state','audio-script','voice-language','voice-language-status','rename-saved-voice','delete-saved-voice','saved-voice-notice','saved-voice-rename','saved-voice-new-name','saved-voice-error','cancel-voice-name','save-voice-name'];
  const nodes=Object.fromEntries(ids.map(id=>['#'+id,node()]));const n=id=>nodes['#'+id];
  const radioPersonal=Object.assign(node(),{value:'personal',checked:true}),radioKilas=Object.assign(node(),{value:'kilas'});
  const library=n('saved-voice-choice');library.options=saved?[{value:'7',textContent:'Saved',dataset:{preview:'true'}}]:[{value:'',textContent:'None',dataset:{}}];library.value=saved?'7':'';
@@ -19,7 +19,7 @@ function fixture({saved=false}={}){
  library.add=option=>library.options.push(option);library.querySelector=()=>({remove(){library.options=library.options.filter(o=>o.value!=='');}});
  n('personal-voice-setup').dataset.operationKey='initial-operation-key';n('voice-generate').dataset.enabled='true';n('kilas-voice-choice').value='kilas-male';n('voice-language').value='auto';n('voice-recorder').hidden=true;
  n('audio-script').value='Synthetic words';n('voice-recorder').querySelectorAll=()=>['record-start','record-stop','record-again','record-cancel','voice-sample-file','voice-consent','record-voice-name','save-personal-voice'].map(n);
- n('personal-ready').querySelectorAll=()=>['open-recorder','add-saved-voice','rename-saved-voice','delete-saved-voice'].map(n);
+ n('personal-ready').querySelectorAll=()=>['add-saved-voice','rename-saved-voice','delete-saved-voice'].map(n);
  const document={querySelector:q=>q==='[name=voice_kind]:checked'?(radioPersonal.checked?radioPersonal:radioKilas):q==='#audio-studio [name=csrf_token]'?{value:'synthetic-csrf'}:nodes[q],querySelectorAll:()=>[radioPersonal,radioKilas],addEventListener(){}};
  class Recorder{
   static isTypeSupported(){return true;}state='inactive';mimeType='audio/webm';handlers=new Map();
@@ -33,7 +33,7 @@ function fixture({saved=false}={}){
  const context={document,window,navigator,MediaRecorder:Recorder,Blob,AbortController,FormData:Form,crypto:{randomUUID:()=>`operation-key-${++stats.keys}`},confirm:()=>true,Option:class{constructor(text,value){this.textContent=text;this.value=value;this.dataset={};}},URL:{createObjectURL:()=>`blob:synthetic-${++stats.urls}`,revokeObjectURL:url=>stats.revoked.push(url)},Date:{now:()=>stats.now},setInterval:(fn,ms)=>{const k=++seq;intervals.set(k,{fn,ms});return k;},clearInterval:k=>intervals.delete(k),setTimeout:(fn,ms)=>{const k=++seq;timers.set(k,{fn,ms});return k;},clearTimeout:k=>timers.delete(k),fetch:async(url,options)=>{stats.requests.push({url,options});return stats.handler?stats.handler(url,options):response();}};
  vm.runInNewContext(source,context);
  const file=(name='voice.mp3',type='audio/mpeg',size=100)=>({name,type,size});
- return {n,stats,timers,intervals,events,radios:[radioPersonal,radioKilas],library,file,async choose(selected=file()){n('voice-sample-file').files=selected?[selected]:[];return n('voice-sample-file').fire('change');},consent(){n('voice-consent').checked=true;n('voice-consent').fire('change');},open(){n(saved?'open-recorder':'add-saved-voice').fire('click');},async cancel(){n('record-cancel').fire('click');await flush();}};
+ return {n,stats,timers,intervals,events,radios:[radioPersonal,radioKilas],library,file,async choose(selected=file()){n('voice-sample-file').files=selected?[selected]:[];return n('voice-sample-file').fire('change');},consent(){n('voice-consent').checked=true;n('voice-consent').fire('change');},open(){n('add-saved-voice').fire('click');},async cancel(){n('record-cancel').fire('click');await flush();}};
 }
 
 test('validated upload previews locally, requires consent and saves through existing named clone endpoint',async()=>{
@@ -98,10 +98,10 @@ test('upload supersedes microphone and late stop/error cannot stop a subsequent 
  f.stats.now=2000;f.n('record-stop').fire('click');assert.equal(f.stats.mics,0);assert.equal(f.n('record-playback').hidden,false);f.consent();assert.equal(f.n('save-personal-voice').disabled,false);f.events.get('pagehide')();assert.equal(f.n('record-playback').hidden,true);assert.equal(f.intervals.size,0);
 });
 
-test('failed replacement preserves sample for idempotent retry and submits owned saved ID',async()=>{
+test('failed Add Voice preserves the selected saved voice and retries without replacing it',async()=>{
  const f=fixture({saved:true});f.open();await f.choose();f.consent();const key=f.n('personal-voice-setup').dataset.operationKey;
  f.stats.handler=async()=>response({error:'Try again'},false);await f.n('save-personal-voice').fire('click');assert.equal(f.n('record-playback').hidden,false);assert.equal(f.n('save-personal-voice').disabled,false);assert.equal(f.library.value,'7');
- await f.n('save-personal-voice').fire('click');const posts=f.stats.requests.slice(1);assert.equal(posts[0].options.body.get('operation_key'),key);assert.equal(posts[1].options.body.get('operation_key'),key);assert.equal(posts[0].options.body.get('saved_voice_id'),'7');
+ await f.n('save-personal-voice').fire('click');const posts=f.stats.requests.slice(1);assert.equal(posts[0].options.body.get('operation_key'),key);assert.equal(posts[1].options.body.get('operation_key'),key);assert.equal(posts[0].options.body.get('saved_voice_id'),undefined);assert.equal(posts[1].options.body.get('saved_voice_id'),undefined);
 });
 
 test('changing voice kind while inspecting aborts upload and preserves voiceover form',async()=>{

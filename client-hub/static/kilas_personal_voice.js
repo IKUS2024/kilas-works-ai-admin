@@ -1,22 +1,21 @@
 (() => {
   const t=(message,values)=>window.KilasUI ? window.KilasUI.t(message,values) : Object.entries(values||{}).reduce((text,[key,value])=>text.replaceAll('{'+key+'}',String(value)),message);
   const setup=document.querySelector('#personal-voice-setup');if(!setup||setup.dataset.initialized)return;setup.dataset.initialized='true';
-  const panel=document.querySelector('#voice-recorder'),open=document.querySelector('#open-recorder');
+  const panel=document.querySelector('#voice-recorder'),add=document.querySelector('#add-saved-voice');
   const start=document.querySelector('#record-start'),stop=document.querySelector('#record-stop'),again=document.querySelector('#record-again'),cancel=document.querySelector('#record-cancel');
   const playback=document.querySelector('#record-playback'),consent=document.querySelector('#voice-consent'),save=document.querySelector('#save-personal-voice');
   const state=document.querySelector('#record-state'),timer=document.querySelector('#record-timer'),error=document.querySelector('#record-error');
   const selected=document.querySelector('#selected-voice'),stock=document.querySelector('#kilas-voice-choice'),generate=document.querySelector('#voice-generate');
   const library=document.querySelector('#saved-voice-choice'),nameInput=document.querySelector('#record-voice-name');
   const upload=document.querySelector('#voice-sample-file'),selection=document.querySelector('#voice-sample-selection');
-  let replacing='';
   let recorder=null,stream=null,tick=null,blob=null,objectUrl='',started=0,version=0,saving=false,inspecting=false,inspection=null,inspectionTimer=null,filename='recording';
   function fail(text){error.textContent=t(text);error.hidden=false;}
   function tracksOff(){stream?.getTracks().forEach(t=>t.stop());stream=null;clearInterval(tick);tick=null;}
   function discard(){inspection?.abort();inspection=null;clearTimeout(inspectionTimer);inspectionTimer=null;inspecting=false;if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl='';blob=null;filename='recording';upload.value='';selection.textContent='';selection.hidden=true;playback.pause();playback.removeAttribute('src');playback.hidden=true;consent.checked=false;save.disabled=true;}
   function choices(){const mine=document.querySelector('[name=voice_kind]:checked').value==='personal';setup.hidden=!mine;document.querySelector('#kilas-voice-options').hidden=mine;selected.value=mine?(library.value?'personal:'+library.value:''):stock.value;generate.disabled=setup.dataset.translationReady==='false'||saving||!panel.hidden||generate.dataset.enabled!=='true'||(mine?!library.value:!stock.value);}
   document.querySelectorAll('[name=voice_kind]').forEach(el=>el.addEventListener('change',()=>{if(!panel.hidden&&!saving){version++;if(recorder?.state==='recording')recorder.stop();tracksOff();discard();panel.hidden=true;document.querySelector('#personal-ready').hidden=false;}choices();}));stock.addEventListener('change',choices);document.addEventListener('voice-translation-state',choices);choices();
-  function openRecorder(replace){if(saving||generate.dataset.enabled!=='true')return;if(replace&&(!library.value||!confirm(t('Ganti contoh suara ini? Suara saat ini tetap tersedia sampai penggantian berhasil.'))))return;replacing=replace?library.value:'';nameInput.value=replace?library.selectedOptions[0].textContent:t('Suara Saya');error.hidden=true;document.querySelector('#personal-ready').hidden=true;panel.hidden=false;state.textContent=t('Pilih file audio atau mulai merekam');timer.textContent='0:00';start.hidden=false;stop.hidden=true;again.hidden=true;choices();nameInput.focus({preventScroll:true});}
-  open.addEventListener('click',()=>openRecorder(true));document.querySelector('#add-saved-voice').addEventListener('click',()=>openRecorder(false));
+  function openRecorder(){if(saving||generate.dataset.enabled!=='true')return;nameInput.value=t('Suara Saya');error.hidden=true;document.querySelector('#personal-ready').hidden=true;panel.hidden=false;state.textContent=t('Pilih file audio atau mulai merekam');timer.textContent='0:00';start.hidden=false;stop.hidden=true;again.hidden=true;choices();nameInput.focus({preventScroll:true});}
+  add.addEventListener('click',openRecorder);
   upload.addEventListener('change',async()=>{
     const file=upload.files?.[0];if(saving||!file)return; // Closing the picker keeps the current sample.
     const current=++version;if(recorder?.state==='recording')recorder.stop();tracksOff();discard();error.hidden=true;setup.dataset.operationKey=crypto.randomUUID().replaceAll('-','');
@@ -58,12 +57,12 @@
     }catch{if(current!==version)return;tracksOff();start.disabled=false;state.textContent=t('Mikrofon belum tersedia');fail(t('Mikrofon belum dapat digunakan. Upload audio atau periksa izin mikrofon lalu coba lagi.'));}
   }
   start.addEventListener('click',record);again.addEventListener('click',record);stop.addEventListener('click',()=>{if(recorder?.state==='recording'){stop.disabled=true;recorder.stop();stop.disabled=false;}});
-  cancel.addEventListener('click',()=>{if(saving)return;version++;if(recorder?.state==='recording')recorder.stop();tracksOff();discard();panel.hidden=true;document.querySelector('#personal-ready').hidden=false;start.disabled=false;choices();open.focus({preventScroll:true});});
+  cancel.addEventListener('click',()=>{if(saving)return;version++;if(recorder?.state==='recording')recorder.stop();tracksOff();discard();panel.hidden=true;document.querySelector('#personal-ready').hidden=false;start.disabled=false;choices();add.focus({preventScroll:true});});
   consent.addEventListener('change',()=>{save.disabled=saving||inspecting||!blob?.size||!consent.checked;});
   save.addEventListener('click',async()=>{
     if(saving||inspecting||!blob?.size||!consent.checked)return;if(!nameInput.value.trim()){fail(t('Beri nama suara sebelum menyimpan.'));nameInput.focus();return;}saving=true;setup.dataset.busy='true';error.hidden=true;choices();
-    const controls=[...panel.querySelectorAll('button,input')];controls.forEach(el=>el.disabled=true);open.disabled=true;state.textContent=t('Sedang membuat Suara Saya…');
-    const data=new FormData();data.append('csrf_token',document.querySelector('#audio-studio [name=csrf_token]').value);data.append('recording',blob,filename);data.append('consent','yes');data.append('operation_key',setup.dataset.operationKey);data.append('name',nameInput.value.trim());if(replacing)data.append('saved_voice_id',replacing);
+    const controls=[...panel.querySelectorAll('button,input')];controls.forEach(el=>el.disabled=true);add.disabled=true;state.textContent=t('Sedang membuat Suara Saya…');
+    const data=new FormData();data.append('csrf_token',document.querySelector('#audio-studio [name=csrf_token]').value);data.append('recording',blob,filename);data.append('consent','yes');data.append('operation_key',setup.dataset.operationKey);data.append('name',nameInput.value.trim());
     try{
       const response=await fetch('/kilas-translator/personal-voice',{method:'POST',body:data,credentials:'same-origin',headers:{'X-CSRF-Token':document.querySelector('#audio-studio [name=csrf_token]').value}});
       if(response.redirected)throw Error(t('Sesi berakhir. Masuk kembali untuk melanjutkan.'));
@@ -71,7 +70,7 @@
       setup.dataset.ready='true';setup.dataset.operationKey=crypto.randomUUID().replaceAll('-','');document.querySelector('#personal-voice-state').textContent=t('Siap digunakan');
       let option=[...library.options].find(el=>el.value===String(body.id));if(!option){library.querySelector('option[value=""]')?.remove();option=new Option(body.name,String(body.id));library.add(option);}option.textContent=body.name;option.dataset.preview='true';library.value=String(body.id);discard();panel.hidden=true;document.querySelector('#personal-ready').hidden=false;updateLibrary();
     }catch(e){fail(e instanceof SyntaxError||e instanceof TypeError?t('Suara belum berhasil dibuat. Rekamanmu tetap aman untuk dicoba kembali.'):e.message);state.textContent=t('Rekaman siap dicoba kembali');}
-    finally{saving=false;setup.dataset.busy='false';controls.forEach(el=>el.disabled=false);open.disabled=false;save.disabled=!blob?.size||!consent.checked;updateLibrary();}
+    finally{saving=false;setup.dataset.busy='false';controls.forEach(el=>el.disabled=false);add.disabled=false;save.disabled=!blob?.size||!consent.checked;updateLibrary();}
   });
   window.addEventListener('pagehide',()=>{version++;if(recorder?.state==='recording')recorder.stop();tracksOff();discard();});
   const script=document.querySelector('#audio-script'),language=document.querySelector('#voice-language'),label=document.querySelector('#voice-language-status');
@@ -83,15 +82,11 @@
     label.textContent=id>=2&&id>en?t('Bahasa terdeteksi: Indonesian'):en>=2&&en>id?t('Bahasa terdeteksi: English'):t('Bahasa mengikuti naskah, kecuali kamu memilih Terjemahkan ke.');
   }
   script.addEventListener('input',detect);language.addEventListener('change',detect);
-  document.querySelector('#play-personal-preview').addEventListener('click',async()=>{const sample=document.querySelector('#personal-preview'),notice=document.querySelector('#voice-preview-error');notice.hidden=true;try{sample.hidden=false;await sample.play();}catch{notice.textContent=t('Contoh suara belum dapat diputar. Coba lagi.');notice.hidden=false;}});
   function updateLibrary(){
-    const ready=!!library.value,option=library.selectedOptions[0],sample=document.querySelector('#personal-preview');
+    const ready=!!library.value;
     setup.dataset.ready=String(ready);document.querySelector('#personal-voice-state').textContent=ready?t('Siap digunakan'):t('Suara kamu sendiri');
-    sample.pause();sample.removeAttribute('src');sample.hidden=!ready||option.dataset.preview!=='true';
-    if(!sample.hidden)sample.src='/kilas-translator/personal-voices/'+library.value+'/preview?v='+setup.dataset.operationKey;
-    document.querySelector('#play-personal-preview').hidden=sample.hidden;document.querySelector('#voice-preview-missing').hidden=!ready||!sample.hidden;
-    [open,document.querySelector('#rename-saved-voice'),document.querySelector('#delete-saved-voice')].forEach(el=>el.disabled=!ready||saving);
-    open.disabled=open.disabled||generate.dataset.enabled!=='true';document.querySelector('#add-saved-voice').disabled=saving||generate.dataset.enabled!=='true';
+    [document.querySelector('#rename-saved-voice'),document.querySelector('#delete-saved-voice')].forEach(el=>el.disabled=!ready||saving);
+    add.disabled=saving||generate.dataset.enabled!=='true';
     document.querySelector('#saved-voice-notice').textContent=ready?t('Suara ini digunakan untuk Voice Over berikutnya.'):t('Rekam atau upload audio untuk menyimpannya di akun kamu.');
     choices();
   }
