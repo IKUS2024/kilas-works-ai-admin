@@ -85,6 +85,7 @@ export class CallSession {
      this.onSources(frame.citations,frame.checked_on);this.sourceAwaitingAudio=frame.citations.length>0&&(!this.speaking||this.turnSealed);
     }else if(frame.type==='reset'){
      this.clear(this.echoTimer);this.player.cancel();this.turnSealed=false;this.speaking=false;this.playVersion++;this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;
+     this.stateTo('listening');
     }else if(frame.type==='turn_complete'){
      this.turnSealed=true;const generation=this.playVersion;
      this.player.checkpoint().then(()=>{

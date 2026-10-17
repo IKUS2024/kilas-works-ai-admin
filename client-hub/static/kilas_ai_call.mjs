@@ -2,7 +2,7 @@ import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=app-language-20261015';
 import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-user-first-20261017';
 import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-jitter-20261016';
-import {CallSession} from './kilas_ai_call_engine.mjs?v=call-input-tail-20261017';
+import {CallSession} from './kilas_ai_call_engine.mjs?v=call-reset-state-20261017';
 import {renderCallSources} from './kilas_ai_call_sources.mjs?v=call-public-search-20261017';
 
 const dialog=document.querySelector('#ai-call-dialog');

@@ -187,3 +187,23 @@ test('Waiting for public lookup results keeps microphone live; End fences late s
  f.hold.resolve({state:'LISTENING',frames:[{index:0,type:'sources',citations:[{url:'https://example.org',title:'Late'}]}],next_index:1,total_frames:1});
  await started;assert.ok(sources.every(items=>items.length===0));assert.equal(f.session.state,'ended');
 });
+
+test('Provider reset without replacement audio keeps visible state consistent with the reopened microphone',async()=>{
+ let cancellations=0;
+ const f=fixture({player:{cancel(){cancellations++;}}}),started=f.session.start();await tick();
+ const encoded=Buffer.from(pcm()).toString('base64');
+ // The backend emits reset on interrupted=true but retains SPEAKING until
+ // turnComplete. No replacement audio or turnComplete is required in that
+ // provider message, so this is a valid snapshot of the current backend.
+ f.hold.resolve({state:'SPEAKING',frames:[{index:0,type:'audio',pcm:encoded},
+  {index:1,type:'reset'}],next_index:2,total_frames:2});
+ await tick();
+ try{
+  assert.equal(f.plays,1);assert.equal(cancellations,1);
+  assert.equal(f.session.speaking,false,'reset must reopen the current microphone gate');
+  f.capture.pcm(pcm());f.session.input.flush();await f.session.input.chain;
+  assert.deepEqual([...f.bodies.at(-1)],[1,0,2,0],'microphone PCM after reset is live, not playback silence');
+  assert.equal(f.session.state,'listening','visible state must reflect the live microphone after reset');
+  assert.equal(f.states.at(-1),'listening');
+ }finally{f.session.end();await started;}
+});
