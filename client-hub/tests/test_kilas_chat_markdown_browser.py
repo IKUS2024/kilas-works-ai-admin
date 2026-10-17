@@ -1,6 +1,7 @@
 """Incremental/final math Markdown on real local chat pages; synthetic SSE, no providers."""
 import sys,os,json,logging,threading,shutil
 from pathlib import Path
+from unittest.mock import patch
 
 def local_only(event,args):
  if event=='socket.connect' and isinstance(args[1],tuple) and args[1][0] not in ('127.0.0.1','::1','localhost'):raise AssertionError('External transport forbidden')
@@ -9,7 +10,7 @@ sys.addaudithook(local_only)
 from playwright.sync_api import sync_playwright,expect
 from werkzeug.serving import make_server
 import test_kilas_home as fixture
-from kilas_ai import store,agent_store
+from kilas_ai import store,agent_store,chat_models
 
 TEXT=r'''## Synthetic reasoning
 
@@ -54,6 +55,7 @@ MOCK=r'''({text,agent})=>{const original=fetch;window.qaFrames=[];window.fetch=(
 def main():
  logging.getLogger('werkzeug').setLevel(logging.ERROR)
  case=fixture.HomeTests('test_old_routes_still_render');case.id=lambda:'stream-math-browser';case.setUp()
+ access=patch.object(chat_models,'check',side_effect=lambda model:{**chat_models.spec(model),'available':model=='gpt-6-luna','status':'verified','images':True});access.start();case.addCleanup(access.stop)
  app=fixture.fixture.base.f.fixture.app.app
  thread=store.create_thread(case.owner);store.append_user_once(case.owner,thread,'Synthetic question','SMART','markdown-fixture')
  agent_store.append(case.owner,'user','Synthetic question',case.conversation)

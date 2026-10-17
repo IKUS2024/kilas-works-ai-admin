@@ -64,6 +64,14 @@
     const lines=current.text.split(/\r?\n/),plan=[];let index=0;
     const phase=text=>text.includes('\\(')||text.includes('\\[')||text.includes('$')?mathStatus:'';
     const add=(key,make)=>{const old=current.blocks[plan.length];const incomplete=old&&(old.node.matches('[data-math-incomplete]')||old.node.querySelector('[data-math-incomplete]'));plan.push(old?.key===key&&!(current.complete&&incomplete)?old:{key,node:make()});};
+    // Raw JSON in Chat is structured source, not Markdown. Keep keys, escaped
+    // code and whitespace literal during streaming and after reload/copy.
+    const start=current.text.trimStart();let rawJSON=false;
+    if(element.matches('.ai-message-text,.agent-message-text')){
+      if(!current.complete)rawJSON=/^\{\s*(?:"|$)|^\[\s*(?:[\[\{"0-9tfn-]|$)/.test(start);
+      else if(/^[{[]/.test(start)){try{const parsed=JSON.parse(current.text);rawJSON=parsed!==null&&typeof parsed==='object';}catch{}}
+    }
+    if(rawJSON){add('raw-json|'+current.text,()=>{const pre=document.createElement('pre'),code=document.createElement('code');code.textContent=current.text;pre.append(code);return pre;});index=lines.length;}
     while(index<lines.length){
       const line=lines[index].trim();if(!line){index++;continue;}
       const begin=index;
