@@ -58,7 +58,7 @@ def spent(conn, user_id, start, now):
     rows = usage._rows(conn, "SELECT operation_type,mode,thread_id,operation_key,model,"
         "estimated_cost_usd,status FROM kilas_ai_usage WHERE user_id=? AND quota_source='BASE' "
         "AND created_at>=? AND (status IN ('COMPLETE','FAILED') OR "
-        "(status='PENDING' AND created_at>=?))",
+        "(status='PENDING' AND (operation_type='CODE_EXECUTION' OR created_at>=?)))",
         (user_id, start.isoformat(), (now-timedelta(minutes=10)).isoformat()))
     total = Decimal(0)
     for operation, mode, thread, key, model, cost, status in rows:

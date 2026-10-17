@@ -66,6 +66,8 @@ def run(job,step,data):
         files=source(job,data)
         return result(execution.execute(job,step,files,entrypoint(files,data['request'])))
     except ValueError as error:
+        from . import usage
+        if isinstance(error,usage.UsageLimit):return Result('FAILED',str(error),{'execution':'not_run','reason':'execution_quota_exhausted'})
         reason=str(error)
         messages={'execution_source_not_owned':'Tambahkan file Python atau ZIP proyek di percakapan ini.',
                   'execution_python_source_required':'Tambahkan file Python atau ZIP proyek di percakapan ini.',

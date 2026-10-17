@@ -49,6 +49,9 @@ class ExecutionTests(unittest.TestCase):
     def enabled(self,sandbox):
         from contextlib import ExitStack
         stack=ExitStack();self.addCleanup(stack.close)
+        from datetime import timedelta
+        now=jobs.now()
+        db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?)",(self.owner,jobs.stamp(now-timedelta(days=1)),jobs.stamp(now+timedelta(days=29))))
         stack.enter_context(patch.object(execution,'accepted',return_value=True))  # Synthetic acceptance only.
         stack.enter_context(patch.dict(os.environ,{'KILAS_EXECUTION_APPROVAL':execution.POLICY,'KILAS_EXECUTION_ALLOWED_USERS':str(self.owner),'E2B_API_KEY':'synthetic-secret','DATABASE_URL':'must-not-reach-vm'}))
         create=stack.enter_context(patch('e2b.Sandbox.create',return_value=sandbox))
@@ -139,6 +142,7 @@ class ExecutionTests(unittest.TestCase):
         sandbox.kill.assert_called_once();sandbox.files.write.assert_not_called()
         self.assertEqual(db.query_one('SELECT state FROM kilas_workspace_executions')['state'],'CANCELLED')
         self.assertEqual(work_artifacts.listing(self.owner,job_id=job['id']),[])
+        self.assertEqual(db.query_one("SELECT status FROM kilas_ai_usage WHERE user_id=? AND operation_type='CODE_EXECUTION'",(self.owner,))['status'],'FAILED')
 
     def test_runtime_boundary_rejects_network_or_resources_before_source_upload(self):
         job,step=self.claimed();sandbox=self.sandbox();self.enabled(sandbox)
@@ -177,6 +181,8 @@ class ExecutionTests(unittest.TestCase):
         execution.execute(job,step,SOURCE)
         row=db.query_one('SELECT state,cleanup_confirmed,expires_at FROM kilas_workspace_executions')
         self.assertEqual(row['state'],'CLEANUP_REQUIRED');self.assertEqual(row['cleanup_confirmed'],0);self.assertGreater(row['expires_at'],jobs.stamp())
+        from decimal import Decimal
+        self.assertEqual(Decimal(db.query_one("SELECT estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? AND operation_type='CODE_EXECUTION'",(self.owner,))['estimated_cost_usd']),Decimal('.008880'))
 
     def test_guest_resource_contract_without_launching_source(self):
         calls=[]
@@ -216,7 +222,7 @@ class ExecutionTests(unittest.TestCase):
 
     def test_remote_timeout_kills_without_retry_or_output_download(self):
         job,step=self.claimed();sandbox=self.sandbox();create=self.enabled(sandbox)
-        with patch.object(execution.time,'monotonic',side_effect=[0,100]):
+        with patch.object(execution.time,'monotonic',side_effect=[0,100,101]):
             with self.assertRaisesRegex(ValueError,'execution_timeout'):execution.execute(job,step,SOURCE)
         create.assert_called_once();sandbox.kill.assert_called_once();sandbox.files.read.assert_not_called()
 
@@ -230,6 +236,106 @@ class ExecutionTests(unittest.TestCase):
         job,step=self.claimed();sandbox=self.sandbox({'exit_code':0,'stdout':'','stderr':'','timed_out':False,'outputs':{'data.csv':base64.b64encode(b'Name,Value\nattack,=WEBSERVICE("https://bad")').decode()}});self.enabled(sandbox)
         with self.assertRaisesRegex(ValueError,'unsafe_csv_output'):execution.execute(job,step,SOURCE)
         sandbox.kill.assert_called_once();self.assertEqual(work_artifacts.listing(self.owner),[])
+
+    def test_zero_customer_capacity_blocks_before_sdk_and_reservation(self):
+        from decimal import Decimal
+        from kilas_ai import capacity,usage
+        job,step=self.claimed();create=self.enabled(self.sandbox())
+        with patch.object(capacity,'allowance',return_value=Decimal(0)):
+            with self.assertRaises(usage.UsageLimit):execution.execute(job,step,SOURCE)
+        create.assert_not_called()
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kilas_workspace_executions')['n'],0)
+        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE user_id=? AND operation_type='CODE_EXECUTION'",(self.owner,))['n'],0)
+
+    def test_customer_success_settles_once_without_refunding_global_exposure(self):
+        job,step=self.claimed();create=self.enabled(self.sandbox())
+        execution.execute(job,step,SOURCE)
+        row=dict(db.query_one("SELECT * FROM kilas_ai_usage WHERE user_id=? AND operation_type='CODE_EXECUTION'",(self.owner,)))
+        self.assertEqual(row['status'],'COMPLETE');self.assertEqual(row['provider'],'e2b');self.assertIsNone(row['model'])
+        from decimal import Decimal
+        self.assertLessEqual(Decimal(row['estimated_cost_usd']),Decimal('.008880'))
+        self.assertEqual(db.query_one('SELECT reserved_micro_usd FROM kilas_workspace_executions')['reserved_micro_usd'],8880)
+        with self.assertRaisesRegex(ValueError,'already_dispatched'):execution.execute(job,step,SOURCE)
+        self.assertEqual(dict(db.query_one('SELECT * FROM kilas_ai_usage WHERE id=?',(row['id'],))),row);self.assertEqual(create.call_count,1)
+
+    def test_topup_maximum_reserved_before_create_and_charged_once(self):
+        from decimal import Decimal
+        from datetime import timedelta
+        from kilas_ai import capacity,topups
+        job,step=self.claimed();sandbox=self.sandbox();create=self.enabled(sandbox)
+        order=topups.create_order(self.owner,'MINI')
+        db.execute('INSERT INTO kilas_ai_topup_credits(order_id,user_id,total_micro,expires_at) VALUES (?,?,?,?)',(order,self.owner,1000000,jobs.stamp(jobs.now()+timedelta(days=1))))
+        def created(**kwargs):
+            row=db.query_one('SELECT reserved_micro,status FROM kilas_ai_topup_debits WHERE user_id=?',(self.owner,))
+            self.assertEqual(row['reserved_micro'],8880);self.assertEqual(row['status'],'PENDING');return sandbox
+        create.side_effect=created
+        with patch.object(capacity,'allowance',return_value=Decimal(0)):execution.execute(job,step,SOURCE)
+        row=dict(db.query_one('SELECT * FROM kilas_ai_topup_debits WHERE user_id=?',(self.owner,)))
+        self.assertEqual(row['status'],'COMPLETE');self.assertGreater(row['charged_micro'],0);self.assertLessEqual(row['charged_micro'],8880)
+        with self.assertRaisesRegex(ValueError,'already_dispatched'):execution.execute(job,step,SOURCE)
+        self.assertEqual(dict(db.query_one('SELECT * FROM kilas_ai_topup_debits WHERE id=?',(row['id'],))),row)
+
+    def test_ambiguous_failure_retains_full_customer_reservation(self):
+        job,step=self.claimed();create=self.enabled(self.sandbox());create.side_effect=TimeoutError()
+        with self.assertRaises(ValueError):execution.execute(job,step,SOURCE)
+        row=db.query_one("SELECT status,estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? AND operation_type='CODE_EXECUTION'",(self.owner,))
+        from decimal import Decimal
+        self.assertEqual(row['status'],'FAILED');self.assertEqual(Decimal(row['estimated_cost_usd']),Decimal('.008880'))
+
+    def test_expired_pending_customer_exposure_cannot_vanish_after_ten_minutes(self):
+        from datetime import timedelta
+        from decimal import Decimal
+        from kilas_ai import capacity,usage
+        job,step=self.claimed();self.enabled(self.sandbox())
+        run=execution.reserve(job,'crashed-customer',customer=True)
+        old=jobs.now()-timedelta(hours=2)
+        db.execute("UPDATE kilas_ai_usage SET created_at=? WHERE operation_key='crashed-customer'",(jobs.stamp(old),))
+        db.execute('UPDATE kilas_workspace_executions SET expires_at=? WHERE id=?',(jobs.stamp(old),run))
+        with jobs.transaction() as conn:self.assertEqual(capacity.spent(conn,self.owner,old-timedelta(days=1),jobs.now()),Decimal('.008880'))
+        execution.reserve(job,'next-customer',customer=True)
+        row=db.query_one("SELECT status,estimated_cost_usd FROM kilas_ai_usage WHERE operation_key='crashed-customer'")
+        self.assertEqual(row['status'],'FAILED');self.assertEqual(Decimal(row['estimated_cost_usd']),Decimal('.008880'))
+
+    def test_global_five_dollar_window_includes_previous_month_other_tenant(self):
+        from datetime import timedelta
+        job,step=self.claimed();seed=execution.reserve(job,'prior-period')
+        execution.update(seed,state='SUCCEEDED')
+        db.execute('UPDATE kilas_workspace_executions SET reserved_micro_usd=?,created_at=? WHERE id=?',(5000000-8880,jobs.stamp(jobs.now()-timedelta(days=32)),seed))
+        ident=jobs.create(self.other,'Run Python main.py');claim=jobs.claim_due(1)[0]
+        db.execute("UPDATE kilas_agent_jobs SET status='RUNNING' WHERE id=?",(ident,));other=jobs.get(self.other,ident)
+        final=execution.reserve(other,'other-tenant-last');execution.update(final,state='SUCCEEDED')
+        with self.assertRaisesRegex(ValueError,'capacity_limit'):execution.reserve(job,'over-five')
+        self.assertEqual(db.query_one('SELECT SUM(reserved_micro_usd) AS n FROM kilas_workspace_executions')['n'],5000000)
+
+    def test_concurrent_tenants_share_one_global_reservation(self):
+        from concurrent.futures import ThreadPoolExecutor
+        job,step=self.claimed();ident=jobs.create(self.other,'Run Python main.py');jobs.claim_due(1)
+        db.execute("UPDATE kilas_agent_jobs SET status='RUNNING' WHERE id=?",(ident,));other=jobs.get(self.other,ident)
+        def reserve(item):
+            try:execution.reserve(item,'parallel-'+str(item['id']));return 'reserved'
+            except ValueError as error:return str(error)
+        with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(reserve,[job,other]))
+        self.assertEqual(results.count('reserved'),1);self.assertIn('execution_capacity_limit',results)
+
+    def test_old_one_dollar_activation_token_is_rejected_and_proof_key_unchanged(self):
+        from kilas_ai import workspace_execution_proof as proof
+        job,step=self.claimed();create=self.enabled(self.sandbox())
+        with patch.dict(os.environ,{'KILAS_EXECUTION_APPROVAL':'e2b-hobby-60s-1usd-v1','KILAS_EXECUTION_PROOF_APPROVAL':'e2b-hobby-60s-1usd-v1'}):
+            self.assertFalse(execution.capability(self.owner)['available']);self.assertFalse(proof.authorized())
+        self.assertEqual(proof.key(),'initial-proof-v1');create.assert_not_called()
+
+    def test_project_author_and_execution_have_distinct_single_usage_entries(self):
+        from kilas_ai import workspace_model_tools as native
+        self.enabled(self.sandbox())
+        self.submit(text='Create a Python project ZIP with README and main.py and run Python')
+        job=jobs.list_jobs(self.owner)[0];runner.execute(*jobs.claim_due(1)[0])
+        authored={'calls':[{'id':'publish','name':'publish_project','arguments':{'files':[{'name':n,'content':v} for n,v in SOURCE.items()]}}],
+                  'usage':{'input_tokens':100,'output_tokens':100},'model_provenance':{'requested_model':'gpt-6.1-sol','returned_model':'gpt-6.1-sol','provider':'openai'}}
+        with patch.object(native,'turn',return_value=authored):runner.execute(*jobs.claim_due(1)[0])
+        self.assertEqual(jobs.get(self.owner,job['id'])['status'],'COMPLETED')
+        rows=db.query_all('SELECT operation_type,operation_key,status FROM kilas_ai_usage WHERE user_id=?',(self.owner,))
+        self.assertEqual(len(rows),2);self.assertEqual(sum(r['operation_type']=='CODE_EXECUTION' for r in rows),1)
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kilas_workspace_executions')['n'],1)
 
 
 if __name__=='__main__':unittest.main()

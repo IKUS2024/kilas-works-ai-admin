@@ -88,5 +88,5 @@ def run(app):
 
 
 def maybe_start(app):
-    logging.getLogger(__name__).warning('KILAS_EXECUTION_GATE proof_requested=%s general_requested=%s proof_passed=%s host_execution=False',authorized(),os.environ.get('KILAS_EXECUTION_APPROVAL')==execution.POLICY,execution.accepted())
+    logging.getLogger(__name__).warning('KILAS_EXECUTION_GATE proof_requested=%s general_requested=%s proof_passed=%s host_execution=False e2b_key_present=%s global_budget_micro_usd=%s budget_window_days=%s',authorized(),os.environ.get('KILAS_EXECUTION_APPROVAL')==execution.POLICY,execution.accepted(),bool(os.environ.get('E2B_API_KEY')),execution.GLOBAL_BUDGET_MICRO_USD,execution.BUDGET_WINDOW_DAYS)
     if authorized():threading.Thread(target=run,args=(app,),name='fixed-isolation-proof',daemon=True).start()

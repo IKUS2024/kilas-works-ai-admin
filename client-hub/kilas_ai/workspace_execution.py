@@ -8,8 +8,10 @@ from pathlib import Path
 import db
 from . import workspace_files, usage, autonomous_store as store
 
-POLICY='e2b-hobby-60s-1usd-v1'
+POLICY='e2b-hobby-60s-5usd-v1'
 MAX_SECONDS=60
+GLOBAL_BUDGET_MICRO_USD=5000000
+BUDGET_WINDOW_DAYS=35  # Stricter than any monthly billing period; no guessed anchor.
 RESERVE_MICRO_USD=8880  # Worst Hobby ceiling (8 vCPU/8 GiB), including failed boundary attestation.
 MAX_REPORT=512*1024
 
@@ -32,7 +34,8 @@ def capability(user_id=None):
     ready=bool(configured and accepted())
     return {'available':ready,'reason':None if ready else 'isolated_execution_acceptance_pending' if configured else 'isolated_execution_not_configured',
             'provider':'e2b','languages':['python'] if ready else [],'network':False,
-            'production_host_execution':False,'sandbox_seconds':MAX_SECONDS,'monthly_cap_usd':1,
+            'production_host_execution':False,'sandbox_seconds':MAX_SECONDS,'monthly_cap_usd':5,
+            'budget_window_days':BUDGET_WINDOW_DAYS,'budget_scope':'all_tenants_and_processes',
             'daily_run_limit':10,'concurrency':1,'runtime_acceptance':'fixed synthetic proof passed' if ready else 'pending remote verification'}
 
 
@@ -51,23 +54,36 @@ def active(job):
     return bool(db.query_one("SELECT id FROM kilas_agent_jobs WHERE id=? AND user_id=? AND status='RUNNING' AND revision=? AND lease_token=? AND lease_until>?",(job['id'],job['user_id'],job['revision'],job.get('lease_token'),store.stamp())))
 
 
-def reserve(job,key):
+def reserve(job,key,*,customer=False):
+    from datetime import timedelta
+    from . import workspace_execution_credits as credits
     with store.transaction() as conn:
         if db.BACKEND=='postgres':usage._query(conn,'SELECT pg_advisory_xact_lock(74110601)',())
         if not store.locked(conn,job['id'],job.get('lease_token'),job['revision']):raise ValueError('execution_cancelled')
         if usage._query(conn,'SELECT id FROM kilas_workspace_executions WHERE operation_key=?',(key,),one=True):raise ValueError('execution_already_dispatched')
-        month=store.stamp()[:7];day=store.stamp()[:10]
-        spent=usage._query(conn,'SELECT COALESCE(SUM(reserved_micro_usd),0) FROM kilas_workspace_executions WHERE created_at LIKE ?',(month+'%',),one=True)[0]
+        now=store.now();day=store.stamp(now)[:10]
+        credits.expired(conn,now)
+        spent=usage._query(conn,'SELECT COALESCE(SUM(reserved_micro_usd),0) FROM kilas_workspace_executions WHERE created_at>=?',(store.stamp(now-timedelta(days=BUDGET_WINDOW_DAYS)),),one=True)[0]
         count=usage._query(conn,'SELECT COUNT(*) FROM kilas_workspace_executions WHERE created_at LIKE ?',(day+'%',),one=True)[0]
         running=usage._query(conn,"SELECT COUNT(*) FROM kilas_workspace_executions WHERE state IN ('CREATING','RUNNING','UNKNOWN','CLEANUP_REQUIRED') AND expires_at>?",(store.stamp(),),one=True)[0]
-        if spent+RESERVE_MICRO_USD>1000000 or count>=10 or running:raise ValueError('execution_capacity_limit')
-        from datetime import timedelta
+        if spent+RESERVE_MICRO_USD>GLOBAL_BUDGET_MICRO_USD or count>=10 or running:raise ValueError('execution_capacity_limit')
+        if customer:credits.reserve(conn,job['user_id'],key,RESERVE_MICRO_USD)
         return usage._query(conn,"INSERT INTO kilas_workspace_executions(user_id,job_id,operation_key,state,reserved_micro_usd,created_at,expires_at) VALUES (?,?,?,'CREATING',?,?,?) RETURNING id",(job['user_id'],job['id'],key,RESERVE_MICRO_USD,store.stamp(),store.stamp(store.now()+timedelta(seconds=90))),one=True)[0]
 
 
 def update(run_id,**fields):
     if not fields or set(fields)-{'state','sandbox_id','outcome_json','cleanup_confirmed'}:raise ValueError('invalid_execution_update')
     db.execute('UPDATE kilas_workspace_executions SET '+','.join(k+'=?' for k in fields)+' WHERE id=?',(*fields.values(),run_id))
+
+
+def reconcile(run_id,state,outcome,cleaned,micro):
+    from . import workspace_execution_credits as credits
+    with store.transaction() as conn:
+        row=usage._query(conn,'SELECT user_id,operation_key FROM kilas_workspace_executions WHERE id=?',(run_id,),one=True)
+        credits.settle(conn,row[0],row[1],micro,state=='SUCCEEDED')
+        public={k:v for k,v in outcome.items() if k not in ('stdout','stderr','outputs')}
+        public.update(compute_cost_upper_estimate_micro_usd=micro,cost_basis='conservative_compute_upper_bound')
+        usage._query(conn,'UPDATE kilas_workspace_executions SET state=?,cleanup_confirmed=?,outcome_json=? WHERE id=?',(state if cleaned or not outcome.get('sandbox_created') else 'CLEANUP_REQUIRED',int(cleaned),json.dumps(public),run_id))
 
 
 def bounded_read(sandbox,path):
@@ -89,8 +105,8 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
     from e2b import Sandbox
     from .work_runtime import progress
     key='execution:'+step['idempotency_key']
-    run_id=reserve(job,key);sandbox=None;outcome={'execution':'unknown','run_id':run_id}
-    terminal='UNKNOWN';deadline=time.monotonic()+45
+    run_id=reserve(job,key,customer=not _proof);sandbox=None;outcome={'execution':'unknown','run_id':run_id}
+    terminal='UNKNOWN';started=time.monotonic();deadline=started+45;boundary_verified=False
     try:
         progress(job,'STARTING_SANDBOX','Menyiapkan sandbox…')
         sandbox=Sandbox.create(template='base',api_key=os.environ['E2B_API_KEY'],timeout=MAX_SECONDS,
@@ -105,6 +121,7 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
                 info.network.get('allow_public_traffic') is False and
                 info.lifecycle and str(info.lifecycle.get('on_timeout')).split('.')[-1].lower()=='kill' and
                 info.lifecycle.get('auto_resume') is False):raise ValueError('execution_boundary_unverified')
+        boundary_verified=True
         if not active(job):raise ValueError('execution_cancelled')
         sandbox.files.write('/root/kilas-input.json',json.dumps(payload),user='root',request_timeout=5)
         harness=Path(__file__).with_name('workspace_guest.py').read_text()
@@ -153,5 +170,13 @@ def execute(job,step,files,entrypoint='main.py',*,_proof=False):
             try:sandbox.kill(request_timeout=5);cleaned=True
             except Exception:pass
         outcome['cleanup_confirmed']=cleaned
-        update(run_id,state=terminal if cleaned or sandbox is None else 'CLEANUP_REQUIRED',cleanup_confirmed=int(cleaned),
-               outcome_json=json.dumps({k:v for k,v in outcome.items() if k not in ('stdout','stderr','outputs')}))
+        outcome['sandbox_created']=sandbox is not None
+        outcome['customer_metered']=not _proof
+        micro=RESERVE_MICRO_USD
+        if cleaned and boundary_verified:
+            import math
+            # Include creation, transfers and kill acknowledgement plus one second.
+            # The accepted <=2 vCPU / <=4 GiB profile costs <=46 micro-USD/s.
+            micro=min(micro,46*min(MAX_SECONDS,max(1,math.ceil(time.monotonic()-started)+1)))
+        outcome['compute_cost_upper_estimate_micro_usd']=micro
+        reconcile(run_id,terminal,outcome,cleaned,micro)
