@@ -48,8 +48,17 @@ try:
    page.screenshot(path=str(output/(name+'.png')),full_page=True)
   a.on('dialog',lambda dialog:dialog.accept());a.locator('#group-details').evaluate('e=>e.open=true');a.get_by_role('button',name='Remove member').click()
   expect(b.locator('#group-composer')).to_be_hidden(timeout=10000);expect(b.locator('#group-messages')).to_be_empty();expect(b.locator('#group-status')).to_contain_text('access was revoked')
-  a.goto(base+'/kilas-ai');expect(a.locator('.group-chat-tabs')).to_be_visible();expect(a.locator('#ai-input')).to_be_visible()
+  for page,name in ((a,'desktop'),(b,'mobile')):
+   for language in ('id','en','es','zh'):
+    page.context.add_cookies([{'name':'kilas_language','value':language,'url':base}])
+    page.goto(base+'/kilas-ai');expect(page.locator('.group-chat-tabs')).to_have_count(0);expect(page.locator('a[href^="/kilas-ai/groups"]')).to_have_count(0)
+    expect(page.locator('#ai-input')).to_be_visible();expect(page.locator('#ai-send')).to_be_enabled();expect(page.locator('label[for="ai-files"]')).to_be_visible()
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(name,language)
+    page.screenshot(path=str(output/f'personal-{name}-{language}.png'),full_page=True)
+   page.locator('#ai-input').fill('Synthetic personal chat');page.locator('#ai-send').click()
+   expect(page.locator('.ai-assistant .ai-message-text').last).to_contain_text('Decision: choose option A.',timeout=10000)
+   expect(page.locator('#ai-send')).to_be_enabled()
   assert not errors,errors
-  assert provider.call_count==2,provider.call_count
-  browser.close();print('PASS browser: desktop/mobile text sync, explicit AI, summary, owner pause, invitation privacy, removal clears history, personal tabs/composer, no horizontal overflow or JS errors. Screenshots: '+str(output))
+  assert provider.call_count==4,provider.call_count
+  browser.close();print('PASS browser: desktop/mobile text sync, explicit AI, summary, owner pause, invitation privacy, removal clears history, hidden group navigation/personal composer, no horizontal overflow or JS errors. Screenshots: '+str(output))
 finally:server.shutdown()

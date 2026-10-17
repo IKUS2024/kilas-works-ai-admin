@@ -178,6 +178,13 @@ class GroupTests(unittest.TestCase):
         with patch.object(providers,'stream',return_value=events('Halo.')):
             response=self.post(self.a,f'/kilas-ai/threads/{thread}/send',{'content':'Halo','operation_key':key()});self.assertEqual(response.status_code,200);self.assertIn('Halo.',response.get_data(as_text=True))
         self.assertEqual([r['role'] for r in store.messages(self.owner,thread)],['user','assistant']);self.assertEqual(groups.state(self.owner,self.ident)['messages'],[])
-        self.assertEqual(self.b.get(f'/kilas-ai/threads/{thread}').status_code,404);self.assertIn('group-chat-tabs',self.a.get(f'/kilas-ai/threads/{thread}').text)
+        self.assertEqual(self.b.get(f'/kilas-ai/threads/{thread}').status_code,404)
+        for language in ('id','en','es','zh'):
+            self.a.set_cookie('kilas_language',language)
+            for path in ('/kilas-ai',f'/kilas-ai/threads/{thread}'):
+                page=self.a.get(path);self.assertEqual(page.status_code,200)
+                self.assertNotIn('group-chat-tabs',page.text);self.assertNotIn('href="/kilas-ai/groups',page.text)
+                for control in ('ai-composer','ai-input','ai-send','ai-files'):
+                    self.assertIn(f'id="{control}"',page.text)
 
 if __name__=='__main__':unittest.main()

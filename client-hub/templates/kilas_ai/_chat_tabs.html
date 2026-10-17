@@ -1,5 +1,7 @@
+{# Group navigation is temporarily hidden; keep direct group pages and their Personal return link. #}
+{% if group_tab|default(false) %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_groups.css',v='1') }}">
 <nav class="group-chat-tabs" aria-label="{{ ui_t('AI Chat') }}">
-  <a href="{{ url_for('kilas_ai.home') }}" {% if not group_tab|default(false) %}aria-current="page"{% endif %}>{{ ui_t('Personal') }}</a>
-  <a href="{{ url_for('kilas_ai.group_home') }}" {% if group_tab|default(false) %}aria-current="page"{% endif %}>{{ ui_t('Grup') }}</a>
+  <a href="{{ url_for('kilas_ai.home') }}">{{ ui_t('Personal') }}</a>
 </nav>
+{% endif %}
