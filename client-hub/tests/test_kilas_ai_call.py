@@ -80,6 +80,7 @@ class CallTests(unittest.TestCase):
             call=self.make();budget.dispatch(call.capability)
             audio.f.db.execute('UPDATE kilas_vo_stt_campaigns SET blocked=1 WHERE id=?',(budget.config()['id'],))
             self.assertFalse(budget.status(self.other)['available'])
+            with self.assertRaises(calls.CallError):call.check()
             with self.assertRaises(calls.CallError):call.accept(0,PCM)
             calls.end(self.user,call.ident)
             self.assertEqual(self.retained(call.ident),('UNKNOWN',250000))
@@ -222,6 +223,7 @@ class CallTests(unittest.TestCase):
             call=self.make();budget.dispatch(call.capability);previous=call.capability
             call.last_seen=call.started+91
             with patch.object(calls,'monotonic',return_value=call.started+91):
+                call.check()
                 call.accept(0,PCM)
                 self.assertNotEqual(call.capability,previous)
                 self.assertTrue(budget.active(self.user,call.ident,call.capability))
@@ -229,7 +231,76 @@ class CallTests(unittest.TestCase):
                 with self.assertRaises(calls.CallError) as e:call.check()
                 self.assertEqual(e.exception.code,'call_network')
             audio.f.db.execute('INSERT INTO customer_auth_account_state(user_id,disabled) VALUES (?,1) ON CONFLICT(user_id) DO UPDATE SET disabled=1',(self.user,))
+            self.assertNotEqual(self.post('/kilas-ai/call/'+call.ident+'/chunks/0',PCM).status_code,200)
+            with self.assertRaises(calls.CallError):call.check()
             with self.assertRaises(calls.CallError):call.accept(0,PCM)
+
+    def test_slow_policy_transaction_cannot_block_pcm_dispatch_or_provider_frames(self):
+        import threading
+        import time
+        with self.enabled():
+            call=self.make();call.ws=fixture.Socket()
+            entered=threading.Event();release=threading.Event();errors=[]
+            def slow(*args):
+                entered.set();release.wait(2);return True
+            def refresh():
+                try:call.check()
+                except Exception as error:errors.append(error)
+            with patch.object(calls,'ready',return_value=True),patch.object(budget,'active',side_effect=slow):
+                checker=threading.Thread(target=refresh,daemon=True);checker.start();self.assertTrue(entered.wait(1))
+                sender=None
+                try:
+                    before=time.monotonic();call.accept(0,PCM)
+                    self.assertLess(time.monotonic()-before,.1)
+                    sender=threading.Thread(target=call.send,daemon=True);sender.start()
+                    self.assertTrue(call.ws.first.wait(.2))
+                    before=time.monotonic()
+                    call.receive('{"serverContent":{"inputTranscription":{"text":"synthetic"}}}')
+                    self.assertLess(time.monotonic()-before,.1)
+                    self.assertEqual(call.input_transcript_chars,9)
+                    self.assertFalse(release.is_set())
+                finally:
+                    release.set();checker.join(2);call.stop()
+                    if sender:sender.join(2)
+            self.assertEqual(errors,[])
+            self.assertEqual(call.sent_bytes,len(PCM))
+
+    def test_expired_watchdog_authorization_fails_closed_without_packet_database_io(self):
+        with self.enabled():
+            call=self.make();now=call.started+calls.POLICY_TTL_SECONDS+.01;call.last_seen=now
+            with patch.object(calls,'monotonic',return_value=now), \
+                 patch.object(calls,'ready',side_effect=AssertionError('packet queried owner')), \
+                 patch.object(budget,'active',side_effect=AssertionError('packet opened transaction')):
+                with self.assertRaises(calls.CallError):call.accept(0,PCM)
+            self.assertEqual(call.input_bytes,0)
+            self.assertEqual(call.expected,0)
+
+    def test_end_during_policy_transaction_cannot_refresh_or_send_late_audio(self):
+        import threading
+        with self.enabled():
+            call=self.make();entered=threading.Event();release=threading.Event();errors=[]
+            until=call.authorized_until
+            def slow(*args):entered.set();release.wait(2);return True
+            def refresh():
+                try:call.check()
+                except Exception as error:errors.append(error.code)
+            with patch.object(calls,'ready',return_value=True),patch.object(budget,'active',side_effect=slow):
+                worker=threading.Thread(target=refresh,daemon=True);worker.start();self.assertTrue(entered.wait(1))
+                call.stop();release.set();worker.join(2)
+            self.assertTrue(call.closed.is_set());self.assertEqual(errors,['call_ended'])
+            self.assertEqual(call.authorized_until,until)
+            with self.assertRaises(calls.CallError):call.accept(0,PCM)
+
+    def test_watchdog_result_older_than_transport_lease_cannot_reauthorize_audio(self):
+        with self.enabled():
+            call=self.make();now=[call.started]
+            def stale(*args):now[0]+=calls.POLICY_TTL_SECONDS+.1;return True
+            with patch.object(calls,'monotonic',side_effect=lambda:now[0]), \
+                 patch.object(calls,'ready',return_value=True),patch.object(budget,'active',side_effect=stale):
+                with self.assertRaises(calls.CallError):call.check()
+                with self.assertRaises(calls.CallError):call.accept(0,PCM)
+            self.assertEqual(call.authorized_until,0)
+            self.assertEqual(call.input_bytes,0)
 
     def test_general_conversation_schema_and_server_only_key(self):
         setup=calls.setup()['setup']

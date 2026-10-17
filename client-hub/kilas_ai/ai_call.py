@@ -17,6 +17,7 @@ INPUT_BYTES=60*32000
 OUTPUT_BYTES=60*48000
 QUEUE_BYTES=8*32000
 MAX_TURNS=4
+POLICY_TTL_SECONDS=3
 
 
 class CallError(ValueError):
@@ -71,16 +72,51 @@ class Call:
         self.provider_started=self.started
         self.input_energy=0;self.input_samples=0;self.input_peak=0;self.input_transcript_chars=0
         self.sent_bytes=0;self.sent_chunks=0;self.provider_messages=0
+        # Claim has just authorized this capability. The provider worker also
+        # rechecks it before setup; only the watchdog renews this short lease.
+        self.authorized_until=self.started+POLICY_TTL_SECONDS
 
-    def check(self):
+    def transport_check(self,*,require_policy=True):
+        """In-memory PCM/frame fence; database work only at funding boundaries."""
+        from .routes import enabled
         if self.closed.is_set():raise CallError('call_ended',409)
         if monotonic()-self.last_seen>8:raise CallError('call_network',409)
-        if not ready(self.owner):raise CallError('call_unavailable')
+        if not (enabled() and budget.config() and storage.single_worker()
+                and os.environ.get('GEMINI_API_KEY','').strip()):raise CallError('call_unavailable')
         with self.lock:
             if self.closed.is_set():raise CallError('call_ended',409)
             if self.go_away and monotonic()>=self.go_away_deadline:raise CallError('call_provider')
-            if not budget.active(self.owner,self.ident,self.capability):raise CallError('call_ended',409)
+            if require_policy and monotonic()>self.authorized_until:raise CallError('call_unavailable')
+            # This rare metering boundary still performs normal durable funding
+            # before any input/output can exceed the current allowance.
             if monotonic()-self.funded_at>=budget.RENEW_SECONDS:self.fund()
+
+    def check(self):
+        """Fresh admission/watchdog authorization, outside the audio lock.
+
+        A fresh PostgreSQL transaction on every packet and provider frame can
+        stall the speech clock. The watchdog rechecks every second; stalled or
+        revoked authorization fails closed within the short transport lease.
+        """
+        self.transport_check(require_policy=False)
+        checked_at=monotonic()
+        with self.lock:capability=self.capability
+        try:
+            if not ready(self.owner):raise CallError('call_unavailable')
+            if not budget.active(self.owner,self.ident,capability):raise CallError('call_ended',409)
+        except Exception:
+            with self.lock:
+                # A concurrently renewed capability was independently authorized
+                # by normal funding. A stale check must not revoke that result.
+                if capability is not self.capability:return
+                self.authorized_until=0
+            raise
+        with self.lock:
+            if self.closed.is_set():raise CallError('call_ended',409)
+            if capability is self.capability:
+                if monotonic()-checked_at>POLICY_TTL_SECONDS:
+                    self.authorized_until=0;raise CallError('call_unavailable')
+                self.authorized_until=checked_at+POLICY_TTL_SECONDS
 
     def fund(self):
         # Caller holds the Call lock; End cannot interleave a new reservation.
@@ -88,6 +124,7 @@ class Call:
         self.capability=budget.renew(self.capability)
         self.funded_at=monotonic();self.funded_input=self.input_bytes
         self.funded_output=self.output_bytes;self.funded_turns=self.turns
+        self.authorized_until=monotonic()+POLICY_TTL_SECONDS
 
     def stop(self,code='call_ended',*,erase=False):
         with self.lock:
@@ -107,7 +144,7 @@ class Call:
             timer=Timer(10,purge);timer.daemon=True;timer.start()
 
     def accept(self,index,raw):
-        self.check()
+        self.transport_check()
         if type(index) is not int or not isinstance(raw,bytes) or not 2<=len(raw)<=16000 or len(raw)%2:raise CallError('call_input_invalid',400)
         with self.lock:
             if self.closed.is_set():raise CallError('call_ended',409)
@@ -196,7 +233,7 @@ class Call:
             while not self.closed.is_set():
                 try:raw=self.queue.get(timeout=.1)
                 except Empty:continue
-                self.check()
+                self.transport_check()
                 with self.lock:self.queued-=len(raw)
                 while not self.closed.is_set():
                     if self.renewing.is_set():
@@ -235,7 +272,7 @@ class Call:
                 try:raw=self.ws.recv()
                 except websocket.WebSocketTimeoutException:continue
                 if not raw:raise CallError('call_transport')
-                self.check();self.receive(raw)
+                self.transport_check();self.receive(raw)
         except Exception as error:
             code=getattr(error,'code','call_transport')
             self.stop(code if code.startswith('call_') or code in ('budget_limit','account_credit_limit') else 'call_transport')

@@ -147,3 +147,62 @@ backstop. No policy, plan, credential or quota is changed.
 Two complete simulated harness tests verify all four checks and dispatch byte
 identity under 300 ms admission latency, and verify the failure/control path
 cannot claim audio success. They do not substitute for the provider run.
+
+## Measured second provider result and delivery correction
+
+The clear run used LIVE addc37607fbc65b58139cdb3601af6bd42c93292, deploy
+`dep-db9dhi8m7kps73cvnq4g`, at 02:10:11 UTC. It completed setup on one connection
+and stopped after 59.272 seconds. There was no provider numeric error reported.
+Initial silence did not trigger output. The test failed: the first three response
+checks were irrelevant with no expected input subject recognized; the fourth
+question timed out. There were 11 input-transcription characters, 12.040 seconds
+of output audio and three completed turns. No words from these transcriptions or
+responses are recorded in this report.
+
+Safe transport measurements:
+
+- 50,664.6 ms accepted; 50,164.6 ms successfully sent in 102 packets; 500 ms still
+  queued at End. Accepted/sent digests differed because of this unsent tail.
+- Maximum admission time 1,196 ms; maximum outgoing PCM gap 1,402 ms; maximum
+  sample-clock lag 7,405 ms. Maximum actual websocket send time was only 3 ms.
+- Setup completed at 1,337 ms from the diagnostic epoch; first PCM send at
+  1,888 ms; first input-transcription event at 9,397 ms; first output audio at
+  10,599 ms. The socket produced 114 provider messages.
+- Known event counts included 10 voice-activity, 5 input-transcription, 42 audio
+  model-turn, 10 output-transcription and 3 completed-turn events.
+- End took 398 ms, no output frames remained and normal metering settled.
+- No additional provider session was started after this failure.
+
+This is evidence of a production audio-delivery defect, not a total provider
+outage or merely a stress-fixture gain problem. `Call.accept`, `Call.send` and the
+provider receive loop all called full `Call.check`, which opens a fresh PostgreSQL
+policy transaction. It also held the Call lock across that transaction. Repeated
+admission/read/dispatch checks therefore serialized the real-time audio stream.
+Measured gaps exceeded the configured 1,200 ms VAD end-of-speech duration, providing
+a supported mechanism for fragmented speech and unrelated clarification responses.
+This evidence does not prove every unrelated answer has that sole cause.
+
+The correction removes fresh database authorization queries from steady-state
+PCM admission, dispatch and provider-frame handling. Fresh checks still occur at
+admission, setup, provider resumption and in the once-per-second watchdog, outside
+the audio lock. Packet handling uses a fail-closed three-second authorization
+lease anchored to the start of the successful policy check. A database result
+older than that lease cannot reauthorize audio. Feature disable, End, liveness,
+bounded buffers, sequential indices and existing durable funding boundaries still
+apply. Funding uses the unchanged normal budget transactions; plans, quotas,
+reserves and ledger behavior are not relaxed. Authenticated HTTP routes continue
+to check disabled-account access independently on each request.
+
+New tests hold the policy transaction pending while PCM admission, actual socket
+dispatch and provider-frame handling continue within 100/200 ms bounds. Separate
+tests verify expired/stale authorization fails closed, campaign and account
+revocation, End during a blocked check, and existing metered renewals. All 31
+Python Call tests pass. Seven smoke tests, 35 Node Call tests, four rendered DOM
+checks and 19 existing shared transport/encoding tests also pass (96 total), plus
+the earlier real Chromium synthetic microphone check.
+
+The final database-path correction has unpaid test coverage only. The two staged
+provider attempts did not establish relevant Indonesian/English multi-turn
+answers or retained context. Physical Android capture/playback and long provider
+resumption remain unverified. Do not describe the user's complaint as resolved
+until the corrected dispatch path is verified against the provider and device.
