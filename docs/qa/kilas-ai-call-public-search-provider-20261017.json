@@ -1,0 +1,132 @@
+{
+  "timestamp": "2026-10-17T04:31:19.087592709Z",
+  "commit": "499c674ed09ae6a34d6115b2782b4b0263203fb3",
+  "deployment": "dep-db9fjhvbtjjs73bi1hf0",
+  "accepted_bytes": 454400,
+  "bridge": {
+    "available": false,
+    "reason": "provider_timeout"
+  },
+  "bridge_sent_ms": 15742,
+  "call_settled": true,
+  "code": "search_failed",
+  "completed_responses": 0,
+  "core_revision": "215ad4759fb4074637df216f1e5407ccda6a5e09",
+  "dispatch_matches_accepted": true,
+  "dispatched_sha256": "9165f52f8d059ca8a09324bd1d102eadbd45ea3c5246cd744e578f1aaa90554f",
+  "duration_ms": 15806,
+  "end_ms": 149,
+  "first_tool_call_ms": 7045,
+  "fixture_sha256": "dc3170ff1cecf5d6a41170037847421a8f283ff7943e821492464f2f23292967",
+  "fx_verified": false,
+  "gemini_usage_events": [],
+  "input_started_ms": 1406,
+  "input_text": "What is the latest news in Indonesia? Search and name source.",
+  "manual_markers": 0,
+  "output_ms": 0,
+  "physical_android_verified": false,
+  "post_end_frames": 0,
+  "provider_connections": 1,
+  "public_query": "Indonesia: general public news and developments. Check current primary and reputable public sources as of 2026-10-17.",
+  "queued_bytes": 0,
+  "response_text": "",
+  "response_turn_target": 1,
+  "response_turns": [],
+  "run": "call-search-indonesia-20261017",
+  "search_diagnostics": {
+    "activity_end": 1,
+    "activity_start": 1,
+    "available_replies": 0,
+    "cancelled": 0,
+    "failures": {
+      "provider_timeout": 1
+    },
+    "fx_intents_seen": 0,
+    "lookup_completed": 0,
+    "lookup_started": 1,
+    "opt_outs": 0,
+    "public_intents_seen": 1,
+    "schema_rejected": 0,
+    "tool_calls": 1,
+    "transcript_events": 1,
+    "unavailable_replies": 1
+  },
+  "search_failure": "provider_timeout",
+  "search_finished_success": false,
+  "search_operation": "call-web-036bef5e5154023e316930521165e5ea13b5fa71e4ecb3ab",
+  "search_reserve_attempts": 1,
+  "search_reserved": true,
+  "search_settled": true,
+  "search_worker_finished": true,
+  "semantic_review_required": true,
+  "sent_bytes": 454400,
+  "sent_chunks": 71,
+  "setup_sha256": "1b28f9c56c73613afb49cd2287e5f5e5ee649deb718e34b1cdfd34e67863094d",
+  "source_frames": 0,
+  "status": "stopped_no_retry",
+  "synthetic_only": true,
+  "tool_calls": 1,
+  "web_http_requests": 1,
+  "web_model": "gpt-6-luna",
+  "assessment": {
+    "result": "failed_current_news_end_to_end",
+    "full_public_question_recognized": true,
+    "expected_tool_invoked": true,
+    "only_fixed_public_query_dispatched": true,
+    "provider_result_received": false,
+    "relevant_spoken_answer_verified": false,
+    "source_attribution_and_publication_dates_verified": false,
+    "indonesian_multiturn_verified": false,
+    "physical_android_verified": false,
+    "fx_verified": false,
+    "limitation": "provider_timeout is a requests.Timeout classification; no HTTP response, exception subtype or supplier usage was returned. The Call adapter was configured with connect=10s/read=8s. A longer deadline succeeding is unproven; no retry was made.",
+    "failure_after_tool_ms": 8697
+  },
+  "cleanup": {
+    "smoke_run": "off",
+    "expiry": "",
+    "confirmed_env_update": true,
+    "disarm_deployment": "dep-db9fkclg1s2s738ho7lg",
+    "no_retry": true,
+    "no_second_call_or_search": true
+  },
+  "billing": {
+    "normal_call_forecast_usd": "0.25",
+    "normal_search_forecast_usd": "0.12",
+    "supplier_planning_allowance_usd": "0.05",
+    "actual_supplier_invoice_available": false,
+    "provider_usage_returned": false,
+    "warning": "Ledger estimates are application metering, not a supplier invoice. UNKNOWN is the existing post-dispatch Call terminal status, with finished_at and no active reservation.",
+    "call_operation": [
+      {
+        "charge_micro": 250000,
+        "duration_ms": 90000,
+        "finished_at": "2026-10-17T04:31:18.695471+00:00",
+        "operation_key": "live-955bdd9a1b0ac398d072fc65ae880dd5-gc",
+        "status": "UNKNOWN"
+      }
+    ],
+    "usage": [
+      {
+        "estimated_cost_usd": "0.25",
+        "input_tokens": 0,
+        "model": "gemini-3.8-live",
+        "operation_key": "live-955bdd9a1b0ac398d072fc65ae880dd5-gc",
+        "operation_type": "AI_CALL",
+        "output_tokens": 0,
+        "provider": "google",
+        "status": "COMPLETE"
+      },
+      {
+        "estimated_cost_usd": "0.010000",
+        "input_tokens": 0,
+        "model": "gpt-6-luna",
+        "operation_key": "call-web-036bef5e5154023e316930521165e5ea13b5fa71e4ecb3ab",
+        "operation_type": "WEB_SEARCH",
+        "output_tokens": 0,
+        "provider": "openai",
+        "status": "FAILED"
+      }
+    ]
+  }
+}

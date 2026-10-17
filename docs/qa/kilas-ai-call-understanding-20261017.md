@@ -558,3 +558,66 @@ multi-turn discussion, physical Android input/playback, real network resumption,
 silence/noise behavior and live public search remain unverified. Public search
 still accepts only country ID and general/economy/politics/weather enums; it is
 not a claim of unrestricted web lookup. No further paid test was run.
+
+## Search incident correction and one approved public-news test
+
+The 04:01:54 UTC screenshots were followed by a code/protocol correction in
+`215ad4759fb4074637df216f1e5407ccda6a5e09`: the Live transcription contract
+does not guarantee a `finished` field, so Call search now uses documented voice
+activity and a bounded stable-transcript gate. A separate allowlisted currency
+pair function fixes exchange-rate requests that the news-only schema could not
+represent. Earlier paragraphs describing the mandatory final marker and
+news-only schema describe the previous revision. Historical logs cannot prove
+which pre-reservation branch caused those two screenshot responses. The incident
+evidence and reproductions are in `kilas-ai-call-search-incident-20261017.json`.
+
+Exactly one further test was approved, with a 45-second limit, one real Google
+socket, one normal Call reservation, one normal WEB_SEARCH reservation/request,
+no retries/reconnects/renewals, and a $0.05 supplier planning allowance. Normal
+application forecasts stayed $0.25 Call plus $0.12 search. Normal provider token
+caps remained 1,024 and 2,048. No private audio/history was used.
+
+The synthetic question was generated locally and captured through real Chromium
+getUserMedia, AudioWorklet, conditioning and batching, using stub browser HTTP.
+The pinned 5.8-second/185,600-byte mono16k PCM fixture has SHA256
+`dc3170ff1cecf5d6a41170037847421a8f283ff7943e821492464f2f23292967`.
+Independent PocketSphinx recovered the country/news/search intent, with a
+source-attribution word error. Captured PCM was injected into the real production
+backend; this was not a physical Android microphone or a production browser
+HTTP upload. The diagnostic-only revision `499c674ed09ae6a34d6115b2782b4b0263203fb3`
+was LIVE in `dep-db9fjhvbtjjs73bi1hf0`; Call/search production logic stayed
+byte-identical to `215ad4759fb4074637df216f1e5407ccda6a5e09`.
+
+The session ran 04:31:02–04:31:19 UTC. **It failed current-news end-to-end
+validation.** Google transcribed “What is the latest news in Indonesia? Search
+and name source.” and invoked exactly the expected country ID/general tool.
+The single web request contained only the server-owned public news query.
+The adapter returned `provider_timeout`, with no HTTP response, cited evidence,
+source date, usage counters or spoken answer. Its configured connect/read
+timeouts were 10s/8s. The failure bridge arrived 8,697ms after tool invocation;
+the precise HTTP duration and timeout subtype were not recorded. Whether a
+longer deadline would succeed, or whether network/provider behavior caused the
+delay, is unproven. No production timeout or token-cap change is justified as
+a verified fix by this result alone.
+
+All 454,400 accepted PCM bytes (14.2 seconds including silence) were dispatched
+unchanged, in 71 packets, with no queue tail or manual turn markers. Duration
+was 15,806ms. No provider response turn/audio completed before the test stopped
+on the failed lookup. End completed in 149ms, frames were cleared, the search
+worker finished, and both reservations settled. DB readback shows AI_CALL
+COMPLETE/$0.25 and WEB_SEARCH FAILED/$0.01 application estimates with zero
+reported tokens. The existing Call operation terminal state is UNKNOWN with a
+finished timestamp and no active reservation; it is not a supplier cost report.
+The supplier invoice remains unavailable.
+
+The diagnostic was disarmed immediately (`off`, empty expiry), with no second
+paid test. All 76 offline Call checks passed, including the exact fixture,
+default-off behavior, durable once marker, one-search reservation/HTTP fence,
+fixed public query and secret-safe error reporting. Full synthetic-only results
+and settlement evidence are in
+`kilas-ai-call-public-search-provider-20261017.json`.
+
+Successful sourced news answers, source publication dates, FX, Indonesian
+multi-turn discussion and physical Android audio/playback remain unverified.
+The newly observed provider timeout is an additional live functional blocker;
+deployment LIVE and recognized input/tool invocation do not close it.
