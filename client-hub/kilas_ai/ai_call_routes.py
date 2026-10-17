@@ -2,6 +2,7 @@
 import re
 from flask import abort, request, session
 import security
+import ui_i18n
 from .routes import ai_bp
 from . import ai_call as calls, ai_call_budget as budget
 
@@ -56,6 +57,26 @@ def ai_call_chunk(ident,index):
             call.stop('call_input_invalid',erase=True)
             raise
         return {'accepted_index':index},200,HEADERS
+    except (calls.CallError,budget.ledger.BudgetError) as error:return failure(error)
+
+
+@ai_bp.post('/call/<ident>/ready')
+def ai_call_client_ready(ident):
+    """Browser audio readiness only; never a new provider/session admission."""
+    csrf()
+    try:
+        value=request.get_json(silent=True) if request.is_json else None
+        if (not isinstance(value,dict) or set(value)!={'language','user_started_speaking'}
+                or not isinstance(value['language'],str) or value['language'] not in ui_i18n.LANGUAGES
+                or type(value['user_started_speaking']) is not bool):
+            raise calls.CallError('call_input_invalid',400)
+        call=calls.get(session['user_id'],ident)
+        if call is None:raise calls.CallError('call_ended',409)
+        # Use the same explicit UI cookie as the rendered page, never browser
+        # language guessing or arbitrary text in a client-generated prompt.
+        selected=ui_i18n.language()
+        call.client_ready(selected,user_started_speaking=value['user_started_speaking'])
+        return {'ready':True,'language':selected},200,HEADERS
     except (calls.CallError,budget.ledger.BudgetError) as error:return failure(error)
 
 

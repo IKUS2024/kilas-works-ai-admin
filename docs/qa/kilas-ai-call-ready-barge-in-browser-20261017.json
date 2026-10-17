@@ -1,0 +1,55 @@
+{
+  "synthetic_browser": true,
+  "physical_device_verified": false,
+  "acoustic_echo_verified": false,
+  "provider_io": false,
+  "deviceRate": 48000,
+  "preAdmissionFrames": 3,
+  "firstUtterance": {
+    "frames": 35,
+    "bytes": 224000
+  },
+  "preservedThroughReset": {
+    "frames": 50,
+    "bytes": 320000
+  },
+  "preservedThroughAudioStart": {
+    "frames": 40,
+    "bytes": 256000
+  },
+  "speakingMicFrames": 5,
+  "voicedSpeakingMicFrames": 5,
+  "speakingMicMaxRms": 0.11014983545251927,
+  "readyRequests": 1,
+  "readyLanguage": "id",
+  "userStartedSpeaking": true,
+  "scheduledReset": {
+    "stoppedNodes": 10,
+    "pendingSamplesBefore": 48000,
+    "pendingSamplesAfter": 0
+  },
+  "queuedReset": {
+    "pendingSamplesBefore": 4800,
+    "pendingSamplesAfter": 0
+  },
+  "postEndMicFrames": 0,
+  "postEndChunks": 0,
+  "postEndAudioSources": 0,
+  "tracksEnded": true,
+  "endWhileReadyPending": {
+    "readyRequests": 0,
+    "postEndMicFrames": 0,
+    "postEndChunks": 0,
+    "postEndAudioSources": 0,
+    "tracksEnded": true
+  },
+  "httpReady": {
+    "requests": 1,
+    "contentType": "application/json",
+    "csrfVerified": true,
+    "json": {
+      "language": "id",
+      "user_started_speaking": true
+    }
+  }
+}

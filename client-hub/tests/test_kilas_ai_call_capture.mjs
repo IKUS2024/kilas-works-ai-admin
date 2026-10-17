@@ -8,7 +8,7 @@ import {CallCapture} from '../static/kilas_ai_call_capture.mjs';
 
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function fixture(Capture=CallCapture,options={}){
- const output=[],timers=new Map(),errors=[];let ident=0,stops=0,constraints;
+ const output=[],levels=[],timers=new Map(),errors=[];let ident=0,stops=0,constraints;
  const track={stop(){stops++;},addEventListener(){}},stream={getTracks:()=>[track]};
  const node={port:{},connect(){},disconnect(){}};
  const context={state:'running',audioWorklet:{addModule:async()=>{}},destination:{},createMediaStreamSource:()=>({connect(){},disconnect(){}})};
@@ -16,8 +16,8 @@ function fixture(Capture=CallCapture,options={}){
   mediaDevices:{getUserMedia:async value=>{constraints=value;return stream;}},createNode:()=>node,
   schedule:(fn,ms)=>{timers.set(++ident,{fn,ms});return ident;},clear:id=>timers.delete(id),...options});
  const frame=data=>node.port.onmessage({data});
- const start=async()=>{const work=capture.start({pcm:raw=>output.push(raw),level(){},ready(){},blob(){},error:e=>errors.push(e)});await tick();frame({bytes:new ArrayBuffer(6400),rms:0});await work;};
- return {capture,node,context,output,errors,timers,start,frame,get stops(){return stops;},get constraints(){return constraints;}};
+ const start=async()=>{const work=capture.start({pcm:raw=>output.push(raw),level:(rms,durationMs)=>levels.push({rms,durationMs}),ready(){},blob(){},error:e=>errors.push(e)});await tick();frame({bytes:new ArrayBuffer(6400),rms:0});await work;};
+ return {capture,node,context,output,levels,errors,timers,start,frame,get stops(){return stops;},get constraints(){return constraints;}};
 }
 
 function quietFrames(){
@@ -44,6 +44,7 @@ test('Reproduced: old capture loses the entire quiet Indonesian question; Call r
 test('Call supplies initial silence and quiet speech without a loudness threshold or local duration timer',async()=>{
  const f=fixture();await f.start();f.frame({bytes:new ArrayBuffer(6400),rms:.001});
  assert.equal(f.output.length,2);assert.equal(f.timers.size,0);
+ assert.deepEqual(f.levels,[{rms:0,durationMs:200},{rms:.001,durationMs:200}]);
  assert.deepEqual(f.constraints,{audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
  const late=f.node.port.onmessage;f.capture.cancel();late({data:{bytes:new ArrayBuffer(6400),rms:.1}});
  assert.equal(f.output.length,2);assert.equal(f.stops,1);assert.equal(f.node.port.onmessage,null);
