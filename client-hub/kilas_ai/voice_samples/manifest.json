@@ -1,1 +1,12 @@
-{}
+{
+  "kilas-male": {
+    "text": "Hi, this is a sample of my voice.",
+    "voice_sha256": "d286a3ebf47abaf991bc038280e12de1b6cd0c00ca48ab9f8ff45a3fedabeeff",
+    "audio_sha256": "8097fdcaa6fbb09d74712f71f27ab7658f3cfabd132bbe3628eabc7d67d59a27"
+  },
+  "kilas-female": {
+    "text": "Hi, this is a sample of my voice.",
+    "voice_sha256": "4ca5e857c143618f2c199bae83ee46b9cf565dbf219f7e1daf1dd68974c87bea",
+    "audio_sha256": "1bcd49c3b9ea40f0a9b80222173e819d0d1f9230d8fa554b3e4b7ac99cd4dd74"
+  }
+}

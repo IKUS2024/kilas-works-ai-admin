@@ -8,7 +8,7 @@ Baseline: `83b8807325e2cb03abbca85aaa60036d3f23508f`, branch `call-preserve-inpu
 - Add Voice, Rename, Delete, selection, consent and generation remain intact. Replace Voice Sample remains absent. No voice identity or stored sample is updated by playback.
 - Removed only the rendered WAV explanation paragraph from the completed result. MP3/WAV actions, real PCM conversion, actionable errors and consent remain intact.
 - Prepared cached English Kilas Voice demos via `/kilas-translator/voices/<alias>/sample`. A server-only manifest binds the exact English text, SHA-256 of the current source voice ID, and MP3 SHA-256. Unknown aliases, missing assets, changed identities/text and corrupt assets return 404. Private originals and owner job history are never reused. No generation endpoint or automatic provider call was added.
-- The committed manifest is empty. No demo control is rendered until a matching asset exists. Existing production generation language rules are unchanged.
+- The original restoration release shipped an empty manifest. The two approved English assets were subsequently published as recorded in [English demo QA](QA_KILAS_ENGLISH_DEMOS_20261017.md). No demo control is rendered without a matching asset. Existing production generation language rules are unchanged.
 
 ## Verification
 
@@ -28,11 +28,11 @@ git diff --check
 - Logs: `/tmp/kilas-original-sample-full-tests.log`, `/tmp/kilas-original-sample-final-browser.log`; screenshots: `/tmp/kilas-personal-voice-browser/`.
 - Chromium uses synthetic microphone/audio and mocked generation. Physical-device sound, real voice similarity and production playback remain for live verification. Local byte/row assertions establish preservation; parent execution holds production read-only fingerprints for post-release comparison.
 
-## English demo still pending separate paid authorization
+## English demo authorization and subsequent completion
 
-Parent read-only production inspection found no existing matching English demo for either current branded source. No paid generation was performed. The existing $2 authorization covered chat-model QA only.
+At restoration time, parent read-only production inspection found no existing matching English demo for either current branded source; this implementation made no paid generation. The existing $2 authorization covered chat-model QA only. Separate approval subsequently allowed exactly two English demo generations, completed by the parent browser operator and published as recorded in [English demo QA](QA_KILAS_ENGLISH_DEMOS_20261017.md). The estimate below is historical; it does not authorize another generation.
 
 - Voices: **Kilas Male** and **Kilas Female**, using their existing source identities (two requests total, no recreation/replacement).
 - Exact text per voice: `Hi, this is a sample of my voice.` — **33 characters** each, **66 total**.
 - [Official ElevenLabs API pricing](https://elevenlabs.io/pricing/api), checked by parent execution, lists $0.08/1,000 characters for v4 and Multilingual v2: estimated **$0.00528 total before tax**. Proposed bounded authorization: **at most $0.01 total**, two single requests, no automatic retries; account-specific minimums/taxes can differ.
-- After authorization, use the existing secure server provider environment and `audio_provider.speech(SAMPLE_TEXT, branded.resolve(alias)['id'], 'en', personal=True)` once per alias (current `eleven_v4` adapter), validate MP3/duration, then publish `kilas-male.mp3` / `kilas-female.mp3` plus manifest entries containing `text`, `voice_sha256`, `audio_sha256` under `client-hub/kilas_ai/voice_samples/`. Keep raw provider IDs and credentials server-side. Local provider credentials were unavailable; no credential retrieval or new runtime generation API was attempted.
+- Generation used the existing authenticated Voice Over flow. Publication validated the two completed job outputs and their current source identities, then stored `kilas-male.mp3` / `kilas-female.mp3` plus manifest entries containing `text`, `voice_sha256`, `audio_sha256` under `client-hub/kilas_ai/voice_samples/`. Raw provider IDs and credentials remained server-side. No credential retrieval or new runtime generation API was required.
