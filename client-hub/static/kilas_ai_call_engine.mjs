@@ -4,7 +4,7 @@ const aborted=()=>new DOMException('Aborted','AbortError');
 const failure=code=>Object.assign(Error(code),{code});
 export class CallInput {
  constructor({request,path,signal,onError=()=>{}}){
-  Object.assign(this,{request,path,signal,onError});this.pending=new Uint8Array(16000);this.length=0;this.index=0;this.queued=0;this.total=0;this.epoch=0;this.firstPacket=true;
+  Object.assign(this,{request,path,signal,onError});this.pending=new Uint8Array(16000);this.length=0;this.index=0;this.queued=0;this.total=0;this.firstPacket=true;
   this.chain=new Promise((resolve,reject)=>{this.open=resolve;this.rejectOpen=reject;});this.chain.catch(()=>{});
  }
  push(raw){
@@ -16,20 +16,14 @@ export class CallInput {
   if(this.firstPacket){this.firstPacket=false;this.flush();}
  }
  flush(){
-  if(!this.length)return;const raw=this.pending.slice(0,this.length),epoch=this.epoch;this.length=0;
+  if(!this.length)return;const raw=this.pending.slice(0,this.length);this.length=0;
   const work=this.chain.then(async()=>{
    if(this.signal.aborted)throw aborted();
-   if(epoch!==this.epoch)return;
    const index=this.index++;
    const result=await this.request(this.path+'/chunks/'+index,{method:'POST',body:raw,signal:this.signal,timeoutMs:8000});
    if(result.accepted_index!==index)throw failure('call_input_invalid');
   }).finally(()=>{this.queued-=raw.length;});
   this.chain=work;work.catch(error=>{if(!this.signal.aborted)this.onError(error);});
- }
- discardPending(){
-  // Turn-taking: never append a prior turn's unsent microphone tail to the
-  // next question. An already dispatched request keeps its original index.
-  ++this.epoch;this.queued-=this.length;this.pending.fill(0);this.length=0;this.firstPacket=true;
  }
  cancel(){this.rejectOpen(aborted());this.pending.fill(0);this.length=0;}
 }
@@ -80,7 +74,9 @@ export class CallSession {
     if(frame.index!==this.cursor++)throw failure('call_protocol');
     if(frame.type==='audio'){
      if(typeof frame.pcm!=='string'||frame.pcm.length>12800)throw failure('call_protocol');
-     if(!this.speaking||this.turnSealed){this.clear(this.echoTimer);this.echoTimer=null;this.turnSealed=false;this.speaking=true;this.playVersion++;this.input.discardPending();this.onText('');if(!this.sourceAwaitingAudio)this.onSources([]);this.sourceAwaitingAudio=false;}
+     // Reply arrival must not erase the question's captured/upload-pending
+     // tail. Its original bytes stay ahead of subsequent playback silence.
+     if(!this.speaking||this.turnSealed){this.clear(this.echoTimer);this.echoTimer=null;this.turnSealed=false;this.speaking=true;this.playVersion++;this.input.flush();this.onText('');if(!this.sourceAwaitingAudio)this.onSources([]);this.sourceAwaitingAudio=false;}
      this.stateTo('speaking');const raw=Uint8Array.from(atob(frame.pcm),c=>c.charCodeAt(0));this.player.push(raw,'call');
     }else if(frame.type==='text'){
      if(typeof frame.text!=='string'||frame.text.length>4000)throw failure('call_protocol');this.onText(frame.text);

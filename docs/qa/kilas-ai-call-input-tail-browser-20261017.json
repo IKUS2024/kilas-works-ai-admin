@@ -1,0 +1,32 @@
+{
+  "synthetic_browser": true,
+  "physical_device_verified": false,
+  "provider_io": false,
+  "semantic_understanding_verified": false,
+  "automaticOpeningRequests": 0,
+  "outputBeforeReply": false,
+  "idleMicrophoneUploads": 1,
+  "capturedBeforeAckBytes": 38400,
+  "capturedPrefixPreservedThroughReply": true,
+  "replyPlayed": true,
+  "returnedToListeningAfterDrain": true,
+  "nextQuestionMicResumed": true,
+  "endStoppedTracks": true,
+  "postEndUploads": 0,
+  "states": [
+    "connecting",
+    "listening",
+    "listening",
+    "listening",
+    "listening",
+    "speaking",
+    "speaking",
+    "speaking",
+    "speaking",
+    "speaking",
+    "listening",
+    "listening",
+    "ended"
+  ],
+  "errors": []
+}

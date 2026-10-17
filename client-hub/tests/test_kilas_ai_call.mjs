@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CallInput,CallSession} from '../static/kilas_ai_call_engine.mjs';
+import {prepareCallPcm} from '../static/kilas_ai_call_pcm.mjs';
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const tick=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
 const pcm=()=>new Uint8Array([1,0,2,0]);
@@ -26,14 +27,15 @@ test('Input wrong acknowledgment is terminal and never retried',async()=>{
  let requests=0,error;const input=new CallInput({signal:new AbortController().signal,path:'/call',onError:e=>{error=e;},request:async()=>{requests++;return {accepted_index:99};}});
  input.push(pcm());input.open();await input.chain.catch(()=>{});await tick();assert.equal(error.code,'call_input_invalid');assert.equal(requests,1);
 });
-test('Speaking discards only unsent prior-turn PCM and the next question retains sequential indexes',async()=>{
+test('Captured PCM queued behind an in-flight upload retains every byte and sequential index',async()=>{
  const inFlight=deferred(),requests=[];
  const input=new CallInput({signal:new AbortController().signal,path:'/call',request:async(url,{body})=>{requests.push({url,body});if(requests.length===1)return inFlight.promise;return {accepted_index:requests.length-1};}});
  input.push(pcm());input.open();await tick();
  input.push(new Uint8Array(16000).fill(2));input.push(pcm());
- input.discardPending();input.push(new Uint8Array([7,0]));inFlight.resolve({accepted_index:0});await input.chain;
- assert.deepEqual(requests.map(x=>x.url),['/call/chunks/0','/call/chunks/1']);assert.deepEqual([...requests[1].body],[7,0]);assert.equal(input.queued,0);
- assert.equal(input.total,16010); // Captured usage is never refunded by dropping an unsent tail.
+ input.flush();inFlight.resolve({accepted_index:0});await input.chain;
+ assert.deepEqual(requests.map(x=>x.url),['/call/chunks/0','/call/chunks/1','/call/chunks/2']);
+ assert.deepEqual(Buffer.concat(requests.map(x=>Buffer.from(x.body))),Buffer.concat([Buffer.from(pcm()),Buffer.alloc(16000,2),Buffer.from(pcm())]));
+ assert.equal(input.queued,0);assert.equal(input.total,16008);
 });
 function fixture(options={}){
  const posts=[],bodies=[],states=[],errors=[],captions=[],timers=new Map();let timer=0,captureOptions,stops=0,audioStops=0,plays=0;
@@ -61,6 +63,29 @@ test('Restored user-first flow sends no opening/readiness cue and plays only a p
   {index:1,type:'text',text:'Synthetic relevant reply'},{index:2,type:'turn_complete'}],next_index:3,total_frames:3});
  await tick();assert.equal(f.plays,1);assert.equal(f.captions.at(-1),'Synthetic relevant reply');
  f.session.end();await started;assert.deepEqual(f.errors,[]);
+});
+test('A reply arriving before upload ACK preserves the captured question tail in order',async()=>{
+ const ack=deferred(),requests=[];let f;
+ f=fixture({request:async(path,args={})=>{
+  if(path==='/kilas-ai/call/readiness')return {available:true};
+  if(path.endsWith('/end'))return {};
+  if(args.method==='POST'&&!path.includes('/chunks/'))return {call_id:'a'.repeat(32)};
+  if(path.includes('/chunks/')){
+   const index=Number(path.split('/').at(-1));requests.push({index,raw:args.body.slice()});
+   if(index===0)await ack.promise;return {accepted_index:index};
+  }
+  return f.hold.promise;
+ }});
+ const started=f.session.start();await tick();
+ const queued=new Uint8Array(16000).fill(7),tail=new Uint8Array(6400).fill(9);
+ f.capture.pcm(queued);f.capture.pcm(tail);await tick();assert.equal(requests.length,1);
+ f.hold.resolve({state:'SPEAKING',frames:[{index:0,type:'audio',pcm:Buffer.from(pcm()).toString('base64')}],next_index:1,total_frames:1});
+ await tick();assert.equal(f.session.state,'speaking');
+ f.session.input.flush();ack.resolve();await f.session.input.chain;await tick();
+ const expected=Buffer.concat([Buffer.from(pcm()),Buffer.from(prepareCallPcm(queued)),Buffer.from(prepareCallPcm(tail))]);
+ const actual=Buffer.concat(requests.map(value=>Buffer.from(value.raw)));
+ try{assert.equal(actual.length,expected.length,'already captured user audio was discarded at reply start');assert.deepEqual(actual,expected);assert.deepEqual(requests.map(value=>value.index),[0,1,2]);}
+ finally{f.session.end();await started;}
 });
 test('Readiness denial never captures microphone, admits or schedules retry',async()=>{
  let mic=0,posts=0;
@@ -90,7 +115,7 @@ test('Server audio stays Speaking through actual queue drain; mic resumes for ne
  f.hold.resolve({state:'LISTENING',frames:[{index:0,type:'audio',pcm:Buffer.from(pcm()).toString('base64')},{index:1,type:'text',text:'Hello'},{index:2,type:'turn_complete'}],next_index:3,total_frames:3});
  await tick();assert.equal(f.session.state,'speaking');assert.equal(f.plays,1);assert.equal(f.captions.at(-1),'Hello');
  f.capture.pcm(pcm());assert.equal(f.session.input.total,before+4);
- await tick();assert.deepEqual([...f.bodies.at(-1)],[0,0,0,0]);
+ f.session.input.flush();await f.session.input.chain;assert.deepEqual([...f.bodies.at(-1)],[0,0,0,0]);
  playback.resolve();await tick();assert.equal(f.session.state,'speaking');
  f.capture.pcm(pcm());assert.deepEqual([...f.session.input.pending.slice(0,f.session.input.length)],Array(4).fill(0));
  const guard=[...f.timers].find(([,value])=>value.ms===300);assert.ok(guard);f.timers.delete(guard[0]);guard[1].fn();
@@ -140,7 +165,7 @@ test('A new answer arriving before the prior checkpoint drains cannot reopen the
  f.hold.resolve({state:'SPEAKING',frames:[{index:0,type:'audio',pcm:encoded},{index:1,type:'turn_complete'},{index:2,type:'audio',pcm:encoded}],next_index:3,total_frames:3});
  await tick();assert.equal(f.plays,2);playback.resolve();await tick();
  assert.equal(f.session.state,'speaking');assert.equal([...f.timers.values()].some(value=>value.ms===300),false);
- f.capture.pcm(pcm());await tick();assert.deepEqual([...f.bodies.at(-1)],[0,0,0,0]);
+ f.capture.pcm(pcm());f.session.input.flush();await f.session.input.chain;assert.deepEqual([...f.bodies.at(-1)],[0,0,0,0]);
  f.session.end();await started;
 });
 
