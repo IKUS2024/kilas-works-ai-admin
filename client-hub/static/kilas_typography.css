@@ -31,6 +31,8 @@ body.kilas-light:not(.finance-app) .ai-markdown :is(ul,ol){padding-inline-start:
 body.kilas-light:not(.finance-app) :is(pre,code,kbd,samp){font-family:var(--font-code);font-size:.875rem;line-height:1.6;letter-spacing:normal;word-spacing:normal}
 body.kilas-light:not(.finance-app) pre{max-width:100%;overflow:auto;text-align:start}
 body.kilas-light:not(.finance-app) pre code{font-size:inherit;line-height:inherit;white-space:pre}
+body.kilas-light:not(.finance-app) .ai-sources{display:flex;flex-wrap:wrap;align-items:baseline;gap:.25rem .5rem;max-width:100%}
+body.kilas-light:not(.finance-app) .ai-sources>a{min-width:0;max-width:100%;overflow-wrap:anywhere}
 
 /* Existing plus / textarea / send+Call grid, with a shared optical baseline. */
 body.kilas-light:not(.finance-app) .kilas-home-workspace :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch){
