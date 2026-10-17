@@ -488,3 +488,73 @@ the final transcription marker or it arrives too late, this integration fails
 closed without a paid lookup and returns explicit unavailability. Startup
 readiness reports search configuration separately from live search verification.
 Further paid QA needs its own bounded review; it does not run automatically.
+
+## One approved normal automatic-VAD English control
+
+The requestor approved exactly one further call using the verified English
+apples source after real Chromium synthetic-device capture. No Indonesian model
+acquisition, private recording, paid search or additional provider call followed.
+
+The source passed through actual getUserMedia (48kHz mono), AudioContext 44.1kHz,
+CallCapture/AudioWorklet, production mono16k conditioning and CallInput batching.
+All 236,800 captured bytes were preserved; End stopped the tracks with no late
+frames. This local browser phase used stub HTTP. Its resulting PCM was then
+injected through the real production backend Call.accept/queue/WebSocket path;
+it was not a physical Android microphone or a production browser HTTP upload.
+
+PocketSphinx's transcription became less accurate after browser processing,
+although the original source was independently verified. This limitation was
+reported before the approved provider test. The captured fixture is pinned by
+SHA256 `7aea9275bf3a933da7ee15ad9a2653880af9c51ee4679da3a91899b75f108d60`.
+The last-speech reference is approximately 5,000ms: independent ASR last-word
+timing, checked against the last 20ms RMS>.005 frame (4,960ms). This reference
+is not a human-annotated or provider VAD timestamp.
+
+The one call ran at 03:54:05–03:54:16 UTC on diagnostic-only revision
+`f73dc90f9a8b3e249151ab898416de12c8f375aa`, deployment
+`dep-db9f27u1egvs73f194b0`. Production audio/conversation code remained
+byte-identical to `c9ff98f`. The exact setup hash was
+`08b4762440f5d4d49fa82033f2a59d7bc985617dd35256bf254db24769bbfe0a`, matching
+the deployed setup: automatic VAD enabled, 1,200ms silence, HIGH start / LOW end,
+300ms prefix, NO_INTERRUPTION, Kore voice, unchanged 1,024 output tokens.
+
+| Measurement | Automatic-path result |
+| --- | --- |
+| Actual synthetic input transcription | I have three apples. I buy two more apples. How many apples do I have? |
+| Actual answer | You have five apples. |
+| Semantic assessment | Complete intended question and correct answer |
+| First audio | 8,801ms after run start; **2,067ms after the approximate speech-end reference** |
+| Turn complete / run duration | 10,215ms / 10,334ms; stopped on first completed response |
+| Accepted / dispatched | 268,800 / 268,800 bytes, 42 packets; exact equality, zero queued tail |
+| Fixture plus silence | 7.4s browser capture plus 1.0s additional zero PCM |
+| Manual markers / search attempts | Zero / zero |
+| Connections / normal reservations | One / one; no reconnect, retry or renewal |
+| Output audio | 1,410.04ms |
+| Reported usage | 1,073 prompt, 41 response, 1,114 total; separate 66 thoughts tokens |
+| Modality details | Prompt 693 TEXT / 304 AUDIO; response 41 AUDIO |
+| End / settlement | 283ms, settled true, zero retained frames |
+
+As before, reported modality/thought subdivisions do not fully reconcile with
+top-level counters. The supplier invoice is unavailable. The existing $0.25
+application reservation and metering are unchanged; the approved planning
+allowance was $0.04, not a statement of actual invoiced cost. The run is disabled
+with `KILAS_AI_CALL_SMOKE_RUN=off` and an empty expiry.
+
+Comparison: the earlier manual-boundary control recognized the same full source
+question and answered five apples, with audio 644ms after explicit END. Its
+approximate onset after the source's last word was 1,325ms. The normal automatic
+control also recognized the complete question and answered correctly, starting
+after speech had finished. Browser processing, response cap (1,024 vs 128) and
+the later public-tool setup differ between runs; this is not an isolated VAD
+latency experiment. No automatic-VAD failure was reproduced by this control,
+so it provides no basis for a new production audio correction.
+
+Five new offline diagnostic-fence tests and seven existing launcher/harness
+tests passed, including unchanged setup, no manual markers/search, stopping at
+the first response, exact dispatch, once-only admission and settlement.
+
+This closes the single-question automatic-English gap only. Relevant Indonesian
+multi-turn discussion, physical Android input/playback, real network resumption,
+silence/noise behavior and live public search remain unverified. Public search
+still accepts only country ID and general/economy/politics/weather enums; it is
+not a claim of unrestricted web lookup. No further paid test was run.

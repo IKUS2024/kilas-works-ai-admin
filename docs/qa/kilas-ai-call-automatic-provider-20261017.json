@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-10-17T03:54:16.187885576Z",
+  "commit": "f73dc90f9a8b3e249151ab898416de12c8f375aa",
+  "deployment": "dep-db9f27u1egvs73f194b0",
+  "accepted_bytes": 268800,
+  "activity_events": [
+    {
+      "at_ms": 2270,
+      "audioOffset": "0.400s",
+      "kind": "voiceActivity"
+    },
+    {
+      "at_ms": 8801,
+      "audioOffset": "6.800s",
+      "kind": "voiceActivity"
+    }
+  ],
+  "automatic_vad": true,
+  "automatic_vad_production_changed": false,
+  "complete_speech_dispatched": true,
+  "dispatch_matches_accepted": true,
+  "dispatched_sha256": "d29b39a46cc00780d02bcb1c8484ec262676190828c1ea7b32b6afccd2222c42",
+  "duration_ms": 10334,
+  "end_ms": 283,
+  "events": {
+    "serverContent": 12,
+    "sessionResumptionUpdate": 1,
+    "setupComplete": 1,
+    "usageMetadata": 1,
+    "voiceActivity": 2
+  },
+  "first_audio_after_speech_ms": 2067,
+  "first_audio_ms": 8801,
+  "fixture_sha256": "7aea9275bf3a933da7ee15ad9a2653880af9c51ee4679da3a91899b75f108d60",
+  "input_started_ms": 1734,
+  "input_text": "I have three apples. I buy two more apples. How many apples do I have?",
+  "manual_markers": 0,
+  "output_ms": 1410.0416666666667,
+  "output_token_cap": 1024,
+  "post_end_frames": 0,
+  "provider_connections": 1,
+  "queued_bytes": 0,
+  "response_text": "You have five apples.",
+  "run": "call-understanding-auto-english-20261017",
+  "search_attempts": 0,
+  "search_requests": 0,
+  "sent_bytes": 268800,
+  "sent_chunks": 42,
+  "settled": true,
+  "setup_complete": true,
+  "setup_sha256": "08b4762440f5d4d49fa82033f2a59d7bc985617dd35256bf254db24769bbfe0a",
+  "speech_reference_ms": 5000,
+  "status": "completed",
+  "synthetic_only": true,
+  "turn_complete": true,
+  "turn_complete_ms": 10215,
+  "usage_events": [
+    {
+      "promptTokenCount": 1073,
+      "promptTokensDetails": [
+        {
+          "modality": "TEXT",
+          "tokenCount": 693
+        },
+        {
+          "modality": "AUDIO",
+          "tokenCount": 304
+        }
+      ],
+      "responseTokenCount": 41,
+      "responseTokensDetails": [
+        {
+          "modality": "AUDIO",
+          "tokenCount": 41
+        }
+      ],
+      "thoughtsTokenCount": 66,
+      "totalTokenCount": 1114
+    }
+  ],
+  "assessment": {
+    "full_question_recognized": true,
+    "answer_semantically_correct": true,
+    "premature_truncation_observed": false,
+    "first_audio_after_speech_reference_ms": 2067,
+    "speech_boundary_precision": "approximate independent last-word/RMS reference, not a human or provider timestamp",
+    "automatic_setup_matches_deployed_c9ff98f": true,
+    "production_audio_code_changed": false,
+    "physical_android_verified": false,
+    "indonesian_multiturn_verified": false,
+    "search_provider_verified": false
+  },
+  "cleanup": {
+    "smoke_run": "off",
+    "expiry": "",
+    "confirmed_update": true
+  },
+  "billing": {
+    "normal_application_reservation_usd": 0.25,
+    "actual_supplier_invoice_available": false,
+    "approved_supplier_allowance_usd": 0.04,
+    "normal_metering_changed": false
+  }
+}
