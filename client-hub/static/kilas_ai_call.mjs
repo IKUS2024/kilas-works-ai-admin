@@ -1,8 +1,8 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=app-language-20261015';
-import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=app-language-20261015';
+import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-understanding-20261017';
 import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-jitter-20261016';
-import {CallSession} from './kilas_ai_call_engine.mjs?v=call-continuous-20261016';
+import {CallSession} from './kilas_ai_call_engine.mjs?v=call-understanding-20261017';
 
 const dialog=document.querySelector('#ai-call-dialog');
 if(dialog){
@@ -12,7 +12,7 @@ if(dialog){
  const csrf=document.querySelector('meta[name=csrf-token]')?.content||document.querySelector('[name=csrf_token]')?.value;
  let context=null,launcher=null;
  const request=(url,options={})=>requestJSON(url,{csrf,...options});
- const capture=new RealtimeCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices,continuous:true});
+ const capture=new CallCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices});
  let session;
  const player=new CallPlayer({getContext:()=>context,onError:()=>session?.fail({code:'call_audio'})});
  const messages={call_unavailable:'Panggilan belum tersedia untuk akun ini.',budget_limit:'Batas biaya tercapai. Panggilan dihentikan.',

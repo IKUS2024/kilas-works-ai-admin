@@ -40,3 +40,6 @@ def post_worker_init(worker):
     except Exception:
         call = {'configured_ready':False, 'reason':'readiness_check_failed', 'paid_qa':False}
     print('KILAS_AI_CALL_READY '+json.dumps(call,sort_keys=True), flush=True)
+    # Default-off, explicitly armed Call validation; separate process, once only.
+    from kilas_ai.ai_call_smoke import launch as call_smoke
+    call_smoke()

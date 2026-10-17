@@ -36,15 +36,15 @@ test('Speaking discards only unsent prior-turn PCM and the next question retains
  assert.equal(input.total,16010); // Captured usage is never refunded by dropping an unsent tail.
 });
 function fixture(options={}){
- const posts=[],states=[],errors=[],captions=[],timers=new Map();let timer=0,captureOptions,stops=0,audioStops=0,plays=0;
+ const posts=[],bodies=[],states=[],errors=[],captions=[],timers=new Map();let timer=0,captureOptions,stops=0,audioStops=0,plays=0;
  const hold=deferred();
- const f={posts,states,errors,captions,timers,hold,
+ const f={posts,bodies,states,errors,captions,timers,hold,
   get capture(){return captureOptions;},get stops(){return stops;},get plays(){return plays;},get audioStops(){return audioStops;}};
  const player={push(){plays++;},checkpoint:async()=>{},cancel(){},...options.player};
  const session=new CallSession({key:()=> 'a'.repeat(32),prepare:async()=>{},
   capture:{start:async callbacks=>{captureOptions=callbacks;callbacks.pcm(pcm());},cancel(){stops++;}},stopAudio(){audioStops++;},
   request:async(path,args={})=>{
-   if(args.method==='POST'){posts.push(path);if(path.endsWith('/end'))return {};if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};return {call_id:'a'.repeat(32)};}
+   if(args.method==='POST'){posts.push(path);if(path.endsWith('/end'))return {};if(path.includes('/chunks/')){bodies.push(args.body);return {accepted_index:Number(path.split('/').at(-1))};}return {call_id:'a'.repeat(32)};}
    if(path.endsWith('/readiness'))return {available:true};
    return hold.promise;
   },onState:value=>states.push(value),onText:text=>captions.push(text),onError:code=>errors.push(code),
@@ -78,8 +78,13 @@ test('Server audio stays Speaking through actual queue drain; mic resumes for ne
  const before=f.session.input.total;
  f.hold.resolve({state:'LISTENING',frames:[{index:0,type:'audio',pcm:Buffer.from(pcm()).toString('base64')},{index:1,type:'text',text:'Hello'},{index:2,type:'turn_complete'}],next_index:3,total_frames:3});
  await tick();assert.equal(f.session.state,'speaking');assert.equal(f.plays,1);assert.equal(f.captions.at(-1),'Hello');
- f.capture.pcm(pcm());assert.equal(f.session.input.total,before);
- playback.resolve();await tick();assert.equal(f.session.state,'listening');f.capture.pcm(pcm());assert.equal(f.session.input.total,before+4);
+ f.capture.pcm(pcm());assert.equal(f.session.input.total,before+4);
+ await tick();assert.deepEqual([...f.bodies.at(-1)],[0,0,0,0]);
+ playback.resolve();await tick();assert.equal(f.session.state,'speaking');
+ f.capture.pcm(pcm());assert.deepEqual([...f.session.input.pending.slice(0,f.session.input.length)],Array(4).fill(0));
+ const guard=[...f.timers].find(([,value])=>value.ms===300);assert.ok(guard);f.timers.delete(guard[0]);guard[1].fn();
+ assert.equal(f.session.state,'listening');f.capture.pcm(pcm());assert.equal(f.session.input.total,before+12);
+ assert.deepEqual([...f.session.input.pending.slice(-4+f.session.input.length,f.session.input.length)],[1,0,2,0]);
  f.session.end();await started;assert.equal(f.timers.size,0);
 });
 test('Playback rejection ends microphone/transport and never auto-admits a replacement',async()=>{
@@ -109,4 +114,21 @@ test('Malformed stream cursor fails once without passing any audio to player',as
  const f=fixture(),started=f.session.start();await tick();
  f.hold.resolve({state:'SPEAKING',frames:[{index:9,type:'audio',pcm:'AQACAA=='}],next_index:1,total_frames:1});
  await started;assert.equal(f.plays,0);assert.deepEqual(f.errors,['call_protocol']);
+});
+
+test('End during echo clearance fences late resume and releases all timers',async()=>{
+ const f=fixture(),started=f.session.start();await tick();
+ f.hold.resolve({state:'LISTENING',frames:[{index:0,type:'audio',pcm:Buffer.from(pcm()).toString('base64')},{index:1,type:'turn_complete'}],next_index:2,total_frames:2});
+ await tick();const guard=[...f.timers.values()].find(value=>value.ms===300);assert.ok(guard);
+ f.session.end();guard.fn();await started;assert.equal(f.session.state,'ended');assert.equal(f.timers.size,0);
+});
+
+test('A new answer arriving before the prior checkpoint drains cannot reopen the microphone',async()=>{
+ const playback=deferred(),f=fixture({player:{checkpoint:()=>playback.promise}}),started=f.session.start();await tick();
+ const encoded=Buffer.from(pcm()).toString('base64');
+ f.hold.resolve({state:'SPEAKING',frames:[{index:0,type:'audio',pcm:encoded},{index:1,type:'turn_complete'},{index:2,type:'audio',pcm:encoded}],next_index:3,total_frames:3});
+ await tick();assert.equal(f.plays,2);playback.resolve();await tick();
+ assert.equal(f.session.state,'speaking');assert.equal([...f.timers.values()].some(value=>value.ms===300),false);
+ f.capture.pcm(pcm());await tick();assert.deepEqual([...f.bodies.at(-1)],[0,0,0,0]);
+ f.session.end();await started;
 });

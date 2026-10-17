@@ -43,7 +43,7 @@ export class CallSession {
  async start(){
   if(this.state!=='ended')return;
   const ticket=++this.version;this.controller=new AbortController();const signal=this.controller.signal;
-  this.ident=this.key();this.path='/kilas-ai/call/'+this.ident;this.admitted=false;this.speaking=false;this.cursor=0;this.playVersion=0;
+  this.ident=this.key();this.path='/kilas-ai/call/'+this.ident;this.admitted=false;this.speaking=false;this.turnSealed=false;this.cursor=0;this.playVersion=0;
   this.stateTo('connecting');this.onText('');
   this.input=new CallInput({request:this.request,path:this.path,signal,onError:error=>this.fail(error,ticket)});
   try{
@@ -54,7 +54,11 @@ export class CallSession {
    if(!eligibility.available)throw failure(eligibility.reason||'call_unavailable');
    await prepared;if(!this.current(ticket))return;
    await this.capture.start({ready:()=>{},level:()=>{},blob:()=>{},
-    pcm:raw=>{if(this.current(ticket)&&!this.speaking){try{this.input.push(raw);}catch(error){this.fail(error,ticket);}}},
+    pcm:raw=>{if(this.current(ticket)){try{
+     // Keep the provider's VAD clock running during playback, without sending
+     // speaker echo back as another question. Never reuse microphone PCM here.
+     this.input.push(this.speaking?new Uint8Array(raw.length):raw);
+    }catch(error){this.fail(error,ticket);}}},
     error:error=>this.fail(error,ticket)});
    if(!this.current(ticket))return;
    this.admitted=true;
@@ -75,16 +79,22 @@ export class CallSession {
     if(frame.index!==this.cursor++)throw failure('call_protocol');
     if(frame.type==='audio'){
      if(typeof frame.pcm!=='string'||frame.pcm.length>12800)throw failure('call_protocol');
-     if(!this.speaking){this.speaking=true;this.playVersion++;this.input.discardPending();this.onText('');}
+     if(!this.speaking||this.turnSealed){this.clear(this.echoTimer);this.echoTimer=null;this.turnSealed=false;this.speaking=true;this.playVersion++;this.input.discardPending();this.onText('');}
      this.stateTo('speaking');const raw=Uint8Array.from(atob(frame.pcm),c=>c.charCodeAt(0));this.player.push(raw,'call');
     }else if(frame.type==='text'){
      if(typeof frame.text!=='string'||frame.text.length>4000)throw failure('call_protocol');this.onText(frame.text);
     }else if(frame.type==='reset'){
-     this.player.cancel();this.speaking=false;this.playVersion++;this.onText('');
+     this.clear(this.echoTimer);this.player.cancel();this.turnSealed=false;this.speaking=false;this.playVersion++;this.onText('');
     }else if(frame.type==='turn_complete'){
-     const generation=this.playVersion;
+     this.turnSealed=true;const generation=this.playVersion;
      this.player.checkpoint().then(()=>{
-      if(this.current(ticket)&&generation===this.playVersion){this.speaking=false;this.stateTo('listening');}
+      if(this.current(ticket)&&generation===this.playVersion){
+       // Discard the final worklet frame containing room/speaker decay before
+       // showing Listening. End and a newer answer fence this callback too.
+       this.clear(this.echoTimer);this.echoTimer=this.schedule(()=>{
+        if(this.current(ticket)&&generation===this.playVersion){this.echoTimer=null;this.speaking=false;this.stateTo('listening');}
+       },300);
+      }
      },error=>{if(this.current(ticket)&&generation===this.playVersion)this.fail(error,ticket);});
     }else throw failure('call_protocol');
    }
@@ -99,7 +109,7 @@ export class CallSession {
  fail(error,ticket=this.version){if(!this.current(ticket))return;this.end();this.onError(error.code||'call_transport');}
  end(){
   const path=this.path,admitted=this.admitted;this.admitted=false;this.ident=null;this.path=null;++this.version;
-  this.controller?.abort();this.clear(this.timer);this.clear(this.pollTimer);this.pollResolve?.();this.pollResolve=null;
+  this.controller?.abort();this.clear(this.timer);this.clear(this.echoTimer);this.clear(this.pollTimer);this.pollResolve?.();this.pollResolve=null;
   try{this.input?.cancel();}catch{}try{this.capture.cancel();}catch{}try{this.player.cancel();}catch{}try{this.stopAudio();}catch{}
   this.speaking=false;this.onText('');this.stateTo('ended');
   if(path&&admitted){try{Promise.resolve(this.request(path+'/end',{method:'POST',keepalive:true,timeoutMs:8000})).catch(()=>{});}catch{}}

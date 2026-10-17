@@ -1,0 +1,61 @@
+[
+  {
+    "id": "id-first",
+    "language": "id",
+    "text": "Saya punya tiga apel lalu membeli dua lagi. Berapa jumlah apel saya? Jawab singkat.",
+    "heard": [
+      "apel"
+    ],
+    "answer": [
+      "lima",
+      "5"
+    ],
+    "sha256": "32a07ac201de01e83c7d1ebe58ac1f8eab6dad8d93c0f02d632b297e0e3fd641",
+    "duration_ms": 6363.9375
+  },
+  {
+    "id": "id-followup",
+    "language": "id",
+    "text": "Kalau dua saya berikan ke teman, berapa sisanya?",
+    "heard": [
+      "dua",
+      "teman"
+    ],
+    "answer": [
+      "tiga",
+      "3"
+    ],
+    "sha256": "1513a8de60324af74648a3dc1bd52037f66aa2d1f5cd92e376e643c47930cb32",
+    "duration_ms": 3821.875
+  },
+  {
+    "id": "en-first",
+    "language": "en",
+    "text": "I am planning a picnic for six people. Each needs two sandwiches. How many sandwiches should I make? Answer briefly.",
+    "heard": [
+      "picnic",
+      "sandwich"
+    ],
+    "answer": [
+      "twelve",
+      "12"
+    ],
+    "sha256": "fce7d4b34a3704491c4f30c861fb5fba26504fe61f040eac6cf82e3347b05353",
+    "duration_ms": 7578.0625
+  },
+  {
+    "id": "en-followup",
+    "language": "en",
+    "text": "Two people cancel. How many should I make now?",
+    "heard": [
+      "cancel",
+      "two"
+    ],
+    "answer": [
+      "eight",
+      "8"
+    ],
+    "sha256": "482c6fdc0a8b47c09ec9f6b6bfb90e66721b359ef207fa577c68e3ced0efbc0c",
+    "duration_ms": 3400.6875
+  }
+]

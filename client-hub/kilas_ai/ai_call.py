@@ -3,6 +3,8 @@ import base64
 import binascii
 import json
 import os
+import math
+import struct
 from queue import Queue, Empty, Full
 from threading import Event, Lock, RLock, Thread, Timer
 from time import monotonic
@@ -37,15 +39,19 @@ def setup(handle=None):
             'You are Kilas, a helpful voice conversation partner for one person. '
             'Discuss ideas, answer questions, and help work through problems. '
             'Respond naturally in the language the person uses, including Indonesian or English. '
-            'Keep spoken answers concise but useful. Ask when something is unclear. '
+            'Keep spoken answers concise but useful. Remember the details, constraints, decisions and references from earlier turns in this call. '
+            'Answer the latest question in that context; follow-up questions may omit details already given. '
+            'Wait silently for intelligible speech; silence, noise and playback echo are not requests. '
+            'Never invent words or a topic from unclear audio. If speech is partly clear, briefly state the specific part you understood and ask only for the missing detail. '
+            'If nothing is intelligible, ask once briefly for a clearer repeat, then wait for speech. '
             'This is a new conversation, not an automatic translation or a group meeting. '
             'You have no access to their chat history, accounts, files or external tools. '
             'Do not claim to perform external actions or to have current information you lack.'}]},
         'generationConfig':{'responseModalities':['AUDIO'],'maxOutputTokens':1024,
             'speechConfig':{'voiceConfig':{'prebuiltVoiceConfig':{'voiceName':'Kore'}}}},
         'realtimeInputConfig':{'activityHandling':'NO_INTERRUPTION','automaticActivityDetection':{'disabled':False,
-            'prefixPaddingMs':300,'silenceDurationMs':800}},
-        'outputAudioTranscription':{},
+            'prefixPaddingMs':300,'silenceDurationMs':1200,'endOfSpeechSensitivity':'END_SENSITIVITY_LOW'}},
+        'inputAudioTranscription':{},'outputAudioTranscription':{},
         'contextWindowCompression':{'triggerTokens':12000,'slidingWindow':{'targetTokens':6000}},
         'sessionResumption':{'handle':handle} if handle else {}}}
 
@@ -62,6 +68,7 @@ class Call:
         self.funded_at=self.started;self.funded_input=0;self.funded_output=0;self.funded_turns=0
         self.renewing=Event();self.resume_handle=None;self.go_away=False;self.resume_pending=False
         self.provider_started=self.started
+        self.input_energy=0;self.input_samples=0;self.input_peak=0;self.input_transcript_chars=0
 
     def check(self):
         if self.closed.is_set():raise CallError('call_ended',409)
@@ -107,6 +114,10 @@ class Call:
             if self.queued+len(raw)>QUEUE_BYTES:raise CallError('call_backlog',409)
             try:self.queue.put_nowait(raw)
             except Full:raise CallError('call_backlog',409) from None
+            # Non-content diagnostics only; no PCM or transcript is persisted.
+            samples=[value[0]/32768 for value in struct.iter_unpack('<h',raw)]
+            self.input_energy+=sum(value*value for value in samples);self.input_samples+=len(samples)
+            self.input_peak=max(self.input_peak,max(abs(value) for value in samples))
             self.expected+=1;self.input_bytes+=len(raw);self.queued+=len(raw)
             self.last_seen=monotonic()
 
@@ -152,6 +163,11 @@ class Call:
                 if self.output_bytes-self.funded_output+len(pcm)>OUTPUT_BYTES or self.turns-self.funded_turns>=MAX_TURNS:self.fund()
                 self.output_bytes+=len(pcm);self.state='SPEAKING'
                 for at in range(0,len(pcm),9600):self.publish({'type':'audio','pcm':base64.b64encode(pcm[at:at+9600]).decode('ascii')})
+            heard=content.get('inputTranscription')
+            if heard is not None:
+                if not isinstance(heard,dict) or not isinstance(heard.get('text',''),str) or len(heard.get('text',''))>4000:
+                    raise CallError('call_output_invalid')
+                self.input_transcript_chars+=len(heard.get('text',''))
             transcript=content.get('outputTranscription')
             if transcript is not None:
                 if not isinstance(transcript,dict) or not isinstance(transcript.get('text',''),str):raise CallError('call_output_invalid')
@@ -231,7 +247,7 @@ class Call:
             safe_reasons={'call_ended','call_network','call_unavailable','call_backlog','budget_limit','account_credit_limit',
                           'call_input_invalid','call_output_invalid','call_provider','call_transport'}
             reason=self.code if self.code in safe_reasons else 'call_transport'
-            print(f'KILAS_AI_CALL closed=true reason={reason} input_ms={self.input_bytes/32:.1f} output_ms={self.output_bytes/48:.1f} interruptions={self.interruptions}',flush=True)
+            print(f'KILAS_AI_CALL closed=true reason={reason} input_ms={self.input_bytes/32:.1f} output_ms={self.output_bytes/48:.1f} interruptions={self.interruptions} turns={self.turns} input_rms={math.sqrt(self.input_energy/max(1,self.input_samples)):.5f} input_peak={self.input_peak:.5f} heard_chars={self.input_transcript_chars}',flush=True)
 
     def resume(self):
         # Exactly one supported handoff per provider warning, with no reconnect

@@ -232,8 +232,10 @@ class CallTests(unittest.TestCase):
         setup=calls.setup()['setup']
         self.assertEqual(setup['model'],'models/gemini-3.8-live')
         self.assertNotIn('translationConfig',setup['generationConfig'])
-        for forbidden in ('tools','thinkingConfig','inputAudioTranscription'):
+        for forbidden in ('tools','thinkingConfig'):
             self.assertNotIn(forbidden,setup)
+        self.assertEqual(setup['inputAudioTranscription'],{})
+        self.assertEqual(setup['realtimeInputConfig']['automaticActivityDetection']['silenceDurationMs'],1200)
         self.assertEqual(setup['sessionResumption'],{})
         self.assertEqual(calls.setup('checkpoint')['setup']['sessionResumption'],{'handle':'checkpoint'})
         self.assertIn('slidingWindow',setup['contextWindowCompression'])
@@ -241,6 +243,19 @@ class CallTests(unittest.TestCase):
         self.assertEqual(setup['generationConfig']['maxOutputTokens'],1024)
         self.assertEqual(setup['realtimeInputConfig']['activityHandling'],'NO_INTERRUPTION')
         self.assertIn('new conversation',setup['systemInstruction']['parts'][0]['text'])
+
+    def test_input_diagnostics_count_quiet_pcm_and_transcription_without_retaining_content(self):
+        with self.enabled():
+            call=self.make();raw=b'\x00\x01'*3200
+            call.accept(0,raw)
+            self.assertEqual(call.input_samples,3200)
+            self.assertAlmostEqual(call.input_peak,1/128)
+            self.assertAlmostEqual(call.input_energy/call.input_samples,(1/128)**2)
+            call.receive(json.dumps({'serverContent':{'inputTranscription':{'text':'synthetic question'}}}))
+            self.assertEqual(call.input_transcript_chars,18)
+            self.assertEqual(call.frames,[])
+            self.assertNotIn('synthetic question',str(vars(call)))
+            with self.assertRaises(calls.CallError):call.receive('{"serverContent":{"inputTranscription":{"text":7}}}')
 
     def test_renewal_keeps_shared_cap_and_end_fences_every_envelope(self):
         with self.enabled():
