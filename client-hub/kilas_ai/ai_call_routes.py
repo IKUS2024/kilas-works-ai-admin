@@ -1,12 +1,23 @@
 """AI Call shares authenticated AI access, never Translator endpoints."""
 import re
-from flask import abort, request, session
+from flask import abort, render_template, request, session
 import security
 import ui_i18n
 from .routes import ai_bp
 from . import ai_call as calls, ai_call_budget as budget
 
 HEADERS={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}
+
+
+@ai_bp.get('/call/audio-check')
+def ai_call_audio_check():
+    """Explicit local-only hardware check; no Call admission or provider IO."""
+    return render_template('kilas_ai/call_audio_check.html'),200,{
+        **HEADERS,
+        'Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        'Permissions-Policy':'microphone=(self), camera=(), geolocation=()',
+        'Referrer-Policy':'no-referrer',
+    }
 
 
 def csrf():

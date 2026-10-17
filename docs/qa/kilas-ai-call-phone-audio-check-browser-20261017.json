@@ -1,0 +1,58 @@
+{
+  "synthetic_browser": true,
+  "physical_device_verified": false,
+  "acoustic_echo_verified": false,
+  "provider_io": false,
+  "summary": {
+    "test": "kilas-local-audio-v1",
+    "providerCalls": 0,
+    "audioUploaded": false,
+    "audioRecorded": false,
+    "physicalDeviceConclusion": "requires review; this test does not identify provider VAD cause",
+    "settings": {
+      "echoCancellation": true,
+      "noiseSuppression": true,
+      "autoGainControl": true,
+      "channelCount": 1,
+      "sampleRate": 48000,
+      "latency": 0.01,
+      "echoCancellationModes": [
+        true,
+        false,
+        "remote-only"
+      ]
+    },
+    "output": {
+      "sampleRate": 44100,
+      "baseLatencySeconds": 0.023219954648526078,
+      "outputLatencySeconds": 0.07
+    },
+    "capture": {
+      "frames": 51,
+      "samples": 163200,
+      "peak": 0.80536,
+      "clippedSamples": 0,
+      "baselineRms": 0.03412497138764001,
+      "playbackRms": 0.08502152826699003,
+      "tailRms": 0.07642785688220435
+    },
+    "playbackEnvelopeCorrelation": {
+      "coefficient": 0.208,
+      "lagMs": 500,
+      "pairs": 30
+    },
+    "assumption": "user remained silent; correlation is approximate, not an AEC pass/fail or provider VAD measurement"
+  },
+  "pendingPermissionCancellation": {
+    "tracksEnded": true,
+    "contextsClosed": true,
+    "sourceCount": 30,
+    "status": "Tes dihentikan. Mikrofon dan bunyi tes sudah dimatikan."
+  },
+  "network": {
+    "requests": 7,
+    "posts": 0,
+    "websockets": 0
+  },
+  "errors": []
+}

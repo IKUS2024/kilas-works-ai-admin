@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="id">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cek audio AI Call · Kilas</title>
+<style>
+body{max-width:40rem;margin:2rem auto;padding:0 1rem;background:#111820;color:#f3f5f7;font:16px/1.5 system-ui,sans-serif}button{font:inherit;padding:.8rem 1.1rem;margin:0 .6rem .8rem 0;border:1px solid #526271;border-radius:.6rem;background:#243746;color:inherit}button:disabled{opacity:.5}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.85rem}a{color:#a8d6f2}
+</style>
+<main>
+<h1>Cek audio AI Call</h1>
+<p>Akhiri AI Call terlebih dahulu. Tes lokal ini berlangsung sekitar 10 detik. Gunakan speaker HP dan volume yang biasa dipakai. Setelah menekan Mulai, izinkan mikrofon dan tetap diam sampai selesai. Akan terdengar bunyi tes.</p>
+<p>Ini tidak memulai AI Call atau memakai kuota AI. Suara mikrofon tidak direkam, disimpan, atau dikirim. Hanya ringkasan angka yang tampil di HP.</p>
+<button type="button" id="check-start">Mulai tes</button><button type="button" id="check-stop" disabled>Hentikan</button>
+<p id="check-status" role="status" aria-live="polite">Siap. Jangan mulai AI Call selama tes ini.</p>
+<pre id="check-summary" tabindex="0"></pre>
+<button type="button" id="check-copy" hidden>Salin ringkasan</button>
+<p><a href="/kilas-ai">Kembali ke Kilas</a></p>
+</main>
+<script type="module" src="{{ url_for('static',filename='kilas_ai_call_audio_check.mjs',v='local-audio-check-20261017') }}"></script>
+</html>
