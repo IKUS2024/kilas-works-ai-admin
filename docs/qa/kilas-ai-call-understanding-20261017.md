@@ -280,3 +280,115 @@ change was made after this result. The smoke trigger is disabled for the final
 deployment. The user's end-to-end usability complaint remains unresolved despite
 confirmed capture and dispatch fixes; do not call this release functionally
 verified for discussion, Indonesian/English continuity or physical Android audio.
+
+## Unpaid format, fixture and protocol audit
+
+No additional provider inference request was made in this audit. Temporary local
+ASR/SDK packages were installed only under `/tmp`; project dependencies were not
+changed. The smoke trigger remains off.
+
+### Reconstructed outgoing audio
+
+An offline test executes production `Call.accept` and `Call.send` against an
+in-memory socket with the exact known fixture sequence from the last run. It
+reconstructs 50 messages and 789,946 bytes / 24,685.8125 ms: two seconds of silence,
+the clear Indonesian question, its follow-up, and the 12.5-second timeout silence.
+It is a reconstruction from hash-verified fixtures and the production serializer,
+not a recovered runtime/private audio capture. The runtime's accepted/sent digest
+comparison was separately successful.
+
+Each decoded message contains only raw signed PCM16 little endian, one channel,
+16 kHz, labeled `audio/pcm;rate=16000`; there is no WAV header in the socket PCM.
+An independent FFmpeg s16le decode/re-encode produces exactly the same samples.
+The reconstructed PCM SHA-256 is
+`eb67c14bd47d8e0176e389542a5d6c31b825cac497d63e8c2fd7715e2354c655`.
+This matches the provider's documented raw audio format:
+https://ai.google.dev/gemini-api/docs/live-api/capabilities#sending-audio
+
+The first fixture was also regenerated with eSpeak NG's Indonesian voice, speed
+175, from the full source sentence. Both versions contain 95,423 samples before
+padding; waveform cosine similarity after the bounded gain is 0.990789. eSpeak
+produces the expected full Indonesian phoneme sequence, rather than synthesizing
+just the letter S. This is evidence against a post-processing corruption, but
+phoneme output and correlation are NOT an intelligibility assessment.
+
+Direct audio input/listening is unsupported by this execution interface. An
+independent local faster-whisper/base int8 CPU transcription was attempted, but
+public model-weight downloads failed with proxy HTTP 403/ProxyError, including an
+escalated read. Official OpenAI and the original whisper.cpp model hosts were
+also inaccessible. No paid transcription service was substituted. Consequently,
+independent semantic intelligibility of this synthetic voice remains UNVERIFIED.
+The reconstructed synthetic WAV is retained for a permitted local ASR or listener.
+
+### Official SDK and schema comparison
+
+Google's `google-genai` 2.31.0 validates the current `LiveConnectConfig` locally.
+The model is `models/gemini-3.8-live`; input/output transcription, AUDIO response,
+Kore voice, context compression, resumption and automatic activity configuration
+are supported fields. Unsupported thinking or translation configuration is absent.
+An in-memory `AsyncSession.send_realtime_input` serializes the same MIME and exact
+decoded PCM bytes as our sender. SDK snake_case/our documented camelCase names and
+URL-safe/standard Base64 spellings are equivalent ProtoJSON representations, not
+an identified wire defect. No SDK client, credentials or network socket is used
+for this comparison.
+
+Sources:
+https://github.com/googleapis/python-genai/blob/main/google/genai/live.py
+https://github.com/googleapis/python-genai/blob/main/google/genai/_live_converters.py
+https://protobuf.dev/programming-guides/json/#representation-of-each-type
+https://ai.google.dev/api/live
+
+### Packet timing and local segmentation
+
+The final run used mostly 500 ms packets with 364/322 ms final speech tails, not
+tiny PCM fragments. The first fixture has only 600 ms maximum low energy; a local
+10 ms-window energy reference with 1,200 ms silence produces one segment: voice
+210–5,790 ms, finalized at 6,990 ms. Changing wire packets between 10, 20, 100, 200
+and 500 ms does not change that result. This is a silence-timing reference; it
+DOES NOT emulate Gemini's learned VAD or prove provider segmentation is defective.
+
+One evidence-backed harness correction was made: prerecorded packets had been
+sent at their sample interval's start, giving the provider up to 500 ms of future
+audio compared with a real microphone. The harness now waits until each packet's
+sample interval ends. A regression test fails if bytes are sent before they could
+have been captured. This bias cannot account for the observed 4,764 ms early reply.
+No production VAD, provider model, transcript pipeline or other feature was changed.
+The two new wire/segmentation tests and seven harness tests pass without provider IO.
+
+### Proposed next diagnostic — not authorized or run
+
+First prerequisite: independently establish that the retained synthetic question
+is intelligible via a human listener or an accessible local ASR model. The current
+interface cannot complete that prerequisite. No conclusion attributing failure
+solely to provider VAD should be made before it is met.
+
+If the prerequisite passes and a single diagnostic is authorized, use the same
+6,363.9375 ms / 203,646-byte `id-first-clear.wav` payload in one new connection:
+
+1. Keep the current model, prompt, voice and normal metering. In this private test
+   only, disable automatic activity detection and cap output at 128 tokens.
+2. Send `activityStart`, then the entire hash-verified PCM in capture-end-paced
+   200 ms packets. Confirm all bytes are dispatched before sending `activityEnd`.
+   Do not send `audioStreamEnd` in this manual mode.
+3. Await one answer for at most eight seconds, with a 25-second whole-session
+   deadline, one normal reservation, no reconnect, repeat or alternative model.
+4. Record activity types/audio offsets, complete synthetic transcription,
+   response text, first response relative to the END marker, byte equality and
+   normal settlement. The expected semantic answer is five apples. A response
+   before the END marker or incomplete source recognition fails the diagnostic.
+
+This activity mode and the different automatic/manual end signals are documented:
+https://ai.google.dev/gemini-api/docs/live-api/capabilities#disable-automatic-vad
+
+Estimated API use: one connection, 6.364 seconds of input audio, approximately
+300–400 setup text tokens, at most 128 output tokens, and no tools or grounding.
+At the published Gemini 3.8 Live rates inspected on 2026-10-17 ($0.005/input audio
+minute, $12/million output audio tokens, $0.75/million input text tokens), the rough
+supplier estimate is about $0.002–$0.003, excluding tax/rounding and any additional
+billed transcription tokens. Actual usage/billing determines the invoice. The
+application still uses its unchanged $0.25 conservative Call reservation; the
+supplier estimate is not an application-credit promise or a proposed price change.
+https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-live
+
+No paid request has been made or newly authorized by this proposal. Usability,
+relevant multi-turn context and physical Android audio remain unresolved.

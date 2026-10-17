@@ -66,13 +66,14 @@ class SmokeTests(unittest.TestCase):
             total+=len(raw);targets.append((total,item))
         class Socket:
             def __init__(self):
-                self.incoming=[];self.total=0;self.at=0;self.controls=0
+                self.incoming=[];self.total=0;self.at=0;self.controls=0;self.capture_lead_violation=False
             def send(self,payload):
                 message=json.loads(payload)
                 if 'setup' in message:self.incoming.append({'setupComplete':{}})
                 audio=message.get('realtimeInput',{}).get('audio')
                 if audio:
                     self.total+=len(base64.b64decode(audio['data']))
+                    if now[0]+1e-9<self.total/32000:self.capture_lead_violation=True
                     if respond_to_audio and self.at<len(targets) and self.total>=targets[self.at][0]:
                         item=targets[self.at][1];self.at+=1
                         self.incoming.append({'serverContent':{'inputTranscription':{'text':item['heard'][0]+' synthetic-hidden'},'outputTranscription':{'text':item['answer'][0]+' synthetic-hidden'},'turnComplete':True}})
@@ -134,6 +135,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(result['transport']['max_accept_ms'],300)
         self.assertLess(result['transport']['max_pacing_lag_ms'],350)
         self.assertTrue(result['settled']);self.assertEqual(socket.controls,0)
+        self.assertFalse(socket.capture_lead_violation)
 
     def test_audio_failure_uses_one_same_socket_text_control_and_never_claims_audio_success(self):
         result,socket=self.synthetic_session(False)

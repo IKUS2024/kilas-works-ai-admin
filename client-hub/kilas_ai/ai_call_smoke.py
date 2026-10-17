@@ -207,13 +207,15 @@ def run():
                 drain()
                 packet=raw[offset:offset+16000]
                 if call.input_bytes+len(packet)>55*32000:raise ValueError('smoke_input_fence')
-                due=sample_clock+sample_bytes/32000
+                # A microphone can dispatch only samples already captured.
+                # Wait until this packet's END on the source sample clock.
+                due=sample_clock+(sample_bytes+len(packet))/32000
                 time.sleep(max(0,due-time.monotonic()))
+                drain()  # End/deadline may have changed during the capture wait.
                 observed['max_pacing_lag_ms']=max(observed['max_pacing_lag_ms'],round(max(0,time.monotonic()-due)*1000))
                 before=time.monotonic();call.accept(call.expected,packet)
                 observed['max_accept_ms']=max(observed['max_accept_ms'],round((time.monotonic()-before)*1000))
                 accepted_hash.update(packet);sample_bytes+=len(packet)
-                time.sleep(max(0,sample_clock+sample_bytes/32000-time.monotonic()))
 
         result['stage'] = 'handshake'
         while call.state == 'CONNECTING':
