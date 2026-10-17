@@ -4,6 +4,7 @@ No semantic truth scoring, classifier API, sleeps, or expensive fallback.
 """
 import re
 import json
+import logging
 from . import model_policy, providers, routing, usage, fair_use, conversation_context
 
 REPAIR = (
@@ -37,10 +38,14 @@ def violations(request, answer, *, tier='NORMAL', finish='stop', selected=False)
     issues = []
     if not isinstance(answer, str) or not answer.strip():
         return ['empty']
-    if re.search(r'\b(?:only valid json|hanya json valid|json saja|only json)\b', request, re.I):
+    # Whitespace word counts apply to prose, not a requested structured response.
+    # The same valid object must pass whether minified or pretty-printed.
+    structured_json = False
+    if re.search(r'\b(?:only valid json|hanya json valid|json saja|only json|(?:satu|one|single) objek json|(?:one|single) json object)\b', request, re.I):
         raw = re.sub(r'^```(?:json)?\s*|\s*```$', '', answer.strip(), flags=re.I)
         try:
             json.loads(raw)
+            structured_json = True
         except (ValueError, TypeError):
             issues.append('invalid_json')
     if arithmetic_mismatch(request,answer):
@@ -80,7 +85,7 @@ def violations(request, answer, *, tier='NORMAL', finish='stop', selected=False)
         if any(url.rstrip('.,)') not in request for url in re.findall(r'https?://\S+',prose)):
             issues.append('unsupported_citation')
     # Explicit concise requests and short factual follow-ups may legitimately be tiny.
-    if (tier in ('DEEP','EXPERT') and len(request) > 35 and len(prose.split()) < 8
+    if (not structured_json and tier in ('DEEP','EXPERT') and len(request) > 35 and len(prose.split()) < 8
             and not re.search(r'\b(?:singkat|pendek|ringkas|concise|brief|satu kalimat|one sentence)\b', request, re.I)
             and not re.search(r'^(?:kenapa|knp|lanjut|terus|kalau|yang|yg)\b', request, re.I)):
         issues.append('unusable_depth')
@@ -165,6 +170,9 @@ class ChatQualityStream:
                         yield {'type': 'delta', 'text': ''.join(pieces)}
                     yield {'type': 'finish', 'reason': finish}
                     return
+                # Only server-owned reason codes; never log prompts or answer text.
+                logging.getLogger(__name__).warning('KILAS_CHAT_VALIDATION model=%s attempt=%s finish=%s issues=%s',
+                                                   model,attempt+1,finish,','.join(issues))
                 yield {'type': 'reset'}  # clear streamed broken prose before repair/error
                 if attempt:
                     raise providers.ProviderError('quality_repair_failed')

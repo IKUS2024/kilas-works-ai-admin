@@ -215,3 +215,31 @@ class RouteTests(unittest.TestCase):
         mid=agent_store.append(self.owner,'assistant','Synthetic reply',self.conversation,selected_model='gpt-6.1-sol')
         self.assertEqual(agent_store.messages(self.owner,conversation_id=self.conversation)[-1]['returned_model'],'unreported')
         self.assertEqual(agent_store.messages(self.other,conversation_id=self.conversation),[])
+
+    def test_compact_json_with_code_is_not_rejected_as_shallow_prose(self):
+        from kilas_ai import chat_quality
+        prompt=("Uji sintetis, jawab di chat saja tanpa tools. Ada 17 karton × 24 unit; 125 unit terjual dan 19 dicadangkan. "
+                "Sisanya dikemas per 7 unit. Dari catatan 'Faktur QA-017; jatuh tempo 2026-10-31; mata uang USD; total 38.00', "
+                "berikan SATU objek JSON dengan kunci remaining_units, full_packs, loose_units, invoice_id, due_date, currency, "
+                "total, bank_account (null bila tidak tertulis), dan python (string kode fungsi def pack_count(cartons,per_carton,sold,reserved,pack_size) "
+                "yang mengembalikan (full_packs,loose_units); anggap input integer valid non-negatif dan pack_size>0). Tanpa penjelasan lain.")
+        value={'remaining_units':264,'full_packs':37,'loose_units':5,'invoice_id':'QA-017','due_date':'2026-10-31',
+               'currency':'USD','total':38.0,'bank_account':None,'python':'def pack_count(cartons,per_carton,sold,reserved,pack_size):\n    return divmod(cartons*per_carton-sold-reserved,pack_size)'}
+        compact=json.dumps(value,separators=(',',':'))
+        self.assertEqual(len(compact.split()),4)
+        for text in (compact,json.dumps(value,indent=2),'```json\n'+compact+'\n```'):
+            self.assertEqual(chat_quality.violations(prompt,text,tier='DEEP',selected=True),[])
+        self.assertIn('invalid_json',chat_quality.violations(prompt,'{bad}',tier='DEEP',selected=True))
+        self.assertIn('truncated',chat_quality.violations(prompt,compact,tier='DEEP',finish='length',selected=True))
+        self.assertIn('unusable_depth',chat_quality.violations('Analisis arsitektur aplikasi ini dengan risiko dan tradeoffs.','Coba lagi.',tier='DEEP',selected=True))
+        def stream(mode,messages,**kwargs):
+            for event in answer(mode,messages):
+                yield {**event,'text':compact} if event['type']=='delta' else event
+        for agent in (True,False):
+            with patch.object(providers,'stream',side_effect=stream) as call:
+                response=self.submit('gpt-6-luna',prompt,agent=agent)
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(call.call_count,1)
+            self.assertNotIn('"type": "reset"',response.text)
+            self.assertNotIn('event: reset',response.text)
+            self.assertIn('done',response.text)
