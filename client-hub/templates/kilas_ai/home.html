@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
+{% set chat_styles_in_head=true %}
 {% block title %}{{ selected.title if selected else ui_t('Home') }} · Kilas AI{% endblock %}
+{% block kilas_feature_styles %}{% include 'kilas_ai/_chat_page_styles.html' %}{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='keyboard-welcome-20261014') }}">
 <section class="premium-home">{% include 'kilas_ai/_home_workspace.html' %}</section>
 {% endblock %}

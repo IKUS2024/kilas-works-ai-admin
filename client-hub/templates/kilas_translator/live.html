@@ -1,27 +1,25 @@
 {% extends 'base.html' %}
 {% block title %}Translator · Kilas Works{% endblock %}
-{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_live_translator.css',v='processing-permission-20261017') }}">{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_live_translator.css',v='call-viewport-20261013') }}">{% endblock %}
 {% block content %}
 <div class="kilas-live-page">
 {% set selected_feature='live' %}
 {% include 'kilas_ai/_feature_navigation.html' %}
-<section class="kilas-live-translator" data-ready="{{ 'true' if live_ready else 'false' }}" data-permission-granted="{{ 'true' if processing_permission.granted else 'false' }}">
+<section class="kilas-live-translator" data-ready="{{ 'true' if live_ready else 'false' }}">
 <section id="live-setup"><header class="live-heading"><h1>Translator</h1><p>{{ ui_t("Pilih dua bahasa, lalu mulai percakapan.") }}</p></header>
 {% if not live_ready %}<p role="status">{{ ui_t("Translator belum tersedia untuk akun ini.") }}</p>{% endif %}
 <section id="live-recovery" hidden aria-label="{{ ui_t('Pemulihan sesi') }}"><p id="live-recovery-status" role="status" aria-live="polite"></p><p>{{ ui_t("Sesi mungkin masih digunakan di tab atau perangkat lain. Gunakan tab itu, atau akhiri sesi sebelumnya di sini. Mengakhiri sesi membatalkan ucapan yang masih diproses; biaya yang sudah dikirim tetap tercatat.") }}</p><div class="live-recovery-actions"><button type="button" id="live-recovery-end" class="btn secondary" hidden>{{ ui_t("Akhiri sesi sebelumnya") }}</button><button type="button" id="live-recovery-check" class="btn secondary">{{ ui_t("Periksa sesi") }}</button></div></section>
 <form id="live-setup-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<input type="hidden" name="processing_scope" value="{{ processing_permission.scope }}"><input type="hidden" name="processing_version" value="{{ processing_permission.version }}">
 <label>{{ ui_t("Bahasa pertama") }}<select name="language_a" required>{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='id' }} {{ 'disabled' if code=='en' }}>{{ ui_t(label) }}</option>{% endfor %}</select></label>
 <label>{{ ui_t("Bahasa kedua") }}<select name="language_b" required>{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }} {{ 'disabled' if code=='id' }}>{{ ui_t(label) }}</option>{% endfor %}</select></label>
 <label class="live-voice">{{ ui_t("Suara") }}<select name="voice">{% for voice in voices %}<option value="{{ voice.alias }}" {{ 'selected' if voice.alias=='kilas-male' }}>{{ voice.name }}</option>{% endfor %}</select></label>
-<div id="live-permission-notice" {{ 'hidden' if processing_permission.granted }}><p data-permission-notice>{{ processing_permission.notice }}</p></div>
-<button type="submit" class="btn" {% if not processing_permission.granted %}name="processing_consent" value="accept"{% endif %} {{ 'disabled' if not live_ready or not voices }}>{{ 'Start' if processing_permission.granted else ui_t('Izinkan dan mulai') }}</button></form>
-<details id="live-permission-settings"><summary>{{ ui_t('Izin pemrosesan ucapan') }}</summary><p data-permission-notice>{{ processing_permission.notice }}</p><p><a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">{{ ui_t('Kebijakan Privasi') }}</a></p><button id="live-permission-revoke" type="button" class="btn secondary" {{ 'hidden' if not processing_permission.granted }}>{{ ui_t('Cabut izin') }}</button><p id="live-permission-status" role="status" aria-live="polite"></p></details></section>
+<label class="live-consent"><input type="checkbox" name="consent" value="yes" required><span>{{ ui_t("Saya punya izin dan menyetujui pemrosesan ucapan. Audio dapat dikirim selagi saya berbicara.") }}</span></label>
+<button type="submit" class="btn" data-enabled="{{ 'true' if live_ready and voices else 'false' }}" disabled aria-busy="true">Start</button></form></section>
 <section id="live-active" hidden aria-label="{{ ui_t('Sesi Translator') }}"><div class="live-call-body"><div class="kilas-live-orb" role="img" aria-label="{{ ui_t('Mendengarkan') }}" data-state="listening"></div><p id="live-state" role="status" aria-live="polite"></p><p id="live-translation" hidden aria-label="{{ ui_t('Hasil terjemahan') }}" aria-live="polite"></p></div><div class="live-call-controls"><button type="button" id="live-resume" class="btn secondary" hidden>{{ ui_t("Lanjutkan") }}</button><button type="button" id="live-end" class="live-hangup" aria-label="{{ ui_t('Akhiri sesi') }}" title="{{ ui_t('Akhiri sesi') }}"><svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .41-.24.76-.58.92-.98.49-1.88 1.12-2.68 1.85-.18.18-.43.29-.71.29-.28 0-.53-.11-.71-.29L.29 13.16C.11 12.98 0 12.73 0 12.45c0-.28.11-.53.29-.71C3.34 8.89 7.46 7 12 7s8.66 1.89 11.71 4.74c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.43 2.43c-.18.18-.43.29-.71.29-.28 0-.53-.11-.71-.29-.8-.74-1.7-1.37-2.68-1.85-.34-.16-.58-.51-.58-.92v-3.1C15.15 9.25 13.6 9 12 9z"/></svg></button></div></section>
 <p id="live-error" role="alert" hidden></p>
 <p id="live-session-status" class="live-session-status" role="status" aria-live="polite"></p>
 <button type="button" id="live-recovery-retry" class="btn secondary" hidden>{{ ui_t("Periksa sesi") }}</button>
 </section>
 </div>
-<script type="module" src="{{ url_for('static',filename='kilas_live_translator.mjs',v='processing-permission-20261017') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_live_translator.mjs',v='simple-consent-stable-start-20261017') }}"></script>
 {% endblock %}

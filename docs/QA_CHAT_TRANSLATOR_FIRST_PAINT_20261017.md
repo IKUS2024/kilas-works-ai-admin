@@ -1,0 +1,29 @@
+# Chat/Translator first paint and simple consent setup
+
+This release follows `3c6023b1c4aa55a1565711d990e2781d7015118e`. It also applies the user's latest correction: restore the simple Translator setup and its explicit unchecked checkbox instead of the remembered-permission presentation.
+
+## Evidence and cause
+
+The live browser observer captured a sidebar-only, blank-main state after Translator -> AI Chat. The observations were sampled, so they do not establish an exact production duration. Initial Translator loading also briefly replaced the Start label with Checking session. The supplied Library media could not be downloaded through the current environment's Library transfer helper (`download failed`); no claim of local video inspection is made.
+
+Controlled Chromium reproduction on current server-rendered routes identified the partial-paint mechanism: Home layout CSS was linked inside the body before the workspace, and model CSS inside the workspace header before the main pane. A delayed body stylesheet pauses subsequent HTML parsing after the already-parsed sidebar can paint. The sidebar's final `:has(.kilas-home-workspace)` layout also cannot apply until that workspace is parsed. This reproduces the visible sidebar/blank-main interval without any asynchronous content loader or provider call.
+
+With either `kilas_home.css` or `kilas_chat_models.css` delayed by 1,200ms, the baseline recorded 69-70 painted frames with no main/composer at 390/1440px. The largest observed desktop layout-shift event under delayed model CSS was 0.2937. This is fixture evidence under injected delay, not a production latency estimate.
+
+## Focused changes
+
+Chat entry, legacy Home/saved chat and modern chat Home now load their existing Home/chat/model/task-navigation styles in the head, before the shell can paint. The body partials retain stylesheet fallbacks for other existing callers. Styles and model/history logic are unchanged; the modern agent stylesheet keeps its existing ordering before Home/chat styles. The shared base adds only an empty overridable head block; Finance does not opt into it.
+
+Translator keeps **Start** as its action label while readiness is checked. It is disabled and aria-busy from server render until the existing session discovery verifies readiness; its existing live status region still announces checking and its error/recovery controls remain. This removes the label replacement without enabling Start prematurely.
+
+Per the latest request, the normal Translator setup again contains two languages, voice, the concise required **unchecked consent checkbox**, and Start. The label has no inline Privacy Policy words/link. The policy document and existing access elsewhere remain. The remembered permission/disclosure/details interface and its operational grant/revocation routes/helper are removed. Start again requires explicit `consent=yes` for each request under the earlier per-session contract; old stored processing-permission records cannot substitute for the checkbox. No auto-checking or fabricated consent is introduced. The additive `0104` table, migration registration and existing data remain intact and inert; no destructive database rollback or consent-row deletion is performed. The latest Voice Over sample-control cleanup is preserved.
+
+## Measured verification
+
+- **Six native navigation browser scenarios pass** at 320/390/820/1440px, including 1,200ms delays for each previously problematic stylesheet on mobile and desktop. Every painted sample has its main and composer present. All report zero blank-main/missing-composer frames; post-change cumulative layout shift in these runs is at most 0.00256 (desktop delayed cases 0.000599). Each scenario performs two Chat -> Translator -> Chat cycles, reload, Back and Forward: eight native document navigations, with no session POST or microphone action. Sidebar history counts persist, the critical styles occur once in the head, and no browser JavaScript error or horizontal overflow is observed.
+- **Four localized real Chromium -> local Flask consent scenarios pass**, at 360/1440px across Indonesian/English/Spanish/Chinese: unchecked required checkbox, no inline policy link or remembered-permission UI, unchecked Start makes no session request and opens no microphone; checking then Start/End works with synthetic media/providers; fresh reload resets to unchecked. No consent record is written.
+- **52 focused Python tests pass**: simple consent/retained inert historical records, malformed/missing consent and CSRF, concurrent/owner/language/voice guards, Home/sidebar pagination, model preference persistence and existing personal voice lifecycle/generation regressions. No production provider transport is used.
+- **71 existing Node engine/readiness/recovery/startup tests pass**, including disabled pending Start, stable label, late admission cleanup, End, no-speech and microphone lifecycle boundaries.
+- Syntax and diff checks pass. Mobile and desktop final Chat layouts were reviewed once. Internal browser evidence: `/tmp/kilas-feature-navigation-browser/verification.json`; logs `/tmp/kilas-feature-navigation-browser.log`, `/tmp/kilas-simple-consent-browser.log`, `/tmp/kilas-switch-python.log`, `/tmp/kilas-switch-preservation-python.log`, `/tmp/kilas-switch-final-node.log`.
+
+Before deployment, the read-only production consent-table count was zero. A post-deploy read is required to verify its retention. No real microphone, paid API call, production consent action, credentials, model/audio pipeline, quota/pricing, Finance, Group or Creative Services change was used for this work. Switching features still uses native document navigation; the correction prevents the evidenced partially painted Chat shell and unnecessary Start-label change, not all browser navigation or network delay. Authenticated production browser acceptance remains necessary after LIVE.

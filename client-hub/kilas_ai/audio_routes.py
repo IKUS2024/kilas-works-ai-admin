@@ -17,7 +17,6 @@ from . import audio_personal_voice as personal
 from . import audio_branded_voices as branded
 from . import audio_voice_script as voice_script
 from . import audio_transcription_budget as video_budget, audio_transcription_provider as video_stt
-from . import translator_consent
 
 audio_bp=Blueprint('kilas_audio',__name__,url_prefix='/kilas-translator')
 
@@ -91,9 +90,6 @@ def access():
     # login, disabled state and fresh DB role. A signed cookie alone cannot
     # establish access. This exception grants no legacy product entitlement.
     if user['role']!='CLIENT_OWNER' and not free_test.eligible(session['user_id']) and not _native_route_access(session['user_id']):abort(404)
-    # Consent is enforced before any classic microphone upload/provider admission.
-    if request.endpoint in {'kilas_audio.live_realtime_start','kilas_audio.live_realtime_chunk','kilas_audio.live_realtime_commit'} or (request.endpoint=='kilas_audio.live_translator_turn' and request.method=='POST'):
-        translator_consent.require(session['user_id'])
 
 
 @audio_bp.errorhandler(store.AudioError)
@@ -478,33 +474,21 @@ def live_translator_home():
         # Navigation never ends or replaces an active session. Native Start
         # retains the existing session_busy fence and explicit recovery UI.
         return redirect(url_for('kilas_audio.live_gemini_home')),302,{'Cache-Control':'private, no-store'}
-    return render_template('kilas_translator/live.html',live_ready=live.ready(session['user_id']),voices=branded.public_choices(),languages=provider.LANGUAGES,processing_permission=translator_consent.state(session['user_id'])),200,{'Cache-Control':'private, no-store'}
-
-
-@audio_bp.get('/live/permission')
-def live_processing_permission():
-    return translator_consent.state(session['user_id']),200,{'Cache-Control':'private, no-store'}
-
-
-@audio_bp.post('/live/permission/revoke')
-def revoke_live_processing_permission():
-    translator_consent.revoke(session['user_id'])
-    return translator_consent.state(session['user_id']),200,{'Cache-Control':'private, no-store'}
+    return render_template('kilas_translator/live.html',live_ready=live.ready(session['user_id']),voices=branded.public_choices(),languages=provider.LANGUAGES),200,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/live/sessions')
 def live_translator_start():
     from . import live_translator as live, live_translator_store as sessions
     live.require_ready(session['user_id'])
-    permission_fields={'action':request.form.get('processing_consent'),'scope':request.form.get('processing_scope'),'version':request.form.get('processing_version')}
-    translator_consent.validate(session['user_id'],permission_fields)
+    if request.form.get('consent')!='yes':raise store.AudioError('Setujui pemrosesan ucapan sebelum mulai.','consent_required',400)
     a,b=request.form.get('language_a'),request.form.get('language_b');voice=request.form.get('voice')
     sessions.require_pair(a,b)
     if not branded.resolve(voice):raise store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
     store.require_balance(session['user_id'])
-    ident=sessions.create(session['user_id'],a,b,voice,processing_consent=permission_fields)
+    ident=sessions.create(session['user_id'],a,b,voice)
     from . import live_translator_realtime as realtime
-    return {'session_id':ident,'input_mode':'realtime-v1' if realtime.ready(session['user_id']) else 'batch','permission':translator_consent.state(session['user_id'])},201,{'Cache-Control':'private, no-store'}
+    return {'session_id':ident,'input_mode':'realtime-v1' if realtime.ready(session['user_id']) else 'batch'},201,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/live/sessions/<ident>/end')
@@ -529,9 +513,6 @@ def live_translator_active():
 @audio_bp.get('/live/sessions/<ident>')
 def live_translator_session_status(ident):
     from . import live_translator_store as sessions
-    row=db.query_one('SELECT voice_alias FROM kilas_live_translator_sessions WHERE id=? AND user_id=?',(ident,session['user_id']))
-    if row and row['voice_alias'] in ('kilas-male','kilas-female'):
-        translator_consent.require(session['user_id'])
     return sessions.status(session['user_id'],ident),200,{'Cache-Control':'private, no-store'}
 
 

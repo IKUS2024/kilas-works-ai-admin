@@ -10,5 +10,5 @@
 <p class="chat-model-warning" data-model-warning="chat" role="status" hidden></p>
 <p class="chat-model-warning" data-model-warning="image" role="status" hidden></p>
 </div>
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_models.css',v='model-clean-header-20261017') }}"><script src="{{ url_for('static',filename='kilas_chat_models.js',v='model-clean-header-20261017') }}" defer></script>
+{% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_models.css',v='model-clean-header-20261017') }}">{% endif %}<script src="{{ url_for('static',filename='kilas_chat_models.js',v='model-clean-header-20261017') }}" defer></script>
 {% endif %}

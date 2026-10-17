@@ -12,20 +12,8 @@ const root=document.querySelector('.kilas-live-translator');
 if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');
  const csrf=form.querySelector('[name=csrf_token]').value,start=form.querySelector('button');let context=null,source=null,analyser=null,interval=null,recorder=null;
- const permissionNotice=document.querySelector('#live-permission-notice'),permissionRevoke=document.querySelector('#live-permission-revoke'),permissionStatus=document.querySelector('#live-permission-status');
- let permissionBusy=false;
- const permissionChannel=typeof window.BroadcastChannel==='function'?new window.BroadcastChannel('kilas-translator-processing-permission'):null;
- function renderPermission(value){
-  if(typeof value?.granted!=='boolean'||typeof value.scope!=='string'||typeof value.version!=='string'||typeof value.notice!=='string')throw Error(t('Izin belum dapat diperiksa. Muat ulang halaman sebelum memulai.'));
-  root.dataset.permissionGranted=String(value.granted);form.elements.processing_scope.value=value.scope;form.elements.processing_version.value=value.version;
-  permissionNotice.hidden=value.granted;permissionRevoke.hidden=!value.granted;
-  root.querySelectorAll('[data-permission-notice]').forEach(el=>el.textContent=value.notice);
-  start.textContent=value.granted?'Start':t('Izinkan dan mulai');
-  if(value.granted){start.removeAttribute('name');start.removeAttribute('value');}else{start.name='processing_consent';start.value='accept';}
- }
- async function refreshPermission(){const value=await json('/kilas-translator/live/permission',{timeoutMs:10000});renderPermission(value);if(!value.granted&&session.state!=='ended')session.end();return value;}
  const callLayout=new TranslatorCallLayout({document,root,endButton:document.querySelector('#live-end')});
- const setupReady=root.dataset.ready==='true'&&!start.disabled;
+ const setupReady=root.dataset.ready==='true'&&start.dataset.enabled==='true';
  const showError=(text,detail)=>{error.textContent=t(text);error.hidden=false;
   if(detail?.startupStage){if(detail.startupStage==='session_admission')recoverRequested=true;try{console.info('KILAS_LIVE_STARTUP_FAILURE stage='+detail.startupStage+' code='+(detail.code||'startup_failed'));}catch{}}
   if(detail?.inputStage&&['realtime_queue_full','realtime_protocol','realtime_turn_busy','realtime_chunk_invalid','realtime_no_speech'].includes(detail.code)){try{console.info('KILAS_LIVE_INPUT_FAILURE code='+detail.code);}catch{}}
@@ -37,7 +25,7 @@ if(root){
  const syncLanguages=(changed=languageA)=>syncLanguagePair(languageA,languageB,changed);
  languageA.addEventListener('change',()=>syncLanguages(languageA));
  languageB.addEventListener('change',()=>syncLanguages(languageB));
- window.addEventListener('pageshow',()=>{syncLanguages();recovery?.refresh();refreshPermission().catch(e=>showError(e.message));});
+ window.addEventListener('pageshow',()=>{syncLanguages();recovery?.refresh();});
  form.addEventListener('reset',()=>queueMicrotask(()=>syncLanguages()));
  syncLanguages();
  function monitorStop(){if(interval!==null)clearInterval(interval);interval=null;source?.disconnect();source=null;analyser?.disconnect();analyser=null;}
@@ -84,12 +72,7 @@ if(root){
  const turns=new TranslatorTurns({json,csrf,wholeUtterance:true});
  const api={
   input:new RealtimeInput({json,csrf}),
-  async start(data,signal){try{
-   const result=await json('/kilas-translator/live/sessions',{method:'POST',body:data,signal,timeoutMs:30000});
-   renderPermission(result.permission);
-   if(!result.permission.granted){await json('/kilas-translator/live/sessions/'+result.session_id+'/end',{method:'POST',body:new FormData(form),timeoutMs:10000});throw Object.assign(Error(t('Izin pemrosesan ucapan telah dicabut.')),{code:'processing_consent_required'});}
-   return result;
-  }catch(e){recoverRequested=true;if(e.code==='processing_consent_required'){try{await refreshPermission();}catch{}}throw e;}},
+  async start(data,signal){try{return await json('/kilas-translator/live/sessions',{method:'POST',body:data,signal,timeoutMs:30000});}catch(e){recoverRequested=true;throw e;}},
   turn:(...args)=>turns.turn(...args),resume:(...args)=>turns.resume(...args),
   end:id=>{const text=document.querySelector('#live-translation');text.textContent='';text.hidden=true;return recovery.endKnown(id);},
  };
@@ -97,7 +80,7 @@ if(root){
   const text=document.querySelector('#live-translation');text.textContent=result.translated_text||'';text.hidden=!text.textContent;
   if(result.status==='COMPLETED'&&typeof result.translated_text==='string'&&result.translated_text.trim()){error.hidden=true;error.textContent='';}
  },onState:state=>{
-  start.disabled=state!=='ended'||!setupReady||!recovery?.canStart()||permissionBusy;setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;
+  start.disabled=state!=='ended'||!setupReady||!recovery?.canStart();setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;
   const label={paused:t('Sesi dijeda'),playing:t('Hasil'),listening:t('Mendengarkan')}[state]||t('Memproses');orb.setAttribute('aria-label',label);
   document.querySelector('#live-resume').hidden=state!=='paused';
   document.querySelector('#live-state').textContent=orb.getAttribute('aria-label');
@@ -105,11 +88,11 @@ if(root){
   if(state==='ended'&&(recoverRequested||session.admissionPending)){recoverRequested=false;recovery.checked=false;recovery.refresh();}
  }});
  recovery=new TranslatorRecovery({api:{active:()=>json('/kilas-translator/live/sessions/active',{timeoutMs:10000}),end(id){const data=new FormData();data.append('csrf_token',csrf);return json('/kilas-translator/live/sessions/'+encodeURIComponent(id)+'/end',{method:'POST',body:data,keepalive:true,timeoutMs:10000});}},isIdle:()=>session.state==='ended',onError:text=>{recoveryError=true;showError(text);},onChange:state=>{
-  start.disabled=session.state!=='ended'||!setupReady||!state.canStart()||permissionBusy;
+  start.disabled=session.state!=='ended'||!setupReady||!state.canStart();
   const confirmedActive=Boolean(state.active)&&(state.checked||state.ending),idle=session.state==='ended';
   recoveryPanel.hidden=!idle||!confirmedActive;
-  // Keep initial checks in the existing Start control; no conflict panel or form shift.
-  start.textContent=state.pending&&!confirmedActive?t('Memeriksa sesi...'):root.dataset.permissionGranted==='true'?'Start':t('Izinkan dan mulai');
+  // Preserve the action label while disabled/aria-busy and status report readiness.
+  start.textContent='Start';
   start.setAttribute?.('aria-busy',String(state.pending));
   sessionStatus.textContent=idle&&state.pending&&!confirmedActive?t('Memeriksa sesi...'):'';
   recoveryRetry.hidden=!idle||state.pending||state.checked||confirmedActive;
@@ -121,20 +104,11 @@ if(root){
  }});
  recoveryEnd.addEventListener('click',()=>recovery.endPrevious());recoveryCheck.addEventListener('click',()=>recovery.refresh());recoveryRetry.addEventListener('click',()=>recovery.refresh());
  window.addEventListener('online',()=>recovery.refresh());recovery.refresh();
- form.addEventListener('submit',event=>{event.preventDefault();if(!setupReady||permissionBusy||session.state!=='ended'||!recovery.canStart())return;if(!form.reportValidity())return;
-  // Only the explicit first-use affirmative submitter carries acceptance.
-  if(root.dataset.permissionGranted!=='true'&&event.submitter!==start)return;
+ form.addEventListener('submit',event=>{event.preventDefault();if(!setupReady||session.state!=='ended'||!recovery.canStart())return;if(!form.reportValidity())return;
   if(!validLanguagePair(languageA,languageB)){showError(t('Pilih dua bahasa yang berbeda sebelum memulai sesi.'));languageB.focus();return;}
   error.hidden=true;document.querySelector('#live-translation').hidden=true;const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext){showError(t('Browser ini belum mendukung audio sesi.'));return;}
-  context=new AudioContext();session.start(new FormData(form,event.submitter));
+  context=new AudioContext();session.start(new FormData(form));
  });
- permissionRevoke.addEventListener('click',async()=>{
-  if(permissionBusy)return;permissionBusy=true;permissionRevoke.disabled=true;start.disabled=true;permissionStatus.textContent='';
-  try{const data=new FormData();data.append('csrf_token',csrf);renderPermission(await json('/kilas-translator/live/permission/revoke',{method:'POST',body:data,timeoutMs:10000}));session.end();permissionStatus.textContent=t('Izin dicabut. Mikrofon tidak digunakan sampai Anda mengizinkan kembali.');permissionChannel?.postMessage('changed');}
-  catch(e){showError(e.message);try{await refreshPermission();}catch{}}
-  finally{permissionBusy=false;permissionRevoke.disabled=false;start.disabled=session.state!=='ended'||!setupReady||!recovery.canStart();}
- });
- permissionChannel?.addEventListener('message',()=>{refreshPermission().catch(e=>showError(e.message));});
  document.querySelector('#live-resume').addEventListener('click',()=>{error.hidden=true;session.resume();});
  document.querySelector('#live-end').addEventListener('click',()=>session.end());window.addEventListener('pagehide',()=>{
   const id=session.id,key=session.pendingKey,ending=recovery.ending?recovery.active?.session_id:null;session.suspend();
