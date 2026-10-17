@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess
 import tempfile
 from . import Result
 
@@ -154,31 +153,8 @@ def diff(workspace):
 
 
 def test_command(workspace):
-    from ..workspace_execution import capability
-    if not capability()['available']:return None
-    bwrap = shutil.which('bwrap')
-    python = '/usr/bin/python3' if Path('/usr/bin/python3').is_file() else None
-    if not bwrap or not python or os.name != 'posix':
-        return None
-    # No host home, app root, DB, env, network or production credentials mounted.
-    command = [bwrap, '--unshare-all', '--die-with-parent', '--new-session', '--clearenv',
-               '--ro-bind', '/usr', '/usr', '--ro-bind', '/lib', '/lib']
-    for path in ('/lib64', '/bin'):
-        if Path(path).exists():
-            command += ['--ro-bind', path, path]
-    command += ['--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
-                '--ro-bind', str(workspace / 'work'), '/work', '--chdir', '/work',
-                '--setenv', 'PATH', '/usr/bin:/bin', python, '-B', '-m', 'unittest', 'discover', '-s', 'tests']
-    return command
-
-
-def resource_limits():
-    import resource
-    resource.setrlimit(resource.RLIMIT_CPU, (25, 25))
-    resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (24000, 24000))
-    resource.setrlimit(resource.RLIMIT_NPROC, (128, 128))
-    resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+    # Retained compatibility hook. Never launch generated code on this host.
+    return None
 
 
 def run(job, step, data):
@@ -215,30 +191,11 @@ def run(job, step, data):
         else:
             apply_patch(workspace, data['patch'])
     if action == 'test':
-        command = test_command(workspace)
-        if not command:
-            return Result('WAITING_CAPABILITY', 'Sandbox pengujian terisolasi belum tersedia.', {'reason': 'sandbox_not_configured'})
-        # Redirect to a bounded file: terminate promptly when output exceeds limit.
-        import time
-        with tempfile.TemporaryFile() as log:
-            process = subprocess.Popen(command, stdout=log, stderr=log, env={'PATH': '/usr/bin:/bin'}, shell=False, preexec_fn=resource_limits)
-            deadline = time.monotonic() + 30
-            try:
-                while process.poll() is None:
-                    if time.monotonic() >= deadline or log.tell() > 24000:
-                        raise ValueError('test_execution_limit')
-                    time.sleep(.05)
-            finally:
-                if process.poll() is None:
-                    process.kill()
-                    process.wait()
-            log.seek(0)
-            output = log.read(24000).decode('utf-8', errors='replace')
-        if not re.search(r'Ran [1-9]\d* tests?', output):
-            return Result('FAILED', 'Pengujian belum dijalankan oleh sandbox.',
-                          {'exit_code': process.returncode, 'test_output': output, 'reason': 'tests_not_executed'}, verified=False)
-        return Result('SUCCEEDED' if process.returncode == 0 else 'FAILED', 'Pengujian berhasil.' if process.returncode == 0 else 'Pengujian gagal.',
-                      {'exit_code': process.returncode, 'test_output': output}, [{'name': 'tests.txt', 'media_type': 'text/plain', 'content': output}], verified=True)
+        from .. import workspace_execution, workspace_execution_worker
+        if not workspace_execution.capability(job['user_id'])['available']:
+            return Result('WAITING_CAPABILITY', 'Sandbox pengujian terisolasi belum tersedia.', {'reason':'sandbox_not_configured'})
+        values=json.loads(snapshot(workspace)['content'])['work']
+        return workspace_execution_worker.result(workspace_execution.execute(job,step,values,'unittest'))
     patch = diff(workspace)
     return Result('SUCCEEDED', 'Perubahan lokal tersimpan.' if action == 'patch' else 'Diff workspace disiapkan.',
                   {'diff': patch}, [{'name': 'changes.diff', 'media_type': 'text/plain', 'content': patch}, snapshot(workspace)], verified=True)

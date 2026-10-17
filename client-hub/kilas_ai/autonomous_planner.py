@@ -47,6 +47,9 @@ def validate(raw, mode, instruction=''):
 
 
 def propose(job, completed):
+    from .workspace_execution_worker import plan as execution_plan
+    execution=execution_plan(job)
+    if execution:return validate(execution,job['mode'],job['instruction'])
     from .work_runtime import remind_plan
     reminder = remind_plan(job)
     if reminder:return validate(reminder,job['mode'],job['instruction'])

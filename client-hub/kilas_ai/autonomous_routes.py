@@ -46,6 +46,7 @@ def chat(user_id, text):
     conversation_id = agent_store.current_conversation(user_id)
     from . import work_documents,work_artifacts
     from .workspace_projects import requested as project_requested
+    from .workspace_execution_worker import requested as execution_requested
     previous=work_artifacts.latest_document(user_id,conversation_id)
     document_format=work_documents.intent(text,bool(previous))
     from . import routing
@@ -83,7 +84,7 @@ def chat(user_id, text):
     if pending and pending.get('conversation_id') == conversation_id and re.fullmatch(r'(?i)(?:jam |pukul |di bawah |di atas |target |\d).{0,100}', text):
         text = pending['text'] + ' ' + text
     spec = agent_intents.infer(text)
-    if (document_format or project_requested(text) or work_documents.image_request(text) or editing_image) and not spec:
+    if (document_format or project_requested(text) or execution_requested(text) or work_documents.image_request(text) or editing_image) and not spec:
         spec={'mode':'ONE_SHOT','wake_at':None,'interval':3600,'schedule':{},'clarify':None}
     selected_mode = request.form.get('autonomous_mode', '')
     if selected_mode:

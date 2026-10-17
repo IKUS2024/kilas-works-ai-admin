@@ -223,7 +223,7 @@ def begin_step(job, token):
         if not row:
             return None
         prior=usage._query(conn,'SELECT worker,status,attempts FROM kilas_agent_steps WHERE id=?',(row[0],),one=True)
-        if prior[0] in ('DOCUMENT','IMAGE','PROJECT') and prior[1] in ('RUNNING','FAILED') and prior[2]>0:
+        if prior[0] in ('DOCUMENT','IMAGE','PROJECT','EXECUTION') and prior[1] in ('RUNNING','FAILED') and prior[2]>0:
             usage._query(conn,"UPDATE kilas_agent_jobs SET status='FAILED',last_error='uncertain_provider_outcome',next_wake_at=NULL WHERE id=?",(job['id'],))
             event(conn,job['id'],'FAILED','Hasil penyedia belum dapat dipastikan; permintaan tidak diulang otomatis.',unread=False)
             return None

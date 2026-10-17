@@ -12,6 +12,9 @@ def prepare_chat_models(state):
         apply_release()
         apply_release('0103_kilas_image_models')
         apply_release('0105_kilas_workspace_streams')
+        apply_release('0106_kilas_workspace_execution')
+        from .workspace_execution_proof import maybe_start
+        maybe_start(state.app)  # No work without separate proof-specific approval.
         if os.environ.get('RENDER_SERVICE_ID') and not state.app.testing:
             chat_models.warmup()  # Read-only Models APIs; never inference.
             from . import image_models

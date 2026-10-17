@@ -77,16 +77,32 @@ def run(job,step,data):
                 for name,value in values.items():workspace_files.validate_source(name,value)
                 progress(job,'PACKAGING','Mengemas ZIP…');raw=workspace_files.package(values)
                 metadata={'syntax_checked':[name for name in values if name.endswith(('.py','.json'))],'execution':'not_run','reason':'isolated_execution_not_configured','files':names}
+                execution_result=None
+                from . import workspace_execution,workspace_execution_worker
+                if workspace_execution_worker.requested(data['request']) and workspace_execution.capability(job['user_id'])['available']:
+                    try:
+                        execution_result=workspace_execution.execute(job,step,values,workspace_execution_worker.entrypoint(values,data['request']))
+                        metadata.update({k:v for k,v in execution_result.items() if k not in ('stdout','stderr','outputs')})
+                        metadata.pop('reason',None)
+                    except ValueError:
+                        # Preserve already-authored sources without retrying either provider.
+                        metadata.update(execution='not_verified',reason='execution_not_verified')
                 title=' '.join(data['request'].split()[:10])[:100]
                 file={'filename':'source-project.zip','mime_type':'application/zip','content':raw,'title':title,'extracted_text':json.dumps(metadata),'validation':metadata,'model_provenance':response['model_provenance']}
                 artifacts=[{'binary_file':file}]
-                if 'index.html' in values and len(values['index.html'].encode())<=256*1024:
+                if execution_result and execution_result['outputs']:
+                    pass  # Keep room for both execution logs and the actual output ZIP.
+                elif 'index.html' in values and len(values['index.html'].encode())<=256*1024:
                     artifacts.append({'binary_file':{'filename':'index.html','mime_type':'text/html','content':values['index.html'].encode(),'title':title,'validation':{'execution':'browser_sandbox_only'},'model_provenance':response['model_provenance']}})
                 else:
                     primary=next((name for name in values if name.endswith(('.py','.js','.ts','.css','.json'))),None)
                     if primary:artifacts.append({'binary_file':{'filename':primary.rsplit('/',1)[-1],'mime_type':workspace_files.SOURCE_TYPES[primary.rsplit('.',1)[-1]],'content':values[primary].encode(),'title':title,'validation':metadata,'model_provenance':response['model_provenance']}})
+                if execution_result:
+                    # Retain the original project even when its program exits nonzero.
+                    artifacts.extend(workspace_execution_worker.result(execution_result).artifacts[:3-len(artifacts)])
                 work_artifacts.validate(file)
-                return Result('SUCCEEDED','File proyek tersimpan. Pengujian kode belum dijalankan.',{'project_ready':True,'validation':metadata,'model_provenance':response['model_provenance']},artifacts,verified=True)
+                summary=('File proyek tersimpan. Python selesai.' if execution_result and execution_result['exit_code']==0 and not execution_result['timed_out'] else 'File proyek tersimpan. Python gagal. Lihat hasil eksekusi.' if execution_result else 'File proyek tersimpan. Hasil eksekusi belum terverifikasi.' if metadata['execution']=='not_verified' else 'File proyek tersimpan. Pengujian kode belum dijalankan.')
+                return Result('SUCCEEDED',summary,{'project_ready':True,'validation':metadata,'model_provenance':response['model_provenance']},artifacts,verified=True)
             results.append((call,result))
         if not results:raise ValueError('project_tool_result_missing')
         native.tool_results(provider,history,results)

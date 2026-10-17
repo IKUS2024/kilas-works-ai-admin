@@ -643,5 +643,20 @@
   "Izin pemrosesan ucapan belum ada, berubah, atau telah dicabut. Tinjau penjelasan lalu pilih Izinkan dan mulai.",
   "Saya memiliki izin dari pembicara dan mengizinkan ucapan dikirim ke ElevenLabs untuk transkripsi dan suara terjemahan, serta teks ke OpenAI untuk diterjemahkan. Audio dapat dikirim saat berbicara. Izin ini diingat untuk akun saya dan dapat dicabut melalui Izin pemrosesan ucapan.",
   "Model Chat tersimpan tidak tersedia. Pilih model lain.",
-  "Model gambar tersimpan tidak tersedia. Pilih model lain."
+  "Model gambar tersimpan tidak tersedia. Pilih model lain.",
+  "Menyiapkan sandbox…",
+  "Menjalankan Python…",
+  "Python selesai.",
+  "Python gagal. Lihat hasil eksekusi.",
+  "File proyek tersimpan. Python selesai.",
+  "File proyek tersimpan. Python gagal. Lihat hasil eksekusi.",
+  "Sandbox pengujian terisolasi belum tersedia.",
+  "Hasil eksekusi belum terverifikasi.",
+  "Tambahkan file Python atau ZIP proyek di percakapan ini.",
+  "Sebutkan file Python yang ingin dijalankan, misalnya main.py.",
+  "Batas eksekusi kode tercapai. Tidak ada sandbox baru dibuat.",
+  "Eksekusi ini sudah dikirim. Permintaan tidak diulang.",
+  "Eksekusi terhenti. Hasil belum terverifikasi; permintaan tidak diulang.",
+  "Eksekusi gagal. Hasil belum terverifikasi; permintaan tidak diulang.",
+  "File proyek tersimpan. Hasil eksekusi belum terverifikasi."
 ]

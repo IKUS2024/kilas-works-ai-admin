@@ -36,6 +36,7 @@ def job_card(job):
                updated_label=time_label(job['updated_at'], zone), frequency_label=duration(job['interval_seconds']))
     job['capability_label'] = {'provider_not_configured': 'Data market real-time belum tersedia.',
                                'sandbox_not_configured': 'Pengujian kode belum tersedia.',
+                               'isolated_execution_not_configured':'Sandbox pengujian terisolasi belum tersedia.',
                                'image_not_configured': 'Pembuatan gambar belum tersedia.',
                                'selected_image_unavailable': 'Model gambar pilihan tidak tersedia; pekerjaan tidak dialihkan.',
                                'selected_author_unavailable': 'Model penulis pilihan tidak tersedia; pekerjaan tidak dialihkan.',

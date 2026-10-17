@@ -42,7 +42,7 @@ def registry():
             'images':[image(model) for model in image_models.CATALOG],
             'execution':workspace_execution.capability(),'artifact_retention':work_artifacts.RETENTION_POLICY,
             'features':{'documents':['pdf','docx','xlsx','pptx','csv','txt','md','json'],
-                        'source_projects':'native tool authoring; validated source ZIP; tests not run',
+                        'source_projects':'native tool authoring; validated source ZIP; remote Python execution only when separately configured',
                         'spreadsheet_formulas':'restricted local arithmetic/functions; recalculated by spreadsheet app, not this server',
                         'spreadsheet_charts':['bar','line','pie'],'html_preview':'opaque browser sandbox; network blocked',
                         'stream_reconnect':'persisted event replay, never inference retry'}}

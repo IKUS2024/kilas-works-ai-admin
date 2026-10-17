@@ -24,3 +24,6 @@ psycopg2-binary
 imageio-ffmpeg>=0.6,<0.7
 
 websocket-client>=1.8,<2
+
+# Remote execution SDK only; disabled without separately approved infrastructure.
+e2b==2.56.0

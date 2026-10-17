@@ -9,6 +9,7 @@ LABELS={'CONDITION_MET':'Kondisi terpantau terpenuhi.','CREATED':'Pekerjaan ters
 
 
 LABELS.update(READING_INPUTS='Membaca lampiran…',STRUCTURE='Membuat struktur…',WRITING_CODE='Menulis kode…',PACKAGING='Mengemas ZIP…',GENERATING_IMAGE='Membuat gambar…',DOWNLOADING='Menyiapkan unduhan…')
+LABELS.update(STARTING_SANDBOX='Menyiapkan sandbox…',RUNNING_CODE='Menjalankan Python…')
 
 
 def progress(job,kind,label):

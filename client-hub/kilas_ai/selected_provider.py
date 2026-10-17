@@ -40,7 +40,10 @@ def stream(mode, messages, system=None):
     facts=capabilities.current()
     facts.update(conversation=True, uploaded_image_understanding=chat_models.check(model)['images'])
     system=(providers.SYSTEM if system is None else system)+'\nCurrent runtime capabilities: '+json.dumps(facts)+'. '
-    system+='The selected Chat model is '+item['name']+'. Use only actual tool evidence; never claim to execute code or actions in this answer. Requested documents, images and source projects use separate registered workspace tools and appear as real artifact cards. Code execution is unavailable until a secure isolated service is configured. '
+    provider_name={'openai':'OpenAI','anthropic':'Anthropic','google':'Google'}[provider]
+    system+='Trusted routing facts for THIS answer: product=Kilas AI; underlying model='+item['name']+'; API model ID='+model+'; provider='+provider_name+'. '
+    system+='When explicitly asked which model/provider is being used or whether you are Gemini/Claude/GPT, name this selected underlying model and provider plainly. Kilas AI is the application name, not a replacement model identity. These current routing facts override model identities mentioned in earlier conversation and the general instruction to avoid internal terminology. Do not pretend to be the consumer ChatGPT, Claude or Gemini app. '
+    system+='Use only actual tool evidence; never claim to execute code or actions in this answer. Requested documents, images, source projects and isolated Python runs use separate registered workspace tools and appear as real artifact cards. Whether execution is configured is stated in the runtime capabilities above; a capability is never evidence that any program ran. '
     system+=model_policy.intelligence.playbook(profile)
     headers={'Content-Type':'application/json'}
     if provider=='openai':

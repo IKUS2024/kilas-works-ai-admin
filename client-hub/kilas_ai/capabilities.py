@@ -4,7 +4,7 @@ import os
 
 
 def current():
-    from . import autonomous_runner, routes
+    from . import autonomous_runner, routes,workspace_execution
     key=any(bool(os.environ.get(name,'').strip()) for name in ('OPENAI_API_KEY','ANTHROPIC_API_KEY','GEMINI_API_KEY'))
     background=routes.automation_enabled() and autonomous_runner.enabled()
     images=background and any(bool(os.environ.get(name,'').strip()) for name in ('OPENAI_API_KEY','GEMINI_API_KEY'))
@@ -17,8 +17,8 @@ def current():
         'document_creation':['PDF','DOCX','XLSX','PPTX'] if background and key else [],
         'background_work':background and key, 'reminders_and_schedules':background,
         'external_account_actions':False, 'interactive_browser':False,
-        'source_project_creation':background,'code_execution':False,
-        'source_project_validation':'paths, archive structure, Python AST and JSON syntax only; no runtime tests',
+        'source_project_creation':background,'code_execution':workspace_execution.capability()['available'],
+        'source_project_validation':'paths, archive structure, Python AST and JSON syntax; explicit remote Python execution only when configured',
     }
 
 

@@ -34,6 +34,8 @@ def intent(text, prepared=(), previous=None, previous_answer=''):
         return tool
     from .workspace_projects import requested as project_requested
     if project_requested(text):return 'PROJECT'
+    from .workspace_execution_worker import requested as execution_requested
+    if execution_requested(text):return 'WORK'
     if routing.explicit_code(text):return 'CHAT'
     if work_documents.intent(text,bool(previous and not previous['media_type'].startswith('image/'))):return 'DOCUMENT'
     return tool
@@ -54,7 +56,7 @@ def dispatch(owner,text,key,conversation):
             or routing.fresh_followup(text,previous_request,respect_no_search=False)):
         from .chat_web import NO_SEARCH
         return work_runtime.reply(owner,NO_SEARCH,conversation)
-    if selected=='CHAT' and routing.fresh_followup(text,previous_request):
+    if selected=='CHAT' and routing.lookup_topic(text,[m['content'] for m in recent[:-1] if m['role']=='user']):
         selected='WEB'
     if selected=='IMAGE_GENERATE':
         text=routing.image_prompt(text,previous_answer)[:1200]

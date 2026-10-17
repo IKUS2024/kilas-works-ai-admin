@@ -210,9 +210,19 @@ def fresh_followup(text, previous_request, *, respect_no_search=True):
     # They must not inherit a previous exchange-rate or news lookup.
     if re.search(r'(?i)\b(?:soal logika|soal matematika|teka[- ]?teki|sintetis|synthetic|logic puzzle|math puzzle)\b|\b\d+(?:[.,]\d+)?\s*[+*/=−-]\s*\d+\b',text):
         return False
+    if re.search(r'(?i)\b(?:model (?:ai|apa|yang)|what model|which model|pakai model|pake model|kamu (?:gemini|claude|gpt)|are you (?:gemini|claude|gpt))\b',text):return False
     return ((not respect_no_search or not no_search_requested(text)) and len(text)<180 and not re.search(r'(?i)\b(?:translate|terjemah|rewrite|buat|bikin|create|generate)\b',text)
             and bool(re.match(r'(?i)^(?:masih|sekarang|saat ini|per |berapa|yang|yg|kalau|bagaimana|gimana|what about|still|and |how about|why|kenapa)\b',text.strip()))
             and fresh_information(previous_request))
+
+
+def lookup_topic(text,previous_requests,*,respect_no_search=True):
+    """Trace a short lookup follow-up chain, stopping at a new unrelated topic."""
+    if not fresh_followup(text,'cari web topik',respect_no_search=respect_no_search):return None
+    for previous in reversed(list(previous_requests)[-6:]):
+        if fresh_information(previous):return previous
+        if not fresh_followup(previous,'cari web topik'):return None
+    return None
 
 
 def visual_result_requested(text):

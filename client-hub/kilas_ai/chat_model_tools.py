@@ -10,6 +10,18 @@ from . import chat_models, model_policy, providers, tools, chat_web
 def compose(result, context):
     selected=getattr(context,'selected_model',None)
     if not selected:return result
+    # FX evidence is already checked against a returned URL and its quote date;
+    # arithmetic is done with Decimal. Re-generating it adds cost and can change
+    # the amount or reject an otherwise valid result on wording alone.
+    currency=bool(chat_web.conversion_requested(model_policy.request_text(context[-1]['content'])))
+    if not currency:
+        latest=model_policy.request_text(context[-1]['content'])
+        previous=next((model_policy.request_text(m['content']) for m in reversed(context[:-1]) if m['role']=='user'),'')
+        currency=bool(chat_web.conversion_followup(latest,previous))
+    if currency and result.get('currency_verified'):
+        result['model_metadata']={'requested_model':selected,'returned_model':None,'provider':chat_models.spec(selected)['provider'],
+            'response_kind':'validated_tool_result','selected_model_called':False,'retrieval_model':result['model']}
+        return result
     retrieved=dict(result.get('usage') or {})
     components=list(retrieved.get('cost_components') or [{
         'model':result['model'],'operation':'WEB_SEARCH',
@@ -30,7 +42,6 @@ def compose(result, context):
         'Preserve source URLs and uncertainties; do not introduce unsupported facts, links, dates or numbers. '
         'Use enough detail for the request. If evidence is insufficient, say precisely what remains unverified.')
     # FX retrieval already validates rate dates and computes exact Decimal arithmetic.
-    currency=bool(chat_web.conversion_requested(model_policy.request_text(context[-1]['content'])))
     if currency:system+=' For a currency conversion, output the supplied evidence answer verbatim; its arithmetic and provenance were already checked.'
     pieces=[];tokens={};finish=None;metadata={}
     try:
@@ -48,8 +59,10 @@ def compose(result, context):
         if currency and text!=result['text'].strip():raise providers.ProviderError('selected_search_conversion_changed')
         result.update(text=text,model_metadata=metadata)
         return result
-    except providers.ProviderError:
-        raise tools.ToolUnavailable('selected_search_failed',model=selected,usage=used,code='search_unavailable') from None
+    except providers.ProviderError as error:
+        reason=str(error)
+        code=reason if reason in ('selected_search_too_long','selected_search_incomplete','selected_search_unsupported_source','selected_search_conversion_changed','selected_model_mismatch','selected_provider_error') else 'selected_search_failed'
+        raise tools.ToolUnavailable('selected_search_failed',model=selected,usage=used,code=code) from None
     finally:
         if tokens:
             used['billing_unknown']=False

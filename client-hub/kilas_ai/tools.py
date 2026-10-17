@@ -50,6 +50,11 @@ def _chat_search_text(context, currency=None):
     if currency:
         return f'{currency["amount"]:f} {currency["base"]} to {currency["quote"]}: current published exchange rate'
     latest = request_text(context[-1]['content']).strip()[:6000]
+    from .routing import lookup_topic
+    topic=lookup_topic(latest,[request_text(m['content']) for m in context[:-1] if m['role']=='user'])
+    if topic:
+        topic=re.split(r'[\r\n]|(?<=[?!])\s+',topic,maxsplit=1)[0][:500]
+        return latest+'\nPrevious search topic: '+topic
     if not re.search(r'(?i)\b(?:keduanya|ketiganya|tersebut|tadi|both|those|them)\b|\b(?:about|tentang|harga|price of)\s+(?:itu|that|it)\b', latest):
         return latest
     previous = next((request_text(item['content']).strip() for item in reversed(context[:-1])
@@ -299,7 +304,7 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None, request_
     if incomplete:
         answer = 'Sebagian pemeriksaan sumber belum berhasil. Hasil ini hanya mencakup sumber yang berhasil dikembalikan; bagian yang belum diperiksa belum dapat dipastikan.\n\n'+answer
     yield {"result": {"text": answer[:30000], "citations": citations[:8], "model": model,
-            "search_calls": calls, "research": complex_request, 'partial':incomplete,
+            "search_calls": calls, "research": complex_request, 'partial':incomplete,'currency_verified':bool(currency),
             "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens, "web_search_calls": calls,
                       'cost_components':cost_components}}}
 

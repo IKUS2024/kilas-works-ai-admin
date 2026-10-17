@@ -368,9 +368,11 @@ def send(thread_id, *, script_only=False):
                             pdf_request=ai_pdf.is_request(content, previous_document),
                             has_previous_content=bool(prior_answer or previous_document), previous_answer=prior_answer)
     previous_request=next((row['content'] for row in reversed(store.messages(user_id,thread_id,6) or []) if row['role']=='user'),'')
+    previous_requests=[row['content'] for row in store.messages(user_id,thread_id,12) if row['role']=='user']
+    lookup_topic=routing.lookup_topic(content,previous_requests)
     no_search_current = not script_only and routing.no_search_requested(content) and (
         routing.fresh_information(content,respect_no_search=False) or routing.fresh_followup(content,previous_request,respect_no_search=False))
-    if not script_only and tool=='CHAT' and routing.fresh_followup(content,previous_request):
+    if not script_only and tool=='CHAT' and lookup_topic:
         tool='WEB'
     if tool == "IMAGE_EDIT" and not any(item["mime_type"].startswith("image/") for item in prepared) and not prior_image:
         return {"error": "Upload gambar terlebih dahulu untuk diedit."}, 400
@@ -560,7 +562,12 @@ def send(thread_id, *, script_only=False):
                         usage.update(error.usage)
                     from .chat_web import search_failure_message
                     if tool == 'WEB': ai_tools.log_search_failure(error)
-                    yield _sse("error", {"message": "Gambar belum dapat dibuat sekarang. Coba lagi sebentar." if tool in ("IMAGE_GENERATE", "IMAGE_EDIT") else search_failure_message(error)})
+                    message="Gambar belum dapat dibuat sekarang. Coba lagi sebentar." if tool in ("IMAGE_GENERATE", "IMAGE_EDIT") else search_failure_message(error)
+                    if tool=='WEB':
+                        store.append_assistant(user_id,thread_id,message,mode,provider,model,key,
+                            {'status':'failed','tool':'web','failure_code':getattr(error,'code','search_unavailable'),'usage':usage,'model_metadata':model_metadata})
+                        persisted=True
+                    yield _sse("error", {"message":message})
                     return
             yield _sse("activity", {"label": "Menganalisis gambar…" if any(item["mime_type"].startswith("image/") for item in prepared)
                           else "Membaca dokumen…" if any(item["extracted_text"] for item in prepared)

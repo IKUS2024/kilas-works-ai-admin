@@ -24,6 +24,7 @@ FIELDS = {
     ('FILE', 'create'): {'name', 'format', 'content'},
     ('DOCUMENT', 'create'): {'request', 'format'},
     ('PROJECT', 'create'): {'request'},
+    ('EXECUTION', 'python'): {'request'},
     ('IMAGE', 'generate'): {'prompt'},
     ('IMAGE', 'edit'): {'prompt','source_id'},
     ('REMINDER', 'deliver'): {'subject'},
@@ -52,7 +53,7 @@ def validate_step(step):
         raise ValueError('input_too_large')
     if any(not isinstance(v, (str, int, float, list)) or isinstance(v, bool) for v in data.values()):
         raise ValueError('invalid_input')
-    if step['worker']=='PROJECT' and (not isinstance(data['request'],str) or not 1<=len(data['request'])<=1200):raise ValueError('invalid_project_input')
+    if step['worker'] in ('PROJECT','EXECUTION') and (not isinstance(data['request'],str) or not 1<=len(data['request'])<=1200):raise ValueError('invalid_project_input')
     if step['worker']=='DOCUMENT':
         from ..work_documents import FORMATS
         if data['format'] not in FORMATS or not isinstance(data['request'],str) or not 1 <= len(data['request']) <= 1200:
@@ -71,8 +72,9 @@ def validate_step(step):
 
 def capabilities():
     from . import market_worker, code_worker
+    from ..workspace_execution import capability
     return [{'worker': worker, 'action': action, 'input_fields': sorted(fields),
-             'available': worker not in ('EXTERNAL', 'UNAVAILABLE') and (worker != 'IMAGE' or bool(os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL'))) and (worker != 'MARKET' or market_worker.provider is not None) and (worker != 'CODE' or bool(os.environ.get('KILAS_AI_CODE_REPOSITORIES'))),
+             'available': worker not in ('EXTERNAL', 'UNAVAILABLE') and (worker!='EXECUTION' or capability()['available']) and (worker != 'IMAGE' or bool(os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL'))) and (worker != 'MARKET' or market_worker.provider is not None) and (worker != 'CODE' or bool(os.environ.get('KILAS_AI_CODE_REPOSITORIES'))),
              'repository_aliases': sorted(code_worker.repositories()) if worker == 'CODE' else [],
              'requires_approval': sensitive(worker, action)} for (worker, action), fields in FIELDS.items()]
 
@@ -95,6 +97,8 @@ def execute(job, step):
         from .document_worker import run
     elif step['worker'] == 'PROJECT':
         from ..workspace_projects import run
+    elif step['worker'] == 'EXECUTION':
+        from ..workspace_execution_worker import run
     elif step['worker'] == 'CODE':
         from .code_worker import run
     elif step['worker'] == 'MARKET':
