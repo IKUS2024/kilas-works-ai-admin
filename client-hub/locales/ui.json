@@ -8445,5 +8445,20 @@
     "en": "I have the speakers’ permission and allow speech to be sent to ElevenLabs for transcription and translated speech, and text to OpenAI for translation. Audio may be sent while speaking. This permission is remembered for my account and can be revoked under Speech processing permission.",
     "es": "Tengo el permiso de los hablantes y autorizo el envío de voz a ElevenLabs para transcripción y voz traducida, y de texto a OpenAI para traducción. El audio puede enviarse al hablar. Este permiso se recuerda para mi cuenta y puede revocarse en Permiso de procesamiento de voz.",
     "zh": "我已获得说话者许可，并允许将语音发送至ElevenLabs进行转写和生成翻译语音，将文本发送至OpenAI进行翻译。说话时可能会发送音频。此权限会保存在我的账户中，可在语音处理权限中撤销。"
+  },
+  "Memuat model…": {
+    "en": "Loading models…",
+    "es": "Cargando modelos…",
+    "zh": "正在加载模型…"
+  },
+  "Model Chat tersimpan tidak tersedia. Pilih model lain.": {
+    "en": "Saved Chat model is unavailable. Choose another model.",
+    "es": "El modelo de chat guardado no está disponible. Elige otro modelo.",
+    "zh": "保存的聊天模型不可用。请选择其他模型。"
+  },
+  "Model gambar tersimpan tidak tersedia. Pilih model lain.": {
+    "en": "Saved image model is unavailable. Choose another model.",
+    "es": "El modelo de imagen guardado no está disponible. Elige otro modelo.",
+    "zh": "保存的图像模型不可用。请选择其他模型。"
   }
 }

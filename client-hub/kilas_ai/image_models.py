@@ -55,8 +55,16 @@ def check(model):
  return result
 
 
-def catalog():
- with ThreadPoolExecutor(max_workers=4) as pool:checked=list(pool.map(check,CATALOG))
+def cached_metadata(model):
+ return chat_models._cached_metadata(model,_cache,_lock,spec)
+
+
+def catalog(*,cache_only=False):
+ if cache_only:
+  checked=[cached_metadata(model) for model in CATALOG]
+  if any(item is None for item in checked):return None
+ else:
+  with ThreadPoolExecutor(max_workers=4) as pool:checked=list(pool.map(check,CATALOG))
  # Never advertise unsupported/unverified choices as image-generation options.
  items=sorted((m for m in checked if m['available']),key=lambda m:(m['provider'],Decimal(m['output_usd'])))
  configured=os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL','gpt-image-2').strip()

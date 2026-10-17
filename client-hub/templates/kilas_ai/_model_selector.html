@@ -1,14 +1,15 @@
 {% if ui_model_surface|default(false) %}
 <div class="chat-model-controls">
+{% set initial_models={'chat':chat_model_preview('chat',ui_model_surface.surface,ui_model_surface.id),'image':chat_model_preview('image',ui_model_surface.surface,ui_model_surface.id)} %}
 {% for kind,heading in [('chat','Pilih model'),('image','Model gambar')] %}
+{% set initial=initial_models[kind] %}{% set initial_name=initial.name if initial else ui_t('Memuat model…') %}
 <div class="chat-model-selector" data-chat-model-selector data-model-kind="{{ kind }}" data-surface="{{ ui_model_surface.surface }}" data-conversation-id="{{ ui_model_surface.id or '' }}">
-  <button type="button" class="chat-model-trigger" aria-label="{{ ui_t(heading) }}" aria-haspopup="dialog" aria-expanded="false" aria-controls="{{ kind }}-model-dialog"><img class="model-provider-icon" data-selected-provider-icon alt="" hidden><span data-model-label>{{ ui_t(heading) }}</span><svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="m5 7 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+  <button type="button" class="chat-model-trigger" aria-label="{{ ui_t(heading) }}: {{ initial_name }}" title="{{ initial_name }}" aria-haspopup="dialog" aria-expanded="false" aria-controls="{{ kind }}-model-dialog"><img class="model-provider-icon" data-selected-provider-icon width="17" height="17" {% if initial %}src="{{ url_for('static',filename='provider-icons/'+{'openai':'openai','anthropic':'claude','google':'googlegemini'}[initial.provider]+'.svg',v='brand20261017') }}" data-provider="{{ initial.provider }}" alt="{{ {'openai':'OpenAI','anthropic':'Claude','google':'Gemini'}[initial.provider] }}"{% else %}alt="" hidden{% endif %}><span data-model-label>{{ initial_name }}</span><svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="m5 7 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
   <dialog id="{{ kind }}-model-dialog" class="chat-model-dialog" aria-labelledby="{{ kind }}-model-heading"><div class="chat-model-heading"><h2 id="{{ kind }}-model-heading">{{ ui_t(heading) }}</h2><button type="button" data-model-close aria-label="{{ ui_t('Tutup') }}">×</button></div><div class="chat-model-options" data-model-options role="radiogroup" aria-labelledby="{{ kind }}-model-heading" aria-busy="true"></div><p class="chat-model-state" data-model-state role="status"></p>
   </dialog>
 </div>
 {% endfor %}
-<p class="chat-model-warning" data-model-warning="chat" role="status" hidden></p>
-<p class="chat-model-warning" data-model-warning="image" role="status" hidden></p>
+{% for kind,message in [('chat','Model Chat tersimpan tidak tersedia. Pilih model lain.'),('image','Model gambar tersimpan tidak tersedia. Pilih model lain.')] %}{% set unavailable=initial_models[kind] and initial_models[kind].available is defined and not initial_models[kind].available %}<p class="chat-model-warning" data-model-warning="{{ kind }}" role="status" {{ 'hidden' if not unavailable }}>{{ ui_t(message) if unavailable else '' }}</p>{% endfor %}
 </div>
 {% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_models.css',v='model-clean-header-20261017') }}">{% endif %}<script src="{{ url_for('static',filename='kilas_chat_models.js',v='model-clean-header-20261017') }}" defer></script>
 {% endif %}

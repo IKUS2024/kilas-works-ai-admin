@@ -104,9 +104,27 @@ def check(model):
     return result
 
 
-def catalog():
-    with ThreadPoolExecutor(max_workers=5,thread_name_prefix='chat-access') as pool:
-        items = list(pool.map(check,CATALOG))
+def _cached_metadata(model,cache,lock,describe):
+    """Presentation-only snapshot; never refresh credentials or call a provider."""
+    item=describe(model)
+    fingerprint=hashlib.sha256(os.environ.get(KEYS[item['provider']], '').strip().encode()).digest()
+    with lock:
+        prior=cache.get(model)
+        if not prior or prior['fingerprint']!=fingerprint or monotonic()-prior['at']>=(_TTL if prior['available'] else 30):return None
+        return {k:v for k,v in prior.items() if k not in ('at','fingerprint')}
+
+
+def cached_metadata(model):
+    return _cached_metadata(model,_cache,_lock,spec)
+
+
+def catalog(*,cache_only=False):
+    if cache_only:
+        items=[cached_metadata(model) for model in CATALOG]
+        if any(item is None for item in items):return None
+    else:
+        with ThreadPoolExecutor(max_workers=5,thread_name_prefix='chat-access') as pool:
+            items = list(pool.map(check,CATALOG))
     default = next((m['id'] for m in items if m['id']==DEFAULT and m['available']), None)
     default = default or next((m['id'] for m in items if m['available']), None)
     return {'models':items, 'default':default, 'pricing_verified_on':VERIFIED_ON,

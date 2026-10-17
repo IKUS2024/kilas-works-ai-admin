@@ -58,7 +58,17 @@ def selector_context():
     def name(model):
         from . import image_models
         return (chat_models.CATALOG.get(model) or image_models.CATALOG.get(model) or ('',model or ''))[1]
-    common={'chat_model_name':name}
+    def preview(kind,surface,ident):
+        # Resolve the same ownership scope as the catalog endpoint without IO.
+        from . import image_models
+        module=image_models if kind=='image' else chat_models
+        selected=module.preference(session['user_id'],surface,ident) if ident is not None else model_preferences.get(session['user_id'],kind)
+        if selected:
+            try:return module.cached_metadata(selected) or module.spec(selected)
+            except chat_models.SelectionError:return None
+        cached=module.catalog(cache_only=True)
+        return next((item for item in cached['models'] if item['id']==cached['default']),None) if cached else None
+    common={'chat_model_name':name,'chat_model_preview':preview}
     if request.endpoint == 'kilas_ai.agent_home' and request.args.get('view','chat')=='chat':
         return {**common,'ui_model_surface':{'surface':'conversation','id':session.get('agent_conversation_id')}}
     if request.endpoint in ('kilas_ai.home','kilas_ai.thread_page','products.product_start') or (request.endpoint=='auth.account_page' and (request.args.get('workspace')=='home' or session.get('active_product')!='finance')):
