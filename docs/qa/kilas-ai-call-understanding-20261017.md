@@ -228,3 +228,55 @@ log private user audio/transcripts, secrets, session handles or provider errors.
 Reports explicitly label this text synthetic. Keyword checks are harness assertions;
 semantic and context correctness must be assessed separately from actual synthetic
 responses. No success is asserted here before the run completes.
+
+## Final smoke outcome — not resolved
+
+The single final run started at 02:21:19 UTC on LIVE
+6507906158456057cee996689eacdec440428f6b / deploy dep-db9dmlvbtjjs73bb6lc0.
+Its production Call implementation was identical to 83bf993. Execution recovered
+from the environment-disconnected notification; no uncertain attempt was duplicated.
+
+The test stopped after 25.692 seconds during the Indonesian follow-up. All
+24,685.8 ms of accepted PCM reached the socket in order: 789,946 bytes, 50 packets,
+identical accepted/sent digests and zero queued input. Maximum admission time was
+12 ms, sample-clock lag 3 ms, outgoing gap 513 ms and websocket send time 1 ms.
+Compared with the prior 1,196 ms admission / 1,402 ms gaps / 7,405 ms drift, these
+measurements confirm that the database-stall correction works in production.
+
+Conversation understanding still failed. These are solely offline synthetic
+fixtures, not private user speech:
+
+| Turn | Synthetic recognized content | Actual response | Harness check | Semantic assessment |
+| --- | --- | --- | --- | --- |
+| Indonesian: three apples, buy two more | `S` | `...` | Subject and expected five both absent | Failed: question not recognized; no substantive answer |
+| Indonesian: give two to a friend | No transcription/response before timeout | None | No completed follow-up | Failed: no evidence of retained context |
+| Switch to English picnic question | Not reached | Not reached | Not tested | Unverified |
+
+First assistant audio started 1,600 ms after the first fixture began, 4,764 ms
+before its 6,363.9375 ms input finished. There was only one recognized character,
+910 ms of output audio and one completed provider turn. The provider sent two
+voice-activity events, one input-transcription event and no reported numeric
+error. Initial silence produced no output. The non-speech end check was not
+reached. End took 98 ms, output was erased, and normal metering settled.
+
+Independent offline inspection confirms PCM16 little endian, mono, 16 kHz.
+The first clear fixture's longest low-energy interval is 600 ms even at a 0.01
+RMS threshold, and speech remains present throughout its first two seconds.
+This does not explain the early response by an ordinary 1,200 ms silence gap.
+It narrows the remaining failure to audio interpretation / automatic turn
+segmentation or this synthetic voice's interaction with the provider. It does
+not establish a specific provider defect or validate physical-device behavior.
+
+The smallest next controlled diagnostic is one identical short fixture with
+provider automatic VAD disabled and explicit `activityStart` / `activityEnd`,
+waiting for all PCM dispatch before the end marker. Recognition would distinguish
+premature provider activity segmentation from audio interpretation/fixture issues.
+This is a proposed isolated diagnostic, NOT a production change or another run.
+The API supports that activity-control mode:
+https://ai.google.dev/api/live#bidigeneratecontentrealtimeinput
+
+No further paid attempt was started. No broad application or provider-model
+change was made after this result. The smoke trigger is disabled for the final
+deployment. The user's end-to-end usability complaint remains unresolved despite
+confirmed capture and dispatch fixes; do not call this release functionally
+verified for discussion, Indonesian/English continuity or physical Android audio.
