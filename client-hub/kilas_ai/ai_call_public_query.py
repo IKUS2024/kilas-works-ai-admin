@@ -41,11 +41,18 @@ def search_opt_out(text):
         r"(?:cari(?:kan)?|cek|search|browse|look up)\b", text))
 
 
-def public_request(text):
-    """Inspect volatile speech for consent and sensitive context, return bool."""
+def context_allowed(text):
+    """Allow public scope memory only while the current speech stays public."""
     if not isinstance(text, str) or not text.strip() or search_opt_out(text):
         return False
     if _PRIVATE.search(text) or _IDENTIFIER.search(text) or _INSTRUCTION.search(text):
+        return False
+    return True
+
+
+def public_request(text):
+    """Inspect volatile speech for consent and sensitive context, return bool."""
+    if not context_allowed(text):
         return False
     if re.fullmatch(r'(?i)\s*(?:halo|hello|hi|apa kabar|how are you|how do you do)[\s?!.]*', text):
         return False

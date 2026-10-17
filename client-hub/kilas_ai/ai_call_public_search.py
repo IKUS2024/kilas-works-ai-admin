@@ -1,8 +1,9 @@
 """Call-only public lookup using the existing search and usage policy.
 
 Specialized requests use allowlisted constants. General public topics use
-bounded, minimized keywords grounded in the current turn, never raw speech or
-chat history. No recordings, private lookup or arbitrary URL fetch is supported.
+bounded, minimized keywords grounded in the current turn or an explicit retry
+of the last validated public topic, never raw speech or chat history.
+No recordings, private lookup or arbitrary URL fetch is supported.
 """
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -33,10 +34,24 @@ TOPICS = {'general': 'general public news and developments', 'economy': 'economi
 _TOPICS = {'economy': r'\b(?:ekonomi(?:nya)?|econom(?:y|ic|ics)|inflasi|inflation)\b',
            'politics': r'\b(?:politik(?:nya)?|politic(?:s|al)|pemilu|elections?)\b',
            'weather': r'\b(?:cuaca(?:nya)?|weather)\b'}
+FX_WORDS = r'(?:kurs(?:nya)?|nilai\s+tukar(?:nya)?|exchange\s+rates?)'
+RATE_WORDS = r'(?:'+FX_WORDS+r'|rates?)'
 
 
 def search_opt_out(text):
     return ai_call_public_query.search_opt_out(text)
+
+
+def same_topic_retry(text):
+    """Only an explicit short reference back, never arbitrary inferred history."""
+    if not ai_call_public_query.context_allowed(text) or len(text) > 250:
+        return False
+    text = re.sub(r'\s+', ' ', text.lower()).strip()
+    return bool(re.fullmatch(
+        r'(?:(?:tolong|coba|please|can you)\s+){0,2}'
+        r'(?:(?:cari(?:kan)?|cek|periksa)(?:\s+(?:lagi|ulang|kembali|yang tadi|itu|informasinya)){1,3}'
+        r'|(?:search|check|look up|try)(?:\s+(?:again|that|it|the same topic|the same pair)){1,3}'
+        r'|coba lagi)[.!?]*', text))
 
 
 def configured():
@@ -56,7 +71,8 @@ def declaration():
             'topic': {'type': 'STRING', 'enum': list(TOPICS)}}, 'required': ['country', 'topic']}},
         {'name': FX_NAME, 'behavior': 'BLOCKING',
          'description': ('Look up a current PUBLIC exchange rate for one unit of base currency in quote currency. '
-                         'Use only the pair the person requested. If the pair is missing or ambiguous, ask which '
+                         'Use only the pair the person requested, including the immediately previous public pair '
+                         'on an explicit same-pair follow-up or retry. If the pair is missing or ambiguous, ask which '
                          'currencies first. No amounts, personal data, account access, trading or transactions.'),
          'parameters': {'type': 'OBJECT', 'properties': {
              'base': {'type': 'STRING', 'enum': CURRENCIES},
@@ -65,6 +81,8 @@ def declaration():
          'description': ('Search ordinary PUBLIC information on any topic when explicitly requested or current facts '
                          'are needed. Query must be 2 or more concise topic keywords, at most 160 characters, '
                          'using only words spoken in the current user turn in the same language. '
+                         'For an explicit request to search the same public topic again, reuse only the immediately '
+                         'previous validated topic keywords, exactly; ask if the referent is ambiguous. '
                          'Remove filler and personal context. Never include identities, private details, credentials, '
                          'URLs, chat history or instructions. If a safe public topic is unclear, ask for it. '
                          'For currency rates use lookup_public_exchange_rate instead.'),
@@ -80,6 +98,8 @@ def instructions():
             'For current public exchange rates, call lookup_public_exchange_rate with the requested currency pair. '
             'For any other ordinary public-information search or current public fact, use lookup_public_information. '
             'Use concise keywords from the latest spoken request, in its language; omit personal details and history. '
+            'For an explicit same-topic retry, you may reuse the immediately previous validated public keywords '
+            'or the same ISO currency pair. A new topic, private turn or opt-out ends that context. '
             'You can check public facts beyond Indonesia and currency, including news, products, places and factual topics. '
             'If the currencies are unspecified or ambiguous, ask which pair; do not claim the service lacks access. '
             'Do not say you cannot access current information before attempting the applicable declared lookup. '
@@ -91,9 +111,12 @@ def instructions():
             'in a brief spoken answer in the person\'s language, without guessing current facts. '
             'Use at most one lookup per spoken request. Reformulate to concise public keywords before dispatch. '
             'A failed lookup ends that attempt: do not silently retry or call another tool. '
+            'A new spoken search request authorizes its own one lookup, even in the same ongoing call; '
+            'do not ask for an additional confirmation of that request. '
             'Briefly explain the specific verification limitation, give useful general context explicitly labeled '
             'as unverified/currentness unknown if you know it, and offer a focused source or query to check next. '
-            'Ask the person before another attempt; avoid a canned apology as the entire answer. ')
+            'Never invent a connection problem, source outage or unavailable access; explain only the returned reason. '
+            'Wait for a new spoken request before another attempt; avoid a canned apology as the entire answer. ')
 
 
 def public_intent(text, previous_public=False):
@@ -152,7 +175,7 @@ def currency_pair(text, previous=None):
         (r'\b(?:pounds? sterling|pound inggris|poundsterling)\b','GBP')):
         text = re.sub(pattern, code.lower(), text)
     text = re.sub(r'\bdollars\b','dollar',text)
-    if not re.search(r'\b(?:kurs(?:nya)?|exchange rate|rate|berapa|how much|convert|konversi|to|ke)\b', text):
+    if not re.search(r'\b(?:'+RATE_WORDS+r'|berapa|how much|convert|konversi|to|ke)\b', text) and not (previous and same_topic_retry(text)):
         return None
     matches = list(re.finditer(chat_web.CURRENCIES, text))
     codes = list(dict.fromkeys(chat_web.ALIASES[m.group()] for m in matches))
@@ -165,7 +188,11 @@ def currency_pair(text, previous=None):
         if re.search(r'\b(?:per|untuk\s+(?:satu|1)|for\s+one)\b', between):
             return codes[1], codes[0]
         return tuple(codes)
-    if not codes and previous and len(text) <= 250 and re.search(r'\b(?:kurs(?:nya)?|exchange rate|rate)\b', text):
+    bare_rate_followup = re.fullmatch(
+        r"\s*(?:(?:what is|what's|check|what about)\s+)?(?:the\s+)?rate"
+        r'(?:\s+(?:now|today|again|currently))?[.!?]*\s*', text)
+    if (not codes and previous and len(text) <= 250 and ai_call_public_query.context_allowed(text)
+            and (re.search(r'\b'+FX_WORDS+r'\b', text) or bare_rate_followup or same_topic_retry(text))):
         return previous
     return None
 
@@ -228,8 +255,11 @@ class PublicSearch:
         self.topic = None
         self.opt_out = False
         self.previous_public = False
+        self.previous_topic = None
         self.fx_pair = None
         self.previous_pair = None
+        self.query = None
+        self.previous_query = None
         self.stats = {'tool_calls': 0, 'lookup_started': 0, 'lookup_completed': 0,
                       'transcript_events': 0, 'activity_start': 0, 'activity_end': 0,
                       'public_intents_seen': 0, 'fx_intents_seen': 0, 'opt_outs': 0,
@@ -247,6 +277,7 @@ class PublicSearch:
                 if not self.input_active or self.activity_seen:
                     self.input_active = True; self.number += 1; self.buffer = ''
                     self.topic = None; self.fx_pair = None; self.opt_out = False
+                    self.query = None
                 self.speaking = True; self.activity_seen = True
                 self.stats['activity_start'] += 1
             elif kind == 'ACTIVITY_END':
@@ -267,13 +298,19 @@ class PublicSearch:
                 self.opt_out = False
                 self.activity_seen = False
                 self.fx_pair = None
+                self.query = None
             self.buffer = (self.buffer + text)[-2048:]
             self.last_text_at = monotonic()
             self.stats['transcript_events'] += 1
             previous_topic, previous_pair, previous_opt_out = self.topic, self.fx_pair, self.opt_out
             self.opt_out = self.opt_out or search_opt_out(self.buffer)
-            self.topic = None if self.opt_out else public_intent(self.buffer, self.previous_public)
-            self.fx_pair = None if self.opt_out else currency_pair(self.buffer, self.previous_pair)
+            context_safe = ai_call_public_query.context_allowed(self.buffer)
+            self.topic = None if self.opt_out else public_intent(self.buffer, self.previous_public and context_safe)
+            if self.previous_topic and same_topic_retry(self.buffer):
+                self.topic = self.previous_topic
+            self.fx_pair = None if self.opt_out else currency_pair(self.buffer, self.previous_pair if context_safe else None)
+            if self.buffer.strip() and not context_safe:
+                self._clear_context_locked()
             self.stats['public_intents_seen'] += int(self.topic is not None and previous_topic is None)
             self.stats['fx_intents_seen'] += int(self.fx_pair is not None and previous_pair is None)
             self.stats['opt_outs'] += int(self.opt_out and not previous_opt_out)
@@ -281,14 +318,31 @@ class PublicSearch:
 
     def turn_complete(self):
         with self.lock:
-            # Remember only the public scope/pair, even when the prior lookup
-            # failed. A clarification/retry can refer to that same public topic.
-            if not self.opt_out:
-                self.previous_public = self.previous_public or self.topic is not None
-                self.previous_pair = self.fx_pair or self.previous_pair
+            if self.input_active:
+                # Only the immediately selected public scope survives. No raw
+                # transcript, private wording or older topic is replayed.
+                self._remember_context_locked()
             self.buffer = ''
             self.input_active = False
             self.speaking = False
+
+    def _clear_context_locked(self):
+        self.previous_public = False
+        self.previous_topic = None
+        self.previous_pair = None
+        self.previous_query = None
+
+    def _remember_context_locked(self):
+        self._clear_context_locked()
+        if self.opt_out or not ai_call_public_query.context_allowed(self.buffer):
+            return
+        if self.fx_pair:
+            self.previous_pair = self.fx_pair
+        elif self.topic:
+            self.previous_public = True
+            self.previous_topic = self.topic
+        elif self.query:
+            self.previous_query = self.query
 
     def diagnostic(self):
         with self.lock:
@@ -313,6 +367,9 @@ class PublicSearch:
                 self.closed = True
                 self.buffer = ''
                 self.topic = None
+                self.fx_pair = None
+                self.query = None
+                self._clear_context_locked()
             if self.job and (ids is None or self.job['id'] in ids):
                 if not self.job['cancelled'].is_set():
                     self.stats['cancelled'] += 1
@@ -347,7 +404,8 @@ class PublicSearch:
                     self.seen.popitem(last=False)
                 busy = self.job is not None
                 job = {'id': ident, 'name': item['name'], 'args': item.get('args'), 'cancelled': Event(), 'replied': False,
-                       'deadline': monotonic()+LOOKUP_SECONDS}
+                       'deadline': monotonic()+LOOKUP_SECONDS,
+                       'request_number': self.number if self.input_active else self.number+1}
                 if not busy:
                     self.job = job
             if busy:
@@ -475,24 +533,33 @@ class PublicSearch:
             while True:
                 with self.lock:
                     minimized = ai_call_public_query.minimize(args['query'], self.buffer) if generic else None
+                    if (generic and minimized is None and self.previous_query and same_topic_retry(self.buffer)
+                            and ' '.join(args['query'].split()).casefold() == self.previous_query.casefold()):
+                        minimized = self.previous_query
                     # Preserve the stricter dated-rate path even if a model
                     # incorrectly routes a currency question to general search.
                     match = (minimized is not None and self.fx_pair is None
+                             and not re.search(r'\b'+FX_WORDS+r'\b', self.buffer, re.I)
                              and not chat_web.conversion_requested(self.buffer)) if generic else (
                         self.fx_pair == requested_pair if fx else self.topic == args['topic'])
                     eligible = (not self.speaking and match and monotonic()-self.last_text_at >= TEXT_SETTLE_SECONDS
-                                and self.number != self.used_number and not self.opt_out)
+                                and self.number != self.used_number and not self.opt_out
+                                and self.number == job.get('request_number', self.number))
+                    request_changed = self.number > job.get('request_number', self.number)
                     if eligible:
                         self.used_number = self.number
                         job['number'] = self.number
                         if generic:
                             job['query'] = minimized
+                            self.query = minimized
+                        self._remember_context_locked()
                 if eligible:
                     break
-                if not self._alive(job) or monotonic() >= until:
+                if request_changed or not self._alive(job) or monotonic() >= until:
                     with self.lock:
                         # Fixed enums only: never retain speech or tool args.
                         reason = ('cancelled' if not self._alive(job) else
+                                  'request_changed' if request_changed else
                                   'opt_out' if self.opt_out else
                                   'speech_active' if self.speaking else
                                   'no_transcript' if not self.buffer else
@@ -542,11 +609,6 @@ class PublicSearch:
                 self.stats['lookup_completed'] += 1
                 attempt['result'] = 'available'
             if not job['replied'] and self._alive(job):
-                with self.lock:
-                    if fx:
-                        self.previous_pair = requested_pair
-                    elif not generic:
-                        self.previous_public = True
                 self._reply(job, response)
         except Exception as error:
             used.update(getattr(error, 'usage', {}) or {})
@@ -574,6 +636,18 @@ class PublicSearch:
                 instruction = self._timeout_response()['instruction']
             elif code in ('configuration_missing','configuration_rejected'):
                 instruction = 'Explain that lookup service configuration needs attention; no current information was verified.'
+            elif code in ('rate_time_missing', 'rate_not_current', 'rate_source_missing', 'rate_invalid', 'currency_pair_missing'):
+                limitation = {
+                    'rate_time_missing': 'The returned rate evidence did not include a usable published source date/time.',
+                    'rate_not_current': 'The returned source rate date was too old or in the future for current-rate verification.',
+                    'rate_source_missing': 'The returned rate could not be matched to a validated cited source.',
+                    'rate_invalid': 'The returned evidence did not contain a valid positive exchange rate.',
+                    'currency_pair_missing': 'The returned evidence did not establish the requested base and quote currencies.',
+                }[code]
+                instruction = (limitation+' Explain this specific verification limitation briefly in the person\'s language. '
+                               'Do not quote the unverified rate, invent a network problem or source outage, or claim '
+                               'lookup access is unavailable. A new spoken request may authorize one new lookup; '
+                               'do not retry automatically.')
             self._reply(job, {'available': False, 'reason': code, 'current_verified': False,
                              'instruction': instruction})
         finally:

@@ -446,6 +446,176 @@ class PublicSearchTests(unittest.TestCase):
         self.assertEqual(self.search.previous_pair,('USD','IDR'))
         self.assertEqual(self.search.fx_pair,('USD','IDR'))
 
+    def test_fx_value_terms_and_explicit_same_pair_retries_keep_only_enums(self):
+        self.assertEqual(search.currency_pair('Nilai tukar SGD/IDR hari ini?'), ('SGD', 'IDR'))
+        self.search.observe('Berapa kurs SGD ke IDR sekarang?')
+        self.fx({'base': 'SGD', 'quote': 'IDR'}); self.wait()
+        for number, text in enumerate(('Berapa nilai tukarnya sekarang?', 'Coba cari lagi.', 'Cari yang tadi.')):
+            with self.subTest(text=text):
+                self.search.turn_complete(); self.search.observe(text)
+                with patch.object(search, 'INTENT_WAIT_SECONDS', 0):
+                    self.fx({'base': 'SGD', 'quote': 'IDR'}, ident='repeat-'+str(number)); self.wait()
+                self.assertTrue(self.response()['available'])
+                self.assertEqual(self.lookups[-1][0], [{'role': 'user', 'content':
+                    '1 SGD to IDR: current published exchange rate'}])
+        self.assertEqual(self.reserve.call_count, 4)
+        self.assertEqual(self.finish.call_count, 4)
+        self.assertEqual(self.search.diagnostic()['function_responses_sent'], 4)
+
+    def test_latest_public_scope_does_not_reappear_after_topic_change_or_private_turn(self):
+        self.search.observe('Berapa kurs SGD ke IDR sekarang?'); self.search.turn_complete()
+        self.search.observe('Cari jadwal museum nasional terbaru.')
+        self.generic('jadwal museum nasional terbaru'); self.wait(); self.search.turn_complete()
+        self.search.observe('Berapa kursnya sekarang?')
+        self.assertIsNone(self.search.fx_pair)
+        self.search.turn_complete()
+        self.search.observe('Berapa kurs USD ke IDR sekarang?'); self.search.turn_complete()
+        self.search.observe('Jangan cari lagi.'); self.search.turn_complete()
+        self.search.observe('Cek lagi kursnya sekarang.'); self.assertIsNone(self.search.fx_pair)
+        self.search.turn_complete()
+        self.search.observe('Berapa kurs USD ke IDR sekarang?'); self.search.turn_complete()
+        self.search.observe('Cari rekening pribadi saya.'); self.search.turn_complete()
+        self.search.observe('Cek lagi kursnya sekarang.'); self.assertIsNone(self.search.fx_pair)
+
+    def test_generic_same_topic_retry_uses_only_previous_validated_keywords(self):
+        query = 'jadwal museum nasional terbaru'
+        self.search.observe('Tolong cari '+query+'.')
+        self.generic(query); self.wait(); self.search.turn_complete()
+        self.search.observe('Coba cari lagi.')
+        with patch.object(search, 'INTENT_WAIT_SECONDS', 0):
+            self.generic(query, ident='retry'); self.wait()
+        self.assertTrue(self.response()['available'])
+        self.assertEqual(self.lookups[0][0], self.lookups[1][0])
+        self.assertNotIn('Coba cari lagi', str(self.lookups[-1][0]))
+        self.assertEqual(self.reserve.call_count, 2)
+        self.search.turn_complete(); self.search.observe('Cari yang tadi untuk rekening pribadi saya.')
+        with patch.object(search, 'INTENT_WAIT_SECONDS', 0):
+            self.generic(query, ident='private'); self.wait()
+        self.assertFalse(self.response()['available'])
+        self.assertEqual(self.reserve.call_count, 2)
+
+    def test_non_currency_rates_remain_public_topics_after_fx_discussion(self):
+        for number, (speech, query) in enumerate((
+            ('Cari inflation rate terbaru.', 'inflation rate terbaru'),
+            ('Search unemployment rate today.', 'unemployment rate today'),
+        )):
+            self.search.turn_complete(); self.search.observe('Berapa kurs USD ke IDR sekarang?')
+            self.search.turn_complete(); self.search.observe(speech)
+            self.assertIsNone(self.search.fx_pair)
+            self.generic(query, ident='non-currency-'+str(number)); self.wait()
+            self.assertTrue(self.response()['available'])
+            self.assertIn(query, self.lookups[-1][0][0]['content'])
+        self.assertIsNone(search.currency_pair('What is the latest inflation rate?', ('USD', 'IDR')))
+        self.assertEqual(search.currency_pair('What is the rate now?', ('USD', 'IDR')), ('USD', 'IDR'))
+
+    def test_news_fx_general_and_repeated_changed_queries_share_one_call(self):
+        requests = (
+            ('Ada berita terbaru di Indonesia?', search.NAME, {'country': 'ID', 'topic': 'general'}),
+            ('Berapa kurs SGD ke IDR sekarang?', search.FX_NAME, {'base': 'SGD', 'quote': 'IDR'}),
+            ('Cari jadwal museum nasional terbaru.', search.PUBLIC_NAME, {'query': 'jadwal museum nasional terbaru'}),
+            ('Cari jadwal museum nasional terbaru.', search.PUBLIC_NAME, {'query': 'jadwal museum nasional terbaru'}),
+            ('Cari harga tiket museum nasional terbaru.', search.PUBLIC_NAME, {'query': 'harga tiket museum nasional terbaru'}),
+            ('Terus euro ke rupiah?', search.FX_NAME, {'base': 'EUR', 'quote': 'IDR'}),
+        )
+        for number, (text, name, args) in enumerate(requests):
+            if number: self.search.turn_complete()
+            self.search.activity('ACTIVITY_START'); self.search.observe(text); self.search.activity('ACTIVITY_END')
+            self.search.handle({'functionCalls': [{'id': 'turn-'+str(number), 'name': name, 'args': args}]})
+            self.wait(); self.assertTrue(self.response()['available'])
+            self.assertFalse(self.call.closed.is_set())
+        self.assertEqual(self.reserve.call_count, 6); self.assertEqual(self.finish.call_count, 6)
+        self.assertEqual(len({call.args[2] for call in self.reserve.call_args_list}), 6)
+        self.assertEqual(self.search.diagnostic()['lookup_started'], 6)
+
+    def test_waiting_tool_cannot_consume_a_new_spoken_request(self):
+        self.search.activity('ACTIVITY_START'); self.search.observe('Ada berita terbaru di Indonesia?')
+        self.search.activity('ACTIVITY_END')
+        waiting = Event()
+        original_wait = self.search.changed.wait
+        def observed_wait(timeout):
+            waiting.set(); return original_wait(timeout)
+        with patch.object(self.search.changed, 'wait', side_effect=observed_wait):
+            self.handle(ident='old-topic', args={'country': 'ID', 'topic': 'economy'})
+            self.assertTrue(waiting.wait(.5))
+            self.search.activity('ACTIVITY_START'); self.search.observe('Bagaimana ekonomi Indonesia sekarang?')
+            self.search.activity('ACTIVITY_END'); self.wait()
+        self.assertFalse(self.response()['available'])
+        self.assertEqual(self.search.diagnostic()['intent_rejections'], {'request_changed': 1})
+        self.reserve.assert_not_called(); self.lookup.assert_not_called()
+        self.handle(ident='new-topic', args={'country': 'ID', 'topic': 'economy'}); self.wait()
+        self.assertTrue(self.response()['available'])
+        self.reserve.assert_called_once(); self.finish.assert_called_once()
+
+    def test_fx_tool_before_any_transcript_binds_to_the_first_request(self):
+        self.fx(); sleep(.01); self.reserve.assert_not_called()
+        self.search.observe('Berapa nilai tukar USD ke IDR sekarang?'); self.wait()
+        self.assertTrue(self.response()['available'])
+        self.reserve.assert_called_once(); self.finish.assert_called_once()
+
+    def test_failure_then_new_explicit_request_can_succeed_without_retry_loop(self):
+        for number, code in enumerate(('provider_timeout', 'search_not_completed', 'rate_time_missing', 'quota_unavailable')):
+            with self.subTest(code=code):
+                self.search.turn_complete(); self.search.observe('Berapa kurs USD ke IDR sekarang?')
+                before = self.lookup.call_count
+                self.lookup.side_effect = search.tools.ToolUnavailable('offline', code=code)
+                if code == 'quota_unavailable': self.reserve.side_effect = search.usage.UsageLimit('offline')
+                self.fx(ident='fail-'+str(number)); self.wait()
+                self.assertFalse(self.response()['available'])
+                self.assertEqual(self.response()['reason'], code)
+                self.assertEqual(self.lookup.call_count-before, 0 if code == 'quota_unavailable' else 1)
+                self.reserve.side_effect = None
+                self.lookup.side_effect = lambda *a, **k: iter([{'result': self.result}])
+                self.search.turn_complete(); self.search.observe('Coba cari lagi.')
+                self.fx(ident='recovery-'+str(number)); self.wait()
+                self.assertTrue(self.response()['available'])
+                self.assertFalse(self.call.closed.is_set())
+
+    def test_finished_timeout_or_cancellation_releases_slot_for_next_request(self):
+        for number, outcome in enumerate(('timeout', 'cancel')):
+            with self.subTest(outcome=outcome):
+                entered, release = Event(), Event(); self.addCleanup(release.set)
+                def blocked(*a, **k):
+                    entered.set(); release.wait(2); yield {'result': self.result}
+                self.lookup.side_effect = blocked
+                self.search.turn_complete(); self.search.observe('Ada berita terbaru di Indonesia?')
+                ident = 'blocked-'+str(number)
+                self.handle(ident=ident); self.assertTrue(entered.wait(.5))
+                if outcome == 'timeout': self.search._timeout(self.search.job)
+                else: self.search.cancel([ident])
+                release.set(); self.wait()
+                self.lookup.side_effect = lambda *a, **k: iter([{'result': self.result}])
+                self.search.turn_complete(); self.search.observe('Berapa kurs SGD ke IDR sekarang?')
+                self.fx({'base': 'SGD', 'quote': 'IDR'}, ident='after-'+str(number)); self.wait()
+                self.assertTrue(self.response()['available'])
+                self.assertFalse(self.call.closed.is_set())
+        self.assertEqual(self.reserve.call_count, 4); self.assertEqual(self.finish.call_count, 4)
+
+    def test_fx_verification_failures_explain_only_the_recorded_limitation(self):
+        cases = {'rate_time_missing': 'published source date/time', 'rate_not_current': 'too old or in the future',
+                 'rate_source_missing': 'validated cited source', 'rate_invalid': 'valid positive exchange rate',
+                 'currency_pair_missing': 'requested base and quote currencies'}
+        for number, (code, expected) in enumerate(cases.items()):
+            self.search.turn_complete(); self.search.observe('Berapa kurs USD ke IDR sekarang?')
+            self.lookup.side_effect = search.tools.ToolUnavailable('offline', code=code)
+            self.fx(ident='evidence-'+str(number)); self.wait()
+            response = self.response()
+            self.assertFalse(response['available']); self.assertEqual(response['reason'], code)
+            self.assertIn(expected, response['instruction'])
+            self.assertIn('invent a network problem or source outage', response['instruction'])
+            self.assertNotIn('findings', response)
+        self.assertEqual(self.lookup.call_count, 5)
+
+    def test_end_clears_public_context_and_rejects_further_lookup_dispatch(self):
+        self.search.observe('Berapa kurs SGD ke IDR sekarang?')
+        self.fx({'base': 'SGD', 'quote': 'IDR'}); self.wait(); self.search.turn_complete()
+        self.assertEqual(self.search.previous_pair, ('SGD', 'IDR'))
+        self.search.cancel()
+        self.assertIsNone(self.search.previous_pair); self.assertIsNone(self.search.previous_query)
+        self.assertIsNone(self.search.fx_pair); self.assertEqual(self.search.buffer, '')
+        self.search.observe('Coba cari lagi.'); self.fx(ident='after-end'); self.wait()
+        self.reserve.assert_called_once(); self.finish.assert_called_once()
+        self.assertEqual(len(self.call.messages), 1)
+
     def test_safe_configuration_report_and_failure_counts_do_not_log_text_or_keys(self):
         with patch.dict(os.environ,{'KILAS_AI_OPENAI_WEB_MODEL':'gpt-6.1-sol'}):
             report=search.configuration_report()
