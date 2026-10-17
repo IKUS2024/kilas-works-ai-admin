@@ -1,9 +1,11 @@
 """Synthetic public lookup boundaries and lifecycle; no paid/network/DB IO."""
 import json
+import base64
+from itertools import chain, repeat
 import os
 from pathlib import Path
 import sys
-from threading import Event, Lock, RLock
+from threading import Event, Lock, RLock, Thread
 from datetime import datetime, timezone, timedelta
 from time import monotonic, sleep
 import unittest
@@ -79,7 +81,7 @@ class PublicSearchTests(unittest.TestCase):
         self.assertIn('Indonesia', context[0]['content'])
         self.assertEqual(kwargs['max_calls'], 1)
         self.assertTrue(kwargs['minimal_query'])
-        self.assertEqual(kwargs['request_timeout'], 8)
+        self.assertEqual(kwargs['request_timeout'], 25)
         self.reserve.assert_called_once()
         self.assertEqual(self.reserve.call_args.args[2][:9], 'call-web-')
         self.assertTrue(self.response()['available'])
@@ -101,7 +103,7 @@ class PublicSearchTests(unittest.TestCase):
         self.search.observe('Gimana keadaan Indonesia sekarang? Jangan ')
         self.search.observe('cari di internet.')
         # Force only the intent wait's deadline; no provider/deadline sleeps.
-        with patch.object(search, 'monotonic', side_effect=[0, 0, 4]):
+        with patch.object(search, 'monotonic', side_effect=chain([0, 0], repeat(4))):
             # Direct execution is deterministic here; handle's Timer is not needed.
             job = {'id': 'denied', 'args': {'country': 'ID', 'topic': 'general'},
                    'deadline': 20, 'cancelled': Event(), 'replied': False, 'timer': Mock()}
@@ -125,7 +127,7 @@ class PublicSearchTests(unittest.TestCase):
         # Same recognized utterance cannot authorize another new function ID.
         job = {'id': 'again', 'args': {'country': 'ID', 'topic': 'general'}, 'deadline': 20,
                'cancelled': Event(), 'replied': False, 'timer': Mock()}
-        with patch.object(search, 'monotonic', side_effect=[0, 0, 4]): self.search._execute(job)
+        with patch.object(search, 'monotonic', side_effect=chain([0, 0], repeat(4))): self.search._execute(job)
         self.reserve.assert_called_once()
 
     def test_quota_provider_timeout_and_missing_sources_fail_explicitly(self):
@@ -320,6 +322,171 @@ class PublicSearchTests(unittest.TestCase):
         stats=self.search.diagnostic()
         self.assertEqual(stats['failures']['provider_timeout'],1)
         self.assertNotIn('PRIVATE',json.dumps(stats))
+
+    def audio_call(self):
+        """Real Call input/output code, synthetic Gemini transport only."""
+        call = calls.Call(1, 'a'*32, object())
+        call.public_search.cancel();call.public_search = self.search;self.search.call = call
+        call.check = Mock();call.transport_check = Mock();call.messages = []
+        self.call = call
+        pcm_sent = Event()
+        def send(raw):
+            value = json.loads(raw)
+            if 'realtimeInput' in value:
+                pcm_sent.set();return
+            call.messages.append(value)
+            response = value['toolResponse']['functionResponses'][0]['response']
+            # This is a protocol fixture, not evidence of real model speech.
+            text = ('According to Synthetic Source, the published finding is synthetic.' if response['available']
+                    else 'The search timed out. I could not verify current information.')
+            call.receive(json.dumps({'serverContent':{'outputTranscription':{'text':text},
+                'modelTurn':{'parts':[{'inlineData':{'mimeType':'audio/pcm;rate=24000',
+                    'data':base64.b64encode(bytes(4800)).decode()}}]},'turnComplete':True}}))
+        call.ws = Mock(send=send)
+        sender = Thread(target=call.send,daemon=True);sender.start()
+        self.addCleanup(lambda:sender.join(.5));self.addCleanup(call.stop)
+        return call,pcm_sent
+
+    def test_delayed_actual_adapter_success_after_old_budget_keeps_pcm_and_sources_flowing(self):
+        call,pcm_sent = self.audio_call()
+        entered,release = Event(),Event();self.addCleanup(release.set)
+        clock = [100.0]
+        response = Mock(status_code=200)
+        response.json.return_value = {'status':'completed','output':[
+            {'type':'web_search_call','status':'completed'},
+            {'type':'message','content':[{'type':'output_text','text':'Synthetic finding from a source.',
+             'annotations':[{'type':'url_citation','url':'https://example.org/news','title':'Synthetic Source'}]}]}],
+            'usage':{'input_tokens':20,'output_tokens':15}}
+        def delayed(*a,**k):
+            entered.set();release.wait(2);return response
+        self.lookup.side_effect = lambda *a,**k:self.original_lookup(*a,**k)
+        with patch.object(search,'monotonic',side_effect=lambda:clock[0]), \
+             patch.object(search.tools.requests,'post',side_effect=delayed) as post:
+            self.search.observe('What is the latest news in Indonesia?')
+            self.handle();self.assertTrue(entered.wait(.5))
+            before = monotonic();call.accept(0,bytes(6400))
+            self.assertTrue(pcm_sent.wait(.5));self.assertLess(monotonic()-before,.5)
+            clock[0] += 12 # Provider wait longer than the former 8s Call budget.
+            release.set();self.wait()
+        self.assertEqual(post.call_args.kwargs['timeout'],(10,25));post.assert_called_once()
+        self.assertFalse(call.closed.is_set());self.assertEqual(call.turns,1)
+        frames=call.snapshot(0)['frames'];types=[f['type'] for f in frames]
+        self.assertLess(types.index('sources'),types.index('audio'))
+        self.assertEqual(frames[0]['citations'][0]['url'],'https://example.org/news')
+        self.assertEqual(self.search.diagnostic()['function_responses_sent'],1)
+        self.reserve.assert_called_once();self.finish.assert_called_once()
+        self.assertTrue(self.finish.call_args.kwargs['success'])
+
+    def test_actual_adapter_read_timeout_delivers_truthful_spoken_protocol_turn_without_closing_call(self):
+        call,_ = self.audio_call()
+        self.lookup.side_effect = lambda *a,**k:self.original_lookup(*a,**k)
+        with patch.object(search.tools.requests,'post',side_effect=search.tools.requests.ReadTimeout('SYNTHETIC')) as post:
+            self.search.observe('What is the latest news in Indonesia?')
+            self.handle();self.wait()
+        post.assert_called_once();self.assertEqual(post.call_args.kwargs['timeout'],(10,25))
+        self.assertFalse(call.closed.is_set());self.assertEqual(call.turns,1)
+        response=self.response();self.assertEqual(response['reason'],'provider_timeout')
+        self.assertFalse(response['current_verified']);self.assertIn('say aloud',response['instruction'])
+        self.assertIn('Do not guess facts or retry',response['instruction'])
+        self.assertEqual(call.frames[0]['citations'],[])
+        self.assertTrue(any(f['type']=='audio' for f in call.frames))
+        self.assertIn('could not verify',next(f['text'] for f in call.frames if f['type']=='text'))
+        self.finish.assert_called_once();self.assertFalse(self.finish.call_args.kwargs['success'])
+
+    def handoff_timeout(self, cancel):
+        entered,release = Event(),Event();self.addCleanup(release.set)
+        def blocked(*a,**k):
+            entered.set();release.wait(2);yield {'result':self.result}
+        self.lookup.side_effect=blocked
+        clock=[100.0]
+        with patch.object(search,'monotonic',side_effect=lambda:clock[0]),patch.object(search,'Timer'):
+            self.search.observe('What is the latest news in Indonesia?')
+            self.call.renewing.set();self.handle();self.assertTrue(entered.wait(.5))
+            job=self.search.job;clock[0]=job['deadline']+1
+            delivery=Thread(target=self.search._timeout,args=(job,),daemon=True);delivery.start()
+            until=monotonic()+.5
+            while not job['replied'] and monotonic()<until:sleep(.005)
+            self.assertTrue(job['replied']);release.set()
+            until=monotonic()+.5
+            while not job.get('worker_done') and monotonic()<until:sleep(.005)
+            self.assertTrue(job.get('worker_done'))
+            self.assertIs(self.search.job,job) # Still cancellable after HTTP settlement.
+            self.finish.assert_called_once()
+            if cancel:self.search.cancel(['one'])
+            self.call.renewing.clear();delivery.join(.5);self.wait()
+            self.assertFalse(delivery.is_alive())
+        self.assertFalse(self.call.closed.is_set())
+
+    def test_lookup_deadline_failure_survives_handoff_and_is_delivered_once(self):
+        self.handoff_timeout(cancel=False)
+        self.assertEqual(len(self.call.messages),1)
+        self.assertEqual(self.response()['reason'],'search_timeout')
+        self.assertIn('say aloud',self.response()['instruction'])
+        self.assertEqual(self.call.frames[0]['citations'],[])
+        self.assertEqual(self.search.diagnostic()['function_responses_sent'],1)
+
+    def test_provider_cancellation_after_worker_finish_suppresses_pending_handoff_reply(self):
+        self.handoff_timeout(cancel=True)
+        self.assertEqual(self.call.messages,[]);self.assertEqual(self.call.frames,[])
+        self.assertEqual(self.search.diagnostic()['function_responses_sent'],0)
+
+    def test_reservation_consuming_deadline_returns_failure_without_provider_dispatch(self):
+        clock=[100.0]
+        def delayed_reserve(*a,**k):
+            clock[0] += search.LOOKUP_SECONDS+1;return 'PLUS',('WEB_SEARCH',)
+        self.reserve.side_effect=delayed_reserve
+        with patch.object(search,'monotonic',side_effect=lambda:clock[0]),patch.object(search,'Timer'):
+            self.search.observe('What is the latest news in Indonesia?')
+            self.handle();self.wait()
+        self.lookup.assert_not_called();self.finish.assert_called_once()
+        self.assertFalse(self.finish.call_args.kwargs['success'])
+        self.assertEqual(self.response()['reason'],'search_timeout')
+
+    def test_late_success_cannot_be_delivered_as_current_verified_evidence(self):
+        clock=[100.0]
+        def late(*a,**k):
+            clock[0] += search.LOOKUP_SECONDS+1;yield {'result':self.result}
+        self.lookup.side_effect=late
+        with patch.object(search,'monotonic',side_effect=lambda:clock[0]),patch.object(search,'Timer'):
+            self.search.observe('What is the latest news in Indonesia?');self.handle();self.wait()
+        self.assertEqual(self.response()['reason'],'search_timeout')
+        self.assertEqual(self.call.frames[0]['citations'],[])
+        self.finish.assert_called_once();self.assertTrue(self.finish.call_args.kwargs['success'])
+
+    def test_reply_handoff_has_bound_and_end_stays_responsive(self):
+        # Delivery failure ends the broken transport, without another lookup.
+        self.call.renewing.set()
+        job={'id':'bounded','name':search.NAME,'replied':False,'cancelled':Event(),'deadline':0}
+        with patch.object(search,'monotonic',side_effect=[100,131]):
+            self.search._reply(job,self.search._timeout_response())
+        self.assertTrue(self.call.closed.is_set());self.assertEqual(self.call.messages,[])
+        self.assertEqual(self.search.diagnostic()['reply_delivery_failed'],1)
+        self.reserve.assert_not_called()
+
+    def test_end_during_send_lock_wait_cancels_reply_without_waiting_for_network_lock(self):
+        job={'id':'ending','name':search.NAME,'replied':False,'cancelled':Event(),'deadline':0}
+        self.search.job=job;self.call.send_lock.acquire()
+        worker=Thread(target=self.search._reply,args=(job,self.search._timeout_response()),daemon=True)
+        worker.start()
+        until=monotonic()+.5
+        while not job['replied'] and monotonic()<until:sleep(.005)
+        before=monotonic();self.call.closed.set();self.search.cancel()
+        worker.join(.2);self.call.send_lock.release()
+        self.assertLess(monotonic()-before,.2);self.assertFalse(worker.is_alive())
+        self.assertEqual(self.call.messages,[]);self.assertEqual(self.call.frames,[])
+
+    def test_new_request_during_handoff_cannot_receive_old_sources(self):
+        self.call.renewing.set()
+        self.search.observe('What is the latest news in Indonesia?')
+        self.handle()
+        until=monotonic()+.5
+        while not self.search.job['replied'] and monotonic()<until:sleep(.005)
+        self.assertTrue(self.search.job['replied'])
+        self.search.turn_complete();self.search.observe('Now help with a personal problem.')
+        self.call.renewing.clear();self.wait()
+        self.assertEqual(self.response()['reason'],'request_changed')
+        self.assertEqual(self.call.frames[0]['citations'],[])
+        self.finish.assert_called_once()
 
 
 if __name__ == '__main__': unittest.main()

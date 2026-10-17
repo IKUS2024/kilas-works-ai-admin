@@ -18,12 +18,16 @@ from threading import Lock, Timer
 import time
 import wave
 
-RUN = 'call-search-indonesia-20261017'
+RUN = 'call-search-indonesia-recovery-20261017'
 IDENT = hashlib.sha256(RUN.encode()).hexdigest()[:32]
 ARM = 'KILAS_AI_CALL_SMOKE_RUN'
 SERVICE = 'srv-da7ti2psrm7s73dh9i2g'
 RAW_SHA = 'dc3170ff1cecf5d6a41170037847421a8f283ff7943e821492464f2f23292967'
-CORE = '215ad4759fb4074637df216f1e5407ccda6a5e09'
+CORE = os.environ.get('RENDER_GIT_COMMIT', '')
+CORE = CORE if re.fullmatch('[a-f0-9]{40}', CORE) else 'unavailable'
+SESSION_SECONDS = 75  # Below the unchanged 80s normal funding renewal.
+INPUT_SECONDS = 40    # Below the unchanged 60s PCM funding envelope.
+SPOKEN_WAIT_SECONDS = 30
 
 
 def armed():
@@ -98,8 +102,14 @@ class SearchFence:
             self.result['public_query'] = expected
             self.result['web_model'] = payload['model']
         before = time.monotonic()
-        response = self.original_post(url, **kwargs)
-        self.result['web_http_ms'] = round((time.monotonic()-before)*1000)
+        try:
+            response = self.original_post(url, **kwargs)
+        except search.tools.requests.Timeout as error:
+            self.result['web_timeout_kind'] = ('connect' if isinstance(error, search.tools.requests.ConnectTimeout)
+                else 'read' if isinstance(error, search.tools.requests.ReadTimeout) else 'timeout_unspecified')
+            raise
+        finally:
+            self.result['web_http_ms'] = round((time.monotonic()-before)*1000)
         self.result['web_http_status'] = response.status_code
         try:
             data = response.json()
@@ -121,6 +131,13 @@ class SearchFence:
         return response
 
 
+def completion_status(result, turns):
+    """Observe the model turn after either tool result, including failures."""
+    if result.get('response_turn_target') and turns >= result['response_turn_target']:
+        return 'completed_transport' if result.get('bridge', {}).get('available') else 'completed_failure_transport'
+    return None
+
+
 def run():
     if not armed():
         return
@@ -134,7 +151,7 @@ def run():
     original_connect = calls.wire.connect
     original_reserve, original_finish, original_post = search.usage.reserve, search.usage.finish, search.tools.requests.post
     began = time.monotonic()
-    deadline = began+45
+    deadline = began+SESSION_SECONDS
     result = {'run': RUN, 'core_revision': CORE, 'status': 'stopped_no_retry', 'synthetic_only': True,
               'provider_connections': 0, 'search_reserve_attempts': 0, 'web_http_requests': 0,
               'search_reserved': False, 'search_settled': False, 'tool_calls': 0,
@@ -152,8 +169,8 @@ def run():
     def check():
         if time.monotonic() >= deadline:
             raise ValueError('diagnostic_deadline')
-        if result.get('search_failure'):
-            raise ValueError('search_failed')
+        if result.get('bridge_sent_ms') is not None and tick()-result['bridge_sent_ms'] >= SPOKEN_WAIT_SECONDS*1000:
+            raise ValueError('spoken_response_timeout')
         if call is not None and call.closed.is_set():
             raise ValueError('call_closed')
 
@@ -184,9 +201,10 @@ def run():
                     raise ValueError('unexpected_tool_response')
                 bridge = responses[0].get('response', {})
                 result['bridge'] = {k: bridge[k] for k in ('available','reason','checked_on','findings','sources') if k in bridge}
-                result['bridge_sent_ms'] = tick()
                 result['response_turn_target'] = (call.turns if call else 0)+1
             answer = self.socket.send(payload)
+            if responses:
+                result['bridge_sent_ms'] = tick()
             if 'audio' in inner:
                 raw = base64.b64decode(inner['audio']['data'],validate=True)
                 sent_hash.update(raw);sent_bytes += len(raw)
@@ -243,7 +261,7 @@ def run():
         fence = SearchFence(result,check,original_reserve,original_finish,original_post,owner)
         calls.wire.connect = connect_once
         search.usage.reserve, search.usage.finish, search.tools.requests.post = fence.reserve, fence.finish, fence.post
-        print('KILAS_AI_CALL_SEARCH_SMOKE '+json.dumps({'run':RUN,'status':'started','deadline_seconds':45,
+        print('KILAS_AI_CALL_SEARCH_SMOKE '+json.dumps({'run':RUN,'status':'started','deadline_seconds':SESSION_SECONDS,
               'max_call_reservations':1,'max_search_reservations':1,'max_web_requests':1,'input_ms':5800}),flush=True)
         call = calls.start(owner,IDENT)
         def no_renewal():raise calls.CallError('call_smoke_limit')
@@ -266,21 +284,24 @@ def run():
         accepted = 0
         while True:
             drain()
-            target = result.get('response_turn_target')
-            if target and result.get('bridge',{}).get('available') and call.turns >= target:
-                result['status'] = 'completed_transport';break
+            complete = completion_status(result,call.turns)
+            if complete:
+                result['status'] = complete;break
             if (call.turns and not result['tool_calls'] and tick()-result.get('last_complete_ms',tick()) > 2000):
                 raise ValueError('tool_not_invoked')
-            if accepted >= 40*32000:raise ValueError('input_fence')
+            if accepted >= INPUT_SECONDS*32000:
+                # Polling keeps the normal client heartbeat; no extra PCM or
+                # funding is needed while observing the same pending response.
+                time.sleep(.2);continue
             raw = payload[accepted:accepted+6400] if accepted < len(payload) else bytes(6400)
             time.sleep(max(0,clock+(accepted+len(raw))/32000-time.monotonic()))
             drain()
-            target = result.get('response_turn_target')
-            if target and result.get('bridge',{}).get('available') and call.turns >= target:
-                result['status'] = 'completed_transport';break
+            complete = completion_status(result,call.turns)
+            if complete:
+                result['status'] = complete;break
             call.accept(call.expected,raw);accepted_hash.update(raw);accepted += len(raw)
     except Exception as error:
-        safe = {'diagnostic_deadline','search_failed','call_closed','fixture_changed','fixture_invalid',
+        safe = {'diagnostic_deadline','spoken_response_timeout','call_closed','fixture_changed','fixture_invalid',
                 'production_policy_required','configuration_changed','no_second_connection','input_fence',
                 'output_fence','manual_marker_forbidden','setup_changed','unexpected_tool_call',
                 'unexpected_tool_response','tool_not_invoked','search_reserve_fence','web_request_fence'}
@@ -309,5 +330,5 @@ def run():
 
 
 if __name__ == '__main__':
-    signal.alarm(60)
+    signal.alarm(90)  # 75s session plus the existing bounded settlement cleanup.
     run()
