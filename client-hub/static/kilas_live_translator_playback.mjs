@@ -6,9 +6,9 @@ const MAX_BYTES=20*1024*1024;
 
 export class TranslatorPlayback {
   constructor({getContext,fetchAudio=(...args)=>globalThis.fetch(...args),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id),now=()=>performance.now(),onTiming=()=>{},onStored=()=>{},onEvict=()=>{}}){
-    Object.assign(this,{getContext,fetchAudio,schedule,clear,now,onTiming,onStored,onEvict});this.cached=new Map();this.cachedBytes=0;this.operation=null;this.prefetched=null;
+    Object.assign(this,{getContext,fetchAudio,schedule,clear,now,onTiming,onStored,onEvict});this.resumeOffsets=new Map();this.cached=new Map();this.cachedBytes=0;this.operation=null;this.prefetched=null;
   }
-  clearCache(){for(const url of this.cached.keys())this.onEvict(url);this.cached.clear();this.cachedBytes=0;}
+  clearCache(){this.resumeOffsets.clear();for(const url of this.cached.keys())this.onEvict(url);this.cached.clear();this.cachedBytes=0;}
   has(url){return this.cached.has(url);}
   remember(url,raw){
     if(this.cached.has(url))return;
@@ -94,7 +94,7 @@ export class TranslatorPlayback {
       catch(error){return {error};}
     })();
   }
-  play(url,signal,isCurrent,onStarted=()=>{}){
+  play(url,signal,isCurrent,onStarted=()=>{},offset=0){
     const slot=this.prefetched?.url===url&&this.prefetched.signal===signal&&this.prefetched.context===this.getContext()?this.prefetched:null;
     if(slot)this.prefetched=null;else this.discardPrefetch();
     return this.run(signal,isCurrent,async op=>{
@@ -110,13 +110,15 @@ export class TranslatorPlayback {
       // Android may suspend the context while network/provider work is in flight.
       await this.resume(op);this.check(op);
       const readyAt=this.now();
-      await this.bounded(op,()=>this.playBuffer(op,buffer,()=>{this.timing({audio_start_ms:Math.max(0,this.now()-readyAt)});onStarted({buffer_wait_ms:bufferWaitMs});}),buffer.duration*1000+10000,failure('audio_timeout',t('Pemutaran audio melewati batas waktu.')));
+      await this.bounded(op,()=>this.playBuffer(op,buffer,()=>{this.timing({audio_start_ms:Math.max(0,this.now()-readyAt)});onStarted({buffer_wait_ms:bufferWaitMs});},offset),buffer.duration*1000+10000,failure('audio_timeout',t('Pemutaran audio melewati batas waktu.')));
     },slot);
   }
-  playBuffer(op,buffer,onStarted){
+  playBuffer(op,buffer,onStarted,offset=0){
+    if(!Number.isFinite(offset)||offset<0) return Promise.reject(failure('audio_response',t('Respons audio sesi tidak valid.')));
+    if(offset>=buffer.duration-.05)return Promise.resolve();
     return new Promise((resolve,reject)=>{
       const context=op.context;let node=null,timer=null,settled=false,recovered=false;
-      let lastTime=context.currentTime,lastProgress=this.now(),audioStart=context.currentTime;
+      let lastTime=context.currentTime,lastProgress=this.now(),audioStart=context.currentTime-offset;
       const finish=error=>{
         if(settled)return;settled=true;if(timer!==null)this.clear(timer);op.controller.signal.removeEventListener('abort',cancel);
         if(node){node.onended=null;try{node.stop();}catch{}try{node.disconnect();}catch{}}
@@ -142,7 +144,7 @@ export class TranslatorPlayback {
       try{
         this.check(op);node=context.createBufferSource();node.buffer=buffer;node.connect(context.destination);
         // Allow 50 ms of audio-clock rounding at the natural end, never a wall-time success.
-        node.onended=()=>{try{this.check(op);if(context.currentTime-audioStart<buffer.duration-.05)throw failure('audio_stalled',t('Pemutaran audio berakhir sebelum ucapan selesai.'));finish();}catch(e){finish(e);}};node.start();try{onStarted();}catch{}timer=this.schedule(watch,250);}
+        node.onended=()=>{try{this.check(op);if(context.currentTime-audioStart<buffer.duration-.05)throw failure('audio_stalled',t('Pemutaran audio berakhir sebelum ucapan selesai.'));finish();}catch(e){finish(e);}};node.start(0,offset);try{onStarted();}catch{}timer=this.schedule(watch,250);}
       catch(e){finish(e.name==='AbortError'?e:failure('audio_start',t('Audio belum dapat diputar.')));}
     });
   }

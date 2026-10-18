@@ -195,7 +195,7 @@ def complete(owner,job,check=lambda:None):
         usage._query(conn,"UPDATE kilas_audio_jobs SET status='COMPLETED',actual_ms=?,seconds_charged=?,reserved_seconds=0,script=NULL,updated_at=? WHERE id=? AND user_id=?",(final_ms,charge,usage._now().isoformat(),job,owner))
 
 
-def speech(text,voice,check,on_first_byte,*,previous='',following='',language=None):
+def speech(text,voice,check,on_first_byte,*,previous='',following='',language=None,on_chunk=None,on_headers=None):
     """One documented HTTP stream; never retry or switch endpoints after dispatch."""
     # Translator-only request overrides: moderate expressive variation while
     # retaining the approved voice with modestly calmer speech. Optional speaker
@@ -212,20 +212,30 @@ def speech(text,voice,check,on_first_byte,*,previous='',following='',language=No
     if language is None:
         if previous:payload['previous_text']=previous[-1000:]
         if following:payload['next_text']=following[:1000]
-    check();deadline=monotonic()+60;raw=bytearray();first=True
+    check();deadline=monotonic()+60;raw=bytearray();first=True;pending=bytearray()
     try:
         with transport.request('POST',provider.BASE+'/text-to-speech/'+voice+'/stream',headers={'xi-api-key':os.environ['ELEVENLABS_API_KEY'].strip()},params={'output_format':'mp3_44100_128'},json=payload,stream=True,timeout=(5,15),allow_redirects=False) as response:
             if response.status_code!=200:
                 code='stream_unavailable' if response.status_code in (404,405) else 'provider_credit_exhausted' if response.status_code==402 else 'provider_billing_unverified' if response.status_code in (401,403) else 'speech_failed'
                 raise store.AudioError('Audio streaming belum tersedia. Permintaan ini tidak dikirim ulang.','stream_unavailable' if code=='stream_unavailable' else code,503)
-            for part in response.iter_content(16384):
+            if on_headers is not None:on_headers()
+            for part in response.iter_content(4096 if on_chunk is not None else 16384):
                 if not part:continue
                 if first:on_first_byte();first=False
                 if monotonic()>deadline:raise provider.ProviderError('provider_timeout')
                 raw.extend(part)
                 if len(raw)>MAX_BYTES:raise provider.ProviderError('provider_output_limit')
-                # An accepted response is closed promptly on the next read after End.
+                # Publish a small initial prefix, then retain the original 16KiB
+                # fence cadence: reducing client fill delay must not multiply DB
+                # ownership checks for every small network read.
+                pending.extend(part)
+                if len(pending)>=16384 or (on_chunk is not None and len(raw)==len(part)):
+                    check()
+                    if on_chunk is not None:on_chunk(bytes(pending))
+                    pending.clear()
+            if pending:
                 check()
+                if on_chunk is not None:on_chunk(bytes(pending))
         if not raw:raise provider.ProviderError('invalid_audio')
         return bytes(raw)
     except requests.RequestException:raise provider.ProviderError('provider_transport') from None

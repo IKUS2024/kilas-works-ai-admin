@@ -38,7 +38,7 @@ def _log_latency(timings,started,success,code=None):
             'translation_fences_ms','translation_settlement_ms','translation_events','credit_tts_ms',
             'audio_reserve_ms','audio_submit_ms','completion_ms')
     stages+=('tts_receive_ms','tts_fences_ms','audio_measure_ms','audio_settlement_ms')
-    stages+=('first_tts_byte_ms','first_published_clip_ms','translation_ready_ms')
+    stages+=('first_tts_byte_ms','first_published_clip_ms','translation_ready_ms','tts_http_headers_ms')
     stages+=('realtime_input_ms','realtime_transport_ms','realtime_finalize_ms','realtime_commits',
              'incremental_clauses','incremental_provider_ms','incremental_wait_ms','incremental_reused')
     values=' '.join(f'{name}={timings[name]:.1f}' for name in stages if name in timings)
@@ -360,7 +360,8 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
                 # One complete script, one encoder and one billed result. Keep the
                 # existing per-read End fence, but publish no playable prefix.
                 if not audio_store.start(owner,job):raise audio_store.AudioError('Audio ini sudah diproses.','duplicate_turn',409)
-                with _timed(timings,'tts_receive_ms'):raw=segments.speech(result['text'],choice['id'],stream_check,first_byte,language=result['target_language'])
+                temporary.progress_begin(owner,job)
+                with _timed(timings,'tts_receive_ms'):raw=segments.speech(result['text'],choice['id'],stream_check,first_byte,language=result['target_language'],on_chunk=lambda part:temporary.progress_append(owner,job,part),on_headers=lambda:timings.update(tts_http_headers_ms=(monotonic()-started)*1000))
                 # Once the complete paid response returned, settle its valid
                 # measured output even if End wins before publication. The
                 # following session check keeps that cancelled result private.

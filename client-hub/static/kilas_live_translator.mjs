@@ -1,15 +1,16 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=app-language-20261015';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=early-text-20261018';
-import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=hold-history-20261018';
-import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=early-text-20261018';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=progressive-audio-20261018';
+import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=progressive-audio-20261018';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=progressive-audio-20261018';
 import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=app-language-20261015';
-import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=release-timing-20261018';
+import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=progressive-audio-20261018';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=explicit-pair-20261018';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=app-language-20261015';
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
 import {bindHoldToTalk} from './kilas_live_translator_hold.mjs?v=hold-release-20261018';
-import {TranslatorHistory} from './kilas_live_translator_history.mjs?v=early-text-20261018';
+import {TranslatorHistory} from './kilas_live_translator_history.mjs?v=progressive-audio-20261018';
+import {progressiveSupported,progressivePlay} from './kilas_live_translator_progressive.mjs?v=progressive-audio-20261018';
 const root=document.querySelector('.kilas-live-translator');
 if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');
@@ -56,7 +57,7 @@ if(root){
  const latency=values=>{try{console.info('KILAS_LIVE_CLIENT_LATENCY '+Object.entries(values).filter(([,v])=>Number.isFinite(v)&&v>=0).map(([k,v])=>k+'='+v.toFixed(1)).join(' '));}catch{}};
  let history=null;const player=new TranslatorPlayback({getContext:()=>context,onTiming:latency,onStored:url=>history?.stored(url),onEvict:url=>history?.remove(url)});
  const closeAudio=()=>{const own=context;context=null;if(own){try{own.close().catch(()=>{});}catch{}}};
- const playback={has:url=>player.has(url),prepare:(...args)=>player.prepare(...args),play:(...args)=>player.play(...args),prefetch:(...args)=>player.prefetch(...args),
+ const playback={...(progressiveSupported()?{progressive:(...args)=>progressivePlay(player,...args)}:{}),has:url=>player.has(url),prepare:(...args)=>player.prepare(...args),play:async(url,signal,current,started)=>{const offset=player.resumeOffsets.get(url)||0;await player.play(url,signal,current,started,offset);player.resumeOffsets.delete(url);},prefetch:(...args)=>player.prefetch(...args),
   cancel:()=>player.cancel(),
   recover(error,signal,isCurrent){
    player.cancel();if(!context||context.state==='closed'||/^audio_(stalled|timeout|context|resume|start)$/.test(error?.code||'')){

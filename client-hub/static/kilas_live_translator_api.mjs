@@ -63,7 +63,7 @@ export class TranslatorTurns {
     }
     if(state.processing)throw error('turn_busy',t('Ucapan sebelumnya belum terkonfirmasi selesai. Periksa lagi saat koneksi siap.'));
   }
-  async turn(id,key,blob,signal,onSegment=null,onPrefetch=null,onTranslation=null){
+  async turn(id,key,blob,signal,onSegment=null,onPrefetch=null,onTranslation=null,onProgressive=null){
     const url=this.path(id,key),data=new FormData();if(blob!==null)data.append('recording',blob,'recording');data.append('csrf_token',this.csrf);
     // Wait for one full result, including any already-running legacy segmented
     // turn. Never play a prefix or submit a second job to assemble its output.
@@ -73,7 +73,7 @@ export class TranslatorTurns {
     if(this.disabledStreamSession===id)onSegment=null;
     if(onSegment)data.append('stream_output','sentences-v1');let played=0,announced=null,translationIdentity=null;const identities=[];
     const controller=new AbortController(),cancel=()=>controller.abort();signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
-    let completeText=null;
+    let completeText=null,progressiveTask=null,progressiveResult=null,progressiveError=null;
     const textIdentity=result=>{
       if(typeof result.translated_text!=='string'||!result.translated_text.trim()||result.translated_text.length>4000||typeof result.source_text!=='string'||!result.source_text.trim()||result.source_text.length>4000||typeof result.source_language!=='string'||typeof result.target_language!=='string'||!result.source_language||!result.target_language||result.source_language===result.target_language||result.translation_key!==key)throw error('stream_invalid',t('Terjemahan audio tidak valid.'));
       return JSON.stringify([result.source_text,result.translated_text,result.source_language,result.target_language]);
@@ -113,6 +113,15 @@ export class TranslatorTurns {
           if(completeText===null){completeText=identity;onTranslation?.(result);}
         }
         if(result.status==='COMPLETED'&&completeText!==null&&textIdentity(result)!==completeText)throw error('stream_invalid',t('Terjemahan audio berubah.'));
+        if(onProgressive&&result.status==='PROCESSING'&&result.audio_progress_url){
+          if(!completeText||result.audio_progress_url!==url+'/audio/progress')throw error('stream_invalid',t('Terjemahan audio tidak valid.'));
+          if(!progressiveTask){startedClips++;progressiveTask=Promise.resolve(onProgressive(result.audio_progress_url,controller.signal));progressiveTask.then(value=>{progressiveResult=value;},e=>{progressiveError=e;controller.abort();});}
+        }
+        if(result.status==='COMPLETED'&&progressiveTask){
+          await progressiveTask;if(progressiveError)throw progressiveError;if(controller.signal.aborted)throw aborted();
+          if(result.audio_url!==url+'/audio'||progressiveResult?.sha256!==result.audio_sha256)throw error('stream_invalid',t('Terjemahan audio tidak valid.'));
+          return {...result,streamed:true};
+        }
         if(onSegment&&result.stream_output==='sentences-v1'&&['PROCESSING','COMPLETED'].includes(result.status)){
           let totalMs=0,previousText='';
           if(typeof result.translated_text!=='string'||!result.translated_text.trim()||result.translated_text.length>4000||typeof result.source_language!=='string'||typeof result.target_language!=='string'||!result.source_language||!result.target_language||result.source_language===result.target_language)throw error('stream_invalid',t('Terjemahan audio tidak valid.'));
@@ -152,6 +161,7 @@ export class TranslatorTurns {
       }
       throw aborted();
     }catch(e){
+      if(progressiveError)e=progressiveError;
       if(playbackError)e=playbackError;
       // Stop the scoped player/prefetch before recovery or a new utterance.
       controller.abort();

@@ -5,7 +5,7 @@ import math
 import os
 import re
 import secrets
-from flask import Blueprint, abort, redirect, render_template, request, send_file, session, url_for
+from flask import Response, Blueprint, abort, redirect, render_template, request, send_file, session, url_for
 import db
 import security
 from . import free_test
@@ -768,14 +768,16 @@ def live_translator_turn(ident,key):
             return {'status':'FAILED','code':'session_output_expired','recoverable':True,'error':'Hasil sementara sesi sudah tidak tersedia. Ucapan ini tidak dibuat ulang otomatis.'},200,{'Cache-Control':'private, no-store'}
         state={'status':'COMPLETED','translation_key':key,'audio_url':url_for('kilas_audio.live_translator_result',ident=ident,key=key),
                'translated_text':job['text'],'source_text':job.get('source_text',''),
-               'source_language':job['source_language'],'target_language':job['target_language']}
+               'source_language':job['source_language'],'target_language':job['target_language'],'audio_sha256':job.get('audio_sha256')}
     elif state['status']=='PROCESSING':
         from . import live_translator_output as temporary
         job=temporary.get(session['user_id'],ident,key)
         if job and job.get('translation_ready'):
             state={**state,'translation_ready':True,'translation_key':key,
                    'translated_text':job['text'],'source_text':job['source_text'],
-                   'source_language':job['source_language'],'target_language':job['target_language']}
+                   'source_language':job['source_language'],'target_language':job['target_language'],'audio_sha256':job.get('audio_sha256')}
+            if job.get('progress'):
+                state['audio_progress_url']=url_for('kilas_audio.live_translator_progress',ident=ident,key=key)
     elif state['status']=='FAILED':
         code=state.get('error_code')
         messages={'detection_unavailable':'Data deteksi bahasa belum tersedia dari layanan suara. Pilih bahasa sumber lalu bicara kembali.',
@@ -835,3 +837,25 @@ def live_translator_result(ident,key):
     response=send_file(io.BytesIO(output['raw']),mimetype='audio/mpeg')
     response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
     return response
+
+
+@audio_bp.get('/live/sessions/<ident>/turns/<key>/audio/progress')
+def live_translator_progress(ident,key):
+    # GET-only relay of one already reserved/dispatched whole-script TTS call.
+    # No long-lived web-worker stream and no provider action on playback.
+    from . import live_translator_store as sessions,live_translator_output as temporary
+    if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(404)
+    value=request.args.get('offset','')
+    if not re.fullmatch(r'0|[1-9][0-9]{0,7}',value):abort(400)
+    row=db.query_one("SELECT s.language_a,s.language_b,s.voice_alias,j.id,j.source_language,j.target_language FROM kilas_live_translator_sessions s JOIN kilas_live_translator_turns t ON t.session_id=s.id AND t.operation_key=? JOIN kilas_audio_jobs j ON j.id=t.audio_job_id AND j.user_id=s.user_id WHERE s.id=? AND s.user_id=? AND s.status='ACTIVE' AND (s.expires_at='' OR s.expires_at>?) AND t.status IN ('PROCESSING','COMPLETED') AND j.status IN ('PROCESSING','COMPLETED') AND j.content_origin='live_session'",(key,ident,session['user_id'],usage._now().isoformat()))
+    if not row:abort(404)
+    sessions.require_pair(row['language_a'],row['language_b'],voice=row['voice_alias'])
+    try:sessions.require_pair(row['source_language'],row['target_language'],voice=row['voice_alias'])
+    except store.AudioError:abort(404)
+    if {row['source_language'],row['target_language']}!={row['language_a'],row['language_b']}:abort(404)
+    entry=temporary.get(session['user_id'],ident,key)
+    if not entry or entry['job']!=row['id']:abort(404)
+    part=temporary.progress_read(session['user_id'],ident,key,int(value))
+    if part is None:return {'code':'session_output_expired'},410,{'Cache-Control':'private, no-store'}
+    raw,size,complete,digest=part
+    return Response(raw,status=200 if raw else 204,headers={'Content-Type':'audio/mpeg','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','X-Audio-Offset':value,'X-Audio-Size':str(size),'X-Audio-Complete':'1' if complete else '0','X-Audio-SHA256':digest or ''})

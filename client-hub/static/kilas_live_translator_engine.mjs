@@ -141,7 +141,12 @@ export class TranslatorSession {
       },part=>{
         if(ticket!==this.version||this.controller.signal.aborted)return;
         textAnnounced=true;releaseTiming('release_to_first_text_ms');this.onResult(part);
-      });
+      },this.playback.progressive?async (url,playSignal)=>{
+        if(ticket!==this.version||this.controller.signal.aborted)throw new DOMException('','AbortError');
+        this.stateTo('playing');
+        const value=await this.playback.progressive(url,playSignal,()=>ticket===this.version,onStarted);
+        if(ticket===this.version)this.stateTo('processing');return value;
+      }:null);
       if(ticket!==this.version)return;
       if(!result.streamed)this.timing({output_ready_ms:Math.max(0,this.now()-outputBegan)});
       this.pendingKey=null;this.outputPending=false;

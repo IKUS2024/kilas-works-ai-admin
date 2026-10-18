@@ -50,7 +50,7 @@ def begin(owner,ident,key):
         address=(owner,ident,key)
         if address in _items:raise audio_store.AudioError('Ucapan ini tidak diulang.','duplicate_turn',409)
         if len(_items)>=MAX_ENTRIES:raise audio_store.AudioError('Penyimpanan sementara sedang penuh.','session_storage_busy',503)
-        _items[address]={'expires':monotonic()+TTL_SECONDS,'processing':False,'translation_ready':False,'job':None,'text':'','source_text':'','source_language':'','target_language':'','raw':None,'framed':None}
+        _items[address]={'expires':monotonic()+TTL_SECONDS,'processing':False,'translation_ready':False,'job':None,'text':'','source_text':'','source_language':'','target_language':'','raw':None,'framed':None,'progress':None,'audio_sha256':None}
         if not _sweeper_started:
             threading.Thread(target=_sweep,name='kilas-live-output-expiry',daemon=True).start();_sweeper_started=True
 
@@ -100,6 +100,9 @@ def update(owner,job_id,**values):
         if not entry:return False  # End/expiry must never recreate a deleted entry.
         size=sum(len(values.get(name,entry[name]) or b'') for name in ('raw','framed'))
         if size>MAX_ENTRY_BYTES:raise audio_store.AudioError('Audio sementara melebihi batas.','stream_limit',413)
+        if values.get('raw') is not None:
+            import hashlib
+            values.update(progress=None,audio_sha256=hashlib.sha256(values['raw']).hexdigest())
         entry.update(values);entry['expires']=monotonic()+TTL_SECONDS
         return True
 
@@ -108,3 +111,29 @@ def discard(owner,ident,key=None):
     with _lock:
         for address in list(_items):
             if address[:2]==(owner,ident) and (key is None or address[2]==key):del _items[address]
+
+
+def progress_begin(owner,job_id):
+    with _lock:
+        _expire();entry=next((v for a,v in _items.items() if a[0]==owner and v['job']==job_id),None)
+        if not entry or entry['progress'] is not None:raise audio_store.AudioError('Audio tidak tersedia.','session_output_expired',409)
+        entry['progress']=bytearray()
+
+
+def progress_append(owner,job_id,part):
+    with _lock:
+        _expire();entry=next((v for a,v in _items.items() if a[0]==owner and v['job']==job_id),None)
+        if not entry or entry['progress'] is None:raise audio_store.AudioError('Audio tidak tersedia.','session_output_expired',409)
+        if len(entry['progress'])+len(part)>20*1024*1024:raise audio_store.AudioError('Audio melebihi batas.','stream_limit',413)
+        entry['progress'].extend(part)
+
+
+def progress_read(owner,ident,key,offset):
+    # Immutable byte offsets: repeated GETs cannot create audio, advance a cursor,
+    # or cross into another turn. One bounded copy; no waiting HTTP generator.
+    with _lock:
+        _expire();entry=_items.get((owner,ident,key))
+        if not entry:return None
+        raw=entry['raw'] if entry['raw'] is not None else entry['progress']
+        if raw is None or type(offset) is not int or offset<0 or offset>len(raw):return None
+        return bytes(raw[offset:offset+65536]),len(raw),entry['raw'] is not None,entry['audio_sha256']
