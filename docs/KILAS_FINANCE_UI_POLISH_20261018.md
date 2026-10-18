@@ -1,0 +1,23 @@
+# Finance alignment polish — 2026-10-18
+
+This follows receipt preview release `b7dbefac8cb79d1c0cf34e853e9e86a0587c1ec0`, Render `dep-dbagl05g1s2s73c1n2fg`, LIVE18:07:01.780687 UTC. That milestone was reported before beginning this separate polish. Permanent category deletion remains canceled.
+
+## Verified cause and correction
+
+The actual local Business Income page reproduced misaligned scope/Branch controls. A later customer button rule made the inactive scope button44px high while the active segment remained33px. The enclosing switch became50px high. The Branch selector was44px high and sat below a label; the shared toolbar centered all children regardless of that label. Content-based flex sizing also made the two switch halves unequal.
+
+Only Finance-scoped `finance_revisions.css` and its conditional asset version in `base.html` change runtime behavior. The switch now uses two equal columns, an outer44px height and matching38px interior segments, consistent type/line-height/padding, and field-bottom alignment. Branch/month fields share44px height and13px type; compact scope labels use12px on phones. The header bell/identity and mobile Home retain centered44px chrome. Numeric amounts retain tabular numerals. No route, business logic, field order, copy, navigation, card dimensions, brand/color, financial write or provider behavior changes. The existing dashboard stays3 columns above760px and2 on phones.
+
+## Focused evidence
+
+- Initial batched inspection:140 real local page combinations,7views × Personal/Business × EN/ID ×360/390/768/1024/1440. No page overflow; the measured alignment defect was reproduced.
+- Confirmation: the same140 combinations PASS, not280 unique cases. Equal scope halves/heights, aligned scope/Branch bottoms when sharing a row, no document overflow or JavaScript errors.40 Income/Expense dialog open/Escape-close checks are included in this140-page pass. Account-transfer dialogs also opened/closed where available. All requests outside the disposable local app origin were blocked.
+-12 supplemental combinations PASS: Personal/Business ×EN/ID ×360/768/1440. Real Bill/Recipient launch controls opened their dialogs; dialogs fit the viewport and their submit actions remained reachable by scrolling. Actual Invoice links opened the editor and its save action was reachable; no form submitted. Long identity/Branch labels remained bounded, the identity retained ellipsis, and dashboard3/2 columns were asserted. These overlap the page matrix and are not another independent broad suite.
+-16 Python contracts PASS: receipt preview3, expense/receipt/split/accounting9, hidden legacy choice4. Original receipt associations, private ownership, accounting/idempotency, existing unsupported PDF contract and history-safe obsolete-category handling remain covered. No production financial test records were created.
+- Early QA harness corrections were a misspelled test module, a modal selector matching both open/close buttons, an immediate navigation visibility assertion and a default-submit button lacking an explicit type attribute. Correct selectors/waits passed; those harness errors were not product regressions. An initial unequal-column confirmation led to the grid correction above.
+- Reviewed actual local screenshots at390phone/768tablet/1440desktop: `/tmp/kilas-finance-ui-polish/after-income-390.png`, `after-dashboard-768.png`, `after-income-1440.png`, with other Invoice/Dashboard views and the Expense dialog alongside them.
+- Harnesses: `client-hub/tests/finance_ui_polish_browser.py`, `finance_ui_polish_details_browser.py`. Reports: `/tmp/kilas-finance-ui-polish/report.json`, `details.json`; logs `/tmp/kilas-finance-ui-polish-after.log`, `-details.log`, `-core.log`. DOM geometry and rendered screenshots establish local presentation behavior, not full accessibility certification or every business workflow.
+
+The Impeccable context launcher could not install/use its unavailable engine cache; existing PRODUCT/DESIGN/incumbent implementation and checkout polish/craft guidance were read directly. No engine/tool installation occurred. Both owner Library references resolved metadata, but the supported official materialization helper returned `download failed` for both. Their pixels remain unviewed; this is not a claim of matching those reference images.
+
+No authenticated production browser, physical Android/iOS, paid receipt scanner, model, OCR or VM was tested. No new infrastructure, environment setting, migration, cleanup, ledger mutation, credential or unrelated Translator/AI/Voice change. Production release evidence is retained separately in `/tmp/kilas-finance-ui-polish-live.json` after exact-SHA LIVE/startup/read-only integrity checks.
