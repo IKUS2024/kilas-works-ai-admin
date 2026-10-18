@@ -1,0 +1,76 @@
+{
+  "name": "kilas-documents-v1",
+  "base_image": null,
+  "base_image_status": "MISSING immutable digest and verified Python ABI",
+  "source_interpreter": "/usr/bin/python3",
+  "interpreter": "/opt/kilas-document-python/bin/python3",
+  "python_major_minor": "3.12",
+  "local_tested_python": "3.12.14",
+  "architecture": "x86_64",
+  "minimum_glibc": "2.28",
+  "cpu_count": 2,
+  "memory_mb": 512,
+  "min_free_disk_mb": 0,
+  "wheels": [
+    {
+      "name": "charset-normalizer",
+      "version": "3.4.4",
+      "wheel": "charset_normalizer-3.4.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "11d694519d7f29d6cd09f6ac70028dba10f92f6cdd059096db198c283794ac86"
+    },
+    {
+      "name": "et_xmlfile",
+      "version": "2.0.0",
+      "wheel": "et_xmlfile-2.0.0-py3-none-any.whl",
+      "sha256": "7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa"
+    },
+    {
+      "name": "lxml",
+      "version": "6.1.1",
+      "wheel": "lxml-6.1.1-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "ebe6af670449830d6d9b752c256a983291c766a1365ba5d5460048f9e33a7818"
+    },
+    {
+      "name": "openpyxl",
+      "version": "3.1.5",
+      "wheel": "openpyxl-3.1.5-py2.py3-none-any.whl",
+      "sha256": "5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2"
+    },
+    {
+      "name": "pillow",
+      "version": "12.3.0",
+      "wheel": "pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91"
+    },
+    {
+      "name": "python-docx",
+      "version": "1.2.0",
+      "wheel": "python_docx-1.2.0-py3-none-any.whl",
+      "sha256": "3fd478f3250fbbbfd3b94fe1e985955737c145627498896a8a6bf81f4baf66c7"
+    },
+    {
+      "name": "python-pptx",
+      "version": "1.0.2",
+      "wheel": "python_pptx-1.0.2-py3-none-any.whl",
+      "sha256": "160838e0b8565a8b1f67947675886e9fea18aa5e795db7ae531606d68e785cba"
+    },
+    {
+      "name": "reportlab",
+      "version": "4.4.9",
+      "wheel": "reportlab-4.4.9-py3-none-any.whl",
+      "sha256": "68e2d103ae8041a37714e8896ec9b79a1c1e911d68c3bd2ea17546568cf17bfd"
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "wheel": "typing_extensions-4.16.0-py3-none-any.whl",
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+    },
+    {
+      "name": "xlsxwriter",
+      "version": "3.2.9",
+      "wheel": "xlsxwriter-3.2.9-py3-none-any.whl",
+      "sha256": "9a5db42bc5dff014806c58a20b9eae7322a134abb6fce3c92c181bfb275ec5b3"
+    }
+  ]
+}
