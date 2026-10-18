@@ -1,7 +1,7 @@
 """Execution costs use existing premium capacity/top-up units, not new prices."""
 from datetime import timedelta
 from decimal import Decimal
-from . import usage,capacity,topups
+from . import usage,capacity,topups,workspace_execution_access as access
 
 OPERATION='CODE_EXECUTION'
 
@@ -12,7 +12,7 @@ def reserve(conn,user_id,key,micro):
     if usage._query(conn,'SELECT id FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(user_id,key),one=True):
         raise ValueError('execution_already_dispatched')
     plan,start,end=usage._plan(conn,user_id,now)
-    if plan=='FREE':raise usage.UsageLimit('Aktifkan Kilas Pro untuk melanjutkan fitur premium. Finance tetap gratis.')
+    if not access.entitled(user_id,conn,now):raise usage.UsageLimit('Aktifkan Kilas Pro untuk melanjutkan fitur premium. Finance tetap gratis.')
     # Retain the same burst/hourly/concurrent guards as existing customer work.
     import os
     burst=max(1,int(os.environ.get('KILAS_AI_BURST_PER_MINUTE','30')))

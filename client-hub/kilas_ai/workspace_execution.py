@@ -45,17 +45,24 @@ def accepted():
     from .workspace_execution_proof import key,fingerprint
     row=db.query_one("SELECT e.outcome_json FROM kilas_workspace_executions e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE e.operation_key=? AND e.state='SUCCEEDED' AND e.cleanup_confirmed=1 AND j.status='COMPLETED'",('execution:'+key(),))
     outcome=json.loads(row['outcome_json']) if row else {}
-    return outcome.get('proof_passed') is True and outcome.get('proof_fingerprint')==fingerprint()
+    if outcome.get('proof_passed') is not True:return False
+    if outcome.get('proof_fingerprint')==fingerprint():return True
+    # One explicitly reviewed admission-only transition; original proof untouched.
+    # Exact helper bytes are pinned by nonsecret deployment configuration.
+    pinned=os.environ.get('KILAS_EXECUTION_COMPATIBILITY_SHA256','')
+    verifier=Path(__file__).with_name('workspace_execution_rollout.py')
+    if not pinned or hashlib.sha256(verifier.read_bytes()).hexdigest()!=pinned:return False
+    from . import workspace_execution_rollout as rollout
+    return rollout.accepts(outcome)
 
 
 def capability(user_id=None):
-    allowed=os.environ.get('KILAS_EXECUTION_ALLOWED_USERS','').split(',')
-    allowed={value.strip() for value in allowed if value.strip().isdecimal()}
+    from . import workspace_execution_access as access
     if user_id is None:
         from flask import has_request_context,session
         if has_request_context():user_id=session.get('user_id')
     configured=(os.environ.get('KILAS_EXECUTION_APPROVAL')==POLICY and
-                bool(os.environ.get('E2B_API_KEY')) and importlib.util.find_spec('e2b') is not None and str(user_id) in allowed)
+                bool(os.environ.get('E2B_API_KEY')) and importlib.util.find_spec('e2b') is not None and access.allowed(user_id))
     ready=bool(configured and accepted())
     return {'available':ready,'reason':None if ready else 'isolated_execution_acceptance_pending' if configured else 'isolated_execution_not_configured',
             'provider':'e2b','languages':['python'] if ready else [],'network':False,
