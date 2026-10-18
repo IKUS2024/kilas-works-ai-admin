@@ -505,7 +505,7 @@ def live_translator_start():
     live.require_ready(session['user_id'])
     if request.form.get('consent')!='yes':raise store.AudioError('Setujui pemrosesan ucapan sebelum mulai.','consent_required',400)
     a,b=request.form.get('language_a'),request.form.get('language_b');voice=request.form.get('voice')
-    sessions.require_pair(a,b,voice=voice)
+    sessions.require_explicit_pair(a,b,voice=voice)
     translator.require_classic(a,b)
     if not branded.resolve(voice):raise store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
     store.require_balance(session['user_id'])

@@ -19,6 +19,13 @@ def require_pair(a,b,*,voice=None):
         raise audio_store.AudioError('Pilih dua bahasa yang berbeda sebelum memulai sesi.','invalid_language_pair',400)
 
 
+def require_explicit_pair(a,b,*,voice=None):
+    # Legacy Auto rows remain readable/End-able; never guess their missing partner.
+    if a=='auto' or b=='auto':
+        raise audio_store.AudioError('Pilih dua bahasa yang berbeda sebelum memulai sesi.','invalid_language_pair',400)
+    require_pair(a,b,voice=voice)
+
+
 def active(owner):
     # Read only: an idle row is not proof that another tab has stopped listening.
     row=db.query_one("SELECT s.id,s.expires_at,EXISTS(SELECT 1 FROM kilas_live_translator_turns t WHERE t.session_id=s.id AND t.status='PROCESSING') AS processing FROM kilas_live_translator_sessions s WHERE s.user_id=? AND s.status='ACTIVE' AND (s.expires_at='' OR s.expires_at>?) ORDER BY s.created_at DESC LIMIT 1",(owner,usage._now().isoformat()))
@@ -35,7 +42,7 @@ def locked(owner, ident, conn):
 
 
 def create(owner,a,b,voice):
-    require_pair(a,b,voice=voice)
+    require_explicit_pair(a,b,voice=voice)
     now=usage._now();ident=secrets.token_hex(24)
     with transaction() as conn:
         # One session per owner, including double Start from separate tabs.
@@ -50,6 +57,7 @@ def create(owner,a,b,voice):
 def claim(owner,ident,key):
     with transaction() as conn:
         info=locked(owner,ident,conn)
+        require_explicit_pair(info['language_a'],info['language_b'],voice=info['voice_alias'])
         old=usage._query(conn,'SELECT status FROM kilas_live_translator_turns WHERE operation_key=?',(key,),one=True)
         if old:raise audio_store.AudioError('Ucapan ini sudah diproses. Tidak diulang otomatis.','duplicate_turn',409)
         busy=usage._query(conn,"SELECT 1 FROM kilas_live_translator_turns WHERE session_id=? AND status='PROCESSING'",(ident,),one=True)

@@ -35,11 +35,12 @@ for (const changed of ['primary', 'secondary']) {
   });
 }
 
-test('saved empty, removed and unknown values are repaired from available options', () => {
-  for (const [first, second] of [['', ''], ['old', 'en'], ['id', 'removed']]) {
+test('saved empty, Auto, removed and unknown values require explicit choice', () => {
+  for (const [first, second] of [['', ''], ['auto', 'en'], ['old', 'en'], ['id', 'removed']]) {
     const a = select(first), b = select(second);
-    assert.equal(syncLanguagePair(a, b), true);
-    assert.equal(validLanguagePair(a, b), true);
+    assert.equal(syncLanguagePair(a, b), false);
+    assert.equal(validLanguagePair(a, b), false);
+    if (second === 'en') { assert.equal(a.value, ''); assert.equal(b.value, 'en'); }
   }
 });
 
@@ -116,4 +117,13 @@ test('submit rejects a stale duplicate before audio context, microphone or netwo
       if (value === undefined) delete globalThis[key]; else globalThis[key] = value;
     }
   }
+});
+
+
+test('an old cached Auto option is hidden and cannot supply a guessed pair', () => {
+  const a = select('auto', ['', 'auto', 'id', 'en']), b = select('en');
+  assert.equal(syncLanguagePair(a, b), false);
+  assert.equal(a.value, ''); assert.equal(b.value, 'en');
+  const old = a.options.find(option => option.value === 'auto');
+  assert.equal(old.hidden, true); assert.equal(old.disabled, true);
 });

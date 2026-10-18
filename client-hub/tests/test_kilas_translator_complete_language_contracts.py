@@ -110,20 +110,22 @@ class DetectionContracts(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.audio=f.audio.mp3()
 
-    def test_auto_admission_uses_batch_and_target_is_required_native_rejects_auto(self):
+    def test_new_auto_admission_is_rejected_before_provider_and_target_is_required(self):
         self.credit(300)
         fields={'csrf_token':'audio-csrf','language_a':'auto','language_b':'en','voice':'kilas-male','consent':'yes'}
         with self.funded(),self.on(),patch.object(voices,'resolve',return_value=f.VOICE),patch.object(realtime,'ready',return_value=True),patch.object(provider,'speech') as paid:
             result=self.client.post('/kilas-translator/live/sessions',data=fields)
-            self.assertEqual(result.status_code,201);self.assertEqual(result.json['input_mode'],'batch')
-            sessions.end(self.user,result.json['session_id'])
+            self.assertEqual(result.status_code,400);self.assertEqual(result.json['code'],'invalid_language_pair')
             self.assertEqual(self.client.post('/kilas-translator/live/sessions',data={**fields,'language_b':''}).status_code,400)
             self.assertEqual(self.client.post('/kilas-translator/live/sessions',data={**fields,'language_b':'auto'}).status_code,400)
             paid.assert_not_called()
         with self.assertRaises(ValueError):sessions.require_pair('auto','en',voice='gemini-live-two-way')
 
     def turn(self,metadata,*,reverse=False,provider_error=False):
-        ident=sessions.create(self.user,'auto','en','kilas-male');key=self.key();info=sessions.claim(self.user,ident,key)
+        # Simulate an Auto turn already admitted before this release: legacy output must remain readable.
+        ident=sessions.create(self.user,'id','en','kilas-male');key=self.key();info=sessions.claim(self.user,ident,key)
+        f.audio.f.db.execute('UPDATE kilas_live_translator_sessions SET language_a=? WHERE id=?',('auto',ident))
+        info['language_a']='auto'
         def transcribe(pcm,capability,**kwargs):
             self.assertTrue(kwargs['detect_language'])
             self.transcribe(pcm,capability)

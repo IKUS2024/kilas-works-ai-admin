@@ -39,7 +39,7 @@ def main():
                     page.goto(origin+path,wait_until='networkidle')
                     expect(page.locator('.translator-picker')).to_have_count(2)
                     assert page.locator('select[data-translator-language] option').evaluate_all('rows=>rows.every(row=>row.textContent.trim()!==row.value)')
-                    assert page.locator('select[name=language_a] option:not([value=auto])').count()==count
+                    assert page.locator('select[name=language_a] option:not([value=auto]):not([value=""])').count()==count
                     # Check before touching either picker: recovery must target Start.
                     for control in page.locator('.translator-picker').all():
                         selected=control.locator('select').evaluate('e=>e.selectedOptions[0].textContent')
@@ -54,10 +54,13 @@ def main():
                     assert not page.locator('input[name=consent]').is_checked()
                     if count==83:
                         first=page.locator('.translator-picker').first
-                        first.locator(':scope > button').click()
-                        first.locator('input').fill({'id':'Deteksi bahasa','en':'Detect language','es':'Detectar idioma','zh':'检测语言'}[locale])
-                        first.locator('[role=option]').click()
-                        expect(page.locator('select[name=language_a]')).to_have_value('auto')
+                        assert page.locator('select[name=language_a] option[value=auto]').count()==0
+                        # A browser-restored Auto value becomes an explicit prompt, retaining English.
+                        page.locator('select[name=language_a]').evaluate("e=>{e.value='auto';window.dispatchEvent(new Event('pageshow'));}")
+                        expect(page.locator('select[name=language_a]')).to_have_value('')
+                        expect(page.locator('select[name=language_b]')).to_have_value('en')
+                        expect(first.locator(':scope > button')).to_have_text({'id':'Pilih bahasa','en':'Choose language','es':'Elige un idioma','zh':'选择语言'}[locale])
+                        assert not page.locator('#live-setup-form').evaluate('e=>e.checkValidity()')
                         first.locator(':scope > button').click();first.locator('input').fill('in')
                         # Legacy alias remains searchable; the submitted ID stays canonical.
                         first.locator('[role=option]').filter(has_text={'en':'Indonesian','id':'Indonesia','es':'indonesio','zh':'印度尼西亚语'}[locale]).first.click()

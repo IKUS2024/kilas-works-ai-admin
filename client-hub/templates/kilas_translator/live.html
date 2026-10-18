@@ -2,8 +2,8 @@
 {% block title %}Translator · Kilas Works{% endblock %}
 {% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_live_translator.css',v='call-viewport-20261013') }}">{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_translator_picker.css',v='language-names-auto-20261018') }}">
-<script src="{{ url_for('static',filename='kilas_translator_picker.js',v='language-names-auto-20261018') }}" defer></script>
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_translator_picker.css',v='explicit-pair-20261018') }}">
+<script src="{{ url_for('static',filename='kilas_translator_picker.js',v='explicit-pair-20261018') }}" defer></script>
 <div class="kilas-live-page">
 {% set selected_feature='live' %}
 {% include 'kilas_ai/_feature_navigation.html' %}
@@ -12,8 +12,8 @@
 {% if not live_ready %}<p role="status">{{ ui_t("Translator belum tersedia untuk akun ini.") }}</p>{% endif %}
 <section id="live-recovery" hidden aria-label="{{ ui_t('Pemulihan sesi') }}"><p id="live-recovery-status" role="status" aria-live="polite"></p><p>{{ ui_t("Sesi mungkin masih digunakan di tab atau perangkat lain. Gunakan tab itu, atau akhiri sesi sebelumnya di sini. Mengakhiri sesi membatalkan ucapan yang masih diproses; biaya yang sudah dikirim tetap tercatat.") }}</p><div class="live-recovery-actions"><button type="button" id="live-recovery-end" class="btn secondary" hidden>{{ ui_t("Akhiri sesi sebelumnya") }}</button><button type="button" id="live-recovery-check" class="btn secondary">{{ ui_t("Periksa sesi") }}</button></div></section>
 <form id="live-setup-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<label>{{ ui_t("Bahasa pertama") }}<select data-translator-language name="language_a" required><option value="auto">{{ ui_t("Deteksi bahasa") }}</option>{% for code,label in languages.items() %}<option data-search-name="{{ label }}" value="{{ code }}" {{ 'selected' if code=='id' }} {{ 'disabled' if code=='en' }}>{{ translator_language_names.get(code,label) }}</option>{% endfor %}</select></label>
-<label>{{ ui_t("Bahasa kedua") }}<select data-translator-language name="language_b" required>{% for code,label in languages.items() %}<option data-search-name="{{ label }}" value="{{ code }}" {{ 'selected' if code=='en' }} {{ 'disabled' if code=='id' }}>{{ translator_language_names.get(code,label) }}</option>{% endfor %}</select></label>
+<label>{{ ui_t("Bahasa pertama") }}<select data-translator-language name="language_a" required><option value="" disabled hidden>{{ ui_t("Pilih bahasa") }}</option>{% for code,label in languages.items() %}<option data-search-name="{{ label }}" value="{{ code }}" {{ 'selected' if code=='id' }} {{ 'disabled' if code=='en' }}>{{ translator_language_names.get(code,label) }}</option>{% endfor %}</select></label>
+<label>{{ ui_t("Bahasa kedua") }}<select data-translator-language name="language_b" required><option value="" disabled hidden>{{ ui_t("Pilih bahasa") }}</option>{% for code,label in languages.items() %}<option data-search-name="{{ label }}" value="{{ code }}" {{ 'selected' if code=='en' }} {{ 'disabled' if code=='id' }}>{{ translator_language_names.get(code,label) }}</option>{% endfor %}</select></label>
 <label class="live-voice">{{ ui_t("Suara") }}<select name="voice">{% for voice in voices %}<option value="{{ voice.alias }}" {{ 'selected' if voice.alias=='kilas-male' }}>{{ voice.name }}</option>{% endfor %}</select></label>
 <label class="live-consent"><input type="checkbox" name="consent" value="yes" required><span>{{ ui_t("Saya punya izin dan menyetujui pemrosesan ucapan. Audio dapat dikirim selagi saya berbicara.") }}</span></label>
 <button type="submit" class="btn" data-enabled="{{ 'true' if live_ready and voices else 'false' }}" disabled aria-busy="true">Start</button></form></section>
@@ -23,5 +23,5 @@
 <button type="button" id="live-recovery-retry" class="btn secondary" hidden>{{ ui_t("Periksa sesi") }}</button>
 </section>
 </div>
-<script type="module" src="{{ url_for('static',filename='kilas_live_translator.mjs',v='auto-audio-context-20261018') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_live_translator.mjs',v='explicit-pair-20261018') }}"></script>
 {% endblock %}

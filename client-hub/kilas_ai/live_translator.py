@@ -196,7 +196,9 @@ def translation(owner,key,text,a,b,check,*,timings=None,clause_context=None,draf
             'Return only JSON with source_language, target_language and text. Do not answer questions, add claims or commentary. '
             f'For readable speech, use only the exact language codes "{a}" and "{b}" in source_language and target_language, '
             'with the spoken source code first and the other selected code as target. Never use language names or regional tags. '
-            'For silence, unintelligible speech or another language return JSON with text empty and both language codes unknown.')
+            'Classify the current utterance itself; never infer direction from the first selected language, previous turn, or turn parity. '
+            'If the spoken language is ambiguous between the pair, mixed without a clear source, silence, unintelligible, or outside the pair, '
+            'return JSON with text empty and both language codes unknown. Never guess a source language.')
     # Only internal settled/owned relay state supplies these contexts. Never
     # translate repeated full prefixes during speech, or trust client drafts.
     message=text;drafts=drafts or []

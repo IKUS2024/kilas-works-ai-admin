@@ -26,7 +26,7 @@
     function choose(row){if(row.option.disabled)return;select.value=row.option.value;select.dispatchEvent(new Event('change',{bubbles:true}));sync();close(true);}
     function render(){
       list.replaceChildren();visible=[];const query=fold(search.value);
-      for(const row of rows.filter(row=>!query||row.key.includes(query))) {
+      for(const row of rows.filter(row=>row.option.value && !row.option.hidden && (!query||row.key.includes(query)))) {
         const option=document.createElement('button');option.type='button';option.tabIndex=-1;option.setAttribute('role','option');option.id=list.id+'-'+row.option.index;option.textContent=row.name;option.disabled=row.option.disabled;option.setAttribute('aria-selected',String(row.option.value===select.value));option.addEventListener('click',()=>choose(row));list.append(option);
         if(!option.disabled)visible.push({...row,button:option});
       }
@@ -37,6 +37,6 @@
     function open(){if(button.disabled)return;search.value='';popup.hidden=false;button.setAttribute('aria-expanded','true');popup.style.top='calc(100% + 5px)';popup.style.bottom='auto';render();const rect=popup.getBoundingClientRect();if(rect.bottom>innerHeight-8&&wrapper.getBoundingClientRect().top>rect.height+8){popup.style.top='auto';popup.style.bottom='calc(100% + 5px)';}search.focus();}
     button.addEventListener('click',()=>popup.hidden?open():close());button.addEventListener('keydown',event=>{if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();open();highlight(event.key==='ArrowDown'?0:visible.length-1);}});
     search.addEventListener('input',render);search.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close(true);}else if(event.key==='Tab')close();else if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();highlight(event.key==='Home'?0:event.key==='End'?visible.length-1:Math.max(0,Math.min(visible.length-1,active+(event.key==='ArrowDown'?1:-1))));}else if(event.key==='Enter'){event.preventDefault();if(visible[active])choose(visible[active]);else if(visible.length===1)choose(visible[0]);}});
-    select.addEventListener('change',sync);select.form?.addEventListener('reset',()=>queueMicrotask(sync));new MutationObserver(sync).observe(select,{attributes:true,subtree:true,attributeFilter:['disabled','selected']});document.addEventListener('pointerdown',event=>{if(!wrapper.contains(event.target))close();});sync();
+    select.addEventListener('change',sync);select.form?.addEventListener('reset',()=>queueMicrotask(sync));new MutationObserver(sync).observe(select,{attributes:true,subtree:true,attributeFilter:['disabled','selected','hidden']});document.addEventListener('pointerdown',event=>{if(!wrapper.contains(event.target))close();});sync();
   }
 })();
