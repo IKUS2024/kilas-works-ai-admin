@@ -10,48 +10,53 @@ from datetime import timedelta
 import db
 from . import workspace_execution as execution,autonomous_store as store,usage
 
-CHECKS=['uid','no_root','environment','root_path_denied','resources','network_denied','answer']
+from . import workspace_acceptance_fixture as acceptance
+
+CHECKS=acceptance.CHECKS
 OWNER_ID=9
-PROOF_POLICY='e2b-diagnostic-60s-5usd-v1'
-FIXTURE={'main.py':'''import json,os,resource,urllib.request
-from pathlib import Path
-assert os.getuid()==65534
-try:
- os.setuid(0)
- raise AssertionError('root escalation')
-except PermissionError: pass
-for name in ('DATABASE_URL','OPENAI_API_KEY','GEMINI_API_KEY','ANTHROPIC_API_KEY','E2B_API_KEY','RENDER_API_KEY'):
- assert name not in os.environ
-try:
- Path('/root/kilas-input.json').read_bytes()
- raise AssertionError('root path readable')
-except PermissionError: pass
-assert resource.getrlimit(resource.RLIMIT_AS)==(268435456,268435456)
-assert resource.getrlimit(resource.RLIMIT_NPROC)==(16,16)
-assert resource.getrlimit(resource.RLIMIT_FSIZE)==(65536,65536)
-try:
- response=urllib.request.urlopen('https://example.com',timeout=3)
- response.read(1)
- raise AssertionError('unexpected outbound response')
-except urllib.error.HTTPError: raise AssertionError('unexpected outbound HTTP response')
-except (OSError,TimeoutError): pass
-Path('output/proof.json').write_text(json.dumps({'answer':42,'checks':['uid','no_root','environment','root_path_denied','resources','network_denied','answer']}))
-print('KILAS_PROOF_OK')
-'''}
+PROOF_POLICY='e2b-boundary-acceptance-30s-5usd-v1'
+FIXTURE={'main.py':Path(acceptance.__file__).read_text()}
+
+
+def passed(outcome):
+    """Require actual adversarial evidence and retrieval, not just VM creation."""
+    try:
+        if not (type(outcome['exit_code']) is int and outcome['exit_code']==0 and outcome['timed_out'] is False
+                and outcome.get('customer_metered') is False and outcome.get('sandbox_created') is True
+                and outcome.get('cleanup_confirmed') is True
+                and outcome['stdout'].strip()=='KILAS_ACCEPTANCE_OK'
+                and outcome['stderr']==''
+                and set(outcome['outputs'])=={'answer.txt','proof.json'}
+                and outcome['outputs']['answer.txt']=='42\n'):return False
+        execution.validated_evidence(outcome['boundary_evidence'],True)
+        scratch=outcome['boundary_evidence']['scratch']
+        if scratch['total_bytes']!=acceptance.BYTES or scratch['total_inodes']!=acceptance.INODES:return False
+        report=json.loads(outcome['outputs']['proof.json'])
+        if set(report)!={'answer','checks','evidence'} or type(report['answer']) is not int or report['answer']!=42 or report['checks']!=CHECKS:return False
+        evidence=report['evidence']
+        if set(evidence)!={'data','inodes'}:return False
+        data,inodes=evidence['data'],evidence['inodes']
+        if set(data)!={'written_bytes','requested_bytes','available_before','errno'} or set(inodes)!={'created_files','available_before','errno'}:return False
+        if any(type(value) is not int for section in (data,inodes) for value in section.values()):return False
+        return (0<data['written_bytes']<=data['available_before']<=acceptance.BYTES
+                and data['available_before']<data['requested_bytes']<=acceptance.BYTES+acceptance.CHUNK
+                and data['errno']==acceptance.errno.ENOSPC
+                and 0<inodes['created_files']==inodes['available_before']<=acceptance.INODES
+                and inodes['errno']==acceptance.errno.ENOSPC)
+    except (KeyError,ValueError,TypeError,AttributeError):return False
 
 
 def fingerprint():
     root=Path(__file__).parent
-    digest=hashlib.sha256(b''.join((root/name).read_bytes() for name in ('workspace_execution.py','workspace_guest.py','workspace_execution_proof.py'))).hexdigest()
+    digest=hashlib.sha256(b''.join((root/name).read_bytes() for name in ('workspace_execution.py','workspace_guest.py','workspace_execution_proof.py','workspace_acceptance_fixture.py'))).hexdigest()
     return digest
 
 
 def key():
-    # Fixed across restarts AND code changes: a future release cannot silently
-    # spend another proof attempt while the old approval setting remains present.
-    # Owner separately approved this ONE diagnostic attempt after the consumed
-    # initial-proof-v1 timeout. Its row remains untouched and counted in budget.
-    return 'diagnostic-proof-v1'
+    # Owner explicitly approved exactly one THIRD VM for the reviewed enforced
+    # quota fixture. Both prior consumed keys/rows remain untouched. Stable
+    # across restarts, deployments and fingerprint changes: never auto-retry.
+    return 'boundary-acceptance-proof-v1'
 
 
 def authorized():
@@ -73,18 +78,16 @@ def run(app):
         job=store.get(OWNER_ID,ident);step=dict(db.query_one('SELECT * FROM kilas_agent_steps WHERE id=?',(step_id,)))
         try:
             outcome=execution.execute(job,step,FIXTURE,_proof=True)
-            expected={'answer':42,'checks':CHECKS}
-            passed=(outcome['exit_code']==0 and not outcome['timed_out'] and outcome.get('cleanup_confirmed') is True and
-                    outcome['stdout'].strip()=='KILAS_PROOF_OK' and json.loads(outcome['outputs'].get('proof.json','null'))==expected)
+            verified=passed(outcome)
             public={k:v for k,v in outcome.items() if k not in ('stdout','stderr','outputs')}
-            execution.update(outcome['run_id'],outcome_json=json.dumps({**public,'proof_passed':passed,'proof_fingerprint':fingerprint()}))
+            execution.update(outcome['run_id'],outcome_json=json.dumps({**public,'proof_passed':verified,'proof_fingerprint':fingerprint()}))
             result=workspace_execution_worker.result(outcome)
-            if not passed:
+            if not verified:
                 from .agent_workers import Result
                 result=Result('FAILED','Hasil eksekusi belum terverifikasi.',
                               {**public,'reason':'execution_proof_failed'},result.artifacts,verified=False)
             autonomous_runner.finish(job,token,step,result)
-            logging.getLogger(__name__).warning('KILAS_EXECUTION_PROOF state=%s','PASSED' if passed else 'FAILED')
+            logging.getLogger(__name__).warning('KILAS_EXECUTION_PROOF state=%s','PASSED' if verified else 'FAILED')
         except Exception:
             from .agent_workers import Result
             autonomous_runner.finish(job,token,step,Result('FAILED','Hasil eksekusi belum terverifikasi.',{'reason':'execution_proof_failed'}))

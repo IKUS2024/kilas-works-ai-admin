@@ -43,7 +43,7 @@ def validated_evidence(value,success):
 
 def accepted():
     from .workspace_execution_proof import key,fingerprint
-    row=db.query_one("SELECT outcome_json FROM kilas_workspace_executions WHERE operation_key=? AND state='SUCCEEDED' AND cleanup_confirmed=1",('execution:'+key(),))
+    row=db.query_one("SELECT e.outcome_json FROM kilas_workspace_executions e JOIN kilas_agent_jobs j ON j.id=e.job_id WHERE e.operation_key=? AND e.state='SUCCEEDED' AND e.cleanup_confirmed=1 AND j.status='COMPLETED'",('execution:'+key(),))
     outcome=json.loads(row['outcome_json']) if row else {}
     return outcome.get('proof_passed') is True and outcome.get('proof_fingerprint')==fingerprint()
 

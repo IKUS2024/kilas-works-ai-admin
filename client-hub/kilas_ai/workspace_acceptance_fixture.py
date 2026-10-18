@@ -1,4 +1,4 @@
-"""INERT fixed remote acceptance proposal. Not imported by startup or execution.
+"""Fixed remote acceptance source. Importing it never executes its checks.
 
 Only main() in an explicitly approved remote VM may run the adversarial checks.
 Local tests exercise bounded quota algorithms against a synthetic filesystem.

@@ -97,8 +97,12 @@ class ExecutionTests(unittest.TestCase):
         from kilas_ai import workspace_execution_proof as proof
         import app
         real_accepted=execution.accepted
-        report={'exit_code':0,'stdout':'KILAS_PROOF_OK\n','stderr':'','timed_out':False,
-                'outputs':{'proof.json':base64.b64encode(json.dumps({'answer':42,'checks':proof.CHECKS}).encode()).decode()}}
+        evidence={'data':{'written_bytes':67100672,'requested_bytes':67108864,'available_before':67100672,'errno':28},
+                  'inodes':{'created_files':4088,'available_before':4088,'errno':28}}
+        report={'exit_code':0,'stdout':'KILAS_ACCEPTANCE_OK\n','stderr':'','timed_out':False,
+                'outputs':{'answer.txt':base64.b64encode(b'42\n').decode(),
+                    'proof.json':base64.b64encode(json.dumps({'answer':42,'checks':proof.CHECKS,'evidence':evidence}).encode()).decode()}}
+
         create=self.enabled(self.sandbox(report))
         with patch.object(proof,'OWNER_ID',self.owner),patch.object(execution,'accepted',side_effect=real_accepted),patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':proof.PROOF_POLICY}):
             self.assertFalse(execution.capability(self.owner)['available'])
@@ -108,6 +112,9 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(create.call_count,1)
         row=db.query_one('SELECT outcome_json,cleanup_confirmed FROM kilas_workspace_executions')
         self.assertTrue(json.loads(row['outcome_json'])['proof_passed']);self.assertEqual(row['cleanup_confirmed'],1)
+        proof_job=db.query_one('SELECT job_id FROM kilas_workspace_executions')['job_id']
+        db.execute("UPDATE kilas_agent_jobs SET status='FAILED' WHERE id=?",(proof_job,))
+        self.assertFalse(real_accepted())
 
     def test_trusted_guest_early_failure_reports_bounded_safe_diagnostic(self):
         # Pure report handling only: no subprocess or generated code is run here.
@@ -256,16 +263,19 @@ class ExecutionTests(unittest.TestCase):
         row=db.query_one('SELECT outcome_json FROM kilas_workspace_executions')
         self.assertEqual(json.loads(row['outcome_json'])['phase'],'waiting_report')
 
-    def test_diagnostic_has_distinct_approval_and_preserves_consumed_initial_attempt(self):
+    def test_third_acceptance_preserves_both_prior_attempts_and_rejects_old_approval(self):
         from kilas_ai import workspace_execution_proof as proof
         import app
         job,step=self.claimed();initial=execution.reserve(job,'execution:initial-proof-v1')
         execution.update(initial,state='UNKNOWN',cleanup_confirmed=1)
         db.execute("UPDATE kilas_workspace_executions SET expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(initial,))
+        diagnostic=execution.reserve(job,'execution:diagnostic-proof-v1')
+        execution.update(diagnostic,state='FAILED',cleanup_confirmed=1)
+        db.execute("UPDATE kilas_workspace_executions SET expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(initial,))
         real_accepted=execution.accepted
         report={'exit_code':1,'stdout':'','stderr':'KILAS_GUEST_FAILURE:guest_launch_error','timed_out':False,'outputs':{}}
         create=self.enabled(self.sandbox(report))
-        with patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':execution.POLICY}):
+        with patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':'e2b-diagnostic-60s-5usd-v1'}):
             self.assertFalse(proof.authorized())
         with patch.object(proof,'OWNER_ID',self.owner),patch.object(execution,'accepted',side_effect=real_accepted),patch.dict(os.environ,{'KILAS_EXECUTION_PROOF_APPROVAL':proof.PROOF_POLICY}):
             proof.run(app.app);proof.run(app.app)
@@ -273,8 +283,8 @@ class ExecutionTests(unittest.TestCase):
         create.assert_called_once()
         self.assertEqual(create.call_args.kwargs['timeout'],30)
         rows=db.query_all('SELECT operation_key,state,reserved_micro_usd FROM kilas_workspace_executions ORDER BY id')
-        self.assertEqual([r['operation_key'] for r in rows],['execution:initial-proof-v1','execution:diagnostic-proof-v1'])
-        self.assertEqual(rows[0]['state'],'UNKNOWN');self.assertEqual(sum(r['reserved_micro_usd'] for r in rows),17760)
+        self.assertEqual([r['operation_key'] for r in rows],['execution:initial-proof-v1','execution:diagnostic-proof-v1','execution:boundary-acceptance-proof-v1'])
+        self.assertEqual(rows[0]['state'],'UNKNOWN');self.assertEqual(sum(r['reserved_micro_usd'] for r in rows),26640)
 
     def test_attestation_and_upload_failures_keep_distinct_safe_phase(self):
         for location,expected in [('get_info','attesting'),('files.write','uploading_input')]:
@@ -385,7 +395,7 @@ class ExecutionTests(unittest.TestCase):
         job,step=self.claimed();create=self.enabled(self.sandbox())
         with patch.dict(os.environ,{'KILAS_EXECUTION_APPROVAL':'e2b-hobby-60s-1usd-v1','KILAS_EXECUTION_PROOF_APPROVAL':'e2b-hobby-60s-1usd-v1'}):
             self.assertFalse(execution.capability(self.owner)['available']);self.assertFalse(proof.authorized())
-        self.assertEqual(proof.key(),'diagnostic-proof-v1');create.assert_not_called()
+        self.assertEqual(proof.key(),'boundary-acceptance-proof-v1');create.assert_not_called()
 
     def test_project_author_and_execution_have_distinct_single_usage_entries(self):
         from kilas_ai import workspace_model_tools as native

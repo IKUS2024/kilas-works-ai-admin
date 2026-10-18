@@ -39,15 +39,17 @@ class AcceptanceFixtureTests(unittest.TestCase):
             with self.assertRaises(OSError) as denied:self.quota(kind,7,errno.EFBIG)
             self.assertEqual(denied.exception.errno,errno.EFBIG)
 
-    def test_inert_source_is_syntax_valid_bounded_and_not_a_new_proof_dispatch(self):
+    def test_fixed_source_is_syntax_valid_bounded_and_approval_scoped(self):
         source=inspect.getsource(fixture);ast.parse(source)
         self.assertIn('BYTES//CHUNK+1',source);self.assertIn('INODES+1',source)
         self.assertEqual(fixture.BYTES,67108864);self.assertEqual(fixture.INODES,4096)
         self.assertLess(len(source.encode()),20000)
         self.assertNotIn('Sandbox.create',source)
         from kilas_ai import workspace_execution_proof as proof,workspace_execution as execution
-        self.assertEqual(proof.key(),'diagnostic-proof-v1')
-        self.assertNotIn('workspace_acceptance_fixture',inspect.getsource(proof))
+        self.assertEqual(proof.key(),'boundary-acceptance-proof-v1')
+        self.assertIn('workspace_acceptance_fixture',inspect.getsource(proof))
+        self.assertEqual(proof.FIXTURE,{'main.py':source})
+        self.assertEqual(proof.PROOF_POLICY,'e2b-boundary-acceptance-30s-5usd-v1')
         self.assertNotIn('workspace_acceptance_fixture',inspect.getsource(execution))
 
     def test_outside_write_accepts_only_kernel_denial(self):
@@ -68,3 +70,17 @@ class AcceptanceFixtureTests(unittest.TestCase):
         with patch.object(fixture.os,'fork',return_value=123),patch.object(fixture.os,'waitpid',return_value=(123,0)),patch.object(fixture.os,'kill') as kill:
             fixture.child_probe(lambda:None)
         kill.assert_not_called()
+
+    def test_acceptance_requires_full_actual_evidence_outputs_and_confirmed_cleanup(self):
+        import copy,json
+        from kilas_ai import workspace_execution_proof as proof
+        from test_kilas_workspace_execution import BOUNDARY
+        evidence={'data':{'written_bytes':67100672,'requested_bytes':67108864,'available_before':67100672,'errno':28},'inodes':{'created_files':4088,'available_before':4088,'errno':28}}
+        outcome={'exit_code':0,'timed_out':False,'cleanup_confirmed':True,'customer_metered':False,'sandbox_created':True,'stdout':'KILAS_ACCEPTANCE_OK\n','stderr':'','boundary_evidence':copy.deepcopy(BOUNDARY),'outputs':{'answer.txt':'42\n','proof.json':json.dumps({'answer':42,'checks':proof.CHECKS,'evidence':evidence})}}
+        self.assertTrue(proof.passed(outcome))
+        for changes in ({'exit_code':False},{'cleanup_confirmed':False},{'customer_metered':True},{'sandbox_created':False},{'timed_out':True},{'outputs':{'proof.json':'{}'}},{'boundary_evidence':{}}):
+            self.assertFalse(proof.passed({**outcome,**changes}))
+        for section,key,value in [('data','errno',errno.EFBIG),('inodes','created_files',4087),('data','requested_bytes',1),('data','written_bytes',True)]:
+            bad=copy.deepcopy(evidence);bad[section][key]=value
+            output={**outcome['outputs'],'proof.json':json.dumps({'answer':42,'checks':proof.CHECKS,'evidence':bad})}
+            self.assertFalse(proof.passed({**outcome,'outputs':output}))
