@@ -1,0 +1,43 @@
+# Reviewable sandbox acceptance proposal — 2026-10-18
+
+**UNARMED. No third VM is authorized or created by this release.** Proof/general execution stay OFF. Translator release a059e9cd and later changes are preserved. The two consumed operation keys are unchanged; this fixture is not imported by startup, the proof dispatcher or the execution adapter.
+
+## Verified remaining requirement
+
+The statvfs/root-disk measurement flaw and its correction are already documented in `KILAS_ISOLATED_EXECUTION_20261017.md`. The existing trusted guest requires x86-64, no swap, an unoccupied dedicated UID, a real64MiB/4096-inode tmpfs, mount+IPC namespaces, recursive `mount_setattr`, capability dropping, no_new_privs and seccomp. Unsupported setup fails before child code. A larger root filesystem is diagnostic, not a quota failure. There is no unsafe production-host fallback.
+
+Current official E2B documentation describes user/workdir selection and custom templates, secured SDK access, network denial, lifetime/kill and resource metadata. Installed SDK2.56.0 exposes `commands.run(user=...)`; root commands were already used by the two previous attempts. None of those facts establishes that the current base VM supports the needed privileged guest mounts and recursive mount_setattr. The existing SDK information object does not attest CAP_SYS_ADMIN/kernel namespace support. Root user alone is insufficient evidence. No documented E2B console switch was found that can guarantee these kernel capabilities; no PC/key/configuration change is justified for that reason.
+
+The trusted setup needs guest CAP_SYS_ADMIN for mounts/namespaces, plus existing ID/group/capability/ownership/process-cleanup privileges before permanently dropping them in the child. These are guest-only privileges, never production-webhost privileges. If unavailable, retain OFF and obtain E2B support confirmation of an appropriate existing-plan base/kernel/template; do not disable the boundary or provision paid infrastructure.
+
+## One proposed fixed acceptance operation
+
+Only after explicit owner approval, wire ONE reviewed new durable operation to `workspace_acceptance_fixture.py`; preserve initial-proof-v1 and diagnostic-proof-v1. The exact new once-key/policy is deliberately not created or armed now. Before later activation the accepted fingerprint must include the final fixture and boundary implementation.
+
+- One fresh `base` VM, **30second hard lifetime**, no pause/resume/extension/replacement/retry. Existing provider public ingress and outbound denial remain; no volumes, snapshots, dependencies or identity injection.
+- Send only the reviewed fixed synthetic source, fixed input envelope and existing trusted guest harness, plus a hashed operation identifier. No customer files, conversation, model request, production environment, database or API-key values enter the guest. The existing E2B key is used only by the SDK outside the VM; never read/copied/transmitted through chat.
+- Require provider resource/network/lifecycle attestation and the existing full child boundary before the fixture executes. Unsupported setup reports its fixed code and stops.
+- Actual aggregate **data overflow**: write files of at most64KiB each, attempting up to64MiB+64KiB until ENOSPC; require zero remaining data blocks. This distinguishes total tmpfs quota from per-file EFBIG. Delete only these fixed test files afterwards.
+- Actual **inode overflow**: after data cleanup create bounded empty files until ENOSPC; require creation count equal to initially available inodes and zero remaining inodes. Exact filesystem totals must be64MiB and4096 inodes.
+- Test denied writes outside scratch, a scratch→outside symlink and `/proc/self/fd` alias. Check IDs, capability sets, root read denial, read-only root and inherited descriptor policy. Check direct forbidden syscalls, clone3 ENOSYS, x32 child termination, application-level outbound failure and descendant inheritance.
+- Check actual memory allocation rejection, per-file overflow rejection and a child tightened to1CPU-second terminating under the kernel CPU limit; confirm the inherited10-second CPU/16-process limits. The process-count ceiling is inspected, not deliberately exhausted. Cross-VM tenant reuse and cancellation/TTL fault injection are not claimed tested by this one operation.
+- Emit bounded stdout `KILAS_ACCEPTANCE_OK`, editable `answer.txt` containing42, and `proof.json` containing fixed check names/numeric evidence. Retrieve/hash/inspect all files and the existing artifact ZIP; require answer42, every check, strict boundary evidence, no timeout, confirmed VM destruction and durable once-only settlement. A created VM or exit0 alone is insufficient.
+- On failure/unknown/cleanup ambiguity: preserve cost and diagnostic artifacts, disable the proof flag, STOP without another VM. Keep owner/general/public execution OFF. A pass does not authorize broad public activation; any later staged activation must have the required explicit scope and customer entitlement.
+
+The fixture has finite loops (at most1025 data files and4097 inode attempts), bounded three-second child waits and one one-second CPU probe. The existing guest20-second wall bound and host25-second proof deadline remain, within the30-second VM TTL. Real create/setup/filesystem throughput is unmeasured; local mocks cannot guarantee completion within those deadlines. A deadline failure is an honest failed/unknown acceptance, not permission to retry or extend lifetime.
+
+## Cost, existing ledger and PC assistance
+
+Official current rates: at the accepted2vCPU/4GiB ceiling,30seconds costs at most **US$0.00138 compute**. The published Hobby8vCPU/8GiB ceiling gives a conservative **US$0.00444 compute** for30seconds if an unexpected template is rejected. The unchanged app reserves **US$0.00888** globally before create (the existing60-second ceiling), leaving100% compute contingency belowUS$0.01. The project stays Hobby, no card/top-up/upgrade/new service. Published Hobby storage is free and billing is per running second. Actual invoice, tax/minimum fee and current console credit balance are not verified by this local calculation; do not describe it as an all-in invoice guarantee.
+
+Read-only production ledger now confirms exactly2 attempts: initial UNKNOWN/cleaned and diagnostic FAILED/cleaned; total maximum reservations **US$0.017760**, combined compute upper estimates **US$0.002346**, customer_metered=false. No rows, spending history or budget were reset. The shared rolling35day US$5 application cap and saved provider US$5 project limit remain. The provider limit blocks new API requests at its threshold; it is not evidence of killing an already-running VM or zero overshoot.
+
+No PC action is needed to change sandbox security settings. If fresh billing confirmation is required before approved dispatch, a delegated Windows operator may perform exactly one READ-ONLY check: existing E2B Console→`kilass-project`→Billing, verify Hobby/free credit at leastUS$0.01/savedUS$5 spending limit/no card. Do not open/copy keys, submit changes or create a sandbox. This executor does not use the owner's PC.
+
+**Recommended next owner decision:** authorize exactly this one synthetic30-second/no-retry acceptance, charged only to existing free credit withinUS$0.01, with general execution OFF; stop if billing/security prerequisites cannot be established. No permission for another attempt is inferred from resuming setup.
+
+## Local evidence
+
+**63 targeted tests PASS**: new7 inert-fixture/quota-algorithm contracts plus the existing56 disk-boundary/execution/runtime tests. Synthetic quotas exercise partial writes, full-size loop bounds, genuine ENOSPC versus EFBIG, inode count, cleanup, outside-write denial and avoiding signals to a reaped PID. Existing tests preserve fail-closed unsupported setup, boundary evidence, quota/idempotency/customer-metering/cleanup contracts. The local executor lacks CAP_SYS_ADMIN; privileged namespaces/tmpfs/seccomp integration and actual E2B support remain NOT RUN. No generated/fixture child, third VM or paid model call was run. Evidence: `/tmp/kilas-sandbox-acceptance-plan-final.log`.
+
+Official sources checked: [E2B pricing](https://e2b.dev/pricing), [billing/limits](https://docs.e2b.dev/billing), [lifecycle](https://docs.e2b.dev/sandbox), [network restrictions](https://docs.e2b.dev/network/internet-access), [user/workdir/templates](https://docs.e2b.dev/template/user-and-workdir), [secured SDK access](https://docs.e2b.dev/sandbox/secured-access). No source guarantees this deployed VM's privileged namespace/kernel support.
