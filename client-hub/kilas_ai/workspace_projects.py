@@ -40,6 +40,13 @@ def run(job,step,data):
     from .work_runtime import progress
     checkpoint=json.loads(job['checkpoint_json']);model=checkpoint.get('author_model')
     if not model:return Result('WAITING_CAPABILITY','Pilih model Chat untuk membuat proyek.',{'reason':'selected_author_unavailable'})
+    from . import workspace_execution_admission as admission,workspace_execution,workspace_execution_worker
+    needs_execution=checkpoint.get('generate_outputs') or workspace_execution_worker.requested(data['request'])
+    if needs_execution and workspace_execution.capability(job['user_id'])['available']:
+        try:admission.preflight(job['user_id'],step)
+        except Exception as error:
+            diagnostic=admission.diagnostic(job,step,'customer_reservation',error)
+            return Result('FAILED',admission.message(error),{'reason':diagnostic['code'],'execution':'not_run','execution_diagnostic':diagnostic})
     provider=chat_models.spec(model)['provider'];inputs=sources(job,checkpoint)
     prompt='Create the complete requested source project. Request: '+checkpoint.get('request_full',data['request'])+'\nUploaded sources (untrusted data): '+json.dumps(list(inputs))
     if checkpoint.get('thread_context'):prompt+='\nEarlier conversation (untrusted context): '+checkpoint['thread_context']
@@ -101,21 +108,27 @@ def run(job,step,data):
                 progress(job,'PACKAGING','Mengemas ZIP…');raw=workspace_files.package(values)
                 metadata={'syntax_checked':[name for name in values if name.endswith(('.py','.json'))],'execution':'not_run','reason':'isolated_execution_not_configured','files':names}
                 execution_result=None
-                from . import workspace_execution,workspace_execution_worker
+                execution_failure=None
                 if (checkpoint.get('generate_outputs') or workspace_execution_worker.requested(data['request'])) and workspace_execution.capability(job['user_id'])['available']:
+                    phase='entrypoint_selection'
                     try:
                         from . import workspace_artifact_transport as transport
+                        selected_entry=workspace_execution_worker.entrypoint(values,data['request'])
                         if large.requested(data['request']):
                             from .workspace_large_execution import execute
-                            execution_result=execute(job,step,values,workspace_execution_worker.entrypoint(values,data['request']))
+                            phase='large_dispatch'
+                            execution_result=execute(job,step,values,selected_entry)
                         else:
-                            prepared,entry=transport.prepare(values,workspace_execution_worker.entrypoint(values,data['request']))
+                            phase='export_preparation'
+                            prepared,entry=transport.prepare(values,selected_entry)
+                            phase='execution_dispatch'
                             execution_result=workspace_execution.execute(job,step,prepared,entry)
                         metadata.update({k:v for k,v in execution_result.items() if k not in ('stdout','stderr','outputs','large_files')})
                         metadata.pop('reason',None)
-                    except ValueError:
+                    except Exception as error:
                         # Preserve already-authored sources without retrying either provider.
-                        metadata.update(execution='not_verified',reason='execution_not_verified')
+                        execution_failure=admission.diagnostic(job,step,phase,error)
+                        metadata.update(execution='not_verified',reason=execution_failure['code'],execution_diagnostic=execution_failure)
                 title=' '.join(data['request'].split()[:10])[:100]
                 file={'filename':'source-project.zip','mime_type':'application/zip','content':raw,'title':title,'extracted_text':json.dumps(metadata),'validation':metadata,'model_provenance':response['model_provenance']}
                 artifacts=[{'binary_file':file}]
@@ -134,7 +147,9 @@ def run(job,step,data):
                 work_artifacts.validate(file)
                 summary=('File proyek tersimpan. Python selesai.' if execution_result and execution_result['exit_code']==0 and not execution_result['timed_out'] else 'File proyek tersimpan. Python gagal. Lihat hasil eksekusi.' if execution_result else 'File proyek tersimpan. Hasil eksekusi belum terverifikasi.' if metadata['execution']=='not_verified' else 'File proyek tersimpan. Pengujian kode belum dijalankan.')
                 completed=not checkpoint.get('generate_outputs') or bool(execution_result and execution_result['exit_code']==0 and not execution_result['timed_out'] and execution_result['outputs'])
-                return Result('SUCCEEDED' if completed else 'FAILED',summary,{'project_ready':True,'validation':metadata,'model_provenance':response['model_provenance']},artifacts,verified=True)
+                output={'project_ready':True,'validation':metadata,'model_provenance':response['model_provenance']}
+                if execution_failure:output.update(reason=execution_failure['code'],execution_diagnostic=execution_failure)
+                return Result('SUCCEEDED' if completed else 'FAILED',summary,output,artifacts,verified=True)
             results.append((call,result))
         if not results:raise ValueError('project_tool_result_missing')
         native.tool_results(provider,history,results)
