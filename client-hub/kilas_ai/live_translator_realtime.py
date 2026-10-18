@@ -64,15 +64,15 @@ def connect(info):
 
 
 class Relay:
-    def __init__(self,owner,ident,key,info,capability):
+    def __init__(self,owner,ident,key,info,capability,*,hold_to_talk=False):
         self.owner,self.ident,self.key,self.info,self.capability=owner,ident,key,info,capability
-        self.queue=Queue(maxsize=64);self.acks=Queue(maxsize=1);self.lock=Lock();self.closed=Event()
+        self.close_lock=Lock();self.queue=Queue(maxsize=64);self.acks=Queue(maxsize=1);self.lock=Lock();self.closed=Event()
         self.ws=None;self.expected=0;self.accepted=0;self.queued_bytes=0;self.final=False
         self.pending_ack=False;self.error=None;self.pieces=[];self.sent=0;self.since_commit=0
         self.started=monotonic();self.last_chunk=self.started;self.final_at=None;self.finished=False;self.deadline=None
         self.partial='';self.partial_at=None;self.quiet_bytes=0;self.early_commits=0
         self.clause_cursor=0;self.clause_count=0
-        self.incremental=incremental.Clauses(owner,ident,key,info) if incremental.enabled() else None
+        self.incremental=incremental.Clauses(owner,ident,key,info) if incremental.enabled() and not hold_to_talk else None
 
     def check(self):
         if self.closed.is_set():raise self.error or failure('turn_cancelled')
@@ -84,7 +84,7 @@ class Relay:
     def arm_deadline(self):
         # Independent of potentially slow database fences. This is a transport
         # interruption, never a claim about unknown supplier billing minimums.
-        self.deadline=Timer(max(0,budget.LEASE_MS/1000-(monotonic()-self.started)),self.close,args=(failure('realtime_deadline'),))
+        self.deadline=Timer(max(0,budget.LEASE_MS/1000-(monotonic()-self.started)),self.fail_input,args=(failure('realtime_deadline'),))
         self.deadline.daemon=True;self.deadline.start()
 
     def accept(self,index,raw):
@@ -106,11 +106,19 @@ class Relay:
             try:self.queue.put_nowait(None)
             except Full:raise failure('realtime_queue_full') from None
 
-    def close(self,error=None):
-        if error is not None:self.error=error
-        if error is not None and self.incremental:self.incremental.cancel()
-        self.closed.set()
-        ws=self.ws
+    def fail_input(self,error):
+        self.close(error,input_failure=True)
+
+    def close(self,error=None,*,input_failure=False):
+        # Linearize successful STT handoff against a late watchdog/reader/timer.
+        # Input cleanup cannot cancel the still-valid output phase. Explicit
+        # owner cancellation still reaches close(error) and session DB fences.
+        with self.close_lock:
+            if input_failure and self.closed.is_set():return
+            if error is not None:self.error=error
+            if error is not None and self.incremental:self.incremental.cancel()
+            self.closed.set()
+            ws=self.ws
         if ws:
             try:ws.shutdown()  # Interrupt blocked recv; no heartbeat/paid idle loop.
             except Exception:pass
@@ -120,7 +128,7 @@ class Relay:
             while not self.closed.wait(.5):
                 self.check()
                 if not self.final and monotonic()-self.last_chunk>5:raise failure('realtime_input_idle')
-        except Exception as error:self.close(error)
+        except Exception as error:self.fail_input(error)
         finally:db._discard_cached_connection()
 
     def receive(self):
@@ -150,7 +158,7 @@ class Relay:
                     # No terms acceptance, alternate paid request or hidden retry.
                     raise failure('realtime_quota' if kind=='quota_exceeded' else 'realtime_provider_error')
         except Exception as error:
-            if not self.closed.is_set():self.close(error if isinstance(error,audio_store.AudioError) else failure('realtime_transport'))
+            self.fail_input(error if isinstance(error,audio_store.AudioError) else failure('realtime_transport'))
 
     def send(self,raw,commit=False):
         self.check()
@@ -269,7 +277,7 @@ class Relay:
             finally:connection.close()
 
 
-def start(owner,ident,key):
+def start(owner,ident,key,*,hold_to_talk=False):
     require_ready(owner)
     if not _slots.acquire(blocking=False):raise failure('service_busy')
     capability=None;claimed=False
@@ -278,7 +286,7 @@ def start(owner,ident,key):
         if info['voice_alias']=='gemini-live-native' or info['language_a']=='auto':raise failure('realtime_unverified')
         audio_store.require_balance(owner);live.require_audio_allowance(owner)
         capability=budget.claim(owner,ident,key)
-        relay=Relay(owner,ident,key,info,capability)
+        relay=Relay(owner,ident,key,info,capability,hold_to_talk=hold_to_talk)
         with _lock:_relays[(owner,ident,key)]=relay
         Thread(target=relay.run,name='kilas-realtime-turn',daemon=True).start()
         return relay

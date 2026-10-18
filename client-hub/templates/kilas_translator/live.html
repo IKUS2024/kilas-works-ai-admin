@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Translator · Kilas Works{% endblock %}
-{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_live_translator.css',v='call-viewport-20261013') }}">{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_live_translator.css',v='hold-release-20261018') }}">{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_translator_picker.css',v='explicit-pair-20261018') }}">
 <script src="{{ url_for('static',filename='kilas_translator_picker.js',v='explicit-pair-20261018') }}" defer></script>
@@ -17,11 +17,11 @@
 <label class="live-voice">{{ ui_t("Suara") }}<select name="voice">{% for voice in voices %}<option value="{{ voice.alias }}" {{ 'selected' if voice.alias=='kilas-male' }}>{{ voice.name }}</option>{% endfor %}</select></label>
 <label class="live-consent"><input type="checkbox" name="consent" value="yes" required><span>{{ ui_t("Saya punya izin dan menyetujui pemrosesan ucapan. Audio dapat dikirim selagi saya berbicara.") }}</span></label>
 <button type="submit" class="btn" data-enabled="{{ 'true' if live_ready and voices else 'false' }}" disabled aria-busy="true">Start</button></form></section>
-<section id="live-active" hidden aria-label="{{ ui_t('Sesi Translator') }}"><div class="live-call-body"><div class="kilas-live-orb" role="img" aria-label="{{ ui_t('Mendengarkan') }}" data-state="listening"></div><p id="live-state" role="status" aria-live="polite"></p><p id="live-translation" hidden aria-label="{{ ui_t('Hasil terjemahan') }}" aria-live="polite"></p></div><div class="live-call-controls"><button type="button" id="live-resume" class="btn secondary" hidden>{{ ui_t("Lanjutkan") }}</button><button type="button" id="live-end" class="live-hangup" aria-label="{{ ui_t('Akhiri sesi') }}" title="{{ ui_t('Akhiri sesi') }}"><svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .41-.24.76-.58.92-.98.49-1.88 1.12-2.68 1.85-.18.18-.43.29-.71.29-.28 0-.53-.11-.71-.29L.29 13.16C.11 12.98 0 12.73 0 12.45c0-.28.11-.53.29-.71C3.34 8.89 7.46 7 12 7s8.66 1.89 11.71 4.74c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.43 2.43c-.18.18-.43.29-.71.29-.28 0-.53-.11-.71-.29-.8-.74-1.7-1.37-2.68-1.85-.34-.16-.58-.51-.58-.92v-3.1C15.15 9.25 13.6 9 12 9z"/></svg></button></div></section>
+<section id="live-active" hidden aria-label="{{ ui_t('Sesi Translator') }}"><div class="live-call-body"><div class="kilas-live-orb" role="img" aria-label="{{ ui_t('Mendengarkan') }}" data-state="listening"></div><p id="live-state" role="status" aria-live="polite"></p><p id="live-translation" hidden aria-label="{{ ui_t('Hasil terjemahan') }}" aria-live="polite"></p></div><div class="live-call-controls"><button type="button" id="live-hold" class="live-hold" aria-pressed="false" disabled>{{ ui_t("Tahan untuk bicara") }}</button><button type="button" id="live-resume" class="btn secondary" hidden>{{ ui_t("Lanjutkan") }}</button><button type="button" id="live-end" class="live-hangup" aria-label="{{ ui_t('Akhiri sesi') }}" title="{{ ui_t('Akhiri sesi') }}"><svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .41-.24.76-.58.92-.98.49-1.88 1.12-2.68 1.85-.18.18-.43.29-.71.29-.28 0-.53-.11-.71-.29L.29 13.16C.11 12.98 0 12.73 0 12.45c0-.28.11-.53.29-.71C3.34 8.89 7.46 7 12 7s8.66 1.89 11.71 4.74c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.43 2.43c-.18.18-.43.29-.71.29-.28 0-.53-.11-.71-.29-.8-.74-1.7-1.37-2.68-1.85-.34-.16-.58-.51-.58-.92v-3.1C15.15 9.25 13.6 9 12 9z"/></svg></button></div></section>
 <p id="live-error" role="alert" hidden></p>
 <p id="live-session-status" class="live-session-status" role="status" aria-live="polite"></p>
 <button type="button" id="live-recovery-retry" class="btn secondary" hidden>{{ ui_t("Periksa sesi") }}</button>
 </section>
 </div>
-<script type="module" src="{{ url_for('static',filename='kilas_live_translator.mjs',v='active-continuity-20261018') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_live_translator.mjs',v='hold-release-20261018') }}"></script>
 {% endblock %}

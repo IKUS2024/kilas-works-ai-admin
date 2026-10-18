@@ -707,7 +707,9 @@ def live_gemini_finish(ident, key):
 def live_realtime_start(ident,key):
     from . import live_translator_realtime as realtime
     if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
-    realtime.start(session['user_id'],ident,key)
+    capture_mode=request.form.get('capture_mode')
+    if capture_mode not in (None,'hold-v1'):raise realtime.failure('realtime_chunk_invalid')
+    realtime.start(session['user_id'],ident,key,hold_to_talk=capture_mode=='hold-v1')
     return {'status':'LISTENING','input_mode':'realtime-v1'},202,{'Cache-Control':'private, no-store'}
 
 

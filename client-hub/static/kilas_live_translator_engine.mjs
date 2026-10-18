@@ -16,8 +16,8 @@ export class SilenceGate {
 }
 
 export class TranslatorSession {
-  constructor({api,capture,playback,onState=()=>{},onResult=()=>{},onError=()=>{},onTiming=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-',''),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
-    Object.assign(this,{api,capture,playback,onState,onResult,onError,onTiming,now,key,schedule,clear});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.pendingKey=null;this.gate=new SilenceGate();this.suspended=false;
+  constructor({api,capture,playback,pushToTalk=false,onState=()=>{},onResult=()=>{},onError=()=>{},onTiming=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-',''),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
+    Object.assign(this,{api,capture,playback,pushToTalk,onState,onResult,onError,onTiming,now,key,schedule,clear});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.pendingKey=null;this.gate=new SilenceGate();this.suspended=false;
   }
   stateTo(state){this.state=state;this.onState(state);}
   report(error){try{this.onError(error.message,error);}catch{}}
@@ -54,15 +54,16 @@ export class TranslatorSession {
       this.id=result.session_id;this.inputMode=result.input_mode==='realtime-v1'?'realtime-v1':'batch';if(this.suspended){this.pause(Error(t('Sesi dijeda saat halaman ditinggalkan. Tekan Lanjutkan.')));return;}await this.listen(ticket);
     }catch(e){if(ticket===this.version){e=startupFailure(e,this.id?'microphone_start':'audio_prepare');if(this.id)this.pause(e);else {this.report(e);this.end();}}}
   }
-  async listen(ticket){
+  async listen(ticket,held=false){
     if(ticket!==this.version)return;
+    if(this.pushToTalk&&!held){this.held=false;this.stateTo('ready');return;}
     const cycle=++this.captureVersion,current=()=>ticket===this.version&&cycle===this.captureVersion;
     this.gate.reset();this.stateTo('opening');
     if(this.inputMode==='realtime-v1')this.api.input.reset();
     await this.startup(ticket,'microphone_start',()=>this.capture.start({
       inputMode:this.inputMode,
       ready:()=>{if(current()&&this.state==='opening')this.stateTo('listening');},
-      level:rms=>{if(current()&&this.state==='listening'&&this.gate.sample(rms,this.now())){this.stateTo('finalizing');this.capture.finalize();}},
+      level:rms=>{if(this.pushToTalk){if(current()&&rms>=this.gate.threshold){this.hadVoice=true;this.gate.lastVoice=this.now();}return;}if(current()&&this.state==='listening'&&this.gate.sample(rms,this.now())){this.stateTo('finalizing');this.capture.finalize();}},
       pcm:bytes=>{
         if(!current()||this.inputMode!=='realtime-v1'||!['listening','finalizing'].includes(this.state))return;
         if(!this.pendingKey)this.pendingKey='live-'+this.key();
@@ -73,6 +74,23 @@ export class TranslatorSession {
     }),45000,t('Mikrofon belum siap. Periksa izin mikrofon lalu tekan Lanjutkan.'));
     if(current()&&this.state==='opening')this.stateTo('listening');
     // The adapter owns late permission cleanup; never cancel a newer session here.
+  }
+  async press(){
+    if(!this.pushToTalk||this.state!=='ready'||!this.id)return;
+    const ticket=this.version;this.held=true;this.hadVoice=false;
+    try{await this.listen(ticket,true);}
+    catch(error){if(ticket===this.version&&this.held)this.pause(error);}
+  }
+  release({cancel=false}={}){
+    if(!this.pushToTalk||!this.held)return;
+    this.held=false;
+    if(this.state==='opening'||cancel||(!this.hadVoice&&!this.pendingKey)){
+      ++this.captureVersion;try{this.capture.cancel();}catch{}
+      if(this.pendingKey){this.recover(Object.assign(Error(''),{code:'capture_cancelled',recoverable:true}),this.version);}
+      else this.stateTo('ready');
+      return;
+    }
+    if(this.state==='listening'){this.stateTo('finalizing');this.capture.finalize();}
   }
   async utterance(blob,ticket){
     if(ticket!==this.version||this.state!=='finalizing')return;
@@ -155,7 +173,7 @@ export class TranslatorSession {
   }
   pause(error){
     if(!this.id){this.suspended=true;return;}
-    ++this.version;++this.captureVersion;this.controller?.abort();this.pauseReason=error;
+    this.held=false;++this.version;++this.captureVersion;this.controller?.abort();this.pauseReason=error;
     try{this.capture.cancel();}catch{}try{this.playback.cancel?.();}catch{}
     if(error?.message)this.report(error);try{this.stateTo('paused');}catch{}
   }
@@ -173,7 +191,7 @@ export class TranslatorSession {
     }catch(e){if(ticket===this.version)this.pause(e);}
   }
   end(){
-    const id=this.id;this.id=null;this.params=null;this.pendingKey=null;++this.version;this.controller?.abort();
+    const id=this.id;this.held=false;this.id=null;this.params=null;this.pendingKey=null;++this.version;this.controller?.abort();
     // A detached recorder/context can throw while stopping. Continue every cleanup
     // and owner End independently so a device error cannot trap the active UI.
     try{this.capture.cancel();}catch{}try{this.playback.stop();}catch{}try{this.stateTo('ended');}catch{}
