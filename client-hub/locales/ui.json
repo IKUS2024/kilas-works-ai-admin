@@ -1,4 +1,62 @@
 {
+  "Cicilan {number}/{total}": {"en": "Installment {number}/{total}", "es": "Cuota {number}/{total}", "zh": "第 {number}/{total} 期"},
+  "Nominal dan tanggal cicilan terikat pada rencana pembelian. Riwayat tidak diubah.": {"en": "Installment amounts and dates are tied to the purchase plan. History was not changed.", "es": "Los importes y fechas están vinculados al plan. No se cambió el historial.", "zh": "分期金额和日期与购买计划关联。历史记录未更改。"},
+  "Nominal cicilan tidak sesuai total pembelian.": {"en": "Installment amounts do not match the purchase total.", "es": "Las cuotas no coinciden con el total de la compra.", "zh": "分期金额与购买总额不符。"},
+  "Jadwal cicilan belum valid. Periksa durasi, jumlah pembayaran, dan tanggal.": {"en": "Invalid installment schedule. Check the duration, payment count, and dates.", "es": "Calendario de cuotas no válido. Revisa la duración, el número de pagos y las fechas.", "zh": "分期计划无效。请检查时长、付款次数和日期。"},
+  "Jadwal cicilan disimpan. Pengeluaran dicatat hanya saat pembayaran ditandai lunas.": {"en": "Installment schedule saved. Expenses are recorded only when payments are marked paid.", "es": "Calendario guardado. Los gastos se registran solo al marcar los pagos como pagados.", "zh": "分期计划已保存。只有将付款标记为已支付时才记入支出。"},
+  "Pada tanggal": {"en": "On a date", "es": "En una fecha", "zh": "指定日期"},
+  "Sampai dihentikan": {"en": "Until stopped", "es": "Hasta que se detenga", "zh": "直到停止"},
+  "Mulai bulan depan": {"en": "Begin next month", "es": "Comenzar el próximo mes", "zh": "从下个月开始"},
+  "Cicilan terakhir: {amount}": {"en": "Final installment: {amount}", "es": "Última cuota: {amount}", "zh": "最后一期：{amount}"},
+  "Tanggal pembayaran, satu per baris": {"en": "Payment dates, one per line", "es": "Fechas de pago, una por línea", "zh": "付款日期，每行一个"},
+  "Otomatis dari total": {"en": "Calculated from total", "es": "Calculado del total", "zh": "根据总额计算"},
+  "Nominal per cicilan": {"en": "Amount per installment", "es": "Importe por cuota", "zh": "每期金额"},
+  "Pembayaran pertama": {"en": "First payment", "es": "Primer pago", "zh": "首次付款"},
+  "Jumlah pembayaran": {"en": "Number of payments", "es": "Número de pagos", "zh": "付款次数"},
+  "Tahunan": {"en": "Yearly", "es": "Anual", "zh": "每年"},
+  "Setiap 3 bulan": {"en": "Every 3 months", "es": "Cada 3 meses", "zh": "每三个月"},
+  "Jadwal pembayaran": {"en": "Payment schedule", "es": "Calendario de pagos", "zh": "付款计划"},
+  "Satuan": {"en": "Unit", "es": "Unidad", "zh": "单位"},
+  "Durasi": {"en": "Duration", "es": "Duración", "zh": "时长"},
+  "Pengeluaran dicatat hanya saat pembayaran ditandai lunas.": {"en": "Expenses are recorded only when payments are marked paid.", "es": "Los gastos se registran solo al marcar los pagos como pagados.", "zh": "只有将付款标记为已支付时才记入支出。"},
+  "Total pembelian adalah Nominal. Pengeluaran dicatat hanya saat pembayaran ditandai lunas.": {"en": "Amount is the purchase total. Expenses are recorded only when payments are marked paid.", "es": "El importe es el total de la compra. Los gastos se registran solo al marcar los pagos como pagados.", "zh": "金额为购买总额。只有将分期标记为已支付时才记入支出。"},
+  "Total pembelian": {"en": "Purchase total", "es": "Total de la compra", "zh": "购买总额"},
+  "Rencana cicilan": {"en": "Installment plan", "es": "Plan de pagos", "zh": "分期计划"},
+  "Bayar dengan cicilan": {"en": "Pay in installments", "es": "Pagar a plazos", "zh": "分期付款"},
+  "Kategori belum dapat disimpan.": {"en": "The category could not be saved.", "es": "No se pudo guardar la categoría.", "zh": "暂时无法保存类别。"},
+  "Tambah subkategori…": {"en": "Add subcategory…", "es": "Añadir subcategoría…", "zh": "添加子类别…"},
+  "Tambah kategori…": {"en": "Add category…", "es": "Añadir categoría…", "zh": "添加类别…"},
+  "Biaya Tak Terduga": {"en": "Unexpected Expenses", "es": "Gastos imprevistos", "zh": "意外支出"},
+  "Gaji": {"en": "Salary", "es": "Salario", "zh": "薪资"},
+  "Perlengkapan": {"en": "Supplies", "es": "Suministros", "zh": "用品"},
+  "Konsumsi": {"en": "Meals", "es": "Comidas", "zh": "餐饮"},
+  "Biaya Sewa": {"en": "Rent", "es": "Alquiler", "zh": "租金"},
+  "Bunga Bank": {"en": "Bank Interest", "es": "Intereses bancarios", "zh": "银行利息"},
+  "Produk / Jasa": {"en": "Products / Services", "es": "Productos / Servicios", "zh": "产品／服务"},
+  "Perawatan Diri": {"en": "Personal Care", "es": "Cuidado personal", "zh": "个人护理"},
+  "Perlengkapan Mandi": {"en": "Toiletries", "es": "Artículos de aseo", "zh": "洗漱用品"},
+  "Pakaian": {"en": "Clothing", "es": "Ropa", "zh": "衣物"},
+  "Barang Pribadi": {"en": "Personal Items", "es": "Artículos personales", "zh": "个人用品"},
+  "Obat": {"en": "Medicine", "es": "Medicamentos", "zh": "药品"},
+  "Perawatan Medis": {"en": "Medical Care", "es": "Atención médica", "zh": "医疗"},
+  "Kesehatan": {"en": "Health", "es": "Salud", "zh": "健康"},
+  "Internet": {"en": "Internet", "es": "Internet", "zh": "互联网"},
+  "Gas": {"en": "Gas", "es": "Gas", "zh": "燃气"},
+  "Air": {"en": "Water", "es": "Agua", "zh": "水费"},
+  "Listrik": {"en": "Electricity", "es": "Electricidad", "zh": "电费"},
+  "Utilitas": {"en": "Utilities", "es": "Servicios básicos", "zh": "公共事业"},
+  "Transportasi Umum": {"en": "Public Transport", "es": "Transporte público", "zh": "公共交通"},
+  "Sewa Mobil": {"en": "Car Rental", "es": "Alquiler de coches", "zh": "租车"},
+  "Tol": {"en": "Tolls", "es": "Peajes", "zh": "过路费"},
+  "Parkir": {"en": "Parking", "es": "Aparcamiento", "zh": "停车费"},
+  "Bahan Bakar": {"en": "Fuel", "es": "Combustible", "zh": "燃油"},
+  "Transportasi": {"en": "Transportation", "es": "Transporte", "zh": "交通"},
+  "Makan di Luar": {"en": "Dining Out", "es": "Comer fuera", "zh": "外出就餐"},
+  "Bahan Makanan": {"en": "Groceries", "es": "Alimentos", "zh": "食品杂货"},
+  "Makanan & Belanja": {"en": "Food & Groceries", "es": "Comida y compras", "zh": "餐饮与食品杂货"},
+  "Perawatan": {"en": "Maintenance", "es": "Mantenimiento", "zh": "维护"},
+  "Sewa": {"en": "Rent", "es": "Alquiler", "zh": "租金"},
+  "Tempat Tinggal": {"en": "Housing", "es": "Vivienda", "zh": "住房"},
   "Makna atau arah ucapan belum jelas dalam pasangan bahasa ini. Ucapkan kembali dengan lebih lengkap.": {"en": "The meaning or language direction is unclear in this pair. Say it again more fully.", "es": "El significado o la dirección del idioma no están claros en este par. Repítelo con más detalle.", "zh": "这组语言中的语意或翻译方向尚不明确。请说得更完整一些。"},
   "Sesi ini tidak dapat diperbarui.": {"en": "This session cannot be renewed.", "es": "Esta sesión no se puede renovar.", "zh": "无法续接此会话。"},
   "Pasangan bahasa atau suara sesi berubah.": {"en": "The session language pair or voice changed.", "es": "Cambió el par de idiomas o la voz de la sesión.", "zh": "会话的语言组合或声音已更改。"},
@@ -3695,11 +3753,7 @@
     "es": "Todavía no hay categorías",
     "zh": "暂无类别"
   },
-  "Nama kategori": {
-    "en": "Category name",
-    "es": "Nombre de categoría",
-    "zh": "类别名称"
-  },
+  "Nama kategori": {"en": "Category name", "es": "Nombre de categoría", "zh": "类别名称"},
   "Contoh: Operasional": {
     "en": "Example: Operations",
     "es": "Ejemplo: Operaciones",
@@ -3730,11 +3784,7 @@
     "es": "Sí, añadir",
     "zh": "是，添加"
   },
-  "Nama subkategori": {
-    "en": "Subcategory name",
-    "es": "Nombre de subcategoría",
-    "zh": "子类别名称"
-  },
+  "Nama subkategori": {"en": "Subcategory name", "es": "Nombre de subcategoría", "zh": "子类别名称"},
   "Hapus subkategori": {
     "en": "Delete subcategory",
     "es": "Eliminar subcategoría",
@@ -5086,11 +5136,7 @@
     "es": "⚙️ Filtros del informe",
     "zh": "⚙️ 报表筛选"
   },
-  "Tanggal khusus": {
-    "en": "Custom dates",
-    "es": "Fechas personalizadas",
-    "zh": "自定义日期"
-  },
+  "Tanggal khusus": {"en": "Custom dates", "es": "Fechas personalizadas", "zh": "自定义日期"},
   "Dari tanggal": {
     "en": "Start date",
     "es": "Fecha inicial",
@@ -6877,11 +6923,7 @@
     "es": "Omitido",
     "zh": "已跳过"
   },
-  "Dihentikan": {
-    "en": "Stopped",
-    "es": "Detenido",
-    "zh": "已停止"
-  },
+  "Dihentikan": {"en": "Stopped", "es": "Detenido", "zh": "已停止"},
   "Push repository": {
     "en": "Push repository",
     "es": "Enviar cambios al repositorio",
@@ -8545,5 +8587,6 @@
   "Gunakan foto struk JPG, PNG, atau WebP yang valid, maksimal 20 MiB.": {"en": "Use a valid JPG, PNG, or WebP receipt photo, up to 20 MiB.", "es": "Usa una foto de recibo JPG, PNG o WebP válida, de hasta 20 MiB.", "zh": "请使用有效的 JPG、PNG 或 WebP 收据照片，最大 20 MiB。"},
   "Form kedaluwarsa. Buka ulang form pengeluaran.": {"en": "This form expired. Reopen the expense form.", "es": "El formulario caducó. Vuelve a abrir el formulario de gasto.", "zh": "表单已过期，请重新打开支出表单。"},
   "Form ini sudah disimpan dengan isian berbeda. Periksa transaksi sebelumnya.": {"en": "This form was already saved with different details. Check the previous transaction.", "es": "Este formulario ya se guardó con otros datos. Revisa la transacción anterior.", "zh": "此表单已使用其他内容保存，请检查之前的交易。"},
-  "Penyimpanan struk penuh. Transaksi belum disimpan; coba tanpa foto.": {"en": "Receipt storage is full. The transaction was not saved; try without a photo.", "es": "El almacenamiento de recibos está lleno. La transacción no se guardó; intenta sin foto.", "zh": "收据存储空间已满。交易尚未保存，请尝试不附照片。"}
+  "Penyimpanan struk penuh. Transaksi belum disimpan; coba tanpa foto.": {"en": "Receipt storage is full. The transaction was not saved; try without a photo.", "es": "El almacenamiento de recibos está lleno. La transacción no se guardó; intenta sin foto.", "zh": "收据存储空间已满。交易尚未保存，请尝试不附照片。"},
+  "Opsi tambahan": {"en": "Additional Options", "es": "Opciones adicionales", "zh": "其他选项"}
 }

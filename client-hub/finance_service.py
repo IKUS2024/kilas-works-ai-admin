@@ -113,18 +113,10 @@ BUSINESS_LEGACY_DEFAULT_NAMES = {
     )),
 }
 PERSONAL_DEFAULT_CATEGORIES = {
-    'INCOME': ('Gaji', 'Bonus', 'Freelance / Side Job', 'Investasi',
-               'Hadiah / Transfer Masuk'),
-    'EXPENSE': ('Tempat Tinggal / Sewa', 'Utilitas', 'Makanan & Belanja Harian',
-                'Transportasi', 'Kesehatan', 'Belanja Pribadi', 'Hiburan',
-                'Pendidikan', 'Asuransi', 'Cicilan / Utang', 'Keluarga',
-                'Donasi', 'Biaya Tak Terduga'),
+    'INCOME': ('Gaji', 'Bonus', 'Freelance / Side Job', 'Investasi', 'Hadiah / Transfer Masuk'),
+    'EXPENSE': (),  # The scoped identity catalog below owns six ordered groups.
 }
-PERSONAL_DEFAULT_CATEGORY_CHILDREN = {
-    'EXPENSE': {
-        'Utilitas': ('Listrik', 'Air', 'Internet', 'Telepon', 'Gas', 'Laundry', 'Sampah / Kebersihan'),
-    },
-}
+PERSONAL_DEFAULT_CATEGORY_CHILDREN = {}
 
 class FinanceError(ValueError):
     """Safe categories only: never includes supplied text or other tenant data."""
@@ -574,7 +566,7 @@ def _category_setting_by_id(business_id, category_id, actor_user_id=None, *, inc
 
 def category_display_map(business_id, *, actor_user_id=None):
     return {
-        row['id']: row['name']
+        row['id']: row.get('display_name',row['name'])
         for row in list_categories(
             business_id, include_inactive=True, include_children=True,
             actor_user_id=actor_user_id)
@@ -774,7 +766,8 @@ def list_categories(business_id, direction=None, include_inactive=False, include
 
     if not include_children:
         rows = [row for row in rows if row.get('parent_category_id') is None]
-    return rows
+    from finance_category_catalog import decorate
+    return decorate(business_id,scope,rows)
 
 
 def list_category_children(business_id, parent_category_id, include_inactive=False, *, actor_user_id=None):
@@ -807,7 +800,8 @@ def list_category_children(business_id, parent_category_id, include_inactive=Fal
         sql + ' ORDER BY s.display_name,c.id', params)]
     if not include_inactive:
         rows = [row for row in rows if row['name'].casefold() not in RETIRED_CATEGORY_NAMES]
-    return rows
+    from finance_category_catalog import decorate
+    return decorate(business_id,scope,rows)
 
 
 def sync_business_category_catalog(business_id, *, actor_user_id=None):
@@ -820,6 +814,8 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
         # The Personal workspace has its own defaults. Only retire generic old
         # catch-alls there; never apply the Business compact catalog to Personal.
         if scope['workspace_type'] != 'BUSINESS':
+            from finance_category_catalog import sync_personal
+            sync_personal(business_id,actor_user_id)
             retired = db.query_all(
                 'SELECT s.category_id FROM finance_category_workspace_settings s '
                 'WHERE s.business_id=? AND s.scope_key=? AND s.is_active=TRUE '
@@ -897,6 +893,8 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
                     continue
                 if (row['display_name'] or '').strip() not in legacy_names:
                     continue
+                if not db.query_one('SELECT 1 FROM finance_catalog_items WHERE business_id=? AND scope_key=? AND category_id=?',(business_id,scope['scope_key'],row['id'])):
+                    continue  # A name alone never proves that a legacy row was system-seeded.
                 if row['is_active']:
                     db.execute(
                         'UPDATE finance_category_workspace_settings '
@@ -973,16 +971,23 @@ def ensure_finance_defaults(business_id, *, actor_user_id=None):
                 for name in names:
                     category_ids[(direction, name)] = create_category(
                         business_id, direction, name, actor_user_id=actor_user_id)
+                    from finance_category_catalog import mark
+                    mark(business_id,scope['scope_key'],direction+'.'+str(len(category_ids)),category_ids[(direction,name)],len(category_ids)*100,name)
             for direction, parents in children.items():
                 for parent_name, child_names in parents.items():
                     parent_id = category_ids.get((direction, parent_name))
                     if parent_id is None:
                         continue
                     for child_name in child_names:
-                        create_category(
+                        child_id=create_category(
                             business_id, direction, child_name,
                             parent_category_id=parent_id,
                             actor_user_id=actor_user_id)
+                        from finance_category_catalog import mark
+                        mark(business_id,scope['scope_key'],direction+'.child.'+str(child_id),child_id,len(category_ids)*100+len(child_name),child_name)
+        if scope['workspace_type'] == 'PERSONAL':
+            from finance_category_catalog import sync_personal
+            sync_personal(business_id,actor_user_id)
         if scope['workspace_type'] == 'BUSINESS':
             sync_business_category_catalog(
                 business_id, actor_user_id=actor_user_id)
@@ -1204,6 +1209,9 @@ def update_bill_payment(business_id, transaction_id, *, actor_user_id, expected_
             raise FinanceError('recurring_posting_unresolved')
         if expected_updated_at and expected_updated_at!=current['updated_at']:
             raise FinanceError('transaction_changed')
+        from finance_installments import require_rule_amount
+        plan_posting=db.query_one('SELECT recurring_expense_id FROM finance_recurring_postings WHERE id=?',(posting['id'],))
+        require_rule_amount(plan_posting['recurring_expense_id'],changes.get('amount_minor',current['amount_minor']),category_id=changes.get('category_id',current['category_id']))
         data=_transaction_data(business_id,dict({key:current[key] for key in FIELDS},branch_id=current['branch_id'],**changes),retained_category_id=current['category_id'])
         return _save_transaction_revision(business_id,current,data,actor_user_id)
 
@@ -1518,6 +1526,13 @@ def move_account_workspace(business_id, account_id, target_branch_id,
             business_id, _id(account_id), actor_user_id=actor_user_id)
         if source_account['branch_id'] != source_branch['id']:
             raise FinanceError('account_unavailable')
+
+        # A finite purchase plan and its private receipt remain in one scope.
+        # Moving only its account/rules would orphan that scoped contract.
+        if db.query_one(
+                'SELECT 1 FROM finance_installment_plans WHERE business_id=? '
+                'AND account_id=? LIMIT 1', (business_id, source_account['id'])):
+            raise FinanceError('workspace_move_managed')
 
         if db.query_one(
                 'SELECT 1 FROM finance_invoice_payments '
@@ -2393,6 +2408,7 @@ def create_recurring_expense(business_id, name, amount_minor, account_id, catego
     next_due_on = _date(next_due_on)
     end_on = _period(next_due_on,end_on)[1] if end_on is not None else None
     anchor = date.fromisoformat(next_due_on).day if cadence=='MONTHLY' else None
+    if anchor and anchor==calendar.monthrange(date.fromisoformat(next_due_on).year,date.fromisoformat(next_due_on).month)[1]:anchor=31
     with _write(business_id,actor_user_id):
         account=get_account(business_id,_id(account_id),actor_user_id=actor_user_id,active=True)
         if expected_currency is not None and account['currency']!=_currency(expected_currency):
@@ -2428,11 +2444,14 @@ def update_recurring_expense(business_id, recurring_id, name, amount_minor, acco
     next_due_on = _date(next_due_on)
     end_on = _period(next_due_on,end_on)[1] if end_on is not None else None
     anchor = date.fromisoformat(next_due_on).day if cadence=='MONTHLY' else None
+    if anchor and anchor==calendar.monthrange(date.fromisoformat(next_due_on).year,date.fromisoformat(next_due_on).month)[1]:anchor=31
     with _write(business_id,actor_user_id):
         existing = get_recurring_expense(
             business_id, _id(recurring_id), actor_user_id)
         if not existing or not existing['is_active']:
             raise FinanceError('recurring_unavailable')
+        from finance_installments import require_rule_amount
+        require_rule_amount(existing['id'],amount_minor,category_id=category_id,due_on=next_due_on,cadence=cadence,end_on=end_on)
         account = get_account(
             business_id, _id(account_id), actor_user_id=actor_user_id, active=True)
         if not account:
@@ -2612,6 +2631,8 @@ def record_recurring_payment(business_id, recurring_id, scheduled_on, paid_on, a
             (business_id, recurring_id, scheduled_on, repo._now()))
         data['source_ref'] = str(posting_id)
         ledger_id = _insert_transaction(business_id, data, actor_user_id)
+        from finance_installments import apply_payment
+        apply_payment(business_id,recurring_id,ledger_id,actor_user_id)
         db.execute(
             'UPDATE finance_recurring_postings SET ledger_transaction_id=? '
             'WHERE business_id=? AND id=?',
@@ -2670,6 +2691,8 @@ def process_due_recurring_expenses(business_id, as_of, actor_user_id=None, max_o
                         (business_id,rule['id'],rule['next_due_on'],repo._now()))
                     data['source_ref'] = str(posting_id)
                     ledger_id = _insert_transaction(business_id,data,actor_user_id)
+                    from finance_installments import apply_payment
+                    apply_payment(business_id,rule['id'],ledger_id,actor_user_id)
                     db.execute('UPDATE finance_recurring_postings SET ledger_transaction_id=? WHERE business_id=? AND id=?',
                                (ledger_id,business_id,posting_id))
                     _audit(business_id,actor_user_id,'FINANCE_RECURRING_POSTED',posting_id)

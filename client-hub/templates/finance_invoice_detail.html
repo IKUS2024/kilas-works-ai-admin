@@ -65,7 +65,7 @@
 <label for="amount">{{ ui_t('Nominal diterima (') }}{{ invoice.currency }})</label><input id="amount" name="amount" inputmode="decimal" maxlength="25" required>
 <label for="paid-on">{{ ui_t('Tanggal pembayaran') }}</label><input id="paid-on" name="paid_on" type="date" value="{{ today }}" max="{{ today }}" required>
 <label for="account">{{ ui_t('Akun penerima') }}</label><select id="account" name="account_id" required><option value="">{{ ui_t('Pilih akun') }} {{ invoice.currency }}</option>{% for a in accounts if a.currency==invoice.currency %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select>
-<label for="category">{{ ui_t('Kategori pemasukan') }}</label><select id="category" name="category_id" required><option value="">{{ ui_t('Pilih kategori') }}</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+<label for="category">{{ ui_t('Kategori pemasukan') }}</label><select id="category" name="category_id" required><option value="">{{ ui_t('Pilih kategori') }}</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.display_name|default(c.name) }}</option>{% endfor %}</select>
 <label for="note">{{ ui_t('Catatan (opsional)') }}</label><textarea id="note" name="note" maxlength="1000"></textarea><button class="btn">{{ ui_t('Simpan Pembayaran') }}</button>
 </form>{% endif %}
 <div class="card no-print invoice-controls invoice-section-card"><h2>{{ ui_t('Riwayat pembayaran') }}</h2>{% for p in payments %}<div class="fin-entry">{{ p.paid_on }} · {{ p.amount_minor|finance_money(invoice.currency) }}{% if p.note %}<p>{{ p.note }}</p>{% endif %}</div>{% else %}<p class="muted">{{ ui_t('Belum ada pembayaran.') }}</p>{% endfor %}</div>

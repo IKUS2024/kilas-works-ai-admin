@@ -145,7 +145,7 @@
       </div>
       <div class="finance-sheet-body">
         <p class="muted"><strong>{{ r.name }}</strong> · {{ r.display_amount }}<br>{{ ui_t('Jatuh tempo') }} {{ r.scheduled_on }}</p>
-        <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form">
+        <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form" data-bill-today="{{ today }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
           <input type="hidden" name="month" value="{{ month }}">
@@ -200,7 +200,7 @@
       </div>
       <div class="finance-sheet-body">
         <p class="muted"><strong>{{ r.name }}</strong> · {{ r.display_amount }}<br>{{ ui_t('Jatuh tempo') }} {{ r.scheduled_on }}</p>
-        <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form">
+        <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form" data-bill-today="{{ today }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
           <input type="hidden" name="month" value="{{ month }}">
@@ -260,7 +260,7 @@
     <button type="button" class="finance-sheet-close" data-finance-close="bill-edit-{{ r.id }}" aria-label="{{ ui_t('Tutup') }}">×</button>
   </div>
   <div class="finance-sheet-body">
-    <form method="post" action="{{ url_for('finance.update_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.id) }}" class="finance-bill-add-form">
+    <form method="post" action="{{ url_for('finance.update_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.id) }}" class="finance-bill-add-form" data-bill-today="{{ today }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
       <input type="hidden" name="month" value="{{ month }}">
@@ -268,22 +268,22 @@
       <input type="hidden" name="view" value="{{ view }}">
       <input type="hidden" name="day" value="{{ selected_day if view=='calendar' else '' }}">
       <input type="hidden" name="payment_status" value="{{ payment_status }}">
-      <label>{{ ui_t('Nama Tagihan') }}<input name="name" value="{{ r.name }}" maxlength="160" required></label>
+      {% if r.installment_plan_id %}<p><a href="{{ url_for('finance.installment_detail',business_id=business.id,branch_id=g.finance_branch_id,plan_id=r.installment_plan_id) }}">{{ ui_t('Rencana cicilan') }}</a></p>{% endif %}<label>{{ ui_t('Nama Tagihan') }}<input name="name" value="{{ r.name }}" maxlength="160" required></label>
       <div class="finance-bill-form-grid">
         <label>{{ ui_t('Akun') }}<select name="account_id" required>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}" {{ 'selected' if a.id==r.account_id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
         <label>{{ ui_t('Nominal') }} {{ r.currency }}<input name="amount" value="{{ r.input_amount }}" inputmode="decimal" maxlength="25" required></label>
         <input type="hidden" name="direction" value="EXPENSE">
         <label>{{ ui_t('Kategori') }}
-          <select name="category_id" data-other-category data-bill-category-select hidden><option value="">{{ ui_t('Pilih kategori') }}</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_parent_category_id }}>{{ c.name }}</option>{% endfor %}</select>
+          <select name="category_id" data-other-category data-bill-category-select hidden><option value="">{{ ui_t('Pilih kategori') }}</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_parent_category_id }}>{{ c.display_name|default(c.name) }}</option>{% endfor %}</select>
           <details class="finance-bill-category-picker" data-bill-category-picker>
             <summary data-bill-category-summary>{{ ui_t('Pilih kategori') }}</summary>
-            <div class="finance-bill-category-menu">{% for c in categories if c.is_active and not c.parent_category_id %}<button type="button" data-bill-category-option data-category-value="{{ c.id }}">{{ c.name }}</button>{% endfor %}</div>
+            <div class="finance-bill-category-menu">{% for c in categories if c.is_active and not c.parent_category_id %}<button type="button" data-bill-category-option data-category-value="{{ c.id }}">{{ c.display_name|default(c.name) }}</button>{% endfor %}</div>
           </details>
         </label>
-        <label class="finance-subcategory-field" data-subcategory-field hidden>{{ ui_t('Subkategori') }}<select name="subcategory_id" data-subcategory-select aria-label="{{ ui_t('Subkategori') }}"><option value="" {{ 'selected' if not r.input_subcategory_id }} disabled>{{ ui_t('Pilih subkategori') }}</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_subcategory_id }}>{{ c.name }}</option>{% endfor %}</select></label>
-        <label>{{ ui_t('Jatuh Tempo') }}<input type="date" name="next_due_on" value="{{ r.next_due_on }}" required></label>
+        <label class="finance-subcategory-field" data-subcategory-field hidden>{{ ui_t('Subkategori') }}<select name="subcategory_id" data-subcategory-select aria-label="{{ ui_t('Subkategori') }}"><option value="" {{ 'selected' if not r.input_subcategory_id }} disabled>{{ ui_t('Pilih subkategori') }}</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_subcategory_id }}>{{ c.display_name|default(c.name) }}</option>{% endfor %}</select></label>
+        <label class="expense-split-toggle"><input type="checkbox" name="begin_next_month" value="1"> {{ ui_t('Mulai bulan depan') }}</label><label>{{ ui_t('Jatuh Tempo') }}<input type="date" name="next_due_on" value="{{ r.next_due_on }}" required></label>
         <label>{{ ui_t('Frekuensi') }}<select name="cadence"><option value="ONCE" {{ 'selected' if r.input_cadence=='ONCE' }}>{{ ui_t('Sekali') }}</option><option value="MONTHLY" {{ 'selected' if r.input_cadence=='MONTHLY' }}>{{ ui_t('Bulanan') }}</option><option value="WEEKLY" {{ 'selected' if r.input_cadence=='WEEKLY' }}>{{ ui_t('Mingguan') }}</option></select></label>
-        <label>{{ ui_t('Berakhir (opsional)') }}<input type="date" name="end_on" value="{{ '' if r.input_cadence=='ONCE' else (r.end_on or '') }}"></label>
+        <label>{{ ui_t('Berakhir') }}<select name="end_mode"><option value="UNTIL_STOPPED" {{ 'selected' if not r.end_on }}>{{ ui_t('Sampai dihentikan') }}</option><option value="DATE" {{ 'selected' if r.end_on }}>{{ ui_t('Pada tanggal') }}</option></select><input type="date" name="end_on" value="{{ '' if r.input_cadence=='ONCE' else (r.end_on or '') }}"></label>
       </div>
       <label>{{ ui_t('Penerima / Vendor') }}<input name="counterparty_name" value="{{ r.counterparty_name or '' }}" maxlength="160" placeholder="{{ ui_t('Opsional') }}"></label>
       <details class="finance-bill-more"><summary>{{ ui_t('Detail tambahan') }}</summary>
@@ -308,7 +308,7 @@
     <button type="button" class="finance-sheet-close" data-finance-close="bill-add-dialog" aria-label="{{ ui_t('Tutup') }}">×</button>
   </div>
   <div class="finance-sheet-body">
-    <form method="post" action="{{ url_for('finance.create_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form">
+    <form method="post" action="{{ url_for('finance.create_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form" data-bill-today="{{ today }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
       <input type="hidden" name="month" value="{{ month }}">
@@ -318,16 +318,16 @@
         <label>{{ ui_t('Nominal') }}<input name="amount" inputmode="decimal" maxlength="25" required></label>
         <input type="hidden" name="direction" value="EXPENSE">
         <label>{{ ui_t('Kategori') }}
-          <select name="category_id" data-other-category data-bill-category-select hidden><option value="" selected>{{ ui_t('Pilih kategori') }}</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE">{{ c.name }}</option>{% endfor %}</select>
+          <select name="category_id" data-other-category data-bill-category-select hidden><option value="" selected>{{ ui_t('Pilih kategori') }}</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE">{{ c.display_name|default(c.name) }}</option>{% endfor %}</select>
           <details class="finance-bill-category-picker" data-bill-category-picker>
             <summary data-bill-category-summary>{{ ui_t('Pilih kategori') }}</summary>
-            <div class="finance-bill-category-menu">{% for c in categories if c.is_active and not c.parent_category_id %}<button type="button" data-bill-category-option data-category-value="{{ c.id }}">{{ c.name }}</button>{% endfor %}</div>
+            <div class="finance-bill-category-menu">{% for c in categories if c.is_active and not c.parent_category_id %}<button type="button" data-bill-category-option data-category-value="{{ c.id }}">{{ c.display_name|default(c.name) }}</button>{% endfor %}</div>
           </details>
         </label>
-        <label class="finance-subcategory-field" data-subcategory-field hidden>{{ ui_t('Subkategori') }}<select name="subcategory_id" data-subcategory-select aria-label="{{ ui_t('Subkategori') }}"><option value="" selected disabled>{{ ui_t('Pilih subkategori') }}</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE">{{ c.name }}</option>{% endfor %}</select></label>
-        <label>{{ ui_t('Jatuh Tempo') }}<input type="date" name="next_due_on" value="{{ today }}" required></label>
+        <label class="finance-subcategory-field" data-subcategory-field hidden>{{ ui_t('Subkategori') }}<select name="subcategory_id" data-subcategory-select aria-label="{{ ui_t('Subkategori') }}"><option value="" selected disabled>{{ ui_t('Pilih subkategori') }}</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE">{{ c.display_name|default(c.name) }}</option>{% endfor %}</select></label>
+        <label class="expense-split-toggle"><input type="checkbox" name="begin_next_month" value="1"> {{ ui_t('Mulai bulan depan') }}</label><label>{{ ui_t('Jatuh Tempo') }}<input type="date" name="next_due_on" value="{{ today }}" required></label>
         <label>{{ ui_t('Frekuensi') }}<select name="cadence"><option value="ONCE">{{ ui_t('Sekali') }}</option><option value="MONTHLY">{{ ui_t('Bulanan') }}</option><option value="WEEKLY">{{ ui_t('Mingguan') }}</option></select></label>
-        <label>{{ ui_t('Berakhir (opsional)') }}<input type="date" name="end_on"></label>
+        <label>{{ ui_t('Berakhir') }}<select name="end_mode"><option value="UNTIL_STOPPED">{{ ui_t('Sampai dihentikan') }}</option><option value="DATE">{{ ui_t('Pada tanggal') }}</option></select><input type="date" name="end_on"></label>
       </div>
       <label>{{ ui_t('Penerima / Vendor') }}<input name="counterparty_name" maxlength="160" placeholder="{{ ui_t('Opsional') }}"></label>
       <details class="finance-bill-more"><summary>{{ ui_t('Detail tambahan') }}</summary>
@@ -340,5 +340,6 @@
 </dialog>
 {% endif %}
 </div>
+<script src="{{ url_for('static',filename='finance_bill_dates.js',v='finance-full-20261018') }}" defer></script>
 <script src="{{ url_for('static',filename='finance_branches.js',v='locale-types-20261015') }}" defer></script>
 {% endblock %}

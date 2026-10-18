@@ -36,7 +36,7 @@
   <label for="customer">{{ ui_t('Pilih pelanggan yang sudah ada') }}</label>
   <select id="customer" name="customer_id" {% if locked or core_context %}disabled{% endif %}>
     <option value="" disabled hidden {{ 'selected' if not values.customer_id }}>{{ ui_t('Pilih pelanggan') }}</option>
-    {% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if values.customer_id|string==c.id|string }} data-name="{{ c.name }}" data-phone="{{ c.phone or '' }}" data-email="{{ c.email or '' }}">{{ c.name }}</option>{% endfor %}
+    {% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if values.customer_id|string==c.id|string }} data-name="{{ c.display_name|default(c.name) }}" data-phone="{{ c.phone or '' }}" data-email="{{ c.email or '' }}">{{ c.display_name|default(c.name) }}</option>{% endfor %}
   </select>
   {% if locked or core_context %}
     <input type="hidden" name="customer_id" value="{{ values.customer_id }}">

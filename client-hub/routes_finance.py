@@ -21,6 +21,7 @@ import finance_invoice_pdf
 import finance_collections
 import finance_receipts
 import finance_expense_entries as expense_entries
+import finance_installments as installments
 import file_utils
 import finance_analyst
 import finance_operator
@@ -153,6 +154,9 @@ def finance_access(view):
 
 
 ERRORS = {
+    'installment_schedule_invalid':'Jadwal cicilan belum valid. Periksa durasi, jumlah pembayaran, dan tanggal.',
+    'installment_amount_invalid':'Nominal cicilan tidak sesuai total pembelian.',
+    'installment_payment_locked':'Nominal dan tanggal cicilan terikat pada rencana pembelian. Riwayat tidak diubah.',
     'transaction_changed': 'Transaksi berubah sejak formulir dibuka. Buka Edit kembali sebelum menyimpan.',
     'personal_home_elsewhere': 'Satu ruang Pribadi utama sudah tersedia. Buka Personal untuk memakai data yang sama; tidak ada akun baru yang dibuat.',
     'personal_context_conflict': 'Ada beberapa dataset Pribadi lama yang berisi data. Tidak ada data digabung atau dihapus. Penyatuan perlu ditinjau pengelola terlebih dahulu.',
@@ -1447,6 +1451,28 @@ def expense_receipt(business_id,user,business,transaction_id):
     return response
 
 
+@finance_bp.get('/business/<int:business_id>/finance/installments/<int:plan_id>')
+@finance_access
+def installment_detail(business_id,user,business,plan_id):
+    plan=installments.get(business_id,plan_id,user['id'])
+    if not plan:abort(404)
+    items=db.query_all('SELECT i.*,r.is_active,p.ledger_transaction_id FROM finance_installment_items i JOIN finance_recurring_expenses r ON r.id=i.recurring_id LEFT JOIN finance_recurring_postings p ON p.recurring_expense_id=r.id AND p.scheduled_on=i.due_on WHERE i.plan_id=? ORDER BY i.sequence',(plan_id,))
+    return render_template('finance_installment.html',business=business,plan=plan,items=items,has_receipt=bool(db.query_one('SELECT 1 FROM finance_installment_receipts WHERE plan_id=?',(plan_id,))))
+
+
+@finance_bp.get('/business/<int:business_id>/finance/installments/<int:plan_id>/receipt')
+@finance_access
+def installment_receipt(business_id,user,business,plan_id):
+    if not installments.get(business_id,plan_id,user['id']):abort(404)
+    row=db.query_one('SELECT filename,mime_type,content FROM finance_installment_receipts WHERE plan_id=?',(plan_id,))
+    if not row:abort(404)
+    import io
+    from flask import send_file
+    response=send_file(io.BytesIO(bytes(row['content'])),mimetype=row['mime_type'],download_name=row['filename'],as_attachment=True,max_age=0)
+    response.headers.update({'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; sandbox"})
+    return response
+
+
 @finance_bp.route('/business/<int:business_id>/finance/transactions', methods=['POST'])
 @finance_access
 def create_transaction(business_id, user, business):
@@ -1468,8 +1494,11 @@ def create_transaction(business_id, user, business):
                     business_id,direction,record_id(request.form.get('category_id')),
                     subcategory_id,actor_user_id=user['id']))
             if direction=='EXPENSE' and request.form.get('submission_key'):
-                expense_entries.save(business_id,user['id'],amount_minor=currency_amount(request.form.get('amount'),currency),account_id=account_id,category_id=category_id,occurred_on=request.form.get('occurred_on'),currency=currency,
-                    description=request.form.get('description'),notes=request.form.get('notes'),counterparty_name=request.form.get('counterparty_name'),splits=splits,receipt=expense_entries.photo(request.files.get('receipt')),submission_key=request.form.get('submission_key'))
+                if request.form.get('installment_enabled')=='1':
+                    installments.create(business_id,user['id'],amount_minor=currency_amount(request.form.get('amount'),currency),currency=currency,account_id=account_id,category_id=category_id,purchase_on=request.form.get('occurred_on'),submission_key=request.form.get('submission_key'),duration=request.form.get('installment_duration'),unit=request.form.get('installment_unit'),frequency=request.form.get('installment_frequency'),first_date=request.form.get('installment_first_date'),count=request.form.get('installment_count'),per_payment=currency_amount(request.form['installment_amount'],currency) if request.form.get('installment_amount') else None,custom_dates=[v.strip() for v in request.form.get('installment_dates','').splitlines() if v.strip()],splits=splits,notes=request.form.get('notes'),payee=request.form.get('counterparty_name'),receipt=expense_entries.photo(request.files.get('receipt')))
+                else:
+                    expense_entries.save(business_id,user['id'],amount_minor=currency_amount(request.form.get('amount'),currency),account_id=account_id,category_id=category_id,occurred_on=request.form.get('occurred_on'),currency=currency,
+                        description=request.form.get('description'),notes=request.form.get('notes'),counterparty_name=request.form.get('counterparty_name'),splits=splits,receipt=expense_entries.photo(request.files.get('receipt')),submission_key=request.form.get('submission_key'))
                 return
             finance.create_transaction(business_id,direction,currency_amount(request.form.get('amount'),currency),
             account_id,category_id,request.form.get('occurred_on'),currency=currency,
@@ -1495,7 +1524,7 @@ def create_transaction(business_id, user, business):
     if return_args.get('view') in ('transactions', 'accounts'):
         destination = url_for('finance.dashboard', business_id=business_id,
                               branch_id=g.finance_branch_id, **return_args)
-    return mutate(business_id,action,'Transaksi dicatat.',destination)
+    return mutate(business_id,action,'Jadwal cicilan disimpan. Pengeluaran dicatat hanya saat pembayaran ditandai lunas.' if request.form.get('installment_enabled')=='1' else 'Transaksi dicatat.',destination)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/transactions/<int:transaction_id>/void', methods=['POST'])
@@ -1698,7 +1727,7 @@ def create_category(business_id, user, business):
         return [
             {
                 'id': row['id'],
-                'name': row['name'],
+                'name': row.get('display_name',row['name']),
                 'direction': row['direction'],
                 'parent_category_id': row.get('parent_category_id'),
                 'parent_name': row.get('parent_name'),
@@ -1785,7 +1814,7 @@ def create_category(business_id, user, business):
         if action in ('create', 'edit'):
             payload['category'] = {
                 'id': category['id'],
-                'name': category['name'],
+                'name': category.get('display_name',category['name']),
                 'direction': category['direction'],
                 'parent_category_id': category.get('parent_category_id'),
                 'parent_name': category.get('parent_name'),
@@ -2155,6 +2184,7 @@ def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_use
         rule = rule_map.get(row.get('recurring_id'))
         if not rule:
             continue
+        row['name']=rule['name']
         scheduled = row['scheduled_on']
         if scheduled < today_iso:
             status, status_label = 'overdue', 'Terlambat'
@@ -2251,6 +2281,11 @@ def operations(business_id,user,business):
     categories = finance.list_categories(business_id, 'EXPENSE', include_children=True, **actor)
     category_by_id = {row['id']: row for row in categories}
     for rule in rules:
+        item=db.query_one('SELECT plan_id,sequence,(SELECT COUNT(*) FROM finance_installment_items x WHERE x.plan_id=i.plan_id) AS count FROM finance_installment_items i WHERE recurring_id=?',(rule['id'],))
+        rule['installment_plan_id']=item['plan_id'] if item else None
+        if item:
+            from ui_i18n import translate
+            rule['name']=translate('Cicilan {number}/{total}',number=item['sequence']+1,total=item['count'])
         rule['input_amount'] = f"{finance_fx.major(int(rule['amount_minor']), rule['currency']):.2f}"
         rule['input_cadence'] = (
             'ONCE' if rule['cadence'] == 'MONTHLY'
@@ -2377,6 +2412,25 @@ def operations(business_id,user,business):
         max_occurrences=finance.MAX_RECURRING_OCCURRENCES)
 
 
+def recurring_dates(business_id):
+    due=request.form.get('next_due_on')
+    if request.form.get('begin_next_month')=='1':
+        today=finance.business_today(business_id)
+        if not due or due[:7]<=today.isoformat()[:7]:
+            chosen=finance._date(due) if due else today.isoformat()
+            # Keep the chosen day, clamped to the coming month's real calendar.
+            first=installments.month_date(today.replace(day=1).isoformat(),1)
+            import calendar
+            from datetime import date
+            y,m=map(int,first[:7].split('-'))
+            due=date(y,m,min(int(chosen[-2:]),calendar.monthrange(y,m)[1])).isoformat()
+    if request.form.get('cadence')=='ONCE':return due,None
+    stop=request.form.get('end_mode')
+    end=None if stop=='UNTIL_STOPPED' else request.form.get('end_on') or None
+    if stop=='DATE' and not end:raise finance.FinanceError('invalid_date')
+    return due,end
+
+
 @finance_bp.route('/business/<int:business_id>/finance/recurring',methods=['POST'])
 @finance_access
 def create_recurring(business_id,user,business):
@@ -2403,13 +2457,13 @@ def create_recurring(business_id,user,business):
         account = available_accounts[0]
         account_id = account['id']
         requested_cadence = request.form.get('cadence') or 'MONTHLY'
-        next_due_on = request.form.get('next_due_on')
+        next_due_on, requested_end = recurring_dates(business_id)
         if requested_cadence == 'ONCE':
             cadence = 'MONTHLY'
             end_on = next_due_on
         elif requested_cadence in ('WEEKLY', 'MONTHLY'):
             cadence = requested_cadence
-            end_on = request.form.get('end_on') or None
+            end_on = requested_end
         else:
             raise finance.FinanceError('invalid_enum')
         subcategory_value = request.form.get('subcategory_id')
@@ -2455,13 +2509,13 @@ def update_recurring(business_id,user,business,recurring_id):
         if not account:
             raise finance.FinanceError('account_unavailable')
         requested_cadence = request.form.get('cadence') or 'MONTHLY'
-        next_due_on = request.form.get('next_due_on')
+        next_due_on, requested_end = recurring_dates(business_id)
         if requested_cadence == 'ONCE':
             cadence = 'MONTHLY'
             end_on = next_due_on
         elif requested_cadence in ('WEEKLY', 'MONTHLY'):
             cadence = requested_cadence
-            end_on = request.form.get('end_on') or None
+            end_on = requested_end
         else:
             raise finance.FinanceError('invalid_enum')
         subcategory_value = request.form.get('subcategory_id')

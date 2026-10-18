@@ -102,7 +102,7 @@
     <article class="invoice-customer-row">
       <div class="invoice-customer-avatar">{{ (c.name or '?')[:1]|upper }}</div>
       <div class="invoice-customer-copy">
-        <strong>{{ c.name }}</strong>
+        <strong>{{ c.display_name|default(c.name) }}</strong>
         <small>{% if c.phone %}{{ c.phone }}{% endif %}{% if c.phone and c.email %} · {% endif %}{% if c.email %}{{ c.email }}{% endif %}{% if not c.phone and not c.email %}{{ ui_t('Belum ada kontak') }}{% endif %}</small>
       </div>
       <div class="invoice-customer-actions">
@@ -111,7 +111,7 @@
           <summary class="btn small secondary">{{ ui_t('Edit') }}</summary>
           <form method="post" action="{{ url_for('finance.update_customer',business_id=business.id,branch_id=g.finance_branch_id,customer_id=c.id) }}" class="fin-inline-edit">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="fin-form-grid"><label>{{ ui_t('Nama') }}<input name="name" maxlength="160" value="{{ c.name }}" required></label><label>{{ ui_t('Telepon') }}<input name="phone" type="tel" maxlength="64" value="{{ c.phone or '' }}"></label><label>{{ ui_t('Email') }}<input name="email" type="email" maxlength="254" value="{{ c.email or '' }}"></label></div>
+            <div class="fin-form-grid"><label>{{ ui_t('Nama') }}<input name="name" maxlength="160" value="{{ c.display_name|default(c.name) }}" required></label><label>{{ ui_t('Telepon') }}<input name="phone" type="tel" maxlength="64" value="{{ c.phone or '' }}"></label><label>{{ ui_t('Email') }}<input name="email" type="email" maxlength="254" value="{{ c.email or '' }}"></label></div>
             <label>{{ ui_t('Catatan') }}<textarea name="notes" maxlength="4000">{{ c.notes or '' }}</textarea></label>
             <button class="btn small">{{ ui_t('Simpan') }}</button>
           </form>

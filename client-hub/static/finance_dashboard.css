@@ -222,3 +222,8 @@ body:has(.finance-dashboard-page) .finance-exit-bar,body:has(.finance-dashboard-
     letter-spacing:-.055em
   }
 }
+/* The six requested overview cards keep the same footprint and reading order. */
+.finance-dashboard-page .finance-metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.finance-dashboard-page .finance-metric-grid>.finance-metric{grid-column:auto;min-height:114px}.finance-budget-summary{margin:0 0 14px}.finance-budget-summary>.finance-budget-metric{display:block;max-width:100%}
+@media(max-width:760px){.finance-dashboard-page .finance-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.finance-dashboard-page .finance-metric-grid>.finance-metric{min-height:105px}.finance-tx-top{gap:8px}}
+
+.finance-dashboard-page .finance-budget-summary{display:block}

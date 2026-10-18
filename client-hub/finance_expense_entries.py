@@ -52,6 +52,13 @@ def photo(upload):
     return dict(name=name,mime=mime,raw=raw,digest=hashlib.sha256(raw).hexdigest())
 
 
+def receipt_capacity(business_id,size,transaction_id=0):
+    if db.BACKEND=='postgres':db.query_one('SELECT pg_advisory_xact_lock(74110701)')
+    used=db.query_one('SELECT COALESCE(SUM(byte_size),0) AS n FROM finance_expense_receipts WHERE transaction_id<>?',(transaction_id,))['n']+db.query_one('SELECT COALESCE(SUM(byte_size),0) AS n FROM finance_installment_receipts')['n']
+    owned=db.query_one('SELECT COALESCE(SUM(r.byte_size),0) AS n FROM finance_expense_receipts r JOIN finance_transactions t ON t.id=r.transaction_id WHERE t.business_id=? AND r.transaction_id<>?',(business_id,transaction_id))['n']+db.query_one('SELECT COALESCE(SUM(r.byte_size),0) AS n FROM finance_installment_receipts r JOIN finance_installment_plans p ON p.id=r.plan_id WHERE p.business_id=?',(business_id,))['n']
+    if used+size>64*1024*1024 or owned+size>20*1024*1024:raise finance.FinanceError('expense_receipt_capacity')
+
+
 def save(business_id, actor_user_id, *, amount_minor,account_id,category_id,occurred_on,currency,
          description=None,notes=None,counterparty_name=None,splits=None,receipt=None,submission_key=None,
          transaction_id=None,expected_updated_at=None,project_id=None,customer_id=None):
@@ -67,6 +74,7 @@ def save(business_id, actor_user_id, *, amount_minor,account_id,category_id,occu
             finance.update_transaction(business_id,transaction_id,actor_user_id=actor_user_id,expected_updated_at=expected_updated_at,expense_splits=values,**data)
         else:
             if not isinstance(submission_key,str) or not re.fullmatch('[a-f0-9]{32}',submission_key):raise finance.FinanceError('expense_submission_invalid')
+            if db.query_one('SELECT 1 FROM finance_installment_plans WHERE business_id=? AND submission_key=?',(business_id,submission_key)):raise finance.FinanceError('expense_submission_conflict')
             payload={**data,'currency':currency,'splits':values,'receipt_hash':receipt['digest'] if receipt else None}
             digest=hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()
             prior=db.query_one('SELECT transaction_id,payload_hash,actor_user_id FROM finance_expense_entries WHERE business_id=? AND submission_key=?',(business_id,submission_key))
@@ -77,10 +85,7 @@ def save(business_id, actor_user_id, *, amount_minor,account_id,category_id,occu
             db.execute('INSERT INTO finance_expense_entries(transaction_id,business_id,actor_user_id,submission_key,payload_hash) VALUES (?,?,?,?,?)',(transaction_id,business_id,actor_user_id,submission_key,digest))
             replace(business_id,transaction_id,values,actor_user_id)
         if receipt:
-            if db.BACKEND=='postgres':db.query_one('SELECT pg_advisory_xact_lock(74110701)')
-            used=db.query_one('SELECT COALESCE(SUM(byte_size),0) AS n FROM finance_expense_receipts WHERE transaction_id<>?',(transaction_id,))['n']
-            owned=db.query_one('SELECT COALESCE(SUM(r.byte_size),0) AS n FROM finance_expense_receipts r JOIN finance_transactions t ON t.id=r.transaction_id WHERE t.business_id=? AND r.transaction_id<>?',(business_id,transaction_id))['n']
-            if used+len(receipt['raw'])>64*1024*1024 or owned+len(receipt['raw'])>20*1024*1024:raise finance.FinanceError('expense_receipt_capacity')
+            receipt_capacity(business_id,len(receipt['raw']),transaction_id)
             db.execute('INSERT INTO finance_expense_receipts(transaction_id,filename,mime_type,content,byte_size,digest) VALUES (?,?,?,?,?,?) ON CONFLICT(transaction_id) DO UPDATE SET filename=excluded.filename,mime_type=excluded.mime_type,content=excluded.content,byte_size=excluded.byte_size,digest=excluded.digest',
                        (transaction_id,receipt['name'],receipt['mime'],receipt['raw'],len(receipt['raw']),receipt['digest']))
             db.execute('UPDATE finance_transactions SET updated_at=? WHERE id=?',(finance.repo._now(),transaction_id))

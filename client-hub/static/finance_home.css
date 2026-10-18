@@ -176,3 +176,10 @@
 }
 
 .finance-account-balance-negative{color:var(--red,#ef6262)!important}
+
+.finance-account-filter{margin:0;max-width:230px}.finance-account-filter select{min-height:38px;width:100%}
+.finance-tx-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding-right:34px}.finance-tx-top>.finance-tx-description{margin:0!important;text-align:left;min-width:0}.finance-tx-top>.finance-tx-amount{justify-self:end;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+
+@media(max-width:760px){.finance-tx-top{gap:8px}}
+
+.finance-bill-add-form input[type=checkbox]{width:18px;min-height:18px}.finance-bill-add-form [hidden]{display:none!important}

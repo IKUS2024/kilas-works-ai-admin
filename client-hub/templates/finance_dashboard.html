@@ -158,8 +158,8 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 
 </style>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-account-groups-1') }}">
-{% if not show_transactions and not show_accounts %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_dashboard.css',v='20260923-kpi-polish-1') }}">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='finance-full-20261018') }}">
+{% if not show_transactions and not show_accounts %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_dashboard.css',v='finance-full-20261018') }}">{% endif %}
 {% endblock %}
 {% block content %}
 
@@ -409,7 +409,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 {% if transaction_search %}<input type="hidden" name="search" value="{{ transaction_search }}">{% endif %}
 {% if direction %}<input type="hidden" name="direction" value="{{ direction }}">
 {% else %}<label>{{ ui_t('Jenis') }}<select name="direction"><option value="">{{ ui_t('Semua') }}</option><option value="INCOME">{{ ui_t('Pemasukan') }}</option><option value="EXPENSE">{{ ui_t('Pengeluaran') }}</option></select></label>{% endif %}
-<label>{{ ui_t('Akun') }}<select name="account_id"><option value="">{{ ui_t('Semua akun') }}</option>{% for a in account_balance_rows %}<option value="{{ a.id }}" {{ 'selected' if transaction_account_id==a.id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label><button class="btn secondary" type="submit">{{ ui_t('Terapkan') }}</button>
+<label class="finance-account-filter"><span class="sr-only">{{ ui_t('Akun') }}</span><select name="account_id" data-finance-instant-filter><option value="">{{ ui_t('Semua akun') }}</option>{% for a in account_balance_rows %}<option value="{{ a.id }}" {{ 'selected' if transaction_account_id==a.id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
 {% if not direction and not branch_read_only %}<button type="button" class="btn" data-finance-open="add-transaction-dialog">{{ ui_t('＋ Catat') }}</button>{% endif %}
 </form>
 {% if direction and period_mode == 'month' %}
@@ -460,6 +460,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
   <article class="finance-tx-row">
     <div class="finance-tx-main">
       <div class="finance-tx-top">
+        <p class="finance-tx-description">{{ t.description or t.notes or ui_t('Tanpa catatan') }}</p>
         <strong class="finance-tx-amount {{ 'income' if t.direction == 'INCOME' else 'expense' }}">{{ '+' if t.direction == 'INCOME' else '−' }}{{ t.display_amount_value }}</strong>
         {% if not branch_read_only %}
         <details class="finance-tx-actions">
@@ -492,7 +493,6 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
         </div>
       </dialog>
       {% endif %}
-      <p class="finance-tx-description">{{ t.description or ui_t('Tanpa catatan') }}</p>
       {% if t.notes %}<p class="finance-tx-notes">{{ t.notes }}</p>{% endif %}
       <div class="finance-tx-meta">
         <span>{{ account_map.get(t.account_id, {}).get('name',ui_t('Akun')) }}</span>
@@ -587,10 +587,10 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </dialog>
 {% endif %}
 
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_expense.css',v='20261018-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_expense.css',v='20261018-full') }}">
 <dialog id="add-expense-dialog" class="finance-sheet"><div class="expense-header"><button type="button" data-finance-close="add-expense-dialog">{{ ui_t('Batal') }}</button><h2>{{ ui_t('Tambah Pengeluaran') }}</h2><button class="btn" type="submit" form="add-expense">{{ ui_t('Simpan') }}</button></div>
 {% with expense=None,expense_splits=[],expense_receipt_exists=False %}{% include '_finance_expense_form.html' %}{% endwith %}</dialog>
-<script src="{{ url_for('static',filename='finance_expense.js',v='20261018-1') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_expense.js',v='20261018-full') }}" defer></script>
 <dialog id="add-transaction-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>{{ ui_t('Tambah Transaksi') }}</h2><button type="button" class="finance-sheet-close" data-finance-close="add-transaction-dialog" aria-label="{{ ui_t('Tutup') }}">×</button></div>
 <div class="finance-sheet-body"><form id="add-transaction" method="post" action="{{ url_for('finance.create_transaction',business_id=business.id,branch_id=g.finance_branch_id) }}" data-finance-entry data-personal="{{ 'true' if finance_workspace_personal else 'false' }}" data-finance-once>
@@ -604,8 +604,8 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <label for="transaction-account">{{ ui_t('Akun penerima') if direction != 'EXPENSE' else ui_t('Akun') }}</label><select id="transaction-account" name="account_id" data-currency-account required><option value="">{{ ui_t('Pilih akun') }}</option>{% for a in entry_accounts %}<option value="{{ a.id }}" data-currency="{{ a.currency }}" {{ 'selected' if a.id == transaction_account_id or (selected_account and a.id == selected_account.id) else '' }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select>
 <div data-entry-categories {{ 'hidden' if finance_workspace_personal and direction != 'EXPENSE' else '' }}>
 <div class="finance-category-quick" data-category-quick-add data-category-create-url="{{ url_for('finance.create_category',business_id=business.id,branch_id=g.finance_branch_id) }}" data-category-branch="{{ selected_branch_id or '' }}">
-<label for="transaction-category">{{ ui_t('Kategori') }}</label><select id="transaction-category" name="category_id" data-other-category {{ 'disabled' if finance_workspace_personal and direction != 'EXPENSE' else 'required' }}><option value="" data-category-placeholder selected disabled hidden>{{ ui_t('Pilih kategori') }}</option>{% for c in categories if c.is_active and not c.parent_category_id and (not finance_workspace_personal or c.direction == 'EXPENSE') %}<option value="{{ c.id }}" data-direction="{{ c.direction }}">{{ c.name }}</option>{% endfor %}</select>
-<label class="finance-subcategory-field" data-subcategory-field hidden>{{ ui_t('Subkategori') }}<select name="subcategory_id" data-subcategory-select>{% for c in categories if c.is_active and c.parent_category_id and (not finance_workspace_personal or c.direction == 'EXPENSE') %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="{{ c.direction }}">{{ c.name }}</option>{% endfor %}</select></label>
+<label for="transaction-category">{{ ui_t('Kategori') }}</label><select id="transaction-category" name="category_id" data-other-category {{ 'disabled' if finance_workspace_personal and direction != 'EXPENSE' else 'required' }}><option value="" data-category-placeholder selected disabled hidden>{{ ui_t('Pilih kategori') }}</option>{% for c in categories if c.is_active and not c.parent_category_id and (not finance_workspace_personal or c.direction == 'EXPENSE') %}<option value="{{ c.id }}" data-direction="{{ c.direction }}">{{ c.display_name|default(c.name) }}</option>{% endfor %}</select>
+<label class="finance-subcategory-field" data-subcategory-field hidden>{{ ui_t('Subkategori') }}<select name="subcategory_id" data-subcategory-select>{% for c in categories if c.is_active and c.parent_category_id and (not finance_workspace_personal or c.direction == 'EXPENSE') %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="{{ c.direction }}">{{ c.display_name|default(c.name) }}</option>{% endfor %}</select></label>
 <button type="button" class="finance-category-add-toggle" data-finance-open="category-dialog" data-category-manager-launch>{{ ui_t('＋ Tambah / kelola kategori') }}</button>
 </div></div>
 {% if not finance_workspace_personal %}<label data-counterparty-field>
@@ -613,7 +613,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
   <select data-counterparty-select>
     <option value="" data-counterparty-placeholder selected disabled hidden>{{ ui_t('Pilih Pelanggan') if direction == 'INCOME' else ui_t('Pilih Penerima / Vendor') }}</option>
     {% for p in payees if p.is_active %}<option value="{{ p.name }}" data-direction="EXPENSE" data-payee-id="{{ p.id }}">{{ p.name }}</option>{% endfor %}
-    {% for c in customers if c.is_active %}<option value="{{ c.name }}" data-direction="INCOME" data-customer-id="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+    {% for c in customers if c.is_active %}<option value="{{ c.display_name|default(c.name) }}" data-direction="INCOME" data-customer-id="{{ c.id }}">{{ c.display_name|default(c.name) }}</option>{% endfor %}
   </select>
   <input type="hidden" name="counterparty_name" data-counterparty-input>
   <input type="hidden" name="customer_id" data-customer-id-input>

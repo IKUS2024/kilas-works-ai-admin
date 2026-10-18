@@ -12,7 +12,7 @@
 <p class="muted">Sebutkan satu nominal pasti dan keterangannya. Tidak menghitung perkiraan atau menjumlahkan beberapa nominal dari chat.</p>
 <label for="op-date">Tanggal pencatatan</label><input id="op-date" type="date" value="{{ today }}" max="{{ today }}" required>
 <label for="op-account">Kas / Rekening</label><select id="op-account" required><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}" data-currency="{{ a.currency }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select>
-<label for="op-category">Kategori</label><select id="op-category" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}" data-direction="{{ c.direction }}">{{ c.name }}</option>{% endfor %}</select>
+<label for="op-category">Kategori</label><select id="op-category" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}" data-direction="{{ c.direction }}">{{ c.display_name|default(c.name) }}</option>{% endfor %}</select>
 <div id="op-invoice-wrap" hidden><label for="op-invoice">Invoice Finance yang telah menerima pembayaran</label><select id="op-invoice"><option value="">Pilih invoice</option>{% for i in invoices %}<option value="{{ i.id }}" data-currency="{{ i.currency }}">{{ i.invoice_number }} · {{ i.currency }}</option>{% endfor %}</select><p class="muted">Maksimal 100 invoice belum lunas terbaru. Hanya catat uang yang benar-benar sudah diterima. Bukan invoice langganan/platform Kilas Works.</p></div>
 <button class="btn" type="submit">Siapkan draft — belum menyimpan</button>
 </fieldset></form>
