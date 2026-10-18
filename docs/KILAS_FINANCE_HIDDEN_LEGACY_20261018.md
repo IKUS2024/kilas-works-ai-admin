@@ -1,0 +1,23 @@
+# Hide obsolete Personal categories; preserve all history — 2026-10-18
+
+Owner canceled permanent deletion at14:49:33UTC. **No cleanup/apply operation or Shell routing is authorized by the earlier approval anymore. Any future permanent deletion needs a new explicit request.** Existing cleanup instructions are superseded; no cleanup script or new data-execution path was changed or invoked by this release.
+
+## Verified behavior and narrow fix
+
+Baseline main/LIVE3321529eeab7fd41f22f2319b9f3bcbc2913031c already performs the final reversible Personal v3 retirement on normal dashboard access, before rendering Add Expense and the shared split picker. Active-only category APIs omit retired rows and children of retired parents. Custom/renamed/unknown records are not classified from a matching name. Final known defaults remain11 roots/45 children; Business is unchanged.
+
+One gap was reproduced through the real local HTTP endpoint: an older Personal context with v2 only, opened directly through an Expense Edit link before visiting the dashboard, still offered unrelated obsolete categories. The regression failed before the change (`Mortgage-2nd` was still offered).
+
+`finance_expense_entries.edit_categories` now runs the same existing reversible catalog synchronization for Personal before constructing Edit choices. Normal authorization, owner/branch scope, emergency read-only behavior and all financial services remain unchanged. It does not delete, merge or recategorize financial rows. An emergency read-only service still permits reading the historical form and does not bypass its write block.
+
+Historical records retain their actual inactive category and parent so original assignments can be displayed and unchanged categories/splits saved. This is record-specific compatibility: inactive categories not used by that transaction are omitted. New Expense/new changed allocation admission still rejects inactive choices. Existing historical labels are read from preserved scoped metadata, not replaced with a guessed final category. No report/account totals, transaction amounts, IDs or hierarchy relationships are changed by this fix.
+
+## Evidence and limits
+
+- **12 focused application contracts PASS:**4 new hidden-choice contracts,5 initialization contracts,2 existing archive/custom-parent contracts and1 manual-archive persistence contract. New tests cover direct Edit before dashboard, Add/shared split-template choices, exact11/45 known defaults, same-named custom preservation, all old base IDs retained, unchanged financial rows, historical inactive split note edit and rejection of new inactive allocations, Business isolation and read-only behavior. No whole Finance suite rerun is claimed.
+- **Actual local Chromium390 touch/mobile-like and1440 desktop PASS:** direct Edit, newly-created split rows and Add omit unrelated obsolete choices; the historical record's selected inactive value/label remains usable. No JavaScript errors or horizontal overflow. The browser made no financial save/delete, and all synthetic ledger rows stayed identical.
+- Browser fixture uses synthetic old v2 metadata and actual application routes/templates/JavaScript, with external network blocked. No authenticated production UI or physical Android/iOS test was performed. Local screenshots/logs: `/tmp/kilas-finance-hide-browser/legacy-edit-390.png`, `new-split-390.png`, corresponding1440 images, `/tmp/kilas-finance-hide-browser.log`, `/tmp/kilas-finance-hide-focused.log`. Failing-before evidence: `/tmp/kilas-finance-hide-before.log`.
+- Read-only production flags before release: all33 rows still present. Business10/Personal:9 has all4 inactive and completedv3. Business2/Personal:2 has3 inactive/26 active and no completedv3 yet. This is **lazy metadata initialization**, not proof that all33 persisted flags have changed already. Normal authorized Personal dashboard access (or now a direct Expense Edit) runs existing v3 before building choices. No agent-triggered production initialization, financial save, deletion, paid call or Shell action occurred.
+- No PC/Shell/backup-export step is needed for reversible hiding. Open/reload Personal normally on the affected account; each owner retains their own canonical Personal context. No other owner data is combined or automatically selected.
+
+Runtime change is7 lines in `client-hub/finance_expense_entries.py`; the older cleanup runbook is marked canceled. Translator, sandbox configuration/proof/budgets and all unrelated Finance surfaces remain untouched. Exact release/post-LIVE read-only evidence is recorded in `/tmp/kilas-finance-hide-live-evidence.json`.

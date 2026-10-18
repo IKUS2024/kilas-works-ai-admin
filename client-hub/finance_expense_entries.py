@@ -97,6 +97,13 @@ def save(business_id, actor_user_id, *, amount_minor,account_id,category_id,occu
 def edit_categories(business_id,transaction_id,actor):
     transaction=finance.get_transaction(business_id,transaction_id,actor_user_id=actor)
     if not transaction:raise finance.FinanceError('transaction_unavailable')
+    # A direct legacy Edit link may precede the first dashboard visit. Apply the
+    # same reversible Personal catalog retirement before offering new choices;
+    # retain this transaction's historical IDs below rather than deleting them.
+    if finance._category_scope(business_id,actor)['workspace_type']=='PERSONAL':
+        try:finance.sync_business_category_catalog(business_id,actor_user_id=actor)
+        except finance.FinanceError as error:
+            if str(error)!='finance_read_only':raise
     retained={transaction['category_id']}|{v['category_id'] for v in allocations(business_id,transaction_id,actor)}
     rows=finance.list_categories(business_id,'EXPENSE',include_inactive=True,include_children=True,actor_user_id=actor)
     retained|={v['parent_category_id'] for v in rows if v['id'] in retained and v.get('parent_category_id')}

@@ -1,5 +1,7 @@
 # Personal catalog initialization and exact33 operator cleanup — 2026-10-18
 
+**SUPERSEDED — owner canceled permanent deletion at14:49:33UTC on2026-10-18. Hide obsolete categories reversibly; preserve rows/history. Do not run or arrange the cleanup/Shell/apply procedure below. Any future permanent deletion requires a new explicit request. These instructions remain only as historical documentation. See `KILAS_FINANCE_HIDDEN_LEGACY_20261018.md` for the active behavior.**
+
 This release fixes initialization and delivers an operator-only command. **Production deletion has not been executed. All33 approved rows remain pending authorized Render Shell execution.** No new HTTP endpoint, startup action, data migration, production financial write, credential change, paid API/model/VM call or automatic deletion is added. Translator, sandbox source/configuration and existing Finance accounting are unchanged.
 
 ## Proven defect and narrow correction
