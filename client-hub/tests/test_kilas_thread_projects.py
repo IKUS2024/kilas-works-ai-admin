@@ -13,6 +13,7 @@ PROMPT='Buat laporan penjualan: Kopi 10 unit harga 20000 biaya 12000; Teh 8 unit
 HTML=b'<!doctype html><html><head><title>Sales</title></head><body><h1>Sales</h1><p>Revenue 410000 Cost 226000 Profit 184000</p></body></html>'
 CSV=b'item,revenue,cost,profit\nTotal,410000,226000,184000\n'
 SOURCE={'README.md':'# Sales\nRun main.py. Synthetic data only.','main.py':'from pathlib import Path\nPath("output").mkdir(exist_ok=True)\nPath("output/report.html").write_text("Sales 410000 226000 184000")\n'}
+JOB28_PROMPT='Buat laporan penjualan dari data contoh: Kopi 10 unit, harga jual Rp20.000/unit dan biaya Rp12.000/unit; Teh 8 unit, harga Rp15.000 dan biaya Rp7.000; Roti 5 unit, harga Rp18.000 dan biaya Rp10.000. Hitung omzet, biaya, dan laba. Buat laporan HTML ringkas dan CSV, lalu jadikan satu ZIP kecil yang bisa diunduh. Tidak perlu mencari di internet.'
 
 
 class ThreadProjects(unittest.TestCase):
@@ -111,3 +112,65 @@ class ThreadProjects(unittest.TestCase):
             result=self.submit('gpt-6-luna','Jelaskan cara membuat ZIP dengan Python.',agent=False)
         self.assertEqual(result.status_code,200);self.assertEqual(answer.call_count,1)
         self.assertEqual(len(jobs.list_jobs(self.owner)),before)
+
+    def test_job28_exact_prompt_uses_reserved_project_budget_and_required_native_tools(self):
+        from kilas_ai import selected_author
+        quick=selected_author.Author('gpt-6-luna',json.dumps(native.initial('openai','Create the complete requested source project. Request: '+JOB28_PROMPT)),'File author')
+        self.assertEqual(quick.profile['output_tokens'],2048)
+        self.enabled(self.sandbox());self.post(JOB28_PROMPT)
+        job=jobs.list_jobs(self.owner)[0]
+        response=SimpleNamespace(raise_for_status=lambda:None,json=lambda:{'model':'gpt-6-luna','status':'incomplete','incomplete_details':{'reason':'max_output_tokens'},'output':[{'type':'reasoning','encrypted_content':'PRIVATE_NOT_PERSISTED'}],'usage':{'input_tokens':1000,'output_tokens':8192,'input_tokens_details':{'cached_tokens':20,'cache_write_tokens':30}}})
+        with patch.object(native.requests,'post',return_value=response) as model,patch.object(usage,'reserve',wraps=usage.reserve) as reserve:
+            self.client().post(f'/kilas-ai/threads/{self.thread}/jobs/{job["id"]}/start',json={},headers={'X-CSRF-Token':'work-csrf'})
+        payload=model.call_args.kwargs['json'];profile=reserve.call_args.kwargs['profile']
+        self.assertEqual(payload['max_output_tokens'],8192);self.assertEqual(profile['output_tokens'],8192)
+        self.assertEqual(profile['depth'],'STANDARD');self.assertEqual(payload['reasoning']['effort'],profile['effort'])
+        self.assertEqual(payload['tool_choice'],'required');self.assertNotIn('temperature',payload);self.assertNotIn('response_format',payload)
+        def strict(schema):
+            if schema.get('type')=='object':
+                self.assertFalse(schema['additionalProperties']);self.assertEqual(set(schema.get('required',[])),set(schema.get('properties',{})))
+                for child in schema.get('properties',{}).values():strict(child)
+            if 'items' in schema:strict(schema['items'])
+        for tool in payload['tools']:strict(tool['parameters'])
+        row=db.query_one("SELECT input_tokens,output_tokens,estimated_cost_usd,status FROM kilas_ai_usage WHERE user_id=? AND operation_key LIKE ?",(self.owner,jobs.steps(job['id'])[0]['idempotency_key']+'%'))
+        self.assertEqual((row['input_tokens'],row['output_tokens'],row['status']),(1000,8192,'FAILED'))
+        self.assertNotEqual(row['estimated_cost_usd'],'0.000000')
+        output=json.loads(jobs.steps(job['id'])[0]['output_json']);self.assertEqual(output['reason'],'native_incomplete')
+        self.assertEqual(output['provider_diagnostic']['incomplete_reason'],'max_output_tokens');self.assertNotIn('PRIVATE_NOT_PERSISTED',str(output))
+        self.assertEqual(output['provider_diagnostic']['usage']['cache_write_input_tokens'],30)
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kilas_workspace_executions')['n'],0)
+
+    def test_adjacent_native_failure_shapes_preserve_usage_and_do_not_dispatch_vm(self):
+        create=self.enabled(self.sandbox())
+        cases=[('http',{'error':{'type':'invalid_request_error','code':'invalid_function_parameters','param':'tools[2].parameters','message':'PRIVATE_NOT_PERSISTED'}},'native_http_error'),
+               ('incomplete',{'model':'gpt-6-luna','status':'incomplete','incomplete_details':{'reason':'max_output_tokens'},'output':[],'usage':{'input_tokens':300,'output_tokens':2048}},'native_incomplete'),
+               ('bad_arguments',{'model':'gpt-6-luna','status':'completed','output':[{'type':'function_call','name':'publish_project','call_id':'c','arguments':'{"files":'}],'usage':{'input_tokens':300,'output_tokens':40}},'native_invalid_response'),
+               ('missing_tool',{'model':'gpt-6-luna','status':'completed','output':[{'type':'message','content':[{'type':'output_text','text':'PRIVATE_NOT_PERSISTED'}]}],'usage':{'input_tokens':300,'output_tokens':40}},'native_missing_tool'),
+               ('null_item',{'model':'gpt-6-luna','status':'completed','output':[None],'usage':{'input_tokens':300,'output_tokens':40}},'native_invalid_response')]
+        for index,(kind,data,expected) in enumerate(cases):
+            with self.subTest(kind=kind):
+                self.post(JOB28_PROMPT,key='native_shape_'+str(index).zfill(18));job=jobs.list_jobs(self.owner)[0]
+                response=SimpleNamespace(status_code=400 if kind=='http' else 200,json=lambda value=data:value,
+                                         raise_for_status=lambda:None)
+                if kind=='http':response.raise_for_status=lambda:(_ for _ in ()).throw(native.requests.HTTPError('PRIVATE_NOT_PERSISTED'))
+                with patch.object(native.requests,'post',return_value=response) as model:
+                    self.client().post(f'/kilas-ai/threads/{self.thread}/jobs/{job["id"]}/start',json={},headers={'X-CSRF-Token':'work-csrf'})
+                self.assertEqual(model.call_count,1);output=json.loads(jobs.steps(job['id'])[0]['output_json'])
+                self.assertEqual(output['reason'],expected);self.assertNotIn('PRIVATE_NOT_PERSISTED',str(output))
+                if kind=='http':
+                    self.assertEqual(output['provider_diagnostic']['provider_error_code'],'invalid_function_parameters')
+                    self.assertEqual(output['provider_diagnostic']['provider_error_param'],'tools[2].parameters')
+                    meter=db.query_one('SELECT input_tokens,output_tokens,estimated_cost_usd FROM kilas_ai_usage WHERE operation_key LIKE ?',(jobs.steps(job['id'])[0]['idempotency_key']+'%',))
+                    self.assertEqual((meter['input_tokens'],meter['output_tokens']),(0,0));self.assertGreater(float(meter['estimated_cost_usd']),0)
+                self.assertEqual(jobs.get(self.owner,job['id'])['status'],'FAILED')
+                self.assertFalse(self.client().get(f'/kilas-ai/threads/{self.thread}/jobs/{job["id"]}').json['files'])
+                if kind in ('http','incomplete'):
+                    from ui_i18n import CATALOG,EN_MESSAGES
+                    answer=store.operation(self.owner,self.thread,json.loads(job['checkpoint_json'])['thread_operation_key']+':assistant')['content']
+                    for language in ('id','en','es','zh'):
+                        client=self.client();client.set_cookie('kilas_language',language)
+                        status=client.get(f'/kilas-ai/threads/{self.thread}/jobs/{job["id"]}').json
+                        expected=answer if language=='id' else EN_MESSAGES.get(answer,CATALOG[answer]['en']) if language=='en' else CATALOG[answer][language]
+                        self.assertEqual(status['text'],expected);self.assertEqual(status['state'],'FAILED')
+                        self.assertNotIn('percobaan dibatasi',status['text'])
+        create.assert_not_called()

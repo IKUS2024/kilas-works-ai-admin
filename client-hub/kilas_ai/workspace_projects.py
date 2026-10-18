@@ -1,6 +1,7 @@
 """Bounded native-tool project authoring, real files/ZIPs and honest test status."""
 import json
 import re
+import logging
 import db
 from . import workspace_files,workspace_model_tools as native,usage,work_artifacts,selected_author,chat_models
 
@@ -57,14 +58,27 @@ def run(job,step,data):
         if not current or current['status'] in ('STOPPED','PAUSED') or current['revision']!=job['revision']:return Result('FAILED','Pekerjaan dihentikan.',{'reason':'cancelled'})
         if len(json.dumps(history).encode())>180000:raise ValueError('workspace_context_limit')
         author=selected_author.Author(model,json.dumps(history),instruction)
+        # File authorship needs room for source/tool JSON plus reasoning. The
+        # conversational QUICK cap is not a code-generation output budget.
+        author.profile['output_tokens']=min(16384,max(8192,author.profile['output_tokens']))
+        if author.profile['depth']=='QUICK':author.profile.update(depth='STANDARD',tier='NORMAL')
         key=step['idempotency_key']+'-tools-'+str(iteration)
         _,ops=usage.reserve(job['user_id'],None,key,'FAST','CHAT',profile=author.profile)
         if not ops:raise ValueError('duplicate_tool_dispatch')
         used={'selected_model':model,'billing_unknown':True};success=False;response=None
         progress(job,'STRUCTURE' if iteration==0 else 'WRITING_CODE','Membuat struktur dan kode…')
         try:
-            response=native.turn(model,history,instruction,output_tokens=min(16384,author.profile['output_tokens']))
+            response=native.turn(model,history,instruction,output_tokens=author.profile['output_tokens'],effort=author.profile['effort'])
             used.update(response['usage']);used['billing_unknown']=not bool(used.get('input_tokens') or used.get('output_tokens'));success=True
+        except native.NativeFailure as error:
+            used.update(error.usage);used['billing_unknown']=not bool(used.get('input_tokens') or used.get('output_tokens'))
+            error.diagnostic.update(output_token_limit=author.profile['output_tokens'],reasoning_effort=author.profile['effort'],usage=error.usage)
+            logging.getLogger(__name__).warning('KILAS_NATIVE_TOOL_FAILURE job_id=%s step_id=%s diagnostic=%s',job['id'],step['id'],json.dumps(error.diagnostic,sort_keys=True))
+            message=('Pembuatan file dari model belum selesai. Tidak ada eksekusi dimulai; permintaan tidak diulang otomatis.' if error.code=='native_incomplete' else
+                     'Layanan model menolak permintaan pembuatan file. Tidak ada eksekusi dimulai; permintaan tidak diulang otomatis.' if error.code=='native_http_error' else
+                     'Koneksi ke layanan model terputus. Hasil belum dapat dipastikan; permintaan tidak diulang otomatis.' if error.code=='native_transport_error' else
+                     'Model belum menghasilkan file yang valid. Tidak ada eksekusi dimulai; permintaan tidak diulang otomatis.')
+            return Result('FAILED',message,{'reason':error.code,'provider_diagnostic':error.diagnostic,'execution':'not_run'})
         finally:usage.finish(job['user_id'],key,ops,success=success,provider=provider,model=model,usage=used)
         results=[]
         for call in response['calls']:

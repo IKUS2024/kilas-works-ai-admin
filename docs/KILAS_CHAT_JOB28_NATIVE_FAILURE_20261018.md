@@ -1,0 +1,23 @@
+# Job28: native-provider failure and bounded correction
+
+## Established evidence; historical response unavailable
+
+Thread148/job28 reached the PROJECT worker and its first native Luna request. Job creation06:18:32.091329Z, dispatch reservation06:18:33.100149Z, terminal failure06:18:49.490337Z. Its single step32/idempotency key `b0a4d221eadbbfec09760627972f68f107ce2a0888466619` has one attempt and `worker_failed`. Events stop atSTRUCTURE; no validation/packaging/starting-sandbox activity. No workspace execution row or artifact exists for this job, so **E2B was not called and no VM cleanup was needed**. Historical five VM records remain separate and untouched.
+
+The failed CHAT usage row records direct OpenAI `gpt-6-luna`,0 input/0 output tokens and **US$0.002524 retained forecast**. Zero recorded tokens do not establish zero supplier usage. That figure is a reservation/unknown-outcome estimate, not a verified actual charge or invoice. Existing code parsed usage only after response status/tool parsing succeeded and replaced all HTTP/parse/status failures with a generic exception; the runner then discarded its distinction. The request used `store=false`; no response ID/body/status/provider error code was retained. Logs contain no matching error body. **The exact historical response cannot be reconstructed, and the fixtures below are not claimed to be job28’s actual response.** No production ledger/history was reset or rewritten.
+
+## Verified configuration defects corrected
+
+The exact controlled three-row sales request, when wrapped as project history, locally classifies as conversational QUICK:12,000 input bound/2,048 output tokens. The adapter nevertheless forced medium reasoning. The retained forecast exactly matches12,000×$0.125/M+2,048×$0.50/M=$0.002524. [Official Responses guidance](https://developers.openai.com/api/docs/guides/reasoning) confirms reasoning consumes the output cap and `incomplete/max_output_tokens` may occur before visible output. This makes truncation plausible, **not proven for job28**.
+
+PROJECT authorship now uses its own8,192–16,384 output budget, reserved before dispatch with exactly the same cap and reasoning effort as the real request. A QUICK project becomesSTANDARD; ordinary Chat profiles are unchanged. Four native calls/ten tool actions/one publication remain bounded; attempts, retries, selected model, spend/customer quotas and no-fallback behavior are unchanged. OpenAI native project requests require a registered function call; a text-only disclaimer is no longer an acceptable successful result. [Official function-calling contract](https://developers.openai.com/api/docs/guides/function-calling).
+
+Usage/cache counts are extracted before identity/status/tool parsing. Incomplete, HTTP, transport, missing-tool and malformed-response failures retain only fixed bounded diagnostics (phase, whitelisted HTTP error code/type/parameter, status/reason, actual requested budget/effort, numeric usage). Response messages, generated text, encrypted reasoning, arguments, headers/credentials are excluded. Unknown billing retains its reservation; known failed-response usage is metered. History is appended only after a validated tool turn. There is no automatic retry.
+
+PROJECT catches those typed failures and persists a localized honest category instead of saying an attempt cap was reached. Thread status exposes localized terminal copy forID/EN/ES/ZH. Unsupported/invalid/incomplete results do not dispatch a VM. Execution boundary, proof verifier, sharedUS$5/35day budget and smallON/largeOFF settings are unchanged.
+
+## Local checks and remaining limit
+
+Final27 focused thread/native/project/execution-entitlement regressionsPASS, including the earlier17 (overlapping, not44 unique). Results: `/tmp/kilas-native-tool-failure-final.log`. Includes actual Chat POST→native Responses→mock SDK VM→validated HTML/CSV/ZIP download; exact job28 prompt/output reservation; recursive strict schemas (all object properties required, additionalPropertiesfalse), correct Responses request fields; HTTP400 code/type/param; incomplete output limit; malformed JSON arguments; missing tools/null output; preserved usage/unknown reservation; four-locale terminal status. Prior real-format/SDK/security fixtures are reused rather than replaced with a text-only happy path.
+
+No new inference, VM, template build, paid browser retry, purchase, credential/configuration or subscription action. Actual post-correction production provider behavior remains **unverified**; deployment/local mocks do not prove a successful supplier response. The next independently authorized real request will retain the missing failure evidence if it fails. No replay of consumed job28 is authorized or performed.

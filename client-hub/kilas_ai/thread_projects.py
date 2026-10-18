@@ -100,9 +100,10 @@ def register(bp):
         owner=session['user_id'];job=owned(owner,thread_id,job_id)
         after=max(0,request.args.get('after',0,type=int))
         from .work_runtime import LABELS
+        from ui_i18n import translate_ui_message
         events=db.query_all('SELECT id,kind FROM kilas_agent_events WHERE job_id=? AND id>? ORDER BY id LIMIT 100',(job_id,after))
         answer=store.operation(owner,thread_id,json.loads(job['checkpoint_json'])['thread_operation_key']+':assistant')
-        return {'job_id':job_id,'state':job['status'],'text':answer['content'] if answer else '',
+        return {'job_id':job_id,'state':job['status'],'text':translate_ui_message(answer['content']) if answer else '',
                 'events':[{'id':e['id'],'label':LABELS.get(e['kind'],'Menyiapkan jawaban…')} for e in events],
                 'files':files(owner,thread_id,job_id)},200,{'Cache-Control':'private, no-store'}
 
