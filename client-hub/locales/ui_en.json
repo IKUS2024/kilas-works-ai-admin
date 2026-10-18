@@ -938,5 +938,20 @@
   "Batas percobaan input suara hari ini tercapai. Coba lagi besok.": "Today's voice input test limit has been reached. Try again tomorrow.",
   "Ucapan sebelumnya masih diproses. Tunggu sebelum melanjutkan.": "The previous utterance is still processing. Wait before resuming.",
   "Layanan input suara sedang sibuk. Coba lagi sebentar.": "Voice input is busy. Try again shortly.",
-  "Data deteksi bahasa belum tersedia dari layanan suara. Pilih bahasa sumber lalu bicara kembali.": "Language detection data is unavailable from the speech service. Choose a source language and speak again."
+  "Data deteksi bahasa belum tersedia dari layanan suara. Pilih bahasa sumber lalu bicara kembali.": "Language detection data is unavailable from the speech service. Choose a source language and speak again.",
+  "Kategori / Subkategori": "Category / Subcategory",
+  "Bagi kategori": "Split categories",
+  "Tambah bagian": "Add split",
+  "Foto struk": "Receipt photo",
+  "Lihat struk": "View receipt",
+  "Bayar dari": "Pay from",
+  "Penerima (opsional)": "Payee (optional)",
+  "Edit Pengeluaran": "Edit expense",
+  "Periksa kategori dan nominal setiap bagian.": "Check the category and amount of each split.",
+  "Jumlah pembagian kategori harus sama dengan nominal pengeluaran.": "Category splits must add up to the expense amount.",
+  "Edit pembagian kategori bersama nominal pengeluaran.": "Edit the category splits together with the expense amount.",
+  "Gunakan foto struk JPG, PNG, atau WebP yang valid, maksimal 20 MiB.": "Use a valid JPG, PNG, or WebP receipt photo, up to 20 MiB.",
+  "Form kedaluwarsa. Buka ulang form pengeluaran.": "This form expired. Reopen the expense form.",
+  "Form ini sudah disimpan dengan isian berbeda. Periksa transaksi sebelumnya.": "This form was already saved with different details. Check the previous transaction.",
+  "Penyimpanan struk penuh. Transaksi belum disimpan; coba tanpa foto.": "Receipt storage is full. The transaction was not saved; try without a photo."
 }

@@ -8525,5 +8525,20 @@
     "es": "El modelo de imagen guardado no está disponible. Elige otro modelo.",
     "zh": "保存的图像模型不可用。请选择其他模型。"
   },
-  "Ekspor dokumen besar belum lolos verifikasi sandbox. File kecil tetap tersedia.": {"en": "Large document export is awaiting sandbox verification. Small files remain available.", "es": "La exportación de documentos grandes espera la verificación del sandbox. Los archivos pequeños siguen disponibles.", "zh": "大文件导出尚待沙箱验证，小文件仍可使用。"}
+  "Ekspor dokumen besar belum lolos verifikasi sandbox. File kecil tetap tersedia.": {"en": "Large document export is awaiting sandbox verification. Small files remain available.", "es": "La exportación de documentos grandes espera la verificación del sandbox. Los archivos pequeños siguen disponibles.", "zh": "大文件导出尚待沙箱验证，小文件仍可使用。"},
+  "Kategori / Subkategori": {"en": "Category / Subcategory", "es": "Categoría / Subcategoría", "zh": "类别 / 子类别"},
+  "Bagi kategori": {"en": "Split categories", "es": "Dividir categorías", "zh": "拆分类别"},
+  "Tambah bagian": {"en": "Add split", "es": "Añadir división", "zh": "添加拆分"},
+  "Foto struk": {"en": "Receipt photo", "es": "Foto del recibo", "zh": "收据照片"},
+  "Lihat struk": {"en": "View receipt", "es": "Ver recibo", "zh": "查看收据"},
+  "Bayar dari": {"en": "Pay from", "es": "Pagar desde", "zh": "付款账户"},
+  "Penerima (opsional)": {"en": "Payee (optional)", "es": "Beneficiario (opcional)", "zh": "收款人（可选）"},
+  "Edit Pengeluaran": {"en": "Edit expense", "es": "Editar gasto", "zh": "编辑支出"},
+  "Periksa kategori dan nominal setiap bagian.": {"en": "Check the category and amount of each split.", "es": "Revisa la categoría y el importe de cada división.", "zh": "请检查每项拆分的类别和金额。"},
+  "Jumlah pembagian kategori harus sama dengan nominal pengeluaran.": {"en": "Category splits must add up to the expense amount.", "es": "La suma de las divisiones debe coincidir con el importe del gasto.", "zh": "类别拆分合计必须等于支出金额。"},
+  "Edit pembagian kategori bersama nominal pengeluaran.": {"en": "Edit the category splits together with the expense amount.", "es": "Edita las divisiones junto con el importe del gasto.", "zh": "请同时编辑类别拆分和支出金额。"},
+  "Gunakan foto struk JPG, PNG, atau WebP yang valid, maksimal 20 MiB.": {"en": "Use a valid JPG, PNG, or WebP receipt photo, up to 20 MiB.", "es": "Usa una foto de recibo JPG, PNG o WebP válida, de hasta 20 MiB.", "zh": "请使用有效的 JPG、PNG 或 WebP 收据照片，最大 20 MiB。"},
+  "Form kedaluwarsa. Buka ulang form pengeluaran.": {"en": "This form expired. Reopen the expense form.", "es": "El formulario caducó. Vuelve a abrir el formulario de gasto.", "zh": "表单已过期，请重新打开支出表单。"},
+  "Form ini sudah disimpan dengan isian berbeda. Periksa transaksi sebelumnya.": {"en": "This form was already saved with different details. Check the previous transaction.", "es": "Este formulario ya se guardó con otros datos. Revisa la transacción anterior.", "zh": "此表单已使用其他内容保存，请检查之前的交易。"},
+  "Penyimpanan struk penuh. Transaksi belum disimpan; coba tanpa foto.": {"en": "Receipt storage is full. The transaction was not saved; try without a photo.", "es": "El almacenamiento de recibos está lleno. La transacción no se guardó; intenta sin foto.", "zh": "收据存储空间已满。交易尚未保存，请尝试不附照片。"}
 }

@@ -323,6 +323,7 @@ def create_app():
     import finance_schema
     finance_schema.apply_release()
     finance_schema.apply_release('0101_finance_reset_requests')
+    finance_schema.apply_release('0107_finance_expense_entries')
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
     from routes_workspace import workspace_bp

@@ -5,7 +5,7 @@ import db
 NAME = '0100_finance_approved_revisions'
 
 def apply_release(name=NAME):
-    if name not in (NAME, '0101_finance_reset_requests'):
+    if name not in (NAME, '0101_finance_reset_requests', '0107_finance_expense_entries'):
         raise ValueError('unsupported_finance_release')
     if db.BACKEND != 'postgres':
         return []  # SQLite uses the normal idempotent development migration list.

@@ -1118,12 +1118,14 @@ def list_transactions(business_id, *, start_date=None, end_date=None, direction=
     if category_id is not None and category_ids is not None:
         raise FinanceError('invalid_category_filter')
     normalized_category_ids = _transaction_category_ids(category_ids)
-    for key,value in (('customer_id',customer_id),('project_id',project_id),('category_id',category_id)):
+    for key,value in (('customer_id',customer_id),('project_id',project_id)):
         if value is not None:sql+=' AND '+key+'=?';params.append(_id(value))
+    if category_id is not None:
+        sql+=' AND id IN (SELECT id FROM finance_category_amounts WHERE category_id=?)';params.append(_id(category_id))
     if normalized_category_ids is not None:
         if not normalized_category_ids:
             return []
-        sql += ' AND category_id IN (' + ','.join('?' for _ in normalized_category_ids) + ')'
+        sql += ' AND id IN (SELECT id FROM finance_category_amounts WHERE category_id IN (' + ','.join('?' for _ in normalized_category_ids) + '))'
         params.extend(normalized_category_ids)
     if currency is not None:sql+=' AND currency=?';params.append(_currency(currency))
     search_sql, search_params = _transaction_search(search)
@@ -1152,12 +1154,14 @@ def count_transactions(business_id, *, start_date=None, end_date=None, direction
     if category_id is not None and category_ids is not None:
         raise FinanceError('invalid_category_filter')
     normalized_category_ids = _transaction_category_ids(category_ids)
-    for key,value in (('customer_id',customer_id),('project_id',project_id),('category_id',category_id)):
+    for key,value in (('customer_id',customer_id),('project_id',project_id)):
         if value is not None:sql+=' AND '+key+'=?';params.append(_id(value))
+    if category_id is not None:
+        sql+=' AND id IN (SELECT id FROM finance_category_amounts WHERE category_id=?)';params.append(_id(category_id))
     if normalized_category_ids is not None:
         if not normalized_category_ids:
             return 0
-        sql += ' AND category_id IN (' + ','.join('?' for _ in normalized_category_ids) + ')'
+        sql += ' AND id IN (SELECT id FROM finance_category_amounts WHERE category_id IN (' + ','.join('?' for _ in normalized_category_ids) + '))'
         params.extend(normalized_category_ids)
     if currency is not None:sql+=' AND currency=?';params.append(_currency(currency))
     search_sql, search_params = _transaction_search(search)
@@ -1239,7 +1243,7 @@ def update_invoice_payment(business_id, transaction_id, *, actor_user_id, expect
         return result
 
 
-def update_transaction(business_id, transaction_id, *, actor_user_id=None, expected_updated_at=None, **changes):
+def update_transaction(business_id, transaction_id, *, actor_user_id=None, expected_updated_at=None, expense_splits=None, **changes):
     if actor_user_id is not None and branches._current.get() and branches._current.get()[2]!=actor_user_id:
         raise FinanceError('business_unavailable')
     if set(changes) - set(FIELDS):
@@ -1282,7 +1286,16 @@ def update_transaction(business_id, transaction_id, *, actor_user_id=None, expec
                 raise FinanceError('receipt_origin_immutable')
         elif data['source_type'] == 'FINANCE_RECEIPT':
             raise FinanceError('receipt_origin_immutable')
-        return _save_transaction_revision(business_id,current,data,actor_user_id)
+        import finance_expense_entries as expenses
+        existing=expenses.allocations(business_id,transaction_id,actor_user_id)
+        if expense_splits is None and existing and any(data[k]!=original[k] for k in ('amount_minor','category_id')):
+            raise FinanceError('expense_split_required')
+        if expense_splits is not None:
+            if data['direction']!='EXPENSE':raise FinanceError('expense_split_invalid')
+            if expense_splits:expenses.validate(business_id,data['amount_minor'],expense_splits,actor_user_id)
+        result=_save_transaction_revision(business_id,current,data,actor_user_id)
+        if expense_splits is not None:expenses.replace(business_id,transaction_id,expense_splits,actor_user_id)
+        return result
 
 
 
@@ -1310,7 +1323,7 @@ def _workspace_correction(business_id, kind, record, target_branch_id,
 
 
 def _workspace_transaction_safe(business_id, row):
-    if (row['source_type'] not in WORKSPACE_MOVABLE_TRANSACTION_SOURCES
+    if (db.query_one('SELECT 1 FROM finance_expense_allocations WHERE transaction_id=?',(row['id'],)) or row['source_type'] not in WORKSPACE_MOVABLE_TRANSACTION_SOURCES
             or row.get('project_id') is not None or row.get('customer_id') is not None
             or db.query_one('SELECT 1 FROM finance_invoice_payments '
                             'WHERE business_id=? AND ledger_transaction_id=?',
@@ -2800,9 +2813,12 @@ def get_cashflow_report(business_id,start_date,end_date,actor_user_id=None):
 
 
 def get_category_breakdown(business_id,start_date,end_date,actor_user_id=None):
-    rows=get_report_transactions(business_id,start_date,end_date,actor_user_id)
+    _scope(business_id,actor_user_id);start_date,end_date=report_period(start_date,end_date)
+    rows=_report_query('SELECT category_id,currency,direction,amount_minor FROM finance_category_amounts WHERE business_id=?'+branches.predicate('')+" AND occurred_on>=? AND occurred_on<=? AND status='POSTED'",(business_id,start_date,end_date))
+    names={c['id']:c for c in list_categories(business_id,include_inactive=True,include_children=True,actor_user_id=actor_user_id)}
+    expanded=[dict(r,category_name=names.get(r['category_id'],{}).get('name','Kategori tidak tersedia'),parent_category_name=names.get(r['category_id'],{}).get('parent_name')) for r in rows]
     totals={};groups={}
-    for r in rows:
+    for r in expanded:
         code=_currency(r['currency']);total_key=(code,r['direction'])
         totals[total_key]=totals.get(total_key,0)+r['amount_minor']
         key=(code,r['direction'],r['category_id'])
@@ -3212,7 +3228,7 @@ def get_category_totals(business_id, start_date, end_date, direction, *, account
     params = [business_id, direction, start_date, end_date]
     sql = (
         'SELECT category_id,currency,SUM(amount_minor) AS amount_minor,COUNT(*) AS transaction_count '
-        'FROM finance_transactions WHERE business_id=?' + branches.predicate('') +
+        'FROM finance_category_amounts WHERE business_id=?' + branches.predicate('') +
         " AND status='POSTED' AND direction=? AND occurred_on>=? AND occurred_on<=? ")
     if account_id is not None:
         sql += ' AND account_id=?'
@@ -3226,7 +3242,7 @@ def get_expense_category_totals(business_id, start_date, end_date, *, actor_user
     start_date, end_date = _period(start_date, end_date)
     return db.query_all(
         ('SELECT category_id,currency,SUM(amount_minor) AS amount_minor,COUNT(*) AS transaction_count '
-         'FROM finance_transactions WHERE business_id=?' + branches.predicate('') +
+         'FROM finance_category_amounts WHERE business_id=?' + branches.predicate('') +
          " AND status='POSTED' AND direction='EXPENSE' AND occurred_on>=? AND occurred_on<=? "
          'GROUP BY category_id,currency ORDER BY category_id,currency'),
         (business_id, start_date, end_date))

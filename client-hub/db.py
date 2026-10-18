@@ -318,6 +318,7 @@ MIGRATIONS = [
     ("0104_kilas_translator_consent_sqlite.sql", "0104_kilas_translator_consent_postgres.sql"),
     ("0105_kilas_workspace_streams_sqlite.sql", "0105_kilas_workspace_streams_postgres.sql"),
     ("0106_kilas_workspace_execution_sqlite.sql", "0106_kilas_workspace_execution_postgres.sql"),
+    ("0107_finance_expense_entries_sqlite.sql", "0107_finance_expense_entries_postgres.sql"),
 ]
 
 

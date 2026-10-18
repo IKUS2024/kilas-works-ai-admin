@@ -1,5 +1,6 @@
 """Authenticated, beta-only Finance UI; all ledger operations stay in finance_service."""
 import calendar
+import db
 import hashlib
 from pathlib import Path
 from datetime import date
@@ -19,6 +20,7 @@ import finance_invoice_view
 import finance_invoice_pdf
 import finance_collections
 import finance_receipts
+import finance_expense_entries as expense_entries
 import file_utils
 import finance_analyst
 import finance_operator
@@ -200,6 +202,13 @@ ERRORS = {
     'category_unavailable': 'Kategori tidak tersedia.',
     'category_direction_mismatch': 'Kategori tidak sesuai dengan jenis transaksi.',
     'category_parent_mismatch': 'Hubungan kategori dan subkategori belum valid.',
+    'expense_split_invalid':'Periksa kategori dan nominal setiap bagian.',
+    'expense_split_total':'Jumlah pembagian kategori harus sama dengan nominal pengeluaran.',
+    'expense_split_required':'Edit pembagian kategori bersama nominal pengeluaran.',
+    'expense_receipt_capacity':'Penyimpanan struk penuh. Transaksi belum disimpan; coba tanpa foto.',
+    'expense_receipt_invalid':'Gunakan foto struk JPG, PNG, atau WebP yang valid, maksimal 20 MiB.',
+    'expense_submission_invalid':'Form kedaluwarsa. Buka ulang form pengeluaran.',
+    'expense_submission_conflict':'Form ini sudah disimpan dengan isian berbeda. Periksa transaksi sebelumnya.',
     'subcategory_required': 'Pilih subkategori untuk kategori ini.',
     'subcategory_unavailable': 'Subkategori tidak tersedia untuk kategori yang dipilih.',
     'category_has_children': 'Hapus subkategori aktif di bawah kategori ini terlebih dahulu.',
@@ -862,6 +871,7 @@ def dashboard(business_id, user, business):
             category_ids=selected_category_ids, search=transaction_search, limit=transaction_page_size,
             offset=(transaction_page - 1) * transaction_page_size, **actor)]
         for row in transactions:
+            row['expense_split_names']=[next((c['name'] for c in all_categories if c['id']==v['category_id']),str(v['category_id'])) for v in expense_entries.allocations(business_id,row['id'],user['id'])]
             converted = finance_fx.convert_total(
                 [{'currency':row['currency'],'balance_minor':row['amount_minor']}],
                 display_currency, fx)
@@ -996,7 +1006,7 @@ def dashboard(business_id, user, business):
         business_id, actor_user_id=user['id'])
     invoice_paid_count = sum(row['status'] == 'PAID' for row in invoice_rows)
     invoice_draft_count = sum(row['status'] == 'DRAFT' for row in invoice_rows)
-    return render_template('finance_dashboard.html', user=user, business=business,
+    return render_template('finance_dashboard.html', user=user, business=business, expense_submission_key=uuid.uuid4().hex,
         internal_transfers=finance.list_internal_transfers(business_id, actor_user_id=user['id']),
         transfer_key=uuid.uuid4().hex,
         dashboard_view=dashboard_view,
@@ -1417,6 +1427,26 @@ def start(business_id, user, business):
                   'Kilas Finance siap digunakan.')
 
 
+def expense_form_splits(business_id,user,currency):
+    if request.form.get('split_enabled')!='1':return None
+    parents=request.form.getlist('split_category_id');children=request.form.getlist('split_subcategory_id');amounts=request.form.getlist('split_amount')
+    if not 2<=len(parents)<=20 or len(parents)!=len(children) or len(parents)!=len(amounts):raise finance.FinanceError('expense_split_invalid')
+    return [dict(category_id=finance.resolve_category_selection(business_id,'EXPENSE',record_id(parent),record_id(child) if child else None,actor_user_id=user['id']),amount_minor=currency_amount(amount,currency)) for parent,child,amount in zip(parents,children,amounts)]
+
+
+@finance_bp.get('/business/<int:business_id>/finance/transactions/<int:transaction_id>/receipt')
+@finance_access
+def expense_receipt(business_id,user,business,transaction_id):
+    if not finance.get_transaction(business_id,transaction_id,actor_user_id=user['id']):abort(404)
+    row=db.query_one('SELECT filename,mime_type,content FROM finance_expense_receipts WHERE transaction_id=?',(transaction_id,))
+    if not row:abort(404)
+    import io
+    from flask import send_file
+    response=send_file(io.BytesIO(bytes(row['content'])),mimetype=row['mime_type'],download_name=row['filename'],as_attachment=True,max_age=0)
+    response.headers.update({'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; sandbox"})
+    return response
+
+
 @finance_bp.route('/business/<int:business_id>/finance/transactions', methods=['POST'])
 @finance_access
 def create_transaction(business_id, user, business):
@@ -1432,10 +1462,15 @@ def create_transaction(business_id, user, business):
         if personal_income:
             finance._text(request.form.get('description'), 4000, True)
         with finance._write(business_id, user['id']):
-            category_id = (finance.personal_income_category(business_id, actor_user_id=user['id'])
+            splits=expense_form_splits(business_id,user,currency) if direction=='EXPENSE' else None
+            category_id = (splits[0]['category_id'] if splits else finance.personal_income_category(business_id, actor_user_id=user['id'])
                 if personal_income else finance.resolve_category_selection(
                     business_id,direction,record_id(request.form.get('category_id')),
                     subcategory_id,actor_user_id=user['id']))
+            if direction=='EXPENSE' and request.form.get('submission_key'):
+                expense_entries.save(business_id,user['id'],amount_minor=currency_amount(request.form.get('amount'),currency),account_id=account_id,category_id=category_id,occurred_on=request.form.get('occurred_on'),currency=currency,
+                    description=request.form.get('description'),notes=request.form.get('notes'),counterparty_name=request.form.get('counterparty_name'),splits=splits,receipt=expense_entries.photo(request.files.get('receipt')),submission_key=request.form.get('submission_key'))
+                return
             finance.create_transaction(business_id,direction,currency_amount(request.form.get('amount'),currency),
             account_id,category_id,request.form.get('occurred_on'),currency=currency,
             description=(request.form.get('description') if personal_income else transaction_note(business_id,request.form)),
@@ -3329,6 +3364,14 @@ def edit_transaction(business_id, user, business, transaction_id):
         abort(404)
     if transaction['status'] != 'POSTED' or transaction['source_type'] not in (None, '', 'MANUAL', 'FINANCE_OPERATOR', 'FINANCE_RECEIPT', 'FINANCE_BANK_IMPORT', 'FINANCE_RECURRING_EXPENSE', 'FINANCE_INVOICE_PAYMENT'):
         abort(403)
+    if transaction['direction']=='EXPENSE' and transaction['source_type'] in (None,'','MANUAL'):
+        if request.method=='POST':
+            def save_expense():
+                splits=expense_form_splits(business_id,user,transaction['currency'])
+                category=(splits[0]['category_id'] if splits else finance.resolve_category_selection(business_id,'EXPENSE',record_id(request.form.get('category_id')),record_id(request.form['subcategory_id']) if request.form.get('subcategory_id') else None,actor_user_id=user['id']))
+                expense_entries.save(business_id,user['id'],transaction_id=transaction_id,amount_minor=currency_amount(request.form.get('amount'),transaction['currency']),account_id=record_id(request.form.get('account_id')),category_id=category,occurred_on=request.form.get('occurred_on'),currency=transaction['currency'],description=request.form.get('description'),notes=request.form.get('notes'),counterparty_name=request.form.get('counterparty_name'),splits=splits,receipt=expense_entries.photo(request.files.get('receipt')),expected_updated_at=request.form.get('expected_updated_at'))
+            return mutate(business_id,save_expense,'Transaksi diperbarui. Riwayat perubahan tersimpan.')
+        return render_template('finance_expense_edit.html',business=business,user=user,expense=transaction,expense_splits=[dict(v,amount_minor=str(v['amount_minor'])) for v in expense_entries.allocations(business_id,transaction_id,user['id'])],expense_receipt_exists=bool(db.query_one('SELECT transaction_id FROM finance_expense_receipts WHERE transaction_id=?',(transaction_id,))),entry_accounts=finance.list_accounts(business_id,actor_user_id=user['id']),categories=finance.list_categories(business_id,'EXPENSE',include_children=True,actor_user_id=user['id']),today=finance.business_today(business_id).isoformat())
     if request.method == 'POST':
         save={'FINANCE_RECURRING_EXPENSE':finance.update_bill_payment,'FINANCE_INVOICE_PAYMENT':finance.update_invoice_payment}.get(transaction['source_type'],finance.update_transaction)
         return mutate(business_id, lambda: save(business_id, transaction_id,
