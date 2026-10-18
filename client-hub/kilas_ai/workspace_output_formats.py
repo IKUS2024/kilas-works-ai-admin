@@ -124,14 +124,14 @@ def pdf(raw):
     if not any(p.get('/Contents') for p in reader.pages):raise ValueError('empty_pdf')
 
 
-def _validate(name,mime,raw,*,nested=False):
+def _validate(name,mime,raw,*,nested=False,large=False):
     extension=filename(name)
     if mime!=MIMES[extension] or not isinstance(raw,bytes) or not 0<len(raw)<=MAX_RAW:raise ValueError('invalid_work_file')
     if raw.startswith((b'MZ',b'\x7fELF')):raise ValueError('executable_output')
     if extension=='zip':
         if nested:raise ValueError('nested_archive')
         files=entries(raw)
-        if len(files)>80 or sum(map(len,files.values()))>2*1024*1024:raise ValueError('archive_size')
+        if len(files)>80 or sum(map(len,files.values()))>(8 if large else 2)*1024*1024:raise ValueError('archive_size')
         for path,data in files.items():
             leaf=PurePosixPath(path).name
             if leaf in ('LICENSE','Dockerfile','Makefile','.gitignore'):data.decode('utf-8');continue
@@ -162,7 +162,7 @@ def _validate(name,mime,raw,*,nested=False):
     return raw
 
 
-def validate(name,mime,raw,*,nested=False):
-    try:return _validate(name,mime,raw,nested=nested)
+def validate(name,mime,raw,*,nested=False,large=False):
+    try:return _validate(name,mime,raw,nested=nested,large=large)
     except ValueError:raise
     except Exception:raise ValueError('invalid_work_file') from None

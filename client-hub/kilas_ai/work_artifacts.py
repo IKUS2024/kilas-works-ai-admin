@@ -12,11 +12,14 @@ RETENTION_POLICY='Retained in account history with no automatic expiry. Archivin
 
 
 def validate(file):
-    return validate_output(file.get('filename',''),file.get('mime_type'),file.get('content'))
+    return validate_output(file.get('filename',''),file.get('mime_type'),file.get('content'),large=file.get('validation',{}).get('transport')=='kilas.large.v1')
 
 
 def persist(conn,job,step,file):
     raw=validate(file)
+    if file.get('validation',{}).get('transport')=='kilas.large.v1':
+        from . import workspace_large_outputs as large
+        large.publishing(conn,job,file['validation'].get('large_run_id'),len(raw))
     metadata=json.dumps({'source':(file.get('extracted_text') or '')[:24000],'title':file.get('title',''),'format':file['filename'].rsplit('.',1)[-1],'input':bool(file.get('input')), 'model_provenance':file.get('model_provenance'),'retention_policy':RETENTION_POLICY,'validation':file.get('validation',{}),'image_options':file.get('image_options')},ensure_ascii=False)
     digest=hashlib.sha256(raw).hexdigest()
     row=usage._query(conn,'INSERT INTO kilas_agent_artifacts(job_id,step_id,name,media_type,content,digest) VALUES (?,?,?,?,?,?) ON CONFLICT(step_id,name,digest) DO NOTHING RETURNING id',(job['id'],step['id'],file['filename'][:100],file['mime_type'],metadata,digest),one=True)

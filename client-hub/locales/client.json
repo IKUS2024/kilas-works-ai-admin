@@ -670,5 +670,6 @@
   "Sesi akun berakhir atau akses audio ditolak. Masuk kembali.",
   "Audio sesi sudah tidak tersedia. Audio yang kedaluwarsa tidak dapat dipulihkan.",
   "Permintaan audio sesi tidak valid. Akhiri sesi lalu mulai kembali.",
-  "Respons audio sesi tidak valid."
+  "Respons audio sesi tidak valid.",
+  "Ekspor dokumen besar belum lolos verifikasi sandbox. File kecil tetap tersedia."
 ]

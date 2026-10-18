@@ -44,6 +44,10 @@ def finish(job, token, step, result):
                 raise ValueError('artifact_limit')
             usage._query(conn, 'INSERT INTO kilas_agent_artifacts(job_id,step_id,name,media_type,content,digest) VALUES (?,?,?,?,?,?) ON CONFLICT(step_id,name,digest) DO NOTHING',
                          (job['id'], step['id'], artifact['name'][:100], artifact['media_type'], content, store.digest(content)))
+        large_runs={a['binary_file'].get('validation',{}).get('large_run_id') for a in result.artifacts if 'binary_file' in a and a['binary_file'].get('validation',{}).get('transport')=='kilas.large.v1'}
+        if large_runs:
+            from . import workspace_large_outputs as large
+            for run_id in large_runs:large.published(conn,job,run_id)
         if state=='SUCCEEDED' and step['worker']=='REMINDER':
             from .work_runtime import deliver_reminder
             deliver_reminder(conn,job,step)

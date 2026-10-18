@@ -47,13 +47,18 @@ def result(outcome):
     from .agent_workers import Result
     from . import workspace_artifact_transport as transport
     exported=transport.collect(outcome['outputs'])
-    public={k:v for k,v in outcome.items() if k not in ('outputs','stdout','stderr')}
+    public={k:v for k,v in outcome.items() if k not in ('outputs','stdout','stderr','large_files')}
+    if 'large_files' in outcome:public.update(transport='kilas.large.v1',large_run_id=outcome['run_id'])
     if exported:public['runtime_library_report']=exported[1]
     # Outputs remain real files. Logs never assert that user-supplied tests are trustworthy.
     log=json.dumps({**public,'stdout':outcome['stdout'],'stderr':outcome['stderr']},ensure_ascii=False,indent=2)
     artifacts=[{'binary_file':{'filename':'execution-result.json','mime_type':'application/json','content':log.encode(),
                             'validation':public,'title':'Python execution'}}]
-    if exported:
+    if 'large_files' in outcome:
+        for file in outcome['large_files']:
+            file['validation']={**public,**file['validation'],'large_run_id':outcome['run_id']}
+            artifacts.append({'binary_file':file})
+    elif exported:
         files,_=exported
         for file in files:file['validation']={**public,**file['validation']}
         artifacts.extend({'binary_file':file} for file in files)
@@ -69,10 +74,17 @@ def result(outcome):
 
 def run(job,step,data):
     from .agent_workers import Result
+    from . import workspace_large_outputs as large
+    if large.requested(data['request']):
+        if not large.capability(job['user_id'])['available']:
+            return Result('WAITING_CAPABILITY','Ekspor dokumen besar belum lolos verifikasi sandbox. File kecil tetap tersedia.',{'reason':'large_output_acceptance_pending','execution':'not_run'})
     if not execution.capability(job['user_id'])['available']:
         return Result('WAITING_CAPABILITY','Sandbox pengujian terisolasi belum tersedia.',{'reason':'isolated_execution_not_configured','execution':'not_run'})
     try:
         files=source(job,data)
+        if large.requested(data['request']):
+            from .workspace_large_execution import execute
+            return result(execute(job,step,files,entrypoint(files,data['request'])))
         from . import workspace_artifact_transport as transport
         prepared,entry=transport.prepare(files,entrypoint(files,data['request']))
         return result(execution.execute(job,step,prepared,entry))

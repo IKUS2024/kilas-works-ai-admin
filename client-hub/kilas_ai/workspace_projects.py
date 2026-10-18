@@ -31,6 +31,9 @@ def sources(job,checkpoint):
 
 def run(job,step,data):
     from .agent_workers import Result
+    from . import workspace_large_outputs as large
+    if large.requested(data['request']) and not large.capability(job['user_id'])['available']:
+        return Result('WAITING_CAPABILITY','Ekspor dokumen besar belum lolos verifikasi sandbox. File kecil tetap tersedia.',{'reason':'large_output_acceptance_pending','execution':'not_run'})
     from .work_runtime import progress
     checkpoint=json.loads(job['checkpoint_json']);model=checkpoint.get('author_model')
     if not model:return Result('WAITING_CAPABILITY','Pilih model Chat untuk membuat proyek.',{'reason':'selected_author_unavailable'})
@@ -82,9 +85,13 @@ def run(job,step,data):
                 if workspace_execution_worker.requested(data['request']) and workspace_execution.capability(job['user_id'])['available']:
                     try:
                         from . import workspace_artifact_transport as transport
-                        prepared,entry=transport.prepare(values,workspace_execution_worker.entrypoint(values,data['request']))
-                        execution_result=workspace_execution.execute(job,step,prepared,entry)
-                        metadata.update({k:v for k,v in execution_result.items() if k not in ('stdout','stderr','outputs')})
+                        if large.requested(data['request']):
+                            from .workspace_large_execution import execute
+                            execution_result=execute(job,step,values,workspace_execution_worker.entrypoint(values,data['request']))
+                        else:
+                            prepared,entry=transport.prepare(values,workspace_execution_worker.entrypoint(values,data['request']))
+                            execution_result=workspace_execution.execute(job,step,prepared,entry)
+                        metadata.update({k:v for k,v in execution_result.items() if k not in ('stdout','stderr','outputs','large_files')})
                         metadata.pop('reason',None)
                     except ValueError:
                         # Preserve already-authored sources without retrying either provider.

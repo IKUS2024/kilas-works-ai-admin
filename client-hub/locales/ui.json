@@ -8517,5 +8517,6 @@
     "en": "Saved image model is unavailable. Choose another model.",
     "es": "El modelo de imagen guardado no está disponible. Elige otro modelo.",
     "zh": "保存的图像模型不可用。请选择其他模型。"
-  }
+  },
+  "Ekspor dokumen besar belum lolos verifikasi sandbox. File kecil tetap tersedia.": {"en": "Large document export is awaiting sandbox verification. Small files remain available.", "es": "La exportación de documentos grandes espera la verificación del sandbox. Los archivos pequeños siguen disponibles.", "zh": "大文件导出尚待沙箱验证，小文件仍可使用。"}
 }

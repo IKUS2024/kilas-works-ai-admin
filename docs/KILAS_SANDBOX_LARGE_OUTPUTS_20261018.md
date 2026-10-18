@@ -1,0 +1,28 @@
+# Versioned large-output profile — gated, 2026-10-18
+
+**Large E2B exports are not active.** Existing accepted small-file execution remains active. No prior proof, environment flag or compatibility pin accepts the changed large-file boundary. No new VM/model/provider request was made for this implementation.
+
+The old 64KiB bottleneck exists in the child's `RLIMIT_FSIZE`, trusted collector and JSON/base64 transport. Changing only the exporter would not enable large generation. New `workspace_large_guest`, `workspace_large_execution` and `workspace_large_outputs` modules provide a separate bounded version. Explicit large-file execution/project requests stop with a localized acceptance-pending result before VM reservation/dispatch; matching project requests stop before model authorship too. Requests not identified as large retain the existing small path. No claim is made that every document request can predict its generated size.
+
+## Proposed bounded profile
+
+- **8MiB/file, 16MiB decoded outputs/job, at most four files.** No automatic duplicate ZIP bundle. PDF remains at most 50 pages; existing image pixel/still-image, active-content and Office formula restrictions remain. Generic project ZIP expansion is at most 8MiB/80 files for this profile; existing small ZIP expansion stays 2MiB. The common archive guard remains 24MiB total expansion, 1,000 entries and 200:1 compression ratio, with no nested ZIP.
+- Child scratch remains **64MiB/4,096 inodes**; read-only mounts, no network, UID/capability/seccomp/namespace protections, CPU/address-space/process/descriptor/log bounds and timeout cleanup remain. The changed per-file limit/collector require fresh actual acceptance.
+- Trusted collection runs after child processes are stopped/killed and waited for. Root-owned 0700 private staging, 0600 O_EXCL files, O_NOFOLLOW regular-file/owner/link checks, before/after inode/size/mtime checks, bounded copies and SHA256 manifest protect collection. Untrusted filenames never become host temporary paths or SDK staging paths.
+- SDK streaming uses the verified `FileStreamReader` response contract, raw 64KiB chunks, no content decoding, exact size/hash checks, total deadline and current-job cancellation checks. Unexpected SDK contracts or encodings fail closed. Temporary files/streams close on interruption; VM kill remains in `finally`. No generated code runs on the web host, and binary contents do not enter model context or durable execution JSON.
+
+## Host/storage capacity and admission
+
+Read-only Render evidence: one **0.5 CPU/512MiB** web instance, Postgres **1GiB** disk; database size 344,479,423 bytes, existing artifact bytes 6,501,742 at inspection. No infrastructure/storage expansion or price change is authorized or performed.
+
+This profile adds a conservative **64MiB aggregate stored-artifact ceiling**, counting all existing artifact bytes, plus durable large-profile in-flight reservations. Each large run reserves **17MiB** (16MiB outputs plus source/log margin). A Postgres transaction advisory lock serializes checks and reservations/publication; only one large-profile job may remain in flight through publication. Existing execution budget/concurrency, entitlement and customer monetary reservations still apply. Publication and reservation release share the artifact transaction. Rollback preserves reservation, so incomplete publication requires explicit recovery rather than new execution. No silent deletion/expiry frees capacity. Existing retention remains account history with no automatic expiry and existing account data-deletion handling.
+
+Sequential transfer/validation and no duplicate ZIP reduce amplification. Local focused-fixture peak RSS was about 192MiB; the combined regression process peaked around 251MiB. These measurements include fixtures/application imports and **do not establish production RAM headroom or throughput**. Actual platform validation is required before activation.
+
+## Local evidence and remaining acceptance
+
+129 targeted tests passed before the final additional base-admission guard; the 11-test large suite was rerun after that guard. Coverage includes real >64KiB PDF/DOCX/XLSX/PPTX, exact 8MiB/file and 16MiB/job, above-limit admission, safe large project ZIP, stream interruption/cancel/deadline/integrity, actual SDK stream objects, private staging/symlink checks, post-stop source ordering, global storage-lock ordering, persistent in-flight capacity, atomic rollback, exact authenticated PDF download and foreign-owner denial. Mock lifecycle tests prove one create, no duplicate dispatch, kill on interrupted transfer and no partial artifacts. Logs: `/tmp/kilas-large-tests.log`, `/tmp/kilas-large-regressions.log`.
+
+Original small bundle fingerprint remains `84f9744af2820215762ee4d60bcc9db560ef5a2ed1176cc8448fe2999e3dbd7b`; compatibility verifier remains `1403ac10aba25b6fa29916991add1f32e143d6a8cb59b25153e0ef70e4336d83`. No consumed proof key or ledger is changed.
+
+**Next minimum acceptance:** separately authorize a versioned synthetic remote proof, keeping general large execution OFF. It must exercise the unchanged confinement controls and new 8MiB per-file overflow, actual large file/job streaming and hash/download integrity, staging ownership, cancellation/timeout cleanup and measured host memory/transfer deadline. Its distinct full dependency fingerprint must be accepted durably only after real success; no constant/environment flip can borrow the old proof. Guest generation-library availability remains unknown; transfer capacity is separate from generation support. No PC setup, new credentials, subscription or infrastructure purchase is needed for the prepared code. The separately approved parent browser task remains unconsumed.
