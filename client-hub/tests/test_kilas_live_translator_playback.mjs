@@ -87,7 +87,7 @@ test('explicit refetch of the same retained artifact and sequential playback use
   for(let index=0;index<2;index++){
     const p=f.play();await tick();assert.equal(f.stats.started,index+1);f.context.currentTime+=2;f.nodes[index].onended();await p;
   }
-  assert.equal(f.requests.length,3);assert.ok(f.requests.every(request=>request.url===URL&&!request.options.method));
+  assert.equal(f.requests.length,2);assert.ok(f.requests.every(request=>request.url===URL&&!request.options.method));
   assert.equal(f.stats.disconnected,2);assert.equal(f.timers.size,0);
 });
 
@@ -197,12 +197,12 @@ test('a consumed prefetch with blocked decode still stops immediately on End and
  pending.resolve({duration:2});await tick();assert.equal(f.stats.started,0);assert.equal(f.requests.length,1);
 });
 
-test('a prefetched buffer is never reused across a different session signal or closed audio context',async()=>{
+test('stored original bytes survive renewed signal while closed audio context still rejects',async()=>{
  for(const changed of ['signal','context']){
   const f=fixture();f.player.prefetch(URL+'/segments/1',f.controller.signal,()=>true);await tick();
   const nextSignal=changed==='signal'?new AbortController().signal:f.controller.signal;
   if(changed==='context'){f.context.state='closed';await assert.rejects(f.player.play(URL+'/segments/1',nextSignal,()=>true),e=>e.code==='audio_context');}
-  else{const playing=f.player.play(URL+'/segments/1',nextSignal,()=>true);await tick();assert.equal(f.requests.length,2);f.context.currentTime=2;f.nodes[0].onended();await playing;}
+  else{const playing=f.player.play(URL+'/segments/1',nextSignal,()=>true);await tick();assert.equal(f.requests.length,1);f.context.currentTime=2;f.nodes[0].onended();await playing;}
   assert.equal(f.player.prefetched,null);assert.equal(f.timers.size,0);
  }
 });
@@ -227,4 +227,11 @@ test('numeric timings separate full download, decode, device resume and start wi
  await f.advance(40);resume.resolve();await tick();assert.equal(f.stats.started,1);
  assert.deepEqual(timings,[{audio_download_ms:120},{audio_decode_ms:80},{audio_buffer_wait_ms:200},{audio_resume_ms:40},{audio_start_ms:0}]);
  f.context.currentTime=2;f.nodes[0].onended();await playing;assert.equal(f.requests.length,1);assert.equal(f.timers.size,0);
+});
+
+test('bounded stored-audio eviction removes the same history identity; clear drops every retained byte',()=>{
+ const f=fixture(),evicted=[],stored=[];f.player.onEvict=url=>evicted.push(url);f.player.onStored=url=>stored.push(url);
+ f.player.remember(URL,new ArrayBuffer(16*1024*1024));f.player.remember(URL+'/segments/1',new ArrayBuffer(10*1024*1024));
+ assert.deepEqual(evicted,[URL]);assert.equal(f.player.has(URL),false);assert.equal(f.player.has(URL+'/segments/1'),true);assert.equal(f.player.cachedBytes,10*1024*1024);
+ f.player.clearCache();assert.equal(f.player.cachedBytes,0);assert.equal(f.player.cached.size,0);assert.equal(stored.length,2);
 });

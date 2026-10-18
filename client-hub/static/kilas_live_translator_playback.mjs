@@ -5,8 +5,15 @@ const failure=(code,message)=>Object.assign(Error(message+t(' Audio ini tidak di
 const MAX_BYTES=20*1024*1024;
 
 export class TranslatorPlayback {
-  constructor({getContext,fetchAudio=(...args)=>globalThis.fetch(...args),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id),now=()=>performance.now(),onTiming=()=>{}}){
-    Object.assign(this,{getContext,fetchAudio,schedule,clear,now,onTiming});this.operation=null;this.prefetched=null;
+  constructor({getContext,fetchAudio=(...args)=>globalThis.fetch(...args),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id),now=()=>performance.now(),onTiming=()=>{},onStored=()=>{},onEvict=()=>{}}){
+    Object.assign(this,{getContext,fetchAudio,schedule,clear,now,onTiming,onStored,onEvict});this.cached=new Map();this.cachedBytes=0;this.operation=null;this.prefetched=null;
+  }
+  clearCache(){for(const url of this.cached.keys())this.onEvict(url);this.cached.clear();this.cachedBytes=0;}
+  has(url){return this.cached.has(url);}
+  remember(url,raw){
+    if(this.cached.has(url))return;
+    while(this.cached.size>=50||this.cachedBytes+raw.byteLength>24*1024*1024){const [old,data]=this.cached.entries().next().value;this.cached.delete(old);this.cachedBytes-=data.byteLength;this.onEvict(old);}
+    this.cached.set(url,raw);this.cachedBytes+=raw.byteLength;this.onStored(url);
   }
   timing(values){try{this.onTiming(values);}catch{}}
   discardPrefetch(){this.prefetched?.controller.abort();this.prefetched?.cleanup?.();this.prefetched=null;}
@@ -44,9 +51,9 @@ export class TranslatorPlayback {
   async load(op,url){
       if(typeof url!=='string'||!/^\/kilas-translator\/live\/sessions\/[a-f0-9]{48}\/turns\/live-[a-f0-9]{32}\/audio(?:\/segments\/[0-7])?$/.test(url))throw failure('audio_url',t('Hasil audio tidak tersedia.'));
       const loadError=failure('audio_fetch',t('Audio belum dapat dimuat. Periksa koneksi.'));
-      const downloadBegan=this.now();let raw;
+      const downloadBegan=this.now();let raw=this.cached.get(url);
       try{
-        raw=await this.bounded(op,async()=>{
+        if(!raw)raw=await this.bounded(op,async()=>{
           const response=await this.fetchAudio(url,{credentials:'same-origin',signal:op.controller.signal,cache:'no-store',redirect:'error'});
           this.check(op);
           if(!response.ok||response.redirected){
@@ -67,10 +74,10 @@ export class TranslatorPlayback {
       }catch(e){if(this.cancelled(op,e)||typeof e.code==='string')throw e;throw loadError;}
       this.timing({audio_download_ms:Math.max(0,this.now()-downloadBegan)});
       const decodeBegan=this.now(),decodeError=failure('audio_decode',t('Format audio belum dapat dibaca.'));let buffer;
-      try{buffer=await this.bounded(op,()=>op.context.decodeAudioData(raw),10000,decodeError);}catch(e){if(this.cancelled(op,e))throw e;throw decodeError;}
+      try{buffer=await this.bounded(op,()=>op.context.decodeAudioData(raw.slice(0)),10000,decodeError);}catch(e){if(this.cancelled(op,e))throw e;throw decodeError;}
       if(!Number.isFinite(buffer?.duration)||buffer.duration<=0||buffer.duration>600)throw decodeError;
       this.timing({audio_decode_ms:Math.max(0,this.now()-decodeBegan)});
-      return buffer;
+      this.check(op);this.remember(url,raw);return buffer;
   }
   // At most one successor is downloaded/decoded. This never starts a source or
   // resumes the audio context, and a failed download is consumed without retry.

@@ -62,7 +62,7 @@ export class TranslatorSession {
     if(this.inputMode==='realtime-v1')this.api.input.reset();
     await this.startup(ticket,'microphone_start',()=>this.capture.start({
       inputMode:this.inputMode,
-      ready:()=>{if(current()&&this.state==='opening')this.stateTo('listening');},
+      ready:()=>{if(current()&&this.state==='opening'){this.stateTo('listening');if(this.pushToTalk)this.holdTimer=this.schedule(()=>this.release(),175000);}},
       level:rms=>{if(this.pushToTalk){if(current()&&rms>=this.gate.threshold){this.hadVoice=true;this.gate.lastVoice=this.now();}return;}if(current()&&this.state==='listening'&&this.gate.sample(rms,this.now())){this.stateTo('finalizing');this.capture.finalize();}},
       pcm:bytes=>{
         if(!current()||this.inputMode!=='realtime-v1'||!['listening','finalizing'].includes(this.state))return;
@@ -83,7 +83,7 @@ export class TranslatorSession {
   }
   release({cancel=false}={}){
     if(!this.pushToTalk||!this.held)return;
-    this.held=false;
+    this.held=false;this.clear(this.holdTimer);this.holdTimer=null;
     if(this.state==='opening'||cancel||(!this.hadVoice&&!this.pendingKey)){
       ++this.captureVersion;try{this.capture.cancel();}catch{}
       if(this.pendingKey){this.recover(Object.assign(Error(''),{code:'capture_cancelled',recoverable:true}),this.version);}
@@ -111,7 +111,7 @@ export class TranslatorSession {
         await this.api.input.finish(this.id,this.pendingKey,this.controller.signal,()=>this.timing({speech_end_to_commit_request_ms:Math.max(0,this.now()-speechEnd)}));
         this.timing({input_finalize_ms:Math.max(0,this.now()-finalizeBegan)});
       }
-      const outputBegan=this.now();
+      this.outputPending=true;const outputBegan=this.now();
       const result=await this.api.turn(this.id,this.pendingKey,blob,this.controller.signal,async (part,playSignal=this.controller.signal)=>{
         if(ticket!==this.version||this.controller.signal.aborted)throw new DOMException(t('Sesi dijeda.'),'AbortError');
         this.onResult(part);this.stateTo('playing');
@@ -132,7 +132,7 @@ export class TranslatorSession {
       });
       if(ticket!==this.version)return;
       if(!result.streamed)this.timing({output_ready_ms:Math.max(0,this.now()-outputBegan)});
-      this.pendingKey=null;
+      this.pendingKey=null;this.outputPending=false;
       this.onResult(result);
       if(!result.streamed){
         const readyAt=this.now();this.stateTo('playing');
@@ -159,7 +159,7 @@ export class TranslatorSession {
     // Recovery owns this cycle before awaiting verification; duplicate errors
     // from the cancelled capture cannot pause or start a second recovery.
     ++this.captureVersion;
-    if(error.turnSettled)this.pendingKey=null;
+    if(error.turnSettled){this.pendingKey=null;this.outputPending=false;}
     try{this.capture.cancel();}catch{}try{this.playback.cancel?.();}catch{}
     if(!error.recoverable&&error.code!=='no_speech'){this.pause(error);return;}
     if(!error.silent)this.report(error);
@@ -171,9 +171,16 @@ export class TranslatorSession {
       if(ticket!==this.version)return;await this.listen(ticket);
     }catch(e){if(ticket===this.version)this.pause(e);}
   }
+  async replay(url){
+    if(!this.pushToTalk||this.state!=='ready'||!this.id||!this.playback.has?.(url))return;
+    const ticket=this.version;this.stateTo('replaying');
+    try{await this.playback.play(url,this.controller.signal,()=>ticket===this.version);}
+    catch(error){if(ticket===this.version&&error.name!=='AbortError')this.report(error);}
+    finally{if(ticket===this.version&&this.state==='replaying')this.stateTo('ready');}
+  }
   pause(error){
     if(!this.id){this.suspended=true;return;}
-    this.held=false;++this.version;++this.captureVersion;this.controller?.abort();this.pauseReason=error;
+    this.held=false;this.clear(this.holdTimer);this.holdTimer=null;++this.version;++this.captureVersion;this.controller?.abort();this.pauseReason=error;this.resumeOutput=Boolean(this.pushToTalk&&error?.code==='visibility_suspend'&&this.outputPending&&this.pendingKey);
     try{this.capture.cancel();}catch{}try{this.playback.cancel?.();}catch{}
     if(error?.message)this.report(error);try{this.stateTo('paused');}catch{}
   }
@@ -186,12 +193,22 @@ export class TranslatorSession {
       // Resume audio synchronously from the Lanjutkan click before network work.
       if(this.playback.recover)await this.startup(ticket,'audio_prepare',()=>this.playback.recover(this.pauseReason,this.controller.signal,()=>ticket===this.version),6000,t('Audio belum siap. Periksa izin audio browser lalu tekan Lanjutkan.'));
       else if(this.playback.prepare)await this.startup(ticket,'audio_prepare',()=>this.playback.prepare(this.controller.signal,()=>ticket===this.version),6000,t('Audio belum siap. Periksa izin audio browser lalu tekan Lanjutkan.'));
-      if(ticket!==this.version)return;if(this.api.resume)await this.startup(ticket,'session_verify',()=>this.verify(ticket),22000,t('Status sesi belum terkonfirmasi. Periksa koneksi lalu tekan Lanjutkan.'));
+      if(ticket!==this.version)return;
+      if(this.resumeOutput&&this.pendingKey){
+        // Reattach to the already-dispatched turn by GET only. Never upload or
+        // commit the old speech again, and never cancel it just for foreground.
+        this.stateTo('processing');const result=await this.api.turn(this.id,this.pendingKey,null,this.controller.signal);
+        if(ticket!==this.version)return;
+        this.pendingKey=null;this.outputPending=false;this.resumeOutput=false;this.onResult(result);this.stateTo('playing');
+        await this.playback.play(result.audio_url,this.controller.signal,()=>ticket===this.version);
+        if(ticket===this.version)await this.listen(ticket);return;
+      }
+      if(this.api.resume)await this.startup(ticket,'session_verify',()=>this.verify(ticket),22000,t('Status sesi belum terkonfirmasi. Periksa koneksi lalu tekan Lanjutkan.'));
       if(ticket!==this.version)return;this.pendingKey=null;await this.listen(ticket);
     }catch(e){if(ticket===this.version)this.pause(e);}
   }
   end(){
-    const id=this.id;this.held=false;this.id=null;this.params=null;this.pendingKey=null;++this.version;this.controller?.abort();
+    const id=this.id;this.held=false;this.clear(this.holdTimer);this.holdTimer=null;this.id=null;this.params=null;this.pendingKey=null;this.outputPending=false;this.resumeOutput=false;++this.version;this.controller?.abort();
     // A detached recorder/context can throw while stopping. Continue every cleanup
     // and owner End independently so a device error cannot trap the active UI.
     try{this.capture.cancel();}catch{}try{this.playback.stop();}catch{}try{this.stateTo('ended');}catch{}

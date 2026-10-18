@@ -23,7 +23,7 @@ class TwoWayTests(unittest.TestCase):
     def production(self):
         return patch.dict(os.environ,{'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user),'KILAS_VO_STT_USAGE_MODE':'owner','KILAS_LIVE_TRANSLATOR_USAGE_MODE':'owner'})
     def stream(self,*args,**kwargs):
-        text=args[2][0]['content']
+        text=json.loads(args[2][0]['content'])['source_text']
         result=self.expected[text]
         self.assertIn('never infer direction',kwargs['system'])
         self.assertIn('Never guess a source language',kwargs['system'])
@@ -65,7 +65,7 @@ class TwoWayTests(unittest.TestCase):
         def stt(pcm,cap):self.transcribe(pcm,cap);return next(pending)
         with self.funded(2000000,2000000),self.on(),self.production(),patch.object(voices,'resolve',return_value=f.VOICE),patch.object(live.stt,'transcribe',side_effect=stt),patch.object(providers,'_openai',side_effect=self.stream),patch.object(audio_provider,'speech',return_value=(self.audio,'synthetic')) as tts:
             ident=self.session()
-            for n,code in enumerate(('no_speech','translation_language_mismatch'),1):
+            for n,code in enumerate(('translation_ambiguous','translation_language_mismatch'),1):
                 key=self.key(n);info=sessions.claim(self.user,ident,key)
                 with self.assertRaises(audio_store.AudioError) as error:live.process(self.user,ident,key,self.signal(),info)
                 self.assertEqual(error.exception.code,code);tts.assert_not_called()

@@ -37,14 +37,18 @@ def has_data(row):
                   'finance_bank_imports','finance_internal_transfers','finance_fx_exchanges','finance_invoice_settings','finance_payees'):
         if db.query_one('SELECT 1 FROM '+table+' WHERE business_id=? AND branch_id=? LIMIT 1',(bid,branch)):
             return True
-    import finance_service as finance
-    default_names=set(name for values in finance.PERSONAL_DEFAULT_CATEGORIES.values() for name in values)
-    for groups in finance.PERSONAL_DEFAULT_CATEGORY_CHILDREN.values():
-        for values in groups.values():default_names.update(values)
-    default_names.update(('Pendapatan Lain','Pengeluaran Lain','Lainnya'))
-    settings=db.query_all('SELECT display_name FROM finance_category_workspace_settings WHERE business_id=? AND scope_key=?',
-                          (bid,'PERSONAL:'+str(row['owner_user_id'])))
-    if any(setting['display_name'] not in default_names for setting in settings):
+    # Ledger-presence classification must not change when picker defaults evolve.
+    # Preserve the historical empty-seed contract; new system-owned rows require
+    # matching identity metadata. Unknown/custom names still make a context data.
+    legacy_defaults={'Gaji','Bonus','Freelance / Side Job','Investasi','Hadiah / Transfer Masuk',
+        'Tempat Tinggal / Sewa','Utilitas','Makanan & Belanja Harian','Transportasi','Kesehatan',
+        'Belanja Pribadi','Hiburan','Pendidikan','Asuransi','Cicilan / Utang','Keluarga','Donasi',
+        'Biaya Tak Terduga','Listrik','Air','Internet','Telepon','Gas','Laundry','Sampah / Kebersihan',
+        'Pendapatan Lain','Pengeluaran Lain','Lainnya'}
+    settings=db.query_all('SELECT s.display_name,c.builtin_name FROM finance_category_workspace_settings s '
+        'LEFT JOIN finance_catalog_items c ON c.business_id=s.business_id AND c.scope_key=s.scope_key AND c.category_id=s.category_id '
+        'WHERE s.business_id=? AND s.scope_key=?',(bid,'PERSONAL:'+str(row['owner_user_id'])))
+    if any(setting['display_name'] not in legacy_defaults and setting['display_name']!=setting['builtin_name'] for setting in settings):
         return True
     return False
 

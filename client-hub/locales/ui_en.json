@@ -1021,5 +1021,11 @@
   "Nominal cicilan tidak sesuai total pembelian.": "Installment amounts do not match the purchase total.",
   "Nominal dan tanggal cicilan terikat pada rencana pembelian. Riwayat tidak diubah.": "Installment amounts and dates are tied to the purchase plan. History was not changed.",
   "Cicilan {number}/{total}": "Installment {number}/{total}",
-  "Opsi tambahan": "Additional Options"
+  "Opsi tambahan": "Additional Options",
+  "Tahan untuk bicara": "Hold to talk",
+  "Menyiapkan mikrofon": "Preparing microphone",
+  "Putar ulang audio": "Replay audio",
+  "Percakapan": "Conversation",
+  "Hentikan": "Stop",
+  "Audio tersimpan sudah tidak tersedia. Audio tidak dibuat ulang.": "Stored audio is no longer available. Audio will not be regenerated."
 }

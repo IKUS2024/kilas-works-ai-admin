@@ -1,7 +1,7 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=app-language-20261015';
 import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=hold-release-20261018';
-import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=auto-audio-context-20261018';
+import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=hold-history-20261018';
 import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=hold-release-20261018';
 import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=app-language-20261015';
 import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=hold-release-20261018';
@@ -9,6 +9,7 @@ import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_langua
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=app-language-20261015';
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
 import {bindHoldToTalk} from './kilas_live_translator_hold.mjs?v=hold-release-20261018';
+import {TranslatorHistory} from './kilas_live_translator_history.mjs?v=hold-history-20261018';
 const root=document.querySelector('.kilas-live-translator');
 if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');
@@ -39,9 +40,7 @@ if(root){
    source=context.createMediaStreamSource(own.stream);analyser=context.createAnalyser();analyser.fftSize=2048;source.connect(analyser);
    const samples=new Float32Array(analyser.fftSize);let began=performance.now(),heard=false;
    interval=setInterval(()=>{if(!analyser)return;analyser.getFloatTimeDomainData(samples);const rms=Math.sqrt(samples.reduce((sum,v)=>sum+v*v,0)/samples.length);if(rms>=.015)heard=true;level(rms);
-    // Rotate an idle local buffer without ending the session or sending silence.
-    // The shared recorder's 179s safety cap pauses a long utterance without
-    // submitting truncated speech; ordinary utterances still wait for 2s silence.
+    // A held but silent microphone is released without paid silence input.
     if(!heard&&performance.now()-began>=60000)onError(Object.assign(Error(''),{code:'capture_idle',recoverable:true,silent:true}));
    },50);
    ready?.();
@@ -55,9 +54,9 @@ if(root){
   finalize(){activeCapture.finalize();},cancel(){batchCapture.cancel();realtimeCapture.cancel();},
  };
  const latency=values=>{try{console.info('KILAS_LIVE_CLIENT_LATENCY '+Object.entries(values).filter(([,v])=>Number.isFinite(v)&&v>=0).map(([k,v])=>k+'='+v.toFixed(1)).join(' '));}catch{}};
- const player=new TranslatorPlayback({getContext:()=>context,onTiming:latency});
+ let history=null;const player=new TranslatorPlayback({getContext:()=>context,onTiming:latency,onStored:url=>history?.stored(url),onEvict:url=>history?.remove(url)});
  const closeAudio=()=>{const own=context;context=null;if(own){try{own.close().catch(()=>{});}catch{}}};
- const playback={prepare:(...args)=>player.prepare(...args),play:(...args)=>player.play(...args),prefetch:(...args)=>player.prefetch(...args),
+ const playback={has:url=>player.has(url),prepare:(...args)=>player.prepare(...args),play:(...args)=>player.play(...args),prefetch:(...args)=>player.prefetch(...args),
   cancel:()=>player.cancel(),
   recover(error,signal,isCurrent){
    player.cancel();if(!context||context.state==='closed'||/^audio_(stalled|timeout|context|resume|start)$/.test(error?.code||'')){
@@ -65,7 +64,7 @@ if(root){
    }
    return player.prepare(signal,isCurrent);
   },
-  stop(){player.cancel();closeAudio();},
+  stop(){player.cancel();player.clearCache();history?.clear();closeAudio();},
  };
  async function json(url,options={}){
   try{return await requestJSON(url,{...options,csrf});}catch(e){if(e.code==='session_busy'){recoverRequested=true;recoveryError=true;}throw e;}
@@ -80,17 +79,20 @@ if(root){
  let holdControl=null;const holdButton=document.querySelector('#live-hold');
  const session=new TranslatorSession({api,capture,playback,pushToTalk:true,onTiming:latency,key:()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''),onError:showError,onResult:result=>{
   const text=document.querySelector('#live-translation');text.textContent=result.translated_text||'';text.hidden=!text.textContent;
+  history?.add(result,languageA.value);
   if(result.status==='COMPLETED'&&typeof result.translated_text==='string'&&result.translated_text.trim()){error.hidden=true;error.textContent='';}
  },onState:state=>{
   start.disabled=state!=='ended'||!setupReady||!recovery?.canStart();setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;
+  history?.busy(state!=='ready');
   holdButton.disabled=!['ready','opening','listening'].includes(state);holdButton.setAttribute('aria-pressed',String(['opening','listening'].includes(state)));
   if(state==='ended')holdControl?.reset();
-  const label={ready:t('Tahan untuk bicara'),opening:t('Menyiapkan mikrofon'),paused:t('Sesi dijeda'),playing:t('Hasil'),listening:t('Mendengarkan')}[state]||t('Memproses');orb.setAttribute('aria-label',label);
+  const label={ready:t('Tahan untuk bicara'),opening:t('Menyiapkan mikrofon'),paused:t('Sesi dijeda'),playing:t('Hasil'),replaying:t('Hasil'),listening:t('Mendengarkan')}[state]||t('Memproses');orb.setAttribute('aria-label',label);
   document.querySelector('#live-resume').hidden=state!=='paused';
   document.querySelector('#live-state').textContent=orb.getAttribute('aria-label');
   callLayout.setActive(state!=='ended');
   if(state==='ended'&&(recoverRequested||session.admissionPending)){recoverRequested=false;recovery.checked=false;recovery.refresh();}
  }});
+ history=new TranslatorHistory({element:document.querySelector('#live-history'),languageName:code=>[...languageA.options].find(option=>option.value===code)?.textContent||code,replay:url=>session.replay(url),available:url=>player.has(url)});
  holdControl=bindHoldToTalk({button:holdButton,session,window,document});
  recovery=new TranslatorRecovery({api:{active:()=>json('/kilas-translator/live/sessions/active',{timeoutMs:10000}),end(id){const data=new FormData();data.append('csrf_token',csrf);return json('/kilas-translator/live/sessions/'+encodeURIComponent(id)+'/end',{method:'POST',body:data,keepalive:true,timeoutMs:10000});}},isIdle:()=>session.state==='ended',onError:text=>{recoveryError=true;showError(text);},onChange:state=>{
   start.disabled=session.state!=='ended'||!setupReady||!state.canStart();
@@ -118,7 +120,7 @@ if(root){
  document.querySelector('#live-end').addEventListener('click',()=>session.end());window.addEventListener('pagehide',()=>{
   const id=session.id,key=session.pendingKey,ending=recovery.ending?recovery.active?.session_id:null;session.suspend();
   if(typeof navigator!=='undefined'&&typeof navigator.sendBeacon==='function'){
-   const url=ending?'/kilas-translator/live/sessions/'+encodeURIComponent(ending)+'/end':id&&key?turns.path(id,key)+'/cancel':null;
+   const url=ending?'/kilas-translator/live/sessions/'+encodeURIComponent(ending)+'/end':id&&key&&!session.outputPending?turns.path(id,key)+'/cancel':null;
    if(url){const data=new FormData();data.append('csrf_token',csrf);try{navigator.sendBeacon(url,data);}catch{}}
   }
  });

@@ -8588,5 +8588,9 @@
   "Form kedaluwarsa. Buka ulang form pengeluaran.": {"en": "This form expired. Reopen the expense form.", "es": "El formulario caducó. Vuelve a abrir el formulario de gasto.", "zh": "表单已过期，请重新打开支出表单。"},
   "Form ini sudah disimpan dengan isian berbeda. Periksa transaksi sebelumnya.": {"en": "This form was already saved with different details. Check the previous transaction.", "es": "Este formulario ya se guardó con otros datos. Revisa la transacción anterior.", "zh": "此表单已使用其他内容保存，请检查之前的交易。"},
   "Penyimpanan struk penuh. Transaksi belum disimpan; coba tanpa foto.": {"en": "Receipt storage is full. The transaction was not saved; try without a photo.", "es": "El almacenamiento de recibos está lleno. La transacción no se guardó; intenta sin foto.", "zh": "收据存储空间已满。交易尚未保存，请尝试不附照片。"},
-  "Opsi tambahan": {"en": "Additional Options", "es": "Opciones adicionales", "zh": "其他选项"}
+  "Opsi tambahan": {"en": "Additional Options", "es": "Opciones adicionales", "zh": "其他选项"},
+  "Tahan untuk bicara": {"en": "Hold to talk", "es": "Mantén pulsado para hablar", "zh": "按住说话"},
+  "Menyiapkan mikrofon": {"en": "Preparing microphone", "es": "Preparando el micrófono", "zh": "正在准备麦克风"},
+  "Putar ulang audio": {"en": "Replay audio", "es": "Reproducir audio", "zh": "重播音频"},
+  "Audio tersimpan sudah tidak tersedia. Audio tidak dibuat ulang.": {"en": "Stored audio is no longer available. Audio will not be regenerated.", "es": "El audio guardado ya no está disponible. No se regenerará.", "zh": "保存的音频已不可用，系统不会重新生成。"}
 }

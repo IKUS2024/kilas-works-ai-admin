@@ -536,6 +536,8 @@ def enter_workspace(business_id,workspace_type):
                 finance.ensure_finance_defaults(
                     business_id,actor_user_id=user['id'])
     except finance.FinanceError as error:
+        if workspace_type=='PERSONAL' and str(error)=='personal_context_conflict':
+            return render_template('finance_personal_conflict.html',user=user,business=None,error_message=ERRORS[str(error)]),409
         flash(ERRORS.get(str(error),'Workspace Finance belum dapat dibuka.'),'error')
         return redirect(url_for('finance.workspace_choice',business_id=business_id),code=303)
     return redirect(

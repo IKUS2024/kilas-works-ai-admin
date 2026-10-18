@@ -50,7 +50,7 @@ def begin(owner,ident,key):
         address=(owner,ident,key)
         if address in _items:raise audio_store.AudioError('Ucapan ini tidak diulang.','duplicate_turn',409)
         if len(_items)>=MAX_ENTRIES:raise audio_store.AudioError('Penyimpanan sementara sedang penuh.','session_storage_busy',503)
-        _items[address]={'expires':monotonic()+TTL_SECONDS,'processing':False,'job':None,'text':'','source_language':'','target_language':'','raw':None,'framed':None}
+        _items[address]={'expires':monotonic()+TTL_SECONDS,'processing':False,'job':None,'text':'','source_text':'','source_language':'','target_language':'','raw':None,'framed':None}
         if not _sweeper_started:
             threading.Thread(target=_sweep,name='kilas-live-output-expiry',daemon=True).start();_sweeper_started=True
 
@@ -68,7 +68,7 @@ def bind(owner,ident,key,job,result):
     with _lock:
         _expire();entry=_items.get((owner,ident,key))
         if not entry:raise audio_store.AudioError('Hasil sementara sesi tidak tersedia.','session_output_expired',409)
-        entry.update(job=job,text=result['text'],source_language=result['source_language'],target_language=result['target_language'])
+        entry.update(job=job,text=result['text'],source_text=result.get('source_text',''),source_language=result['source_language'],target_language=result['target_language'])
 
 
 def get(owner,ident,key):

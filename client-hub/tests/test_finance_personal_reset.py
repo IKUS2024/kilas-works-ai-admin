@@ -308,6 +308,10 @@ class PersonalResetTests(unittest.TestCase):
         with self.assertRaisesRegex(f.FinanceError,'personal_context_conflict'):personal.resolve_home(self.uid)
         response=self.client.get('/finance/personal')
         self.assertEqual(response.status_code,409)
+        response=self.client.post(self.url+'/workspaces/PERSONAL',data={'csrf_token':'finance-csrf'})
+        self.assertEqual(response.status_code,409)
+        self.assertIn('role="alert"',response.text)
+        self.assertNotIn('data-finance-metric',response.text)
         self.assertEqual(before,self.finance_rows())
 
     def test_business_reset_excludes_other_branches_including_inactive_and_personal(self):
@@ -392,3 +396,17 @@ class PersonalResetTests(unittest.TestCase):
         with branches.scope(self.b,second,self.uid),self.assertRaises(f.FinanceError):
             reset.complete(self.b,second,key,actor_user_id=self.uid,confirmation='RESET',acknowledged='yes')
         self.assertEqual(before,self.finance_rows(False))
+
+    def test_catalog_revision_cannot_reclassify_empty_legacy_home_as_populated(self):
+        other=repo.create_business(self.uid,'Synthetic other business')
+        legacy,account=self.legacy_empty_personal(other,self.uid)
+        for name in ('Tempat Tinggal / Sewa','Makanan & Belanja Harian','Pendidikan','Laundry','Utilitas'):
+            category=f._create_category(other,'EXPENSE',name,self.uid)
+            db.execute("INSERT INTO finance_category_workspace_settings(business_id,scope_key,category_id,display_name,is_active,workspace_type,owner_user_id,created_at,updated_at) VALUES (?,?,?,?,TRUE,'PERSONAL',?,?,?)",(other,'PERSONAL:'+str(self.uid),category,name,self.uid,repo._now(),repo._now()))
+        before=self.finance_rows(False)
+        self.assertEqual(personal.resolve_home(self.uid)['branch_id'],self.personal)
+        self.assertEqual(before,self.finance_rows(False))
+        # Unknown custom data is never discarded just to make selection work.
+        category=f._create_category(other,'EXPENSE','Customer custom XYZ',self.uid)
+        db.execute("INSERT INTO finance_category_workspace_settings(business_id,scope_key,category_id,display_name,is_active,workspace_type,owner_user_id,created_at,updated_at) VALUES (?,?,?,?,TRUE,'PERSONAL',?,?,?)",(other,'PERSONAL:'+str(self.uid),category,'Customer custom XYZ',self.uid,repo._now(),repo._now()))
+        with self.assertRaisesRegex(f.FinanceError,'personal_context_conflict'):personal.resolve_home(self.uid)

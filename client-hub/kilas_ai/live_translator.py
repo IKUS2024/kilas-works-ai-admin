@@ -342,7 +342,7 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
             expected,reserve=audio_service.estimate(result['text'])
             require_audio_allowance(owner,reserve)
             job,new=audio_store.create(owner,key+'-audio','voiceover','Live Translator',result['source_language'],result['target_language'],choice['id'],choice['name'],result['text'],0,None,expected,reserve,live_session=(ident,key))
-            temporary.bind(owner,ident,key,job,result)
+            temporary.bind(owner,ident,key,job,{**result,'source_text':text})
         check()
         if not new:raise audio_store.AudioError('Audio ini sudah diproses.','duplicate_turn',409)
         from . import live_translator_segments as segments

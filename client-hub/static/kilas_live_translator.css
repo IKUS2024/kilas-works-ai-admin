@@ -58,3 +58,20 @@ body.kilas-translator-call-active #live-resume{min-height:48px;background:#23262
 .kilas-live-translator #live-hold:disabled{opacity:.5;cursor:default}
 .kilas-live-translator #live-hold:focus-visible{outline:3px solid white;outline-offset:4px}
 @media(max-width:400px){.kilas-live-translator .live-call-controls{gap:12px;padding:4px}.kilas-live-translator #live-hold{max-width:124px;padding:12px}}
+.kilas-live-translator .live-history{width:100%;max-width:760px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;overscroll-behavior:contain;padding:4px;box-sizing:border-box}
+.kilas-live-translator .live-message{position:relative;max-width:85%;min-width:120px;padding:14px 44px 14px 16px;border:1px solid #d7dde5;border-radius:18px;overflow-wrap:anywhere;box-sizing:border-box;text-align:left}
+.kilas-live-translator .live-message-first{align-self:flex-start;background:#1d4ed8;border-color:#1d4ed8;color:white}
+.kilas-live-translator .live-message-second{align-self:flex-end;background:#fff;color:#172033}
+.kilas-live-translator .live-message p{margin:0;text-align:left;color:inherit;line-height:1.5}
+.kilas-live-translator .live-message .live-message-language{font-size:12px;font-weight:600;margin-bottom:8px}
+.kilas-live-translator .live-message .live-message-original{font-size:14px;opacity:.85;margin-bottom:8px;white-space:pre-wrap}
+.kilas-live-translator .live-message .live-message-translated{font-size:16px;white-space:pre-wrap}
+.kilas-live-translator .live-replay{position:absolute;right:8px;bottom:8px;width:32px;height:36px;padding:0;border:0;background:transparent;color:inherit;font-size:18px;cursor:pointer}
+.kilas-live-translator .live-replay:disabled{opacity:.4;cursor:default}
+.kilas-live-translator #live-translation[data-legacy-result]{display:none!important}
+body.kilas-translator-call-active .kilas-live-orb{width:min(28vw,16dvh,140px)}
+body.kilas-translator-call-active .live-call-body{justify-content:flex-start;overflow:hidden;gap:12px}
+.kilas-live-translator #live-end.live-hangup{width:72px;height:72px;gap:0;font-size:11px}
+.kilas-live-translator #live-end.live-hangup svg{width:28px;height:28px;align-self:end}
+.kilas-live-translator #live-end.live-hangup span{align-self:start}
+@media(max-width:480px){.kilas-live-translator .live-message{max-width:94%;padding:12px 40px 12px 12px}}
