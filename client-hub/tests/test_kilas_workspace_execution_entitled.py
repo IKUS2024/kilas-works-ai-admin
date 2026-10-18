@@ -115,7 +115,7 @@ class EntitledExecutionTests(unittest.TestCase):
         self.actual_proof_row();original=Path.read_bytes
         with self.policy():
             with patch.object(Path,'read_bytes',lambda path:original(path)+b'\n# changed verifier' if path.name=='workspace_execution_rollout.py' else original(path)):self.assertFalse(execution.accepted())
-            for name,value in [('ORIGINAL_PROOF_FINGERPRINT','0'*64),('BOUNDARY_AST_SHA256','0'*64),('REVIEWED_FILES',{**rollout.REVIEWED_FILES,'workspace_execution.py':'0'*64})]:
+            for name,value in [('ORIGINAL_PROOF_FINGERPRINT','0'*64),('BOUNDARY_SOURCE_SHA256','0'*64),('REVIEWED_FILES',{**rollout.REVIEWED_FILES,'workspace_execution.py':'0'*64})]:
                 with self.subTest(constant=name),patch.object(rollout,name,value):self.assertFalse(execution.accepted())
 
     def test_expired_paid_package_without_sponsorship_is_not_entitled(self):
