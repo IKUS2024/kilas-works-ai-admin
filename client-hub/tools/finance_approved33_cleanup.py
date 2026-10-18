@@ -7,7 +7,7 @@ import argparse,hashlib,json,os
 from pathlib import Path
 import sys
 
-MANIFEST_SHA='923b4e559633a764209ed951716759d6f9bd170be12909a4ab2687e4bf93e077'
+MANIFEST_SHA='8780cc110c00fcf220da1237205257482497e0675d129d48526d14a0ce9b2255'
 TABLES={'categories':'finance_categories','settings':'finance_category_workspace_settings','catalog':'finance_catalog_items','preferences':'finance_category_preferences','hierarchy':'finance_category_hierarchy'}
 
 def manifest():

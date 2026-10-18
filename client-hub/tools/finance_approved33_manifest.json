@@ -5,7 +5,7 @@
     "categories": 33,
     "settings": 33,
     "catalog": 33,
-    "preferences": 26,
+    "preferences": 27,
     "hierarchy": 30
   },
   "groups": [
@@ -41,7 +41,7 @@
       "scope_key": "PERSONAL:9",
       "owner_user_id": 9,
       "canonical_key": "food.1",
-      "builtin_name": "Makan di Luar",
+      "builtin_name": "Restoran / Makanan Cepat Saji",
       "storage_name": "__kilas_PERSONAL:9_food.1",
       "parent_category_id": 18480
     },
