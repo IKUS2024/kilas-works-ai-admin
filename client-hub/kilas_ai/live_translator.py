@@ -38,7 +38,7 @@ def _log_latency(timings,started,success,code=None):
             'translation_fences_ms','translation_settlement_ms','translation_events','credit_tts_ms',
             'audio_reserve_ms','audio_submit_ms','completion_ms')
     stages+=('tts_receive_ms','tts_fences_ms','audio_measure_ms','audio_settlement_ms')
-    stages+=('first_tts_byte_ms','first_published_clip_ms')
+    stages+=('first_tts_byte_ms','first_published_clip_ms','translation_ready_ms')
     stages+=('realtime_input_ms','realtime_transport_ms','realtime_finalize_ms','realtime_commits',
              'incremental_clauses','incremental_provider_ms','incremental_wait_ms','incremental_reused')
     values=' '.join(f'{name}={timings[name]:.1f}' for name in stages if name in timings)
@@ -336,6 +336,8 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
             result=incremental.finish(text,check,timings) if incremental is not None else translation(owner,key,text,a,b,check,timings=timings)
         check()
         if automatic and (result['source_language']!=a or result['target_language']!=b):raise audio_store.AudioError('Bahasa hasil terjemahan belum sesuai dengan pasangan yang dipilih. Ucapan ini tidak diulang otomatis.','translation_language_mismatch',503)
+        temporary.publish_translation(owner,ident,key,{**result,'source_text':text})
+        timings['translation_ready_ms']=(monotonic()-started)*1000
         with _timed(timings,'credit_tts_ms'):stt.require_subscription_credit()
         check()
         with _timed(timings,'audio_reserve_ms'):

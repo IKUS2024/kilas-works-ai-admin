@@ -766,9 +766,16 @@ def live_translator_turn(ident,key):
         job=temporary.get(session['user_id'],ident,key)
         if not job or job['job']!=owned_job['id'] or not job['raw']:
             return {'status':'FAILED','code':'session_output_expired','recoverable':True,'error':'Hasil sementara sesi sudah tidak tersedia. Ucapan ini tidak dibuat ulang otomatis.'},200,{'Cache-Control':'private, no-store'}
-        state={'status':'COMPLETED','audio_url':url_for('kilas_audio.live_translator_result',ident=ident,key=key),
+        state={'status':'COMPLETED','translation_key':key,'audio_url':url_for('kilas_audio.live_translator_result',ident=ident,key=key),
                'translated_text':job['text'],'source_text':job.get('source_text',''),
                'source_language':job['source_language'],'target_language':job['target_language']}
+    elif state['status']=='PROCESSING':
+        from . import live_translator_output as temporary
+        job=temporary.get(session['user_id'],ident,key)
+        if job and job.get('translation_ready'):
+            state={**state,'translation_ready':True,'translation_key':key,
+                   'translated_text':job['text'],'source_text':job['source_text'],
+                   'source_language':job['source_language'],'target_language':job['target_language']}
     elif state['status']=='FAILED':
         code=state.get('error_code')
         messages={'detection_unavailable':'Data deteksi bahasa belum tersedia dari layanan suara. Pilih bahasa sumber lalu bicara kembali.',

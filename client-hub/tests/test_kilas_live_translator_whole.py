@@ -48,7 +48,7 @@ class WholeTests(unittest.TestCase):
     try:jobs.append(self.process(ident,key,info))
     except BaseException as error:errors.append(error)
    with patch.object(segments.transport,'request',return_value=response) as request:
-    thread=Thread(target=worker);thread.start();self.assertTrue(available.wait(2));progress=self.client.get(self.path(ident,key)).json;self.assertEqual(progress,{'status':'PROCESSING'});self.assertEqual(self.client.get(self.path(ident,key)+'/audio').status_code,404);self.assertEqual(self.client.get(self.path(ident,key)+'/audio/segments/0').status_code,404);self.assertEqual(request.call_count,1);release.set();thread.join(3);self.assertFalse(thread.is_alive());self.assertEqual(errors,[]);request.assert_called_once()
+    thread=Thread(target=worker);thread.start();self.assertTrue(available.wait(2));progress=self.client.get(self.path(ident,key)).json;self.assertEqual(progress['status'],'PROCESSING');self.assertTrue(progress['translation_ready']);self.assertEqual(progress['translated_text'],text);self.assertEqual(progress['translation_key'],key);self.assertNotIn('audio_url',progress);self.assertEqual(self.client.get(self.path(ident,key)+'/audio').status_code,404);self.assertEqual(self.client.get(self.path(ident,key)+'/audio/segments/0').status_code,404);self.assertEqual(request.call_count,1);release.set();thread.join(3);self.assertFalse(thread.is_alive());self.assertEqual(errors,[]);request.assert_called_once()
    self.assertEqual(len(jobs),1);self.assertEqual(self.client.get(self.path(ident,key)).json['translated_text'],text)
  def test_conversational_request_keeps_each_approved_voice_and_complete_text_without_global_voice_edits(self):
   samples=[('kilas-male','syntheticMale123','en','id','Tidak, jangan kirim 2 kg tanggal 03/04. Nama saya Dr. Arif. Benar?'),
@@ -126,13 +126,13 @@ class WholeTests(unittest.TestCase):
     row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(job,));self.assertEqual((row['source_language'],row['target_language']),(source,target));self.assertIsNone(row['original_script'])
     result=self.client.get(self.path(ident,key)).json;self.assertEqual((result['source_language'],result['target_language']),(source,target));self.assertEqual(result['translated_text'],text);sessions.end(self.user,ident)
 
- def test_empty_unknown_translation_keeps_no_speech_and_never_dispatches_tts(self):
+ def test_empty_unknown_translation_is_ambiguous_and_never_dispatches_tts(self):
   self.credit(300)
   with self.context('','unknown','unknown'):
    ident=self.session();key=self.key();info=sessions.claim(self.user,ident,key)
    with patch.object(segments.transport,'request') as request:
     with self.assertRaises(audio_store.AudioError) as failed:self.process(ident,key,info)
-    self.assertEqual(failed.exception.code,'no_speech');request.assert_not_called()
-   self.assertEqual(sessions.result(self.user,ident,key)['error_code'],'no_speech')
+   self.assertEqual(failed.exception.code,'translation_ambiguous');request.assert_not_called()
+   self.assertEqual(sessions.result(self.user,ident,key)['error_code'],'translation_ambiguous')
 
 if __name__=='__main__':unittest.main()

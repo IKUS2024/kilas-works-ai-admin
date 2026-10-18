@@ -1,15 +1,15 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=app-language-20261015';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=hold-release-20261018';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=early-text-20261018';
 import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=hold-history-20261018';
-import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=hold-release-20261018';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=early-text-20261018';
 import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=app-language-20261015';
-import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=hold-release-20261018';
+import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=release-timing-20261018';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=explicit-pair-20261018';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=app-language-20261015';
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
 import {bindHoldToTalk} from './kilas_live_translator_hold.mjs?v=hold-release-20261018';
-import {TranslatorHistory} from './kilas_live_translator_history.mjs?v=hold-history-20261018';
+import {TranslatorHistory} from './kilas_live_translator_history.mjs?v=early-text-20261018';
 const root=document.querySelector('.kilas-live-translator');
 if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');
@@ -71,7 +71,7 @@ if(root){
  }
  const turns=new TranslatorTurns({json,csrf,wholeUtterance:true});
  const api={
-  input:new RealtimeInput({json,csrf,holdToTalk:true}),
+  input:new RealtimeInput({json,csrf,holdToTalk:true,onTiming:latency}),
   async start(data,signal){try{return await json('/kilas-translator/live/sessions',{method:'POST',body:data,signal,timeoutMs:30000});}catch(e){recoverRequested=true;throw e;}},
   turn:(...args)=>turns.turn(...args),resume:(...args)=>turns.resume(...args),
   end:id=>{const text=document.querySelector('#live-translation');text.textContent='';text.hidden=true;return recovery.endKnown(id);},

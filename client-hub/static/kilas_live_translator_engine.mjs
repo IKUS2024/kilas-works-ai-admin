@@ -44,11 +44,15 @@ export class TranslatorSession {
     const ticket=++this.version;this.suspended=false;this.controller=new AbortController();this.params=params;
     try{
       this.stateTo('preparing');
+      const prepareBegan=this.now();
       if(this.playback.prepare)await this.startup(ticket,'audio_prepare',()=>this.playback.prepare(this.controller.signal,()=>ticket===this.version),6000,t('Audio belum siap. Periksa izin audio browser lalu tekan Start kembali.'));
+      this.timing({session_audio_prepare_ms:Math.max(0,this.now()-prepareBegan)});
       if(ticket!==this.version)return;
       this.stateTo('starting');
       this.admissionPending=ticket;
+      const admissionBegan=this.now();
       let result;try{result=await this.startup(ticket,'session_admission',()=>this.api.start(params,this.controller.signal),32000,t('Status sesi belum terkonfirmasi. Periksa sesi saat jaringan siap sebelum memulai kembali.'),value=>this.endAdmitted(value));}finally{if(this.admissionPending===ticket)this.admissionPending=false;}
+      this.timing({session_admission_http_ms:Math.max(0,this.now()-admissionBegan)});
       if(ticket!==this.version){await this.endAdmitted(result);return;}
       if(typeof result?.session_id!=='string'||!(/^[a-f0-9]{48}$/).test(result.session_id))throw Object.assign(Error(t('Layanan tidak mengembalikan sesi yang valid. Periksa sesi sebelum memulai kembali.')),{code:'session_response_invalid',startupStage:'session_admission'});
       this.id=result.session_id;this.inputMode=result.input_mode==='realtime-v1'?'realtime-v1':'batch';if(this.suspended){this.pause(Error(t('Sesi dijeda saat halaman ditinggalkan. Tekan Lanjutkan.')));return;}await this.listen(ticket);
@@ -59,10 +63,11 @@ export class TranslatorSession {
     if(this.pushToTalk&&!held){this.held=false;this.stateTo('ready');return;}
     const cycle=++this.captureVersion,current=()=>ticket===this.version&&cycle===this.captureVersion;
     this.gate.reset();this.stateTo('opening');
+    const captureBegan=this.now();
     if(this.inputMode==='realtime-v1')this.api.input.reset();
     await this.startup(ticket,'microphone_start',()=>this.capture.start({
       inputMode:this.inputMode,
-      ready:()=>{if(current()&&this.state==='opening'){this.stateTo('listening');if(this.pushToTalk)this.holdTimer=this.schedule(()=>this.release(),175000);}},
+      ready:()=>{if(current()&&this.state==='opening'){this.timing({capture_ready_ms:Math.max(0,this.now()-captureBegan)});this.stateTo('listening');if(this.pushToTalk)this.holdTimer=this.schedule(()=>this.release(),175000);}},
       level:rms=>{if(this.pushToTalk){if(current()&&rms>=this.gate.threshold){this.hadVoice=true;this.gate.lastVoice=this.now();}return;}if(current()&&this.state==='listening'&&this.gate.sample(rms,this.now())){this.stateTo('finalizing');this.capture.finalize();}},
       pcm:bytes=>{
         if(!current()||this.inputMode!=='realtime-v1'||!['listening','finalizing'].includes(this.state))return;
@@ -77,7 +82,7 @@ export class TranslatorSession {
   }
   async press(){
     if(!this.pushToTalk||this.state!=='ready'||!this.id)return;
-    const ticket=this.version;this.held=true;this.hadVoice=false;
+    const ticket=this.version;this.held=true;this.hadVoice=false;this.releasedAt=null;
     try{await this.listen(ticket,true);}
     catch(error){if(ticket===this.version&&this.held)this.pause(error);}
   }
@@ -90,7 +95,7 @@ export class TranslatorSession {
       else this.stateTo('ready');
       return;
     }
-    if(this.state==='listening'){this.stateTo('finalizing');this.capture.finalize();}
+    if(this.state==='listening'){this.releasedAt=this.now();this.stateTo('finalizing');this.capture.finalize();}
   }
   async utterance(blob,ticket){
     if(ticket!==this.version||this.state!=='finalizing')return;
@@ -99,16 +104,20 @@ export class TranslatorSession {
     // must not interrupt this accepted utterance's processing or playback.
     ++this.captureVersion;
     this.stateTo('processing');
+    const releasedAt=this.releasedAt;
+    const releaseTiming=name=>{if(Number.isFinite(releasedAt))this.timing({[name]:Math.max(0,this.now()-releasedAt)});};
+    releaseTiming('release_to_capture_flush_ms');
     try{
       const realtime=this.inputMode==='realtime-v1';
       if(realtime?!this.pendingKey:!blob?.size){const error=Error(t('Rekaman kosong. Silakan bicara kembali.'));error.code='no_speech';throw error;}
       if(!realtime)this.pendingKey='live-'+this.key();
-      const speechEnd=this.gate.lastVoice??this.now();let first=false,previousClipEnd=null;
+      const speechEnd=this.gate.lastVoice??this.now();let first=false,textAnnounced=false,previousClipEnd=null;
       this.timing({speech_end_to_submit_ms:Math.max(0,this.now()-speechEnd)});
-      const onStarted=()=>{if(first||ticket!==this.version)return;first=true;this.timing({speech_end_to_first_playback_ms:Math.max(0,this.now()-speechEnd)});};
+      const onStarted=()=>{if(first||ticket!==this.version)return;first=true;releaseTiming('release_to_first_audio_ms');this.timing({speech_end_to_first_playback_ms:Math.max(0,this.now()-speechEnd)});};
       if(realtime){
         const finalizeBegan=this.now();
-        await this.api.input.finish(this.id,this.pendingKey,this.controller.signal,()=>this.timing({speech_end_to_commit_request_ms:Math.max(0,this.now()-speechEnd)}));
+        await this.api.input.finish(this.id,this.pendingKey,this.controller.signal,()=>{releaseTiming('release_to_commit_request_ms');this.timing({speech_end_to_commit_request_ms:Math.max(0,this.now()-speechEnd)});});
+        releaseTiming('release_to_commit_http_ack_ms');
         this.timing({input_finalize_ms:Math.max(0,this.now()-finalizeBegan)});
       }
       this.outputPending=true;const outputBegan=this.now();
@@ -129,16 +138,21 @@ export class TranslatorSession {
         previousClipEnd=this.now();this.stateTo('processing');
       },(part,playSignal)=>{
         if(ticket===this.version&&!this.controller.signal.aborted)this.playback.prefetch?.(part.audio_url,playSignal,()=>ticket===this.version);
+      },part=>{
+        if(ticket!==this.version||this.controller.signal.aborted)return;
+        textAnnounced=true;releaseTiming('release_to_first_text_ms');this.onResult(part);
       });
       if(ticket!==this.version)return;
       if(!result.streamed)this.timing({output_ready_ms:Math.max(0,this.now()-outputBegan)});
       this.pendingKey=null;this.outputPending=false;
+      if(!textAnnounced)releaseTiming('release_to_first_text_ms');
       this.onResult(result);
       if(!result.streamed){
         const readyAt=this.now();this.stateTo('playing');
         await this.playback.play(result.audio_url,this.controller.signal,()=>ticket===this.version,()=>{this.timing({result_to_audio_start_ms:Math.max(0,this.now()-readyAt)});onStarted();});
       }
       if(ticket!==this.version)return;
+      releaseTiming('release_to_complete_ms');
       await this.listen(ticket);
     }catch(e){
       if(ticket!==this.version||this.controller.signal.aborted)return;
