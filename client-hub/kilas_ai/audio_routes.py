@@ -514,6 +514,22 @@ def live_translator_start():
     return {'session_id':ident,'input_mode':'realtime-v1' if a!='auto' and realtime.ready(session['user_id']) else 'batch'},201,{'Cache-Control':'private, no-store'}
 
 
+@audio_bp.post('/live/sessions/<ident>/renew')
+def live_translator_renew(ident):
+    from . import live_translator as live, live_translator_store as sessions, live_translator_realtime as realtime
+    live.require_ready(session['user_id'])
+    if request.form.get('consent')!='yes':raise store.AudioError('Setujui pemrosesan ucapan sebelum mulai.','consent_required',400)
+    a,b,voice=(request.form.get(name) for name in ('language_a','language_b','voice'))
+    sessions.require_explicit_pair(a,b,voice=voice);translator.require_classic(a,b)
+    if not branded.resolve(voice):raise store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
+    mode='realtime-v1' if realtime.ready(session['user_id']) else 'batch'
+    if request.form.get('input_mode')!=mode:raise store.AudioError('Input sesi berubah. Akhiri sesi lalu mulai kembali.','input_mode_changed',409)
+    store.require_balance(session['user_id']);live.require_audio_allowance(session['user_id'])
+    new=sessions.renew(session['user_id'],ident,a,b,voice)
+    realtime.cancel(session['user_id'],ident)
+    return {'session_id':new,'input_mode':mode},201,{'Cache-Control':'private, no-store'}
+
+
 @audio_bp.post('/live/sessions/<ident>/end')
 def live_translator_end(ident):
     # End remains allowed when a rollout flag/campaign expires or is switched off.
@@ -548,7 +564,7 @@ def live_translator_cancel_turn(ident,key):
     live_translator_realtime.cancel(session['user_id'],ident,key)
     from . import live_gemini
     live_gemini.cancel(session['user_id'],ident,key)
-    return {'status':status},200,{'Cache-Control':'private, no-store'}
+    return {'status':status,**({} if live_translator_realtime.settled(session['user_id'],key) else {'input_settled':False})},200,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.get('/live/gemini')
@@ -757,6 +773,7 @@ def live_translator_turn(ident,key):
                   'detection_uncertain':'Bahasa ucapan belum terdeteksi dengan yakin. Pilih bahasa sumber lalu bicara kembali.',
                   'detected_language_unsupported':'Bahasa yang terdeteksi belum didukung oleh suara Translator. Pilih bahasa sumber yang didukung.',
                   'detected_language_is_target':'Bahasa ucapan sama dengan bahasa tujuan. Pilih bahasa tujuan lain.',
+                  'translation_ambiguous':'Makna atau arah ucapan belum jelas dalam pasangan bahasa ini. Ucapkan kembali dengan lebih lengkap.',
                   'no_speech':'Ucapan belum terbaca dalam pasangan bahasa ini. Bicara kembali.',
                   'translation_language_mismatch':'Bahasa hasil terjemahan belum sesuai dengan pasangan yang dipilih. Ucapan ini tidak diulang otomatis.',
                   'provider_credit_exhausted':'Kapasitas layanan suara tidak cukup. Sesi dijeda tanpa pembelian tambahan.',
@@ -771,9 +788,13 @@ def live_translator_turn(ident,key):
                   'zero_balance':'Kuota audio Live Translator belum tersedia untuk akun ini.',
                   'insufficient_balance':'Kuota audio tidak cukup untuk ucapan berikutnya.',
                   'stream_unavailable':'Audio belum tersedia. Sesi dijeda; ucapan ini tidak diulang otomatis.'}
-        state={'status':'FAILED','code':code,'recoverable':code in ('detection_unavailable','detection_uncertain','detected_language_unsupported','detected_language_is_target','no_speech','translation_failed','translation_language_mismatch','transcription_failed','speech_failed','processing_failed','processing_interrupted'),
+        if code in ('realtime_transport','realtime_input_idle','realtime_commit_timeout','realtime_worker_unavailable','realtime_queue_full'):messages[code]='Input suara terputus. Silakan bicara kembali.'
+        state={'status':'FAILED','code':code,'recoverable':code in ('detection_unavailable','detection_uncertain','detected_language_unsupported','detected_language_is_target','translation_ambiguous','no_speech','realtime_transport','realtime_input_idle','realtime_commit_timeout','realtime_worker_unavailable','realtime_queue_full','translation_failed','translation_language_mismatch','transcription_failed','speech_failed','processing_failed','processing_interrupted'),
                'error':messages.get(code,'Ucapan belum berhasil diproses. Ucapan ini tidak diulang otomatis.')}
     else:state={'status':state['status']}
+    if state['status'] in ('FAILED','CANCELLED'):
+        from . import live_translator_realtime
+        if not live_translator_realtime.settled(session['user_id'],key):state['input_settled']=False
     return state,200,{'Cache-Control':'private, no-store'}
 
 

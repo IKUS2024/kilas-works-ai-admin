@@ -1,0 +1,29 @@
+# Translator continuity and current-utterance fidelity — 2026-10-18
+
+Scope: classic paired Live Translator only. Finance 987449e and sandbox configuration/security/accounting remain unchanged. No paid provider, model, speech or VM calls were made.
+
+## Evidence and actual limits
+
+The supplied screenshot was inspected by the parent, not this worker. Its exact message maps to `live_translator_realtime.failure`, an input-stage pause, not proof of session expiry. Owner9-only metadata around08:24 shows a completed turn, one `no_speech` failure, then a completed turn, with an explicit-End (blank-expiry) id/en Kilas Female session. No transcript/audio was retrieved. The08:24:41 log locates the nearby `no_speech` at translation after a nonempty committed ASR result; it is not an empty microphone capture. Exact screenshot/turn correlation is unproven. An08:26 rollout cancellation log is not owner-correlated.
+
+Modern sessions already have no application age expiry. Authentication, entitlement, supplier credit, concurrent work, metering, per-utterance and transport resource limits remain enforced. No indefinite resource lease or hidden paid replay was added. The original and wrong translation pair was unavailable; the cause of the owner's particular semantic error remains unverified.
+
+## Changes
+
+- A failed PCM upload or commit shares one scoped cancellation. New microphone speech can resume only after a terminal turn and durable STT lease reconciliation. Already-failed turns are read for their real transient/credit cause. UNKNOWN supplier exposure remains charged conservatively. Ambiguous or unreconciled work stays paused. No PCM/start/commit/batch retry occurs.
+- Fresh speech can continue after settled transport/idle/queue/commit failures. Foreground/online can recover an intentional active background suspension. Authentication, permission, credit and explicit/manual pauses are not overridden. Existing capture-generation fences exclude old PCM/device callbacks, and capture remains off throughout translation/playback.
+- An authenticated CSRF POST can renew only a legacy finite-expiry ACTIVE session. Same pair, exact voice, consent, unchanged input mode, current readiness/customer credit, and no pending STT lease are required. The row ID stays fixed: End and renewal lock the same row, so End wins even if an acknowledgement is lost. Old turns are cancelled; duplicate renewal is denied and cannot cancel new work. A lost renewal acknowledgement gets one owned metadata read, never another POST. Explicit ENDED/foreign/missing rows cannot renew.
+- Realtime Scribe receives both selected languages as repeated `secondary_languages` query fields, with no fixed primary language. This is a documented identification hint, not proof of direction or accuracy. Exact model, manual commits and existing pricing-relevant options are preserved.
+- Normal translation input is now a `source_text` JSON envelope, consistent with the existing clause path. Instructions require translation of that current speech only, including questions/literal instructions, names, quantities and negation. An empty translation of nonempty speech is now `translation_ambiguous`, distinct from actual empty ASR. New actionable messages are localized in ID/EN/ES/ZH.
+
+Primary contracts: [ElevenLabs realtime endpoint](https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime), [official SDK option/serialization implementation](https://github.com/elevenlabs/elevenlabs-python/blob/main/src/elevenlabs/realtime/scribe.py), [official percent-encoding helper](https://github.com/elevenlabs/elevenlabs-python/blob/main/src/elevenlabs/url_utils.py). Only these two pair hints were added; no premium keyterms or transcript-edit option.
+
+## Validation
+
+- 94 Python contracts passed across `test_kilas_live_translator`, `test_kilas_live_translator_realtime`, `test_kilas_live_translator_incremental`, and new `test_kilas_live_translator_continuation`. One previously known unrelated privacy-link markup assertion was excluded and remains unresolved. Test-only operation keys now include fixture identity to prevent collisions across combined suites.
+- 82 Node engine/API/PCM/page contracts passed, followed by the input suite22-pass rerun containing one additional terminal-cause regression (83 unique across that group); separate recovery suite15 passed. Reruns are not additional unique tests.
+- New meaningful synthetic semantic fixtures cover alternating/repeated ID↔EN, questions, negation, names, amounts, a longer conditional utterance and literal prompt-injection speech. They assert the actual provider request and exact accepted text/language sent to the selected voice. These verify contracts, not model linguistic accuracy.
+- Local Chromium actual frontend→Flask flows: batch completion/End and two successive realtime utterances passed. Exact MP3 fixture bytes were fetched/decoded, no microphone/playback overlap occurred, each text/audio operation settled once, and late PCM/events after End created no work. Synthetic microphone/provider adapters only; physical Android and real acoustic ASR/translation quality were not tested.
+- No migrations, production user-session mutation, quota/budget change or provider QA. Real supplier/device acceptance requires a separately approved bounded test; no previous allowance was reused.
+
+Local evidence: `/tmp/kilas-translator-continuity-python-pass.log`, `/tmp/kilas-translator-continuation-final.log`, `/tmp/kilas-translator-continuity-node-final.log`, `/tmp/kilas-translator-continuity-input-review.log`, `/tmp/kilas-translator-continuity-recovery.log`, `/tmp/kilas-translator-continuity-browser.log` (batch PASS, stale realtime fixture signature failure), `/tmp/kilas-translator-continuity-browser-final.log` (corrected sequential realtime PASS). Release evidence is saved separately in `/tmp/kilas-translator-continuity-release.txt`.

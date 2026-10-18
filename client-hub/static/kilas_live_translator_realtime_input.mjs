@@ -24,7 +24,7 @@ export class RealtimeInput {
       turn.chain=this.json(this.path(id,key)+'/input/start',{method:'POST',body:this.form(),signal,timeoutMs:15000}).then(result=>{if(result.input_mode!=='realtime-v1')throw failure('realtime_protocol');});
     }
     if(turn.id!==id||turn.key!==key||turn.signal!==signal||turn.finishing)return Promise.reject(failure('realtime_turn_busy'));
-    if(turn.queued+bytes.byteLength>MAX_BACKLOG_BYTES||turn.total+bytes.byteLength>180*32000||turn.index>=2000){turn.failure=failure('realtime_queue_full');turn.cancel();return Promise.reject(turn.failure);}
+    if(turn.queued+bytes.byteLength>MAX_BACKLOG_BYTES||turn.total+bytes.byteLength>180*32000||turn.index>=2000){turn.failure=failure('realtime_queue_full');return this.settleFailure(turn,turn.failure);}
     turn.queued+=bytes.byteLength;turn.total+=bytes.byteLength;
     let offset=0;
     while(offset<bytes.byteLength){const length=Math.min(bytes.byteLength-offset,32000-turn.length);turn.pending.set(bytes.subarray(offset,offset+length),turn.length);turn.length+=length;offset+=length;if(turn.length===32000)this.flush(turn);}
@@ -32,7 +32,7 @@ export class RealtimeInput {
     // Subsequent PCM still batches1s for bounded serialHTTP throughput. No
     // second lease, input replay or earlier utterance commit is introduced.
     if(turn.index===0)this.flush(turn);
-    return turn.chain;
+    return turn.chain.catch(e=>this.settleFailure(turn,e));
   }
   flush(turn){
     if(!turn.length)return;
@@ -54,8 +54,29 @@ export class RealtimeInput {
       try{onCommit();}catch{}
       await this.json(this.path(id,key)+'/input/commit',{method:'POST',body:data,signal,timeoutMs:10000});
     }catch(e){
-      const state=await turn.cancel();e.turnSettled=Boolean(state&&['CANCELLED','FAILED','COMPLETED'].includes(state.status));e.recoverable=false;throw e;
+      await this.settleFailure(turn,e);
     }finally{signal.removeEventListener('abort',turn.cancel);if(this.current===turn)this.current=null;}
+  }
+  async settleFailure(turn,error){
+    // One cancellation and one bounded read sequence shared by every failed PCM
+    // callback. No start/chunk/commit retry and no alternate ASR submission.
+    if(!turn.failurePromise)turn.failurePromise=(async()=>{
+      let state=await turn.cancel();
+      if(state?.status==='FAILED'&&!state.code&&!turn.signal.aborted){
+        try{state=await this.json(this.path(turn.id,turn.key),{signal:turn.signal,timeoutMs:3000});}catch{state=null;}
+      }
+      for(let n=0;state?.input_settled===false&&n<12&&!turn.signal.aborted;n++){
+        await new Promise(resolve=>setTimeout(resolve,250));
+        try{state=await this.json(this.path(turn.id,turn.key),{signal:turn.signal,timeoutMs:3000});}catch{state=null;break;}
+      }
+      error.turnSettled=Boolean(state&&state.input_settled!==false&&['CANCELLED','FAILED','COMPLETED'].includes(state.status));
+      const transient=['request_timeout','realtime_transport','realtime_input_idle','realtime_commit_timeout','realtime_worker_unavailable','realtime_queue_full'];
+      if(state?.status==='FAILED'&&state.code){error.code=state.code;error.message=state.error||error.message;}
+      error.recoverable=!turn.signal.aborted&&error.turnSettled&&(state?.status==='FAILED'?state.recoverable===true:transient.includes(error.code));
+      if(error.recoverable)error.message=t('Input suara terputus. Silakan bicara kembali.');
+      throw error;
+    })();
+    return turn.failurePromise;
   }
   reset(){const turn=this.current;if(turn){turn.signal.removeEventListener('abort',turn.cancel);this.current=null;}}
 }

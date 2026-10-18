@@ -41,7 +41,7 @@ export class TranslatorSession {
   endAdmitted(result){if(typeof result?.session_id==='string'&&/^[a-f0-9]{48}$/.test(result.session_id)){try{return Promise.resolve(this.api.end(result.session_id)).catch(()=>{});}catch{}}}
   async start(params){
     if(this.state!=='ended')return;
-    const ticket=++this.version;this.suspended=false;this.controller=new AbortController();
+    const ticket=++this.version;this.suspended=false;this.controller=new AbortController();this.params=params;
     try{
       this.stateTo('preparing');
       if(this.playback.prepare)await this.startup(ticket,'audio_prepare',()=>this.playback.prepare(this.controller.signal,()=>ticket===this.version),6000,t('Audio belum siap. Periksa izin audio browser lalu tekan Start kembali.'));
@@ -66,7 +66,7 @@ export class TranslatorSession {
       pcm:bytes=>{
         if(!current()||this.inputMode!=='realtime-v1'||!['listening','finalizing'].includes(this.state))return;
         if(!this.pendingKey)this.pendingKey='live-'+this.key();
-        this.api.input.push(this.id,this.pendingKey,bytes,this.controller.signal).catch(e=>{if(current())this.pause(e);});
+        this.api.input.push(this.id,this.pendingKey,bytes,this.controller.signal).catch(e=>{if(current())this.recover(e,ticket);});
       },
       blob:blob=>{if(current())this.utterance(blob,ticket);},
       error:e=>{if(current())this.recover(e,ticket);},
@@ -128,6 +128,14 @@ export class TranslatorSession {
       await this.recover(e,ticket);
     }
   }
+  async verify(ticket){
+    if(!this.api.resume)return;
+    await this.api.resume(this.id,this.pendingKey,this.controller.signal,this.params,this.inputMode,async result=>{
+      if(ticket!==this.version||this.controller.signal.aborted){await this.endAdmitted(result);return;}
+      if(typeof result?.session_id!=='string'||!/^[a-f0-9]{48}$/.test(result.session_id)||result.input_mode!==this.inputMode){await this.endAdmitted(result);throw Object.assign(Error(t('Input sesi berubah. Akhiri sesi lalu mulai kembali.')),{code:'input_mode_changed'});}
+      this.id=result.session_id;this.pendingKey=null;
+    });
+  }
   async recover(error,ticket){
     if(ticket!==this.version)return;
     // Recovery owns this cycle before awaiting verification; duplicate errors
@@ -139,7 +147,7 @@ export class TranslatorSession {
     if(!error.silent)this.report(error);
     this.stateTo('recovering');
     try{
-      if(!error.silent&&this.api.resume)await this.api.resume(this.id,this.pendingKey,this.controller.signal);
+      if(!error.silent&&this.api.resume)await this.verify(ticket);
       if(ticket!==this.version)return;this.pendingKey=null;
       if(this.playback.recover)await this.playback.recover(error,this.controller.signal,()=>ticket===this.version);
       if(ticket!==this.version)return;await this.listen(ticket);
@@ -151,7 +159,8 @@ export class TranslatorSession {
     try{this.capture.cancel();}catch{}try{this.playback.cancel?.();}catch{}
     if(error?.message)this.report(error);try{this.stateTo('paused');}catch{}
   }
-  suspend(){if(this.state!=='ended')this.pause(Error(t('Sesi dijeda saat halaman ditinggalkan. Tekan Lanjutkan.')));}
+  suspend(){if(!['ended','paused'].includes(this.state))this.pause(Object.assign(Error(t('Sesi dijeda saat halaman ditinggalkan. Tekan Lanjutkan.')),{code:'visibility_suspend'}));}
+  foreground(){if(this.state==='paused'&&(this.pauseReason?.code==='visibility_suspend'||this.pauseReason?.recoverable===true))return this.resume();}
   async resume(){
     if(this.state!=='paused'||!this.id)return;
     const ticket=++this.version;this.suspended=false;this.controller=new AbortController();this.stateTo('resuming');
@@ -159,12 +168,12 @@ export class TranslatorSession {
       // Resume audio synchronously from the Lanjutkan click before network work.
       if(this.playback.recover)await this.startup(ticket,'audio_prepare',()=>this.playback.recover(this.pauseReason,this.controller.signal,()=>ticket===this.version),6000,t('Audio belum siap. Periksa izin audio browser lalu tekan Lanjutkan.'));
       else if(this.playback.prepare)await this.startup(ticket,'audio_prepare',()=>this.playback.prepare(this.controller.signal,()=>ticket===this.version),6000,t('Audio belum siap. Periksa izin audio browser lalu tekan Lanjutkan.'));
-      if(ticket!==this.version)return;if(this.api.resume)await this.startup(ticket,'session_verify',()=>this.api.resume(this.id,this.pendingKey,this.controller.signal),22000,t('Status sesi belum terkonfirmasi. Periksa koneksi lalu tekan Lanjutkan.'));
+      if(ticket!==this.version)return;if(this.api.resume)await this.startup(ticket,'session_verify',()=>this.verify(ticket),22000,t('Status sesi belum terkonfirmasi. Periksa koneksi lalu tekan Lanjutkan.'));
       if(ticket!==this.version)return;this.pendingKey=null;await this.listen(ticket);
     }catch(e){if(ticket===this.version)this.pause(e);}
   }
   end(){
-    const id=this.id;this.id=null;this.pendingKey=null;++this.version;this.controller?.abort();
+    const id=this.id;this.id=null;this.params=null;this.pendingKey=null;++this.version;this.controller?.abort();
     // A detached recorder/context can throw while stopping. Continue every cleanup
     // and owner End independently so a device error cannot trap the active UI.
     try{this.capture.cancel();}catch{}try{this.playback.stop();}catch{}try{this.stateTo('ended');}catch{}

@@ -953,5 +953,10 @@
   "Gunakan foto struk JPG, PNG, atau WebP yang valid, maksimal 20 MiB.": "Use a valid JPG, PNG, or WebP receipt photo, up to 20 MiB.",
   "Form kedaluwarsa. Buka ulang form pengeluaran.": "This form expired. Reopen the expense form.",
   "Form ini sudah disimpan dengan isian berbeda. Periksa transaksi sebelumnya.": "This form was already saved with different details. Check the previous transaction.",
-  "Penyimpanan struk penuh. Transaksi belum disimpan; coba tanpa foto.": "Receipt storage is full. The transaction was not saved; try without a photo."
+  "Penyimpanan struk penuh. Transaksi belum disimpan; coba tanpa foto.": "Receipt storage is full. The transaction was not saved; try without a photo.",
+  "Makna atau arah ucapan belum jelas dalam pasangan bahasa ini. Ucapkan kembali dengan lebih lengkap.": "The meaning or language direction is unclear in this pair. Say it again more fully.",
+  "Sesi ini tidak dapat diperbarui.": "This session cannot be renewed.",
+  "Pasangan bahasa atau suara sesi berubah.": "The session language pair or voice changed.",
+  "Input sesi berubah. Akhiri sesi lalu mulai kembali.": "The session input changed. End the session, then start again.",
+  "Input suara terputus. Silakan bicara kembali.": "Voice input was interrupted. Please speak again."
 }

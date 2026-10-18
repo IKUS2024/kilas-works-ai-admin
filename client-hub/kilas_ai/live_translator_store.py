@@ -54,6 +54,36 @@ def create(owner,a,b,voice):
     return ident
 
 
+def renew(owner,ident,a,b,voice):
+    """Only an intentional authenticated POST can renew an expired ACTIVE row.
+
+    Explicit End is terminal. Never renew missing/foreign rows, guess a pair,
+    or revive a turn/output. Old turns remain cancelled and can never inherit a new paid operation.
+    """
+    require_explicit_pair(a,b,voice=voice)
+    now=usage._now()
+    with transaction() as conn:
+        suffix=' FOR UPDATE' if db.BACKEND=='postgres' else ''
+        usage._query(conn,'SELECT id FROM users WHERE id=?'+suffix,(owner,),one=True)
+        old=usage._query(conn,'SELECT status,expires_at,language_a,language_b,voice_alias FROM kilas_live_translator_sessions WHERE id=? AND user_id=?'+suffix,(ident,owner),one=True)
+        if not old:raise audio_store.AudioError('Sesi tidak tersedia.','session_unavailable',404)
+        if old[0]!='ACTIVE' or not old[1] or usage._as_utc(old[1])>now:
+            raise audio_store.AudioError('Sesi ini tidak dapat diperbarui.','session_ended',409)
+        if (old[2],old[3],old[4])!=(a,b,voice):
+            raise audio_store.AudioError('Pasangan bahasa atau suara sesi berubah.','invalid_language_pair',400)
+        pending=usage._query(conn,"SELECT 1 FROM kilas_live_translator_turns t JOIN kilas_vo_stt_operations o ON (o.operation_key=t.operation_key OR o.operation_key=t.operation_key||'-rt') WHERE t.session_id=? AND o.user_id=? AND o.status IN ('RESERVED','DISPATCHED')",(ident,owner),one=True)
+        if pending:raise audio_store.AudioError('Ucapan sebelumnya belum terkonfirmasi selesai. Periksa lagi saat koneksi siap.','turn_busy',409)
+        other=usage._query(conn,"SELECT 1 FROM kilas_live_translator_sessions WHERE user_id=? AND id<>? AND status='ACTIVE' AND (expires_at='' OR expires_at>?)",(owner,ident,now.isoformat()),one=True)
+        if other:raise audio_store.AudioError('Sesi lain masih aktif. Akhiri sesi itu terlebih dahulu.','session_busy',409)
+        usage._query(conn,"UPDATE kilas_live_translator_turns SET status='CANCELLED' WHERE session_id=? AND status='PROCESSING'",(ident,))
+        # Keep the identifier: End uses this same row lock, including when the
+        # renewal acknowledgement is lost. No replacement row can escape End.
+        usage._query(conn,"UPDATE kilas_live_translator_sessions SET expires_at='' WHERE id=?",(ident,))
+    from . import live_translator_output
+    live_translator_output.discard(owner,ident)
+    return ident
+
+
 def claim(owner,ident,key):
     with transaction() as conn:
         info=locked(owner,ident,conn)
@@ -120,7 +150,9 @@ def cancel_turn(owner,ident,key):
 def status(owner,ident):
     row=db.query_one("SELECT s.status,s.expires_at,EXISTS(SELECT 1 FROM kilas_live_translator_turns t WHERE t.session_id=s.id AND t.status='PROCESSING') AS processing FROM kilas_live_translator_sessions s WHERE s.id=? AND s.user_id=?",(ident,owner))
     if not row:raise audio_store.AudioError('Sesi tidak tersedia.','session_unavailable',404)
-    return {'status':'ACTIVE' if alive(row['status'],row['expires_at']) else 'ENDED','processing':bool(row['processing'])}
+    value={'status':'ACTIVE' if alive(row['status'],row['expires_at']) else 'ENDED','processing':bool(row['processing'])}
+    if row['status']=='ACTIVE' and row['expires_at'] and value['status']=='ENDED':value['renewable']=True
+    return value
 
 
 def result(owner,ident,key):

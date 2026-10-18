@@ -41,7 +41,7 @@ class LiveTranslatorTests(unittest.TestCase):
         yield {'type':'usage','input_tokens':20,'output_tokens':18}
         yield {'type':'finish','reason':'stop'}
 
-    def key(self,n=1):return 'live-'+str(self.user*10+n).zfill(32)
+    def key(self,n=1):return 'live-'+hashlib.sha256(f'{self.user}:{self.id()}:{n}'.encode()).hexdigest()[:32]
     def signal(self):
         import wave,struct,math
         data=io.BytesIO()
@@ -699,7 +699,7 @@ class LiveTranslatorTests(unittest.TestCase):
         self.assertEqual(schema['schema']['properties']['source_language']['enum'],['en','id','unknown'])
         self.assertEqual(schema['schema']['properties']['target_language']['enum'],['en','id','unknown'])
         self.assertEqual(body['model'],profile['model']);self.assertEqual(body['reasoning_effort'],profile['effort']);self.assertEqual(body['max_completion_tokens'],profile['output_tokens'])
-        self.assertEqual(body['messages'][1]['content'],text);self.assertIn('faithfully',body['messages'][0]['content']);self.assertEqual(request.call_count,1)
+        self.assertEqual(json.loads(body['messages'][1]['content']),{'source_text':text});self.assertIn('faithfully',body['messages'][0]['content']);self.assertEqual(request.call_count,1)
         instruction=body['messages'][0]['content']
         for requirement in ('idiomatic spoken wording','formality and emotional tone','natural sentence and question punctuation',
                             'complete meaning, facts, names, numbers, dates, units, negations and repetitions',

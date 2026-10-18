@@ -79,3 +79,25 @@ test('controlled mock polling detects ready results up to 250ms earlier; this is
  }
  assert.deepEqual(measurements,[1000,750]);
 });
+
+test('only owned expired ACTIVE metadata can renew with original pair voice consent; no speech POST',async()=>{
+ const params=new FormData();for(const [k,v] of Object.entries({language_a:'id',language_b:'en',voice:'kilas-female',consent:'yes'}))params.append(k,v);
+ for(const renewable of [true,false]){
+  const calls=[],admitted=[];const api=new TranslatorTurns({csrf:'test',json:async(url,options={})=>{calls.push({url,options});return url.endsWith('/renew')?{session_id:id,input_mode:'realtime-v1'}:{status:'ENDED',renewable};}});
+  const work=api.resume(id,null,new AbortController().signal,params,'realtime-v1',value=>admitted.push(value));
+  if(renewable){await work;const post=calls.at(-1);assert.equal(post.options.body.get('voice'),'kilas-female');assert.equal(post.options.body.get('language_a'),'id');assert.equal(post.options.body.get('consent'),'yes');assert.equal(admitted.length,1);}
+  else await assert.rejects(work,e=>e.code==='session_ended');
+  assert.equal(calls.some(c=>c.url.includes('/turns/')),false);assert.equal(calls.filter(c=>c.options.method==='POST').length,renewable?1:0);
+ }
+});
+test('cancelled input must reconcile durable lease before resume can finish',async()=>{
+ const c=clock(),calls=[];let reads=0;const api=new TranslatorTurns({csrf:'test',schedule:c.schedule,clear:c.clear,json:async(url)=>{calls.push(url);if(url.endsWith('/cancel'))return {status:'CANCELLED',input_settled:false};if(url.includes('/turns/'))return {status:'CANCELLED',input_settled:++reads>1};return {status:'ACTIVE',processing:false};}});
+ let done=false;const work=api.resume(id,key,new AbortController().signal).then(()=>done=true);await tick();assert.equal(done,false);await c.advance(250);assert.equal(done,false);await c.advance(250);await work;assert.equal(done,true);assert.equal(calls.filter(x=>x.endsWith('/cancel')).length,1);assert.equal(reads,2);
+});
+test('lost renewal acknowledgement recovers owned ACTIVE metadata once without another renewal or speech request',async()=>{
+ const calls=[],params=new FormData();for(const [k,v] of Object.entries({language_a:'id',language_b:'en',voice:'kilas-male',consent:'yes'}))params.append(k,v);
+ let reads=0,admitted=0;const api=new TranslatorTurns({csrf:'test',json:async(url,options={})=>{calls.push({url,options});if(url.endsWith('/renew'))throw Object.assign(Error('Lost ACK'),{code:'request_timeout'});return ++reads===1?{status:'ENDED',renewable:true}:{status:'ACTIVE',processing:false};}});
+ await api.resume(id,null,new AbortController().signal,params,'realtime-v1',result=>{assert.equal(result.session_id,id);admitted++;});assert.equal(admitted,1);assert.equal(calls.filter(c=>c.options.method==='POST').length,1);assert.equal(calls.some(c=>c.url.includes('/turns/')),false);
+ // A repeated recovery verifies the same ACTIVE row with no extra POST.
+ await api.resume(id,null,new AbortController().signal,params,'realtime-v1');assert.equal(calls.filter(c=>c.options.method==='POST').length,1);
+});

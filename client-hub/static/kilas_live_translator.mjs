@@ -1,10 +1,10 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=app-language-20261015';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=capture-callback-retirement-20261016';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=active-continuity-20261018';
 import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=auto-audio-context-20261018';
-import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=app-language-20261015';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=active-continuity-20261018';
 import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=app-language-20261015';
-import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=elevenlabs-prime-20261016';
+import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=active-continuity-20261018';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=explicit-pair-20261018';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=app-language-20261015';
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
@@ -103,7 +103,7 @@ if(root){
   if(session.state==='ended'&&!state.pending&&state.active?.expires_in_seconds>0)recoveryExpiry=setTimeout(()=>recovery.refresh(),state.active.expires_in_seconds*1000);
  }});
  recoveryEnd.addEventListener('click',()=>recovery.endPrevious());recoveryCheck.addEventListener('click',()=>recovery.refresh());recoveryRetry.addEventListener('click',()=>recovery.refresh());
- window.addEventListener('online',()=>recovery.refresh());recovery.refresh();
+ window.addEventListener('online',()=>{recovery.refresh();if(!document.hidden)session.foreground();});recovery.refresh();
  form.addEventListener('submit',event=>{event.preventDefault();if(!setupReady||session.state!=='ended'||!recovery.canStart())return;if(!form.reportValidity())return;
   if(!validLanguagePair(languageA,languageB)){showError(t('Pilih dua bahasa yang berbeda sebelum memulai sesi.'));languageB.focus();return;}
   error.hidden=true;document.querySelector('#live-translation').hidden=true;const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext){showError(t('Browser ini belum mendukung audio sesi.'));return;}
@@ -117,5 +117,5 @@ if(root){
    if(url){const data=new FormData();data.append('csrf_token',csrf);try{navigator.sendBeacon(url,data);}catch{}}
   }
  });
- document.addEventListener('visibilitychange',()=>{if(document.hidden)session.suspend();});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)session.suspend();else session.foreground();});
 }

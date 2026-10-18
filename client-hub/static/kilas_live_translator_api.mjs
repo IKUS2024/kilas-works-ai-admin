@@ -38,11 +38,29 @@ export class TranslatorTurns {
     const cancel=()=>{this.clear(timer);signal.removeEventListener('abort',cancel);reject(aborted());};
     const timer=this.schedule(()=>{signal.removeEventListener('abort',cancel);resolve();},this.pollMs);signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
   });}
-  cancel(id,key){const data=new FormData();data.append('csrf_token',this.csrf);return this.json(this.path(id,key)+'/cancel',{method:'POST',body:data,timeoutMs:10000,keepalive:true});}
-  async resume(id,key,signal){
-    if(key){await this.cancel(id,key);if(signal.aborted)throw aborted();}
-    const state=await this.json('/kilas-translator/live/sessions/'+encodeURIComponent(id),{signal,timeoutMs:10000});
-    if(state.status!=='ACTIVE')throw error('session_ended',t('Sesi ini sudah diakhiri. Tekan End untuk menutup tampilan ini.'));
+  async cancel(id,key,signal){const data=new FormData();data.append('csrf_token',this.csrf);let state=await this.json(this.path(id,key)+'/cancel',{method:'POST',body:data,timeoutMs:10000,keepalive:true});
+    for(let n=0;state.input_settled===false&&n<12;n++){await this.pause(signal||new AbortController().signal);state=await this.json(this.path(id,key),{signal,timeoutMs:3000});}
+    if(state.input_settled===false)throw error('cancel_unconfirmed',t('Pembatalan ucapan belum terkonfirmasi.'));return state;}
+  async resume(id,key,signal,params=null,inputMode=null,onRenewed=()=>{}){
+    const url='/kilas-translator/live/sessions/'+encodeURIComponent(id);
+    if(key){try{await this.cancel(id,key,signal);}catch(e){if(e.code!=='session_ended')throw e;}if(signal.aborted)throw aborted();}
+    const state=await this.json(url,{signal,timeoutMs:10000});
+    if(state.status!=='ACTIVE'){
+      if(!state.renewable||!params)throw error('session_ended',t('Sesi ini sudah diakhiri. Tekan End untuk menutup tampilan ini.'));
+      const data=new FormData();for(const name of ['language_a','language_b','voice','consent'])data.append(name,params.get(name)||'');data.append('csrf_token',this.csrf);data.append('input_mode',inputMode||'');
+      let result;
+      try{result=await this.json(url+'/renew',{method:'POST',body:data,signal,timeoutMs:15000});}
+      catch(e){
+        if(signal.aborted||!['request_timeout','response_invalid'].includes(e.code))throw e;
+        // An ambiguous renewal is a free metadata operation. Inspect its owned
+        // result once; never retry the POST or re-send the old speech.
+        const current=await this.json(url,{signal,timeoutMs:10000});
+        if(current.status!=='ACTIVE'||current.processing)throw e;
+        result={session_id:id,input_mode:inputMode};
+      }
+      // Deliver admission even if End raced the response, so its new ID is ended.
+      await onRenewed(result);if(signal.aborted)throw aborted();return result;
+    }
     if(state.processing)throw error('turn_busy',t('Ucapan sebelumnya belum terkonfirmasi selesai. Periksa lagi saat koneksi siap.'));
   }
   async turn(id,key,blob,signal,onSegment=null,onPrefetch=null){
@@ -114,7 +132,7 @@ export class TranslatorTurns {
         if(result.status==='FAILED'){
           if(result.code==='stream_unavailable')this.disabledStreamSession=id;
           const failure=error(result.code||'processing_failed',result.error||t('Ucapan belum berhasil diproses.'));
-          failure.recoverable=Boolean(result.recoverable);failure.turnSettled=result.code!=='processing_interrupted';throw failure;
+          failure.recoverable=Boolean(result.recoverable);failure.turnSettled=result.code!=='processing_interrupted'&&result.input_settled!==false;throw failure;
         }
         if(result.status==='CANCELLED')throw error('turn_cancelled',t('Ucapan ini dibatalkan dan tidak diulang otomatis.'));
         if(this.now()>=deadline+playbackMs+(activeSince===null?0:Math.max(0,this.now()-activeSince)))throw error('turn_timeout',t('Ucapan ini belum selesai. Silakan bicara kembali setelah pemulihan.'));
@@ -129,7 +147,7 @@ export class TranslatorTurns {
       // Confirm a scoped cancellation/tombstone before allowing another recording.
       if(!e.turnSettled){
         try{
-          const state=await this.cancel(id,key);if(signal.aborted)throw aborted();
+          const state=await this.cancel(id,key,signal);if(signal.aborted)throw aborted();
           if(!['CANCELLED','FAILED','COMPLETED'].includes(state.status))throw error('cancel_unconfirmed',t('Pembatalan ucapan belum terkonfirmasi.'));
           if(state.status==='COMPLETED'&&!e.segmentPlayback&&!startedClips&&e.code!=='stream_invalid'){
             const completed=await this.json(url,{signal,timeoutMs:15000});

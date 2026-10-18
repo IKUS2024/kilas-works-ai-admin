@@ -297,7 +297,7 @@ class BrowserApplicationFlowTests(unittest.TestCase):
             yield {'type': 'usage', 'input_tokens': 21, 'output_tokens': 19}
             yield {'type': 'finish', 'reason': 'stop'}
 
-        def connect():
+        def connect(info):
             return AutomaticSocket('Complete stable source utterance.')
 
         with self.context(realtime_on=True), patch.object(realtime, 'connect', side_effect=connect) as socket, \
@@ -379,13 +379,13 @@ class BrowserApplicationFlowTests(unittest.TestCase):
         self.assertNotEqual(raws[0], raws[1])
         seen, sockets, responses = [], [], []
 
-        def connect():
+        def connect(info):
             socket = AutomaticSocket(sources[len(sockets)])
             sockets.append(socket)
             return socket
 
         def translate(*args, **kwargs):
-            seen.append(args[2][0]['content'])
+            seen.append(json.loads(args[2][0]['content'])['source_text'])
             index = len(seen) - 1
             yield {'type': 'delta', 'text': json.dumps({
                 'text': translations[index], 'source_language': 'id', 'target_language': 'en',

@@ -74,7 +74,7 @@ test('End abort cancels scoped input and late start acknowledgement cannot send 
  const held=deferred(),f=inputFixture({delay:()=>held.promise}),work=f.push(new Uint8Array(32000)),failed=assert.rejects(work,{name:'AbortError'});f.controller.abort();held.resolve();await failed;assert.equal(f.accepted.length,0);assert.equal(f.requests.filter(r=>r.path.endsWith('/cancel')).length,1);f.input.reset();
 });
 test('lost final commit acknowledgement cancels without any batch fallback/regeneration',async()=>{
- const f=inputFixture({failCommit:true});await f.push(new Uint8Array(32000));await assert.rejects(f.finish(),e=>e.code==='request_timeout'&&e.turnSettled&&!e.recoverable);assert.equal(f.requests.filter(r=>r.path.endsWith('/input/start')).length,1);assert.equal(f.requests.filter(r=>r.path.endsWith('/input/commit')).length,1);assert.equal(f.requests.filter(r=>r.path.endsWith('/cancel')).length,1);
+ const f=inputFixture({failCommit:true});await f.push(new Uint8Array(32000));await assert.rejects(f.finish(),e=>e.code==='request_timeout'&&e.turnSettled&&e.recoverable);assert.equal(f.requests.filter(r=>r.path.endsWith('/input/start')).length,1);assert.equal(f.requests.filter(r=>r.path.endsWith('/input/commit')).length,1);assert.equal(f.requests.filter(r=>r.path.endsWith('/cancel')).length,1);
 });
 test('settled realtime output polls existing turn with no admission/paidSTTPOST',async()=>{
  const requests=[],api=new TranslatorTurns({csrf:'synthetic',json:async(path,options={})=>{requests.push({path,options});return {status:'COMPLETED',audio_url:url+'/audio',translated_text:'Complete saved translation'};}});
@@ -123,4 +123,34 @@ test('realtime session waits tail/commit plus backend and complete playback befo
  const api={start:async()=>({session_id:id,input_mode:'realtime-v1'}),input:{reset(){},push:async(...args)=>calls.push(['pcm',args[2].byteLength]),finish:async()=>{calls.push(['commit']);await committed.promise;}},turn:async(_id,_key,blob,signal,onSegment)=>{assert.equal(blob,null);calls.push(['poll']);await onSegment({audio_url:url+'/audio/segments/0',translated_text:'Complete first sentence.'});await producer.promise;await onSegment({audio_url:url+'/audio/segments/1',translated_text:'Complete first sentence. Last sentence.'});return {streamed:true,translated_text:'Complete first sentence. Last sentence.'};},end:async()=>{}};
  const session=new TranslatorSession({api,capture,playback:{prepare:async()=>{},play:async(audio,signal,current,onStarted)=>{assert.equal(mics,0);plays.push(audio);onStarted();if(plays.length===2)await lastPlay.promise;},cancel(){},stop(){}},now:()=>now,key:()=> 'b'.repeat(32),onTiming:value=>timings.push(value)});
  await session.start({});handlers.pcm(new Uint8Array(6400));handlers.level(.1);now=2000;handlers.level(0);await tick();assert.deepEqual(calls,[['pcm',6400],['pcm',138],['commit']]);assert.equal(mics,0);committed.resolve();await tick();assert.equal(plays.length,1);assert.equal(mics,0);producer.resolve();await tick();assert.equal(plays.length,2);assert.equal(mics,0);lastPlay.resolve();await tick();assert.equal(mics,1);assert.equal(session.state,'listening');assert.equal(timings[0].speech_end_to_submit_ms,2000);session.end();
+});
+
+test('failed PCM settles once before listening for fresh speech; it never replays prior bytes',async()=>{
+ const requests=[],gate=deferred();let failed=true,handlers,mics=0,captures=0,sequence=0;
+ const input=new RealtimeInput({csrf:'test',json:async(path,options={})=>{
+  requests.push(path);if(path.endsWith('/cancel')){await gate.promise;return {status:'CANCELLED',input_settled:true};}
+  if(path.endsWith('/input/start'))return {input_mode:'realtime-v1'};
+  if(path.includes('/input/chunks/')){if(failed){failed=false;throw Object.assign(Error('transport lost'),{code:'realtime_transport'});}return {accepted_index:Number(path.split('/').at(-1))};}
+  if(path.endsWith('/input/commit'))return {status:'PROCESSING'};throw Error('unexpected request');
+ }});
+ const capture={start:async h=>{handlers=h;mics++;captures++;},cancel(){mics=0;},finalize(){mics=0;handlers.blob(null);}};
+ const session=new TranslatorSession({capture,api:{input,start:async()=>({session_id:id,input_mode:'realtime-v1'}),resume:async()=>{},turn:async()=>({audio_url:'/synthetic'}),end:async()=>{}},playback:{play:async()=>assert.equal(mics,0),stop(){}},key:()=>String(++sequence).padStart(32,'0')});
+ await session.start({});const stale=handlers;handlers.pcm(new Uint8Array(6400));await tick();assert.equal(captures,1);gate.resolve();await tick();assert.equal(session.state,'listening');assert.equal(captures,2);
+ stale.pcm(new Uint8Array(6400));handlers.pcm(new Uint8Array(6400));await tick();session.stateTo('finalizing');handlers.blob(null);await tick();assert.equal(captures,3);
+ assert.equal(requests.filter(x=>x.endsWith('/cancel')).length,1);assert.equal(requests.filter(x=>x.endsWith('/input/start')).length,2);assert.equal(requests.filter(x=>x.endsWith('/input/commit')).length,1);session.end();
+});
+test('credit failure or unconfirmed cancellation never authorizes fresh input',async()=>{
+ for(const mode of ['credit','unknown']){
+  let starts=0;const input=new RealtimeInput({csrf:'test',json:async path=>{
+   if(path.endsWith('/cancel'))return mode==='credit'?{status:'FAILED',code:'provider_credit_exhausted',recoverable:false}:null;
+   if(path.endsWith('/input/start')){starts++;throw Object.assign(Error('input failed'),{code:'realtime_transport'});}throw Error('No replay allowed');
+  }});
+  await assert.rejects(input.push(id,key,new Uint8Array(6400),new AbortController().signal),e=>e.recoverable===false);assert.equal(starts,1);
+ }
+});
+test('already-failed input reads its real terminal cause before allowing fresh speech',async()=>{
+ for(const code of ['realtime_transport','provider_credit_exhausted']){
+  const paths=[],input=new RealtimeInput({csrf:'test',json:async path=>{paths.push(path);if(path.endsWith('/input/start'))throw Object.assign(Error('input failed'),{code:'realtime_failed'});if(path.endsWith('/cancel'))return {status:'FAILED'};return {status:'FAILED',code,recoverable:code==='realtime_transport'};}});
+  await assert.rejects(input.push(id,key,new Uint8Array(6400),new AbortController().signal),e=>e.code===code&&e.recoverable===(code==='realtime_transport'));assert.deepEqual(paths,[url+'/input/start',url+'/cancel',url]);
+ }
 });

@@ -158,3 +158,19 @@ test('a too-long recording pauses truthfully without sending truncated speech or
  const f=fixture();await f.session.start({});f.handlers.error(Object.assign(Error('Recording limit'),{code:'utterance_limit'}));await tick();
  assert.equal(f.session.state,'paused');assert.equal(f.calls,0);assert.equal(f.mics,0);assert.equal(f.ends,0);f.session.end();
 });
+
+test('foreground resumes intentional background suspension once; End fences late verification',async()=>{
+ const f=fixture(),verify=deferred();let checks=0;f.api.resume=async()=>{checks++;await verify.promise;};
+ await f.session.start({});f.session.suspend();assert.equal(f.mics,0);
+ const work=f.session.foreground();f.session.foreground();await tick();assert.equal(checks,1);
+ f.session.end();verify.resolve();await work;assert.equal(f.session.state,'ended');assert.equal(f.mics,0);assert.equal(f.captureCalls,1);
+});
+for(const code of ['auth_required','provider_credit_exhausted','microphone_denied','manual_pause'])test(`background/online cannot override ${code} pause`,async()=>{
+ const f=fixture();await f.session.start({});f.session.pause(Object.assign(Error('blocked'),{code}));f.session.suspend();await f.session.foreground();assert.equal(f.session.state,'paused');assert.equal(f.captureCalls,1);assert.equal(f.session.pauseReason.code,code);f.session.end();
+});
+test('End during authenticated renewal ends returned admission and never restarts microphone',async()=>{
+ const f=fixture(),renewed=deferred();const ended=[];f.api.end=async id=>ended.push(id);
+ f.api.resume=async(_id,_key,_signal,_params,_mode,onRenewed)=>{await renewed.promise;await onRenewed({session_id:'b'.repeat(48),input_mode:'batch'});};
+ await f.session.start(new FormData());f.session.suspend();const work=f.session.foreground();await tick();f.session.end();renewed.resolve();await work;
+ assert.deepEqual(ended,['a'.repeat(48),'b'.repeat(48)]);assert.equal(f.mics,0);assert.equal(f.captureCalls,1);assert.equal(f.session.state,'ended');
+});

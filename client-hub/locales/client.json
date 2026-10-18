@@ -671,5 +671,7 @@
   "Audio sesi sudah tidak tersedia. Audio yang kedaluwarsa tidak dapat dipulihkan.",
   "Permintaan audio sesi tidak valid. Akhiri sesi lalu mulai kembali.",
   "Respons audio sesi tidak valid.",
-  "Ekspor dokumen besar belum lolos verifikasi sandbox. File kecil tetap tersedia."
+  "Ekspor dokumen besar belum lolos verifikasi sandbox. File kecil tetap tersedia.",
+  "Input sesi berubah. Akhiri sesi lalu mulai kembali.",
+  "Input suara terputus. Silakan bicara kembali."
 ]

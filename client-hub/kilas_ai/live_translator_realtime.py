@@ -52,12 +52,13 @@ def require_ready(owner):
     if not ready(owner):raise failure('realtime_unverified')
 
 
-def connect():
+def connect(info):
     # Lazy import: importing/testing this module never opens a paid connection.
     import websocket
+    sessions.require_explicit_pair(info['language_a'],info['language_b'],voice=info['voice_alias'])
     query=urlencode({'model_id':account.MODEL,'audio_format':'pcm_16000','commit_strategy':'manual',
         'include_timestamps':'false','include_language_detection':'false','no_verbatim':'false',
-        'enable_logging':'true'})
+        'enable_logging':'true','secondary_languages':[info['language_a'],info['language_b']]},doseq=True)
     return websocket.create_connection('wss://api.elevenlabs.io/v1/speech-to-text/realtime?'+query,
         header={'xi-api-key':os.environ['ELEVENLABS_API_KEY'].strip()},timeout=5,enable_multithread=True,redirect_limit=0)
 
@@ -208,7 +209,7 @@ class Relay:
             with live._timed(timings,'credit_stt_ms'):stt.require_subscription_credit()
             self.check()
             budget.dispatch(self.capability)  # Unknown handshake cost is durable.
-            with live._timed(timings,'input_connect_ms'):self.ws=connect()
+            with live._timed(timings,'input_connect_ms'):self.ws=connect(self.info)
             self.check();self.ws.settimeout(8)
             raw=self.ws.recv()
             if not isinstance(raw,str) or len(raw)>65536:raise failure('realtime_response_invalid')
@@ -315,3 +316,11 @@ def owned(owner,ident,key):
 def cancel(owner,ident,key=None):
     with _lock:relays=[r for (user,session,operation),r in _relays.items() if user==owner and session==ident and (key is None or operation==key)]
     for relay in relays:relay.close(failure('turn_cancelled'))
+
+
+def settled(owner,key):
+    # Cross-worker durable evidence; cancelling the session row alone does not
+    # prove the provider lease was reconciled. UNKNOWN retains its full charge.
+    row=db.query_one('SELECT status FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',
+                     (owner,budget.ledger_key(key)))
+    return not row or row['status'] not in ('RESERVED','DISPATCHED')

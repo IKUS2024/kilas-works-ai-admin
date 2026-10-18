@@ -11,8 +11,8 @@ async function page(name,{pendingAdmission=false,invalidAdmission=false,pendingA
  const intervals=new Map(),timers=new Map(),events=new Map(),docEvents=new Map(),formEvents=new Map();let seq=0;
  const node=()=>({hidden:true,disabled:false,textContent:'',dataset:{},attrs:{},setAttribute(k,v){this.attrs[k]=v;},getAttribute(k){return this.attrs[k];},addEventListener(type,fn){this[type]=fn;}});
  const a={value:'id',options:[{value:'id'},{value:'en'}],addEventListener(){}},b={value:'en',options:[{value:'id'},{value:'en'}],addEventListener(){}};
- const start=node();start.hidden=false;const orb=node();
- const form={elements:{language_a:a,language_b:b},querySelector:q=>q==='button'?start:{value:'synthetic-csrf'},reportValidity:()=>true,addEventListener:(type,fn)=>formEvents.set(type,fn)};
+ const start=node();start.hidden=false;start.dataset.enabled='true';const orb=node();
+ const form={elements:{language_a:a,language_b:b},querySelector:q=>q.startsWith('button')?start:{value:'synthetic-csrf'},reportValidity:()=>true,addEventListener:(type,fn)=>formEvents.set(type,fn)};
  const nodes={'.kilas-live-translator':{dataset:{ready:'true'}},'#live-setup-form':form,'#live-setup':node(),'#live-active':Object.assign(node(),{querySelector:()=>orb})};
  for(const key of ['live-error','live-end','live-resume','live-state','live-translation','live-recovery','live-recovery-status','live-recovery-end','live-recovery-check','live-recovery-retry','live-session-status'])nodes['#'+key]=node();
  const sources=[];
@@ -101,13 +101,13 @@ test('bounded long recording pauses with End visible; no truncated speech reache
  }finally{f.restore();}
 });
 
-test('hidden/unloaded page cancels only its turn; explicit Resume checks it without re-sending the recording',async()=>{
+test('hidden/unloaded page cancels only its turn; foreground verifies it without re-sending the recording',async()=>{
  const f=await page('hidden');try{
   f.stats.deferTurn=deferred();f.stats.rms=.1;f.monitor();f.stats.rms=0;f.stats.now=2000;f.monitor();await tick();
   globalThis.document.hidden=true;f.docEvents.get('visibilitychange')();f.events.get('pagehide')();assert.equal(f.stats.mics,0);assert.equal(f.nodes['#live-state'].textContent,'Sesi dijeda');
   assert.equal(f.stats.beacons.length,1);assert.ok(f.stats.beacons[0].endsWith('/cancel'));assert.equal(f.stats.requests.some(r=>r.url.endsWith('/end')),false);
   f.stats.deferTurn.resolve();await tick();assert.equal(f.stats.plays,0);
-  globalThis.document.hidden=false;f.nodes['#live-resume'].click();await tick();assert.equal(f.stats.mics,1);assert.equal(f.nodes['#live-state'].textContent,'Mendengarkan');
+  globalThis.document.hidden=false;f.docEvents.get('visibilitychange')();await tick();assert.equal(f.stats.mics,1);assert.equal(f.nodes['#live-state'].textContent,'Mendengarkan');
   assert.equal(f.stats.requests.filter(r=>r.method==='POST'&&r.url.includes('/turns/')&&!r.url.endsWith('/cancel')).length,1);await f.finish();
  }finally{f.restore();}
 });
