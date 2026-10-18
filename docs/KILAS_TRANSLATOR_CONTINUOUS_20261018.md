@@ -6,6 +6,8 @@ Read-only owner-scoped counters and failed-turn metadata correlate the reported 
 
 The current three related owner monthly campaign ledgers had $1.718862 combined conservative reserved estimates against the existing shared $22 allowance. These are internal reservations, not a provider invoice. No history, reservation, money allowance, subscription, pricing or expiry was reset/increased.
 
+Later owner instruction expands this owner-only release to all entitled production Translator customers; see `KILAS_TRANSLATOR_ENTITLED_AND_DETECTION_20261018.md`. The accounting diagnosis below remains unchanged.
+
 ## Narrow change
 
 Only the existing explicitly funded owner in STT `owner` mode **and** Live Translator `owner` mode skips Live daily/hourly test turn counts. Trial eligibility alone does not grant the exemption. The helper is shared by batch Auto-detect and realtime input admission. A server-only Live pipeline marker is required after session validation; a client-chosen `live-*` key on another endpoint cannot opt in. Other trial members, dictation, Learning and QA Live routes retain their count limits. This release does not expand the audience or grant continuous usage to every customer.

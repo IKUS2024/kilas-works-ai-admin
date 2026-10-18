@@ -44,6 +44,7 @@ class Reservation:
     owner: int
     key: str
     lease: str
+    live_session: bool = False
 
 
 def policy():
@@ -82,6 +83,31 @@ def configured():
 def ready(owner=None):
     config=policy()
     return bool(config and configured() and free_test.speech_audience(owner,config))
+
+
+def live_audience(owner, config):
+    """Existing sponsored audience or normal paid-customer production access.
+
+    This is only an audience check. Live admission must separately enforce
+    customer Audio entitlement, shared provider funding and provider readiness.
+    Other STT/QA endpoints retain speech_audience's original restrictions.
+    """
+    if free_test.speech_audience(owner, config, allow_unscoped=False):return True
+    # Preserve the existing finite batch QA campaign, whose separate Live
+    # allowlist scopes an otherwise unscoped STT QA configuration.
+    if config and config.get('mode')=='qa' and config.get('allowed_owner') is None:
+        try:return type(owner) is int and owner>0 and owner==int(os.environ.get('KILAS_LIVE_TRANSLATOR_ALLOWED_OWNER_ID','0'))
+        except ValueError:return False
+    # Sponsorship still requires its existing dated audience/proof. Do not turn
+    # a revoked trial proof into an Audio-credit exemption through this branch.
+    if free_test.active() or not config or not continuous_live(owner,config,'live-audience'):return False
+    row=db.query_one('SELECT role FROM users WHERE id=?',(owner,))
+    return bool(row and row['role']=='CLIENT_OWNER')
+
+
+def live_ready(owner):
+    config=policy()
+    return bool(config and configured() and live_audience(owner,config))
 
 
 def key_valid(key):
@@ -134,37 +160,35 @@ def owned(owner,key):
         return {'status':row[3],'operation_key':key} if row else None
 
 
-def continuous_owner_live(owner, config, key):
-    """Only the existing explicitly funded production owner Live route.
-
-    Trial membership alone never grants this exemption. Monetary reservations,
-    entitlement and shared concurrency still apply to every utterance.
-    """
-    return (key.startswith('live-') and config.get('mode') == 'owner'
-            and config.get('allowed_owner') == owner
+def continuous_live(owner, config, key):
+    """Production Live only; audience/entitlement remain separate admission gates."""
+    return (type(owner) is int and owner > 0 and key.startswith('live-')
+            and config.get('mode') == 'owner'
+            and config.get('allowed_owner') is not None
             and os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE', 'qa') == 'owner')
 
 
 def live_policy_report():
     config = policy() or {}
-    enabled = continuous_owner_live(config.get('allowed_owner'), config, 'live-policy')
-    print('KILAS_LIVE_INPUT_POLICY continuous_owner_live=' + str(enabled)
+    enabled = continuous_live(config.get('allowed_owner'), config, 'live-policy')
+    print('KILAS_LIVE_INPUT_POLICY continuous_entitled_live=' + str(enabled)
           + ' budget_mode=' + str(config.get('mode', 'unavailable'))
           + ' live_mode=' + os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE', 'qa')
-          + ' trial_turn_caps=True monetary_caps=True shared_concurrency=True', flush=True)
+          + ' paid_customer_audience=' + str(enabled)
+          + ' nonlive_trial_turn_caps=True monetary_caps=True shared_concurrency=True', flush=True)
 
 
 def _admit(conn,owner,config,reserve=0,key='',*,live_session=False):
     cutoff=(datetime.now(timezone.utc)-timedelta(days=1)).isoformat()
     # The server Live pipeline supplies this marker after session validation.
     # A user-chosen live-* operation key on another endpoint cannot opt in.
-    continuous = live_session and continuous_owner_live(owner, config, key)
+    continuous = live_session and continuous_live(owner, config, key)
     if free_test.eligible(owner,conn):trial_admit(conn,owner,continuous_live=continuous)
     # Live QA has its own finite allowance; a successful dictation must not
     # consume the two turns needed to test translation in both directions.
     if key.startswith('live-') and config['mode']=='owner':
         mode=os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa')
-        if (config['allowed_owner']!=owner and not free_test.eligible(owner,conn)) or mode not in ('qa','owner'):
+        if (config['allowed_owner']!=owner and not free_test.eligible(owner,conn) and not continuous) or mode not in ('qa','owner'):
             raise BudgetError('budget_unavailable')
         if not continuous:
             daily=4 if mode=='qa' else OWNER_DAILY_ATTEMPTS
@@ -196,7 +220,8 @@ def claim(owner,key,fingerprint,ms,*,live_session=False):
     key_valid(key)
     config=policy()
     if not config or not configured():raise BudgetError('budget_unavailable')
-    if not free_test.speech_audience(owner,config):raise BudgetError('not_owned',404)
+    audience=live_audience(owner,config) if live_session else free_test.speech_audience(owner,config)
+    if not audience:raise BudgetError('not_owned',404)
     if not re.fullmatch(r'[a-f0-9]{64}',fingerprint) or type(ms) is not int or not 0<ms<=600000:raise BudgetError('invalid_audio',400)
     with transaction() as conn:
         _campaign(conn,config);_owner(conn,owner);_expire(conn,campaign=config['id'])
@@ -208,7 +233,7 @@ def claim(owner,key,fingerprint,ms,*,live_session=False):
         _admit(conn,owner,config,reserve,key,live_session=live_session)
         lease=secrets.token_hex(32)
         usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at) VALUES (?,?,?,?,'RESERVED',?,?,?,?)",(owner,key,config['id'],fingerprint,reserve,ms,_hash(lease),datetime.now(timezone.utc).isoformat()))
-        return {'status':'RESERVED','operation_key':key},Reservation(owner,key,lease)
+        return {'status':'RESERVED','operation_key':key},Reservation(owner,key,lease,live_session=live_session)
 
 
 def dispatch(capability,fingerprint,ms):
@@ -216,7 +241,8 @@ def dispatch(capability,fingerprint,ms):
     if type(capability) is not Reservation:raise BudgetError('invalid_reservation')
     config=policy()
     if not config or not configured():raise BudgetError('budget_unavailable')
-    if not free_test.speech_audience(capability.owner,config):raise BudgetError('not_owned',404)
+    audience=live_audience(capability.owner,config) if capability.live_session else free_test.speech_audience(capability.owner,config)
+    if not audience:raise BudgetError('not_owned',404)
     with transaction() as conn:
         _campaign(conn,config);_owner(conn,capability.owner);_expire(conn,campaign=config['id'])
         row=_row(conn,capability.owner,capability.key)

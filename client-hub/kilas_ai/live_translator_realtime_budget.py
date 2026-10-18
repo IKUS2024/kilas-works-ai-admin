@@ -29,7 +29,7 @@ def ledger_key(key):
 
 def claim(owner,ident,key):
     policy=config();operation=ledger_key(key)
-    if not batch.configured() or not batch.free_test.speech_audience(owner,policy,allow_unscoped=False):raise batch.BudgetError('budget_unavailable')
+    if not batch.configured() or not batch.live_audience(owner,policy):raise batch.BudgetError('budget_unavailable')
     fingerprint=hashlib.sha256((ident+':'+key).encode()).hexdigest()
     with transaction() as conn:
         batch._campaign(conn,policy);batch._owner(conn,owner)
@@ -46,7 +46,7 @@ def claim(owner,ident,key):
 def dispatch(capability):
     if type(capability) is not batch.Reservation:raise batch.BudgetError('invalid_reservation')
     policy=config()
-    if not batch.free_test.speech_audience(capability.owner,policy,allow_unscoped=False):raise batch.BudgetError('budget_unavailable')
+    if not batch.live_audience(capability.owner,policy):raise batch.BudgetError('budget_unavailable')
     with transaction() as conn:
         row=batch._lock_existing_campaign(conn,capability.owner,capability.key);batch._owner(conn,capability.owner)
         if not row or row[1]!=policy['id'] or row[3]!='RESERVED' or row[5]!=batch._hash(capability.lease) or row[4]!=RESERVE_MICRO or row[6]!=LEASE_MS:raise batch.BudgetError('invalid_reservation')

@@ -162,7 +162,7 @@ class DetectionContracts(unittest.TestCase):
                 self.assertEqual(expired.status_code,410);self.assertEqual(expired.json['code'],'session_output_expired')
                 self.assertEqual(tts.call_count,1);self.assertEqual(llm.call_count,1)
             except ValueError as error:
-                if getattr(error,'code',None) in ('detection_uncertain','detected_language_unsupported','detected_language_is_target'):
+                if getattr(error,'code',None) in ('detection_unavailable','detection_uncertain','detected_language_unsupported','detected_language_is_target'):
                     result=self.client.get('/kilas-translator/live/sessions/'+ident+'/turns/'+key)
                     self.assertEqual(result.json['code'],error.code)
                     self.assertNotIn('Permintaan belum berhasil',result.json['error'])
@@ -179,7 +179,7 @@ class DetectionContracts(unittest.TestCase):
 
     def test_uncertain_unsupported_target_and_provider_errors_never_reach_llm_or_tts(self):
         self.credit(300)
-        cases=[({'language_code':'eng','language_probability':.99},'detected_language_is_target'),({'language_code':'amh','language_probability':.99},'detected_language_unsupported'),({'language_code':'jav','language_probability':.3},'detection_uncertain'),({'language_code':'jav'},'detection_uncertain'),({'language_code':'unknown','language_probability':.99},'detection_uncertain')]
+        cases=[({'language_code':'eng','language_probability':.99},'detected_language_is_target'),({'language_code':'amh','language_probability':.99},'detected_language_unsupported'),({'language_code':'jav','language_probability':.3},'detection_uncertain'),({'language_code':'jav'},'detection_unavailable'),({'language_code':'unknown','language_probability':.99},'detection_unavailable')]
         with self.funded(),self.on(),patch.object(budget,'DAILY_ATTEMPTS',20):
             for index,(metadata,code) in enumerate(cases):
                 self.key=lambda index=index:'live-'+str(self.user*100+index).zfill(32)
@@ -192,6 +192,26 @@ class DetectionContracts(unittest.TestCase):
             self.key=lambda:'live-'+str(self.user*100+100).zfill(32)
             with self.assertRaises(ValueError) as error:self.turn({'language_code':'jav','language_probability':.99},reverse=True)
             self.assertEqual(error.exception.code,'translation_language_mismatch');self.assertEqual(self.last_calls,(1,0))
+
+
+
+class DetectionDiagnostics(unittest.TestCase):
+    def test_failure_reasons_preserve_threshold_and_exclude_private_payload(self):
+        from contextlib import redirect_stdout
+        cases=[({},'missing_probability','detection_unavailable'),({'language_probability':True},'invalid_probability','detection_unavailable'),({'language_probability':float('nan')},'invalid_probability','detection_unavailable'),({'language_probability':.699},'low_probability','detection_uncertain'),({'language_code':'PRIVATE_CODE','language_probability':.99},'unknown_language','detection_unavailable')]
+        for fields,reason,code in cases:
+            output=io.StringIO()
+            with redirect_stdout(output),self.assertRaises(ValueError) as denied:
+                languages.detected_source({'text':'PRIVATE_TRANSCRIPT','language_code':'jav',**fields},'en',input_ms=1250)
+            self.assertEqual(denied.exception.code,code);self.assertIn('reason='+reason,output.getvalue());self.assertIn('input_ms=1250',output.getvalue());self.assertNotIn('PRIVATE',output.getvalue())
+        with patch.object(languages,'classic_names',return_value=languages.names(languages.CLASSIC)):
+            self.assertEqual(languages.detected_source({'language_code':'jav','language_probability':.7},'en'),'jv')
+        import ui_i18n
+        message='Data deteksi bahasa belum tersedia dari layanan suara. Pilih bahasa sumber lalu bicara kembali.'
+        for locale in ('id','en','es','zh'):
+            with f.audio.f.app.app.test_request_context('/',headers={'Cookie':'kilas_language='+locale}):
+                translated=ui_i18n.translate(message)
+                self.assertTrue(translated);self.assertTrue(locale=='id' or translated!=message)
 
 
 if __name__=='__main__':unittest.main()

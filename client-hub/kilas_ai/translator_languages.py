@@ -32,16 +32,30 @@ def localized_names(*,native=False):
     return result
 
 
-def detected_source(metadata,target):
+def detected_source(metadata,target,*,input_ms=None):
     from .audio_store import AudioError
+    metadata=metadata if isinstance(metadata,dict) else {}
     source=canonical(metadata.get('language_code'))
     confidence=metadata.get('language_probability')
-    if type(confidence) not in (int,float) or not 0.7<=confidence<=1 or source is None:
-        raise AudioError('Bahasa ucapan belum terdeteksi dengan yakin. Pilih bahasa sumber lalu bicara kembali.','detection_uncertain',422)
+    valid_probability=type(confidence) in (int,float) and 0<=confidence<=1
+    def reject(reason,code,message):
+        # Fixed reason + numeric metadata only. Never transcript/audio/provider
+        # body, language name, user/session/operation identifiers or credentials.
+        probability=f'{confidence:.3f}' if valid_probability else 'missing' if confidence is None else 'invalid'
+        duration=str(int(input_ms)) if type(input_ms) in (int,float) and 0<=input_ms<=600000 else 'unknown'
+        try:print(f'KILAS_LANGUAGE_DETECTION reason={reason} confidence={probability} input_ms={duration}',flush=True)
+        except OSError:pass
+        raise AudioError(message,code,422)
+    unavailable='Data deteksi bahasa belum tersedia dari layanan suara. Pilih bahasa sumber lalu bicara kembali.'
+    if not valid_probability:
+        reject('missing_probability' if confidence is None else 'invalid_probability','detection_unavailable',unavailable)
+    if source is None:reject('unknown_language','detection_unavailable',unavailable)
+    if confidence<0.7:
+        reject('low_probability','detection_uncertain','Bahasa ucapan belum terdeteksi dengan yakin. Pilih bahasa sumber lalu bicara kembali.')
     if source not in classic_names():
-        raise AudioError('Bahasa yang terdeteksi belum didukung oleh suara Translator. Pilih bahasa sumber yang didukung.','detected_language_unsupported',422)
+        reject('unsupported_language','detected_language_unsupported','Bahasa yang terdeteksi belum didukung oleh suara Translator. Pilih bahasa sumber yang didukung.')
     if source==target:
-        raise AudioError('Bahasa ucapan sama dengan bahasa tujuan. Pilih bahasa tujuan lain.','detected_language_is_target',422)
+        reject('same_target','detected_language_is_target','Bahasa ucapan sama dengan bahasa tujuan. Pilih bahasa tujuan lain.')
     return source
 
 _cache=None

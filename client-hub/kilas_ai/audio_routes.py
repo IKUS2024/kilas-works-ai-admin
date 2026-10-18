@@ -753,7 +753,8 @@ def live_translator_turn(ident,key):
                'source_language':job['source_language'],'target_language':job['target_language']}
     elif state['status']=='FAILED':
         code=state.get('error_code')
-        messages={'detection_uncertain':'Bahasa ucapan belum terdeteksi dengan yakin. Pilih bahasa sumber lalu bicara kembali.',
+        messages={'detection_unavailable':'Data deteksi bahasa belum tersedia dari layanan suara. Pilih bahasa sumber lalu bicara kembali.',
+                  'detection_uncertain':'Bahasa ucapan belum terdeteksi dengan yakin. Pilih bahasa sumber lalu bicara kembali.',
                   'detected_language_unsupported':'Bahasa yang terdeteksi belum didukung oleh suara Translator. Pilih bahasa sumber yang didukung.',
                   'detected_language_is_target':'Bahasa ucapan sama dengan bahasa tujuan. Pilih bahasa tujuan lain.',
                   'no_speech':'Ucapan belum terbaca dalam pasangan bahasa ini. Bicara kembali.',
@@ -770,7 +771,7 @@ def live_translator_turn(ident,key):
                   'zero_balance':'Kuota audio Live Translator belum tersedia untuk akun ini.',
                   'insufficient_balance':'Kuota audio tidak cukup untuk ucapan berikutnya.',
                   'stream_unavailable':'Audio belum tersedia. Sesi dijeda; ucapan ini tidak diulang otomatis.'}
-        state={'status':'FAILED','code':code,'recoverable':code in ('detection_uncertain','detected_language_unsupported','detected_language_is_target','no_speech','translation_failed','translation_language_mismatch','transcription_failed','speech_failed','processing_failed','processing_interrupted'),
+        state={'status':'FAILED','code':code,'recoverable':code in ('detection_unavailable','detection_uncertain','detected_language_unsupported','detected_language_is_target','no_speech','translation_failed','translation_language_mismatch','transcription_failed','speech_failed','processing_failed','processing_interrupted'),
                'error':messages.get(code,'Ucapan belum berhasil diproses. Ucapan ini tidak diulang otomatis.')}
     else:state={'status':state['status']}
     return state,200,{'Cache-Control':'private, no-store'}

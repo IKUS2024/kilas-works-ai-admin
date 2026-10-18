@@ -937,5 +937,6 @@
   "Batas percobaan input suara per jam tercapai. Coba lagi setelah batas pulih.": "The hourly voice input test limit has been reached. Try again after the limit resets.",
   "Batas percobaan input suara hari ini tercapai. Coba lagi besok.": "Today's voice input test limit has been reached. Try again tomorrow.",
   "Ucapan sebelumnya masih diproses. Tunggu sebelum melanjutkan.": "The previous utterance is still processing. Wait before resuming.",
-  "Layanan input suara sedang sibuk. Coba lagi sebentar.": "Voice input is busy. Try again shortly."
+  "Layanan input suara sedang sibuk. Coba lagi sebentar.": "Voice input is busy. Try again shortly.",
+  "Data deteksi bahasa belum tersedia dari layanan suara. Pilih bahasa sumber lalu bicara kembali.": "Language detection data is unavailable from the speech service. Choose a source language and speak again."
 }

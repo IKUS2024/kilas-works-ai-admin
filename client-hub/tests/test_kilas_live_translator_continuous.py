@@ -1,5 +1,6 @@
 """Production owner Live count scope; real SQLite accounting, no provider IO."""
 import io
+import hashlib
 import os
 import unittest
 from contextlib import redirect_stdout
@@ -18,7 +19,7 @@ class ContinuousLiveTests(unittest.TestCase):
     funded = fixture.LiveTranslatorTests.funded
     on = fixture.LiveTranslatorTests.on
     session = fixture.LiveTranslatorTests.session
-    key = fixture.LiveTranslatorTests.key
+    def key(self,n=1):return 'live-'+hashlib.sha256(f'{self.user}:{n}'.encode()).hexdigest()[:32]
     credit = fixture.LiveTranslatorTests.credit
 
     def owner(self):
@@ -48,10 +49,6 @@ class ContinuousLiveTests(unittest.TestCase):
             with transaction() as conn:
                 with self.assertRaises(batch.BudgetError) as denied:batch.trial_admit(conn,self.user)
                 self.assertEqual(denied.exception.code,'rate_limit')
-            with transaction() as conn:
-                with self.assertRaises(batch.BudgetError) as denied:
-                    batch._admit(conn,self.user,{**batch.policy(),'allowed_owner':self.other},budget.RESERVE_MICRO,self.key(31),live_session=True)
-                self.assertEqual(denied.exception.code,'rate_limit')
             with self.assertRaises(batch.BudgetError) as denied:batch.claim(self.user,'dictate-keep-existing-limit-1234','a'*64,1000)
             self.assertEqual(denied.exception.code,'rate_limit')
             # Client-supplied live-* keys on a non-Live route do not opt in.
@@ -64,13 +61,13 @@ class ContinuousLiveTests(unittest.TestCase):
                 with self.assertRaises(batch.BudgetError) as denied:budget.claim(self.user,ident,self.key(30))
                 self.assertEqual(denied.exception.code,'rate_limit')
 
-    def test_exemption_requires_existing_explicit_owner_and_production_modes(self):
+    def test_exemption_requires_funded_production_mode_and_server_route_marker(self):
         with self.funded(),self.owner():
             config=batch.policy()
-            self.assertTrue(batch.continuous_owner_live(self.user,config,self.key()))
-            for changes,key in [({'allowed_owner':self.other},self.key()),({'allowed_owner':None},self.key()),({'mode':'qa'},self.key()),({},'dictate-operation-1234')]:
-                self.assertFalse(batch.continuous_owner_live(self.user,{**config,**changes},key))
-            with patch.dict(os.environ,{'KILAS_LIVE_TRANSLATOR_USAGE_MODE':'qa'}):self.assertFalse(batch.continuous_owner_live(self.user,config,self.key()))
+            self.assertTrue(batch.continuous_live(self.user,config,self.key()))
+            for changes,key in [({'allowed_owner':None},self.key()),({'mode':'qa'},self.key()),({},'dictate-operation-1234')]:
+                self.assertFalse(batch.continuous_live(self.user,{**config,**changes},key))
+            with patch.dict(os.environ,{'KILAS_LIVE_TRANSLATOR_USAGE_MODE':'qa'}):self.assertFalse(batch.continuous_live(self.user,config,self.key()))
 
     def test_live_qa_four_per_day_still_denied(self):
         with self.funded(2000000,2000000), self.on(), self.owner(), patch.dict(os.environ,{'KILAS_LIVE_TRANSLATOR_USAGE_MODE':'qa'}):
@@ -129,7 +126,7 @@ class ContinuousLiveTests(unittest.TestCase):
         import ui_i18n
         from kilas_ai import audio_routes
         with self.funded(),self.owner(),redirect_stdout(io.StringIO()) as output:batch.live_policy_report()
-        self.assertIn('continuous_owner_live=True',output.getvalue());self.assertNotIn('synthetic-only',output.getvalue())
+        self.assertIn('continuous_entitled_live=True',output.getvalue());self.assertNotIn('synthetic-only',output.getvalue())
         message='Batas biaya input suara periode ini tercapai. Lanjutkan tidak menambah kapasitas.'
         for locale in ['id','en','es','zh']:
             with audio.f.app.app.test_request_context('/kilas-translator/',headers={'Cookie':'kilas_language='+locale}):
@@ -139,3 +136,95 @@ class ContinuousLiveTests(unittest.TestCase):
                 self.assertNotIn('purchase_url',audio_routes.invalid(error)[0])
                 customer=audio.store.AudioError('Saldo tidak cukup.','insufficient_balance',402)
                 self.assertIn('purchase_url',audio_routes.invalid(customer)[0])
+
+    def settle_held(self,ident,key):
+        with rt._lock:relay=rt._relays.pop((self.user,ident,key))
+        try:
+            budget.dispatch(relay.capability)
+            self.assertTrue(budget.finish(relay.capability,True))
+            self.assertFalse(budget.finish(relay.capability,True))
+            sessions.finish(self.user,ident,key,True)
+        finally:
+            relay.close();relay.finished=True;rt._slots.release()
+
+    def test_nonowner_paid_actual_http_admission_25_turns_without_sponsorship(self):
+        self.credit(300)
+        with self.funded(2000000,2000000),self.on(),self.owner(),patch.dict(os.environ,{
+                'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.other),
+                'KILAS_LIVE_TRANSLATOR_ALLOWED_OWNER_ID':str(self.other),
+                'KILAS_APP_FREE_TEST_ENABLED':'false'}),patch.object(rt.account,'verified',return_value=True),patch.object(rt,'Thread') as workers,patch.object(rt,'connect') as provider:
+            self.assertFalse(batch.free_test.eligible(self.user))
+            self.assertTrue(rt.ready(self.user));self.assertFalse(batch.ready(self.user))
+            ident=self.session()
+            for i in range(25):
+                key=self.key(i+1)
+                r=self.client.post('/kilas-translator/live/sessions/'+ident+'/turns/'+key+'/input/start',data={'csrf_token':'audio-csrf'})
+                self.assertEqual(r.status_code,202,r.json)
+                self.settle_held(ident,key)
+                self.assertEqual(sessions.status(self.user,ident),{'status':'ACTIVE','processing':False})
+                self.assertEqual(sessions.result(self.user,ident,key)['status'],'COMPLETED')
+            self.assertEqual(workers.call_count,25);provider.assert_not_called()
+            self.assertEqual(sum(r['charge_micro'] for r in self.rows()),25*budget.RESERVE_MICRO)
+            # Batch Auto accepts the same paid audience; dispatch must preserve
+            # the server marker rather than fall back to an owner-only gate.
+            _,cap=batch.claim(self.user,self.key(30),'a'*64,1000,live_session=True)
+            batch.dispatch(cap,'a'*64,1000);self.assertTrue(batch.finish(cap,True))
+            self.assertEqual(sum(r['charge_micro'] for r in self.rows()),25*budget.RESERVE_MICRO+batch.reserve_micro(1000))
+            with self.assertRaises(batch.BudgetError):batch.claim(self.user,'dictate-nonowner-still-restricted-1234','b'*64,1000)
+
+    def test_nonowner_sponsored_trial_25_turns_with_existing_dates_proof_and_funding(self):
+        from kilas_ai import live_translator_realtime_check
+        audio.f.db.execute("UPDATE users SET role='CLIENT_MEMBER' WHERE id=?",(self.user,))
+        from auth_test_helpers import authenticate
+        authenticate(self.client,__import__('repo').get_user_by_id(self.user),_csrf_token='audio-csrf')
+        with self.funded(2000000,2000000),self.on(),self.owner(),patch.dict(os.environ,{
+                'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.other),
+                'KILAS_LIVE_TRANSLATOR_ALLOWED_OWNER_ID':str(self.other),
+                'KILAS_APP_FREE_TEST_ENABLED':'true',
+                'KILAS_APP_FREE_TEST_END_AT':batch.free_test.END_AT.isoformat()}),patch.object(live_translator_realtime_check,'verified',return_value=True),patch.object(rt.account,'verified',return_value=True),patch.object(rt,'Thread'),patch.object(rt,'connect') as provider:
+            self.assertTrue(batch.free_test.eligible(self.user));self.assertTrue(rt.ready(self.user))
+            ident=self.session()
+            for i in range(25):
+                key=self.key(i+1)
+                response=self.client.post('/kilas-translator/live/sessions/'+ident+'/turns/'+key+'/input/start',data={'csrf_token':'audio-csrf'})
+                self.assertEqual(response.status_code,202,response.json);self.settle_held(ident,key)
+            self.assertEqual(len(self.rows()),25);provider.assert_not_called()
+            with patch.object(live_translator_realtime_check,'verified',return_value=False):self.assertFalse(rt.ready(self.user))
+            with patch.object(batch.free_test,'datetime',wraps=datetime) as clock:
+                clock.now.return_value=batch.free_test.STT_END_AT
+                self.assertFalse(rt.ready(self.user))
+            with transaction() as conn:
+                with self.assertRaises(batch.BudgetError) as denied:batch.trial_admit(conn,self.user)
+                self.assertEqual(denied.exception.code,'rate_limit')
+
+    def test_nonowner_exhausted_unentitled_and_revoked_audience_never_create_worker(self):
+        with self.funded(),self.on(),self.owner(),patch.dict(os.environ,{
+                'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.other),
+                'KILAS_LIVE_TRANSLATOR_ALLOWED_OWNER_ID':str(self.other),
+                'KILAS_APP_FREE_TEST_ENABLED':'false'}),patch.object(rt.account,'verified',return_value=True),patch.object(rt,'Thread') as workers,patch.object(rt,'connect') as provider:
+            self.assertTrue(rt.ready(self.user))
+            ident=self.session()
+            response=self.client.post('/kilas-translator/live/sessions/'+ident+'/turns/'+self.key()+'/input/start',data={'csrf_token':'audio-csrf'})
+            self.assertEqual(response.status_code,402,response.json);self.assertEqual(response.json['code'],'zero_balance')
+            self.assertEqual(self.rows(),[])
+            audio.f.db.execute("UPDATE users SET role='CLIENT_MEMBER' WHERE id=?",(self.user,))
+            self.assertFalse(rt.ready(self.user))
+            self.assertFalse(batch.live_audience(self.user,batch.policy()))
+            self.assertFalse(batch.live_audience(987654321,batch.policy()))
+            workers.assert_not_called();provider.assert_not_called()
+
+    def test_shared_funding_exhaustion_stops_other_paid_and_sponsored_accounts(self):
+        from kilas_ai import live_translator_realtime_check
+        self.credit(300)
+        with self.funded(budget.RESERVE_MICRO,budget.RESERVE_MICRO),self.on(),self.owner(),patch.dict(os.environ,{
+                'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.other),
+                'KILAS_LIVE_TRANSLATOR_ALLOWED_OWNER_ID':str(self.other),
+                'KILAS_APP_FREE_TEST_ENABLED':'false'}),patch.object(rt.account,'verified',return_value=True),patch.object(live_translator_realtime_check,'verified',return_value=True),patch.object(rt,'Thread') as workers,patch.object(rt,'connect') as provider:
+            cap=budget.claim(self.other,'c'*48,self.key(99));budget.dispatch(cap);budget.finish(cap,True)
+            ident=self.session()
+            for i,sponsored in enumerate([False,True]):
+                with patch.dict(os.environ,{'KILAS_APP_FREE_TEST_ENABLED':str(sponsored).lower(),'KILAS_APP_FREE_TEST_END_AT':batch.free_test.END_AT.isoformat()}):
+                    r=self.client.post('/kilas-translator/live/sessions/'+ident+'/turns/'+self.key(i+1)+'/input/start',data={'csrf_token':'audio-csrf'})
+                    self.assertEqual(r.status_code,429,r.json);self.assertEqual(r.json['code'],'budget_limit')
+                    self.assertNotIn('purchase_url',r.json);self.assertEqual(self.rows(),[])
+            workers.assert_not_called();provider.assert_not_called()

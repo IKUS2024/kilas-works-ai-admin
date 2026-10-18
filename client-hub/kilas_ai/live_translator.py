@@ -47,7 +47,7 @@ def _log_latency(timings,started,success,code=None):
         stage=stage if isinstance(stage,str) and stage in stages else 'between_stages'
         known_codes={'no_speech','translation_failed','translation_language_mismatch','transcription_failed','speech_failed','processing_failed','turn_timeout',
                      'session_ended','turn_cancelled','translator_unavailable','provider_credit_exhausted','provider_credit_check_failed',
-                     'provider_billing_unverified','duplicate_turn','zero_balance','insufficient_balance','live_audio_limit','stream_unavailable'}
+                     'provider_billing_unverified','duplicate_turn','zero_balance','insufficient_balance','live_audio_limit','stream_unavailable','detection_uncertain','detection_unavailable','detected_language_unsupported','detected_language_is_target'}
         safe_code=code if isinstance(code,str) and code in known_codes else 'other_failure'
         reason=timings.get('translation_failure_reason')
         known_reasons={'provider_error','provider_refusal','invalid_json','invalid_shape','incomplete_response','invalid_text','invalid_language_pair','accounting_error'}
@@ -69,12 +69,14 @@ def ready(owner=None,*,session_table_checked=False):
         if os.environ.get('KILAS_LIVE_TRANSLATOR_REFERENCE_VERIFIED')!='yes':return False
         if not re.fullmatch(r'proj_[A-Za-z0-9_-]{1,100}',os.environ.get('KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT','')):return False
         allowed=int(os.environ.get('KILAS_LIVE_TRANSLATOR_ALLOWED_OWNER_ID','0'))
-        # The funding audience below already verifies the current trial user
-        # and proof. Avoid a duplicate user read for a sponsored non-owner.
-        if allowed<=0 or (owner!=allowed and not free_test.active()):return False
+        # The Live funding audience below verifies production customer role or
+        # the existing sponsored audience/proof. QA retains its pilot allowlist.
+        if allowed<=0:return False
+        if (os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa')!='owner'
+                and owner!=allowed and not free_test.active()):return False
         if os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa') not in ('qa','owner'):return False
         if not 1<=int(os.environ.get('KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS','0'))<=3600:return False
-        if not budget.ready(owner) or not os.environ.get('OPENAI_API_KEY','').strip():return False
+        if not budget.live_ready(owner) or not os.environ.get('OPENAI_API_KEY','').strip():return False
         # Only a successful fresh sessions.check in this same fence establishes
         # this fact. Public readiness/admission still checks the schema itself.
         if session_table_checked:return True
@@ -326,7 +328,7 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
         a,b=info['language_a'],info['language_b']
         if automatic:
             from .translator_languages import detected_source
-            a=detected_source(text,b);text=text['text']
+            a=detected_source(text,b,input_ms=ms);text=text['text']
         with _timed(timings,'translation_ms'):
             result=incremental.finish(text,check,timings) if incremental is not None else translation(owner,key,text,a,b,check,timings=timings)
         check()
