@@ -131,7 +131,11 @@ class StorageTests(unittest.TestCase):
         f.ExecutionTests.setUp(self)
     claimed=f.ExecutionTests.claimed
     client=f.ExecutionTests.client
-    enabled=f.ExecutionTests.enabled
+    def enabled(self,vm):
+        value=f.ExecutionTests.enabled(self,vm)
+        self.addCleanup(patch.stopall)
+        patch.object(large,'host_memory',return_value={'limit':536870912,'current':104857600,'peak':209715200}).start()
+        return value
     def step(self,job):
         db.execute("INSERT INTO kilas_agent_steps(job_id,sequence,worker,action,instruction,input_json,idempotency_key,status) VALUES (?,1,'EXECUTION','python','Synthetic','{}',?,'RUNNING')",(job['id'],'large-'+str(job['id'])))
         return dict(db.query_one('SELECT * FROM kilas_agent_steps WHERE job_id=?',(job['id'],)))
@@ -197,3 +201,61 @@ class StorageTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+
+class ProofTests(unittest.TestCase):
+    setUp=StorageTests.setUp
+    enabled=StorageTests.enabled
+    @classmethod
+    def setUpClass(cls):
+        import app
+        cls.app=app.app
+        from kilas_ai import workspace_large_fixture
+        cls.files=workspace_large_fixture.documents()
+    def remote(self,success=True):
+        from types import SimpleNamespace
+        from kilas_ai import workspace_large_fixture as fixture,workspace_acceptance_fixture as boundary
+        files=self.files if success else {}
+        vm,bodies=sandbox(files);vm.sandbox_id='synthetic-proof-vm'
+        vm.get_info.return_value=SimpleNamespace(cpu_count=2,memory_mb=4096,network={'allow_public_traffic':False},allow_internet_access=False,lifecycle={'on_timeout':'kill','auto_resume':False})
+        vm.commands.run.return_value=SimpleNamespace(stdout='ready')
+        value={'packages':{k:True for k in fixture.PACKAGES},'totals':fixture.TOTALS,'documents':True,'sizes':fixture.SIZES,'boundary':{'answer':42,'checks':boundary.CHECKS,'evidence':{'data':{'written_bytes':66000000,'available_before':66000000,'requested_bytes':66060288,'errno':28},'inodes':{'created_files':4000,'available_before':4000,'errno':28}}}}
+        report={'exit_code':0 if success else 1,'stdout':'KILAS_ACCEPTANCE_OK\nKILAS_LARGE_OK '+json.dumps(value)+'\n','stderr':'','outputs':manifest(files),'timed_out':False,'evidence':f.BOUNDARY,'collector_evidence':{'checks':['file_limit','job_limit','file_count'],'private_staging':True,'post_stop':True}}
+        read=vm.files.read.side_effect
+        vm.files.read.side_effect=lambda path,**kw:f.Stream(json.dumps(report).encode()) if path.endswith('done.json') else read(path,**kw)
+        return vm,report
+    def test_once_real_documents_download_handler_cleanup_gate_and_exact_fingerprint(self):
+        from kilas_ai import workspace_large_proof as proof,usage
+        vm,report=self.remote();create=self.enabled(vm)
+        with patch.object(proof,'OWNER_ID',self.owner),patch.dict(os.environ,{'KILAS_LARGE_PROOF_APPROVAL':proof.POLICY,'KILAS_LARGE_OUTPUT_APPROVAL':''}):
+            proof.run(self.app);proof.run(self.app)
+            self.assertEqual(create.call_count,1);vm.kill.assert_called_once();self.assertTrue(proof.accepted())
+            self.assertFalse(large.capability(self.owner)['available'])
+            with patch.dict(os.environ,{'KILAS_LARGE_OUTPUT_APPROVAL':proof.POLICY}):self.assertTrue(large.capability(self.owner)['available'])
+            with patch.object(large,'fingerprint',return_value='changed'):self.assertFalse(proof.accepted())
+        row=db.query_one('SELECT outcome_json FROM kilas_workspace_executions');value=json.loads(row['outcome_json'])
+        self.assertTrue(value['download_checked']);self.assertFalse(value['customer_metered']);self.assertNotIn('large_storage_reserved',value)
+        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE user_id=? AND operation_type='CODE_EXECUTION'",(self.owner,))['n'],0)
+    def test_failed_fixture_cannot_activate_or_retry(self):
+        from kilas_ai import workspace_large_proof as proof
+        vm,report=self.remote(False);create=self.enabled(vm)
+        with patch.object(proof,'OWNER_ID',self.owner),patch.dict(os.environ,{'KILAS_LARGE_PROOF_APPROVAL':proof.POLICY,'KILAS_LARGE_OUTPUT_APPROVAL':proof.POLICY}):
+            proof.run(self.app);proof.run(self.app)
+            self.assertEqual(create.call_count,1);self.assertFalse(proof.accepted());self.assertFalse(large.capability(self.owner)['available'])
+    def test_full_pass_predicate_rejects_each_missing_mandatory_check(self):
+        from kilas_ai import workspace_large_proof as proof,workspace_large_fixture as fixture
+        vm,report=self.remote();outcome={'exit_code':0,'timed_out':False,'customer_metered':False,'sandbox_created':True,'cleanup_confirmed':True,'elapsed_ms':1000,'stderr':'','stdout':report['stdout'],'boundary_evidence':f.BOUNDARY,'collector_evidence':report['collector_evidence'],'large_files':[{'filename':n,'mime_type':formats.MIMES[n.rsplit('.',1)[1]],'content':r} for n,r in self.files.items()],'host_memory_before':{'limit':536870912,'current':104857600,'peak':209715200},'host_memory_after':{'limit':536870912,'current':104857600,'peak':209715200}}
+        self.assertTrue(proof.passed(outcome))
+        for key,value in [('cleanup_confirmed',False),('customer_metered',True),('elapsed_ms',60000),('collector_evidence',{}),('large_files',[]),('host_memory_after',{'limit':536870912,'current':104857600,'peak':500000000})]:
+            with self.subTest(key=key):self.assertFalse(proof.passed({**outcome,key:value}))
+        value=json.loads(report['stdout'].split('KILAS_LARGE_OK ')[1]);value['packages']['reportlab']=False
+        self.assertFalse(proof.passed({**outcome,'stdout':'KILAS_ACCEPTANCE_OK\nKILAS_LARGE_OK '+json.dumps(value)}))
+    def test_actual_trusted_collector_above_limit_checks_locally(self):
+        import shutil
+        with tempfile.TemporaryDirectory() as folder,patch.object(guest,'UID',os.getuid(),create=True):
+            original=Path
+            def path(value):return original(folder)/'checks' if value=='/root/kilas-collector-check' else original(value)
+            with patch.object(guest,'Path',side_effect=path):
+                value=guest.collector_acceptance()
+            self.assertEqual(value,{'checks':['file_limit','job_limit','file_count'],'private_staging':True,'post_stop':True})
+            self.assertEqual(list(Path(folder).iterdir()),[])

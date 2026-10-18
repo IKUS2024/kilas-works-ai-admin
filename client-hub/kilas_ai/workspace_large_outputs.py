@@ -23,15 +23,32 @@ def fingerprint():
     names=('workspace_large_outputs.py','workspace_large_guest.py','workspace_large_execution.py',
            'workspace_execution.py','workspace_guest.py','workspace_execution_proof.py','workspace_acceptance_fixture.py',
            'workspace_execution_access.py','workspace_execution_credits.py','workspace_execution_rollout.py',
-           'workspace_output_formats.py','work_artifacts.py','workspace_execution_worker.py','workspace_projects.py','autonomous_runner.py')
+           'workspace_output_formats.py','work_artifacts.py','workspace_execution_worker.py','workspace_projects.py','autonomous_runner.py',
+           'workspace_large_proof.py','workspace_large_fixture.py','chat_model_routes.py','autonomous_routes.py','workspace_files.py')
     return hashlib.sha256(b''.join((root/name).read_bytes() for name in names)).hexdigest()
 
 
 def capability(user_id=None):
-    # No environment value or old proof can accept this changed RLIMIT/collector.
-    # A separately reviewed actual acceptance operation must precede activation.
-    return {'available':False,'reason':'large_output_acceptance_pending','profile':PROFILE,
+    from . import workspace_large_proof as proof
+    available=bool(os.environ.get('KILAS_LARGE_OUTPUT_APPROVAL')==proof.POLICY and base.capability(user_id)['available'] and proof.accepted())
+    return {'available':available,'reason':None if available else 'large_output_acceptance_pending','profile':PROFILE,
             'max_file_bytes':MAX_FILE,'max_job_bytes':MAX_JOB,'max_files':MAX_FILES,'fingerprint':fingerprint()}
+
+
+def host_memory():
+    # Fixed scalar cgroup metrics, no process/customer details. Unknown is not PASS.
+    try:
+        root=Path('/sys/fs/cgroup')
+        limit=int((root/'memory.max').read_text());current=int((root/'memory.current').read_text());peak=int((root/'memory.peak').read_text())
+        if not 0<current<=peak<=limit or limit>512*1024*1024:raise ValueError()
+        return {'limit':limit,'current':current,'peak':peak}
+    except (ValueError,OSError):raise ValueError('large_host_memory_unverified') from None
+
+
+def memory_admission():
+    value=host_memory()
+    if value['current']>320*1024*1024:raise ValueError('large_host_memory_busy')
+    return value
 
 
 def requested(text):

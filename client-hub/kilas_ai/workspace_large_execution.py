@@ -4,19 +4,25 @@ from .workspace_execution import (checked,active,reserve,update,reconcile,bounde
 from . import workspace_large_outputs as large, workspace_large_guest as guest
 from . import workspace_execution as base
 
-def execute(job,step,files,entrypoint='main.py'):
+def execute(job,step,files,entrypoint='main.py',*,_proof=False):
     payload=checked(files,entrypoint)
-    if not large.capability(job['user_id'])['available']:raise ValueError('large_output_acceptance_pending')
+    if _proof:
+        from . import workspace_large_proof as proof
+        if not (proof.authorized() and job['user_id']==proof.OWNER_ID and files==proof.fixture() and entrypoint=='main.py' and step['idempotency_key']==proof.KEY):raise ValueError('large_proof_not_authorized')
+    elif not large.capability(job['user_id'])['available']:raise ValueError('large_output_acceptance_pending')
     if not base.capability(job['user_id'])['available']:raise ValueError('isolated_execution_not_configured')
+    memory_before=large.memory_admission()
+    proof_fingerprint=large.fingerprint() if _proof else None
     if not active(job):raise ValueError('execution_cancelled')
     from e2b import Sandbox
     from .work_runtime import progress
     key='execution:'+step['idempotency_key']
-    run_id=reserve(job,key,customer=True);sandbox=None;outcome={'execution':'unknown','run_id':run_id}
+    run_id=reserve(job,key,customer=not _proof);sandbox=None;outcome={'execution':'unknown','run_id':run_id}
     seconds=MAX_SECONDS
     terminal='UNKNOWN';started=time.monotonic();deadline=started+45;boundary_verified=False;phase='storage_admission'
     try:
         large.reserve_storage(run_id)
+        if _proof:update(run_id,outcome_json=json.dumps({'large_storage_reserved':large.STORAGE_RESERVATION,'large_proof_fingerprint':proof_fingerprint}))
         phase='creating'
         progress(job,'STARTING_SANDBOX','Menyiapkan sandbox…')
         sandbox=Sandbox.create(template='base',api_key=os.environ['E2B_API_KEY'],timeout=seconds,
@@ -36,7 +42,7 @@ def execute(job,step,files,entrypoint='main.py'):
         if not active(job):raise ValueError('execution_cancelled')
         phase='uploading_input'
         sandbox.files.write('/root/kilas-input.json',json.dumps(payload),user='root',request_timeout=5)
-        harness=guest.runner_source()
+        harness=guest.proof_runner_source() if _proof else guest.runner_source()
         phase='uploading_runner'
         sandbox.files.write('/root/kilas-runner.py',harness,user='root',request_timeout=5)
         phase='launching'
@@ -54,7 +60,9 @@ def execute(job,step,files,entrypoint='main.py'):
         phase='reading_report'
         report=json.loads(bounded_read(sandbox,'/root/kilas-done.json'))
         phase='validating_report'
-        if set(report)!={'exit_code','stdout','stderr','outputs','timed_out','evidence'} or type(report['exit_code']) is not int or type(report['timed_out']) is not bool:raise ValueError('invalid_execution_report')
+        expected={'exit_code','stdout','stderr','outputs','timed_out','evidence'}|({'collector_evidence'} if _proof and 'collector_evidence' in report else set())
+        if _proof and report.get('exit_code')==0 and 'collector_evidence' not in report:raise ValueError('invalid_execution_report')
+        if set(report)!=expected or type(report['exit_code']) is not int or type(report['timed_out']) is not bool:raise ValueError('invalid_execution_report')
         evidence=validated_evidence(report['evidence'],report['exit_code']==0 and not report['timed_out'])
         files=large.download(sandbox,report['outputs'],deadline,lambda:active(job)) if report['outputs'] else []
         if any(not isinstance(report[k],str) or len(report[k].encode())>65536 for k in ('stdout','stderr')):raise ValueError('execution_output_limit')
@@ -62,6 +70,8 @@ def execute(job,step,files,entrypoint='main.py'):
         outcome={'execution':'completed','provider':'e2b','run_id':run_id,'exit_code':report['exit_code'],
                  'timed_out':bool(report['timed_out']),'stdout':report['stdout'],'stderr':report['stderr'],
                  'outputs':{},'large_files':files,'entrypoint':entrypoint,'tests_asserted':False,'boundary_evidence':evidence}
+        outcome['host_memory_before']=memory_before;outcome['host_memory_after']=large.host_memory()
+        if _proof:outcome['collector_evidence']=report.get('collector_evidence',{})
         from .workspace_guest import FAILURES
         guest_failures=FAILURES|{'guest_runner_error'}
         if report['stderr'].startswith('KILAS_GUEST_FAILURE:'):
@@ -80,7 +90,7 @@ def execute(job,step,files,entrypoint='main.py'):
             except Exception:pass
         outcome['cleanup_confirmed']=cleaned
         outcome['sandbox_created']=sandbox is not None
-        outcome['customer_metered']=True
+        outcome['customer_metered']=not _proof
         outcome['large_storage_reserved']=large.STORAGE_RESERVATION if 'large_files' in outcome else 0
         micro=0 if phase=='storage_admission' else RESERVE_MICRO_USD
         if cleaned and boundary_verified:
@@ -89,4 +99,6 @@ def execute(job,step,files,entrypoint='main.py'):
             # The accepted <=2 vCPU / <=4 GiB profile costs <=46 micro-USD/s.
             micro=min(micro,46*min(seconds,max(1,math.ceil(time.monotonic()-started)+1)))
         outcome['compute_cost_upper_estimate_micro_usd']=micro
+        outcome['elapsed_ms']=int((time.monotonic()-started)*1000)
+        if _proof:outcome['large_proof_fingerprint']=proof_fingerprint
         reconcile(run_id,terminal,{k:v for k,v in outcome.items() if k!='large_files'},cleaned,micro)

@@ -17,6 +17,8 @@ def prepare_chat_models(state):
         maybe_start(state.app)  # No work without separate proof-specific approval.
         from .workspace_execution_access import log_readiness
         log_readiness()  # Read-only gate evidence; never creates a sandbox.
+        from .workspace_large_proof import maybe_start as maybe_start_large
+        maybe_start_large(state.app)
         if os.environ.get('RENDER_SERVICE_ID') and not state.app.testing:
             chat_models.warmup()  # Read-only Models APIs; never inference.
             from . import image_models

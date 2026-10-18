@@ -57,3 +57,32 @@ def runner_source():
     source=source[:start]+"    report['outputs']=stage_outputs()\n"+source[end:]
     source=source.replace("('RLIMIT_FSIZE',65536)","('RLIMIT_FSIZE',8388608)")
     return source.replace('import base64\n','import base64\nimport hashlib\n'+inspect.getsource(stage_outputs)+'\n',1)
+
+
+def collector_acceptance():
+    # Fixed trusted self-test after UID processes are dead. Deliberately invalid
+    # source sizes never become publishable outputs. All staging is removed.
+    import shutil
+    base=Path('/root/kilas-collector-check');base.mkdir(mode=0o700)
+    checks=[]
+    try:
+        for kind,sizes in (('file_limit',[8388609]),('job_limit',[8388608,8388608,1]),('file_count',[1]*5)):
+            source=base/kind;source.mkdir(mode=0o700)
+            for index,size in enumerate(sizes):
+                target=source/str(index)
+                with target.open('wb') as output:output.truncate(size)
+                os.chown(target,UID,UID)
+            try:stage_outputs(source,base/(kind+'-stage'))
+            except ValueError as error:
+                if str(error)!=('unsafe_output' if kind=='file_limit' else 'output_limit'):raise
+            else:raise ValueError('unsafe_output')
+            checks.append(kind)
+            shutil.rmtree(source);shutil.rmtree(base/(kind+'-stage'))
+        return {'checks':checks,'private_staging':True,'post_stop':True}
+    finally:shutil.rmtree(base)
+
+
+def proof_runner_source():
+    source=runner_source()
+    source=source.replace("    report['outputs']=stage_outputs()", "    report['collector_evidence']=collector_acceptance()\n    report['outputs']=stage_outputs()",1)
+    return source.replace('import hashlib\n','import hashlib\n'+inspect.getsource(collector_acceptance)+'\n',1)
