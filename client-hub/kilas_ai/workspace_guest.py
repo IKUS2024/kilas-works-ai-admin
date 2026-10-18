@@ -1,6 +1,7 @@
 """Trusted runner uploaded to a fresh remote E2B microVM; NEVER run on web host."""
 import base64
 import ctypes
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -183,6 +184,16 @@ def kill_children():
     raise RuntimeError('guest_process_cleanup_unverified')
 
 
+@contextmanager
+def readonly_stdin():
+    # Popen.DEVNULL uses O_RDWR, which violates the reviewed inherited-FD
+    # boundary even though /dev/null itself cannot store files. Supply an
+    # explicitly read-only, close-on-exec descriptor; dup2 makes only fd0 live.
+    descriptor=os.open(os.devnull,os.O_RDONLY|os.O_CLOEXEC)
+    try:yield descriptor
+    finally:os.close(descriptor)
+
+
 def main():
     global BOUNDARY_FD,PARENT_NAMESPACES
     if os.environ.get('KILAS_REMOTE_GUEST')!='e2b-ephemeral-v1':raise RuntimeError('remote_guest_only')
@@ -203,8 +214,9 @@ def main():
     setup_read,BOUNDARY_FD=os.pipe2(os.O_CLOEXEC)
     process=None;launch_error=False
     try:
-        process=subprocess.Popen(args,cwd=ROOT,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-                                 start_new_session=True,preexec_fn=child_limits,close_fds=True,pass_fds=(BOUNDARY_FD,))
+        with readonly_stdin() as input_fd:
+            process=subprocess.Popen(args,cwd=ROOT,env=env,stdin=input_fd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                                     start_new_session=True,preexec_fn=child_limits,close_fds=True,pass_fds=(BOUNDARY_FD,))
     except Exception:launch_error=True
     finally:
         os.close(BOUNDARY_FD)

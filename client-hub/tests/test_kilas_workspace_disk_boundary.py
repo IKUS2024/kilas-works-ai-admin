@@ -3,7 +3,7 @@ import copy
 import json
 import tempfile
 import unittest
-from contextlib import ExitStack
+from contextlib import ExitStack,nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock,patch
@@ -148,12 +148,33 @@ class BoundaryTests(unittest.TestCase):
         self.assertEqual(json.loads(raw)['stderr'],'KILAS_GUEST_FAILURE:output_limit')
 
     def test_launch_uses_only_pipe_stdio_and_bounded_setup_handshake(self):
-        with tempfile.TemporaryDirectory() as folder,patch.object(guest,'ROOT',Path(folder)),patch.dict(guest.os.environ,{'KILAS_REMOTE_GUEST':'e2b-ephemeral-v1'}),patch.object(guest.os,'getuid',return_value=0),patch.object(guest.Path,'read_text',return_value='{"files":{},"entrypoint":"main.py"}'),patch.object(guest,'prepare_scratch'),patch.object(guest.os,'chown'),patch.object(guest.os,'readlink',return_value='parent-namespace'),patch.object(guest.os,'pipe2',return_value=(10,11)),patch.object(guest.os,'close'),patch.object(guest.os,'read',return_value=b'{"ready":false,"error":"child_readonly_unavailable"}') as read,patch.object(guest.subprocess,'Popen',side_effect=RuntimeError('synthetic setup failure')) as process:
+        with tempfile.TemporaryDirectory() as folder,patch.object(guest,'ROOT',Path(folder)),patch.dict(guest.os.environ,{'KILAS_REMOTE_GUEST':'e2b-ephemeral-v1'}),patch.object(guest.os,'getuid',return_value=0),patch.object(guest.Path,'read_text',return_value='{"files":{},"entrypoint":"main.py"}'),patch.object(guest,'prepare_scratch'),patch.object(guest.os,'chown'),patch.object(guest.os,'readlink',return_value='parent-namespace'),patch.object(guest.os,'pipe2',return_value=(10,11)),patch.object(guest.os,'close'),patch.object(guest.os,'read',return_value=b'{"ready":false,"error":"child_readonly_unavailable"}') as read,patch.object(guest,'readonly_stdin',return_value=nullcontext(99)),patch.object(guest.subprocess,'Popen',side_effect=RuntimeError('synthetic setup failure')) as process:
             with self.assertRaisesRegex(RuntimeError,'child_readonly_unavailable'):guest.main()
         options=process.call_args.kwargs
         self.assertEqual(options['stdout'],guest.subprocess.PIPE);self.assertEqual(options['stderr'],guest.subprocess.PIPE)
-        self.assertEqual(options['stdin'],guest.subprocess.DEVNULL);self.assertTrue(options['close_fds'])
+        self.assertEqual(options['stdin'],99);self.assertTrue(options['close_fds'])
         self.assertEqual(options['pass_fds'],(11,));read.assert_called_once_with(10,4097)
+
+    def test_actual_unprivileged_child_stdin_readonly_pipes_and_no_leaked_input_fd(self):
+        import fcntl,os,subprocess,sys
+        # Fixed scalar diagnostic only. No user/generated source, privileges,
+        # mounts, SDK or production-host execution facility is involved.
+        command=[sys.executable,'-I','-c',
+            "import fcntl,json,os,stat;print(json.dumps({'stdin_mode':fcntl.fcntl(0,fcntl.F_GETFL)&os.O_ACCMODE,'stdout_pipe':stat.S_ISFIFO(os.fstat(1).st_mode),'stderr_pipe':stat.S_ISFIFO(os.fstat(2).st_mode)}))"]
+        before=subprocess.run(command,stdin=subprocess.DEVNULL,capture_output=True,check=True,timeout=3)
+        self.assertEqual(json.loads(before.stdout)['stdin_mode'],os.O_RDWR)
+        with guest.readonly_stdin() as descriptor:
+            self.assertEqual(fcntl.fcntl(descriptor,fcntl.F_GETFL)&os.O_ACCMODE,os.O_RDONLY)
+            self.assertTrue(fcntl.fcntl(descriptor,fcntl.F_GETFD)&fcntl.FD_CLOEXEC)
+            after=subprocess.run(command,stdin=descriptor,capture_output=True,close_fds=True,check=True,timeout=3)
+        self.assertEqual(json.loads(after.stdout),{'stdin_mode':os.O_RDONLY,'stdout_pipe':True,'stderr_pipe':True})
+        with self.assertRaises(OSError):os.fstat(descriptor)
+
+    def test_readonly_stdin_parent_fd_closes_on_launch_error(self):
+        import os
+        with self.assertRaisesRegex(RuntimeError,'synthetic'):
+            with guest.readonly_stdin() as descriptor:raise RuntimeError('synthetic')
+        with self.assertRaises(OSError):os.fstat(descriptor)
 
 
 if __name__=='__main__':unittest.main()
