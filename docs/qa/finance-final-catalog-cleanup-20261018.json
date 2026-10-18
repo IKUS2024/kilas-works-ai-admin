@@ -1,0 +1,1939 @@
+{
+  "read_only": true,
+  "permanent_deletion_authorized": false,
+  "as_of": "2026-10-18",
+  "candidate_count": 33,
+  "candidates": [
+    {
+      "builtin_name": "Restoran / Makanan Cepat Saji",
+      "business_id": 2,
+      "canonical_key": "food.1",
+      "category_id": 18499,
+      "is_active": true,
+      "parent_category_id": 18497,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Perawatan",
+      "business_id": 2,
+      "canonical_key": "housing.1",
+      "category_id": 18496,
+      "is_active": false,
+      "parent_category_id": 18494,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Perlengkapan Mandi",
+      "business_id": 2,
+      "canonical_key": "items.1",
+      "category_id": 18509,
+      "is_active": false,
+      "parent_category_id": 18507,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Perawatan Diri",
+      "business_id": 2,
+      "canonical_key": "items.2",
+      "category_id": 18510,
+      "is_active": false,
+      "parent_category_id": 18507,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Sewa DVD",
+      "business_id": 2,
+      "canonical_key": "v2.entertainment.1",
+      "category_id": 18532,
+      "is_active": true,
+      "parent_category_id": 18530,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Musik",
+      "business_id": 2,
+      "canonical_key": "v2.entertainment.2",
+      "category_id": 18533,
+      "is_active": true,
+      "parent_category_id": 18530,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Appstore",
+      "business_id": 2,
+      "canonical_key": "v2.entertainment.3",
+      "category_id": 18534,
+      "is_active": true,
+      "parent_category_id": 18530,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Tune Core",
+      "business_id": 2,
+      "canonical_key": "v2.entertainment.4",
+      "category_id": 18535,
+      "is_active": true,
+      "parent_category_id": 18530,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Musik Produce",
+      "business_id": 2,
+      "canonical_key": "v2.entertainment.5",
+      "category_id": 18536,
+      "is_active": true,
+      "parent_category_id": 18530,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Asuransi / Medis",
+      "business_id": 2,
+      "canonical_key": "v2.health",
+      "category_id": 18544,
+      "is_active": true,
+      "parent_category_id": null,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Asuransi Mobil",
+      "business_id": 2,
+      "canonical_key": "v2.health.0",
+      "category_id": 18545,
+      "is_active": true,
+      "parent_category_id": 18544,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Asuransi Rumah",
+      "business_id": 2,
+      "canonical_key": "v2.health.1",
+      "category_id": 18546,
+      "is_active": true,
+      "parent_category_id": 18544,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Asuransi Kesehatan",
+      "business_id": 2,
+      "canonical_key": "v2.health.2",
+      "category_id": 18547,
+      "is_active": true,
+      "parent_category_id": 18544,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Biaya Medis / Co-pay",
+      "business_id": 2,
+      "canonical_key": "v2.health.3",
+      "category_id": 18548,
+      "is_active": true,
+      "parent_category_id": 18544,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Pengobatan",
+      "business_id": 2,
+      "canonical_key": "v2.health.4",
+      "category_id": 18549,
+      "is_active": true,
+      "parent_category_id": 18544,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Hipotek Kedua",
+      "business_id": 2,
+      "canonical_key": "v2.housing.1",
+      "category_id": 18512,
+      "is_active": true,
+      "parent_category_id": 18494,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Investasi",
+      "business_id": 2,
+      "canonical_key": "v2.investment",
+      "category_id": 18555,
+      "is_active": true,
+      "parent_category_id": null,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Barang Pribadi",
+      "business_id": 2,
+      "canonical_key": "v2.items.1",
+      "category_id": 18526,
+      "is_active": true,
+      "parent_category_id": 18507,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Buku / Majalah",
+      "business_id": 2,
+      "canonical_key": "v2.items.3",
+      "category_id": 18528,
+      "is_active": true,
+      "parent_category_id": 18507,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Perawatan Kecantikan",
+      "business_id": 2,
+      "canonical_key": "v2.items.4",
+      "category_id": 18529,
+      "is_active": true,
+      "parent_category_id": 18507,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Tiket Pesawat",
+      "business_id": 2,
+      "canonical_key": "v2.misc.0",
+      "category_id": 18551,
+      "is_active": true,
+      "parent_category_id": 18550,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Hotel / Penginapan",
+      "business_id": 2,
+      "canonical_key": "v2.misc.1",
+      "category_id": 18552,
+      "is_active": true,
+      "parent_category_id": 18550,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Hadiah / Amal",
+      "business_id": 2,
+      "canonical_key": "v2.misc.2",
+      "category_id": 18553,
+      "is_active": true,
+      "parent_category_id": 18550,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Keluarga",
+      "business_id": 2,
+      "canonical_key": "v2.misc.3",
+      "category_id": 18554,
+      "is_active": true,
+      "parent_category_id": 18550,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Gaji / Upah",
+      "business_id": 2,
+      "canonical_key": "v2.salaries",
+      "category_id": 18557,
+      "is_active": true,
+      "parent_category_id": null,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Telepon",
+      "business_id": 2,
+      "canonical_key": "v2.utilities.2",
+      "category_id": 18518,
+      "is_active": true,
+      "parent_category_id": 18515,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Ponsel",
+      "business_id": 2,
+      "canonical_key": "v2.utilities.3",
+      "category_id": 18519,
+      "is_active": true,
+      "parent_category_id": 18515,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "TV Kabel / Satelit",
+      "business_id": 2,
+      "canonical_key": "v2.utilities.5",
+      "category_id": 18521,
+      "is_active": true,
+      "parent_category_id": 18515,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Air",
+      "business_id": 2,
+      "canonical_key": "v2.utilities.6",
+      "category_id": 18522,
+      "is_active": true,
+      "parent_category_id": 18515,
+      "scope_key": "PERSONAL:2"
+    },
+    {
+      "builtin_name": "Makan di Luar",
+      "business_id": 10,
+      "canonical_key": "food.1",
+      "category_id": 18482,
+      "is_active": true,
+      "parent_category_id": 18480,
+      "scope_key": "PERSONAL:9"
+    },
+    {
+      "builtin_name": "Perawatan",
+      "business_id": 10,
+      "canonical_key": "housing.1",
+      "category_id": 18479,
+      "is_active": true,
+      "parent_category_id": 18477,
+      "scope_key": "PERSONAL:9"
+    },
+    {
+      "builtin_name": "Perlengkapan Mandi",
+      "business_id": 10,
+      "canonical_key": "items.1",
+      "category_id": 18492,
+      "is_active": true,
+      "parent_category_id": 18490,
+      "scope_key": "PERSONAL:9"
+    },
+    {
+      "builtin_name": "Perawatan Diri",
+      "business_id": 10,
+      "canonical_key": "items.2",
+      "category_id": 18493,
+      "is_active": true,
+      "parent_category_id": 18490,
+      "scope_key": "PERSONAL:9"
+    }
+  ],
+  "references": [
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18479,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18482,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18492,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18493,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18496,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18499,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18509,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18510,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18512,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18518,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18519,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18521,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18522,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18526,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18528,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18529,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18532,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18533,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18534,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18535,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18536,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 5,
+      "id": 18544,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18545,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18546,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18547,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18548,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18549,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18551,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18552,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18553,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18554,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18555,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    },
+    {
+      "allocations": 0,
+      "bills": 0,
+      "budgets": 0,
+      "children": 0,
+      "id": 18557,
+      "installments": 0,
+      "settings_count": 1,
+      "transactions": 0
+    }
+  ],
+  "recovery_snapshot": [
+    {
+      "snapshot": {
+        "catalog": [
+          {
+            "builtin_name": "Perawatan",
+            "business_id": 2,
+            "canonical_key": "housing.1",
+            "category_id": 18496,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 2
+          },
+          {
+            "builtin_name": "Restoran / Makanan Cepat Saji",
+            "business_id": 2,
+            "canonical_key": "food.1",
+            "category_id": 18499,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 100
+          },
+          {
+            "builtin_name": "Perlengkapan Mandi",
+            "business_id": 2,
+            "canonical_key": "items.1",
+            "category_id": 18509,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 502
+          },
+          {
+            "builtin_name": "Perawatan Diri",
+            "business_id": 2,
+            "canonical_key": "items.2",
+            "category_id": 18510,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 503
+          },
+          {
+            "builtin_name": "Hipotek Kedua",
+            "business_id": 2,
+            "canonical_key": "v2.housing.1",
+            "category_id": 18512,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 100
+          },
+          {
+            "builtin_name": "Telepon",
+            "business_id": 2,
+            "canonical_key": "v2.utilities.2",
+            "category_id": 18518,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 200
+          },
+          {
+            "builtin_name": "Ponsel",
+            "business_id": 2,
+            "canonical_key": "v2.utilities.3",
+            "category_id": 18519,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 300
+          },
+          {
+            "builtin_name": "TV Kabel / Satelit",
+            "business_id": 2,
+            "canonical_key": "v2.utilities.5",
+            "category_id": 18521,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 500
+          },
+          {
+            "builtin_name": "Air",
+            "business_id": 2,
+            "canonical_key": "v2.utilities.6",
+            "category_id": 18522,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 600
+          },
+          {
+            "builtin_name": "Barang Pribadi",
+            "business_id": 2,
+            "canonical_key": "v2.items.1",
+            "category_id": 18526,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 100
+          },
+          {
+            "builtin_name": "Buku / Majalah",
+            "business_id": 2,
+            "canonical_key": "v2.items.3",
+            "category_id": 18528,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 300
+          },
+          {
+            "builtin_name": "Perawatan Kecantikan",
+            "business_id": 2,
+            "canonical_key": "v2.items.4",
+            "category_id": 18529,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 400
+          },
+          {
+            "builtin_name": "Sewa DVD",
+            "business_id": 2,
+            "canonical_key": "v2.entertainment.1",
+            "category_id": 18532,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 100
+          },
+          {
+            "builtin_name": "Musik",
+            "business_id": 2,
+            "canonical_key": "v2.entertainment.2",
+            "category_id": 18533,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 200
+          },
+          {
+            "builtin_name": "Appstore",
+            "business_id": 2,
+            "canonical_key": "v2.entertainment.3",
+            "category_id": 18534,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 300
+          },
+          {
+            "builtin_name": "Tune Core",
+            "business_id": 2,
+            "canonical_key": "v2.entertainment.4",
+            "category_id": 18535,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 400
+          },
+          {
+            "builtin_name": "Musik Produce",
+            "business_id": 2,
+            "canonical_key": "v2.entertainment.5",
+            "category_id": 18536,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 500
+          },
+          {
+            "builtin_name": "Asuransi / Medis",
+            "business_id": 2,
+            "canonical_key": "v2.health",
+            "category_id": 18544,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 600
+          },
+          {
+            "builtin_name": "Asuransi Mobil",
+            "business_id": 2,
+            "canonical_key": "v2.health.0",
+            "category_id": 18545,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 0
+          },
+          {
+            "builtin_name": "Asuransi Rumah",
+            "business_id": 2,
+            "canonical_key": "v2.health.1",
+            "category_id": 18546,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 100
+          },
+          {
+            "builtin_name": "Asuransi Kesehatan",
+            "business_id": 2,
+            "canonical_key": "v2.health.2",
+            "category_id": 18547,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 200
+          },
+          {
+            "builtin_name": "Biaya Medis / Co-pay",
+            "business_id": 2,
+            "canonical_key": "v2.health.3",
+            "category_id": 18548,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 300
+          },
+          {
+            "builtin_name": "Pengobatan",
+            "business_id": 2,
+            "canonical_key": "v2.health.4",
+            "category_id": 18549,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 400
+          },
+          {
+            "builtin_name": "Tiket Pesawat",
+            "business_id": 2,
+            "canonical_key": "v2.misc.0",
+            "category_id": 18551,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 0
+          },
+          {
+            "builtin_name": "Hotel / Penginapan",
+            "business_id": 2,
+            "canonical_key": "v2.misc.1",
+            "category_id": 18552,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 100
+          },
+          {
+            "builtin_name": "Hadiah / Amal",
+            "business_id": 2,
+            "canonical_key": "v2.misc.2",
+            "category_id": 18553,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 200
+          },
+          {
+            "builtin_name": "Keluarga",
+            "business_id": 2,
+            "canonical_key": "v2.misc.3",
+            "category_id": 18554,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 300
+          },
+          {
+            "builtin_name": "Investasi",
+            "business_id": 2,
+            "canonical_key": "v2.investment",
+            "category_id": 18555,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 800
+          },
+          {
+            "builtin_name": "Gaji / Upah",
+            "business_id": 2,
+            "canonical_key": "v2.salaries",
+            "category_id": 18557,
+            "scope_key": "PERSONAL:2",
+            "sort_order": 1000
+          },
+          {
+            "builtin_name": "Perawatan",
+            "business_id": 10,
+            "canonical_key": "housing.1",
+            "category_id": 18479,
+            "scope_key": "PERSONAL:9",
+            "sort_order": 2
+          },
+          {
+            "builtin_name": "Makan di Luar",
+            "business_id": 10,
+            "canonical_key": "food.1",
+            "category_id": 18482,
+            "scope_key": "PERSONAL:9",
+            "sort_order": 102
+          },
+          {
+            "builtin_name": "Perlengkapan Mandi",
+            "business_id": 10,
+            "canonical_key": "items.1",
+            "category_id": 18492,
+            "scope_key": "PERSONAL:9",
+            "sort_order": 502
+          },
+          {
+            "builtin_name": "Perawatan Diri",
+            "business_id": 10,
+            "canonical_key": "items.2",
+            "category_id": 18493,
+            "scope_key": "PERSONAL:9",
+            "sort_order": 503
+          }
+        ],
+        "categories": [
+          {
+            "business_id": 10,
+            "created_at": "2026-10-18T10:05:06.497553+00:00",
+            "direction": "EXPENSE",
+            "id": 18479,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:9_housing.1",
+            "updated_at": "2026-10-18T10:05:06.497553+00:00"
+          },
+          {
+            "business_id": 10,
+            "created_at": "2026-10-18T10:05:06.594208+00:00",
+            "direction": "EXPENSE",
+            "id": 18482,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:9_food.1",
+            "updated_at": "2026-10-18T10:05:06.594208+00:00"
+          },
+          {
+            "business_id": 10,
+            "created_at": "2026-10-18T10:05:06.997474+00:00",
+            "direction": "EXPENSE",
+            "id": 18492,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:9_items.1",
+            "updated_at": "2026-10-18T10:05:06.997474+00:00"
+          },
+          {
+            "business_id": 10,
+            "created_at": "2026-10-18T10:05:07.012296+00:00",
+            "direction": "EXPENSE",
+            "id": 18493,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:9_items.2",
+            "updated_at": "2026-10-18T10:05:07.012296+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:05:29.590035+00:00",
+            "direction": "EXPENSE",
+            "id": 18496,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_housing.1",
+            "updated_at": "2026-10-18T10:05:29.590035+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:05:29.686778+00:00",
+            "direction": "EXPENSE",
+            "id": 18499,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_food.1",
+            "updated_at": "2026-10-18T10:05:29.686778+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:05:29.995083+00:00",
+            "direction": "EXPENSE",
+            "id": 18509,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_items.1",
+            "updated_at": "2026-10-18T10:05:29.995083+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:05:30.000882+00:00",
+            "direction": "EXPENSE",
+            "id": 18510,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_items.2",
+            "updated_at": "2026-10-18T10:05:30.000882+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:58.603356+00:00",
+            "direction": "EXPENSE",
+            "id": 18512,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.housing.1",
+            "updated_at": "2026-10-18T10:52:58.603356+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:58.807607+00:00",
+            "direction": "EXPENSE",
+            "id": 18518,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.utilities.2",
+            "updated_at": "2026-10-18T10:52:58.807607+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:58.889332+00:00",
+            "direction": "EXPENSE",
+            "id": 18519,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.utilities.3",
+            "updated_at": "2026-10-18T10:52:58.889332+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:58.904438+00:00",
+            "direction": "EXPENSE",
+            "id": 18521,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.utilities.5",
+            "updated_at": "2026-10-18T10:52:58.904438+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:58.994430+00:00",
+            "direction": "EXPENSE",
+            "id": 18522,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.utilities.6",
+            "updated_at": "2026-10-18T10:52:58.994430+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.207920+00:00",
+            "direction": "EXPENSE",
+            "id": 18526,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.items.1",
+            "updated_at": "2026-10-18T10:52:59.207920+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.298784+00:00",
+            "direction": "EXPENSE",
+            "id": 18528,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.items.3",
+            "updated_at": "2026-10-18T10:52:59.298784+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.305658+00:00",
+            "direction": "EXPENSE",
+            "id": 18529,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.items.4",
+            "updated_at": "2026-10-18T10:52:59.305658+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.403034+00:00",
+            "direction": "EXPENSE",
+            "id": 18532,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.entertainment.1",
+            "updated_at": "2026-10-18T10:52:59.403034+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.488391+00:00",
+            "direction": "EXPENSE",
+            "id": 18533,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.entertainment.2",
+            "updated_at": "2026-10-18T10:52:59.488391+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.495476+00:00",
+            "direction": "EXPENSE",
+            "id": 18534,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.entertainment.3",
+            "updated_at": "2026-10-18T10:52:59.495476+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.584716+00:00",
+            "direction": "EXPENSE",
+            "id": 18535,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.entertainment.4",
+            "updated_at": "2026-10-18T10:52:59.584716+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.591529+00:00",
+            "direction": "EXPENSE",
+            "id": 18536,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.entertainment.5",
+            "updated_at": "2026-10-18T10:52:59.591529+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.801859+00:00",
+            "direction": "EXPENSE",
+            "id": 18544,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.health",
+            "updated_at": "2026-10-18T10:52:59.801859+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.885041+00:00",
+            "direction": "EXPENSE",
+            "id": 18545,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.health.0",
+            "updated_at": "2026-10-18T10:52:59.885041+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.895760+00:00",
+            "direction": "EXPENSE",
+            "id": 18546,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.health.1",
+            "updated_at": "2026-10-18T10:52:59.895760+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.903418+00:00",
+            "direction": "EXPENSE",
+            "id": 18547,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.health.2",
+            "updated_at": "2026-10-18T10:52:59.903418+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.987140+00:00",
+            "direction": "EXPENSE",
+            "id": 18548,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.health.3",
+            "updated_at": "2026-10-18T10:52:59.987140+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:52:59.995540+00:00",
+            "direction": "EXPENSE",
+            "id": 18549,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.health.4",
+            "updated_at": "2026-10-18T10:52:59.995540+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:53:00.091021+00:00",
+            "direction": "EXPENSE",
+            "id": 18551,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.misc.0",
+            "updated_at": "2026-10-18T10:53:00.091021+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:53:00.098925+00:00",
+            "direction": "EXPENSE",
+            "id": 18552,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.misc.1",
+            "updated_at": "2026-10-18T10:53:00.098925+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:53:00.184811+00:00",
+            "direction": "EXPENSE",
+            "id": 18553,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.misc.2",
+            "updated_at": "2026-10-18T10:53:00.184811+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:53:00.192395+00:00",
+            "direction": "EXPENSE",
+            "id": 18554,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.misc.3",
+            "updated_at": "2026-10-18T10:53:00.192395+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:53:00.199298+00:00",
+            "direction": "EXPENSE",
+            "id": 18555,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.investment",
+            "updated_at": "2026-10-18T10:53:00.199298+00:00"
+          },
+          {
+            "business_id": 2,
+            "created_at": "2026-10-18T10:53:00.291192+00:00",
+            "direction": "EXPENSE",
+            "id": 18557,
+            "is_active": true,
+            "name": "__kilas_PERSONAL:2_v2.salaries",
+            "updated_at": "2026-10-18T10:53:00.291192+00:00"
+          }
+        ],
+        "hierarchy": [
+          {
+            "business_id": 2,
+            "child_category_id": 18496,
+            "created_at": "2026-10-18T10:05:29.595309+00:00",
+            "parent_category_id": 18494
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18499,
+            "created_at": "2026-10-18T10:05:29.691551+00:00",
+            "parent_category_id": 18497
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18509,
+            "created_at": "2026-10-18T10:05:29.999241+00:00",
+            "parent_category_id": 18507
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18510,
+            "created_at": "2026-10-18T10:05:30.005254+00:00",
+            "parent_category_id": 18507
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18512,
+            "created_at": "2026-10-18T10:52:58.607357+00:00",
+            "parent_category_id": 18494
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18518,
+            "created_at": "2026-10-18T10:52:58.885396+00:00",
+            "parent_category_id": 18515
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18519,
+            "created_at": "2026-10-18T10:52:58.892756+00:00",
+            "parent_category_id": 18515
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18521,
+            "created_at": "2026-10-18T10:52:58.990560+00:00",
+            "parent_category_id": 18515
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18522,
+            "created_at": "2026-10-18T10:52:58.997857+00:00",
+            "parent_category_id": 18515
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18526,
+            "created_at": "2026-10-18T10:52:59.288816+00:00",
+            "parent_category_id": 18507
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18528,
+            "created_at": "2026-10-18T10:52:59.301803+00:00",
+            "parent_category_id": 18507
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18529,
+            "created_at": "2026-10-18T10:52:59.387457+00:00",
+            "parent_category_id": 18507
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18532,
+            "created_at": "2026-10-18T10:52:59.406345+00:00",
+            "parent_category_id": 18530
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18533,
+            "created_at": "2026-10-18T10:52:59.491780+00:00",
+            "parent_category_id": 18530
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18534,
+            "created_at": "2026-10-18T10:52:59.500964+00:00",
+            "parent_category_id": 18530
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18535,
+            "created_at": "2026-10-18T10:52:59.588175+00:00",
+            "parent_category_id": 18530
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18536,
+            "created_at": "2026-10-18T10:52:59.595301+00:00",
+            "parent_category_id": 18530
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18545,
+            "created_at": "2026-10-18T10:52:59.889595+00:00",
+            "parent_category_id": 18544
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18546,
+            "created_at": "2026-10-18T10:52:59.899297+00:00",
+            "parent_category_id": 18544
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18547,
+            "created_at": "2026-10-18T10:52:59.909602+00:00",
+            "parent_category_id": 18544
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18548,
+            "created_at": "2026-10-18T10:52:59.991105+00:00",
+            "parent_category_id": 18544
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18549,
+            "created_at": "2026-10-18T10:53:00.000157+00:00",
+            "parent_category_id": 18544
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18551,
+            "created_at": "2026-10-18T10:53:00.095529+00:00",
+            "parent_category_id": 18550
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18552,
+            "created_at": "2026-10-18T10:53:00.102549+00:00",
+            "parent_category_id": 18550
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18553,
+            "created_at": "2026-10-18T10:53:00.188892+00:00",
+            "parent_category_id": 18550
+          },
+          {
+            "business_id": 2,
+            "child_category_id": 18554,
+            "created_at": "2026-10-18T10:53:00.195956+00:00",
+            "parent_category_id": 18550
+          },
+          {
+            "business_id": 10,
+            "child_category_id": 18479,
+            "created_at": "2026-10-18T10:05:06.501891+00:00",
+            "parent_category_id": 18477
+          },
+          {
+            "business_id": 10,
+            "child_category_id": 18482,
+            "created_at": "2026-10-18T10:05:06.598865+00:00",
+            "parent_category_id": 18480
+          },
+          {
+            "business_id": 10,
+            "child_category_id": 18492,
+            "created_at": "2026-10-18T10:05:07.010166+00:00",
+            "parent_category_id": 18490
+          },
+          {
+            "business_id": 10,
+            "child_category_id": 18493,
+            "created_at": "2026-10-18T10:05:07.089867+00:00",
+            "parent_category_id": 18490
+          }
+        ],
+        "preferences": [
+          {
+            "business_id": 2,
+            "category_id": 18499,
+            "icon_key": "food",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18512,
+            "icon_key": "home",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18518,
+            "icon_key": "electric",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18519,
+            "icon_key": "electric",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18521,
+            "icon_key": "electric",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18522,
+            "icon_key": "electric",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18526,
+            "icon_key": "shopping",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18528,
+            "icon_key": "shopping",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18529,
+            "icon_key": "shopping",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18532,
+            "icon_key": "entertainment",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18533,
+            "icon_key": "entertainment",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18534,
+            "icon_key": "entertainment",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18535,
+            "icon_key": "entertainment",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18536,
+            "icon_key": "entertainment",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18544,
+            "icon_key": "health",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18545,
+            "icon_key": "health",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18546,
+            "icon_key": "health",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18547,
+            "icon_key": "health",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18548,
+            "icon_key": "health",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18549,
+            "icon_key": "health",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18551,
+            "icon_key": "category",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18552,
+            "icon_key": "category",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18553,
+            "icon_key": "category",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18554,
+            "icon_key": "category",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18555,
+            "icon_key": "investment",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          },
+          {
+            "business_id": 2,
+            "category_id": 18557,
+            "icon_key": "work",
+            "scope_key": "PERSONAL:2",
+            "sort_order": null
+          }
+        ],
+        "settings": [
+          {
+            "business_id": 2,
+            "category_id": 18496,
+            "created_at": "2026-10-18T10:05:29.592080+00:00",
+            "display_name": "Perawatan",
+            "is_active": false,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:53:00.297289+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18499,
+            "created_at": "2026-10-18T10:05:29.688878+00:00",
+            "display_name": "Restoran / Makanan Cepat Saji",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.191036+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18509,
+            "created_at": "2026-10-18T10:05:29.997210+00:00",
+            "display_name": "Perlengkapan Mandi",
+            "is_active": false,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:53:00.298038+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18510,
+            "created_at": "2026-10-18T10:05:30.002557+00:00",
+            "display_name": "Perawatan Diri",
+            "is_active": false,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:53:00.298726+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18512,
+            "created_at": "2026-10-18T10:52:58.605154+00:00",
+            "display_name": "Hipotek Kedua",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:58.605154+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18518,
+            "created_at": "2026-10-18T10:52:58.809100+00:00",
+            "display_name": "Telepon",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:58.809100+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18519,
+            "created_at": "2026-10-18T10:52:58.890840+00:00",
+            "display_name": "Ponsel",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:58.890840+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18521,
+            "created_at": "2026-10-18T10:52:58.906907+00:00",
+            "display_name": "TV Kabel / Satelit",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:58.906907+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18522,
+            "created_at": "2026-10-18T10:52:58.996001+00:00",
+            "display_name": "Air",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:58.996001+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18526,
+            "created_at": "2026-10-18T10:52:59.286262+00:00",
+            "display_name": "Barang Pribadi",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.286262+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18528,
+            "created_at": "2026-10-18T10:52:59.300083+00:00",
+            "display_name": "Buku / Majalah",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.300083+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18529,
+            "created_at": "2026-10-18T10:52:59.385707+00:00",
+            "display_name": "Perawatan Kecantikan",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.385707+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18532,
+            "created_at": "2026-10-18T10:52:59.404578+00:00",
+            "display_name": "Sewa DVD",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.404578+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18533,
+            "created_at": "2026-10-18T10:52:59.489945+00:00",
+            "display_name": "Musik",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.489945+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18534,
+            "created_at": "2026-10-18T10:52:59.498039+00:00",
+            "display_name": "Appstore",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.498039+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18535,
+            "created_at": "2026-10-18T10:52:59.586523+00:00",
+            "display_name": "Tune Core",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.586523+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18536,
+            "created_at": "2026-10-18T10:52:59.593347+00:00",
+            "display_name": "Musik Produce",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.593347+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18544,
+            "created_at": "2026-10-18T10:52:59.803396+00:00",
+            "display_name": "Asuransi / Medis",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.803396+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18545,
+            "created_at": "2026-10-18T10:52:59.887295+00:00",
+            "display_name": "Asuransi Mobil",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.887295+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18546,
+            "created_at": "2026-10-18T10:52:59.897401+00:00",
+            "display_name": "Asuransi Rumah",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.897401+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18547,
+            "created_at": "2026-10-18T10:52:59.907509+00:00",
+            "display_name": "Asuransi Kesehatan",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.907509+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18548,
+            "created_at": "2026-10-18T10:52:59.989005+00:00",
+            "display_name": "Biaya Medis / Co-pay",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.989005+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18549,
+            "created_at": "2026-10-18T10:52:59.997022+00:00",
+            "display_name": "Pengobatan",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:52:59.997022+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18551,
+            "created_at": "2026-10-18T10:53:00.092758+00:00",
+            "display_name": "Tiket Pesawat",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:53:00.092758+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18552,
+            "created_at": "2026-10-18T10:53:00.100573+00:00",
+            "display_name": "Hotel / Penginapan",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:53:00.100573+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18553,
+            "created_at": "2026-10-18T10:53:00.186798+00:00",
+            "display_name": "Hadiah / Amal",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:53:00.186798+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18554,
+            "created_at": "2026-10-18T10:53:00.193966+00:00",
+            "display_name": "Keluarga",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:53:00.193966+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18555,
+            "created_at": "2026-10-18T10:53:00.200663+00:00",
+            "display_name": "Investasi",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:53:00.200663+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 2,
+            "category_id": 18557,
+            "created_at": "2026-10-18T10:53:00.292891+00:00",
+            "display_name": "Gaji / Upah",
+            "is_active": true,
+            "owner_user_id": 2,
+            "scope_key": "PERSONAL:2",
+            "updated_at": "2026-10-18T10:53:00.292891+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 10,
+            "category_id": 18479,
+            "created_at": "2026-10-18T10:05:06.499590+00:00",
+            "display_name": "Perawatan",
+            "is_active": true,
+            "owner_user_id": 9,
+            "scope_key": "PERSONAL:9",
+            "updated_at": "2026-10-18T10:05:06.499590+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 10,
+            "category_id": 18482,
+            "created_at": "2026-10-18T10:05:06.596399+00:00",
+            "display_name": "Makan di Luar",
+            "is_active": true,
+            "owner_user_id": 9,
+            "scope_key": "PERSONAL:9",
+            "updated_at": "2026-10-18T10:05:06.596399+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 10,
+            "category_id": 18492,
+            "created_at": "2026-10-18T10:05:07.006566+00:00",
+            "display_name": "Perlengkapan Mandi",
+            "is_active": true,
+            "owner_user_id": 9,
+            "scope_key": "PERSONAL:9",
+            "updated_at": "2026-10-18T10:05:07.006566+00:00",
+            "workspace_type": "PERSONAL"
+          },
+          {
+            "business_id": 10,
+            "category_id": 18493,
+            "created_at": "2026-10-18T10:05:07.087397+00:00",
+            "display_name": "Perawatan Diri",
+            "is_active": true,
+            "owner_user_id": 9,
+            "scope_key": "PERSONAL:9",
+            "updated_at": "2026-10-18T10:05:07.087397+00:00",
+            "workspace_type": "PERSONAL"
+          }
+        ]
+      }
+    }
+  ]
+}

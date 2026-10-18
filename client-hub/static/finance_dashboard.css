@@ -227,3 +227,6 @@ body:has(.finance-dashboard-page) .finance-exit-bar,body:has(.finance-dashboard-
 @media(max-width:760px){.finance-dashboard-page .finance-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.finance-dashboard-page .finance-metric-grid>.finance-metric{min-height:105px}.finance-tx-top{gap:8px}}
 
 .finance-dashboard-page .finance-budget-summary{display:block}
+
+/* Keep the existing cash-flow card; reserve enough label space in its picker. */
+.finance-panel-actions form{min-width:0}.finance-panel-actions #trend-months{width:auto;min-width:146px;padding:7px 28px 7px 9px;font-size:11px;line-height:1.25}.finance-panel-heading>div:first-child{min-width:0}@media(max-width:640px){.finance-trend .finance-panel-heading{align-items:flex-start;gap:8px;flex-wrap:wrap}.finance-panel-actions{gap:6px;flex-wrap:wrap}.finance-panel-actions #trend-months{min-width:140px;font-size:10.5px}}

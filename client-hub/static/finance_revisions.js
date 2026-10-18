@@ -14,11 +14,12 @@
       const personalIncome = form.dataset.personal === 'true' && income;
       const categories = form.querySelector('[data-entry-categories]');
       if (categories) {
-        categories.hidden = personalIncome;
-        for (const control of categories.querySelectorAll('select,input,button')) control.disabled = personalIncome;
+        categories.hidden = income;
+        for (const control of categories.querySelectorAll('select,input,button')) control.disabled = income;
         const category = form.elements.namedItem('category_id');
-        if (category) category.required = !personalIncome;
+        if (category) category.required = !income;
       }
+      for(const field of form.querySelectorAll('[data-counterparty-field],.finance-counterparty-tools')){field.hidden=income;for(const control of field.querySelectorAll('input,select,button')){control.disabled=income;if(income&&control.tagName==='INPUT')control.value='';}}
       const description = form.elements.namedItem('description');
       if (description) description.required = personalIncome;
       const dateLabel = form.querySelector('[data-entry-date-label]');

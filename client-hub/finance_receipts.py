@@ -9,7 +9,6 @@ import uuid
 
 from flask import current_app
 from itsdangerous import BadData, URLSafeTimedSerializer
-import requests
 
 import file_utils
 import finance_branches as branches
@@ -19,6 +18,7 @@ import finance_ai_safety as safety
 TTL = 600
 MAX_BYTES = file_utils.FINANCE_IMAGE_INPUT_BYTES
 PURPOSE = 'finance_receipt_review'
+ERROR_MESSAGES={'capacity_unavailable':'Scan struk memerlukan paket AI aktif dan kapasitas Premium yang cukup. Pengeluaran manual tetap tersedia.','already_analyzed':'Foto ini sudah dikirim untuk analisis. Gunakan review yang sudah terbuka atau isi pengeluaran manual; analisis tidak diulang otomatis.','not_configured':'Pemindai struk belum tersedia. Gunakan pengeluaran manual.'}
 READ_ERROR = 'AI belum berhasil membaca struk ini. Coba foto ulang lebih dekat dan terang, atau isi manual.'
 FIELDS = {'merchant_name', 'transaction_date', 'total_minor', 'currency', 'receipt_number',
           'description', 'suggested_category_name', 'readable'}
@@ -69,7 +69,7 @@ def validate_result(result, category_names=None):
         raise ReceiptError('invalid_result')
     suggestion = result['suggested_category_name']
     if category_names is not None and suggestion is not None and suggestion not in category_names:
-        raise ReceiptError('invalid_result')
+        result['suggested_category_name']=None  # Unavailable suggestions never invent a tenant category.
     if not result['readable'] and any(result[key] is not None for key in FIELDS - {'readable'}):
         raise ReceiptError('invalid_result')
     return result
@@ -86,52 +86,52 @@ def signer():
 
 def options(business_id, user_id):
     accounts = finance.list_accounts(business_id, actor_user_id=user_id)
-    categories = finance.list_categories(business_id, 'EXPENSE', actor_user_id=user_id)
+    rows=finance.list_categories(business_id,'EXPENSE',include_children=True,actor_user_id=user_id)
+    parents={v['parent_category_id'] for v in rows if v.get('parent_category_id')}
+    categories=[dict(v) for v in rows if v['id'] not in parents]
+    labels={v['id']:v['display_name'] for v in rows}
+    for row in categories:row['receipt_label']=(labels.get(row.get('parent_category_id'),'')+' / ' if row.get('parent_category_id') else '')+row['display_name']
     return accounts, categories
 
 
-def extract(raw, mime, pdf_text, category_names, business_id=None):
-    raise ReceiptError('finance_ai_disabled')  # Archived provider path cannot run.
-    key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
-    model = os.environ.get('CLIENT_HUB_MODEL', '').strip() or 'claude-sonnet-4-6'
-    if not key or len(key) > 512 or any(c.isspace() for c in key) or not re.fullmatch('[A-Za-z0-9._-]{1,128}', model):
-        raise ReceiptError('not_configured')
-    context = {'active_expense_category_names': category_names}
-    if mime == 'application/pdf' and pdf_text and len(pdf_text.strip()) >= 40:
-        context['receipt_text'] = pdf_text
-        content = []
-    else:
-        content = [{'type': 'document' if mime == 'application/pdf' else 'image',
-                    'source': {'type': 'base64', 'media_type': mime,
-                               'data': base64.b64encode(raw).decode('ascii')}}]
-    content.append({'type': 'text', 'text': json.dumps(context, ensure_ascii=False)})
+def extract(raw, mime, pdf_text, category_names, business_id=None, user_id=None):
+    """One metered receipt-only request. No model/provider or paid retry fallback."""
+    from kilas_ai import usage,providers,chat_models
+    model='gpt-6-luna'
+    item=chat_models.check(model)
+    if user_id is None or not item['available'] or not item.get('images'):raise ReceiptError('not_configured')
+    if mime not in ('image/jpeg','image/png','image/webp'):raise ReceiptError('unsupported_file')
+    properties={key:({'type':'boolean'} if key=='readable' else {'type':['integer','null']} if key=='total_minor' else {'type':['string','null']}) for key in FIELDS}
+    schema={'type':'json_schema','json_schema':{'name':'receipt_review','strict':True,'schema':{'type':'object','properties':properties,'required':sorted(FIELDS),'additionalProperties':False}}}
+    key='finance-receipt:'+str(business_id)+':'+str(branches.token_branch(business_id))+':'+hashlib.sha256(raw).hexdigest()
+    profile={'model':model,'selected_model':model,'output_tokens':2048,'input_token_bound':200000,'effort':'low'}
+    try:_,operations=usage.reserve(user_id,None,key,'SMART','RECEIPT',profile=profile)
+    except usage.UsageLimit:raise ReceiptError('capacity_unavailable') from None
+    if not operations:raise ReceiptError('already_analyzed')
+    used={};success=False;dispatched=False;text=[];finish=None
     try:
-        response = requests.post('https://api.anthropic.com/v1/messages',
-            headers={'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-            json={'model': model, 'max_tokens': 700, 'system': SYSTEM,
-                  'messages': [{'role': 'user', 'content': content}]},
-            timeout=(5, 25), allow_redirects=False)
-    except requests.Timeout:
-        raise ReceiptError('timeout') from None
-    except requests.RequestException:
-        raise ReceiptError('network_failure') from None
-    if response.status_code == 429:
-        raise ReceiptError('rate_limited')
-    if response.status_code != 200:
-        raise ReceiptError('upstream_failure')
-    try:
-        body=response.json()
-        classification='vision' if any(part.get('type') in ('image','document') for part in content if isinstance(part,dict)) else 'normal'
-        safety.record_usage(model,body,business_id,classification,context='finance_receipt')
-        return validate_result(safety.json_object(safety.response_text(body, 6000)), category_names)
-    except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
-        raise ReceiptError('invalid_result') from None
+        messages=[{'role':'user','content':[{'type':'image_url','image_url':{'url':'data:'+mime+';base64,'+base64.b64encode(raw).decode('ascii'),'detail':'high'}},{'type':'text','text':json.dumps({'active_expense_category_names':category_names},ensure_ascii=False)}]}]
+        dispatched=True
+        for event in providers._openai(model,os.environ.get('OPENAI_API_KEY','').strip(),messages,'SMART',SYSTEM,project=os.environ.get('OPENAI_PROJECT_ID'),profile=profile,response_format=schema):
+            if event['type']=='usage':used.update({k:v for k,v in event.items() if k!='type'})
+            if event['type']=='delta':
+                text.append(event['text'])
+                if sum(map(len,text))>6000:raise ReceiptError('invalid_result')
+            if event['type']=='finish':finish=event.get('reason')
+            if event['type']=='refusal':raise ReceiptError('invalid_result')
+        if finish!='stop':raise ReceiptError('invalid_result')
+        result=validate_result(safety.json_object(''.join(text)),category_names);success=True
+        return result
+    except (providers.ProviderError,ValueError,TypeError,KeyError):
+        raise ReceiptError('upstream_failure') from None
+    finally:
+        usage.finish(user_id,key,operations,success=success,provider='openai',model=model,usage={**used,'selected_model':model,'billing_unknown':bool(dispatched and not used)})
 
 
 def analyze(business_id, user_id, filename, raw):
     """No Finance writes or persistent upload storage; provider usage is metered separately."""
     finance._scope(business_id, user_id)
-    __import__("finance_entitlements").require_ai(business_id,user_id)
+    __import__("finance_entitlements").require_ai(business_id,user_id,'receipt')
     branches.token_branch(business_id)
     analysis_signer = signer()  # Fail before upload parsing / paid calls without safe signing.
     receipt_hash = hashlib.sha256(raw).hexdigest()
@@ -141,28 +141,20 @@ def analyze(business_id, user_id, filename, raw):
         return {'duplicate': True}
     _, categories = options(business_id, user_id)
     # Bound prompts without inventing categories or accepting suggestions outside the tenant.
-    names = [c['name'] for c in categories[:100]]
+    names = [c['receipt_label'] for c in categories[:100]]
     result = empty_result()
     fallback = True
     reason = 'rate_limited'
     if safety.allow_attempt(user_id, business_id, 'ai'):
         try:
-            __import__("finance_entitlements").require_ai(business_id,user_id)
-            try:
-                result = extract(raw, mime, pdf_text, names, business_id)
-            except ReceiptError:
-                if not (mime == 'application/pdf' and pdf_text and safety.allow_attempt(user_id,business_id,'ai')):
-                    raise
-                result = extract(raw, mime, None, names, business_id)
-            else:
-                if (not result['readable'] and mime == 'application/pdf' and pdf_text
-                        and safety.allow_attempt(user_id,business_id,'ai')):
-                    result = extract(raw, mime, None, names, business_id)
+            __import__("finance_entitlements").require_ai(business_id,user_id,'receipt')
+            result = extract(raw,mime,pdf_text,names,business_id,user_id)
             fallback = not result['readable'] or all(result[key] is None for key in
                 ('merchant_name', 'transaction_date', 'total_minor', 'description', 'suggested_category_name'))
             reason = 'unreadable' if fallback else 'success'
         except ReceiptError as error:
             reason = str(error)
+            if reason in ('capacity_unavailable','already_analyzed','not_configured'):raise
     safety.receipt_event(reason)
     token = analysis_signer.dumps(dict(purpose=PURPOSE, version=2, user_id=user_id, branch_id=branches.token_branch(business_id),
         business_id=business_id, receipt_hash=receipt_hash, filename=safe_name,
@@ -206,6 +198,7 @@ def confirm(business_id,user_id,token,fields):
             raise ReceiptError('invalid_fields')
     if not isinstance(fields['amount'],str) or not 1<=len(fields['amount'])<=25:
         raise ReceiptError('invalid_fields')
+    if int(fields['category_id']) not in {v['id'] for v in options(business_id,user_id)[1]}:raise ReceiptError('invalid_fields')
     merchant=finance._text(fields['merchant_name'],160);description=finance._text(fields['description'],500)
     from routes_finance import currency_amount
     account=finance.get_account(business_id,finance._id(int(fields['account_id'])),actor_user_id=user_id,active=True)

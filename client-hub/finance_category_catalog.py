@@ -23,6 +23,21 @@ PERSONAL_V2=(
  ('misc','Lain-lain / Sekali Bayar','category',('Tiket Pesawat','Hotel / Penginapan','Hadiah / Amal','Keluarga')),
  ('investment','Investasi','investment',()),('bank','Biaya Bank','bank',()),('salaries','Gaji / Upah','work',()),
 )
+# Final v3 Personal list. No historical recategorization or permanent deletion.
+PERSONAL_V3=(
+ ('housing','Rumah / Sewa','home',('Sewa','Iuran Lingkungan','Pajak Properti','Hipotek','Staf Rumah Tangga','Layanan Rumah')),
+ ('utilities','Utilitas','electric',('Listrik','Gas / Pemanas','Internet','Sampah','Penatu','Pembersihan')),
+ ('items','Barang Pribadi','shopping',('Pakaian','Rias Wajah','Perawatan Kulit','Anak / Mainan')),
+ ('food','Makanan','food',('Bahan Makanan','Restoran','Makanan Cepat Saji')),
+ ('entertainment','Hiburan','entertainment',('Film','Langganan','Acara','Permainan')),
+ ('transport','Transportasi','transport',('Bahan Bakar','Servis Kendaraan','Tol','Transportasi Daring','Parkir','Pembayaran Pinjaman Kendaraan','Sewa Mobil')),
+ ('insurance','Asuransi','health',('Asuransi Kesehatan','Asuransi Kendaraan','Asuransi Rumah')),
+ ('medical','Medis','health',('Prosedur Kosmetik',)),
+ ('misc','Lain-lain / Sekali Bayar','category',('Hadiah & Donasi','Pembelian Khusus','Lainnya')),
+ ('holiday','Liburan','transport',('Penerbangan','Akomodasi','Transportasi Lokal','Makanan & Minuman','Aktivitas & Tiket','Visa & Dokumen Perjalanan')),
+ ('bank','Biaya Bank','bank',('Pajak','Administrasi')),
+)
+
 ICONS=('category','home','rent','shopping','food','transport','electric','water','internet','phone','health','education','digital','entertainment','care','work','investment','bank')
 
 def icon(value):
@@ -104,6 +119,53 @@ def _sync_reference(business_id,actor,scope):
     db.execute('INSERT INTO finance_category_catalog_versions VALUES (?,?,2,?)',(business_id,scope['scope_key'],json.dumps(changes,sort_keys=True)))
     f._audit(business_id,actor,'FINANCE_PERSONAL_REFERENCE_CATALOG_V2',None)
 
+def _sync_final(business_id,actor,scope):
+    import json
+    import finance_service as f
+    if db.query_one('SELECT 1 FROM finance_category_catalog_versions WHERE business_id=? AND scope_key=? AND version=3',(business_id,scope['scope_key'])):return
+    old=[dict(v) for v in db.query_all('SELECT m.*,s.display_name,s.is_active,h.parent_category_id FROM finance_catalog_items m JOIN finance_category_workspace_settings s ON s.business_id=m.business_id AND s.category_id=m.category_id AND s.scope_key=m.scope_key LEFT JOIN finance_category_hierarchy h ON h.business_id=m.business_id AND h.child_category_id=m.category_id WHERE m.business_id=? AND m.scope_key=?',(business_id,scope['scope_key']))]
+    used=set();changes=[]
+    prior_version=db.query_one('SELECT changes_json FROM finance_category_catalog_versions WHERE business_id=? AND scope_key=? AND version=2',(business_id,scope['scope_key']))
+    system_retired={v['archived_before']['category_id'] for v in json.loads(prior_version['changes_json']) if v.get('archived_before',{}).get('is_active')} if prior_version else set()
+    def restore_system_retirement(row):
+        # Only the prior catalog's own logged retirement, never a user archive.
+        if not row['is_active'] and row['category_id'] in system_retired and not db.query_one('SELECT 1 FROM audit_log WHERE business_id=? AND action=? AND detail=?',(business_id,'FINANCE_CATEGORY_DEACTIVATED','finance_record_id='+str(row['category_id']))):
+            db.execute('UPDATE finance_category_workspace_settings SET is_active=TRUE WHERE business_id=? AND scope_key=? AND category_id=?',(business_id,scope['scope_key'],row['category_id']))
+    def proven(row):return row['builtin_name']!='__customer_owned__' and row['builtin_name']==row['display_name']
+    # Only unambiguous SAME-parent semantics reuse a leaf. Combined medical/food
+    # categories are retired, not guessed into a narrower new category.
+    aliases={'Bahan Bakar':('Bensin',),'Servis Kendaraan':('Servis Mobil',),'Tol':('e-Toll',),'Transportasi Daring':('Transportasi Online',),'Pembayaran Pinjaman Kendaraan':('Cicilan Mobil',)}
+    for order,(key,name,default_icon,children) in enumerate(PERSONAL_V3):
+        candidates=[r for r in old if r['canonical_key'] in (key,'v2.'+key) and r['parent_category_id'] is None and proven(r)]
+        root=candidates[0] if len(candidates)==1 else None
+        if root:
+            parent=root['category_id'];changes.append({'before':root});restore_system_retirement(root)
+            db.execute('UPDATE finance_category_workspace_settings SET display_name=?,updated_at=? WHERE business_id=? AND scope_key=? AND category_id=?',(name,f.repo._now(),business_id,scope['scope_key'],parent))
+            db.execute('UPDATE finance_catalog_items SET builtin_name=?,sort_order=? WHERE business_id=? AND scope_key=? AND category_id=?',(name,order*100,business_id,scope['scope_key'],parent))
+        else:
+            parent=f._create_category(business_id,'EXPENSE','__kilas_'+scope['scope_key']+'_v3.'+key,actor);f._ensure_category_setting(business_id,parent,name,actor);mark(business_id,scope['scope_key'],'v3.'+key,parent,order*100,name);changes.append({'created':parent})
+        used.add(parent);preference(business_id,actor,parent,icon_key=default_icon,position=order*100)
+        for index,child in enumerate(children):
+            candidates=[r for r in old if r['parent_category_id']==parent and proven(r) and r['builtin_name'] in (child,*aliases.get(child,()))]
+            row=candidates[0] if len(candidates)==1 else None
+            if row:
+                ident=row['category_id'];changes.append({'before':row});restore_system_retirement(row)
+                db.execute('UPDATE finance_category_workspace_settings SET display_name=?,updated_at=? WHERE business_id=? AND scope_key=? AND category_id=?',(child,f.repo._now(),business_id,scope['scope_key'],ident))
+                db.execute('UPDATE finance_catalog_items SET builtin_name=?,sort_order=? WHERE business_id=? AND scope_key=? AND category_id=?',(child,index*100,business_id,scope['scope_key'],ident))
+            else:
+                ident=f._create_category(business_id,'EXPENSE','__kilas_'+scope['scope_key']+'_v3.'+key+'.'+str(index),actor);f._ensure_category_setting(business_id,ident,child,actor);f._link_category_parent(business_id,ident,parent);mark(business_id,scope['scope_key'],'v3.'+key+'.'+str(index),ident,index*100,child);changes.append({'created':ident})
+            used.add(ident);preference(business_id,actor,ident,icon_key=default_icon,position=index*100)
+    for row in old:
+        if row['category_id'] in used or not proven(row) or row['canonical_key'].startswith('INCOME'):continue
+        parent=next((v for v in old if v['category_id']==row['parent_category_id']),None)
+        if parent and not proven(parent):continue
+        if db.query_one('SELECT 1 FROM finance_recurring_expenses WHERE business_id=? AND category_id=? AND is_active=TRUE',(business_id,row['category_id'])):continue
+        changes.append({'archived_before':row})
+        db.execute('UPDATE finance_category_workspace_settings SET is_active=FALSE,updated_at=? WHERE business_id=? AND scope_key=? AND category_id=?',(f.repo._now(),business_id,scope['scope_key'],row['category_id']))
+    db.execute('INSERT INTO finance_category_catalog_versions VALUES (?,?,3,?)',(business_id,scope['scope_key'],json.dumps(changes,sort_keys=True)))
+    f._audit(business_id,actor,'FINANCE_PERSONAL_REFERENCE_CATALOG_V3',None)
+
+
 def mark(business_id,scope,key,ident,position,name):
     db.execute('INSERT INTO finance_catalog_items VALUES (?,?,?,?,?,?) ON CONFLICT(business_id,scope_key,canonical_key) DO NOTHING',(business_id,scope,key,ident,position,name))
 
@@ -113,8 +175,9 @@ def sync_personal(business_id,actor):
     scope=f._category_scope(business_id,actor)
     if scope['workspace_type']!='PERSONAL':return
     if db.query_one('SELECT 1 FROM finance_catalog_items WHERE business_id=? AND scope_key=? AND canonical_key=?',(business_id,scope['scope_key'],'housing')):
-        _sync_reference(business_id,actor,scope);return
-    if db.query_one('SELECT 1 FROM finance_category_catalog_versions WHERE business_id=? AND scope_key=? AND version=2',(business_id,scope['scope_key'])):return
+        _sync_reference(business_id,actor,scope);_sync_final(business_id,actor,scope);return
+    if db.query_one('SELECT 1 FROM finance_category_catalog_versions WHERE business_id=? AND scope_key=? AND version=2',(business_id,scope['scope_key'])):
+        _sync_final(business_id,actor,scope);return
     # Existing rows have no reliable seed-vs-custom provenance. Never rename,
     # deactivate, reparent or merge them by a matching name. Add the requested
     # catalog with private stable IDs, leaving those rows available for history.
@@ -136,6 +199,7 @@ def sync_personal(business_id,actor):
         ident=node(key,name,order*100)
         for index,child in enumerate(children):node(key+'.'+str(index),child,order*100+index+1,ident)
     _sync_reference(business_id,actor,scope)
+    _sync_final(business_id,actor,scope)
 
 
 def decorate(business_id,scope,rows):

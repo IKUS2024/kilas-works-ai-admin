@@ -10,18 +10,18 @@ class CategoryReferenceTests(unittest.TestCase):
  def rows(self,scope=None,**kw):
   with branches.scope(self.b,scope or self.personal,self.uid):return f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid,**kw)
  def test_exact_reference_order_children_four_locales_and_no_invented_children(self):
-  expected=['Home/Rent','Utilities','Food/Groceries','Departmental','Entertainment','Car/Auto','Insurance/Medical','Misc/One-time','Investment','Bank Charge','Salaries']
-  expected_children=[['Mortgage','Mortgage-2nd','Rent','Association fee','Property tax'],['Electricity','Gas/Heating','Telephone','CellPhone','Internet','Cable/Dish','Water','Garbage','Laundry','Cleaning'],['Groceries','Restaurant/Fast food'],['Clothing','Personal items','Kids/Toys','Books/Magazines','Beauty Care'],['Movies','DVD rental','Music','Appstore','Tune Core','Musik Produce'],['Gasoline','Auto Loan','Service Car','e-Toll','Online Transportation','Parking'],['Insurance - Auto','Insurance - Home','Insurance - Medical','Medical Expenses/Co-pay','Treatment'],['Air tickets','Hotel/Lodging','Gifts/Charity','Family'],[],[],[]]
+  expected=['Home / Rent','Utilities','Personal Items','Food','Entertainment','Transportation','Insurance','Medical','Misc / One-time','Holiday','Bank Charges']
+  expected_children=[['Rent','Association Fee','Property Tax','Mortgage','Household Staff','Home Services'],['Electricity','Gas / Heating','Internet','Garbage','Laundry','Cleaning'],['Clothing','Makeup','Skincare','Kids / Toys'],['Groceries','Restaurants','Fast Food'],['Movies','Subscriptions','Events','Games'],['Fuel','Vehicle Servicing','Tolls','Ride-hailing','Parking','Vehicle Loan Payment','Car Rental'],['Health Insurance','Vehicle Insurance','Home Insurance'],['Cosmetic Procedures'],['Gifts & Donations','Special Purchases','Other'],['Flights','Accommodation','Local Transport','Food & Drinks','Activities & Tickets','Visa & Travel Documents'],['Tax','Administration']]
   with branches.scope(self.b,self.personal,self.uid):
    custom=f.create_category(self.b,'EXPENSE','Customer name ABC',actor_user_id=self.uid)
    before=db.query_one('SELECT count(*) AS n FROM finance_categories')['n']
    for language in ('id','en','es','zh'):
     with fixture.fixture.app.test_request_context('/',headers={'Cookie':'kilas_language='+language}):
      roots=f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)
-     self.assertEqual([v['name'] for v in roots[:11]],[v[1] for v in catalog.PERSONAL_V2])
+     self.assertEqual([v['name'] for v in roots[:11]],[v[1] for v in catalog.PERSONAL_V3])
      if language=='en':self.assertEqual([v['display_name'] for v in roots[:11]],expected)
      self.assertEqual(next(v['display_name'] for v in roots if v['id']==custom),'Customer name ABC')
-     for index,(root,(_,_,_,names)) in enumerate(zip(roots,catalog.PERSONAL_V2)):
+     for index,(root,(_,_,_,names)) in enumerate(zip(roots,catalog.PERSONAL_V3)):
       children=f.list_category_children(self.b,root['id'],actor_user_id=self.uid);self.assertEqual([v['name'] for v in children],list(names));self.assertTrue(all(v['display_name'] for v in children))
       if language=='en':self.assertEqual([v['display_name'] for v in children],expected_children[index])
    f.ensure_finance_defaults(self.b,actor_user_id=self.uid);self.assertEqual(db.query_one('SELECT count(*) AS n FROM finance_categories')['n'],before)

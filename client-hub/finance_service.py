@@ -739,6 +739,10 @@ def update_category_workspace_setting(business_id, category_id, name=None, deact
         return category_id
 
 
+def _final_other_category(business_id,scope,ident):
+    return bool(scope['workspace_type']=='PERSONAL' and db.query_one('SELECT 1 FROM finance_catalog_items WHERE business_id=? AND scope_key=? AND category_id=? AND canonical_key=? AND builtin_name=?',(business_id,scope['scope_key'],ident,'v3.misc.2','Lainnya')))
+
+
 def list_categories(business_id, direction=None, include_inactive=False, include_children=False, *, actor_user_id=None):
     _scope(business_id, actor_user_id)
     scope = _category_scope(business_id, actor_user_id)
@@ -767,7 +771,7 @@ def list_categories(business_id, direction=None, include_inactive=False, include
     if not include_inactive:
         cleaned = []
         for row in rows:
-            if row['name'].casefold() in RETIRED_CATEGORY_NAMES:
+            if row['name'].casefold() in RETIRED_CATEGORY_NAMES and not _final_other_category(business_id,scope,row['id']):
                 continue
             if row.get('parent_name') and row['parent_name'].casefold() in RETIRED_CATEGORY_NAMES:
                 continue
@@ -809,7 +813,7 @@ def list_category_children(business_id, parent_category_id, include_inactive=Fal
     rows = [dict(row) for row in db.query_all(
         sql + ' ORDER BY s.display_name,c.id', params)]
     if not include_inactive:
-        rows = [row for row in rows if row['name'].casefold() not in RETIRED_CATEGORY_NAMES]
+        rows = [row for row in rows if row['name'].casefold() not in RETIRED_CATEGORY_NAMES or _final_other_category(business_id,scope,row['id'])]
     from finance_category_catalog import decorate
     return decorate(business_id,scope,rows)
 
@@ -833,6 +837,7 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
                 (business_id, scope['scope_key'],
                  'pendapatan lain', 'pengeluaran lain', 'lainnya'))
             for row in retired:
+                if _final_other_category(business_id,scope,row['category_id']):continue
                 if not db.query_one('SELECT 1 FROM finance_catalog_items m JOIN finance_category_workspace_settings s ON s.business_id=m.business_id AND s.scope_key=m.scope_key AND s.category_id=m.category_id WHERE m.business_id=? AND m.scope_key=? AND m.category_id=? AND m.builtin_name=s.display_name',(business_id,scope['scope_key'],row['category_id'])):continue
                 result = db.execute(
                     'UPDATE finance_category_workspace_settings '
@@ -3358,6 +3363,16 @@ def void_internal_transfer(business_id, transfer_id, *, actor_user_id):
                        'WHERE business_id=? AND id=?', (repo._now(), actor_user_id, business_id, transfer_id))
             _audit(business_id, actor_user_id, 'FINANCE_INTERNAL_TRANSFER_VOIDED', transfer_id)
         return transfer_id
+
+
+def business_income_category(business_id, *, actor_user_id):
+    """Internal FK for uncategorized Business Income; no user category requirement."""
+    with _write(business_id,actor_user_id):
+        branch=branches.get(business_id,branches.write_branch(business_id,actor_user_id),actor_user_id=actor_user_id)
+        if branch['workspace_type']!='BUSINESS':raise FinanceError('workspace_unavailable')
+        roots=[c for c in list_categories(business_id,'INCOME',actor_user_id=actor_user_id) if not c.get('parent_category_id')]
+        same=next((c for c in roots if c['name']=='Pemasukan'),None)
+        return same['id'] if same else create_category(business_id,'INCOME','Pemasukan',actor_user_id=actor_user_id)
 
 
 def personal_income_category(business_id, *, actor_user_id):

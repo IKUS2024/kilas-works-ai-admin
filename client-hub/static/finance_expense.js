@@ -12,8 +12,15 @@
   for(const form of document.querySelectorAll('[data-expense-form]')){
     const split=form.querySelector('[data-expense-split-toggle]'),rows=form.querySelector('[data-expense-splits]'),single=form.querySelector('[data-expense-single]'),add=form.querySelector('[data-expense-add-split]');
     function picker(box,initial){
-      const parent=box.querySelector('[data-expense-parent]'),child=box.querySelector('[data-expense-child]'),label=box.querySelector('[data-expense-child-label]');let retainedParent=null;
-      function update(){let count=0;for(const option of child.options){if(!option.value||option.value==='__add__')continue;option.hidden=option.disabled=option.dataset.parent!==parent.value;if(!option.disabled)count++;}label.hidden=false;child.disabled=!parent.value;child.required=!!count&&parent.value!==retainedParent;const empty=box.querySelector('[data-expense-empty-child]');if(empty)empty.disabled=!!parent.value;if(child.selectedOptions[0]?.disabled)child.value='';}
+      const parent=box.querySelector('[data-expense-parent]'),child=box.querySelector('[data-expense-child]'),label=box.querySelector('[data-expense-child-label]'),summary=box.querySelector('[data-expense-cascade]'),panel=box.querySelector('[data-expense-cascade-panel]');let retainedParent=null,stage='parents';
+      const close=()=>{panel.hidden=true;summary.setAttribute('aria-expanded','false');};
+      function choice(text,fn){const button=document.createElement('button');button.type='button';button.textContent=text;button.onclick=event=>{event.stopPropagation();fn();};panel.append(button);}
+      function show(next='parents'){stage=next;panel.replaceChildren();panel.hidden=false;summary.setAttribute('aria-expanded','true');
+        if(stage==='children'&&parent.value){choice('‹ '+t('Kategori'),()=>show('parents'));const title=document.createElement('strong');title.textContent=parent.selectedOptions[0]?.textContent||'';panel.append(title);for(const option of child.options){if(option.value&&option.value!=='__add__'&&option.dataset.parent===parent.value)choice(option.textContent,()=>{child.value=option.value;child.dispatchEvent(new Event('change'));close();});}choice(t('Tambah subkategori…'),()=>{close();create(child,true);});if(![...child.options].some(o=>o.value&&o.value!=='__add__'&&o.dataset.parent===parent.value))choice(t('Pilih kategori ini'),()=>{update();close();});
+        }else{for(const option of parent.options){if(option.value&&option.value!=='__add__')choice(option.textContent,()=>{parent.value=option.value;parent.dispatchEvent(new Event('change'));show('children');});}choice(t('Tambah kategori…'),()=>{close();create(parent,false);});}
+      }
+      summary.onclick=()=>panel.hidden?show('parents'):close();box.addEventListener('keydown',event=>{if(event.key==='Escape'){close();summary.focus();}});document.addEventListener('click',event=>{if(!box.contains(event.target))close();});
+      function update(){let count=0;for(const option of child.options){if(!option.value||option.value==='__add__')continue;option.hidden=option.disabled=option.dataset.parent!==parent.value;if(!option.disabled)count++;}label.hidden=true;child.disabled=!parent.value;parent.required=child.required=false;summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||'')+(child.value?' / '+(child.selectedOptions[0]?.textContent||''):''):t('Pilih kategori');box.dataset.childRequired=String(!!count&&parent.value!==retainedParent);const empty=box.querySelector('[data-expense-empty-child]');if(empty)empty.disabled=!!parent.value;if(child.selectedOptions[0]?.disabled)child.value='';summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||'')+(child.value?' / '+(child.selectedOptions[0]?.textContent||''):''):t('Pilih kategori');}
       if(initial){const leaf=[...child.options].find(o=>o.value===String(initial));parent.value=leaf?leaf.dataset.parent:String(initial);if(!leaf)retainedParent=String(initial);if(leaf)child.value=String(initial);}
       async function create(field,isChild){
         const original=field.dataset.previous||'';field.value=original;
@@ -29,15 +36,16 @@
             for(const option of result.options){const node=new Option(option.name,String(option.id));if(option.parent_category_id)node.dataset.parent=String(option.parent_category_id);(option.parent_category_id?b:a).append(node);}
             a.append(new Option(t('Tambah kategori…'),'__add__'));b.append(new Option(t('Tambah subkategori…'),'__add__'));a.value=av;b.value=bv;
           }
-          field.value=String(result.category.id);if(!isChild)child.value='';update();field.dataset.previous=field.value;
+          field.value=String(result.category.id);if(!isChild)child.value='';update();field.dataset.previous=field.value;if(!isChild)show('children');
         }catch(error){window.alert(error.message||t('Kategori belum dapat disimpan.'));}finally{refresh();}
       }
       for(const [field,isChild] of [[parent,false],[child,true]])field.addEventListener('change',()=>{if(field.value==='__add__'){create(field,isChild);return;}field.dataset.previous=field.value;if(!isChild){child.value='';child.dataset.previous='';}update();});
-      box.refreshExpensePicker=update;update();parent.dataset.previous=parent.value;child.dataset.previous=child.value;
+      box.refreshExpensePicker=update;box.openExpensePicker=()=>show(parent.value?'children':'parents');update();parent.dataset.previous=parent.value;child.dataset.previous=child.value;
     }
     picker(single,form.dataset.initialCategory);
+    if(form.hasAttribute('data-expense-category-only')){form.addEventListener('submit',event=>{const a=single.querySelector('[data-expense-parent]'),b=single.querySelector('[data-expense-child]');if(!a.value||(single.dataset.childRequired==='true'&&!b.value)){event.preventDefault();single.openExpensePicker();summaryFocus();}});function summaryFocus(){single.querySelector('[data-expense-cascade]').focus();}continue;}
     function row(value){if(rows.children.length>=20)return;const fragment=form.querySelector('template').content.cloneNode(true),box=fragment.firstElementChild;rows.append(box);picker(box,value?.category_id);if(value){const input=box.querySelector('[name="split_amount"]');input.value=(BigInt(value.amount_minor)/100n).toString()+'.'+(BigInt(value.amount_minor)%100n).toString().padStart(2,'0');}box.querySelector('[data-expense-remove-split]').onclick=()=>{if(rows.children.length>2)box.remove();};}
-    function refresh(){rows.hidden=add.hidden=!split.checked;single.hidden=split.checked;for(const control of single.querySelectorAll('select'))control.disabled=split.checked;if(!split.checked)single.refreshExpensePicker();for(const control of rows.querySelectorAll('input,select'))control.disabled=!split.checked;if(split.checked)for(const box of rows.children)box.refreshExpensePicker();}
+    function refresh(){if(!split){single.refreshExpensePicker();return;}rows.hidden=add.hidden=!split.checked;single.hidden=split.checked;for(const control of single.querySelectorAll('select,button'))control.disabled=split.checked;if(!split.checked)single.refreshExpensePicker();for(const control of rows.querySelectorAll('input,select,button'))control.disabled=!split.checked;if(split.checked)for(const box of rows.children)box.refreshExpensePicker();}
     const initial=JSON.parse(form.dataset.initialSplits||'[]');for(const value of initial)row(value);if(initial.length)split.checked=true;while(rows.children.length<2)row();
     split.addEventListener('change',refresh);add.onclick=()=>row();refresh();
     // Restore selected leaf categories after initialization (refresh filters child lists).
@@ -55,7 +63,7 @@
       }
       installment.addEventListener('change',installments);for(const control of fields.querySelectorAll('input,select,textarea'))control.addEventListener('input',installments);input('amount').addEventListener('input',installments);installments();
     }
-    form.addEventListener('submit',event=>{if(form.dataset.pending==='true'){event.preventDefault();return;}form.dataset.pending='true';form.setAttribute('aria-busy','true');});
+    form.addEventListener('submit',event=>{for(const box of (split.checked?[...rows.children]:[single])){const a=box.querySelector('[data-expense-parent]'),b=box.querySelector('[data-expense-child]');if(!a.value||(box.dataset.childRequired==='true'&&!b.value)){event.preventDefault();box.openExpensePicker();box.querySelector('[data-expense-cascade]').focus();return;}}if(form.dataset.pending==='true'){event.preventDefault();return;}form.dataset.pending='true';form.setAttribute('aria-busy','true');});
     window.addEventListener('pageshow',()=>{delete form.dataset.pending;form.removeAttribute('aria-busy');});
   }
 })();

@@ -71,13 +71,17 @@ def require_write(business_id, actor_user_id=None):
 
 
 def capability(business_id, name):
-    # No flag, legacy allowlist or subscription can enable a paid Finance provider.
+    # Archived general Finance AI stays off; receipt-only admission is explicit below.
     return False
 
 
 def require_ai(business_id, actor_user_id, capability_name=None):
     import finance_service as finance
     finance._scope(business_id, actor_user_id)
+    if capability_name=='receipt':
+        from kilas_ai.workspace_execution_access import entitled
+        if entitled(actor_user_id):return
+        raise finance.FinanceError('finance_receipt_entitlement')
     raise finance.FinanceError('finance_ai_unavailable')
 
 

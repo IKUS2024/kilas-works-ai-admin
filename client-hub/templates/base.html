@@ -367,7 +367,7 @@
   {% endwith %}
   {% if finance_read_only %}<section class="card" role="status"><h2>{{ ui_t('Finance hanya-baca') }}</h2><p>{{ ui_t('Data dan laporan tetap tersedia. Periksa akses Finance untuk melanjutkan pencatatan.') }}</p><a class="btn" href="{{ url_for('products.finance_setup',business_id=finance_access_business_id) }}">{{ ui_t('Kelola akses Finance') }}</a></section>{% endif %}
   {% block content %}{% endblock %}
-  {% if finance_ui and finance_ui.enabled %}<script src="{{ url_for('static',filename='finance_ui.js',v='20260922-unified-1') }}" defer></script><script src="{{ url_for('static',filename='finance_revisions.js',v='20261016-edit-package') }}" defer></script>{% endif %}
+  {% if finance_ui and finance_ui.enabled %}<script src="{{ url_for('static',filename='finance_ui.js',v='20260922-unified-1') }}" defer></script><script src="{{ url_for('static',filename='finance_revisions.js',v='20261018-final-income') }}" defer></script>{% endif %}
   {% if request.blueprint=='products' %}<script src="{{ url_for('static',filename='product_forms.js') }}" defer></script>{% endif %}
   {% if finance_read_only or (branch_read_only and finance_branches and request.endpoint != 'finance.assistant') %}<script src="{{ url_for('static',filename='finance_read_only.js') }}" defer></script>{% endif %}
 </div>

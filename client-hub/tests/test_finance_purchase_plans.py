@@ -70,11 +70,11 @@ class PurchasePlanTests(unittest.TestCase):
    for language in ('id','en','es','zh'):
     with fixture.fixture.app.test_request_context('/',headers={'Cookie':'kilas_language='+language}):
      roots=f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)
-     expected=[entry[1] for entry in catalog.PERSONAL_V2]
+     expected=[entry[1] for entry in catalog.PERSONAL_V3]
      self.assertEqual([v['name'] for v in roots[:11]],expected)
      self.assertEqual(next(v for v in roots if v['id']==custom)['display_name'],'My custom groceries')
-     if language=='en':self.assertEqual([v['display_name'] for v in roots[:11]],['Home/Rent','Utilities','Food/Groceries','Departmental','Entertainment','Car/Auto','Insurance/Medical','Misc/One-time','Investment','Bank Charge','Salaries'])
-     for root,(_,_,_,children) in zip(roots[:11],catalog.PERSONAL_V2):self.assertEqual([v['name'] for v in f.list_category_children(self.b,root['id'],actor_user_id=self.uid)],list(children))
+     if language=='en':self.assertEqual([v['display_name'] for v in roots[:11]],['Home / Rent','Utilities','Personal Items','Food','Entertainment','Transportation','Insurance','Medical','Misc / One-time','Holiday','Bank Charges'])
+     for root,(_,_,_,children) in zip(roots[:11],catalog.PERSONAL_V3):self.assertEqual([v['name'] for v in f.list_category_children(self.b,root['id'],actor_user_id=self.uid)],list(children))
    before=db.query_one('SELECT COUNT(*) AS n FROM finance_categories')['n'];f.ensure_finance_defaults(self.b,actor_user_id=self.uid);self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM finance_categories')['n'],before)
  def test_receipt_private_route_and_plan_render_never_show_purchase_as_paid(self):
   image=io.BytesIO();Image.new('RGB',(10,10),'white').save(image,'JPEG')
@@ -133,7 +133,8 @@ class PurchasePlanTests(unittest.TestCase):
    f.ensure_finance_defaults(business,actor_user_id=owner)
    with fixture.fixture.app.test_request_context('/',headers={'Cookie':'kilas_language=en'}):
     rows=f.list_categories(business,'EXPENSE',actor_user_id=owner)
-    self.assertEqual(len([v for v in rows if v['name']=='Transportasi']),1)
+    # The new final built-in and the unproven customer-owned root stay distinct.
+    self.assertEqual(len([v for v in rows if v['name']=='Transportasi']),2)
     self.assertEqual(next(v for v in rows if v['id']==custom)['display_name'],'Transportasi')
  def test_business_defaults_are_distinct_localized_without_translating_custom_names(self):
   with branches.scope(self.b,self.branch,self.uid):

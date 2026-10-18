@@ -64,7 +64,7 @@ def finance_access(view):
         if not (beta_enabled() or entitlement.self_service()) and user['role'] != 'KILAS_ADMIN':
             abort(404)
         business = security.require_business_access(business_id, user=user)
-        if any(part in request.path.split('/') for part in ('analyst','operator','assistant','receipts','bank-imports')):
+        if any(part in request.path.split('/') for part in ('analyst','operator','assistant','bank-imports')):
             abort(404)  # Archived paid AI flows are unavailable even with legacy flags.
         if request.method != 'GET':
             try: entitlement.require_write(business_id,user['id'])
@@ -129,6 +129,7 @@ def finance_access(view):
         g.finance_branch_id = branch_id
         g.finance_branches = branch_list
         g.finance_branch = selected_branch
+        if workspace_type!='BUSINESS' and view.__name__ in ('receipt_new','receipt_analyze','receipt_confirm'):abort(404)
         g.finance_workspace_type = workspace_type
         g.finance_workspace_label = 'Pribadi' if workspace_type == 'PERSONAL' else 'Bisnis'
         g.finance_branch_read_only = branch_id is None or not selected_branch['is_active']
@@ -1490,12 +1491,13 @@ def create_transaction(business_id, user, business):
         subcategory_value=request.form.get('subcategory_id')
         subcategory_id=record_id(subcategory_value) if subcategory_value else None
         personal_income = g.finance_workspace_type == 'PERSONAL' and direction == 'INCOME'
+        business_income = g.finance_workspace_type == 'BUSINESS' and direction == 'INCOME'
         if personal_income:
             finance._text(request.form.get('description'), 4000, True)
         with finance._write(business_id, user['id']):
             splits=expense_form_splits(business_id,user,currency) if direction=='EXPENSE' else None
             category_id = (splits[0]['category_id'] if splits else finance.personal_income_category(business_id, actor_user_id=user['id'])
-                if personal_income else finance.resolve_category_selection(
+                if personal_income else finance.business_income_category(business_id,actor_user_id=user['id']) if business_income else finance.resolve_category_selection(
                     business_id,direction,record_id(request.form.get('category_id')),
                     subcategory_id,actor_user_id=user['id']))
             if direction=='EXPENSE' and request.form.get('submission_key'):
@@ -1507,9 +1509,9 @@ def create_transaction(business_id, user, business):
                 return
             finance.create_transaction(business_id,direction,currency_amount(request.form.get('amount'),currency),
             account_id,category_id,request.form.get('occurred_on'),currency=currency,
-            description=(request.form.get('description') if personal_income else transaction_note(business_id,request.form)),
-            notes=request.form.get('notes'),counterparty_name=(None if personal_income else request.form.get('counterparty_name')),
-            customer_id=record_id(request.form['customer_id']) if request.form.get('customer_id') else None,
+            description=(request.form.get('description') if personal_income or business_income else transaction_note(business_id,request.form)),
+            notes=request.form.get('notes'),counterparty_name=(None if personal_income or business_income else request.form.get('counterparty_name')),
+            customer_id=record_id(request.form['customer_id']) if request.form.get('customer_id') and not business_income else None,
             project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,actor_user_id=user['id'])
     destination = None
     return_direction = (request.form.get('return_direction') or '').strip()
@@ -3037,9 +3039,11 @@ def receipt_analyze(business_id, user, business):
     except file_utils.UploadRejected as error:
         ai_safety.upload_event(error.code)
         return receipt_page(user, business, error=str(error), status=400)
+    except finance.FinanceError as error:
+        return receipt_page(user,business,error=finance_receipts.ERROR_MESSAGES['capacity_unavailable'],status=403)
     except finance_receipts.ReceiptError as error:
         ai_safety.receipt_event(str(error))
-        return receipt_page(user, business, error=finance_receipts.READ_ERROR, status=503)
+        return receipt_page(user, business, error=finance_receipts.ERROR_MESSAGES.get(str(error),finance_receipts.READ_ERROR), status=503)
     except Exception:
         ai_safety.event('request_failed')
         return receipt_page(user, business, error='Struk belum dapat dianalisis. Gunakan form pengeluaran manual di Finance.', status=503)
@@ -3438,8 +3442,8 @@ def edit_transaction(business_id, user, business, transaction_id):
         return mutate(business_id, lambda: save(business_id, transaction_id,
             amount_minor=currency_amount(request.form.get('amount'),transaction['currency']), occurred_on=request.form.get('occurred_on'),
             account_id=record_id(request.form.get('account_id')), category_id=(transaction['category_id']
-                if g.finance_workspace_type == 'PERSONAL' and transaction['direction'] == 'INCOME'
-                else record_id(request.form.get('category_id'))),
+                if transaction['direction'] == 'INCOME'
+                else finance.resolve_category_selection(business_id,'EXPENSE',record_id(request.form.get('category_id')),record_id(request.form['subcategory_id']) if request.form.get('subcategory_id') else None,actor_user_id=user['id'],retained_id=transaction['category_id'])),
             description=(finance._text(request.form.get('description'),4000,True)
                 if g.finance_workspace_type == 'PERSONAL' and transaction['direction'] == 'INCOME'
                 else transaction_note(business_id, request.form)),
@@ -3458,8 +3462,8 @@ def edit_transaction(business_id, user, business, transaction_id):
     return render_template('finance_transaction_edit.html', business=business, user=user, transaction=transaction,
         initial_description=description, initial_other_description=other_description,
         accounts=finance.list_accounts(business_id, actor_user_id=user['id']),
-        categories=finance.list_categories(
-            business_id, transaction['direction'], include_children=True, actor_user_id=user['id']),
+        categories=(expense_entries.edit_categories(business_id,transaction_id,user['id']) if transaction['direction']=='EXPENSE' else finance.list_categories(
+            business_id, transaction['direction'], include_children=True, actor_user_id=user['id'])),
         today=finance.business_today(business_id).isoformat())
 
 
