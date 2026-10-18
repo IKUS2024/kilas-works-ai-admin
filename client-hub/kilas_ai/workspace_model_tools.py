@@ -7,7 +7,7 @@ from . import chat_models,providers,selected_provider
 TOOLS=[
  {'name':'list_files','description':'List uploaded source files available to this job. Read-only; never host files.','parameters':{'type':'object','properties':{},'required':[],'additionalProperties':False}},
  {'name':'read_file','description':'Read one uploaded source file; returns an explicit bounded excerpt and coverage.','parameters':{'type':'object','properties':{'name':{'type':'string'}},'required':['name'],'additionalProperties':False}},
- {'name':'publish_project','description':'Submit complete source files to deterministic path/syntax/ZIP validation. No code is executed. Include README, configuration and useful implementation.','parameters':{'type':'object','properties':{'files':{'type':'array','minItems':1,'maxItems':40,'items':{'type':'object','properties':{'name':{'type':'string'},'content':{'type':'string'}},'required':['name','content'],'additionalProperties':False}}},'required':['files'],'additionalProperties':False}},
+ {'name':'publish_project','description':'Submit complete source files to deterministic path/syntax/ZIP validation. Requested execution is handled separately by the gated isolated executor. Include README, configuration and useful implementation.','parameters':{'type':'object','properties':{'files':{'type':'array','minItems':1,'maxItems':40,'items':{'type':'object','properties':{'name':{'type':'string'},'content':{'type':'string'}},'required':['name','content'],'additionalProperties':False}}},'required':['files'],'additionalProperties':False}},
 ]
 
 

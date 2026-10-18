@@ -380,6 +380,11 @@ def send(thread_id, *, script_only=False):
         return {"error": "Pencarian web belum membaca gambar yang dilampirkan. Sebutkan nama atau rincian yang ingin diperiksa."}, 400
     prior = store.operation(user_id, thread_id, key)
     if prior:
+        job_id=json.loads(prior['metadata_json'] or '{}').get('workspace_job_id')
+        if job_id:
+            from . import thread_projects
+            thread_projects.owned(user_id,thread_id,job_id)
+            return thread_projects.response(thread_id,job_id)
         answer = store.operation(user_id, thread_id, key + ":assistant")
         if answer and answer["content"]:
             return Response(_sse("delta", {"text": answer["content"]}) + _sse("done", {"cached": True}),
@@ -402,6 +407,14 @@ def send(thread_id, *, script_only=False):
                 chat_models.bind(preview,selected_model)
                 if tool not in ('IMAGE_GENERATE','IMAGE_EDIT'):chat_models.validate_messages(selected_model,preview)
     except chat_models.SelectionError as error:return {'error':str(error)},400
+    from . import thread_projects
+    if not script_only and not search and tool=='CHAT' and thread_projects.requested(content):
+        try:
+            job_id=thread_projects.enqueue(user_id,thread_id,content,key,mode,selected_model,prepared)
+            return thread_projects.response(thread_id,job_id)
+        except (ValueError,ai_usage.UsageLimit) as error:
+            from ui_i18n import translate
+            return {'error':translate(str(error))},429
     try:
         plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool,
             profile={'image_model':selected_image} if selected_image and tool in ('IMAGE_GENERATE','IMAGE_EDIT') else model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF') else None)
@@ -629,3 +642,5 @@ def send(thread_id, *, script_only=False):
 
 # Registers only Chat selection; existing product authorization/CSRF still wraps it.
 from . import chat_model_routes
+from . import thread_projects
+thread_projects.register(ai_bp)

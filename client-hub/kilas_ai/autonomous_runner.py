@@ -105,6 +105,9 @@ def finish(job, token, step, result):
             wake = store.stamp(next_occurrence(calendar['schedule'], calendar['timezone'], store.now()))
         usage._query(conn, 'UPDATE kilas_agent_jobs SET status=?,checkpoint_json=?,next_wake_at=?,failures=?,last_error=?,updated_at=?,completed_at=? WHERE id=?',
                      (state_job, store.encode(checkpoint), wake, failures, result.output.get('reason') if state != 'SUCCEEDED' else None, store.stamp(), store.stamp() if state_job == 'COMPLETED' else None, job['id']))
+        if checkpoint.get('origin_thread_id'):
+            from .thread_projects import persist_result
+            persist_result(conn,job,result,state_job)
         # Waiting checks are quiet; capability block is recorded only once per step/reason.
         if step['worker']!='REMINDER' and (state != 'WAITING' or result.status == 'WAITING_CAPABILITY'):
             key = f"step-{step['id']}-{state}" + ('-' + str(result.output.get('reason')) if state == 'WAITING' else '')
