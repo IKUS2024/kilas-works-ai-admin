@@ -302,7 +302,7 @@
 {% set account_standalone = request.endpoint == 'auth.account_page' and session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}
 {% set premium_workspace = premium_ui and session.get('user_id') and not account_standalone and not (finance_ui and finance_ui.enabled) %}
 {% if premium_ui %}{% include '_premium_styles.html' %}{% endif %}
-{% if finance_ui and finance_ui.enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_revisions.css',v='20261018-control-alignment') }}">{% endif %}
+{% if finance_ui and finance_ui.enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_revisions.css',v='20261018-branch-plus') }}">{% endif %}
 {% block kilas_feature_styles %}{% endblock %}
 {% if premium_ui %}{% include '_ui_i18n_head.html' %}{% endif %}
 </head>

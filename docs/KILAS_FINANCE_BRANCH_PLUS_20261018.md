@@ -1,0 +1,23 @@
+# Finance Branch + and active-field highlight — 2026-10-18
+
+Baseline main/LIVE `00f1b18c61b598aafa24b698b2bf53b4544ab7e4` preserves the earlier receipt preview and Finance alignment releases. This is a small presentation change only: the existing Business dashboard Branch-management launcher shows the existing SVG plus icon instead of visible Add Branch text. Its44px target retains the existing location, dialog, data attribute and permission conditions. Its accessible name and tooltip use the existing localized Add Branch string. The active Branch label/selected name use the existing orange brand accent and restrained border, with no new description or control.
+
+Runtime files: `_finance_app_shell.html`, Finance-only `finance_revisions.css`, and its conditional cache version in `base.html`. Branch service/routes, entitlement, authentication, CSRF, saving/deletion, financial data and Personal/Business scope semantics are unchanged. Personal has no Branch field or + launcher. The previously existing `branch_read_only` condition still hides the launcher. Legacy `branch_id=all` GET deliberately resolves one active Business branch; it is not an aggregate read-only page. An explicit all-branch POST remains denied. No new staff/owner permission rule was introduced.
+
+## Targeted verification
+
+-10 actual local Chromium combinations PASS: EN/ID ×360/390/768/1024/1440. The visible button contains only the SVG, correct localized accessible name/title, and44×44 target. Pointer, Enter and Space open the original Branch dialog. Its existing Add Branch disclosure/input work, and close/Escape submit nothing. The real native Branch picker still navigates to another synthetic branch. Personal hides Branch controls. No JavaScript errors or Personal document overflow.
+-Existing read-only component condition was rendered and verified in all4 UI locales; this is a conditional-template contract, distinct from an authenticated production restricted-user browser test.
+-Local HTTP checks: explicit all-branch create POST403; foreign-tenant dashboard404. Synthetic branch and transaction row counts unchanged after UI checks. The one extra synthetic branch was fixture setup only; no production Branch was created/deleted.
+-Local screenshots actually reviewed: `/tmp/kilas-finance-branch-plus/business-390.png` and `business-1440.png`. Harness `client-hub/tests/finance_branch_plus_browser.py`; report `/tmp/kilas-finance-branch-plus/report.json`; logs `/tmp/kilas-finance-branch-plus.log` and `-context.log`.
+-Early harness assumptions were corrected for the existing collapsed Add Branch disclosure and the legacy all-branch GET behavior; no product behavior was changed to satisfy those assumptions.
+
+## Separate category complaint remains pending
+
+The owner's actual screenshot/scope could not be correlated: the new Library screenshot metadata resolved, but its supported materialization helper returned `download failed`, so its pixels remain unviewed. Do not label that complaint resolved based on metadata/local tests alone. Parent has requested the actual Personal/Business scope. No category code/data change or cleanup was performed.
+
+Read-only production evidence for the two explicitly authorized Personal scopes showed11 active final roots and45 active final children EACH, including Home / Rent and its6 children. Their Home/Rent IDs remain18494 (business2/Personal2) and18477 (business10/Personal9). All previously targeted33 obsolete rows remain present and inactive (29+4); permanent deletion is canceled. Custom-owned categories remain separate and untouched.
+
+Exact scoped category metadata/order/preferences were replayed in a disposable local synthetic database, with category IDs shifted solely to avoid fixture collisions and no private transactions copied.8 EN/ID390/1440 combinations passed actual Add/Edit/two Split pickers/management for all11 roots/45 children; obsolete choices stayed hidden and reopening Category showed parents after a selection. This is local rendering evidence, not authenticated production UI proof or proof of the owner's screenshot cause. Evidence: `/tmp/kilas-finance-final-catalog/production-evidence.json`, `report.json`, screenshots and `/tmp/finance_final_catalog_visibility.py`.
+
+No paid provider/model/OCR/VM call, infrastructure/credential/environment change, migration, production financial save, Branch save/delete or category cleanup. Translator/sandbox configuration and all prior Finance features are preserved. Authenticated production UI and physical phone behavior remain unverified; direct HTTP was previously blocked by the environment proxy403. Exact main/LIVE and read-only startup/integrity evidence is retained in `/tmp/kilas-finance-branch-plus-live.json` after release.

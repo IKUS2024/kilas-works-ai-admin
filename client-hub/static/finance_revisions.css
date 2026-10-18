@@ -8,7 +8,7 @@ body.finance-app .finance-app-avatar img {display:block;width:100%;height:100%;o
 body.finance-app .finance-legacy-switch {position:relative;font-size:13px}
 body.finance-app .finance-legacy-switch>summary {cursor:pointer;padding:10px}
 body.finance-app .finance-legacy-switch[open]>form {min-width:200px;max-width:80vw}
-body.finance-app.kilas-light .finance-app-more {width:auto!important;padding:8px 12px;font-size:12px!important}
+body.finance-app.kilas-light .finance-app-more {width:44px!important;padding:0;font-size:12px!important}
 body.finance-app.kilas-light .finance-dashboard-page .finance-metric.income {background:#eff9f2;border-color:#d5e9db;color:#155b32}
 body.finance-app.kilas-light .finance-dashboard-page .finance-metric.expense {background:#fff1f1;border-color:#f3d5d8;color:#9b2231}
 body.finance-app.kilas-light .finance-dashboard-page .finance-metric[data-finance-metric="account"] {background:#eff5fd;border-color:#d5e1f3;color:#24588e}
@@ -43,8 +43,10 @@ body.finance-app.kilas-light .finance-budget-chart-wrap .finance-budget-ring {ba
 body.finance-app.kilas-light .finance-budget-chart-wrap .finance-budget-ring.over {background:conic-gradient(#b42332 100%,#e7e9ed 0)}
 body.finance-app.kilas-light .finance-budget-chart-meta i.used {background:#a43c00}
 body.finance-app.kilas-light .finance-budget-chart-meta i.remaining {background:#e7e9ed}
-body.finance-app.kilas-light .finance-app-more {min-width:125px!important;letter-spacing:normal!important;white-space:nowrap;line-height:1.4}
+body.finance-app.kilas-light .finance-app-more {display:inline-flex;align-items:center;justify-content:center;flex:0 0 44px;min-width:44px!important;height:44px;letter-spacing:normal!important;white-space:nowrap;line-height:1.4}
 body.finance-app.kilas-light .finance-app-branch {align-items:center;gap:8px}
+body.finance-app.kilas-light .finance-app-branch label {color:var(--orange);font-weight:650}
+body.finance-app.kilas-light .finance-app-branch select {color:var(--orange);font-weight:650;border-color:#edc9ae}
 body.finance-app .finance-context-home {display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 body.finance-app .finance-context-home .finance-app-mode {width:195px;min-width:0;flex:0 0 195px}
 body.finance-app .finance-context-home .finance-app-branch {display:flex;align-items:center;gap:8px;width:auto;flex:1 1 200px;height:auto;max-width:460px}
@@ -55,7 +57,7 @@ body.finance-app .finance-context-home .finance-app-more {margin-left:auto}
 @media(max-width:600px) {
  body.finance-app .finance-context-home .finance-app-mode {flex-basis:100%;width:100%}
  body.finance-app .finance-context-home .finance-app-branch {flex:1 1 120px;height:auto}
- body.finance-app.kilas-light .finance-context-home .finance-app-more {min-width:105px!important;font-size:11px!important;margin:0}
+ body.finance-app.kilas-light .finance-context-home .finance-app-more {min-width:44px!important;font-size:11px!important;margin:0}
 }
 body.finance-app .finance-primary-navigation .finance-reset-launch {margin:0;min-width:0;flex:0 0 auto}
 body.finance-app .finance-app-sidebar .finance-primary-navigation .finance-reset-launch button {width:100%;color:var(--red);white-space:nowrap}
