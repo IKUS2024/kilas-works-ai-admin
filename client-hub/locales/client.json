@@ -661,5 +661,10 @@
   "File proyek tersimpan. Hasil eksekusi belum terverifikasi.",
   "Cari bahasa",
   "Bahasa tidak ditemukan.",
-  "Bahasa ini belum tersedia pada model suara Translator. Pilih bahasa lain."
+  "Bahasa ini belum tersedia pada model suara Translator. Pilih bahasa lain.",
+  "Deteksi bahasa",
+  "Bahasa ucapan belum terdeteksi dengan yakin. Pilih bahasa sumber lalu bicara kembali.",
+  "Bahasa yang terdeteksi belum didukung oleh suara Translator. Pilih bahasa sumber yang didukung.",
+  "Bahasa ucapan sama dengan bahasa tujuan. Pilih bahasa tujuan lain.",
+  "Deteksi bahasa memerlukan masukan audio lengkap."
 ]

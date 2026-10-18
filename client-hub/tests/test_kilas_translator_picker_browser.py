@@ -28,7 +28,7 @@ def main():
                 context=browser.new_context(viewport={'width':width,'height':900})
                 cookie=case.client.get_cookie('session')
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':locale,'url':origin}])
-                context.add_init_script("navigator.mediaDevices.getUserMedia=()=>{throw Error('Unexpected microphone access')}")
+                context.add_init_script("Intl.DisplayNames=class{of(code){return code}};navigator.mediaDevices.getUserMedia=()=>{throw Error('Unexpected microphone access')}")
                 page=context.new_page();errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
                 def route(request):
                     if not request.request.url.startswith(origin):request.abort()
@@ -38,7 +38,8 @@ def main():
                 for path,count in (('/kilas-translator/live?classic=1',83),('/kilas-translator/live/gemini',76)):
                     page.goto(origin+path,wait_until='networkidle')
                     expect(page.locator('.translator-picker')).to_have_count(2)
-                    assert page.locator('select[name=language_a] option').count()==count
+                    assert page.locator('select[data-translator-language] option').evaluate_all('rows=>rows.every(row=>row.textContent.trim()!==row.value)')
+                    assert page.locator('select[name=language_a] option:not([value=auto])').count()==count
                     # Check before touching either picker: recovery must target Start.
                     for control in page.locator('.translator-picker').all():
                         selected=control.locator('select').evaluate('e=>e.selectedOptions[0].textContent')
@@ -51,6 +52,21 @@ def main():
                     if page.locator('#live-setup-form button[type=submit]').is_enabled():
                         page.locator('#live-setup-form button[type=submit]').click()
                     assert not page.locator('input[name=consent]').is_checked()
+                    if count==83:
+                        first=page.locator('.translator-picker').first
+                        first.locator(':scope > button').click()
+                        first.locator('input').fill({'id':'Deteksi bahasa','en':'Detect language','es':'Detectar idioma','zh':'检测语言'}[locale])
+                        first.locator('[role=option]').click()
+                        expect(page.locator('select[name=language_a]')).to_have_value('auto')
+                        first.locator(':scope > button').click();first.locator('input').fill('in')
+                        # Legacy alias remains searchable; the submitted ID stays canonical.
+                        first.locator('[role=option]').filter(has_text={'en':'Indonesian','id':'Indonesia','es':'indonesio','zh':'印度尼西亚语'}[locale]).first.click()
+                        expect(page.locator('select[name=language_a]')).to_have_value('id')
+                        for code in ('oc','or'):
+                            first.locator(':scope > button').click();first.locator('input').fill(code)
+                            # Code search can match several names; exact catalog option remains readable.
+                            assert first.locator('[role=option]').filter(has_text=page.locator('select[name=language_a] option[value='+code+']').text_content()).count()>=1
+                            first.locator('input').press('Escape')
                     picker=page.locator('.translator-picker').nth(1)
                     picker.locator(':scope > button').click()
                     search=picker.locator('input[type=search]');expect(search).to_be_visible()

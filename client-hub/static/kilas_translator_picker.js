@@ -14,13 +14,11 @@
     const list=document.createElement('span');list.className='translator-picker-list';list.id='translator-language-list-'+(++serial);list.setAttribute('role','listbox');list.setAttribute('aria-label',label);search.setAttribute('aria-controls',list.id);button.setAttribute('aria-controls',list.id);
     popup.append(search,list);wrapper.append(button,popup);
     const rows=[...select.options].map(option=>{
-      const english=option.textContent;let name=english,autonym=english;
+      const english=option.dataset.searchName||option.textContent;const name=option.textContent;let autonym=english;
       if(option.value&&option.value!=='auto') {
-        try{name=new Intl.DisplayNames([locale],{type:'language'}).of(option.dataset.displayCode||option.value)||english;}catch{}
-        try{autonym=new Intl.DisplayNames([option.value],{type:'language'}).of(option.value)||english;}catch{}
-        option.textContent=name;
+        try{autonym=new Intl.DisplayNames([option.value],{type:'language',fallback:'none'}).of(option.value)||english;}catch{}
       }
-      return {option,name,key:fold([name,english,autonym,option.value].join(' '))};
+      return {option,name,key:fold([name,english,autonym,option.value,...(option.value==='id'?['in','ind']:option.value==='zh'?['cmn','zho','zh-Hans','zh-Hant']:[])].join(' '))};
     });
     let visible=[],active=-1;
     function close(focus=false){popup.hidden=true;button.setAttribute('aria-expanded','false');search.removeAttribute('aria-activedescendant');if(focus)button.focus();}
@@ -29,7 +27,7 @@
     function render(){
       list.replaceChildren();visible=[];const query=fold(search.value);
       for(const row of rows.filter(row=>!query||row.key.includes(query))) {
-        const option=document.createElement('button');option.type='button';option.tabIndex=-1;option.setAttribute('role','option');option.id=list.id+'-'+row.option.index;option.textContent=row.name+(row.option.value==='auto'?'':' · '+row.option.value);option.disabled=row.option.disabled;option.setAttribute('aria-selected',String(row.option.value===select.value));option.addEventListener('click',()=>choose(row));list.append(option);
+        const option=document.createElement('button');option.type='button';option.tabIndex=-1;option.setAttribute('role','option');option.id=list.id+'-'+row.option.index;option.textContent=row.name;option.disabled=row.option.disabled;option.setAttribute('aria-selected',String(row.option.value===select.value));option.addEventListener('click',()=>choose(row));list.append(option);
         if(!option.disabled)visible.push({...row,button:option});
       }
       if(!list.children.length){const empty=document.createElement('span');empty.className='translator-picker-empty';empty.textContent=t('Bahasa tidak ditemukan.');empty.setAttribute('role','status');list.append(empty);}

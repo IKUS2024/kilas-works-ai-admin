@@ -53,7 +53,7 @@ def normalize(pcm):
     return raw,ms
 
 
-def transcribe(pcm,capability):
+def transcribe(pcm,capability,*,detect_language=False):
     raw,ms=normalize(pcm)
     budget.dispatch(capability,hashlib.sha256(raw).hexdigest(),ms)
     success=False;text=None
@@ -96,4 +96,4 @@ def transcribe(pcm,capability):
         raise budget.BudgetError('transcription_failed') from None
     finally:
         committed=budget.finish(capability,success)
-    return text if committed else None
+    return ({'text':text,'language_code':parsed.get('language_code'),'language_probability':parsed.get('language_probability')} if detect_language else text) if committed else None

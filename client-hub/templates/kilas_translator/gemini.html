@@ -2,8 +2,8 @@
 {% block title %}Translator · Kilas Works{% endblock %}
 {% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_live_translator.css',v='call-viewport-20261013') }}">{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_translator_picker.css',v='languages-20261018') }}">
-<script src="{{ url_for('static',filename='kilas_translator_picker.js',v='languages-20261018') }}" defer></script>
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_translator_picker.css',v='language-names-auto-20261018') }}">
+<script src="{{ url_for('static',filename='kilas_translator_picker.js',v='language-names-auto-20261018') }}" defer></script>
 <div class="kilas-live-page">
 {% set selected_feature='live' %}{% include 'kilas_ai/_feature_navigation.html' %}
 {% set gemini_progressive = gemini_two_way and gemini_protocol is defined and gemini_protocol.get('input_mode')=='gemini-live-two-way-v2' and gemini_protocol.get('output_order')=='progressive_stream_runs' %}
@@ -17,8 +17,8 @@
 <section id="live-recovery" hidden aria-label="{{ ui_t('Pemulihan sesi') }}"><p id="live-recovery-status" role="status"></p><p>{{ ui_t('Sesi mungkin masih digunakan di tab atau perangkat lain. Gunakan tab itu, atau akhiri sesi sebelumnya di sini. Mengakhiri sesi membatalkan ucapan yang masih diproses; biaya yang sudah dikirim tetap tercatat.') }}</p><button type="button" class="btn secondary" id="live-recovery-end">{{ ui_t('Akhiri sesi sebelumnya') }}</button></section>
 <form id="live-setup-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {% if gemini_two_way %}<input type="hidden" name="translation_mode" value="two_way">{% if gemini_progressive %}<input type="hidden" name="output_order" value="progressive_stream_runs">{% endif %}{% endif %}
-<label>{{ ui_t('Bahasa pertama' if gemini_two_way else 'Bahasa sumber') }}<select data-translator-language name="language_a" required>{% for code,label in languages.items() %}<option data-display-code="{{ 'zh-Hans' if code=='zh' else 'pt-PT' if code=='pt' else code }}" value="{{ code }}" {{ 'selected' if code=='id' }}>{{ ui_t(label) }}</option>{% endfor %}</select></label>
-<label>{{ ui_t('Bahasa kedua' if gemini_two_way else 'Bahasa tujuan') }}<select data-translator-language name="language_b" required>{% for code,label in languages.items() %}<option data-display-code="{{ 'zh-Hans' if code=='zh' else 'pt-PT' if code=='pt' else code }}" value="{{ code }}" {{ 'selected' if code=='en' }}>{{ ui_t(label) }}</option>{% endfor %}</select></label>
+<label>{{ ui_t('Bahasa pertama' if gemini_two_way else 'Bahasa sumber') }}<select data-translator-language name="language_a" required>{% for code,label in languages.items() %}<option data-search-name="{{ label }}" data-display-code="{{ 'zh-Hans' if code=='zh' else 'pt-PT' if code=='pt' else code }}" value="{{ code }}" {{ 'selected' if code=='id' }}>{{ translator_language_names.get(code,label) }}</option>{% endfor %}</select></label>
+<label>{{ ui_t('Bahasa kedua' if gemini_two_way else 'Bahasa tujuan') }}<select data-translator-language name="language_b" required>{% for code,label in languages.items() %}<option data-search-name="{{ label }}" data-display-code="{{ 'zh-Hans' if code=='zh' else 'pt-PT' if code=='pt' else code }}" value="{{ code }}" {{ 'selected' if code=='en' }}>{{ translator_language_names.get(code,label) }}</option>{% endfor %}</select></label>
 {% if gemini_two_way %}<p id="gemini-pair-summary" role="status" aria-live="polite">{{ ui_t(languages['id']) }} ↔ {{ ui_t(languages['en']) }}</p><p>{{ ui_t('Bahasa yang dipilih diterjemahkan otomatis dua arah.') }} {{ ui_t('Bicara bergantian dalam salah satu bahasa yang dipilih.') }}</p>{% endif %}
 <p>{% if not gemini_two_way %}{{ ui_t('Bahasa sumber diterjemahkan ke bahasa tujuan.') }} {% endif %}{{ ui_t('Bicara, lalu diam sekitar 2 detik. Gunakan headset.') }}{% if gemini_two_way and not gemini_progressive %} {{ ui_t('Audio diputar setelah pemrosesan selesai.') }}{% endif %}</p>
 <p>{{ ui_t('Pemrosesan memakai batas biaya bersama. End menghentikan sesi. Ucapan tidak diulang otomatis.' if gemini_two_way else 'Pemakaian berjalan selama sesi aktif. End menghentikan sesi. Ucapan tidak diulang otomatis.') }}</p>

@@ -4,6 +4,8 @@ Sources: ElevenLabs models, transcription and dubbing capability tables;
 Google's dedicated Live Translation table (not the general Live API table).
 No dialect duplication contributes to the distinct-language counts.
 """
+import json
+from pathlib import Path
 import logging
 import os
 from threading import Lock,Thread
@@ -18,6 +20,30 @@ DUBBING=set('af ak sq am ar hy as az eu be bs bg my yue ca ceb zh hr cs da dgo n
 NATIVE=set('af ak sq am ar hy az eu be bn bg my ca zh hr cs da nl en et fil fi fr gl ka de el gu ha he hi hu is id it ja jv kn kk km rw ko lo lv lt mk ms ml mr mn ne no fa pl pt pa ro ru sr sd si sk sl es su sw sv ta te th tr uk ur uz vi zu'.split())
 CLASSIC=STT&V4
 MODEL='eleven_v4'
+_LOCALIZED=json.loads(Path(__file__).with_name('translator_language_names.json').read_text())
+# Scribe's documented ISO639-3 response IDs; UI/backend retain canonical IDs.
+_STT_CODES=dict(item.split('=') for item in 'afr=af amh=am ara=ar hye=hy asm=as ast=ast aze=az bel=be ben=bn bos=bs bul=bg mya=my yue=yue cat=ca ceb=ceb nya=ny hrv=hr ces=cs dan=da nld=nl eng=en est=et fil=fil fin=fi fra=fr ful=ful glg=gl lug=lg kat=ka deu=de ell=el guj=gu hau=ha heb=he hin=hi hun=hu isl=is ibo=ig ind=id gle=ga ita=it jpn=ja jav=jv kea=kea kan=kn kaz=kk khm=km kor=ko kur=ku kir=ky lao=lo lav=lv lin=ln lit=lt luo=luo ltz=lb mkd=mk msa=ms mal=ml mlt=mt zho=zh mri=mi mar=mr mon=mn nep=ne nso=nso nor=no oci=oc ori=or pus=ps fas=fa pol=pl por=pt pan=pa ron=ro rus=ru srp=sr sna=sn snd=sd sin=si slk=sk slv=sl som=so spa=es swa=sw swe=sv tam=ta tgk=tg tel=te tha=th tur=tr ukr=uk umb=umb urd=ur uzb=uz vie=vi cym=cy wol=wo xho=xh zul=zu'.split())
+
+
+def localized_names(*,native=False):
+    from ui_i18n import language
+    result=dict(_LOCALIZED[language()])
+    if native:result.update(zh=result['zh-Hans'],pt=result['pt-PT'])
+    return result
+
+
+def detected_source(metadata,target):
+    from .audio_store import AudioError
+    source=canonical(metadata.get('language_code'))
+    confidence=metadata.get('language_probability')
+    if type(confidence) not in (int,float) or not 0.7<=confidence<=1 or source is None:
+        raise AudioError('Bahasa ucapan belum terdeteksi dengan yakin. Pilih bahasa sumber lalu bicara kembali.','detection_uncertain',422)
+    if source not in classic_names():
+        raise AudioError('Bahasa yang terdeteksi belum didukung oleh suara Translator. Pilih bahasa sumber yang didukung.','detected_language_unsupported',422)
+    if source==target:
+        raise AudioError('Bahasa ucapan sama dengan bahasa tujuan. Pilih bahasa tujuan lain.','detected_language_is_target',422)
+    return source
+
 _cache=None
 _until=0
 _lock=Lock()
@@ -30,7 +56,7 @@ def names(codes):
 def canonical(code):
     if not isinstance(code,str):return None
     value=code.strip().lower().replace('_','-')
-    aliases={'cmn':'zh','zho':'zh','zh-hans':'zh','zh-hant':'zh','tl':'fil','nb':'no',
+    aliases={**_STT_CODES,'in':'id','cmn':'zh','zho':'zh','zh-hans':'zh','zh-hant':'zh','tl':'fil','nb':'no',
              'ind':'id','eng':'en','jpn':'ja','kor':'ko','spa':'es','fra':'fr','deu':'de','por':'pt','rus':'ru','tur':'tr','tha':'th','vie':'vi','msa':'ms'}
     value=aliases.get(value,value)
     if value in NAMES:return value
@@ -73,7 +99,7 @@ def classic_names():
 def require_classic(a,b):
     from .audio_store import AudioError
     available=classic_names()
-    if a not in available or b not in available or a==b:
+    if (a!='auto' and a not in available) or b not in available or a==b:
         raise AudioError('Bahasa ini belum tersedia pada model suara Translator. Pilih bahasa lain.','translator_language_unavailable',503)
 
 

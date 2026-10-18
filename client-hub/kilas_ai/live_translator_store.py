@@ -13,6 +13,7 @@ def alive(status,expiry):
 
 def require_pair(a,b,*,voice=None):
     from . import translator_languages as languages
+    if a=='auto' and voice in ('kilas-male','kilas-female') and isinstance(b,str) and b in languages.CLASSIC:return
     allowed=languages.NATIVE if voice and voice.startswith('gemini-live-') else languages.CLASSIC if voice else languages.CLASSIC|languages.NATIVE
     if not isinstance(a,str) or not isinstance(b,str) or a not in allowed or b not in allowed or a==b:
         raise audio_store.AudioError('Pilih dua bahasa yang berbeda sebelum memulai sesi.','invalid_language_pair',400)
@@ -69,7 +70,7 @@ def check(owner,ident,key):
     if not row:raise audio_store.AudioError('Sesi tidak tersedia.','session_unavailable',404)
     if not alive(row['session_status'],row['expires_at']):raise audio_store.AudioError('Sesi berakhir. Mulai kembali bila ingin melanjutkan.','session_ended',409)
     if row['turn_status']!='PROCESSING':raise audio_store.AudioError('Ucapan dibatalkan.','turn_cancelled',409)
-    require_pair(row['language_a'],row['language_b'])
+    require_pair(row['language_a'],row['language_b'],voice=row['voice_alias'])
     return {name:row[name] for name in ('language_a','language_b','voice_alias')}
 
 
@@ -115,9 +116,9 @@ def status(owner,ident):
 
 
 def result(owner,ident,key):
-    row=db.query_one('SELECT t.status,t.audio_job_id,t.error_code,t.created_at,s.status AS session_status,s.expires_at,s.language_a,s.language_b FROM kilas_live_translator_turns t JOIN kilas_live_translator_sessions s ON s.id=t.session_id WHERE s.user_id=? AND s.id=? AND t.operation_key=?',(owner,ident,key))
+    row=db.query_one('SELECT t.status,t.audio_job_id,t.error_code,t.created_at,s.status AS session_status,s.expires_at,s.language_a,s.language_b,s.voice_alias FROM kilas_live_translator_turns t JOIN kilas_live_translator_sessions s ON s.id=t.session_id WHERE s.user_id=? AND s.id=? AND t.operation_key=?',(owner,ident,key))
     if not row:raise audio_store.AudioError('Ucapan tidak tersedia.','turn_unavailable',404)
     if not alive(row['session_status'],row['expires_at']):return {'status':'CANCELLED'}
-    require_pair(row['language_a'],row['language_b'])
+    require_pair(row['language_a'],row['language_b'],voice=row['voice_alias'])
     if row['status']=='PROCESSING' and usage._as_utc(row['created_at'])<usage._now()-timedelta(minutes=4):return {'status':'FAILED','error_code':'processing_interrupted'}
     return {'status':row['status'],'audio_job_id':row['audio_job_id'],'error_code':row['error_code']}

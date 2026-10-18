@@ -133,7 +133,7 @@ def history_fragment():
     data=store.history_page(session['user_id'],page,through=through,kind=kind)
     html=render_template('kilas_translator/_history.html',**data,selected_job_id=selected,
                          video_script_ready=video_budget.ready(session['user_id']),
-                         languages=provider.LANGUAGES,translation_labels=translator.NAMES,seconds=seconds)
+                         languages=provider.LANGUAGES,translation_labels=translator.localized_names(),seconds=seconds)
     return {'html':html,'page':data['history_page'],'pages':data['history_page_count'],
             'total':data['history_total']},200,{'Cache-Control':'private, no-store'}
 
@@ -158,8 +158,8 @@ def home(ident=None,initial_brief=None,home_task=None):
                            voices=branded.public_choices(),voice_sample_aliases=branded.sample_aliases(),
                            personal_voice=bool(personal.get(user)),personal_preview=personal.has_preview(user),voice_operation_key=secrets.token_hex(16),
                            saved_voices=saved_voices,
-                           provider_ready=provider.configured(),languages=provider.LANGUAGES,translation_labels=translator.NAMES,
-                           dubbing_languages=translator.names(translator.DUBBING),dubbing_sources=translator.names(translator.STT&translator.DUBBING),packs=store.PACKS,
+                           provider_ready=provider.configured(),languages=provider.LANGUAGES,translation_labels=translator.localized_names(),
+                           translator_language_names=translator.localized_names(),dubbing_languages=translator.names(translator.DUBBING),dubbing_sources=translator.names(translator.STT&translator.DUBBING),packs=store.PACKS,
                            seconds=seconds,operation_key=secrets.token_hex(16),max_mb=media.file_limit()//1024//1024,audio_max_mb=media.file_limit('wav')//1024//1024,max_seconds=media.duration_limit())
 
 
@@ -418,7 +418,7 @@ def status(ident):
             'duration_label':seconds(((job['source_ms'] if job['mode']=='translate' else job['actual_ms'])+999)//1000),
             'balance_html':render_template('kilas_translator/_balance.html',balance=store.balance(session['user_id']),seconds=seconds),
             'edit_script_url':url_for('kilas_audio.script_for_edit',ident=ident) if job['has_original_script'] else None,
-            'html':render_template('kilas_translator/_result.html',job=job,languages=provider.LANGUAGES,translation_labels=translator.NAMES,seconds=seconds,video_script_ready=video_budget.ready(session['user_id']))},200,{'Cache-Control':'no-store'}
+            'html':render_template('kilas_translator/_result.html',job=job,languages=provider.LANGUAGES,translation_labels=translator.localized_names(),seconds=seconds,video_script_ready=video_budget.ready(session['user_id']))},200,{'Cache-Control':'no-store'}
 
 
 @audio_bp.get('/jobs/<int:ident>/script')
@@ -493,7 +493,7 @@ def live_translator_home():
         # retains the existing session_busy fence and explicit recovery UI.
         return redirect(url_for('kilas_audio.live_gemini_home')),302,{'Cache-Control':'private, no-store'}
     languages=translator.classic_names()
-    return render_template('kilas_translator/live.html',live_ready=live.ready(session['user_id']) and len(languages)>1,voices=branded.public_choices(),languages=languages),200,{'Cache-Control':'private, no-store'}
+    return render_template('kilas_translator/live.html',live_ready=live.ready(session['user_id']) and len(languages)>1,voices=branded.public_choices(),languages=languages,translator_language_names=translator.localized_names()),200,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/live/sessions')
@@ -508,7 +508,7 @@ def live_translator_start():
     store.require_balance(session['user_id'])
     ident=sessions.create(session['user_id'],a,b,voice)
     from . import live_translator_realtime as realtime
-    return {'session_id':ident,'input_mode':'realtime-v1' if realtime.ready(session['user_id']) else 'batch'},201,{'Cache-Control':'private, no-store'}
+    return {'session_id':ident,'input_mode':'realtime-v1' if a!='auto' and realtime.ready(session['user_id']) else 'batch'},201,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/live/sessions/<ident>/end')
@@ -562,7 +562,7 @@ def live_gemini_home():
     recovery_only = not enabled and _active_native_session(session['user_id'])
     if not enabled and not recovery_only and not native.ready(session['user_id']) and not native.preview_owner(session['user_id']):
         raise native.failure('gemini_unavailable',404)
-    return render_template('kilas_translator/gemini.html', languages=translator.native_names(), gemini_ready=enabled,
+    return render_template('kilas_translator/gemini.html', languages=translator.native_names(),translator_language_names=translator.localized_names(native=True), gemini_ready=enabled,
                            gemini_recovery_only=recovery_only,gemini_two_way=two_way,
                            gemini_protocol=_native_protocol(backend,info)),200,{'Cache-Control':'private, no-store'}
 
@@ -750,7 +750,10 @@ def live_translator_turn(ident,key):
                'source_language':job['source_language'],'target_language':job['target_language']}
     elif state['status']=='FAILED':
         code=state.get('error_code')
-        messages={'no_speech':'Ucapan belum terbaca dalam pasangan bahasa ini. Bicara kembali.',
+        messages={'detection_uncertain':'Bahasa ucapan belum terdeteksi dengan yakin. Pilih bahasa sumber lalu bicara kembali.',
+                  'detected_language_unsupported':'Bahasa yang terdeteksi belum didukung oleh suara Translator. Pilih bahasa sumber yang didukung.',
+                  'detected_language_is_target':'Bahasa ucapan sama dengan bahasa tujuan. Pilih bahasa tujuan lain.',
+                  'no_speech':'Ucapan belum terbaca dalam pasangan bahasa ini. Bicara kembali.',
                   'translation_language_mismatch':'Bahasa hasil terjemahan belum sesuai dengan pasangan yang dipilih. Ucapan ini tidak diulang otomatis.',
                   'provider_credit_exhausted':'Kapasitas layanan suara tidak cukup. Sesi dijeda tanpa pembelian tambahan.',
                   'provider_credit_check_failed':'Kapasitas layanan suara belum dapat diperiksa. Sesi dijeda sebelum permintaan berikutnya.',
@@ -760,7 +763,7 @@ def live_translator_turn(ident,key):
                   'zero_balance':'Kuota audio Live Translator belum tersedia untuk akun ini.',
                   'insufficient_balance':'Kuota audio tidak cukup untuk ucapan berikutnya.',
                   'stream_unavailable':'Audio belum tersedia. Sesi dijeda; ucapan ini tidak diulang otomatis.'}
-        state={'status':'FAILED','code':code,'recoverable':code in ('no_speech','translation_failed','translation_language_mismatch','transcription_failed','speech_failed','processing_failed','processing_interrupted'),
+        state={'status':'FAILED','code':code,'recoverable':code in ('detection_uncertain','detected_language_unsupported','detected_language_is_target','no_speech','translation_failed','translation_language_mismatch','transcription_failed','speech_failed','processing_failed','processing_interrupted'),
                'error':messages.get(code,'Ucapan belum berhasil diproses. Ucapan ini tidak diulang otomatis.')}
     else:state={'status':state['status']}
     return state,200,{'Cache-Control':'private, no-store'}

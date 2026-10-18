@@ -304,6 +304,8 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
             if not choice:raise audio_store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
             from .translator_languages import require_classic
             require_classic(info['language_a'],info['language_b'])
+            automatic=info['language_a']=='auto'
+            if automatic and committed_text is not None:raise audio_store.AudioError('Deteksi bahasa memerlukan masukan audio lengkap.','realtime_unverified',503)
             check()
             if committed_text is None:
                 pcm,ms=stt.normalize(pcm)
@@ -317,13 +319,18 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
                 _,capability=budget.claim(owner,key,hashlib.sha256(pcm).hexdigest(),ms)
                 if not capability:raise audio_store.AudioError('Ucapan ini sudah dikirim; tidak diulang.','duplicate_turn',409)
             check()
-            with _timed(timings,'stt_ms'):text=stt.transcribe(pcm,capability)
+            with _timed(timings,'stt_ms'):text=stt.transcribe(pcm,capability,detect_language=True) if automatic else stt.transcribe(pcm,capability)
         else:text=committed_text  # Internal settled relay only; never client-supplied text.
         check()
         if not text:raise audio_store.AudioError('Tidak ada ucapan terbaca.','no_speech',422)
+        a,b=info['language_a'],info['language_b']
+        if automatic:
+            from .translator_languages import detected_source
+            a=detected_source(text,b);text=text['text']
         with _timed(timings,'translation_ms'):
-            result=incremental.finish(text,check,timings) if incremental is not None else translation(owner,key,text,info['language_a'],info['language_b'],check,timings=timings)
+            result=incremental.finish(text,check,timings) if incremental is not None else translation(owner,key,text,a,b,check,timings=timings)
         check()
+        if automatic and (result['source_language']!=a or result['target_language']!=b):raise audio_store.AudioError('Bahasa hasil terjemahan belum sesuai dengan pasangan yang dipilih. Ucapan ini tidak diulang otomatis.','translation_language_mismatch',503)
         with _timed(timings,'credit_tts_ms'):stt.require_subscription_credit()
         check()
         with _timed(timings,'audio_reserve_ms'):
