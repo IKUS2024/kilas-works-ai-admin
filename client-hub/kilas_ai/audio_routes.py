@@ -101,7 +101,10 @@ def access():
 @audio_bp.errorhandler(store.AudioError)
 @audio_bp.errorhandler(media.MediaError)
 def invalid(error):
-    return {'error':str(error),'code':getattr(error,'code','invalid'),'purchase_url':url_for('kilas_ai.usage_page')+'#audio-settings-title'},getattr(error,'status',400)
+    result = {'error':str(error),'code':getattr(error,'code','invalid')}
+    if getattr(error,'purchase_applicable',True):
+        result['purchase_url'] = url_for('kilas_ai.usage_page')+'#audio-settings-title'
+    return result,getattr(error,'status',400)
 
 
 def owned(ident):
@@ -758,7 +761,11 @@ def live_translator_turn(ident,key):
                   'provider_credit_exhausted':'Kapasitas layanan suara tidak cukup. Sesi dijeda tanpa pembelian tambahan.',
                   'provider_credit_check_failed':'Kapasitas layanan suara belum dapat diperiksa. Sesi dijeda sebelum permintaan berikutnya.',
                   'provider_billing_unverified':'Status layanan suara belum terverifikasi. Sesi dijeda.',
-                  'attempt_limit':'Batas penggunaan Live Translator tercapai. Sesi dijeda.',
+                  'budget_limit':'Batas biaya input suara periode ini tercapai. Lanjutkan tidak menambah kapasitas.',
+                  'rate_limit':'Batas percobaan input suara per jam tercapai. Coba lagi setelah batas pulih.',
+                  'attempt_limit':'Batas percobaan input suara hari ini tercapai. Coba lagi besok.',
+                  'already_processing':'Ucapan sebelumnya masih diproses. Tunggu sebelum melanjutkan.',
+                  'service_busy':'Layanan input suara sedang sibuk. Coba lagi sebentar.',
                   'live_audio_limit':'Batas audio Live Translator tercapai. Sesi dijeda tanpa pembelian tambahan.',
                   'zero_balance':'Kuota audio Live Translator belum tersedia untuk akun ini.',
                   'insufficient_balance':'Kuota audio tidak cukup untuk ucapan berikutnya.',

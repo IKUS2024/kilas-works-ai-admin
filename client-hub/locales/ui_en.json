@@ -932,5 +932,10 @@
   "Panggilan terputus. Periksa mikrofon dan koneksi lalu mulai panggilan baru.": "The call disconnected. Check your microphone and connection, then start a new call.",
   "Browser ini belum mendukung panggilan suara.": "This browser does not support voice calls yet.",
   "Selesaikan jawaban chat sebelum memanggil.": "Wait for the chat response to finish before calling.",
-  "Kilas berbicara": "Kilas is speaking"
+  "Kilas berbicara": "Kilas is speaking",
+  "Batas biaya input suara periode ini tercapai. Lanjutkan tidak menambah kapasitas.": "The voice input spending allowance for this period has been reached. Resume does not add capacity.",
+  "Batas percobaan input suara per jam tercapai. Coba lagi setelah batas pulih.": "The hourly voice input test limit has been reached. Try again after the limit resets.",
+  "Batas percobaan input suara hari ini tercapai. Coba lagi besok.": "Today's voice input test limit has been reached. Try again tomorrow.",
+  "Ucapan sebelumnya masih diproses. Tunggu sebelum melanjutkan.": "The previous utterance is still processing. Wait before resuming.",
+  "Layanan input suara sedang sibuk. Coba lagi sebentar.": "Voice input is busy. Try again shortly."
 }

@@ -286,7 +286,19 @@ def start(owner,ident,key):
         if claimed:sessions.finish(owner,ident,key,False,code=getattr(error,'code','realtime_failed'))
         _slots.release()
         if isinstance(error,budget.batch.BudgetError):
-            raise audio_store.AudioError('Batas input suara belum mengizinkan ucapan berikutnya. Sesi dijeda.',error.code,error.status) from None
+            messages = {
+                'budget_limit': 'Batas biaya input suara periode ini tercapai. Lanjutkan tidak menambah kapasitas.',
+                'rate_limit': 'Batas percobaan input suara per jam tercapai. Coba lagi setelah batas pulih.',
+                'attempt_limit': 'Batas percobaan input suara hari ini tercapai. Coba lagi besok.',
+                'already_processing': 'Ucapan sebelumnya masih diproses. Tunggu sebelum melanjutkan.',
+                'service_busy': 'Layanan input suara sedang sibuk. Coba lagi sebentar.',
+            }
+            problem = audio_store.AudioError(messages.get(error.code,
+                'Batas input suara belum mengizinkan ucapan berikutnya. Sesi dijeda.'),error.code,error.status)
+            # This internal provider allowance is independent of purchasable
+            # Audio seconds. A customer top-up cannot replenish this capacity.
+            problem.purchase_applicable = False
+            raise problem from None
         raise
 
 

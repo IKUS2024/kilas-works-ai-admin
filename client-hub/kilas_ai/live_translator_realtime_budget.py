@@ -37,7 +37,7 @@ def claim(owner,ident,key):
         # through240s. The stale ledger keeps its full unknown-cost estimate.
         batch._expire(conn,campaign=policy['base_id'])
         if batch._row(conn,owner,operation):raise batch.BudgetError('duplicate_turn',409)
-        batch._admit(conn,owner,policy,RESERVE_MICRO,operation)
+        batch._admit(conn,owner,policy,RESERVE_MICRO,operation,live_session=True)
         lease=secrets.token_hex(32)
         usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at) VALUES (?,?,?,?,'RESERVED',?,?,?,?)",(owner,operation,policy['id'],fingerprint,RESERVE_MICRO,LEASE_MS,batch._hash(lease),datetime.now(timezone.utc).isoformat()))
         return batch.Reservation(owner,operation,lease)

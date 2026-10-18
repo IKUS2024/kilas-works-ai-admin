@@ -304,6 +304,8 @@ def create_app():
             audio_schema.apply_release('0094_kilas_realtime_check')
             from kilas_ai import live_translator_incremental
             live_translator_incremental.startup_report()  # Fixed config only, no provider IO.
+            from kilas_ai import audio_transcription_budget
+            audio_transcription_budget.live_policy_report()  # Fixed admission policy only, no provider IO.
             live_translator_realtime_account.startup_probe()  # Harmless account reads.
             from kilas_ai import live_translator_realtime_check
             live_translator_realtime_check.startup()  # Explicit one-shot approval gate; durable no-retry marker.

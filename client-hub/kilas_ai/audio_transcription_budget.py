@@ -134,21 +134,45 @@ def owned(owner,key):
         return {'status':row[3],'operation_key':key} if row else None
 
 
-def _admit(conn,owner,config,reserve=0,key=''):
+def continuous_owner_live(owner, config, key):
+    """Only the existing explicitly funded production owner Live route.
+
+    Trial membership alone never grants this exemption. Monetary reservations,
+    entitlement and shared concurrency still apply to every utterance.
+    """
+    return (key.startswith('live-') and config.get('mode') == 'owner'
+            and config.get('allowed_owner') == owner
+            and os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE', 'qa') == 'owner')
+
+
+def live_policy_report():
+    config = policy() or {}
+    enabled = continuous_owner_live(config.get('allowed_owner'), config, 'live-policy')
+    print('KILAS_LIVE_INPUT_POLICY continuous_owner_live=' + str(enabled)
+          + ' budget_mode=' + str(config.get('mode', 'unavailable'))
+          + ' live_mode=' + os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE', 'qa')
+          + ' trial_turn_caps=True monetary_caps=True shared_concurrency=True', flush=True)
+
+
+def _admit(conn,owner,config,reserve=0,key='',*,live_session=False):
     cutoff=(datetime.now(timezone.utc)-timedelta(days=1)).isoformat()
-    if free_test.eligible(owner,conn):trial_admit(conn,owner)
+    # The server Live pipeline supplies this marker after session validation.
+    # A user-chosen live-* operation key on another endpoint cannot opt in.
+    continuous = live_session and continuous_owner_live(owner, config, key)
+    if free_test.eligible(owner,conn):trial_admit(conn,owner,continuous_live=continuous)
     # Live QA has its own finite allowance; a successful dictation must not
     # consume the two turns needed to test translation in both directions.
     if key.startswith('live-') and config['mode']=='owner':
         mode=os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa')
         if (config['allowed_owner']!=owner and not free_test.eligible(owner,conn)) or mode not in ('qa','owner'):
             raise BudgetError('budget_unavailable')
-        daily=4 if mode=='qa' else OWNER_DAILY_ATTEMPTS
-        used=usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?",(owner,'live-%',cutoff),one=True)[0]
-        if used>=daily and not free_test.eligible(owner,conn):raise BudgetError('attempt_limit',429)
-        hour=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
-        if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?",(owner,'live-%',hour),one=True)[0]>=OWNER_HOURLY_ATTEMPTS:
-            raise BudgetError('rate_limit',429)
+        if not continuous:
+            daily=4 if mode=='qa' else OWNER_DAILY_ATTEMPTS
+            used=usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?",(owner,'live-%',cutoff),one=True)[0]
+            if used>=daily and not free_test.eligible(owner,conn):raise BudgetError('attempt_limit',429)
+            hour=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
+            if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key LIKE ? AND created_at>=?",(owner,'live-%',hour),one=True)[0]>=OWNER_HOURLY_ATTEMPTS:
+                raise BudgetError('rate_limit',429)
     else:
         _attempts(conn,owner,config,key,cutoff)
     if usage._query(conn,"SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",(owner,),one=True)[0]:raise BudgetError('already_processing',429)
@@ -168,7 +192,7 @@ def _attempts(conn,owner,config,key,cutoff):
         if usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,hour),one=True)[0]>=OWNER_HOURLY_ATTEMPTS:raise BudgetError('rate_limit',429)
 
 
-def claim(owner,key,fingerprint,ms):
+def claim(owner,key,fingerprint,ms,*,live_session=False):
     key_valid(key)
     config=policy()
     if not config or not configured():raise BudgetError('budget_unavailable')
@@ -181,7 +205,7 @@ def claim(owner,key,fingerprint,ms):
             if old[3]!='CANCELLED' and old[2]!=fingerprint:raise BudgetError('operation_conflict',409)
             return {'status':old[3],'operation_key':key},None
         reserve=reserve_micro(ms)
-        _admit(conn,owner,config,reserve,key)
+        _admit(conn,owner,config,reserve,key,live_session=live_session)
         lease=secrets.token_hex(32)
         usage._query(conn,"INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at) VALUES (?,?,?,?,'RESERVED',?,?,?,?)",(owner,key,config['id'],fingerprint,reserve,ms,_hash(lease),datetime.now(timezone.utc).isoformat()))
         return {'status':'RESERVED','operation_key':key},Reservation(owner,key,lease)
@@ -265,12 +289,13 @@ def journal_spend(conn, config, owner=None):
     return int(usage._query(conn,sql,params,one=True)[0])
 
 
-def trial_admit(conn, owner):
+def trial_admit(conn, owner, *, continuous_live=False):
     """Combined STT anti-abuse admission under the existing global funding lock."""
-    hour=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
-    learning_count=usage._query(conn,'SELECT COUNT(*) FROM kilas_learning_inputs i JOIN kilas_learning_turns t ON t.id=i.turn_id JOIN kilas_learning_sessions s ON s.id=t.session_id WHERE s.user_id=? AND i.created_at>=?',(owner,hour),one=True)[0]
-    other_count=usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,hour),one=True)[0]
-    if learning_count+other_count>=OWNER_HOURLY_ATTEMPTS:raise BudgetError('rate_limit',429)
+    if not continuous_live:
+        hour=(datetime.now(timezone.utc)-timedelta(hours=1)).isoformat()
+        learning_count=usage._query(conn,'SELECT COUNT(*) FROM kilas_learning_inputs i JOIN kilas_learning_turns t ON t.id=i.turn_id JOIN kilas_learning_sessions s ON s.id=t.session_id WHERE s.user_id=? AND i.created_at>=?',(owner,hour),one=True)[0]
+        other_count=usage._query(conn,'SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE user_id=? AND created_at>=?',(owner,hour),one=True)[0]
+        if learning_count+other_count>=OWNER_HOURLY_ATTEMPTS:raise BudgetError('rate_limit',429)
     recent=(datetime.now(timezone.utc)-timedelta(seconds=240)).isoformat()
     sql="SELECT COUNT(*) FROM kilas_learning_inputs i JOIN kilas_learning_turns t ON t.id=i.turn_id JOIN kilas_learning_sessions s ON s.id=t.session_id WHERE i.status IN ('WAITING','STREAMING','COMMITTING') AND t.status='PROCESSING' AND i.created_at>=?"
     own=usage._query(conn,sql+' AND s.user_id=?',(recent,owner),one=True)[0]

@@ -316,7 +316,7 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
             with _timed(timings,'credit_stt_ms'):stt.require_subscription_credit()
             check()
             with _timed(timings,'stt_claim_ms'):
-                _,capability=budget.claim(owner,key,hashlib.sha256(pcm).hexdigest(),ms)
+                _,capability=budget.claim(owner,key,hashlib.sha256(pcm).hexdigest(),ms,live_session=True)
                 if not capability:raise audio_store.AudioError('Ucapan ini sudah dikirim; tidak diulang.','duplicate_turn',409)
             check()
             with _timed(timings,'stt_ms'):text=stt.transcribe(pcm,capability,detect_language=True) if automatic else stt.transcribe(pcm,capability)
