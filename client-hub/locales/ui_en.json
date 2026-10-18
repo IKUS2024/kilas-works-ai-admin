@@ -1,4 +1,5 @@
 {
+  "Hapus foto struk": "Remove receipt photo",
   "Pemindai struk belum tersedia. Gunakan pengeluaran manual.": "Receipt scanning is unavailable. Enter the expense manually.",
   "Foto ini sudah dikirim untuk analisis. Gunakan review yang sudah terbuka atau isi pengeluaran manual; analisis tidak diulang otomatis.": "This photo was already submitted for analysis. Use the open review or enter the expense manually; analysis is not repeated automatically.",
   "Scan struk memerlukan paket AI aktif dan kapasitas Premium yang cukup. Pengeluaran manual tetap tersedia.": "Receipt scanning requires an active AI package and enough Premium capacity. Manual expenses remain available.",

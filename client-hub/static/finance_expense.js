@@ -51,7 +51,38 @@
     // Restore selected leaf categories after initialization (refresh filters child lists).
     if(initial.length)[...rows.children].forEach((box,i)=>{const leaf=box.querySelector('[data-expense-child]');if([...leaf.options].some(o=>o.value===String(initial[i].category_id)))leaf.value=String(initial[i].category_id);});
     const account=form.querySelector('[data-expense-account]');function currency(){form.querySelector('[data-expense-currency]').textContent=account.selectedOptions[0]?.dataset.currency||'';}account.addEventListener('change',currency);currency();
-    form.querySelector('[data-expense-photo]').addEventListener('change',event=>{form.querySelector('[data-expense-photo-name]').textContent=event.target.files[0]?.name||'';});
+    const photo=form.querySelector('[data-expense-photo]'),photoName=form.querySelector('[data-expense-photo-name]'),photoPlaceholder=form.querySelector('[data-expense-photo-placeholder]'),photoClear=form.querySelector('[data-expense-photo-clear]'),photoError=form.querySelector('[data-expense-photo-error]');
+    let photoPreview=form.querySelector('[data-expense-photo-preview]'),photoURL=null,photoPending=null,photoRevision=0;
+    const photoInvalid='Gunakan foto struk JPG, PNG, atau WebP yang valid, maksimal 20 MiB.';
+    function clearPhoto(empty=true,message=''){
+      photoRevision++;
+      if(photoPending){photoPending.onload=photoPending.onerror=null;photoPending.removeAttribute('src');photoPending=null;}
+      photoPreview.removeAttribute('src');photoPreview.hidden=true;
+      if(photoURL){URL.revokeObjectURL(photoURL);photoURL=null;}
+      if(empty)photo.value='';photo.setCustomValidity('');
+      photoName.textContent='';photoPlaceholder.hidden=false;photoClear.hidden=true;photoError.textContent=message?t(message):'';photoError.hidden=!message;
+    }
+    photo.addEventListener('change',async()=>{
+      const file=photo.files[0];clearPhoto(false);if(!file)return;
+      const revision=photoRevision,current=()=>revision===photoRevision&&form.isConnected&&photo.files[0]===file;
+      photoName.textContent=file.name;photoClear.hidden=false;
+      if(!/\.(jpe?g|png|webp)$/i.test(file.name)||!file.size||file.size>20*1024*1024){clearPhoto(true,photoInvalid);return;}
+      try{
+        // Inspect only12 bytes; never copy the complete photo into a data URL.
+        const bytes=new Uint8Array(await file.slice(0,12).arrayBuffer());if(!current())return;
+        const jpeg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255,png=[137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v),webp=[82,73,70,70].every((v,i)=>bytes[i]===v)&&[87,69,66,80].every((v,i)=>bytes[i+8]===v);
+        if(!(/\.jpe?g$/i.test(file.name)?jpeg:/\.png$/i.test(file.name)?png:webp)){clearPhoto(true,photoInvalid);return;}
+        const url=photoURL=URL.createObjectURL(file),image=new Image();photoPending=image;image.alt=photoPreview.alt;image.dataset.expensePhotoPreview='';image.decoding='async';image.hidden=true;
+        image.onload=()=>{
+          if(!current())return;
+          if(!image.naturalWidth||image.naturalWidth*image.naturalHeight>80000000){clearPhoto(true,photoInvalid);return;}
+          image.onload=image.onerror=null;photoPending=null;photoPreview.replaceWith(image);photoPreview=image;image.hidden=false;photoPlaceholder.hidden=true;
+        };
+        image.onerror=()=>{if(current())clearPhoto(true,photoInvalid);};image.src=url;
+      }catch{if(current())clearPhoto(true,photoInvalid);}
+    });
+    photoClear.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(form.dataset.pending==='true'||form.dataset.submitting==='true')return;clearPhoto();photo.focus();});
+    form.addEventListener('reset',()=>clearPhoto());form.closest('dialog')?.addEventListener('close',()=>clearPhoto());window.addEventListener('pagehide',()=>clearPhoto());
     const installment=form.querySelector('[data-installment-toggle]'),fields=form.querySelector('[data-installment-fields]');
     if(installment){
       const input=name=>form.elements[name];
@@ -63,7 +94,7 @@
       }
       installment.addEventListener('change',installments);for(const control of fields.querySelectorAll('input,select,textarea'))control.addEventListener('input',installments);input('amount').addEventListener('input',installments);installments();
     }
-    form.addEventListener('submit',event=>{for(const box of (split.checked?[...rows.children]:[single])){const a=box.querySelector('[data-expense-parent]'),b=box.querySelector('[data-expense-child]');if(!a.value||(box.dataset.childRequired==='true'&&!b.value)){event.preventDefault();box.openExpensePicker();box.querySelector('[data-expense-cascade]').focus();return;}}if(form.dataset.pending==='true'){event.preventDefault();return;}form.dataset.pending='true';form.setAttribute('aria-busy','true');});
-    window.addEventListener('pageshow',()=>{delete form.dataset.pending;form.removeAttribute('aria-busy');});
+    form.addEventListener('submit',event=>{for(const box of (split.checked?[...rows.children]:[single])){const a=box.querySelector('[data-expense-parent]'),b=box.querySelector('[data-expense-child]');if(!a.value||(box.dataset.childRequired==='true'&&!b.value)){event.preventDefault();box.openExpensePicker();box.querySelector('[data-expense-cascade]').focus();return;}}if(form.dataset.pending==='true'){event.preventDefault();return;}form.dataset.pending='true';photoClear.disabled=true;form.setAttribute('aria-busy','true');});
+    window.addEventListener('pageshow',()=>{delete form.dataset.pending;photoClear.disabled=false;form.removeAttribute('aria-busy');});
   }
 })();
