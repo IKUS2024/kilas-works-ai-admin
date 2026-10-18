@@ -11,7 +11,7 @@ import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=ca
 const root=document.querySelector('.kilas-live-translator');
 if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');
- const csrf=form.querySelector('[name=csrf_token]').value,start=form.querySelector('button');let context=null,source=null,analyser=null,interval=null,recorder=null;
+ const csrf=form.querySelector('[name=csrf_token]').value,start=form.querySelector('button[type=submit]');let context=null,source=null,analyser=null,interval=null,recorder=null;
  const callLayout=new TranslatorCallLayout({document,root,endButton:document.querySelector('#live-end')});
  const setupReady=root.dataset.ready==='true'&&start.dataset.enabled==='true';
  const showError=(text,detail)=>{error.textContent=t(text);error.hidden=false;

@@ -82,10 +82,10 @@ test('submit rejects a stale duplicate before audio context, microphone or netwo
   a.addEventListener = b.addEventListener = () => {};
   b.focus = () => { focused = true; };
   const error = {hidden: true, textContent: ''};
-  const start = {disabled: false};
+  const start = {disabled: false,dataset:{enabled:'true'}};
   const form = {
     elements: {language_a: a, language_b: b}, reportValidity: () => true,
-    querySelector: query => query === 'button' ? start : {value: 'synthetic-csrf'},
+    querySelector: query => query === 'button[type=submit]' ? start : {value: 'synthetic-csrf'},
     addEventListener: (type, handler) => listeners.set(type, handler),
   };
   const active = {querySelector: () => ({})};

@@ -24,7 +24,7 @@ def main():
             options={'headless':True}
             if os.environ.get('KILAS_QA_CHROMIUM'):options.update(executable_path=os.environ['KILAS_QA_CHROMIUM'],args=['--no-sandbox'])
             browser=pw.chromium.launch(**options)
-            for width,locale in ((320,'id'),(768,'es'),(1440,'en'),(320,'zh')):
+            for width,locale in ((320,'en'),(768,'es'),(1440,'id'),(320,'zh')):
                 context=browser.new_context(viewport={'width':width,'height':900})
                 cookie=case.client.get_cookie('session')
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':locale,'url':origin}])
@@ -39,6 +39,18 @@ def main():
                     page.goto(origin+path,wait_until='networkidle')
                     expect(page.locator('.translator-picker')).to_have_count(2)
                     assert page.locator('select[name=language_a] option').count()==count
+                    # Check before touching either picker: recovery must target Start.
+                    for control in page.locator('.translator-picker').all():
+                        selected=control.locator('select').evaluate('e=>e.selectedOptions[0].textContent')
+                        expect(control.locator(':scope > button')).to_have_text(selected)
+                        expect(control.locator(':scope > button')).to_be_enabled()
+                    expect(page.locator('#live-setup-form button[type=submit]')).to_have_text('Start')
+                    assert not page.locator('input[name=consent]').is_checked()
+                    assert not page.locator('#live-setup-form').evaluate('e=>e.checkValidity()')
+                    # Native browser validation still prevents submission without consent.
+                    if page.locator('#live-setup-form button[type=submit]').is_enabled():
+                        page.locator('#live-setup-form button[type=submit]').click()
+                    assert not page.locator('input[name=consent]').is_checked()
                     picker=page.locator('.translator-picker').nth(1)
                     picker.locator(':scope > button').click()
                     search=picker.locator('input[type=search]');expect(search).to_be_visible()
@@ -56,6 +68,11 @@ def main():
                     rect=picker.locator('.translator-picker-popup').bounding_box();assert rect['x']>=0 and rect['x']+rect['width']<=width+1
                     page.screenshot(path=str(output/f'{locale}-{width}-{count}.png'),full_page=True)
                     search.press('Escape')
+                    page.reload(wait_until='networkidle')
+                    for control in page.locator('.translator-picker').all():
+                        selected=control.locator('select').evaluate('e=>e.selectedOptions[0].textContent')
+                        expect(control.locator(':scope > button')).to_have_text(selected)
+                        expect(control.locator(':scope > button')).to_be_enabled()
                     report['cases'].append({'width':width,'locale':locale,'options':count,'search_code_keyboard_pair_form_consent_layout':'PASS'})
                 page.goto(origin+'/kilas-translator?mode=translate',wait_until='networkidle')
                 assert page.locator('#translate-panel select[name=language] option').count()==93

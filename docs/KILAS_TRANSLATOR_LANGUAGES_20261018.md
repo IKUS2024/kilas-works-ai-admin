@@ -42,3 +42,11 @@ Production deployment/read-only discovery results are recorded in the release ha
 -https://elevenlabs.io/docs/overview/capabilities/speech-to-text — explicit Scribe languages and accuracy limitations.
 -https://elevenlabs.io/docs/overview/capabilities/dubbing and https://elevenlabs.io/docs/api-reference/dubbing/create-project — v2 language table, cloning default and project API.
 -https://ai.google.dev/gemini-api/docs/live-api/live-translate — dedicated translation model/table, variant codes and preview limitations.
+
+## Initial picker regression correction —01:29UTC
+
+The new picker inserted non-submit buttons before Start. Classic page initialization used form.querySelector('button'), so recovery mistook the first picker for Start, disabled it and overwrote its language label. This was reproduced at320px in English: expected Indonesian, observed disabled Start. Native already used a submit-specific selector. Classic now targets button[type=submit]; its template module version changes to retire cached initialization. Consent, readiness and submission validation remain unchanged.
+
+Strengthened Chromium checks pass8 classic/native cases across four UI languages, including initial labels before any interaction, reload, search/selection, pair exclusion, form values and required consent.25 focused Node language/recovery tests pass; their DOM mocks now expose the actual submit selector and existing data-enabled contract. Before/after logs: /tmp/kilas-translator-initial-label-before.log and /tmp/kilas-translator-initial-label-after.log; Node log: /tmp/kilas-translator-picker-node.log. No paid calls.
+
+The owner's renewed150-language target requires complete speech coverage for42 languages outside the documented108-language output union: ASR plus translation and compatible TTS, or voice-preserving dubbing. Adding selector rows cannot supply that coverage. Another speech route must also demonstrably preserve the chosen Kilas voice; if it needs a new provider/voice mapping, compatible capability and explicit approval are prerequisites. No new route or service was researched/provisioned for this regression.
