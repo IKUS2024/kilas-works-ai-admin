@@ -14,7 +14,7 @@ from . import workspace_acceptance_fixture as acceptance
 
 CHECKS=acceptance.CHECKS
 OWNER_ID=9
-PROOF_POLICY='e2b-boundary-acceptance-30s-5usd-v1'
+PROOF_POLICY='e2b-readonly-stdin-acceptance-30s-5usd-v1'
 FIXTURE={'main.py':Path(acceptance.__file__).read_text()}
 
 
@@ -53,10 +53,10 @@ def fingerprint():
 
 
 def key():
-    # Owner explicitly approved exactly one THIRD VM for the reviewed enforced
-    # quota fixture. Both prior consumed keys/rows remain untouched. Stable
+    # Owner explicitly approved exactly one FOURTH VM after the verified
+    # read-only stdin correction. All three consumed keys remain untouched. Stable
     # across restarts, deployments and fingerprint changes: never auto-retry.
-    return 'boundary-acceptance-proof-v1'
+    return 'readonly-stdin-acceptance-proof-v1'
 
 
 def authorized():

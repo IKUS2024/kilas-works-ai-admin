@@ -46,10 +46,10 @@ class AcceptanceFixtureTests(unittest.TestCase):
         self.assertLess(len(source.encode()),20000)
         self.assertNotIn('Sandbox.create',source)
         from kilas_ai import workspace_execution_proof as proof,workspace_execution as execution
-        self.assertEqual(proof.key(),'boundary-acceptance-proof-v1')
+        self.assertEqual(proof.key(),'readonly-stdin-acceptance-proof-v1')
         self.assertIn('workspace_acceptance_fixture',inspect.getsource(proof))
         self.assertEqual(proof.FIXTURE,{'main.py':source})
-        self.assertEqual(proof.PROOF_POLICY,'e2b-boundary-acceptance-30s-5usd-v1')
+        self.assertEqual(proof.PROOF_POLICY,'e2b-readonly-stdin-acceptance-30s-5usd-v1')
         self.assertNotIn('workspace_acceptance_fixture',inspect.getsource(execution))
 
     def test_outside_write_accepts_only_kernel_denial(self):
