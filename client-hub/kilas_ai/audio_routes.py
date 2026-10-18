@@ -15,10 +15,16 @@ from .billing_routes import admin_bp
 from . import audio_store as store, audio_provider as provider, audio_service as service, audio_media as media, audio_billing as billing, usage
 from . import audio_personal_voice as personal
 from . import audio_branded_voices as branded
+from . import translator_languages as translator
 from . import audio_voice_script as voice_script
 from . import audio_transcription_budget as video_budget, audio_transcription_provider as video_stt
 
 audio_bp=Blueprint('kilas_audio',__name__,url_prefix='/kilas-translator')
+
+
+@audio_bp.record_once
+def warm_translator_catalog(state):
+    if not state.app.testing:translator.warmup()  # Read-only model metadata; no audio.
 
 
 def _shared_native_user(user):
@@ -127,7 +133,7 @@ def history_fragment():
     data=store.history_page(session['user_id'],page,through=through,kind=kind)
     html=render_template('kilas_translator/_history.html',**data,selected_job_id=selected,
                          video_script_ready=video_budget.ready(session['user_id']),
-                         languages=provider.LANGUAGES,seconds=seconds)
+                         languages=provider.LANGUAGES,translation_labels=translator.NAMES,seconds=seconds)
     return {'html':html,'page':data['history_page'],'pages':data['history_page_count'],
             'total':data['history_total']},200,{'Cache-Control':'private, no-store'}
 
@@ -152,7 +158,8 @@ def home(ident=None,initial_brief=None,home_task=None):
                            voices=branded.public_choices(),voice_sample_aliases=branded.sample_aliases(),
                            personal_voice=bool(personal.get(user)),personal_preview=personal.has_preview(user),voice_operation_key=secrets.token_hex(16),
                            saved_voices=saved_voices,
-                           provider_ready=provider.configured(),languages=provider.LANGUAGES,packs=store.PACKS,
+                           provider_ready=provider.configured(),languages=provider.LANGUAGES,translation_labels=translator.NAMES,
+                           dubbing_languages=translator.names(translator.DUBBING),dubbing_sources=translator.names(translator.STT&translator.DUBBING),packs=store.PACKS,
                            seconds=seconds,operation_key=secrets.token_hex(16),max_mb=media.file_limit()//1024//1024,audio_max_mb=media.file_limit('wav')//1024//1024,max_seconds=media.duration_limit())
 
 
@@ -179,7 +186,9 @@ def create():
     store.require_balance(user)
     if not provider.configured():raise store.AudioError('Audio sedang belum tersedia. Saldo kamu tetap aman.','not_configured',503)
     mode=request.form.get('mode');source=request.form.get('source_language','auto');target=request.form.get('language','en')
-    if (target not in provider.LANGUAGES and not (mode=='voiceover' and target=='auto')) or (source!='auto' and source not in provider.LANGUAGES):abort(400)
+    targets=translator.DUBBING if mode=='translate' else provider.LANGUAGES
+    sources=translator.STT&translator.DUBBING if mode=='translate' else provider.LANGUAGES
+    if (target not in targets and not (mode=='voiceover' and target=='auto')) or (source!='auto' and source not in sources):abort(400)
     voice=voice_name=script='';original_script=None;ms=0;pcm=None
     if mode=='translate':
         title,ms,pcm=media.upload(request.files.get('file'),preserve_video=True)
@@ -409,7 +418,7 @@ def status(ident):
             'duration_label':seconds(((job['source_ms'] if job['mode']=='translate' else job['actual_ms'])+999)//1000),
             'balance_html':render_template('kilas_translator/_balance.html',balance=store.balance(session['user_id']),seconds=seconds),
             'edit_script_url':url_for('kilas_audio.script_for_edit',ident=ident) if job['has_original_script'] else None,
-            'html':render_template('kilas_translator/_result.html',job=job,languages=provider.LANGUAGES,seconds=seconds,video_script_ready=video_budget.ready(session['user_id']))},200,{'Cache-Control':'no-store'}
+            'html':render_template('kilas_translator/_result.html',job=job,languages=provider.LANGUAGES,translation_labels=translator.NAMES,seconds=seconds,video_script_ready=video_budget.ready(session['user_id']))},200,{'Cache-Control':'no-store'}
 
 
 @audio_bp.get('/jobs/<int:ident>/script')
@@ -434,7 +443,7 @@ def result(ident):
     if wav:
         if job['mode'] != 'voiceover' or video:abort(400)
         raw = media.download_wav(raw)
-    name=(secure_filename(job['title']).rsplit('.',1)[0][:80] or 'audio')+'-'+provider.LANGUAGES.get(job['target_language'],'Voice Over').split(' / ')[0]+('.wav' if wav else '.mp4' if video else '.mp3')
+    name=(secure_filename(job['title']).rsplit('.',1)[0][:80] or 'audio')+'-'+(translator.NAMES if job['mode']=='translate' else provider.LANGUAGES).get(job['target_language'],'Voice Over').split(' / ')[0]+('.wav' if wav else '.mp4' if video else '.mp3')
     response=send_file(io.BytesIO(raw),mimetype='audio/wav' if wav else 'video/mp4' if video else 'audio/mpeg',download_name=name,as_attachment=request.args.get('download')=='1')
     response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
     return response
@@ -483,7 +492,8 @@ def live_translator_home():
         # Navigation never ends or replaces an active session. Native Start
         # retains the existing session_busy fence and explicit recovery UI.
         return redirect(url_for('kilas_audio.live_gemini_home')),302,{'Cache-Control':'private, no-store'}
-    return render_template('kilas_translator/live.html',live_ready=live.ready(session['user_id']),voices=branded.public_choices(),languages=provider.LANGUAGES),200,{'Cache-Control':'private, no-store'}
+    languages=translator.classic_names()
+    return render_template('kilas_translator/live.html',live_ready=live.ready(session['user_id']) and len(languages)>1,voices=branded.public_choices(),languages=languages),200,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/live/sessions')
@@ -492,7 +502,8 @@ def live_translator_start():
     live.require_ready(session['user_id'])
     if request.form.get('consent')!='yes':raise store.AudioError('Setujui pemrosesan ucapan sebelum mulai.','consent_required',400)
     a,b=request.form.get('language_a'),request.form.get('language_b');voice=request.form.get('voice')
-    sessions.require_pair(a,b)
+    sessions.require_pair(a,b,voice=voice)
+    translator.require_classic(a,b)
     if not branded.resolve(voice):raise store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
     store.require_balance(session['user_id'])
     ident=sessions.create(session['user_id'],a,b,voice)
@@ -551,7 +562,7 @@ def live_gemini_home():
     recovery_only = not enabled and _active_native_session(session['user_id'])
     if not enabled and not recovery_only and not native.ready(session['user_id']) and not native.preview_owner(session['user_id']):
         raise native.failure('gemini_unavailable',404)
-    return render_template('kilas_translator/gemini.html', languages=provider.LANGUAGES, gemini_ready=enabled,
+    return render_template('kilas_translator/gemini.html', languages=translator.native_names(), gemini_ready=enabled,
                            gemini_recovery_only=recovery_only,gemini_two_way=two_way,
                            gemini_protocol=_native_protocol(backend,info)),200,{'Cache-Control':'private, no-store'}
 
@@ -601,7 +612,7 @@ def live_gemini_session():
     if request.form.get('consent') != consent:
         raise store.AudioError('Setujui pemrosesan ucapan sebelum mulai.', 'consent_required', 400)
     a, b = request.form.get('language_a'), request.form.get('language_b')
-    sessions.require_pair(a, b)
+    sessions.require_pair(a, b,voice=voice)
     store.require_balance(session['user_id'])
     ident = sessions.create(session['user_id'], a, b, voice)
     info={'voice_alias':voice,'language_a':a,'language_b':b}

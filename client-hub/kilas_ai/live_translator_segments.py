@@ -195,7 +195,7 @@ def complete(owner,job,check=lambda:None):
         usage._query(conn,"UPDATE kilas_audio_jobs SET status='COMPLETED',actual_ms=?,seconds_charged=?,reserved_seconds=0,script=NULL,updated_at=? WHERE id=? AND user_id=?",(final_ms,charge,usage._now().isoformat(),job,owner))
 
 
-def speech(text,voice,check,on_first_byte,*,previous='',following=''):
+def speech(text,voice,check,on_first_byte,*,previous='',following='',language=None):
     """One documented HTTP stream; never retry or switch endpoints after dispatch."""
     # Translator-only request overrides: moderate expressive variation while
     # retaining the approved voice with modestly calmer speech. Optional speaker
@@ -206,8 +206,12 @@ def speech(text,voice,check,on_first_byte,*,previous='',following=''):
              'voice_settings':{'stability':0.4,'similarity_boost':0.75,'style':0.0,
                                'use_speaker_boost':False,'speed':LIVE_SPEECH_SPEED},
              'apply_text_normalization':'auto'}
-    if previous:payload['previous_text']=previous[-1000:]
-    if following:payload['next_text']=following[:1000]
+    if language is not None:
+        from .translator_languages import speech_payload
+        payload=speech_payload(text,language)
+    if language is None:
+        if previous:payload['previous_text']=previous[-1000:]
+        if following:payload['next_text']=following[:1000]
     check();deadline=monotonic()+60;raw=bytearray();first=True
     try:
         with transport.request('POST',provider.BASE+'/text-to-speech/'+voice+'/stream',headers={'xi-api-key':os.environ['ELEVENLABS_API_KEY'].strip()},params={'output_format':'mp3_44100_128'},json=payload,stream=True,timeout=(5,15),allow_redirects=False) as response:

@@ -3,6 +3,7 @@
 {% endblock %}
 {% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='history-origin-20261015') }}">{% endblock %}
 {% block content %}
+{% if upload_translation_visible %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_translator_picker.css',v='languages-20261018') }}"><script src="{{ url_for('static',filename='kilas_translator_picker.js',v='languages-20261018') }}" defer></script>{% endif %}
 {% if home_task %}{% include 'kilas_ai/_home_handoff.html' %}{% endif %}
 {% include 'kilas_content/_handoff.html' %}
 {% with selected_feature=active_mode %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}
@@ -18,7 +19,7 @@
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}-t"><input type="hidden" name="mode" value="translate">
 <label class="audio-upload" for="audio-file"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg><strong>{{ ui_t("Pilih audio atau video") }}</strong><span>{{ ui_t("MP4 maks.") }} {{ max_mb }} {{ ui_t("MB · MP3, WAV, M4A maks.") }} {{ audio_max_mb }} MB · {{ max_seconds//60 }} {{ ui_t("menit") }}</span></label>
 <input type="file" id="audio-file" name="file" accept=".mp4,.mp3,.wav,.m4a" data-max-file-mb="{{ max_mb }}" data-max-audio-mb="{{ audio_max_mb }}" required aria-describedby="audio-duration"><p id="audio-duration" role="status">{{ ui_t("Durasi dibaca sebelum Translate.") }}</p>
-<div class="audio-fields"><label>{{ ui_t("Bahasa sumber") }}<select name="source_language"><option value="auto">{{ ui_t('Auto Detect') }}</option>{% for code,label in languages.items() %}<option value="{{ code }}">{{ ui_t(label) }}</option>{% endfor %}</select></label><label>{{ ui_t("Bahasa tujuan") }}<select name="language">{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }}>{{ ui_t(label) }}</option>{% endfor %}</select></label></div>
+<div class="audio-fields"><label>{{ ui_t("Bahasa sumber") }}<select data-translator-language name="source_language"><option value="auto">{{ ui_t('Auto Detect') }}</option>{% for code,label in dubbing_sources.items() %}<option value="{{ code }}">{{ ui_t(label) }}</option>{% endfor %}</select></label><label>{{ ui_t("Bahasa tujuan") }}<select data-translator-language name="language">{% for code,label in dubbing_languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }}>{{ ui_t(label) }}</option>{% endfor %}</select></label></div>
 <button class="btn" type="submit" {{ 'disabled' if not provider_ready or (not balance.exempt and not balance.available) }}>Translate</button>
 </form></section>{% endif %}
 <section id="voiceover-panel" role="tabpanel" aria-labelledby="voiceover-tab" {{ 'hidden' if active_mode!='voiceover' }}>

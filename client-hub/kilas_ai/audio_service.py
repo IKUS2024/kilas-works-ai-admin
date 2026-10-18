@@ -32,6 +32,7 @@ def submit(user,ident):
                 if not entry:raise store.AudioError('Hasil sementara sesi tidak tersedia.','session_output_expired',409)
                 payload={'script':entry['text']}
             options={'personal':True} if job['voice_name']=='Suara Saya' or personal.owns(user,job['voice_id']) else {}
+            if transient:options={'translator':True}
             raw,request_id=provider.speech(payload['script'],job['voice_id'],job['target_language'],**options)
             store.finish(user,ident,raw,media.mp3_duration(raw),request_id)
             if transient:temporary.update(user,ident,raw=raw)
@@ -63,7 +64,8 @@ def refresh(user,ident):
                     raw=media.mux_video(bytes(source),output);ms=job['source_ms']
                 else:raw,ms=media.ensure_mp3(output)
                 detected=metadata.get('source_language')
-                if job['source_language']=='auto' and detected in provider.LANGUAGES:
+                from .translator_languages import STT,DUBBING
+                if job['source_language']=='auto' and detected in STT|DUBBING:
                     store.detected_source(user,ident,detected)
                 store.finish(user,ident,raw,ms)
             elif status=='failed':store.fail(user,ident,'provider_failed')

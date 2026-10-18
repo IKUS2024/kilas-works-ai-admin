@@ -11,9 +11,10 @@ def alive(status,expiry):
     return status=='ACTIVE' and (not expiry or usage._as_utc(expiry)>usage._now())
 
 
-def require_pair(a,b):
-    from .audio_provider import LANGUAGES
-    if not isinstance(a,str) or not isinstance(b,str) or a not in LANGUAGES or b not in LANGUAGES or a==b:
+def require_pair(a,b,*,voice=None):
+    from . import translator_languages as languages
+    allowed=languages.NATIVE if voice and voice.startswith('gemini-live-') else languages.CLASSIC if voice else languages.CLASSIC|languages.NATIVE
+    if not isinstance(a,str) or not isinstance(b,str) or a not in allowed or b not in allowed or a==b:
         raise audio_store.AudioError('Pilih dua bahasa yang berbeda sebelum memulai sesi.','invalid_language_pair',400)
 
 
@@ -28,12 +29,12 @@ def locked(owner, ident, conn):
     row=usage._query(conn,'SELECT status,expires_at,language_a,language_b,voice_alias FROM kilas_live_translator_sessions WHERE id=? AND user_id=?'+suffix,(ident,owner),one=True)
     if not row:raise audio_store.AudioError('Sesi tidak tersedia.','session_unavailable',404)
     if not alive(row[0],row[1]):raise audio_store.AudioError('Sesi berakhir. Mulai kembali bila ingin melanjutkan.','session_ended',409)
-    require_pair(row[2],row[3])
+    require_pair(row[2],row[3],voice=row[4])
     return {'language_a':row[2],'language_b':row[3],'voice_alias':row[4]}
 
 
 def create(owner,a,b,voice):
-    require_pair(a,b)
+    require_pair(a,b,voice=voice)
     now=usage._now();ident=secrets.token_hex(24)
     with transaction() as conn:
         # One session per owner, including double Start from separate tabs.

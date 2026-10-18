@@ -19,6 +19,9 @@ VOICE={'alias':'kilas-male','id':'syntheticMale123','name':'Kilas Male','style':
 class LiveTranslatorTests(unittest.TestCase):
     def setUp(self):
         audio.AudioTests.setUp(self)
+        from kilas_ai import translator_languages
+        catalog=patch.object(translator_languages,'classic_names',return_value=translator_languages.names(translator_languages.CLASSIC))
+        catalog.start();self.addCleanup(catalog.stop)
         self.subscription_credit_check=live.stt.require_subscription_credit
         funding=patch.object(live.stt,'require_subscription_credit')
         funding.start();self.addCleanup(funding.stop)
@@ -615,7 +618,8 @@ class LiveTranslatorTests(unittest.TestCase):
         client.post.assert_called_once();client.request.assert_called_once();client.close.assert_called_once()
         self.assertEqual([call[0] for call in client.method_calls],['get','post','get','request','close'])
         self.assertEqual(client.request.call_args.args[0],'POST')
-        self.assertEqual(client.request.call_args.kwargs['json']['model_id'],'eleven_multilingual_v2')
+        self.assertEqual(client.request.call_args.kwargs['json']['model_id'],'eleven_v4')
+        self.assertEqual(client.request.call_args.kwargs['json']['language_code'],'en')
         for call in client.get.call_args_list:
             self.assertEqual(call.args[0],'https://api.elevenlabs.io/v1/user/subscription')
             self.assertFalse(call.kwargs['allow_redirects'])

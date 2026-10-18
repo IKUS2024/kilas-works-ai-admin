@@ -658,5 +658,8 @@
   "Eksekusi ini sudah dikirim. Permintaan tidak diulang.",
   "Eksekusi terhenti. Hasil belum terverifikasi; permintaan tidak diulang.",
   "Eksekusi gagal. Hasil belum terverifikasi; permintaan tidak diulang.",
-  "File proyek tersimpan. Hasil eksekusi belum terverifikasi."
+  "File proyek tersimpan. Hasil eksekusi belum terverifikasi.",
+  "Cari bahasa",
+  "Bahasa tidak ditemukan.",
+  "Bahasa ini belum tersedia pada model suara Translator. Pilih bahasa lain."
 ]

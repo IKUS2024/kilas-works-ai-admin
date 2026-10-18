@@ -105,9 +105,11 @@ def preview_owner(owner):
 def setup(target):
     # Dedicated translation guide + Live API reference, checked 2026-10-16.
     # No user instructions, tools, text input, arbitrary model or custom voice.
+    from .translator_languages import native_wire,NATIVE
+    if target not in NATIVE:raise failure('invalid_language_pair',400)
     return {'setup':{'model':'models/'+MODEL,
                      'generationConfig':{'responseModalities':['AUDIO'], 'maxOutputTokens':4096,
-                                         'translationConfig':{'targetLanguageCode':target, 'echoTargetLanguage':False}},
+                                         'translationConfig':{'targetLanguageCode':native_wire(target), 'echoTargetLanguage':False}},
                      'inputAudioTranscription':{}, 'outputAudioTranscription':{}}}
 
 

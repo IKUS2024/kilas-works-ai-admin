@@ -1,4 +1,7 @@
 {
+  "Cari bahasa": {"en": "Search languages", "es": "Buscar idiomas", "zh": "搜索语言"},
+  "Bahasa tidak ditemukan.": {"en": "No languages found.", "es": "No se encontraron idiomas.", "zh": "未找到语言。"},
+  "Bahasa ini belum tersedia pada model suara Translator. Pilih bahasa lain.": {"en": "This language is unavailable for the Translator voice model. Choose another language.", "es": "Este idioma no está disponible para el modelo de voz de Translator. Elige otro idioma.", "zh": "Translator语音模型暂不支持此语言。请选择其他语言。"},
   "File proyek tersimpan. Hasil eksekusi belum terverifikasi.": {"en": "Project files saved. Execution results are not verified.", "es": "Archivos guardados. Los resultados de ejecución no están verificados.", "zh": "项目文件已保存。执行结果尚未验证。"},
   "Hasil eksekusi belum terverifikasi.": {"en": "Execution results are not verified.", "es": "Los resultados de ejecución no están verificados.", "zh": "执行结果尚未验证。"},
   "Tambahkan file Python atau ZIP proyek di percakapan ini.": {"en": "Add a Python file or project ZIP in this conversation.", "es": "Añade un archivo Python o un ZIP del proyecto en esta conversación.", "zh": "请在此对话中添加 Python 文件或项目 ZIP。"},
