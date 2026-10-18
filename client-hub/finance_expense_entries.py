@@ -13,8 +13,9 @@ def allocations(business_id, transaction_id, actor_user_id):
     return [dict(row) for row in db.query_all('SELECT category_id,amount_minor FROM finance_expense_allocations WHERE transaction_id=? ORDER BY sequence',(transaction_id,))]
 
 
-def validate(business_id, amount, values, actor_user_id):
+def validate(business_id, amount, values, actor_user_id, *, retained=None):
     if not isinstance(values,list) or not 2<=len(values)<=20:raise finance.FinanceError('expense_split_invalid')
+    if retained and values==retained and sum(v['amount_minor'] for v in retained)==amount:return [dict(v) for v in retained]
     seen=set();result=[]
     for value in values:
         if not isinstance(value,dict) or set(value)!={'category_id','amount_minor'}:raise finance.FinanceError('expense_split_invalid')
@@ -63,7 +64,7 @@ def save(business_id, actor_user_id, *, amount_minor,account_id,category_id,occu
          description=None,notes=None,counterparty_name=None,splits=None,receipt=None,submission_key=None,
          transaction_id=None,expected_updated_at=None,project_id=None,customer_id=None):
     with finance._write(business_id,actor_user_id):
-        values=validate(business_id,amount_minor,splits,actor_user_id) if splits else []
+        values=validate(business_id,amount_minor,splits,actor_user_id,retained=allocations(business_id,transaction_id,actor_user_id) if transaction_id else None) if splits else []
         if values:category_id=values[0]['category_id']
         data=dict(amount_minor=amount_minor,account_id=account_id,category_id=category_id,occurred_on=occurred_on,
                   description=description,notes=notes,counterparty_name=counterparty_name,project_id=project_id,customer_id=customer_id)
@@ -91,3 +92,16 @@ def save(business_id, actor_user_id, *, amount_minor,account_id,category_id,occu
             db.execute('UPDATE finance_transactions SET updated_at=? WHERE id=?',(finance.repo._now(),transaction_id))
             finance._audit(business_id,actor_user_id,'FINANCE_EXPENSE_RECEIPT_SAVED',transaction_id)
         return transaction_id
+
+
+def edit_categories(business_id,transaction_id,actor):
+    transaction=finance.get_transaction(business_id,transaction_id,actor_user_id=actor)
+    if not transaction:raise finance.FinanceError('transaction_unavailable')
+    retained={transaction['category_id']}|{v['category_id'] for v in allocations(business_id,transaction_id,actor)}
+    rows=finance.list_categories(business_id,'EXPENSE',include_inactive=True,include_children=True,actor_user_id=actor)
+    retained|={v['parent_category_id'] for v in rows if v['id'] in retained and v.get('parent_category_id')}
+    result=[]
+    for row in rows:
+        if row['is_active'] or row['id'] in retained:
+            row['retained']=row['id'] in retained;result.append(row)
+    return result

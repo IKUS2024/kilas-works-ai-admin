@@ -320,6 +320,7 @@ MIGRATIONS = [
     ("0106_kilas_workspace_execution_sqlite.sql", "0106_kilas_workspace_execution_postgres.sql"),
     ("0107_finance_expense_entries_sqlite.sql", "0107_finance_expense_entries_postgres.sql"),
     ("0108_finance_expense_plans_sqlite.sql", "0108_finance_expense_plans_postgres.sql"),
+    ("0109_finance_category_preferences_sqlite.sql", "0109_finance_category_preferences_postgres.sql"),
 ]
 
 

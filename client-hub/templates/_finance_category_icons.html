@@ -1,0 +1,26 @@
+{% macro glyph(key) -%}
+{% set paths = {'category': 'M4 5h16v14H4z M4 10h16 M10 10v9', 'home': 'm3 11 9-8 9 8 M5 10v11h14V10 M9 21v-7h6v7', 'rent': 'M14 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12 M9 13l-7 7 M3 17l3 3 M5 15l3 3', 'shopping': 'M4 7h16l-1 14H5z M8 7V5a4 4 0 0 1 8 0v2', 'food': 'M5 3v7 M2 3v5a3 3 0 0 0 6 0V3 M5 11v10 M18 3c-4 4-4 9 0 9h2 M20 3v18', 'transport': 'm5 5-3 8v6h20v-6l-3-8z M2 13h20 M6 19v3 M18 19v3 M6 16h1 M17 16h1', 'electric': 'm13 2-9 12h7l-1 8 10-13h-8z', 'water': 'M12 2C9 7 4 12 4 16a8 8 0 0 0 16 0c0-4-5-9-8-14z', 'internet': 'M2 8a16 16 0 0 1 20 0 M5 12a11 11 0 0 1 14 0 M9 16a5 5 0 0 1 6 0 M12 20h.01', 'phone': 'M7 2h10v20H7z M10 18h4', 'health': 'M8 3h8v5h5v8h-5v5H8v-5H3V8h5z', 'education': 'm2 8 10-5 10 5-10 5z M6 11v7c4 3 8 3 12 0v-7 M22 8v10', 'digital': 'M3 4h18v13H3z M8 21h8 M12 17v4 m-2-14 6 4-6 3z', 'entertainment': 'M4 4h16v16H4z M4 8h16 M4 16h16 M8 4v16 M16 4v16', 'care': 'M9 3h6v5l3 3v10H6V11l3-3z M9 3h6 M9 14h6', 'work': 'M8 7V3h8v4 M3 7h18v14H3z M3 12h18 M10 12v3h4v-3', 'investment': 'M3 21h18 M5 17v-5 M11 17V9 M17 17V5 m-13-9 6-5 6 2 5-6', 'bank': 'm2 8 10-6 10 6z M4 10v9 M9 10v9 M15 10v9 M20 10v9 M2 22h20'} %}
+<svg class="finance-category-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ paths.get(key,paths.category) }}"/></svg>
+{%- endmacro %}
+{% macro picker() -%}
+<fieldset class="finance-icon-picker"><legend>{{ ui_t("Pilih ikon") }}</legend><div>
+<label title="{{ ui_t('Kategori') }}"><input type="radio" name="icon_key" value="category" checked aria-label="{{ ui_t('Kategori') }}"><span>{{ glyph('category') }}</span></label>
+<label title="{{ ui_t('Rumah') }}"><input type="radio" name="icon_key" value="home"  aria-label="{{ ui_t('Rumah') }}"><span>{{ glyph('home') }}</span></label>
+<label title="{{ ui_t('Sewa') }}"><input type="radio" name="icon_key" value="rent"  aria-label="{{ ui_t('Sewa') }}"><span>{{ glyph('rent') }}</span></label>
+<label title="{{ ui_t('Belanja') }}"><input type="radio" name="icon_key" value="shopping"  aria-label="{{ ui_t('Belanja') }}"><span>{{ glyph('shopping') }}</span></label>
+<label title="{{ ui_t('Makanan') }}"><input type="radio" name="icon_key" value="food"  aria-label="{{ ui_t('Makanan') }}"><span>{{ glyph('food') }}</span></label>
+<label title="{{ ui_t('Transportasi') }}"><input type="radio" name="icon_key" value="transport"  aria-label="{{ ui_t('Transportasi') }}"><span>{{ glyph('transport') }}</span></label>
+<label title="{{ ui_t('Listrik') }}"><input type="radio" name="icon_key" value="electric"  aria-label="{{ ui_t('Listrik') }}"><span>{{ glyph('electric') }}</span></label>
+<label title="{{ ui_t('Air') }}"><input type="radio" name="icon_key" value="water"  aria-label="{{ ui_t('Air') }}"><span>{{ glyph('water') }}</span></label>
+<label title="{{ ui_t('Internet') }}"><input type="radio" name="icon_key" value="internet"  aria-label="{{ ui_t('Internet') }}"><span>{{ glyph('internet') }}</span></label>
+<label title="{{ ui_t('Telepon') }}"><input type="radio" name="icon_key" value="phone"  aria-label="{{ ui_t('Telepon') }}"><span>{{ glyph('phone') }}</span></label>
+<label title="{{ ui_t('Kesehatan') }}"><input type="radio" name="icon_key" value="health"  aria-label="{{ ui_t('Kesehatan') }}"><span>{{ glyph('health') }}</span></label>
+<label title="{{ ui_t('Pendidikan') }}"><input type="radio" name="icon_key" value="education"  aria-label="{{ ui_t('Pendidikan') }}"><span>{{ glyph('education') }}</span></label>
+<label title="{{ ui_t('Langganan digital') }}"><input type="radio" name="icon_key" value="digital"  aria-label="{{ ui_t('Langganan digital') }}"><span>{{ glyph('digital') }}</span></label>
+<label title="{{ ui_t('Hiburan') }}"><input type="radio" name="icon_key" value="entertainment"  aria-label="{{ ui_t('Hiburan') }}"><span>{{ glyph('entertainment') }}</span></label>
+<label title="{{ ui_t('Perawatan diri') }}"><input type="radio" name="icon_key" value="care"  aria-label="{{ ui_t('Perawatan diri') }}"><span>{{ glyph('care') }}</span></label>
+<label title="{{ ui_t('Pekerjaan') }}"><input type="radio" name="icon_key" value="work"  aria-label="{{ ui_t('Pekerjaan') }}"><span>{{ glyph('work') }}</span></label>
+<label title="{{ ui_t('Investasi') }}"><input type="radio" name="icon_key" value="investment"  aria-label="{{ ui_t('Investasi') }}"><span>{{ glyph('investment') }}</span></label>
+<label title="{{ ui_t('Bank') }}"><input type="radio" name="icon_key" value="bank"  aria-label="{{ ui_t('Bank') }}"><span>{{ glyph('bank') }}</span></label>
+</div></fieldset>
+{%- endmacro %}

@@ -64,17 +64,17 @@ class PurchasePlanTests(unittest.TestCase):
     with self.assertRaises(f.FinanceError):f.update_recurring_expense(self.b,rule['id'],**params)
    payment=f.record_recurring_payment(self.b,rule['id'],row['due_on'],row['due_on'],actor_user_id=self.uid,account_id=self.a)
    with self.assertRaisesRegex(f.FinanceError,'installment_payment_locked'):f.update_bill_payment(self.b,payment['ledger_transaction_id'],actor_user_id=self.uid,amount_minor=100)
- def test_personal_six_groups_children_order_localized_and_custom_names_unchanged(self):
+ def test_personal_reference_groups_children_order_localized_and_custom_names_unchanged(self):
   with branches.scope(self.b,self.personal,self.uid):
    custom=f.create_category(self.b,'EXPENSE','My custom groceries',actor_user_id=self.uid)
    for language in ('id','en','es','zh'):
     with fixture.fixture.app.test_request_context('/',headers={'Cookie':'kilas_language='+language}):
      roots=f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)
-     expected=[entry[1] for entry in catalog.PERSONAL]
-     self.assertEqual([v['name'] for v in roots[:6]],expected)
+     expected=[entry[1] for entry in catalog.PERSONAL_V2]
+     self.assertEqual([v['name'] for v in roots[:11]],expected)
      self.assertEqual(next(v for v in roots if v['id']==custom)['display_name'],'My custom groceries')
-     if language=='en':self.assertEqual([v['display_name'] for v in roots[:6]],['Housing','Food & Groceries','Transportation','Utilities','Health','Personal Items'])
-     for root,(_,_,children) in zip(roots[:6],catalog.PERSONAL):self.assertEqual([v['name'] for v in f.list_category_children(self.b,root['id'],actor_user_id=self.uid)],list(children))
+     if language=='en':self.assertEqual([v['display_name'] for v in roots[:11]],['Home/Rent','Utilities','Food/Groceries','Departmental','Entertainment','Car/Auto','Insurance/Medical','Misc/One-time','Investment','Bank Charge','Salaries'])
+     for root,(_,_,_,children) in zip(roots[:11],catalog.PERSONAL_V2):self.assertEqual([v['name'] for v in f.list_category_children(self.b,root['id'],actor_user_id=self.uid)],list(children))
    before=db.query_one('SELECT COUNT(*) AS n FROM finance_categories')['n'];f.ensure_finance_defaults(self.b,actor_user_id=self.uid);self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM finance_categories')['n'],before)
  def test_receipt_private_route_and_plan_render_never_show_purchase_as_paid(self):
   image=io.BytesIO();Image.new('RGB',(10,10),'white').save(image,'JPEG')

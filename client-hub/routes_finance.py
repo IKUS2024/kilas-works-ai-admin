@@ -22,6 +22,7 @@ import finance_collections
 import finance_receipts
 import finance_expense_entries as expense_entries
 import finance_installments as installments
+import finance_category_catalog as category_catalog
 import file_utils
 import finance_analyst
 import finance_operator
@@ -154,6 +155,8 @@ def finance_access(view):
 
 
 ERRORS = {
+    'category_icon_invalid':'Pilih ikon kategori yang tersedia.',
+    'category_order_invalid':'Urutan kategori berubah. Muat ulang lalu coba lagi.',
     'installment_schedule_invalid':'Jadwal cicilan belum valid. Periksa durasi, jumlah pembayaran, dan tanggal.',
     'installment_amount_invalid':'Nominal cicilan tidak sesuai total pembelian.',
     'installment_payment_locked':'Nominal dan tanggal cicilan terikat pada rencana pembelian. Riwayat tidak diubah.',
@@ -1433,11 +1436,11 @@ def start(business_id, user, business):
                   'Kilas Finance siap digunakan.')
 
 
-def expense_form_splits(business_id,user,currency):
+def expense_form_splits(business_id,user,currency,retained=None):
     if request.form.get('split_enabled')!='1':return None
     parents=request.form.getlist('split_category_id');children=request.form.getlist('split_subcategory_id');amounts=request.form.getlist('split_amount')
     if not 2<=len(parents)<=20 or len(parents)!=len(children) or len(parents)!=len(amounts):raise finance.FinanceError('expense_split_invalid')
-    return [dict(category_id=finance.resolve_category_selection(business_id,'EXPENSE',record_id(parent),record_id(child) if child else None,actor_user_id=user['id']),amount_minor=currency_amount(amount,currency)) for parent,child,amount in zip(parents,children,amounts)]
+    return [dict(category_id=finance.resolve_category_selection(business_id,'EXPENSE',record_id(parent),record_id(child) if child else None,actor_user_id=user['id'],retained_id=retained[index]['category_id'] if retained and index<len(retained) else None),amount_minor=currency_amount(amount,currency)) for index,(parent,child,amount) in enumerate(zip(parents,children,amounts))]
 
 
 @finance_bp.get('/business/<int:business_id>/finance/transactions/<int:transaction_id>/receipt')
@@ -1740,67 +1743,70 @@ def create_category(business_id, user, business):
         ]
 
     try:
-        if action == 'create':
-            parent_value = request.form.get('parent_category_id')
-            parent_category_id = record_id(parent_value) if parent_value else None
-            child_names = []
-            if parent_category_id is None and request.form.get('add_subcategories') == '1':
-                child_names = [
-                    value for value in request.form.getlist('subcategory_name')
-                    if isinstance(value, str) and value.strip()
-                ]
+        with finance._write(business_id,user['id']):
+            if action == 'order':
+                category_catalog.reorder(business_id,user['id'],[record_id(v) for v in request.form.getlist('category_ids')],direction=direction,parent=record_id(request.form['parent_category_id']) if request.form.get('parent_category_id') else None)
+            elif action == 'create':
+                if request.form.get('icon_key'):category_catalog.icon(request.form['icon_key'])
+                parent_value = request.form.get('parent_category_id')
+                parent_category_id = record_id(parent_value) if parent_value else None
+                child_names = []
+                if parent_category_id is None and request.form.get('add_subcategories') == '1':
+                    child_names = [
+                        value for value in request.form.getlist('subcategory_name')
+                        if isinstance(value, str) and value.strip()
+                    ]
 
-            if child_names:
-                category_id, child_ids = finance.create_category_group(
-                    business_id, direction, request.form.get('name'), child_names,
-                    actor_user_id=user['id'])
-            else:
-                category_id = finance.create_category(
-                    business_id, direction, request.form.get('name'),
-                    parent_category_id=parent_category_id,
-                    actor_user_id=user['id'])
-                child_ids = []
+                if child_names:
+                    category_id, child_ids = finance.create_category_group(
+                        business_id, direction, request.form.get('name'), child_names,
+                        actor_user_id=user['id'])
+                else:
+                    category_id = finance.create_category(
+                        business_id, direction, request.form.get('name'),
+                        parent_category_id=parent_category_id,
+                        actor_user_id=user['id'])
+                    child_ids = []
 
-            all_rows = finance.list_categories(
-                business_id, direction, include_children=True,
-                actor_user_id=user['id'])
-            category = next((
-                row for row in all_rows
-                if row['id'] == category_id
-            ), None)
-            children = [
-                row for row in all_rows if row['id'] in set(child_ids)
-            ]
-            if category is None:
-                raise finance.FinanceError('category_unavailable')
-        elif action == 'edit':
-            category_id = record_id(request.form.get('category_id'))
-            finance.update_category_workspace_setting(
-                business_id, category_id, name=request.form.get('name'),
-                actor_user_id=user['id'])
-            category = next((
-                row for row in finance.list_categories(
+                all_rows = finance.list_categories(
                     business_id, direction, include_children=True,
                     actor_user_id=user['id'])
-                if row['id'] == category_id
-            ), None)
-            if category is None:
-                raise finance.FinanceError('category_unavailable')
-        elif action == 'delete':
-            category_id = record_id(request.form.get('category_id'))
-            category = next((
-                row for row in finance.list_categories(
-                    business_id, direction, include_inactive=True,
-                    include_children=True, actor_user_id=user['id'])
-                if row['id'] == category_id
-            ), None)
-            if category is None:
-                raise finance.FinanceError('category_unavailable')
-            finance.update_category_workspace_setting(
-                business_id, category_id, deactivate=True,
-                actor_user_id=user['id'])
-        else:
-            abort(400)
+                category = next((
+                    row for row in all_rows
+                    if row['id'] == category_id
+                ), None)
+                if request.form.get('icon_key'):category_catalog.preference(business_id,user['id'],category_id,icon_key=request.form['icon_key'])
+                children = [
+                    row for row in all_rows if row['id'] in set(child_ids)
+                ]
+                if category is None:
+                    raise finance.FinanceError('category_unavailable')
+            elif action == 'edit':
+                category_id = record_id(request.form.get('category_id'))
+                category_catalog.edit(business_id,user['id'],category_id,name=request.form.get('name'),icon_key=request.form.get('icon_key'))
+                category = next((
+                    row for row in finance.list_categories(
+                        business_id, direction, include_children=True,
+                        actor_user_id=user['id'])
+                    if row['id'] == category_id
+                ), None)
+                if category is None:
+                    raise finance.FinanceError('category_unavailable')
+            elif action == 'delete':
+                category_id = record_id(request.form.get('category_id'))
+                category = next((
+                    row for row in finance.list_categories(
+                        business_id, direction, include_inactive=True,
+                        include_children=True, actor_user_id=user['id'])
+                    if row['id'] == category_id
+                ), None)
+                if category is None:
+                    raise finance.FinanceError('category_unavailable')
+                finance.update_category_workspace_setting(
+                    business_id, category_id, deactivate=True,
+                    actor_user_id=user['id'])
+            else:
+                abort(400)
     except finance.FinanceError as error:
         message = ERRORS.get(
             str(error), 'Kategori belum valid. Periksa pilihan dan coba lagi.')
@@ -1813,6 +1819,7 @@ def create_category(business_id, user, business):
 
     if ajax:
         payload = {'options': active_options()}
+        if action=='order':return jsonify(payload)
         if action in ('create', 'edit'):
             payload['category'] = {
                 'id': category['id'],
@@ -3401,9 +3408,7 @@ def update_setting(business_id, user, business, kind, record_id):
             display_currency=display_currency)
     message = 'Dihapus dari daftar aktif. Riwayat lama tetap tersedia.' if deactivate else 'Perubahan disimpan. Riwayat tetap tersedia.'
     action = (
-        (lambda: finance.update_category_workspace_setting(
-            business_id, record_id, name=request.form.get('name'),
-            deactivate=deactivate, actor_user_id=user['id']))
+        (lambda: category_catalog.edit(business_id,user['id'],record_id,name=request.form.get('name'),icon_key=request.form.get('icon_key'),deactivate=deactivate))
         if kind == 'category' else
         (lambda: branches.update_record(
             business_id, kind, record_id, name=request.form.get('name'),
@@ -3423,11 +3428,11 @@ def edit_transaction(business_id, user, business, transaction_id):
     if transaction['direction']=='EXPENSE' and transaction['source_type'] in (None,'','MANUAL'):
         if request.method=='POST':
             def save_expense():
-                splits=expense_form_splits(business_id,user,transaction['currency'])
-                category=(splits[0]['category_id'] if splits else finance.resolve_category_selection(business_id,'EXPENSE',record_id(request.form.get('category_id')),record_id(request.form['subcategory_id']) if request.form.get('subcategory_id') else None,actor_user_id=user['id']))
+                splits=expense_form_splits(business_id,user,transaction['currency'],expense_entries.allocations(business_id,transaction_id,user['id']))
+                category=(splits[0]['category_id'] if splits else finance.resolve_category_selection(business_id,'EXPENSE',record_id(request.form.get('category_id')),record_id(request.form['subcategory_id']) if request.form.get('subcategory_id') else None,actor_user_id=user['id'],retained_id=transaction['category_id']))
                 expense_entries.save(business_id,user['id'],transaction_id=transaction_id,amount_minor=currency_amount(request.form.get('amount'),transaction['currency']),account_id=record_id(request.form.get('account_id')),category_id=category,occurred_on=request.form.get('occurred_on'),currency=transaction['currency'],description=request.form.get('description'),notes=request.form.get('notes'),counterparty_name=request.form.get('counterparty_name'),splits=splits,receipt=expense_entries.photo(request.files.get('receipt')),expected_updated_at=request.form.get('expected_updated_at'))
             return mutate(business_id,save_expense,'Transaksi diperbarui. Riwayat perubahan tersimpan.')
-        return render_template('finance_expense_edit.html',business=business,user=user,expense=transaction,expense_splits=[dict(v,amount_minor=str(v['amount_minor'])) for v in expense_entries.allocations(business_id,transaction_id,user['id'])],expense_receipt_exists=bool(db.query_one('SELECT transaction_id FROM finance_expense_receipts WHERE transaction_id=?',(transaction_id,))),entry_accounts=finance.list_accounts(business_id,actor_user_id=user['id']),categories=finance.list_categories(business_id,'EXPENSE',include_children=True,actor_user_id=user['id']),today=finance.business_today(business_id).isoformat())
+        return render_template('finance_expense_edit.html',business=business,user=user,expense=transaction,expense_splits=[dict(v,amount_minor=str(v['amount_minor'])) for v in expense_entries.allocations(business_id,transaction_id,user['id'])],expense_receipt_exists=bool(db.query_one('SELECT transaction_id FROM finance_expense_receipts WHERE transaction_id=?',(transaction_id,))),entry_accounts=finance.list_accounts(business_id,actor_user_id=user['id']),categories=expense_entries.edit_categories(business_id,transaction_id,user['id']),today=finance.business_today(business_id).isoformat())
     if request.method == 'POST':
         save={'FINANCE_RECURRING_EXPENSE':finance.update_bill_payment,'FINANCE_INVOICE_PAYMENT':finance.update_invoice_payment}.get(transaction['source_type'],finance.update_transaction)
         return mutate(business_id, lambda: save(business_id, transaction_id,

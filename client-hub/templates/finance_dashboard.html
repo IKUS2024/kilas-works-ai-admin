@@ -162,6 +162,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 {% if not show_transactions and not show_accounts %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_dashboard.css',v='finance-full-20261018') }}">{% endif %}
 {% endblock %}
 {% block content %}
+{% from '_finance_category_icons.html' import glyph, picker with context %}
 
 
 
@@ -590,7 +591,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_expense.css',v='20261018-full') }}">
 <dialog id="add-expense-dialog" class="finance-sheet"><div class="expense-header"><button type="button" data-finance-close="add-expense-dialog">{{ ui_t('Batal') }}</button><h2>{{ ui_t('Tambah Pengeluaran') }}</h2><button class="btn" type="submit" form="add-expense">{{ ui_t('Simpan') }}</button></div>
 {% with expense=None,expense_splits=[],expense_receipt_exists=False %}{% include '_finance_expense_form.html' %}{% endwith %}</dialog>
-<script src="{{ url_for('static',filename='finance_expense.js',v='20261018-full') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_expense.js',v='category-reference-20261018') }}" defer></script>
 <dialog id="add-transaction-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>{{ ui_t('Tambah Transaksi') }}</h2><button type="button" class="finance-sheet-close" data-finance-close="add-transaction-dialog" aria-label="{{ ui_t('Tutup') }}">×</button></div>
 <div class="finance-sheet-body"><form id="add-transaction" method="post" action="{{ url_for('finance.create_transaction',business_id=business.id,branch_id=g.finance_branch_id) }}" data-finance-entry data-personal="{{ 'true' if finance_workspace_personal else 'false' }}" data-finance-once>
@@ -696,53 +697,26 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <div class="finance-record-list">{% for a in accounts if a.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ a.name }}</strong><div class="finance-record-sub">{{ account_type_label(a.account_type_label,account_type_options) }} · {{ a.currency }}{{ ui_t(' · Nonaktif') if not a.is_active }}</div></div>{% with kind='account',item=a %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 
-<dialog id="category-dialog" class="finance-sheet" data-category-manager-root>
+<dialog id="category-dialog" class="finance-sheet" data-category-manager-root data-category-order-url="{{ url_for('finance.create_category',business_id=business.id,branch_id=g.finance_branch_id) }}" data-category-csrf="{{ csrf_token() }}">
 <div class="finance-sheet-head"><h2>{{ ui_t('🏷️ Kategori') }}</h2><button type="button" class="finance-sheet-close" data-finance-close="category-dialog" aria-label="{{ ui_t('Tutup') }}">×</button></div>
 <div class="finance-sheet-body">
-<div class="finance-category-dialog-tabs" role="tablist" aria-label="{{ ui_t('Jenis kategori') }}">
-  <button type="button" class="finance-category-dialog-tab active" data-category-direction-tab="INCOME">{{ ui_t('Pemasukan') }}</button>
-  <button type="button" class="finance-category-dialog-tab" data-category-direction-tab="EXPENSE">{{ ui_t('Pengeluaran') }}</button>
-</div>
-<button type="button" class="btn secondary finance-category-add-button" data-category-create-popup>{{ ui_t('＋ Tambah Kategori') }}</button>
-<p class="finance-category-dialog-note">{{ ui_t('Ketuk kategori utama untuk membuka subkategori. Edit dan Hapus tersedia langsung di dalam tiap kategori.') }}</p>
-
-{% for category_direction, category_label in (('INCOME','Pemasukan'),('EXPENSE','Pengeluaran')) %}
-<div class="finance-category-direction-section finance-category-tree" data-category-direction-section="{{ category_direction }}" {{ 'hidden' if category_direction == 'EXPENSE' else '' }}>
-  {% for parent in categories if parent.is_active and parent.direction == category_direction and not parent.parent_category_id and parent.name not in ('Pendapatan Lain','Pengeluaran Lain','Lainnya') %}
-  {% set child_rows = categories|selectattr('is_active')|selectattr('direction','equalto',category_direction)|selectattr('parent_category_id','equalto',parent.id)|rejectattr('name','in',('Pendapatan Lain','Pengeluaran Lain','Lainnya'))|list %}
-  <details data-category-group="{{ parent.id }}">
-    <summary>
-      <span class="finance-category-chevron">›</span>
-      <span class="finance-category-tree-head-copy"><strong>{{ parent.name }}</strong><small>{{ child_rows|length }} {{ ui_t('subkategori') }}</small></span>
-    </summary>
-    <div class="finance-category-tree-body">
-      <div class="finance-category-parent-actions">
-        <button type="button" class="finance-category-action" data-category-add-child-popup data-category-parent-id="{{ parent.id }}" data-category-parent-name="{{ parent.name|e }}" data-category-direction="{{ parent.direction }}">{{ ui_t('＋ Subkategori') }}</button>
-        <button type="button" class="finance-category-action edit" data-category-edit-popup data-category-kind="category" data-category-id="{{ parent.id }}" data-category-name="{{ parent.name|e }}" data-category-direction="{{ parent.direction }}">{{ ui_t('Edit') }}</button>
-        <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,branch_id=g.finance_branch_id,kind='category',record_id=parent.id) }}" onsubmit='return confirm({{ ui_t('Hapus {name} dan semua subkategori di bawahnya? Riwayat transaksi lama tetap tersimpan.', name=parent.name)|tojson }});'>
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-category-action delete" name="action" value="deactivate">{{ ui_t('Hapus') }}</button>
-        </form>
-      </div>
-      {% for child in child_rows %}
-      <div class="finance-record-row finance-category-child-row">
-        <div class="finance-record-main"><strong>{{ child.name }}</strong><div class="finance-record-sub">{{ ui_t('Subkategori') }}</div></div>
-        <div class="finance-category-actions">
-          <button type="button" class="finance-category-action edit" data-category-edit-popup data-category-kind="subcategory" data-category-id="{{ child.id }}" data-category-name="{{ child.name|e }}" data-category-direction="{{ child.direction }}">{{ ui_t('Edit') }}</button>
-          <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,branch_id=g.finance_branch_id,kind='category',record_id=child.id) }}" onsubmit='return confirm({{ ui_t('Hapus subkategori {name}? Riwayat transaksi lama tetap tersimpan.', name=child.name)|tojson }});'>
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-category-action delete" name="action" value="deactivate">{{ ui_t('Hapus') }}</button>
-          </form>
-        </div>
-      </div>
-      {% else %}
-      <div class="finance-category-empty-child">{{ ui_t('Belum ada subkategori.') }}</div>
-      {% endfor %}
-    </div>
-  </details>
-  {% else %}
-  <div class="finance-empty">{{ ui_t('Belum ada kategori') }} {{ category_label|lower }}.</div>
-  {% endfor %}
-</div>
+<div class="finance-category-dialog-tabs" role="tablist" aria-label="{{ ui_t('Jenis kategori') }}">{% for kind,label in (('INCOME','Pemasukan'),('EXPENSE','Pengeluaran')) %}<button type="button" class="finance-category-dialog-tab {{ 'active' if kind=='INCOME' }}" data-category-direction-tab="{{ kind }}">{{ ui_t(label) }}</button>{% endfor %}</div>
+<button type="button" class="finance-mini-action" data-category-list-edit aria-pressed="false">{{ ui_t('Edit daftar') }}</button>
+<p class="finance-category-dialog-note">{{ ui_t('Ketuk kategori untuk melihat subkategori.') }}</p>
+{% for kind in ('INCOME','EXPENSE') %}
+<div class="finance-category-direction-section finance-category-tree" data-category-direction-section="{{ kind }}" {{ 'hidden' if kind=='EXPENSE' }}>
+{% for parent in categories if parent.is_active and parent.direction==kind and not parent.parent_category_id %}
+<details data-category-group="{{ parent.id }}" data-category-row data-category-id="{{ parent.id }}" data-category-parent="" data-category-direction="{{ kind }}">
+<summary><button type="button" class="finance-category-action delete finance-category-edit-only" data-category-archive="{{ parent.id }}" aria-label="{{ ui_t('Arsipkan') }}">−</button><span>{{ glyph(parent.icon_key) }}</span><span class="finance-category-tree-head-copy"><strong>{{ parent.display_name|default(parent.name) }}</strong></span><span class="finance-category-row-tools"><button type="button" class="finance-category-action edit" data-category-edit-popup data-category-kind="category" data-category-id="{{ parent.id }}" data-category-name="{{ parent.display_name|default(parent.name)|e }}" data-category-icon="{{ parent.icon_key }}" data-category-direction="{{ kind }}">{{ ui_t('Edit') }}</button><span class="finance-category-reorder"><span class="finance-category-grip" aria-hidden="true">⠿</span><button type="button" data-category-move="up" aria-label="{{ ui_t('Naik') }}">↑</button><button type="button" data-category-move="down" aria-label="{{ ui_t('Turun') }}">↓</button></span><span class="finance-category-chevron">›</span></span></summary>
+<div class="finance-category-tree-body">
+{% for child in categories if child.is_active and child.direction==kind and child.parent_category_id==parent.id %}
+<div class="finance-record-row finance-category-child-row" data-category-row data-category-id="{{ child.id }}" data-category-parent="{{ parent.id }}" data-category-direction="{{ kind }}"><button type="button" class="finance-category-action delete finance-category-edit-only" data-category-archive="{{ child.id }}" aria-label="{{ ui_t('Arsipkan') }}">−</button><span>{{ glyph(child.icon_key) }}</span><div class="finance-record-main"><strong>{{ child.display_name|default(child.name) }}</strong></div><div class="finance-category-actions"><button type="button" class="finance-category-action edit" data-category-edit-popup data-category-kind="subcategory" data-category-id="{{ child.id }}" data-category-name="{{ child.display_name|default(child.name)|e }}" data-category-icon="{{ child.icon_key }}" data-category-direction="{{ kind }}">{{ ui_t('Edit') }}</button><span class="finance-category-reorder"><span class="finance-category-grip" aria-hidden="true">⠿</span><button type="button" data-category-move="up" aria-label="{{ ui_t('Naik') }}">↑</button><button type="button" data-category-move="down" aria-label="{{ ui_t('Turun') }}">↓</button></span></div></div>
 {% endfor %}
+<button type="button" class="finance-mini-action" data-category-add-child-popup data-category-parent-id="{{ parent.id }}" data-category-parent-name="{{ parent.display_name|default(parent.name)|e }}" data-category-direction="{{ kind }}">{{ ui_t('＋ Subkategori') }}</button>
+</div></details>
+{% endfor %}
+<button type="button" class="btn secondary finance-category-add-button" data-category-create-popup>{{ ui_t('＋ Tambah Kategori') }}</button>
+</div>{% endfor %}
 </div></dialog>
 
 <dialog id="category-editor-dialog" class="finance-sheet finance-category-editor-sheet" data-category-editor data-category-setting-url-template="{{ url_for('finance.update_setting',business_id=business.id,branch_id=g.finance_branch_id,kind='category',record_id=0) }}">
@@ -752,7 +726,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="direction" value="INCOME" data-category-editor-direction>
   <label><span data-category-editor-name-label>{{ ui_t('Nama kategori') }}</span><input name="name" maxlength="160" autocomplete="off" required data-category-editor-create-name placeholder="{{ ui_t('Contoh: Operasional') }}"></label>
-  <label data-category-editor-parent-field hidden>{{ ui_t('Di bawah kategori') }}<select name="parent_category_id" data-category-editor-parent disabled>{% for parent in categories if parent.is_active and not parent.parent_category_id and parent.name not in ('Pendapatan Lain','Pengeluaran Lain','Lainnya') %}<option value="{{ parent.id }}" data-direction="{{ parent.direction }}">{{ parent.name }}</option>{% endfor %}</select></label>
+  <label data-category-editor-parent-field hidden>{{ ui_t('Di bawah kategori') }}<select name="parent_category_id" data-category-editor-parent disabled>{% for parent in categories if parent.is_active and not parent.parent_category_id and parent.name not in ('Pendapatan Lain','Pengeluaran Lain','Lainnya') %}<option value="{{ parent.id }}" data-direction="{{ parent.direction }}">{{ parent.display_name|default(parent.name) }}</option>{% endfor %}</select></label>
 
   <div class="finance-category-subchoice" data-category-editor-child-choice hidden>
     <div class="finance-category-subchoice-copy"><strong>{{ ui_t('Tambah subkategori?') }}</strong><span>{{ ui_t('Opsional. Kalau belum perlu, kategori bisa dibuat tanpa subkategori.') }}</span></div>
@@ -771,16 +745,21 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
     </div>
   </div>
 
+  {{ picker() }}
+  <button type="button" class="btn secondary" data-finance-close="category-editor-dialog">{{ ui_t("Batal") }}</button>
   <button class="btn finance-category-editor-submit" data-category-editor-submit>{{ ui_t('Tambah Kategori') }}</button>
 </form>
 <form method="post" action="" data-category-edit-form hidden>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="action" value="edit">
   <label>{{ ui_t('Nama') }}<input name="name" maxlength="160" autocomplete="off" required data-category-editor-edit-name></label>
+  {{ picker() }}
+  <div class="finance-category-editor-buttons"><button type="button" class="btn secondary" data-finance-close="category-editor-dialog">{{ ui_t('Batal') }}</button></div>
   <button class="btn finance-category-editor-submit">{{ ui_t('Simpan Perubahan') }}</button>
 </form>
 </div></dialog>
 {% endif %}
 {% include '_finance_transfer_dialog.html' %}
 </div><script src="{{ url_for('static',filename='finance_branches.js',v='finance-approved-20261016') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_category_manager.js',v='catalog-v2-20261018') }}" defer></script>
 {% endblock %}

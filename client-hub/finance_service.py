@@ -604,8 +604,9 @@ def create_category(business_id, direction, name, *, parent_category_id=None, ac
         mapped = db.query_one(
             'SELECT c.id,s.is_active FROM finance_category_workspace_settings s '
             'JOIN finance_categories c ON c.business_id=s.business_id AND c.id=s.category_id '
-            'WHERE s.business_id=? AND s.scope_key=? AND c.direction=? AND lower(s.display_name)=lower(?)',
-            (business_id, scope['scope_key'], direction, name))
+            'LEFT JOIN finance_category_hierarchy h ON h.business_id=c.business_id AND h.child_category_id=c.id '
+            'WHERE s.business_id=? AND s.scope_key=? AND c.direction=? AND lower(s.display_name)=lower(?) AND COALESCE(h.parent_category_id,0)=?',
+            (business_id, scope['scope_key'], direction, name, parent_category_id or 0))
         if mapped:
             _ensure_category_setting(
                 business_id, mapped['id'], name, actor_user_id, active=True)
@@ -615,6 +616,12 @@ def create_category(business_id, direction, name, *, parent_category_id=None, ac
                 'SELECT id,is_active FROM finance_categories '
                 'WHERE business_id=? AND direction=? AND name=?',
                 (business_id, direction, name))
+            storage_name=name
+            if existing:
+                link=db.query_one('SELECT parent_category_id FROM finance_category_hierarchy WHERE business_id=? AND child_category_id=?',(business_id,existing['id']))
+                if (link['parent_category_id'] if link else None)!=parent_category_id:
+                    import uuid
+                    storage_name='__kilas_custom_'+uuid.uuid4().hex;existing=None
             if existing:
                 category_id = existing['id']
                 if not existing['is_active']:
@@ -624,7 +631,7 @@ def create_category(business_id, direction, name, *, parent_category_id=None, ac
                         (repo._now(), business_id, category_id))
             else:
                 category_id = _create_category(
-                    business_id, direction, name, actor_user_id)
+                    business_id, direction, storage_name, actor_user_id)
             _ensure_category_setting(
                 business_id, category_id, name, actor_user_id, active=True)
         if parent_category_id is not None:
@@ -679,12 +686,14 @@ def update_category_workspace_setting(business_id, category_id, name=None, deact
             raise FinanceError('category_unavailable')
         clean = _text(name, 160, True) if name is not None else current['name']
         scope = _category_scope(business_id, actor_user_id)
+        parent_row=db.query_one('SELECT parent_category_id FROM finance_category_hierarchy WHERE business_id=? AND child_category_id=?',(business_id,category_id))
         duplicate = db.query_one(
             'SELECT 1 FROM finance_category_workspace_settings s '
             'JOIN finance_categories c ON c.business_id=s.business_id AND c.id=s.category_id '
             'WHERE s.business_id=? AND s.scope_key=? AND c.direction=? '
-            'AND lower(s.display_name)=lower(?) AND s.category_id<>?',
-            (business_id, scope['scope_key'], current['direction'], clean, category_id))
+            'AND lower(s.display_name)=lower(?) AND s.category_id<>? '
+            'AND COALESCE((SELECT h.parent_category_id FROM finance_category_hierarchy h WHERE h.business_id=s.business_id AND h.child_category_id=s.category_id),0)=?',
+            (business_id, scope['scope_key'], current['direction'], clean, category_id,parent_row['parent_category_id'] if parent_row else 0))
         if duplicate:
             raise FinanceError('category_exists')
         cascade_children = []
@@ -702,9 +711,10 @@ def update_category_workspace_setting(business_id, category_id, name=None, deact
             for target_id in target_ids:
                 if db.query_one(
                     ('SELECT 1 FROM finance_recurring_expenses r '
-                     'WHERE r.business_id=?' + branches.predicate('r') +
-                     ' AND r.category_id=? AND r.is_active=TRUE LIMIT 1'),
-                    (business_id, target_id)):
+                     'LEFT JOIN finance_branch_workspaces w ON w.business_id=r.business_id AND w.branch_id=r.branch_id '
+                     'WHERE r.business_id=? AND r.category_id=? AND r.is_active=TRUE '
+                     "AND COALESCE(w.workspace_type,'BUSINESS')=? AND (w.owner_user_id=? OR ?='BUSINESS') LIMIT 1"),
+                    (business_id, target_id,scope['workspace_type'],scope['owner_user_id'],scope['workspace_type'])):
                     raise FinanceError('category_in_use')
 
             for child in cascade_children:
@@ -743,7 +753,7 @@ def list_categories(business_id, direction=None, include_inactive=False, include
         'ON h.business_id=c.business_id AND h.child_category_id=c.id '
         'LEFT JOIN finance_category_workspace_settings ps '
         'ON ps.business_id=s.business_id AND ps.category_id=h.parent_category_id '
-        'AND ps.scope_key=s.scope_key AND ps.is_active=TRUE '
+        'AND ps.scope_key=s.scope_key '+('' if include_inactive else 'AND ps.is_active=TRUE ')+
         'WHERE s.business_id=? AND s.scope_key=?'
     )
     params = [business_id, scope['scope_key']]
@@ -823,6 +833,7 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
                 (business_id, scope['scope_key'],
                  'pendapatan lain', 'pengeluaran lain', 'lainnya'))
             for row in retired:
+                if not db.query_one('SELECT 1 FROM finance_catalog_items m JOIN finance_category_workspace_settings s ON s.business_id=m.business_id AND s.scope_key=m.scope_key AND s.category_id=m.category_id WHERE m.business_id=? AND m.scope_key=? AND m.category_id=? AND m.builtin_name=s.display_name',(business_id,scope['scope_key'],row['category_id'])):continue
                 result = db.execute(
                     'UPDATE finance_category_workspace_settings '
                     'SET is_active=FALSE,updated_at=? '
@@ -913,10 +924,15 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
 
 
 
-def resolve_category_selection(business_id, direction, category_id, subcategory_id=None, *, actor_user_id=None):
+def resolve_category_selection(business_id, direction, category_id, subcategory_id=None, *, actor_user_id=None, retained_id=None):
     _scope(business_id, actor_user_id)
     direction = _enum(direction, DIRECTIONS)
     category_id = _id(category_id)
+    if retained_id is not None and (subcategory_id or category_id)==retained_id:
+        retained=_category_setting_by_id(business_id,retained_id,actor_user_id,include_inactive=True)
+        link=db.query_one('SELECT parent_category_id FROM finance_category_hierarchy WHERE business_id=? AND child_category_id=?',(business_id,retained_id))
+        if retained and retained['direction']==direction and ((link and category_id==link['parent_category_id'] and subcategory_id==retained_id) or (not link and category_id==retained_id and not subcategory_id)):
+            return retained_id
     parent = _category_setting_by_id(
         business_id, category_id, actor_user_id)
     if not parent or parent['direction'] != direction:
@@ -1300,7 +1316,7 @@ def update_transaction(business_id, transaction_id, *, actor_user_id=None, expec
             raise FinanceError('expense_split_required')
         if expense_splits is not None:
             if data['direction']!='EXPENSE':raise FinanceError('expense_split_invalid')
-            if expense_splits:expenses.validate(business_id,data['amount_minor'],expense_splits,actor_user_id)
+            if expense_splits:expenses.validate(business_id,data['amount_minor'],expense_splits,actor_user_id,retained=existing)
         result=_save_transaction_revision(business_id,current,data,actor_user_id)
         if expense_splits is not None:expenses.replace(business_id,transaction_id,expense_splits,actor_user_id)
         return result
