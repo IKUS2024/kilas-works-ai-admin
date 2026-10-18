@@ -781,12 +781,19 @@ def live_translator_segment(ident,key,index):
 def live_translator_result(ident,key):
     from . import live_translator_store as sessions
     from . import live_translator_output as temporary
-    row=db.query_one("SELECT s.language_a,s.language_b,CASE WHEN t.status='COMPLETED' AND j.status='COMPLETED' AND j.content_origin='live_session' THEN j.id ELSE NULL END AS id FROM kilas_live_translator_sessions s LEFT JOIN kilas_live_translator_turns t ON t.session_id=s.id AND t.operation_key=? LEFT JOIN kilas_audio_jobs j ON j.id=t.audio_job_id AND j.user_id=s.user_id WHERE s.id=? AND s.user_id=? AND s.status='ACTIVE' AND (s.expires_at='' OR s.expires_at>?)",(key,ident,session['user_id'],usage._now().isoformat()))
+    row=db.query_one("SELECT s.language_a,s.language_b,s.voice_alias,j.source_language AS actual_source,j.target_language AS actual_target,CASE WHEN t.status='COMPLETED' AND j.status='COMPLETED' AND j.content_origin='live_session' THEN j.id ELSE NULL END AS id FROM kilas_live_translator_sessions s LEFT JOIN kilas_live_translator_turns t ON t.session_id=s.id AND t.operation_key=? LEFT JOIN kilas_audio_jobs j ON j.id=t.audio_job_id AND j.user_id=s.user_id WHERE s.id=? AND s.user_id=? AND s.status='ACTIVE' AND (s.expires_at='' OR s.expires_at>?)",(key,ident,session['user_id'],usage._now().isoformat()))
     if not row:abort(404)
-    sessions.require_pair(row['language_a'],row['language_b'])
+    sessions.require_pair(row['language_a'],row['language_b'],voice=row['voice_alias'])
     if row['id'] is None:abort(404)
+    # Playback checks the original selected mode and the completed job's actual
+    # direction. It never consults a provider or creates/replaces audio.
+    try:sessions.require_pair(row['actual_source'],row['actual_target'],voice=row['voice_alias'])
+    except store.AudioError:abort(404)
+    if row['language_a']=='auto':
+        if row['actual_target']!=row['language_b']:abort(404)
+    elif {row['actual_source'],row['actual_target']}!={row['language_a'],row['language_b']}:abort(404)
     output=temporary.get(session['user_id'],ident,key)
-    if not output or output['job']!=row['id'] or not output['raw']:abort(404)
+    if not output or output['job']!=row['id'] or not output['raw']:return {'code':'session_output_expired'},410,{'Cache-Control':'private, no-store'}
     response=send_file(io.BytesIO(output['raw']),mimetype='audio/mpeg')
     response.headers['Cache-Control']='private, no-store';response.headers['X-Content-Type-Options']='nosniff'
     return response

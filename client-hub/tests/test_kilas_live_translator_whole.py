@@ -35,7 +35,7 @@ class WholeTests(unittest.TestCase):
     response=self.response(lambda:iter([self.raw[:50],self.raw[50:]]))
     with patch.object(segments.transport,'request',return_value=response) as request,patch.object(live.stt,'transcribe') as stt,patch.object(segments,'_join') as join,patch.object(live.audio_provider,'speech') as alternate:
      job=self.process(ident,key,info)
-    request.assert_called_once();payload=request.call_args.kwargs['json'];self.assertEqual(payload['text'],text);self.assertEqual(payload['model_id'],'eleven_multilingual_v2');self.assertEqual(payload['voice_settings']['speed'],0.93);self.assertEqual(request.call_args.args[0],'POST');self.assertIn('/text-to-speech/'+fixture.VOICE['id']+'/stream',request.call_args.args[1]);stt.assert_not_called();join.assert_not_called();alternate.assert_not_called()
+    request.assert_called_once();payload=request.call_args.kwargs['json'];self.assertEqual(payload['text'],text);self.assertEqual(payload['model_id'],'eleven_v4');self.assertNotIn('speed',payload['voice_settings']);self.assertEqual(payload['language_code'],'id');self.assertEqual(request.call_args.args[0],'POST');self.assertIn('/text-to-speech/'+fixture.VOICE['id']+'/stream',request.call_args.args[1]);stt.assert_not_called();join.assert_not_called();alternate.assert_not_called()
     row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(job,));self.assertEqual(row['status'],'COMPLETED');self.assertIsNone(row['result_content']);self.assertIsNone(row['original_script']);self.assertEqual(row['seconds_charged'],math.ceil(row['actual_ms']/1000));self.assertGreater(row['seconds_charged'],0)
     result=self.client.get(self.path(ident,key)).json;self.assertEqual(result['translated_text'],text);self.assertNotIn('segments',result);self.assertEqual(self.client.get(result['audio_url']).data,self.raw);sessions.end(self.user,ident)
  def test_delayed_second_transport_chunk_never_publishes_prefix_or_dispatches_again(self):
@@ -63,10 +63,11 @@ class WholeTests(unittest.TestCase):
      job=self.process(ident,key,info)
     request.assert_called_once();shared_speech.assert_not_called();clone.assert_not_called()
     self.assertIn('/text-to-speech/'+voice+'/stream',request.call_args.args[1])
-    payload=request.call_args.kwargs['json'];self.assertEqual(payload['text'],text);self.assertEqual(payload['model_id'],'eleven_multilingual_v2')
-    self.assertEqual(payload['voice_settings'],{'stability':0.4,'similarity_boost':0.75,'style':0.0,'use_speaker_boost':False,'speed':0.93})
+    payload=request.call_args.kwargs['json'];self.assertEqual(payload['text'],text);self.assertEqual(payload['model_id'],'eleven_v4')
+    self.assertEqual(payload['voice_settings'],{'stability':0.5,'similarity_boost':0.75})
     self.assertEqual(payload['apply_text_normalization'],'auto')
-    for unsupported in ('language_code','previous_text','next_text','seed','use_pvc_as_ivc','audio_effects'):self.assertNotIn(unsupported,payload)
+    self.assertEqual(payload['language_code'],target)
+    for unsupported in ('previous_text','next_text','seed','use_pvc_as_ivc','audio_effects'):self.assertNotIn(unsupported,payload)
     self.assertNotIn('optimize_streaming_latency',request.call_args.kwargs['params'])
     row=audio.f.db.query_one('SELECT * FROM kilas_audio_jobs WHERE id=?',(job,));self.assertEqual(row['voice_id'],voice);self.assertIsNone(row['original_script']);self.assertIsNone(row['result_content'])
     self.assertEqual(row['seconds_charged'],math.ceil(row['actual_ms']/1000));self.assertEqual(self.client.get(self.path(ident,key)).json['translated_text'],text)

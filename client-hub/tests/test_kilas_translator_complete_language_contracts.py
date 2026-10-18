@@ -137,8 +137,32 @@ class DetectionContracts(unittest.TestCase):
                 job=live.process(self.user,ident,key,self.signal(),info)
                 self.assertEqual(f.audio.f.db.query_one('SELECT target_language FROM kilas_audio_jobs WHERE id=?',(job,))['target_language'],'en')
                 self.assertEqual(tts.call_args.args[1],f.VOICE['id']);self.assertTrue(tts.call_args.kwargs['translator'])
+                ready=self.client.get('/kilas-translator/live/sessions/'+ident+'/turns/'+key)
+                self.assertEqual(ready.status_code,200)
+                audio_url=ready.json['audio_url']
+                downloaded=self.client.get(audio_url)
+                self.assertEqual(downloaded.status_code,200,downloaded.status)
+                self.assertEqual(downloaded.data,self.audio)
+                self.assertEqual(downloaded.mimetype,'audio/mpeg')
+                self.assertEqual(self.client.get(audio_url).data,self.audio)
+                chunk=self.client.get(audio_url,headers={'Range':'bytes=0-15'})
+                self.assertEqual(chunk.status_code,206);self.assertEqual(chunk.data,self.audio[:16])
+                self.assertEqual(chunk.headers['Content-Range'],'bytes 0-15/'+str(len(self.audio)))
+                from auth_test_helpers import authenticate
+                foreign=self.client.application.test_client()
+                authenticate(foreign,f.audio.f.repo.get_user_by_id(self.other),_csrf_token='audio-csrf')
+                self.assertEqual(foreign.get(audio_url).status_code,404)
+                f.audio.f.db.execute('UPDATE kilas_live_translator_sessions SET language_b=? WHERE id=?',('auto',ident))
+                self.assertEqual(self.client.get(audio_url).status_code,400)
+                f.audio.f.db.execute('UPDATE kilas_live_translator_sessions SET language_b=? WHERE id=?',('en',ident))
+                self.assertEqual(self.client.get(audio_url).data,self.audio)
+                from kilas_ai import live_translator_output as temporary
+                temporary.discard(self.user,ident,key)
+                expired=self.client.get(audio_url)
+                self.assertEqual(expired.status_code,410);self.assertEqual(expired.json['code'],'session_output_expired')
+                self.assertEqual(tts.call_count,1);self.assertEqual(llm.call_count,1)
             except ValueError as error:
-                if error.code in ('detection_uncertain','detected_language_unsupported','detected_language_is_target'):
+                if getattr(error,'code',None) in ('detection_uncertain','detected_language_unsupported','detected_language_is_target'):
                     result=self.client.get('/kilas-translator/live/sessions/'+ident+'/turns/'+key)
                     self.assertEqual(result.json['code'],error.code)
                     self.assertNotIn('Permintaan belum berhasil',result.json['error'])

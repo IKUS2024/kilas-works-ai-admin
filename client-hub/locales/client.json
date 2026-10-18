@@ -666,5 +666,9 @@
   "Bahasa ucapan belum terdeteksi dengan yakin. Pilih bahasa sumber lalu bicara kembali.",
   "Bahasa yang terdeteksi belum didukung oleh suara Translator. Pilih bahasa sumber yang didukung.",
   "Bahasa ucapan sama dengan bahasa tujuan. Pilih bahasa tujuan lain.",
-  "Deteksi bahasa memerlukan masukan audio lengkap."
+  "Deteksi bahasa memerlukan masukan audio lengkap.",
+  "Sesi akun berakhir atau akses audio ditolak. Masuk kembali.",
+  "Audio sesi sudah tidak tersedia. Audio yang kedaluwarsa tidak dapat dipulihkan.",
+  "Permintaan audio sesi tidak valid. Akhiri sesi lalu mulai kembali.",
+  "Respons audio sesi tidak valid."
 ]

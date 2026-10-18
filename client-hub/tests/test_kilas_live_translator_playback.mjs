@@ -70,6 +70,27 @@ test('reject, malformed or stale URL, redirect, empty and oversized audio fail o
   assert.equal(f.requests.length,0);
 });
 
+for(const [status,code] of [[400,'audio_request'],[401,'audio_auth'],[403,'audio_auth'],[404,'audio_expired'],[410,'audio_expired'],[503,'audio_fetch']])test(`HTTP${status} is classified before decode without replay`,async()=>{
+  const f=fixture();f.response={ok:false,status};
+  await assert.rejects(f.play(),error=>error.code===code&&error.status===status&&(code==='audio_fetch'||error.recoverable===false));
+  assert.equal(f.requests.length,1);assert.equal(f.stats.decoded,0);assert.equal(f.stats.started,0);assert.equal(f.timers.size,0);
+});
+
+test('a nonaudio success response is distinguished from network failure',async()=>{
+  const f=fixture();f.response={ok:true,headers:{get:name=>name==='Content-Type'?'text/html':null},arrayBuffer:async()=>new ArrayBuffer(32)};
+  await assert.rejects(f.play(),error=>error.code==='audio_response');assert.equal(f.stats.decoded,0);assert.equal(f.requests.length,1);
+});
+
+test('explicit refetch of the same retained artifact and sequential playback use GET only',async()=>{
+  const f=fixture();f.response={ok:false,status:503};await assert.rejects(f.play(),error=>error.code==='audio_fetch');
+  f.response={ok:true,headers:{get:name=>name==='Content-Type'?'audio/mpeg':null},arrayBuffer:async()=>new ArrayBuffer(32)};
+  for(let index=0;index<2;index++){
+    const p=f.play();await tick();assert.equal(f.stats.started,index+1);f.context.currentTime+=2;f.nodes[index].onended();await p;
+  }
+  assert.equal(f.requests.length,3);assert.ok(f.requests.every(request=>request.url===URL&&!request.options.method));
+  assert.equal(f.stats.disconnected,2);assert.equal(f.timers.size,0);
+});
+
 test('decode rejection, invalid duration, failed resume and source start rejection are actionable failures',async()=>{
   for(const kind of ['decode','duration','resume','running','start']){
     const f=fixture();

@@ -15,7 +15,11 @@ CHOICES = [{'alias':'kilas-male', 'id':'syntheticMale123', 'name':'Kilas Male', 
 
 
 class RestoreTests(unittest.TestCase):
-    setUp = fixture.FreeTestTests.setUp
+    def setUp(self):
+        fixture.FreeTestTests.setUp(self)
+        from kilas_ai import translator_languages
+        catalog=patch.object(translator_languages,'classic_names',return_value=translator_languages.names(translator_languages.CLASSIC))
+        catalog.start();self.addCleanup(catalog.stop)
     cleanup_journals = fixture.FreeTestTests.cleanup_journals
     trial = fixture.FreeTestTests.trial
     verified = fixture.FreeTestTests.verified
@@ -43,7 +47,7 @@ class RestoreTests(unittest.TestCase):
                         response=self.client.get(path)
                         self.assertEqual(response.status_code,200)
                         self.assertIn('Kilas Male',response.text);self.assertIn('Kilas Female',response.text)
-                        self.assertIn('elevenlabs-restore-20261016',response.text)
+                        self.assertIn('kilas_live_translator.mjs',response.text)
                         self.assertNotIn('/static/kilas_live_gemini.mjs',response.text)
                         self.assertEqual(response.headers['Cache-Control'],'private, no-store')
             self.assertEqual(dict(db.query_one('SELECT * FROM kilas_live_translator_sessions WHERE id=?',(ident,))),before)

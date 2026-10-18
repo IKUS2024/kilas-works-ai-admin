@@ -49,7 +49,17 @@ export class TranslatorPlayback {
         raw=await this.bounded(op,async()=>{
           const response=await this.fetchAudio(url,{credentials:'same-origin',signal:op.controller.signal,cache:'no-store',redirect:'error'});
           this.check(op);
-          if(!response.ok||response.redirected)throw loadError;
+          if(!response.ok||response.redirected){
+            const status=response.status;
+            const [code,message]=response.redirected||status===401||status===403?['audio_auth',t('Sesi akun berakhir atau akses audio ditolak. Masuk kembali.')]:
+              status===404||status===410?['audio_expired',t('Audio sesi sudah tidak tersedia. Audio yang kedaluwarsa tidak dapat dipulihkan.')]:
+              status===400?['audio_request',t('Permintaan audio sesi tidak valid. Akhiri sesi lalu mulai kembali.')]:['audio_fetch',t('Audio belum dapat dimuat. Periksa koneksi.')];
+            const error=failure(code,message);error.status=status;
+            if(code!=='audio_fetch')error.recoverable=false;
+            throw error;
+          }
+          const type=response.headers?.get('Content-Type');
+          if(type&&!/^audio\/(mpeg|mp3)(?:;|$)/i.test(type))throw failure('audio_response',t('Respons audio sesi tidak valid.'));
           const size=Number(response.headers?.get('Content-Length'));if(size>MAX_BYTES)throw failure('audio_size',t('Audio melebihi batas.'));
           const data=await response.arrayBuffer();if(!data.byteLength||data.byteLength>MAX_BYTES)throw failure('audio_size',t('Audio kosong atau melebihi batas.'));
           return data;
