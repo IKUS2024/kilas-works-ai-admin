@@ -989,12 +989,14 @@ def ensure_finance_defaults(business_id, *, actor_user_id=None):
                 if scope['workspace_type'] == 'PERSONAL' else DEFAULT_CATEGORY_CHILDREN)
             category_ids = {}
             for direction, names in defaults.items():
+                if scope['workspace_type']=='PERSONAL' and direction=='EXPENSE':continue
                 for name in names:
                     category_ids[(direction, name)] = create_category(
                         business_id, direction, name, actor_user_id=actor_user_id)
                     from finance_category_catalog import mark
                     mark(business_id,scope['scope_key'],direction+'.'+str(len(category_ids)),category_ids[(direction,name)],len(category_ids)*100,name)
             for direction, parents in children.items():
+                if scope['workspace_type']=='PERSONAL' and direction=='EXPENSE':continue
                 for parent_name, child_names in parents.items():
                     parent_id = category_ids.get((direction, parent_name))
                     if parent_id is None:

@@ -136,7 +136,7 @@ def _sync_final(business_id,actor,scope):
     # categories are retired, not guessed into a narrower new category.
     aliases={'Bahan Bakar':('Bensin',),'Servis Kendaraan':('Servis Mobil',),'Tol':('e-Toll',),'Transportasi Daring':('Transportasi Online',),'Pembayaran Pinjaman Kendaraan':('Cicilan Mobil',)}
     for order,(key,name,default_icon,children) in enumerate(PERSONAL_V3):
-        candidates=[r for r in old if r['canonical_key'] in (key,'v2.'+key) and r['parent_category_id'] is None and proven(r)]
+        candidates=[r for r in old if r['canonical_key'] in (key,'v2.'+key,'v3.'+key) and r['parent_category_id'] is None and proven(r)]
         root=candidates[0] if len(candidates)==1 else None
         if root:
             parent=root['category_id'];changes.append({'before':root});restore_system_retirement(root)
@@ -174,31 +174,11 @@ def sync_personal(business_id,actor):
     import finance_service as f
     scope=f._category_scope(business_id,actor)
     if scope['workspace_type']!='PERSONAL':return
-    if db.query_one('SELECT 1 FROM finance_catalog_items WHERE business_id=? AND scope_key=? AND canonical_key=?',(business_id,scope['scope_key'],'housing')):
-        _sync_reference(business_id,actor,scope);_sync_final(business_id,actor,scope);return
-    if db.query_one('SELECT 1 FROM finance_category_catalog_versions WHERE business_id=? AND scope_key=? AND version=2',(business_id,scope['scope_key'])):
-        _sync_final(business_id,actor,scope);return
-    # Existing rows have no reliable seed-vs-custom provenance. Never rename,
-    # deactivate, reparent or merge them by a matching name. Add the requested
-    # catalog with private stable IDs, leaving those rows available for history.
-    def node(key,name,order,parent=None):
-        rows=db.query_all('SELECT c.id,s.display_name,h.parent_category_id FROM finance_category_workspace_settings s JOIN finance_categories c ON c.id=s.category_id AND c.business_id=s.business_id LEFT JOIN finance_category_hierarchy h ON h.business_id=c.business_id AND h.child_category_id=c.id WHERE s.business_id=? AND s.scope_key=? AND s.is_active=TRUE AND c.direction=? AND lower(s.display_name)=lower(?)',(business_id,scope['scope_key'],'EXPENSE',name))
-        matching=[v for v in rows if v['parent_category_id']==parent]
-        if len(matching)==1:
-            # Reuse an exact existing choice without declaring its customer name
-            # system-owned, relabeling it, or moving its historical relationships.
-            ident=matching[0]['id'];label='__customer_owned__'
-        else:
-            ident=f._create_category(business_id,'EXPENSE','__kilas_'+scope['scope_key']+'_'+key,actor)
-            f._ensure_category_setting(business_id,ident,name,actor)
-            if parent is not None:f._link_category_parent(business_id,ident,parent)
-            label=name
-        mark(business_id,scope['scope_key'],key,ident,order,label)
-        return ident
-    for order,(key,name,children) in enumerate(PERSONAL):
-        ident=node(key,name,order*100)
-        for index,child in enumerate(children):node(key+'.'+str(index),child,order*100+index+1,ident)
-    _sync_reference(business_id,actor,scope)
+    # A completed final catalog is authoritative, including deliberate archives
+    # and the exact approved cleanup. Never bootstrap superseded versions again.
+    if db.query_one('SELECT 1 FROM finance_category_catalog_versions WHERE business_id=? AND scope_key=? AND version=3',(business_id,scope['scope_key'])):return
+    # Upgrade known legacy identities directly. In particular food.1 remains
+    # Dining Out; the deprecated v2 combined-label transition must not run first.
     _sync_final(business_id,actor,scope)
 
 

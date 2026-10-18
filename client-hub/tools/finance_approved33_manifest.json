@@ -1,0 +1,359 @@
+{
+  "version": 1,
+  "operation": "approved-personal-category-cleanup-33",
+  "counts": {
+    "categories": 33,
+    "settings": 33,
+    "catalog": 33,
+    "preferences": 26,
+    "hierarchy": 30
+  },
+  "groups": [
+    {
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_id": 2,
+      "branch_id": 11,
+      "count": 29
+    },
+    {
+      "business_id": 10,
+      "scope_key": "PERSONAL:9",
+      "owner_id": 9,
+      "branch_id": 23,
+      "count": 4
+    }
+  ],
+  "targets": [
+    {
+      "id": 18479,
+      "business_id": 10,
+      "scope_key": "PERSONAL:9",
+      "owner_user_id": 9,
+      "canonical_key": "housing.1",
+      "builtin_name": "Perawatan",
+      "storage_name": "__kilas_PERSONAL:9_housing.1",
+      "parent_category_id": 18477
+    },
+    {
+      "id": 18482,
+      "business_id": 10,
+      "scope_key": "PERSONAL:9",
+      "owner_user_id": 9,
+      "canonical_key": "food.1",
+      "builtin_name": "Makan di Luar",
+      "storage_name": "__kilas_PERSONAL:9_food.1",
+      "parent_category_id": 18480
+    },
+    {
+      "id": 18492,
+      "business_id": 10,
+      "scope_key": "PERSONAL:9",
+      "owner_user_id": 9,
+      "canonical_key": "items.1",
+      "builtin_name": "Perlengkapan Mandi",
+      "storage_name": "__kilas_PERSONAL:9_items.1",
+      "parent_category_id": 18490
+    },
+    {
+      "id": 18493,
+      "business_id": 10,
+      "scope_key": "PERSONAL:9",
+      "owner_user_id": 9,
+      "canonical_key": "items.2",
+      "builtin_name": "Perawatan Diri",
+      "storage_name": "__kilas_PERSONAL:9_items.2",
+      "parent_category_id": 18490
+    },
+    {
+      "id": 18496,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "housing.1",
+      "builtin_name": "Perawatan",
+      "storage_name": "__kilas_PERSONAL:2_housing.1",
+      "parent_category_id": 18494
+    },
+    {
+      "id": 18499,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "food.1",
+      "builtin_name": "Restoran / Makanan Cepat Saji",
+      "storage_name": "__kilas_PERSONAL:2_food.1",
+      "parent_category_id": 18497
+    },
+    {
+      "id": 18509,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "items.1",
+      "builtin_name": "Perlengkapan Mandi",
+      "storage_name": "__kilas_PERSONAL:2_items.1",
+      "parent_category_id": 18507
+    },
+    {
+      "id": 18510,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "items.2",
+      "builtin_name": "Perawatan Diri",
+      "storage_name": "__kilas_PERSONAL:2_items.2",
+      "parent_category_id": 18507
+    },
+    {
+      "id": 18512,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.housing.1",
+      "builtin_name": "Hipotek Kedua",
+      "storage_name": "__kilas_PERSONAL:2_v2.housing.1",
+      "parent_category_id": 18494
+    },
+    {
+      "id": 18518,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.utilities.2",
+      "builtin_name": "Telepon",
+      "storage_name": "__kilas_PERSONAL:2_v2.utilities.2",
+      "parent_category_id": 18515
+    },
+    {
+      "id": 18519,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.utilities.3",
+      "builtin_name": "Ponsel",
+      "storage_name": "__kilas_PERSONAL:2_v2.utilities.3",
+      "parent_category_id": 18515
+    },
+    {
+      "id": 18521,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.utilities.5",
+      "builtin_name": "TV Kabel / Satelit",
+      "storage_name": "__kilas_PERSONAL:2_v2.utilities.5",
+      "parent_category_id": 18515
+    },
+    {
+      "id": 18522,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.utilities.6",
+      "builtin_name": "Air",
+      "storage_name": "__kilas_PERSONAL:2_v2.utilities.6",
+      "parent_category_id": 18515
+    },
+    {
+      "id": 18526,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.items.1",
+      "builtin_name": "Barang Pribadi",
+      "storage_name": "__kilas_PERSONAL:2_v2.items.1",
+      "parent_category_id": 18507
+    },
+    {
+      "id": 18528,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.items.3",
+      "builtin_name": "Buku / Majalah",
+      "storage_name": "__kilas_PERSONAL:2_v2.items.3",
+      "parent_category_id": 18507
+    },
+    {
+      "id": 18529,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.items.4",
+      "builtin_name": "Perawatan Kecantikan",
+      "storage_name": "__kilas_PERSONAL:2_v2.items.4",
+      "parent_category_id": 18507
+    },
+    {
+      "id": 18532,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.entertainment.1",
+      "builtin_name": "Sewa DVD",
+      "storage_name": "__kilas_PERSONAL:2_v2.entertainment.1",
+      "parent_category_id": 18530
+    },
+    {
+      "id": 18533,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.entertainment.2",
+      "builtin_name": "Musik",
+      "storage_name": "__kilas_PERSONAL:2_v2.entertainment.2",
+      "parent_category_id": 18530
+    },
+    {
+      "id": 18534,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.entertainment.3",
+      "builtin_name": "Appstore",
+      "storage_name": "__kilas_PERSONAL:2_v2.entertainment.3",
+      "parent_category_id": 18530
+    },
+    {
+      "id": 18535,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.entertainment.4",
+      "builtin_name": "Tune Core",
+      "storage_name": "__kilas_PERSONAL:2_v2.entertainment.4",
+      "parent_category_id": 18530
+    },
+    {
+      "id": 18536,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.entertainment.5",
+      "builtin_name": "Musik Produce",
+      "storage_name": "__kilas_PERSONAL:2_v2.entertainment.5",
+      "parent_category_id": 18530
+    },
+    {
+      "id": 18544,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.health",
+      "builtin_name": "Asuransi / Medis",
+      "storage_name": "__kilas_PERSONAL:2_v2.health",
+      "parent_category_id": null
+    },
+    {
+      "id": 18545,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.health.0",
+      "builtin_name": "Asuransi Mobil",
+      "storage_name": "__kilas_PERSONAL:2_v2.health.0",
+      "parent_category_id": 18544
+    },
+    {
+      "id": 18546,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.health.1",
+      "builtin_name": "Asuransi Rumah",
+      "storage_name": "__kilas_PERSONAL:2_v2.health.1",
+      "parent_category_id": 18544
+    },
+    {
+      "id": 18547,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.health.2",
+      "builtin_name": "Asuransi Kesehatan",
+      "storage_name": "__kilas_PERSONAL:2_v2.health.2",
+      "parent_category_id": 18544
+    },
+    {
+      "id": 18548,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.health.3",
+      "builtin_name": "Biaya Medis / Co-pay",
+      "storage_name": "__kilas_PERSONAL:2_v2.health.3",
+      "parent_category_id": 18544
+    },
+    {
+      "id": 18549,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.health.4",
+      "builtin_name": "Pengobatan",
+      "storage_name": "__kilas_PERSONAL:2_v2.health.4",
+      "parent_category_id": 18544
+    },
+    {
+      "id": 18551,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.misc.0",
+      "builtin_name": "Tiket Pesawat",
+      "storage_name": "__kilas_PERSONAL:2_v2.misc.0",
+      "parent_category_id": 18550
+    },
+    {
+      "id": 18552,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.misc.1",
+      "builtin_name": "Hotel / Penginapan",
+      "storage_name": "__kilas_PERSONAL:2_v2.misc.1",
+      "parent_category_id": 18550
+    },
+    {
+      "id": 18553,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.misc.2",
+      "builtin_name": "Hadiah / Amal",
+      "storage_name": "__kilas_PERSONAL:2_v2.misc.2",
+      "parent_category_id": 18550
+    },
+    {
+      "id": 18554,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.misc.3",
+      "builtin_name": "Keluarga",
+      "storage_name": "__kilas_PERSONAL:2_v2.misc.3",
+      "parent_category_id": 18550
+    },
+    {
+      "id": 18555,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.investment",
+      "builtin_name": "Investasi",
+      "storage_name": "__kilas_PERSONAL:2_v2.investment",
+      "parent_category_id": null
+    },
+    {
+      "id": 18557,
+      "business_id": 2,
+      "scope_key": "PERSONAL:2",
+      "owner_user_id": 2,
+      "canonical_key": "v2.salaries",
+      "builtin_name": "Gaji / Upah",
+      "storage_name": "__kilas_PERSONAL:2_v2.salaries",
+      "parent_category_id": null
+    }
+  ]
+}
