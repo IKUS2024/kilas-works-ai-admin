@@ -32,7 +32,9 @@ def finish(job, token, step, result):
         # A normal watch wait is not a failed attempt, and can persist indefinitely within expiry/daily caps.
         usage._query(conn, 'UPDATE kilas_agent_steps SET status=?,output_json=?,error=?,completed_at=?,attempts=CASE WHEN ?=1 THEN 0 ELSE attempts END WHERE id=?',
                      (state, output, result.output.get('reason'), store.stamp() if state == 'SUCCEEDED' else None, int(state == 'WAITING'), step['id']))
-        for artifact in result.artifacts[:3]:
+        artifact_limit=8 if step['worker'] in ('EXECUTION','PROJECT') else 3
+        if len(result.artifacts)>artifact_limit:raise ValueError('artifact_limit')
+        for artifact in result.artifacts[:artifact_limit]:
             if 'binary_file' in artifact:
                 from . import work_artifacts
                 work_artifacts.persist(conn,job,step,artifact['binary_file'])

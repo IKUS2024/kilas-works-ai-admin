@@ -45,12 +45,21 @@ def entrypoint(files,request):
 
 def result(outcome):
     from .agent_workers import Result
+    from . import workspace_artifact_transport as transport
+    exported=transport.collect(outcome['outputs'])
     public={k:v for k,v in outcome.items() if k not in ('outputs','stdout','stderr')}
+    if exported:public['runtime_library_report']=exported[1]
     # Outputs remain real files. Logs never assert that user-supplied tests are trustworthy.
     log=json.dumps({**public,'stdout':outcome['stdout'],'stderr':outcome['stderr']},ensure_ascii=False,indent=2)
     artifacts=[{'binary_file':{'filename':'execution-result.json','mime_type':'application/json','content':log.encode(),
                             'validation':public,'title':'Python execution'}}]
-    if outcome['outputs']:
+    if exported:
+        files,_=exported
+        for file in files:file['validation']={**public,**file['validation']}
+        artifacts.extend({'binary_file':file} for file in files)
+        bundle=transport.bundle(files) if files else None
+        if bundle:artifacts.append({'binary_file':bundle})
+    elif outcome['outputs']:
         archive=workspace_files.package(outcome['outputs'])
         artifacts.append({'binary_file':{'filename':'execution-output.zip','mime_type':'application/zip','content':archive,
                                         'validation':public,'title':'Python output'}})
@@ -64,7 +73,9 @@ def run(job,step,data):
         return Result('WAITING_CAPABILITY','Sandbox pengujian terisolasi belum tersedia.',{'reason':'isolated_execution_not_configured','execution':'not_run'})
     try:
         files=source(job,data)
-        return result(execution.execute(job,step,files,entrypoint(files,data['request'])))
+        from . import workspace_artifact_transport as transport
+        prepared,entry=transport.prepare(files,entrypoint(files,data['request']))
+        return result(execution.execute(job,step,prepared,entry))
     except ValueError as error:
         from . import usage
         if isinstance(error,usage.UsageLimit):return Result('FAILED',str(error),{'execution':'not_run','reason':'execution_quota_exhausted'})

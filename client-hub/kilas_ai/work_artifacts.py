@@ -7,45 +7,12 @@ import db
 from pypdf import PdfReader
 from . import usage
 
-MIMES={'pdf':'application/pdf','csv':'text/csv','json':'application/json','md':'text/markdown','txt':'text/plain','png':'image/png','jpg':'image/jpeg','webp':'image/webp'}
-MIMES.update(docx='application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx='application/vnd.openxmlformats-officedocument.presentationml.presentation')
-from .workspace_files import SOURCE_TYPES
-MIMES.update({key:value for key,value in SOURCE_TYPES.items() if not value.startswith('image/')},zip='application/zip')
+from .workspace_output_formats import MIMES,validate as validate_output
 RETENTION_POLICY='Retained in account history with no automatic expiry. Archiving a chat hides it and does not delete its files. Data deletion requires the existing account data-deletion process.'
 
 
 def validate(file):
-    raw=file.get('content')
-    if not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}',file.get('filename','')):raise ValueError('invalid_work_filename')
-    if not isinstance(raw,bytes) or not 0 < len(raw) <= 8*1024*1024 or file['mime_type'] not in MIMES.values():raise ValueError('invalid_work_file')
-    if file['mime_type']=='application/zip':
-        from .workspace_files import read_archive
-        read_archive(raw)
-    elif file['mime_type']=='application/pdf':
-        reader=PdfReader(io.BytesIO(raw),strict=True)
-        if not raw.startswith(b'%PDF') or reader.is_encrypted or not reader.pages or not any(p.extract_text().strip() for p in reader.pages):raise ValueError('invalid_work_pdf')
-    elif file['mime_type'] in (MIMES['docx'],MIMES['xlsx'],MIMES['pptx']):
-        import zipfile
-        from xml.etree import ElementTree as ET
-        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-            infos=archive.infolist()
-            if len(infos)>1000 or sum(i.file_size for i in infos)>24*1024*1024 or any(i.file_size>max(1,i.compress_size)*200 for i in infos):raise ValueError('oversized_office_file')
-            required={MIMES['docx']:'word/document.xml',MIMES['xlsx']:'xl/worksheets/sheet1.xml',MIMES['pptx']:'ppt/slides/slide1.xml'}[file['mime_type']]
-            if required not in archive.namelist() or '[Content_Types].xml' not in archive.namelist():raise ValueError('invalid_office_file')
-            for item in infos:
-                import stat
-                if '..' in item.filename.split('/') or '\\' in item.filename or item.filename.startswith('/') or stat.S_ISLNK(item.external_attr>>16) or any(v in item.filename.lower() for v in ('vbaproject','activex','embeddings/')):raise ValueError('unsafe_office_file')
-                if item.filename.endswith(('.xml','.rels')):
-                    content=archive.read(item)
-                    if b'<!DOCTYPE' in content or b'<!ENTITY' in content:raise ValueError('unsafe_office_xml')
-                    root=ET.fromstring(content)
-                    if item.filename.endswith('.rels') and any(r.get('TargetMode')=='External' for r in root):raise ValueError('unsafe_office_link')
-    elif file['mime_type'].startswith('image/'):
-        from PIL import Image
-        with Image.open(io.BytesIO(raw)) as picture:
-            if {'PNG':'image/png','JPEG':'image/jpeg','WEBP':'image/webp'}.get(picture.format)!=file['mime_type'] or picture.width*picture.height>20_000_000:raise ValueError('invalid_work_image')
-            picture.verify()
-    return raw
+    return validate_output(file.get('filename',''),file.get('mime_type'),file.get('content'))
 
 
 def persist(conn,job,step,file):
