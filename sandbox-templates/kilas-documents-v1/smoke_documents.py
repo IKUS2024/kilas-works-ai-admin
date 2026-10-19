@@ -26,3 +26,35 @@ def smoke():
         if name.endswith(('docx','xlsx','pptx')):
             with zipfile.ZipFile(io.BytesIO(data)) as archive:assert archive.testzip() is None
     return output
+
+
+def representative():
+    """Four real PDF/PPTX files, including multi-page/slide files above 64 KiB."""
+    import random
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
+    from pptx import Presentation
+    from pptx.util import Inches
+    from PIL import Image
+    small=smoke();output={'small.pdf':small['report.pdf'],'small.pptx':small['report.pptx']}
+    image=Image.frombytes('RGB',(640,480),random.Random(19).randbytes(640*480*3))
+    png=io.BytesIO();image.save(png,format='PNG')
+    raw=io.BytesIO();pdf=canvas.Canvas(raw)
+    for index in range(12):
+        pdf.drawString(40,800,f'Synthetic page {index+1}: profit 184000')
+        pdf.drawImage(ImageReader(io.BytesIO(png.getvalue())),40,300,width=500,height=375);pdf.showPage()
+    pdf.save();output['large.pdf']=raw.getvalue()
+    deck=Presentation()
+    for index in range(15):
+        slide=deck.slides.add_slide(deck.slide_layouts[5]);slide.shapes.title.text=f'Synthetic slide {index+1}: profit 184000'
+        slide.shapes.add_picture(io.BytesIO(png.getvalue()),Inches(1),Inches(2),width=Inches(6))
+    raw=io.BytesIO();deck.save(raw);output['large.pptx']=raw.getvalue()
+    assert len(output)==4 and sum(map(len,output.values()))<=16777216
+    for name,data in output.items():
+        assert 0<len(data)<=8388608
+        assert (len(data)<=65536) if name.startswith('small.') else (len(data)>65536)
+        if name.endswith('.pdf'):assert data.startswith(b'%PDF-') and b'%%EOF' in data[-1024:]
+        else:
+            checked=Presentation(io.BytesIO(data));assert len(checked.slides)==(1 if name.startswith('small.') else 15)
+            assert all('184000' in slide.shapes.title.text for slide in checked.slides)
+    return output

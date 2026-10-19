@@ -1,8 +1,8 @@
 {
   "name": "kilas-documents-v1",
-  "base_image": null,
-  "base_image_status": "MISSING immutable digest and verified Python ABI",
-  "source_interpreter": "/usr/bin/python3",
+  "base_image": "docker.io/library/python@sha256:1aaa65a85fda306ffb8b910824d4e93bdce61e212c7e87168123ea3073b41a1a",
+  "base_image_status": "Verified in local networkless Docker only; E2B provisioning/build/acceptance pending",
+  "source_interpreter": "/usr/local/bin/python3.12",
   "interpreter": "/opt/kilas-document-python/bin/python3",
   "python_major_minor": "3.12",
   "local_tested_python": "3.12.14",
@@ -72,5 +72,6 @@
       "wheel": "xlsxwriter-3.2.9-py3-none-any.whl",
       "sha256": "9a5db42bc5dff014806c58a20b9eae7322a134abb6fce3c92c181bfb275ec5b3"
     }
-  ]
+  ],
+  "python_version": "3.12.14"
 }

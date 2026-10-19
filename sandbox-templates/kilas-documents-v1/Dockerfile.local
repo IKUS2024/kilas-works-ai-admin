@@ -1,0 +1,13 @@
+FROM docker.io/library/python@sha256:1aaa65a85fda306ffb8b910824d4e93bdce61e212c7e87168123ea3073b41a1a
+RUN mkdir -p /opt/kilas-document-build && chmod 0755 /opt/kilas-document-build
+COPY --chmod=0644 requirements.lock plan.json verify_runtime.py smoke_documents.py /opt/kilas-document-build/
+# The disposable local context supplies the ten hash-verified wheels; no download during build.
+COPY wheels/ /opt/kilas-document-wheels/
+RUN set -eu; umask 022; /usr/local/bin/python3.12 -I -m venv /opt/kilas-document-python; \
+    /opt/kilas-document-python/bin/python3 -I -m pip install --no-index --find-links /opt/kilas-document-wheels --only-binary=:all: --require-hashes -r /opt/kilas-document-build/requirements.lock; \
+    /opt/kilas-document-python/bin/python3 -I -m pip check; \
+    chown -R 0:0 /opt/kilas-document-python /opt/kilas-document-build; \
+    chmod -R go-w /opt/kilas-document-python /opt/kilas-document-build
+WORKDIR /tmp/kilas-document-check
+USER nobody
+RUN /opt/kilas-document-python/bin/python3 -I -B /opt/kilas-document-build/verify_runtime.py --smoke --representative

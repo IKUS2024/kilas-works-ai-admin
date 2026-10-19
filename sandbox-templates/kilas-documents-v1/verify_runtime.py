@@ -7,7 +7,7 @@ MODULES={'reportlab':'reportlab','python-docx':'docx','openpyxl':'openpyxl','pyt
 
 def verify(prefix,owner=0):
     here=Path(__file__).resolve().parent;plan=json.loads((here/'plan.json').read_text());prefix=Path(prefix).resolve()
-    assert platform.python_implementation()=='CPython' and sys.version_info[:2]==(3,12)
+    assert platform.python_implementation()=='CPython' and platform.python_version()==plan['python_version']
     assert platform.machine()=='x86_64' and tuple(map(int,platform.libc_ver()[1].split('.')[:2]))>=(2,28)
     assert Path(sys.prefix).resolve()==prefix and sys.prefix!=sys.base_prefix
     assert sys.flags.ignore_environment and sys.flags.no_user_site
@@ -36,11 +36,17 @@ def verify(prefix,owner=0):
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--prefix',default='/opt/kilas-document-python');parser.add_argument('--owner',type=int,default=0);parser.add_argument('--smoke',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--prefix',default='/opt/kilas-document-python');parser.add_argument('--owner',type=int,default=0);parser.add_argument('--smoke',action='store_true');parser.add_argument('--representative',action='store_true');args=parser.parse_args()
     result=verify(args.prefix,args.owner)
-    if args.smoke:
+    if args.smoke or args.representative:
+        import resource
+        for name,value in (('RLIMIT_CPU',10),('RLIMIT_AS',268435456),('RLIMIT_FSIZE',8388608)):
+            resource.setrlimit(getattr(resource,name),(value,value))
         path=Path(__file__).with_name('smoke_documents.py');spec=importlib.util.spec_from_file_location('fixed_document_smoke',path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-        files=module.smoke();result['documents']={n:{'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()} for n,b in files.items()}
+        files=module.representative() if args.representative else module.smoke()
+        result['documents']={n:{'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()} for n,b in files.items()}
+        result['generation_limits']={'cpu_seconds':10,'address_space_bytes':268435456,'file_bytes':8388608}
+        result['verification_scope']='package_generation_only; not E2B confinement or end-to-end acceptance'
     print(json.dumps(result,sort_keys=True))
 
 
