@@ -3,7 +3,7 @@
   const csrf=()=>document.querySelector('meta[name="csrf-token"]').content;
   const headers=()=>({'Content-Type':'application/json','X-CSRF-Token':csrf(),'X-Workspace-Async':'1'});
   const wait=(ms,signal)=>new Promise((resolve,reject)=>{const timer=setTimeout(resolve,ms);signal?.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('Stopped','AbortError'));},{once:true});});
-  const file=(item)=>{const card=document.createElement('div');card.className='ai-file-card';card.dataset.artifactId=item.id;const kind=document.createElement('span');kind.className='ai-file-kind';kind.textContent=item.filename.split('.').pop().toUpperCase();const detail=document.createElement('span');detail.className='ai-file-details';const name=document.createElement('strong');name.textContent=item.filename;const size=document.createElement('small');size.textContent=(item.byte_size/1024).toFixed(1)+' KB';detail.append(name,size);const actions=document.createElement('span');actions.className='ai-file-actions';const link=document.createElement('a');link.textContent=t('Download');link.href=item.url;actions.append(link);card.append(kind,detail,actions);return card;};
+  const file=item=>{const card=window.KilasArtifacts.card(item);card.dataset.artifactId=item.id;return card;};
   window.KilasThreadProjects={
     async watch(payload,body,signal){
       const article=body.closest('.ai-message');article.dataset.workspaceJob=payload.url;

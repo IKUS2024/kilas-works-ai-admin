@@ -1,0 +1,8 @@
+{% macro artifact_card(filename,byte_size,download_url,open_url=none) -%}
+{% set name=filename or ui_t('File hasil') %}{% set suffix=name.rsplit('.',1)[-1]|upper if '.' in name else '' %}{% set kind=suffix if suffix and suffix.isascii() and suffix.isalnum() and suffix|length<=7 else 'FILE' %}
+<div class="ai-file-card">
+  <span class="ai-file-kind" aria-hidden="true">{{ kind }}</span>
+  <span class="ai-file-details"><strong>{{ name }}</strong><small>{{ kind }}{% if byte_size is number and byte_size>=0 %} · {{ '%.1f'|format(byte_size/1024) }} {{ ui_t('KB') }}{% endif %}</small></span>
+  {% if download_url %}<span class="ai-file-actions">{% if open_url %}<a href="{{ open_url }}" target="_blank" rel="noopener" aria-label="{{ ui_t('Buka') }}: {{ name }}">{{ ui_t('Buka') }}</a>{% endif %}<a href="{{ download_url }}" aria-label="{{ ui_t('Download') }}: {{ name }}">{{ ui_t('Download') }}</a></span>{% else %}<span class="ai-file-unavailable">{{ ui_t('Tidak tersedia') }}</span>{% endif %}
+</div>
+{%- endmacro %}

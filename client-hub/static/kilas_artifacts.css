@@ -1,0 +1,20 @@
+/* AI result files only. Keep file routes, previews and account permissions intact. */
+.kilas-light :is(.ai-shell .ai-file-card,.work-file){box-sizing:border-box;display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:start;gap:12px;width:100%;max-width:590px;min-width:0;margin:12px 0 0;padding:16px;border:1px solid #e4e5e7;border-radius:12px;background:#fff;color:#202329;text-align:left}
+.kilas-light :is(.ai-file-card,.work-file) .ai-file-kind{box-sizing:border-box;display:flex;flex:none;align-items:center;justify-content:center;width:52px;min-width:52px;height:52px;margin:0;border:1px solid #f0d4c0;border-radius:10px;background:#fff0e5;color:#a43c00;font-size:11px;font-weight:800;line-height:1;letter-spacing:.02em;white-space:nowrap;word-break:normal;overflow-wrap:normal}
+.kilas-light :is(.ai-file-card,.work-file) :is(.ai-file-details,.work-file-info){display:flex;flex-direction:column;gap:5px;min-width:0;max-width:100%;margin:0;padding:1px 0}
+.kilas-light :is(.ai-file-card,.work-file) :is(.ai-file-details,.work-file-info) strong{display:block;min-width:0;max-width:100%;margin:0;color:#202329;font-size:14px;font-weight:650;line-height:1.5;white-space:normal;word-break:normal;overflow-wrap:anywhere}
+.kilas-light :is(.ai-file-card,.work-file) :is(.ai-file-details small,.work-file-info span,.work-file-info small){display:block;margin:0;color:#62666f;font-size:12px;font-weight:400;line-height:1.5;overflow-wrap:anywhere}
+.kilas-light :is(.ai-file-card,.work-file) :is(.ai-file-actions,.work-file-actions){display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;min-width:0;margin:0}
+.kilas-light :is(.ai-file-card,.work-file) :is(.ai-file-actions,.work-file-actions) a{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:72px;min-height:44px;margin:0;padding:9px 12px;border:1px solid #d5d7da;border-radius:8px;background:#fff;color:#a43c00;font-size:13px;font-weight:650;line-height:1.4;text-align:center;text-decoration:none;white-space:nowrap;word-break:normal;overflow-wrap:normal}
+.kilas-light :is(.ai-file-card,.work-file) :is(.ai-file-actions,.work-file-actions) a:last-child{border-color:#edc9ae;background:#fff0e5}
+.kilas-light :is(.ai-file-card,.work-file) :is(.ai-file-actions,.work-file-actions) a:hover{border-color:#bd4700;background:#fff0e5}
+.kilas-light :is(.ai-file-card,.work-file) a:focus-visible{outline:2px solid #bd4700;outline-offset:3px}
+.kilas-light :is(.ai-file-card,.work-file) .ai-file-unavailable{grid-column:2/-1;margin:0;color:#62666f;font-size:13px;line-height:1.5}
+.kilas-light .work-file>:is(.work-image-preview,.work-html-preview,details){grid-column:1/-1;min-width:0;margin:0}
+.kilas-light .work-file>details:not(.work-html-preview){padding-top:8px;border-top:1px solid #e4e5e7;color:#62666f;font-size:12px;line-height:1.6}
+.kilas-light .work-file>details>summary{width:fit-content;min-height:32px;cursor:pointer}
+.kilas-light .work-file>details>p{margin:6px 0 0}
+@media(max-width:640px){
+  .kilas-light :is(.ai-shell .ai-file-card,.work-file){grid-template-columns:52px minmax(0,1fr);gap:12px;padding:14px;max-width:100%}
+  .kilas-light :is(.ai-file-card,.work-file) :is(.ai-file-actions,.work-file-actions){grid-column:1/-1;justify-content:flex-start;padding-top:2px}
+}
