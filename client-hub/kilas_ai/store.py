@@ -144,12 +144,31 @@ def attachment_list(user_id, thread_id):
                         "WHERE user_id=? AND thread_id=? ORDER BY id", (user_id, thread_id))
 
 
-def latest_generated_document(user_id, thread_id):
+def latest_generated_document(user_id, thread_id, *, mime_type='application/pdf'):
     row = db.query_one("SELECT a.filename,a.extracted_text FROM kilas_ai_attachments a "
         "JOIN kilas_ai_messages m ON m.id=a.message_id AND m.thread_id=a.thread_id "
-        "WHERE a.user_id=? AND a.thread_id=? AND a.mime_type='application/pdf' AND m.role='assistant' "
-        "ORDER BY a.id DESC LIMIT 1", (user_id, thread_id))
+        "WHERE a.user_id=? AND a.thread_id=? AND a.mime_type=? AND m.role='assistant' "
+        "ORDER BY a.id DESC LIMIT 1", (user_id, thread_id, mime_type))
     return row if row and row["extracted_text"] else None
+
+
+def save_generated_document(user_id,thread_id,label,mode,provider,model,key,metadata,file):
+    """Publish a generated document and its success message in one transaction."""
+    from . import usage
+    conn=usage._connect()
+    try:
+        if not usage._query(conn,'SELECT id FROM kilas_ai_threads WHERE id=? AND user_id=?',(thread_id,user_id),one=True):
+            raise ValueError('thread_not_owned')
+        message=usage._query(conn,"INSERT INTO kilas_ai_messages(thread_id,role,content,mode,provider,model,operation_key,metadata_json) VALUES (?,'assistant',?,?,?,?,?,?) RETURNING id",
+            (thread_id,label,mode,provider,model,key+':assistant',json.dumps(metadata)),one=True)[0]
+        attachment=usage._query(conn,'INSERT INTO kilas_ai_attachments(user_id,thread_id,message_id,filename,mime_type,byte_size,content,extracted_text) VALUES (?,?,?,?,?,?,?,?) RETURNING id',
+            (user_id,thread_id,message,file['filename'],file['mime_type'],len(file['content']),file['content'],file['extracted_text']),one=True)[0]
+        conn.commit()
+        return attachment
+    except Exception:
+        conn.rollback()
+        raise
+    finally:conn.close()
 
 
 def latest_user_image(user_id, thread_id):

@@ -14,7 +14,8 @@ MATRIX = {
     'WEB': ['cari berita AI terbaru','harga emas hari ini','siapa CEO perusahaan X sekarang','cek berita terbaru tentang AI','cari harga emas hari ini','search latest news','cek internet paket website','cek web harga kopi','jadwal kereta terbaru','kurs dolar sekarang','cuaca hari ini','presiden negara X sekarang'],
     'WORK': ['riset 10 kompetitor sampai selesai','pantau website ini tiap jam','pantau harga sampai kondisi tercapai','perbaiki repo sampai test pass','monitor website sampai berubah','watch website every hour','riset kompetitor sampai selesai dan buat laporan','kerjakan riset sampai selesai','fix repo until tests pass','buat laporan setiap hari'],
     'CLARIFY': ['buat dong','tolong buat','bikin dong','ubah ini'],
-    'FILE': ['buat file DOCX','export XLSX','buat PPTX','buat file Word'],
+    'FILE': ['buat file DOCX','export XLSX','buat file Word'],
+    'PPTX': ['buat PPTX','bikinin presentasi','Create a PowerPoint presentation'],
 }
 
 
@@ -60,8 +61,9 @@ class RouteTests(unittest.TestCase):
         self.foreign=fixture.repo.create_user(self.id()+'-other@example.test','hash')
         self.thread=store.create_thread(self.owner)
         self.client=fixture.app.app.test_client()
-        with self.client.session_transaction() as state:
-            state.update(user_id=self.owner,role='CLIENT_OWNER',_csrf_token='intent-test')
+        self.client.set_cookie('kilas_language','id')
+        from auth_test_helpers import authenticate
+        authenticate(self.client,fixture.repo.get_user_by_id(self.owner),_csrf_token='intent-test')
 
     def send(self,text,key='intentrequest_0123456789'):
         return self.client.post(f'/kilas-ai/threads/{self.thread}/send',json={'content':text,'operation_key':key},headers={'X-CSRF-Token':'intent-test'})
@@ -81,7 +83,8 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(self.client.get(path).data,fixture.image_bytes())
         self.assertIsNone(store.recent_image(self.foreign,self.thread))
         other=fixture.app.app.test_client()
-        with other.session_transaction() as state:state.update(user_id=self.foreign,role='CLIENT_OWNER')
+        from auth_test_helpers import authenticate
+        authenticate(other,fixture.repo.get_user_by_id(self.foreign))
         self.assertEqual(other.get(path).status_code,404)
         operations=fixture.db.query_all('SELECT operation_type FROM kilas_ai_usage WHERE thread_id=?',(self.thread,))
         self.assertEqual([r['operation_type'] for r in operations],['IMAGE_GENERATION'])

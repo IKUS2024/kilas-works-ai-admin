@@ -42,6 +42,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r client-hub/requirements.txt
+      - name: Offline thread PDF/PPTX rendering, transport limits and tenant downloads
+        run: python -B scripts/run_offline_tests.py --only test_kilas_thread_documents.py
       - name: Chat quality and existing tool, cost, context and security coverage
         run: |
           python client-hub/tests/test_kilas_chat_quality_v2.py

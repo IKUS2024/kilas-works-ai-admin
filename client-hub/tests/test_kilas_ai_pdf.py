@@ -29,8 +29,9 @@ class PdfTests(unittest.TestCase):
 
     def client_for(self, owner):
         client = self.app.test_client()
-        with client.session_transaction() as session:
-            session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="pdf-csrf")
+        client.set_cookie('kilas_language','id')
+        from auth_test_helpers import authenticate
+        authenticate(client,repo.get_user_by_id(owner),_csrf_token='pdf-csrf')
         return client
 
     def send(self, client, thread_id, content, key, draft):

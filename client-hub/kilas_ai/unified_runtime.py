@@ -30,6 +30,8 @@ def intent(text, prepared=(), previous=None, previous_answer=''):
     if previous and previous['media_type'].startswith('image/') and routing.may_edit_image(text):
         images.append({'mime_type':previous['media_type']})
     tool=routing.tool_for(text,images,has_previous_content=bool(previous),previous_answer=previous_answer)
+    if tool=='PPTX':return 'DOCUMENT'
+    if tool=='CHAT' and routing.document_creation_prohibited(text):return 'CHAT'
     if tool in ('WEB','IMAGE_GENERATE','IMAGE_EDIT'):
         return tool
     from .workspace_projects import requested as project_requested

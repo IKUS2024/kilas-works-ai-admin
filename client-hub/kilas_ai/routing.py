@@ -60,11 +60,17 @@ def may_edit_image(content):
 def _pdf_intent(text, has_previous_content):
     if not re.search(r"\bpdf\b", text):
         return False
-    if re.search(r"\b(?:buat|jadikan|ubah|export|ekspor|simpan|download|unduh|kirim|rapikan|cetak|hasilkan|convert|format)\b", text):
+    if re.search(r"\b(?:buat|create|generate|make|prepare|siapkan|susun|jadikan|ubah|export|ekspor|simpan|download|unduh|kirim|rapikan|cetak|hasilkan|convert|format)\b", text):
         return True
     if re.search(r"\b(?:dalam bentuk|ke format|sebagai|jadi|file)\s+pdf\b", text):
         return True
     return has_previous_content and bool(re.search(r"(?:^|\s)pdf\s*(?:dong|ya|please|saja)?[.!?]*$", text))
+
+
+def document_creation_prohibited(content):
+    text=_normalize(content)
+    return bool(re.search(r"\b(?:jangan|tanpa|do not|don't|without)\s+(?:buat|create|generate|make|export|ekspor)\b",text)
+                and re.search(r'\b(?:pdf|pptx|powerpoint|presentasi|presentation|slides?|pitch deck)\b',text))
 
 
 def tool_for(content, attachments=(), *, search=False, pdf_request=False,
@@ -85,8 +91,15 @@ def tool_for(content, attachments=(), *, search=False, pdf_request=False,
         return "WEB"
     if explicit_code(content):
         return "CHAT"
+    from .workspace_execution_worker import requested as execution_requested
+    if execution_requested(content) or re.search(r'\b(?:python\s+(?:project|proyek)|(?:project|proyek)\s+python)\b',text):
+        return "CHAT"
     if _discussion(text):
         return "CHAT"
+    if document_creation_prohibited(text):
+        return "CHAT"
+    if re.search(r'\b(?:buat|create|generate|make|prepare|siapkan|susun|export|ekspor|ubah|revisi|revise)\b',text) and re.search(r'\b(?:pptx|powerpoint|presentasi|presentation|slides?|pitch deck)\b',text):
+        return "PPTX"
     if re.search(r'\b(?:buat|create|export|ekspor|ubah)\b',text) and re.search(r'\b(?:docx|xlsx|pptx|file word|file excel)\b',text):
         return "FILE"
     has_image = any(item.get("mime_type", "").startswith("image/") for item in attachments)

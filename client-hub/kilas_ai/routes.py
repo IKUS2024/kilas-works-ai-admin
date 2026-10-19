@@ -358,7 +358,7 @@ def send(thread_id, *, script_only=False):
             metadata = json.loads(row["metadata_json"] or "{}")
         except ValueError:
             metadata = {}
-        if metadata.get("status", "complete") == "complete" and metadata.get("tool") not in ("pdf", "image_generate", "image_edit"):
+        if metadata.get("status", "complete") == "complete" and metadata.get("tool") not in ("pdf", "pptx", "image_generate", "image_edit"):
             prior_answer = row["content"]
         break
     prior_image = (store.recent_image(user_id, thread_id)
@@ -417,7 +417,7 @@ def send(thread_id, *, script_only=False):
             return {'error':translate(str(error))},429
     try:
         plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool,
-            profile={'image_model':selected_image} if selected_image and tool in ('IMAGE_GENERATE','IMAGE_EDIT') else model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF') else None)
+            profile={'image_model':selected_image} if selected_image and tool in ('IMAGE_GENERATE','IMAGE_EDIT') else model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF','PPTX') else None)
     except ai_usage.UsageLimit as error:
         from .chat_web import UNVERIFIED
         return {"error": str(error) + (' ' + UNVERIFIED if tool == 'WEB' else '')}, 429
@@ -473,9 +473,12 @@ def send(thread_id, *, script_only=False):
                 yield _sse("delta", {"text": text})
                 yield _sse("done", {"finish_reason": "stop"})
                 return
-            if tool == "PDF":
+            if tool in ("PDF", "PPTX"):
                 yield _sse("activity", {"label": "Menyusun dokumen…"})
-                document_context = ai_pdf.document_context(context, previous_document["extracted_text"] if previous_document else None)
+                document_format=tool.lower()
+                previous=previous_document if tool=='PDF' else store.latest_generated_document(user_id,thread_id,
+                    mime_type='application/vnd.openxmlformats-officedocument.presentationml.presentation')
+                document_context = ai_pdf.document_context(context, previous["extracted_text"] if previous else None,format=document_format)
                 if selected_model:
                     document_context=chat_models.bind(model_policy.ChatContext(document_context),selected_model)
                 document_finish=None
@@ -493,23 +496,31 @@ def send(thread_id, *, script_only=False):
                     elif event["type"] == "usage":
                         usage.update({k: int(v or 0) for k, v in event.items() if k in usage})
                     elif event["type"]=="finish":document_finish=event["reason"]
-                if selected_model and document_finish!="stop":raise providers.ProviderError("incomplete_document")
+                if (selected_model or tool=='PPTX') and document_finish!="stop":raise providers.ProviderError("incomplete_document")
                 if not pieces:
                     raise providers.ProviderError("empty_document")
                 if not routing.response_safe(content, "".join(pieces)):
                     raise providers.ProviderError("invalid_document_markup")
-                yield _sse("activity", {"label": "Membuat PDF…"})
+                yield _sse("activity", {"label": "Membuat PDF…" if tool=='PDF' else "Membuat PPTX…"})
                 logo = next((item["content"] for item in prepared if item["mime_type"].startswith("image/")
                              and "logo" in content.lower()), None)
                 try:
-                    result = ai_pdf.render("".join(pieces), title_hint=content[:80], logo=logo,
-                                           cover=bool(re.search(r"\b(?:cover|sampul)(?:nya)?\b", content.lower())))
+                    if tool=='PDF':
+                        result = ai_pdf.render("".join(pieces), title_hint=content[:80], logo=logo,
+                                               cover=bool(re.search(r"\b(?:cover|sampul)(?:nya)?\b", content.lower())))
+                    else:
+                        from . import work_office,work_artifacts
+                        result=work_office.render("".join(pieces),'pptx')
+                        work_artifacts.validate(result)
+                        result['byte_size']=len(result['content'])
                 except Exception:
-                    raise providers.ProviderError("pdf_render_failed") from None
-                label = "PDF siap: " + result["title"]
-                assistant_id = store.append_assistant(user_id, thread_id, label, mode, provider, model, key,
-                    {"status": "complete", "tool": "pdf", "usage": usage,"model_metadata":model_metadata})
-                file_id = store.save_attachments(user_id, thread_id, assistant_id, [result])[0]
+                    raise providers.ProviderError(document_format+"_render_failed") from None
+                label = tool+" siap: " + result["title"]
+                try:
+                    file_id=store.save_generated_document(user_id,thread_id,label,mode,provider,model,key,
+                        {"status":"complete","tool":document_format,"usage":usage,"model_metadata":model_metadata},result)
+                except Exception:
+                    raise providers.ProviderError('document_storage_failed') from None
                 path = url_for("kilas_ai.attachment_download", thread_id=thread_id, attachment_id=file_id)
                 finished = persisted = True
                 yield _sse("delta", {"text": label})
@@ -625,7 +636,7 @@ def send(thread_id, *, script_only=False):
         except providers.ProviderError:
             yield _sse("error", {"message": "AI sedang tidak tersedia. Coba lagi."})
         finally:
-            if pieces and not persisted and tool != "PDF" and routing.response_safe(content, "".join(pieces)):
+            if pieces and not persisted and tool not in ("PDF","PPTX") and routing.response_safe(content, "".join(pieces)):
                 store.append_assistant(user_id, thread_id, "".join(pieces), mode, provider, model, key,
                                        {"status": "interrupted",
                                         "finish_reason": reason, "usage": usage})
