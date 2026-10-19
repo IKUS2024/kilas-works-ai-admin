@@ -13,6 +13,21 @@ on:
 permissions:
   contents: read
 jobs:
+  document-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - name: Offline document content, runtime, idempotency and download boundaries
+        run: |
+          python -B scripts/run_offline_tests.py --only test_kilas_pdf_boundaries.py
+          python -B scripts/run_offline_tests.py --only test_kilas_thread_project_outputs.py
+          python -B scripts/run_offline_tests.py --only test_kilas_workspace_document_bundle.py
+          python -B scripts/run_offline_tests.py --only test_kilas_workspace_document_runtime.py
+          python -B scripts/run_offline_tests.py --only test_kilas_workspace_large_outputs.py
   response-guidance:
     runs-on: ubuntu-latest
     timeout-minutes: 5

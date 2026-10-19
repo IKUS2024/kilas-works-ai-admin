@@ -30,7 +30,9 @@ def fingerprint():
 
 def capability(user_id=None):
     from . import workspace_large_proof as proof
-    available=bool(os.environ.get('KILAS_LARGE_OUTPUT_APPROVAL')==proof.POLICY and base.capability(user_id)['available'] and proof.accepted())
+    from . import workspace_document_runtime as document
+    available=bool(base.capability(user_id)['available'] and (document.accepted() or
+                   (os.environ.get('KILAS_LARGE_OUTPUT_APPROVAL')==proof.POLICY and proof.accepted())))
     return {'available':available,'reason':None if available else 'large_output_acceptance_pending','profile':PROFILE,
             'max_file_bytes':MAX_FILE,'max_job_bytes':MAX_JOB,'max_files':MAX_FILES,'fingerprint':fingerprint()}
 

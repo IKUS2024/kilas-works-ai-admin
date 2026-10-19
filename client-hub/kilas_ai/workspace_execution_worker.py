@@ -74,7 +74,7 @@ def result(outcome):
 
 def run(job,step,data):
     from .agent_workers import Result
-    from . import workspace_large_outputs as large
+    from . import workspace_large_outputs as large, workspace_document_runtime as document
     if large.requested(data['request']):
         if not large.capability(job['user_id'])['available']:
             return Result('WAITING_CAPABILITY','Ekspor dokumen besar belum lolos verifikasi sandbox. File kecil tetap tersedia.',{'reason':'large_output_acceptance_pending','execution':'not_run'})
@@ -82,7 +82,7 @@ def run(job,step,data):
         return Result('WAITING_CAPABILITY','Sandbox pengujian terisolasi belum tersedia.',{'reason':'isolated_execution_not_configured','execution':'not_run'})
     try:
         files=source(job,data)
-        if large.requested(data['request']):
+        if large.requested(data['request']) or document.accepted():
             from .workspace_large_execution import execute
             return result(execute(job,step,files,entrypoint(files,data['request'])))
         from . import workspace_artifact_transport as transport

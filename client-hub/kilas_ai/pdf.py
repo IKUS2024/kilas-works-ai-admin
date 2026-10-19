@@ -14,6 +14,9 @@ from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, S
 
 
 MAX_MARKDOWN = 24000
+MAX_PAGES = 50
+MAX_BYTES = 8 * 1024 * 1024
+MAX_TABLE_COLUMNS = 8
 INK = colors.HexColor("#202126")
 MUTED = colors.HexColor("#626974")
 ACCENT = colors.HexColor("#E56D21")
@@ -91,16 +94,14 @@ def _styles():
 def _table(lines, styles, width, professional=False):
     rows = [[cell.strip() for cell in line.strip().strip("|").split("|")] for line in lines]
     if len(rows) < 2 or len(rows[0]) < 2:
-        return None
+        raise ValueError('invalid_document_table')
     if all(re.fullmatch(r":?-{2,}:?", cell or "") for cell in rows[1]):
         rows.pop(1)
-    if professional and (len(rows[0])>8 or any(len(row)!=len(rows[0]) for row in rows)):
+    if len(rows[0]) > MAX_TABLE_COLUMNS or any(len(row) != len(rows[0]) for row in rows):
         raise ValueError('invalid_document_table')
-    columns = len(rows[0]) if professional else min(len(rows[0]), 5)
-    if columns < 2:
-        return None
+    columns = len(rows[0])
     data = []
-    for index, row in enumerate(rows if professional else rows[:31]):
+    for index, row in enumerate(rows):
         data.append([Paragraph(_inline(row[column] if column < len(row) else ""),
                                styles["cell_head"] if index == 0 else styles["cell"]) for column in range(columns)])
     table = Table(data, colWidths=[width / columns] * columns, repeatRows=1, hAlign="LEFT")
@@ -113,9 +114,13 @@ def _table(lines, styles, width, professional=False):
 
 
 def render(markdown, *, title_hint="Dokumen", logo=None, cover=False, professional=False):
-    text = (markdown or "").strip()[:MAX_MARKDOWN]
+    if not isinstance(markdown, str):
+        raise ValueError('invalid_document_source')
+    text = markdown.strip()
     if not text:
         raise ValueError("empty_document")
+    if len(text) > MAX_MARKDOWN:
+        raise ValueError('document_too_long')
     styles = _styles()
     lines = text.splitlines()
     title = next((line[2:].strip() for line in lines if line.startswith("# ")), title_hint.strip() or "Dokumen")[:100]
@@ -176,6 +181,8 @@ def render(markdown, *, title_hint="Dokumen", logo=None, cover=False, profession
         index += 1
 
     def page(canvas, doc):
+        if doc.page > MAX_PAGES:
+            raise ValueError('document_page_limit')
         if cover and doc.page == 1:
             return
         canvas.saveState()
@@ -190,8 +197,10 @@ def render(markdown, *, title_hint="Dokumen", logo=None, cover=False, profession
 
     document.build(story, onFirstPage=page, onLaterPages=page)
     raw = stream.getvalue()
-    if not raw.startswith(b"%PDF") or len(raw) < 1000 or len(raw) > 8 * 1024 * 1024:
+    if not raw.startswith(b"%PDF") or len(raw) < 1000 or len(raw) > MAX_BYTES:
         raise ValueError("invalid_generated_pdf")
     filename = re.sub(r"[^A-Za-z0-9-]+", "-", title.lower()).strip("-")[:55] or "dokumen-kilas"
+    from .workspace_output_formats import validate
+    validate(filename + '.pdf', 'application/pdf', raw)
     return {"filename": filename + ".pdf", "mime_type": "application/pdf", "byte_size": len(raw),
             "content": raw, "extracted_text": text, "title": title}

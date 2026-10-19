@@ -1,0 +1,219 @@
+{
+  "abis": {
+    "cp310": [
+      "reportlab-4.4.9-py3-none-any.whl",
+      "python_docx-1.2.0-py3-none-any.whl",
+      "openpyxl-3.1.5-py2.py3-none-any.whl",
+      "python_pptx-1.0.2-py3-none-any.whl",
+      "pillow-12.3.0-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "lxml-6.1.1-cp310-cp310-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "charset_normalizer-3.4.4-py3-none-any.whl",
+      "et_xmlfile-2.0.0-py3-none-any.whl",
+      "typing_extensions-4.16.0-py3-none-any.whl",
+      "xlsxwriter-3.2.9-py3-none-any.whl"
+    ],
+    "cp311": [
+      "reportlab-4.4.9-py3-none-any.whl",
+      "python_docx-1.2.0-py3-none-any.whl",
+      "openpyxl-3.1.5-py2.py3-none-any.whl",
+      "python_pptx-1.0.2-py3-none-any.whl",
+      "pillow-12.3.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "lxml-6.1.1-cp311-cp311-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "charset_normalizer-3.4.4-py3-none-any.whl",
+      "et_xmlfile-2.0.0-py3-none-any.whl",
+      "typing_extensions-4.16.0-py3-none-any.whl",
+      "xlsxwriter-3.2.9-py3-none-any.whl"
+    ],
+    "cp312": [
+      "reportlab-4.4.9-py3-none-any.whl",
+      "python_docx-1.2.0-py3-none-any.whl",
+      "openpyxl-3.1.5-py2.py3-none-any.whl",
+      "python_pptx-1.0.2-py3-none-any.whl",
+      "pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "lxml-6.1.1-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "charset_normalizer-3.4.4-py3-none-any.whl",
+      "et_xmlfile-2.0.0-py3-none-any.whl",
+      "typing_extensions-4.16.0-py3-none-any.whl",
+      "xlsxwriter-3.2.9-py3-none-any.whl"
+    ],
+    "cp313": [
+      "reportlab-4.4.9-py3-none-any.whl",
+      "python_docx-1.2.0-py3-none-any.whl",
+      "openpyxl-3.1.5-py2.py3-none-any.whl",
+      "python_pptx-1.0.2-py3-none-any.whl",
+      "pillow-12.3.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "lxml-6.1.1-cp313-cp313-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "charset_normalizer-3.4.4-py3-none-any.whl",
+      "et_xmlfile-2.0.0-py3-none-any.whl",
+      "typing_extensions-4.16.0-py3-none-any.whl",
+      "xlsxwriter-3.2.9-py3-none-any.whl"
+    ],
+    "cp314": [
+      "reportlab-4.4.9-py3-none-any.whl",
+      "python_docx-1.2.0-py3-none-any.whl",
+      "openpyxl-3.1.5-py2.py3-none-any.whl",
+      "python_pptx-1.0.2-py3-none-any.whl",
+      "pillow-12.3.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "lxml-6.1.1-cp314-cp314-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "charset_normalizer-3.4.4-py3-none-any.whl",
+      "et_xmlfile-2.0.0-py3-none-any.whl",
+      "typing_extensions-4.16.0-py3-none-any.whl",
+      "xlsxwriter-3.2.9-py3-none-any.whl"
+    ]
+  },
+  "platform": {
+    "implementation": "cpython",
+    "libc": "glibc",
+    "machine": "x86_64",
+    "minimum_glibc": "2.28",
+    "os": "linux"
+  },
+  "schema_version": 1,
+  "source": "https://pypi.org/pypi/{project}/{version}/json",
+  "wheels": {
+    "charset_normalizer-3.4.4-py3-none-any.whl": {
+      "filename": "charset_normalizer-3.4.4-py3-none-any.whl",
+      "project": "charset-normalizer",
+      "sha256": "7a32c560861a02ff789ad905a2fe94e3f840803362c84fecf1851cb4cf3dc37f",
+      "size": 53402,
+      "url": "https://files.pythonhosted.org/packages/0a/4c/925909008ed5a988ccbb72dcc897407e5d6d3bd72410d69e051fc0c14647/charset_normalizer-3.4.4-py3-none-any.whl",
+      "version": "3.4.4"
+    },
+    "et_xmlfile-2.0.0-py3-none-any.whl": {
+      "filename": "et_xmlfile-2.0.0-py3-none-any.whl",
+      "project": "et-xmlfile",
+      "sha256": "7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa",
+      "size": 18059,
+      "url": "https://files.pythonhosted.org/packages/c1/8b/5fe2cc11fee489817272089c4203e679c63b570a5aaeb18d852ae3cbba6a/et_xmlfile-2.0.0-py3-none-any.whl",
+      "version": "2.0.0"
+    },
+    "lxml-6.1.1-cp310-cp310-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl": {
+      "filename": "lxml-6.1.1-cp310-cp310-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "project": "lxml",
+      "sha256": "98fc784c2c1440667aeedf8465bdfe10208acf0ead656a2c68627299f546b315",
+      "size": 5287643,
+      "url": "https://files.pythonhosted.org/packages/7a/16/cb391ee4b90186fa16d9ebcbe3ea96c71b8da3b0686386c8dcbcc3c67d44/lxml-6.1.1-cp310-cp310-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "6.1.1"
+    },
+    "lxml-6.1.1-cp311-cp311-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl": {
+      "filename": "lxml-6.1.1-cp311-cp311-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "project": "lxml",
+      "sha256": "18b73c339ae29b90fd2d06e58ebd555a751bde9cd6bbd36cc0281b9a2c94e9d8",
+      "size": 5202776,
+      "url": "https://files.pythonhosted.org/packages/66/8d/d1b3271af0c0f1e27e8472a849e4d2c65bc7766884b9ad2da9e76e145c88/lxml-6.1.1-cp311-cp311-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "6.1.1"
+    },
+    "lxml-6.1.1-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl": {
+      "filename": "lxml-6.1.1-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "project": "lxml",
+      "sha256": "ebe6af670449830d6d9b752c256a983291c766a1365ba5d5460048f9e33a7818",
+      "size": 5240367,
+      "url": "https://files.pythonhosted.org/packages/08/f6/af32e23e563971ffb0fb86be52bc5be5c2c118858ffc119bf6a9039b173d/lxml-6.1.1-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "6.1.1"
+    },
+    "lxml-6.1.1-cp313-cp313-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl": {
+      "filename": "lxml-6.1.1-cp313-cp313-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "project": "lxml",
+      "sha256": "1d4962d4c66bf830a7e59ed6cfc17d148149898a3aefa8ec6e59763e6e3ed085",
+      "size": 5228304,
+      "url": "https://files.pythonhosted.org/packages/a6/76/dbe4a00b50385e40194231dcfe5a12c059de7cf90e89c83407d2b085b719/lxml-6.1.1-cp313-cp313-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "6.1.1"
+    },
+    "lxml-6.1.1-cp314-cp314-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl": {
+      "filename": "lxml-6.1.1-cp314-cp314-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "project": "lxml",
+      "sha256": "9395002973c827b3ed67db77e6ec09f092919a587022174554096a269378fb13",
+      "size": 5239528,
+      "url": "https://files.pythonhosted.org/packages/42/3d/ef4dcfffd22d27a61805d8ed9f7fb888495bc6aa88648fa07c1eaa5586b6/lxml-6.1.1-cp314-cp314-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "6.1.1"
+    },
+    "openpyxl-3.1.5-py2.py3-none-any.whl": {
+      "filename": "openpyxl-3.1.5-py2.py3-none-any.whl",
+      "project": "openpyxl",
+      "sha256": "5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2",
+      "size": 250910,
+      "url": "https://files.pythonhosted.org/packages/c0/da/977ded879c29cbd04de313843e76868e6e13408a94ed6b987245dc7c8506/openpyxl-3.1.5-py2.py3-none-any.whl",
+      "version": "3.1.5"
+    },
+    "pillow-12.3.0-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl": {
+      "filename": "pillow-12.3.0-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "project": "pillow",
+      "sha256": "f0606c8bf2cdefea14a43530f7657cbbb7ecf1c4222512492ef4a4434a9501ec",
+      "size": 6925605,
+      "url": "https://files.pythonhosted.org/packages/4e/89/36f4cd76cf4baf05c50ababb976249153f18c959171c7f6ba09a6f217260/pillow-12.3.0-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "12.3.0"
+    },
+    "pillow-12.3.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl": {
+      "filename": "pillow-12.3.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "project": "pillow",
+      "sha256": "23d27a3e0307ec2244cc51e7287b919aa68d097504ebe19df4e76a98a3eea5bd",
+      "size": 6934408,
+      "url": "https://files.pythonhosted.org/packages/3b/2d/ede717bc1144f63886c21fd349bb95860b0d1a21149ff16f2bb362b612b6/pillow-12.3.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "12.3.0"
+    },
+    "pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl": {
+      "filename": "pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "project": "pillow",
+      "sha256": "78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91",
+      "size": 6940830,
+      "url": "https://files.pythonhosted.org/packages/84/21/a35af28dcc61f37ed850a2d64c65c701321dfbf25085e469d5559360cbbf/pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "12.3.0"
+    },
+    "pillow-12.3.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl": {
+      "filename": "pillow-12.3.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "project": "pillow",
+      "sha256": "0847a763afefb695bc912d7c131e7e0632d4edc1d8698f58ddabec8e46b8b6d3",
+      "size": 6937129,
+      "url": "https://files.pythonhosted.org/packages/f7/62/de5bdd77d935331f4f802edc11e4d82950f642caad6cb2f949837b8560e2/pillow-12.3.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "12.3.0"
+    },
+    "pillow-12.3.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl": {
+      "filename": "pillow-12.3.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "project": "pillow",
+      "sha256": "251bf95b67017e27b13d82f5b326234ca62d70f9cf4c2b9032de2358a3b12c7b",
+      "size": 6936962,
+      "url": "https://files.pythonhosted.org/packages/5c/44/c85361f65dbe00eea8576ee467c768d25129989efb76e94f205e9ca9bb46/pillow-12.3.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "version": "12.3.0"
+    },
+    "python_docx-1.2.0-py3-none-any.whl": {
+      "filename": "python_docx-1.2.0-py3-none-any.whl",
+      "project": "python-docx",
+      "sha256": "3fd478f3250fbbbfd3b94fe1e985955737c145627498896a8a6bf81f4baf66c7",
+      "size": 252987,
+      "url": "https://files.pythonhosted.org/packages/d0/00/1e03a4989fa5795da308cd774f05b704ace555a70f9bf9d3be057b680bcf/python_docx-1.2.0-py3-none-any.whl",
+      "version": "1.2.0"
+    },
+    "python_pptx-1.0.2-py3-none-any.whl": {
+      "filename": "python_pptx-1.0.2-py3-none-any.whl",
+      "project": "python-pptx",
+      "sha256": "160838e0b8565a8b1f67947675886e9fea18aa5e795db7ae531606d68e785cba",
+      "size": 472788,
+      "url": "https://files.pythonhosted.org/packages/d9/4f/00be2196329ebbff56ce564aa94efb0fbc828d00de250b1980de1a34ab49/python_pptx-1.0.2-py3-none-any.whl",
+      "version": "1.0.2"
+    },
+    "reportlab-4.4.9-py3-none-any.whl": {
+      "filename": "reportlab-4.4.9-py3-none-any.whl",
+      "project": "reportlab",
+      "sha256": "68e2d103ae8041a37714e8896ec9b79a1c1e911d68c3bd2ea17546568cf17bfd",
+      "size": 1954401,
+      "url": "https://files.pythonhosted.org/packages/17/77/546e50edfaba6a0e58e8ec5fdc4446510227cec9e8f40172b60941d5a633/reportlab-4.4.9-py3-none-any.whl",
+      "version": "4.4.9"
+    },
+    "typing_extensions-4.16.0-py3-none-any.whl": {
+      "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+      "project": "typing-extensions",
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+      "size": 45571,
+      "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+      "version": "4.16.0"
+    },
+    "xlsxwriter-3.2.9-py3-none-any.whl": {
+      "filename": "xlsxwriter-3.2.9-py3-none-any.whl",
+      "project": "xlsxwriter",
+      "sha256": "9a5db42bc5dff014806c58a20b9eae7322a134abb6fce3c92c181bfb275ec5b3",
+      "size": 175315,
+      "url": "https://files.pythonhosted.org/packages/3a/0c/3662f4a66880196a590b202f0db82d919dd2f89e99a27fadef91c4a33d41/xlsxwriter-3.2.9-py3-none-any.whl",
+      "version": "3.2.9"
+    }
+  }
+}
