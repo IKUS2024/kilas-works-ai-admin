@@ -1,20 +1,21 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
+import {captureMode,compatibleRecorder,TranslatorAudioRoute} from './kilas_live_translator_capabilities.mjs?v=input-coalesce-20261019';
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=app-language-20261015';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=safari-audio-20261019';
-import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=safari-audio-20261019';
-import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=safari-audio-20261019';
-import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=safari-audio-20261019';
-import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=safari-audio-20261019';
+import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=input-coalesce-20261019';
+import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=input-coalesce-20261019';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=input-coalesce-20261019';
+import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=input-coalesce-20261019';
+import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=input-coalesce-20261019';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=explicit-pair-20261018';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=app-language-20261015';
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
 import {bindHoldToTalk} from './kilas_live_translator_hold.mjs?v=hold-release-20261018';
-import {TranslatorHistory} from './kilas_live_translator_history.mjs?v=safari-audio-20261019';
-import {prepareProgressive,disposeProgressive,progressivePlay} from './kilas_live_translator_progressive.mjs?v=safari-audio-20261019';
+import {TranslatorHistory} from './kilas_live_translator_history.mjs?v=input-coalesce-20261019';
+import {prepareProgressive,disposeProgressive,progressivePlay} from './kilas_live_translator_progressive.mjs?v=input-coalesce-20261019';
 const root=document.querySelector('.kilas-live-translator');
 if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');
- const csrf=form.querySelector('[name=csrf_token]').value,start=form.querySelector('button[type=submit]');let context=null,source=null,analyser=null,interval=null,recorder=null;
+ const csrf=form.querySelector('[name=csrf_token]').value,start=form.querySelector('button[type=submit]');let context=null,source=null,analyser=null,interval=null,recorder=null;const audioRoute=new TranslatorAudioRoute(navigator);
  const callLayout=new TranslatorCallLayout({document,root,endButton:document.querySelector('#live-end')});
  const setupReady=root.dataset.ready==='true'&&start.dataset.enabled==='true';
  const showError=(text,detail)=>{error.textContent=t(text);error.hidden=false;
@@ -37,7 +38,7 @@ if(root){
   async start({level,blob,error:onError,ready}){
    if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder||!context)throw Error(t('Browser ini belum mendukung mikrofon.'));
    let starting=true;
-   recorder=new VoiceRecorder({mediaDevices:navigator.mediaDevices,Recorder:window.MediaRecorder,onBlob:raw=>{if(own!==recorder)return;monitorStop();if(own.translatorFinalized)blob(raw);else onError(Object.assign(Error(t('Ucapan terlalu panjang untuk satu rekaman. Jeda sebentar lalu tekan Lanjutkan; ucapan ini tidak diproses sebagian.')),{code:'utterance_limit'}));},onState:state=>{if(own!==recorder)return;if(state==='empty'){monitorStop();blob(new Blob([]));}if(state==='error'&&!starting)onError(Object.assign(Error(t('Mikrofon terputus. Periksa izin browser lalu tekan Lanjutkan.')),{code:'microphone_unavailable'}));}});
+   recorder=new VoiceRecorder({mediaDevices:navigator.mediaDevices,Recorder:compatibleRecorder(window.MediaRecorder),onBlob:raw=>{if(own!==recorder)return;monitorStop();if(own.translatorFinalized)blob(raw);else onError(Object.assign(Error(t('Ucapan terlalu panjang untuk satu rekaman. Jeda sebentar lalu tekan Lanjutkan; ucapan ini tidak diproses sebagian.')),{code:'utterance_limit'}));},onState:state=>{if(own!==recorder)return;if(state==='empty'){monitorStop();blob(new Blob([]));}if(state==='error'&&!starting)onError(Object.assign(Error(t('Mikrofon terputus. Periksa izin browser lalu tekan Lanjutkan.')),{code:'microphone_unavailable'}));}});
    const own=recorder;
    try{await own.start({userGesture:true,consent:true,enabled:true});}
    catch(e){if(e?.name==='NotAllowedError'||e?.name==='SecurityError')throw Object.assign(Error(t('Izin mikrofon ditolak. Izinkan mikrofon di browser lalu tekan Lanjutkan.')),{code:'microphone_permission_denied',startupStage:'microphone_start'});throw e;}
@@ -54,15 +55,17 @@ if(root){
   finalize(){monitorStop();if(recorder)recorder.translatorFinalized=true;recorder?.stop();},
   cancel(){monitorStop();recorder?.cancel();recorder=null;},
  };
- const realtimeCapture=new RealtimeCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices});let activeCapture=batchCapture;
+ const realtimeCapture=new RealtimeCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices});let activeCapture=batchCapture,captureEpoch=0;
  const capture={
-  start(options){activeCapture=options.inputMode==='realtime-v1'?realtimeCapture:batchCapture;return activeCapture.start(options);},
-  finalize(){activeCapture.finalize();},cancel(){batchCapture.cancel();realtimeCapture.cancel();},
+  start(options){const epoch=++captureEpoch;const restore=()=>{if(epoch===captureEpoch)audioRoute.playback();};activeCapture=options.inputMode==='realtime-v1'?realtimeCapture:batchCapture;audioRoute.capture();
+   const restored={...options,blob:value=>{restore();options.blob(value);},error:value=>{restore();options.error(value);}};
+   return Promise.resolve(activeCapture.start(restored)).catch(e=>{restore();throw e;});},
+  finalize(){activeCapture.finalize();},cancel(){++captureEpoch;batchCapture.cancel();realtimeCapture.cancel();audioRoute.playback();},
  };
  const latency=values=>{try{console.info('KILAS_LIVE_CLIENT_LATENCY '+Object.entries(values).filter(([,v])=>Number.isFinite(v)&&v>=0).map(([k,v])=>k+'='+v.toFixed(1)).join(' '));}catch{}};
  let history=null;const player=new TranslatorPlayback({getContext:()=>context,onTiming:latency,onStored:url=>history?.stored(url),onEvict:url=>history?.remove(url)});
  const closeAudio=()=>{disposeProgressive(player);const own=context;context=null;if(own){try{own.close().catch(()=>{});}catch{}}};
- const prepareAudio=(...args)=>Promise.all([player.prepare(...args),prepareProgressive(player,...args)]);
+ const prepareAudio=(...args)=>{audioRoute.playback();return Promise.all([player.prepare(...args),prepareProgressive(player,...args)]);};
  const playback={get progressive(){return player.progressiveMedia?.ready?(...args)=>progressivePlay(player,...args):null;},has:url=>player.has(url),prepare:prepareAudio,play:async(url,signal,current,started)=>{const offset=player.resumeOffsets.get(url)||0;await player.play(url,signal,current,started,offset);player.resumeOffsets.delete(url);},prefetch:(...args)=>player.prefetch(...args),
   cancel:()=>player.cancel(),
   recover(error,signal,isCurrent){
@@ -71,7 +74,7 @@ if(root){
    }
    return prepareAudio(signal,isCurrent);
   },
-  stop(){player.cancel();player.clearCache();history?.clear();closeAudio();},
+  stop(){player.cancel();player.clearCache();history?.clear();closeAudio();audioRoute.restore();},
  };
  async function json(url,options={}){
   try{return await requestJSON(url,{...options,csrf});}catch(e){if(e.code==='session_busy'){recoverRequested=true;recoveryError=true;}throw e;}
@@ -121,7 +124,8 @@ if(root){
  form.addEventListener('submit',event=>{event.preventDefault();if(!setupReady||session.state!=='ended'||!recovery.canStart())return;if(!form.reportValidity())return;
   if(!validLanguagePair(languageA,languageB)){showError(t('Pilih dua bahasa yang berbeda sebelum memulai sesi.'));languageB.focus();return;}
   error.hidden=true;document.querySelector('#live-translation').hidden=true;const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext){showError(t('Browser ini belum mendukung audio sesi.'));return;}
-  context=new AudioContext();session.start(new FormData(form));
+  context=new AudioContext();const transport=captureMode(context,window,navigator.mediaDevices);if(!transport){closeAudio();showError(t('Browser ini belum mendukung mikrofon.'));return;}
+  const data=new FormData(form);data.append('capture_transport',transport);session.start(data);
  });
  document.querySelector('#live-resume').addEventListener('click',()=>{error.hidden=true;session.resume();});
  document.querySelector('#live-end').addEventListener('click',()=>session.end());window.addEventListener('pagehide',()=>{

@@ -15,7 +15,7 @@ async function media(run){
  try{await run({Element,context,player,controller,calls});}finally{disposeProgressive(player);for(const [n,d] of old){if(d)Object.defineProperty(globalThis,n,d);else delete globalThis[n];}}
 }
 test('gesture authorization is synchronous, nonmuted, confirmed, same element reused, context replacement disposes it',()=>media(async f=>{
- const pending=prepareProgressive(f.player,f.controller.signal,()=>true);assert.equal(f.calls[0][0],'play');const slot=f.player.progressiveMedia;assert.equal(slot.ready,false);assert.equal(slot.audio.muted,false);assert.match(slot.audio.src,/^data:audio\/wav/);assert.equal(await pending,true);
+ const pending=prepareProgressive(f.player,f.controller.signal,()=>true);assert.equal(f.calls[0][0],'play');const slot=f.player.progressiveMedia;assert.equal(slot.ready,false);assert.equal(slot.audio.muted,false);assert.equal(slot.audio.volume,1);assert.match(slot.audio.src,/^data:audio\/wav/);assert.equal(await pending,true);
  for(let i=0;i<3;i++)assert.equal(await prepareProgressive(f.player,f.controller.signal,()=>true),true);
  assert.equal(slot.audio.plays,1);assert.equal(f.player.progressiveMedia,slot);
  const next=new AudioContext();f.player.getContext=()=>next;assert.equal(await prepareProgressive(f.player,f.controller.signal,()=>true),true);assert.notEqual(f.player.progressiveMedia,slot);assert.equal(slot.ready,false);

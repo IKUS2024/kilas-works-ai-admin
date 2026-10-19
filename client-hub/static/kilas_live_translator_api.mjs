@@ -47,7 +47,7 @@ export class TranslatorTurns {
     const state=await this.json(url,{signal,timeoutMs:10000});
     if(state.status!=='ACTIVE'){
       if(!state.renewable||!params)throw error('session_ended',t('Sesi ini sudah diakhiri. Tekan End untuk menutup tampilan ini.'));
-      const data=new FormData();for(const name of ['language_a','language_b','voice','consent'])data.append(name,params.get(name)||'');data.append('csrf_token',this.csrf);data.append('input_mode',inputMode||'');
+      const data=new FormData();for(const name of ['language_a','language_b','voice','consent'])data.append(name,params.get(name)||'');data.append('csrf_token',this.csrf);data.append('input_mode',inputMode||'');if(params.get('capture_transport'))data.append('capture_transport',params.get('capture_transport'));
       let result;
       try{result=await this.json(url+'/renew',{method:'POST',body:data,signal,timeoutMs:15000});}
       catch(e){

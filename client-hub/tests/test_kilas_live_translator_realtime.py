@@ -38,8 +38,8 @@ class RealtimeTests(unittest.TestCase):
  key=fixture.LiveTranslatorTests.key
  credit=fixture.LiveTranslatorTests.credit
  def owner(self):return patch.dict(os.environ,{'KILAS_VO_STT_ALLOWED_OWNER_ID':str(self.user),'KILAS_VO_STT_USAGE_MODE':'owner','KILAS_LIVE_TRANSLATOR_USAGE_MODE':'owner','KILAS_LIVE_INCREMENTAL_ENABLED':'false'})
- def make(self):
-  self.credit(300);ident=self.session();key=self.key();info=sessions.claim(self.user,ident,key);cap=budget.claim(self.user,ident,key);self.assertTrue(rt._slots.acquire(blocking=False));relay=rt.Relay(self.user,ident,key,info,cap);self.addCleanup(lambda:rt._slots.release() if not relay.finished else None);return relay
+ def make(self,coalesced=False):
+  self.credit(300);ident=self.session();key=self.key();info=sessions.claim(self.user,ident,key);cap=budget.claim(self.user,ident,key);self.assertTrue(rt._slots.acquire(blocking=False));relay=rt.Relay(self.user,ident,key,info,cap,coalesced=coalesced);self.addCleanup(lambda:rt._slots.release() if not relay.finished else None);return relay
  def row(self,key=None):return audio.f.db.query_one('SELECT * FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key=?',(self.user,budget.ledger_key(key or self.key())))
  def run_audio(self,relay,raw):
   for index,offset in enumerate(range(0,len(raw),32000)):
@@ -98,6 +98,19 @@ class RealtimeTests(unittest.TestCase):
    for index in range(8):relay.accept(index,b'1'*32000)
    with self.assertRaises(audio.store.AudioError) as error:relay.accept(8,b'1'*32000)
    self.assertEqual(error.exception.code,'realtime_queue_full');budget.finish(relay.capability,False)
+ def test_coalesced_payload_preserves_exact_provider_frames_commit_and_ledger(self):
+  raw=b'\x02\x00'*(5*16000+137);socket=Socket(['Whole synthetic utterance'])
+  with self.funded(),self.on(),self.owner(),patch.object(rt,'connect',return_value=socket) as connect,patch.object(live,'process') as process:
+   relay=self.make(coalesced=True);relay.accept(0,raw[:128000]);relay.accept(1,raw[128000:]);relay.commit(2);relay.run()
+   self.assertEqual(b''.join(socket.sent),raw);self.assertTrue(all(len(v)<=32000 for v in socket.sent));self.assertEqual(socket.commits,1);connect.assert_called_once();process.assert_called_once();self.assertEqual(self.row()['status'],'COMPLETED')
+ def test_coalesced_negotiation_does_not_expand_backlog_or_accept_oversized_duplicate_payload(self):
+  with self.funded(),self.on(),self.owner():
+   relay=self.make(coalesced=True)
+   with self.assertRaises(audio.store.AudioError):relay.accept(0,b'1'*128002)
+   relay.accept(0,b'1'*128000);relay.accept(1,b'2'*128000)
+   with self.assertRaises(audio.store.AudioError) as error:relay.accept(2,b'12')
+   self.assertEqual(error.exception.code,'realtime_queue_full');self.assertEqual(relay.queued_bytes,8*32000);self.assertEqual(relay.expected,2);budget.finish(relay.capability,False)
+
  def test_input_diagnostics_keep_fixed_codes_and_numeric_stages_without_private_content(self):
   from contextlib import redirect_stdout
   for code in ('realtime_queue_full','realtime_commit_timeout','PRIVATE_INPUT',[]):

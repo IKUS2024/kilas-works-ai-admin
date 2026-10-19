@@ -37,6 +37,19 @@ class ContinuationTests(unittest.TestCase):
    self.client.post(url+'/end',data={'csrf_token':'audio-csrf'})
    self.assertEqual(self.client.post(url+'/renew',data=self.fields()).status_code,409)
    self.assertEqual(sessions.status(self.user,ident)['status'],'ENDED');connect.assert_not_called();ai.assert_not_called();tts.assert_not_called()
+ def test_explicit_batch_capability_renews_without_switching_to_realtime(self):
+  self.credit(300)
+  with self.funded(),self.on(),patch.object(rt,'ready',return_value=True),patch.object(branded,'resolve',return_value=fixture.VOICE),patch.object(rt,'connect') as connect:
+   fields={**self.fields(),'capture_transport':'batch','input_mode':'batch'}
+   created=self.client.post('/kilas-translator/live/sessions',data=fields);self.assertEqual(created.status_code,201);self.assertEqual(created.json['input_mode'],'batch');ident=created.json['session_id'];self.expire(ident)
+   renewed=self.client.post('/kilas-translator/live/sessions/'+ident+'/renew',data=fields);self.assertEqual(renewed.status_code,201);self.assertEqual(renewed.json['input_mode'],'batch');connect.assert_not_called()
+   sessions.end(self.user,ident)
+ def test_unknown_browser_transport_is_rejected_before_session_creation(self):
+  self.credit(300)
+  with self.funded(),self.on(),patch.object(branded,'resolve',return_value=fixture.VOICE):
+   result=self.client.post('/kilas-translator/live/sessions',data={**self.fields(),'capture_transport':'unsafe-fallback'})
+   self.assertEqual(result.status_code,400);self.assertEqual(result.json['code'],'input_mode_changed')
+
  def test_renew_foreign_missing_other_active_credit_and_pending_lease_fail_closed(self):
   self.credit(300);ident=self.session();self.expire(ident);url='/kilas-translator/live/sessions/'+ident+'/renew'
   with self.funded(),self.on(),patch.object(rt,'ready',return_value=True),patch.object(branded,'resolve',return_value=fixture.VOICE):

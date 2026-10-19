@@ -509,9 +509,12 @@ def live_translator_start():
     translator.require_classic(a,b)
     if not branded.resolve(voice):raise store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
     store.require_balance(session['user_id'])
-    ident=sessions.create(session['user_id'],a,b,voice)
+    capture=request.form.get('capture_transport')
+    if capture not in (None,'batch','realtime-v1'):raise store.AudioError('Input browser tidak valid.','input_mode_changed',400)
     from . import live_translator_realtime as realtime
-    return {'session_id':ident,'input_mode':'realtime-v1' if a!='auto' and realtime.ready(session['user_id']) else 'batch'},201,{'Cache-Control':'private, no-store'}
+    mode='realtime-v1' if capture!='batch' and realtime.ready(session['user_id']) else 'batch'
+    ident=sessions.create(session['user_id'],a,b,voice)
+    return {'session_id':ident,'input_mode':mode},201,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/live/sessions/<ident>/renew')
@@ -522,8 +525,11 @@ def live_translator_renew(ident):
     a,b,voice=(request.form.get(name) for name in ('language_a','language_b','voice'))
     sessions.require_explicit_pair(a,b,voice=voice);translator.require_classic(a,b)
     if not branded.resolve(voice):raise store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
-    mode='realtime-v1' if realtime.ready(session['user_id']) else 'batch'
-    if request.form.get('input_mode')!=mode:raise store.AudioError('Input sesi berubah. Akhiri sesi lalu mulai kembali.','input_mode_changed',409)
+    capture=request.form.get('capture_transport')
+    if capture not in (None,'batch','realtime-v1'):raise store.AudioError('Input browser tidak valid.','input_mode_changed',400)
+    requested=request.form.get('input_mode')
+    mode='realtime-v1' if capture!='batch' and realtime.ready(session['user_id']) else 'batch'
+    if requested!=mode:raise store.AudioError('Input sesi berubah. Akhiri sesi lalu mulai kembali.','input_mode_changed',409)
     store.require_balance(session['user_id']);live.require_audio_allowance(session['user_id'])
     new=sessions.renew(session['user_id'],ident,a,b,voice)
     realtime.cancel(session['user_id'],ident)
@@ -709,8 +715,10 @@ def live_realtime_start(ident,key):
     if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
     capture_mode=request.form.get('capture_mode')
     if capture_mode not in (None,'hold-v1'):raise realtime.failure('realtime_chunk_invalid')
-    realtime.start(session['user_id'],ident,key,hold_to_talk=capture_mode=='hold-v1')
-    return {'status':'LISTENING','input_mode':'realtime-v1'},202,{'Cache-Control':'private, no-store'}
+    chunk_transport=request.form.get('chunk_transport')
+    if chunk_transport not in (None,'pcm-coalesce-v1'):raise realtime.failure('realtime_chunk_invalid')
+    relay=realtime.start(session['user_id'],ident,key,hold_to_talk=capture_mode=='hold-v1',coalesced=chunk_transport=='pcm-coalesce-v1')
+    return {'status':'LISTENING','input_mode':'realtime-v1','max_chunk_bytes':relay.max_chunk_bytes},202,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/live/sessions/<ident>/turns/<key>/input/chunks/<int:index>')
@@ -721,7 +729,7 @@ def live_realtime_chunk(ident,key,index):
     try:
         sample=request.files.get('pcm')
         if not sample or sample.mimetype!='application/octet-stream':raise realtime.failure('realtime_chunk_invalid')
-        relay.accept(index,sample.stream.read(32001))
+        relay.accept(index,sample.stream.read(relay.max_chunk_bytes+1))
     except Exception as error:
         relay.close(error);raise
     return {'accepted_index':index},202,{'Cache-Control':'private, no-store'}

@@ -18,7 +18,7 @@ export function prepareProgressive(player,signal,isCurrent){
  if(player.progressiveMedia?.context!==context)disposeProgressive(player);
  let slot=player.progressiveMedia;
  if(!slot){
-  try{const audio=new Audio();audio.preload='auto';audio.playsInline=true;const node=context.createMediaElementSource(audio);node.connect(context.destination);slot={audio,node,context,ready:false};player.progressiveMedia=slot;}
+  try{const audio=new Audio();audio.preload='auto';audio.playsInline=true;audio.muted=false;audio.volume=1;const node=context.createMediaElementSource(audio);node.connect(context.destination);slot={audio,node,context,ready:false};player.progressiveMedia=slot;}
   catch{return Promise.resolve(false);}
  }
  if(slot.ready)return Promise.resolve(true);

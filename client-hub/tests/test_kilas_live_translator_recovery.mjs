@@ -90,9 +90,9 @@ test('session_busy in the actual page reveals owner recovery without microphone 
   let reads=0,ended=false,audioClosed=0;
   try {
     globalThis.document={querySelector:query=>nodes[query],addEventListener(){}};
-    globalThis.window={addEventListener:(type,handler)=>events.set(type,handler),AudioContext:class{state='running';resume(){return Promise.resolve();}close(){audioClosed++;return Promise.resolve();}}};
+    globalThis.window={MediaRecorder:class{static isTypeSupported(){return true;}},addEventListener:(type,handler)=>events.set(type,handler),AudioContext:class{state='running';resume(){return Promise.resolve();}close(){audioClosed++;return Promise.resolve();}}};
     globalThis.FormData=class{constructor(){this.entries=new Map();}append(key,value){this.entries.set(key,value);}};
-    Object.defineProperty(globalThis,'navigator',{configurable:true,value:{sendBeacon:(url,data)=>{beacons.push({url,data});return true;}}});
+    Object.defineProperty(globalThis,'navigator',{configurable:true,value:{mediaDevices:{getUserMedia(){throw Error('Start must not open the microphone');}},sendBeacon:(url,data)=>{beacons.push({url,data});return true;}}});
     globalThis.fetch=async(url,options={})=>{
       calls.push({url,method:options.method||'GET'});
       if(url.endsWith('/active'))return {ok:true,json:async()=>({session:++reads===1||ended?null:old})};

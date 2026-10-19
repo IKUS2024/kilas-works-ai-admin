@@ -22,6 +22,7 @@ from . import live_translator_incremental as incremental
 _lock=Lock();_relays={};_slots=BoundedSemaphore(2)
 MAX_AUDIO_BYTES=180*32000  #179s capture plus<=400ms retained voice pre-roll.
 QUEUE_BYTES=8*32000  # Match the bounded client startup/jitter buffer; no additional paid dispatch.
+COALESCED_CHUNK_BYTES=4*32000  # Fewer HTTP round trips; QUEUE_BYTES remains8s.
 COMMIT_BYTES=20*32000
 
 
@@ -38,7 +39,8 @@ def log_input(success,error,started,timings):
     code=getattr(error,'code',None)
     code='none' if success else code if isinstance(code,str) and code in known else 'other_failure'
     stages=' '.join(f'{name}={timings[name]:.1f}' for name in
-        ('credit_stt_ms','input_connect_ms','input_finalize_ms','input_early_commits') if name in timings)
+        ('credit_stt_ms','input_connect_ms','input_finalize_ms','input_early_commits',
+         'input_accepted_ms','input_sent_ms','input_peak_backlog_ms','input_last_chunk_gap_ms') if name in timings)
     # Fixed enums/numeric timings only; never text, audio, IDs, keys or provider errors.
     try:print(f'KILAS_LIVE_INPUT outcome={"completed" if success else "failed"} code={code} {stages} elapsed_ms={(monotonic()-started)*1000:.1f}',flush=True)
     except OSError:pass
@@ -64,10 +66,11 @@ def connect(info):
 
 
 class Relay:
-    def __init__(self,owner,ident,key,info,capability,*,hold_to_talk=False):
+    def __init__(self,owner,ident,key,info,capability,*,hold_to_talk=False,coalesced=False):
         self.owner,self.ident,self.key,self.info,self.capability=owner,ident,key,info,capability
+        self.max_chunk_bytes=COALESCED_CHUNK_BYTES if coalesced else 32000
         self.close_lock=Lock();self.queue=Queue(maxsize=64);self.acks=Queue(maxsize=1);self.lock=Lock();self.closed=Event()
-        self.ws=None;self.expected=0;self.accepted=0;self.queued_bytes=0;self.final=False
+        self.ws=None;self.expected=0;self.accepted=0;self.queued_bytes=0;self.peak_queued_bytes=0;self.final=False
         self.pending_ack=False;self.error=None;self.pieces=[];self.sent=0;self.since_commit=0
         self.started=monotonic();self.last_chunk=self.started;self.final_at=None;self.finished=False;self.deadline=None
         self.partial='';self.partial_at=None;self.quiet_bytes=0;self.early_commits=0
@@ -88,14 +91,14 @@ class Relay:
         self.deadline.daemon=True;self.deadline.start()
 
     def accept(self,index,raw):
-        if type(index) is not int or not isinstance(raw,bytes) or not 2<=len(raw)<=32000 or len(raw)%2:raise failure('realtime_chunk_invalid')
+        if type(index) is not int or not isinstance(raw,bytes) or not 2<=len(raw)<=self.max_chunk_bytes or len(raw)%2:raise failure('realtime_chunk_invalid')
         with self.lock:
             self.check()
             if self.final or index!=self.expected or self.expected>=2000 or self.accepted+len(raw)>MAX_AUDIO_BYTES:raise failure('realtime_chunk_invalid')
             if self.queued_bytes+len(raw)>QUEUE_BYTES:raise failure('realtime_queue_full')
             try:self.queue.put_nowait(raw)
             except Full:raise failure('realtime_queue_full') from None
-            self.expected+=1;self.accepted+=len(raw);self.queued_bytes+=len(raw);self.last_chunk=monotonic()
+            self.expected+=1;self.accepted+=len(raw);self.queued_bytes+=len(raw);self.peak_queued_bytes=max(self.peak_queued_bytes,self.queued_bytes);self.last_chunk=monotonic()
 
     def commit(self,count):
         with self.lock:
@@ -205,6 +208,12 @@ class Relay:
         # and is retained whole rather than translated as a cut-off clause.
         return sentence or self.quiet_bytes>=int(.6*32000)
 
+    def input_metrics(self):
+        # Numeric transport evidence only: no audio, transcript or tenant IDs.
+        return {'input_accepted_ms':self.accepted/32,'input_sent_ms':self.sent/32,
+                'input_peak_backlog_ms':self.peak_queued_bytes/32,
+                'input_last_chunk_gap_ms':max(0,monotonic()-self.last_chunk)*1000}
+
     def run(self):
         success=False;connection=ExitStack();timings={};input_error=None
         try:
@@ -236,11 +245,12 @@ class Relay:
                         self.send(b'',True);self.acknowledge()
                     break
                 with self.lock:self.queued_bytes-=len(raw)
-                # Each payload is<=1s. Commit exactly20s, below provider's36s
+                # Coalesced HTTP payloads split into the SAME<=1s provider frames.
+                # Commit exactly20s, below provider's36s
                 # auto boundary; wait its sole ack BEFORE any following bytes.
                 offset=0
                 while offset<len(raw):
-                    count=min(len(raw)-offset,COMMIT_BYTES-self.since_commit)
+                    count=min(32000,len(raw)-offset,COMMIT_BYTES-self.since_commit)
                     piece=raw[offset:offset+count];self.send(piece);self.sent+=count;self.since_commit+=count;offset+=count
                     if self.incremental:self.observe_audio(piece)
                     if self.since_commit==COMMIT_BYTES:self.send(b'',True);self.acknowledge()
@@ -256,7 +266,7 @@ class Relay:
             finalized=monotonic()
             timings['input_finalize_ms']=(finalized-self.final_at)*1000
             timings['input_early_commits']=self.early_commits
-            log_input(True,None,self.started,timings)
+            timings.update(self.input_metrics());log_input(True,None,self.started,timings)
             live.process(self.owner,self.ident,self.key,None,self.info,whole_output=True,committed_text=text,
                 started=self.final_at,incremental=self.incremental,timings={'realtime_input_ms':self.sent/32,
                     'realtime_transport_ms':(finalized-self.started)*1000,
@@ -268,7 +278,8 @@ class Relay:
             if not success:budget.finish(self.capability,False)
             sessions.finish(self.owner,self.ident,self.key,False,code=getattr(error,'code','realtime_failed'))
         finally:
-            if not success:log_input(False,input_error,self.started,timings)
+            if not success:
+                timings.update(self.input_metrics());log_input(False,input_error,self.started,timings)
             self.close();self.finished=True
             if self.deadline:self.deadline.cancel()
             if self.incremental:self.incremental.cancel()
@@ -277,7 +288,7 @@ class Relay:
             finally:connection.close()
 
 
-def start(owner,ident,key,*,hold_to_talk=False):
+def start(owner,ident,key,*,hold_to_talk=False,coalesced=False):
     require_ready(owner)
     if not _slots.acquire(blocking=False):raise failure('service_busy')
     capability=None;claimed=False
@@ -286,7 +297,7 @@ def start(owner,ident,key,*,hold_to_talk=False):
         if info['voice_alias']=='gemini-live-native' or info['language_a']=='auto':raise failure('realtime_unverified')
         audio_store.require_balance(owner);live.require_audio_allowance(owner)
         capability=budget.claim(owner,ident,key)
-        relay=Relay(owner,ident,key,info,capability,hold_to_talk=hold_to_talk)
+        relay=Relay(owner,ident,key,info,capability,hold_to_talk=hold_to_talk,coalesced=coalesced)
         with _lock:_relays[(owner,ident,key)]=relay
         Thread(target=relay.run,name='kilas-realtime-turn',daemon=True).start()
         return relay
