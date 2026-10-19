@@ -178,7 +178,7 @@ def claim():
                 usage._query(conn, 'SELECT pg_advisory_xact_lock(74110601)', ())
             if usage._query(conn, 'SELECT id FROM kilas_agent_steps WHERE idempotency_key=?', (KEY,), one=True):
                 return None
-            spent = usage._query(conn, "SELECT COALESCE(SUM(reserved_micro_usd),0) FROM kilas_workspace_executions WHERE operation_key LIKE 'execution:document-runtime-20261019-%'", (), one=True)[0]
+            spent = usage._query(conn, "SELECT COALESCE(SUM(reserved_micro_usd),0) FROM kilas_workspace_executions WHERE operation_key LIKE ?", ('execution:document-runtime-20261019-%',), one=True)[0]
             if spent+VM_RESERVE_MICRO_USD > TASK_BUDGET_MICRO_USD:
                 raise ValueError('document_release_budget_exhausted')
             count = usage._query(conn, "SELECT COUNT(*) FROM kilas_agent_jobs WHERE user_id=? AND status NOT IN ('COMPLETED','FAILED','STOPPED')", (OWNER_ID,), one=True)[0]
@@ -223,8 +223,8 @@ def run(app):
                         memory[name] = int(value) if value.isdecimal() else 'unbounded' if value == 'max' else 'unavailable'
                     except (OSError, ValueError):
                         memory[name] = 'unavailable'
-            logging.getLogger(__name__).warning('KILAS_DOCUMENT_PROOF state=PREFLIGHT_BLOCKED phase=%s reason=%s memory=%s provider_dispatched=False',
-                phase, reason, json.dumps(memory, sort_keys=True))
+            logging.getLogger(__name__).warning('KILAS_DOCUMENT_PROOF state=PREFLIGHT_BLOCKED phase=%s reason=%s error_type=%s memory=%s provider_dispatched=False',
+                phase, reason, type(error).__name__, json.dumps(memory, sort_keys=True))
             return
         if not claimed:
             return
