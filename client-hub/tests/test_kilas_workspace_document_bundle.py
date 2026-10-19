@@ -137,6 +137,18 @@ class DocumentBundleTests(unittest.TestCase):
         opener.open.assert_not_called()
         self.assertEqual(outside.read_bytes(), self.raw)
 
+    def test_owned_private_cache_drops_inherited_setgid_without_accepting_group_access(self):
+        self.cache.mkdir(mode=0o700)
+        self.cache.chmod(0o2700)
+        opener = Mock()
+        opener.open.return_value = Response(self.raw)
+        self.run_prepare(opener)
+        self.assertEqual(self.cache.stat().st_mode & 0o7777, 0o700)
+        self.cache.chmod(0o2750)
+        with self.assertRaisesRegex(bundle.BundleError, 'wheel_cache_not_private_mode_2750_owned'):
+            self.run_prepare(opener)
+        opener.open.assert_called_once()
+
     def test_redirects_reject_unapproved_host_protocol_and_credentials(self):
         redirect = bundle._RestrictedRedirect()
         req = urllib.request.Request("https://pypi.org/original")

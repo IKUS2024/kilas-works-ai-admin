@@ -140,8 +140,15 @@ def _private_cache(path, deadline):
     fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         info = os.fstat(fd)
+        # A setgid temporary parent may propagate that bit to a new private
+        # directory. Remove it through the owned, no-follow descriptor; never
+        # accept group/other access or repair a foreign-owned cache.
+        if info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) == 0o2700:
+            os.fchmod(fd, 0o700)
+            info = os.fstat(fd)
         if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
-            raise BundleError("wheel_cache_not_private")
+            raise BundleError("wheel_cache_not_private_mode_" + format(stat.S_IMODE(info.st_mode), '04o')
+                              + ("_owned" if info.st_uid == os.getuid() else "_foreign"))
         while True:
             _deadline(deadline)
             try:
