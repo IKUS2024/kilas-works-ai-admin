@@ -201,14 +201,30 @@ def run(app):
     with app.app_context():
         if not approval_valid() or db.query_one('SELECT id FROM kilas_agent_steps WHERE idempotency_key=?', (KEY,)):
             return
+        phase = 'capability'
         try:
             if not base.capability(OWNER_ID)['available']:
                 raise ValueError('existing_execution_unavailable')
+            phase = 'host_memory'
             large.memory_admission()
+            phase = 'wheel_cache'
             bundle.prepare()  # Free verified downloads; always BEFORE any VM.
+            phase = 'durable_claim'
             claimed = claim()
-        except Exception:
-            logging.getLogger(__name__).warning('KILAS_DOCUMENT_PROOF state=PREFLIGHT_BLOCKED provider_dispatched=False')
+        except Exception as error:
+            reason = str(error) if isinstance(error, bundle.BundleError) else str(error) if str(error) in {
+                'existing_execution_unavailable', 'large_host_memory_unverified', 'large_host_memory_busy',
+                'document_release_budget_exhausted', 'active_job_limit'} else 'preflight_error'
+            memory = {}
+            if phase == 'host_memory':
+                for name in ('memory.max', 'memory.current', 'memory.peak'):
+                    try:
+                        value = (Path('/sys/fs/cgroup') / name).read_text().strip()
+                        memory[name] = int(value) if value.isdecimal() else 'unbounded' if value == 'max' else 'unavailable'
+                    except (OSError, ValueError):
+                        memory[name] = 'unavailable'
+            logging.getLogger(__name__).warning('KILAS_DOCUMENT_PROOF state=PREFLIGHT_BLOCKED phase=%s reason=%s memory=%s provider_dispatched=False',
+                phase, reason, json.dumps(memory, sort_keys=True))
             return
         if not claimed:
             return
