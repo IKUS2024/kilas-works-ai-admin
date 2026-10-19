@@ -136,7 +136,7 @@ test('failed PCM settles once before listening for fresh speech; it never replay
  const capture={start:async h=>{handlers=h;mics++;captures++;},cancel(){mics=0;},finalize(){mics=0;handlers.blob(null);}};
  const session=new TranslatorSession({capture,api:{input,start:async()=>({session_id:id,input_mode:'realtime-v1'}),resume:async()=>{},turn:async()=>({audio_url:'/synthetic'}),end:async()=>{}},playback:{play:async()=>assert.equal(mics,0),stop(){}},key:()=>String(++sequence).padStart(32,'0')});
  await session.start({});const stale=handlers;handlers.pcm(new Uint8Array(6400));await tick();assert.equal(captures,1);gate.resolve();await tick();assert.equal(session.state,'listening');assert.equal(captures,2);
- stale.pcm(new Uint8Array(6400));handlers.pcm(new Uint8Array(6400));await tick();session.stateTo('finalizing');handlers.blob(null);await tick();assert.equal(captures,3);
+ stale.pcm(new Uint8Array(6400));handlers.pcm(new Uint8Array(6400));await tick();session.stateTo('finalizing');capture.finalize();await tick();assert.equal(captures,3);
  assert.equal(requests.filter(x=>x.endsWith('/cancel')).length,1);assert.equal(requests.filter(x=>x.endsWith('/input/start')).length,2);assert.equal(requests.filter(x=>x.endsWith('/input/commit')).length,1);session.end();
 });
 test('credit failure or unconfirmed cancellation never authorizes fresh input',async()=>{

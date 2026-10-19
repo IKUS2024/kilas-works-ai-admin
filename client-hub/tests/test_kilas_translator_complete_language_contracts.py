@@ -73,10 +73,16 @@ class AllLanguageContracts(unittest.TestCase):
             self.assertEqual(chains,332)
             self.assertEqual([asr.call_count,llm.call_count,speech.call_count,stream.call_count],[332]*4)
         with patch.dict(os.environ,{'ELEVENLABS_API_KEY':'synthetic'}),patch('websocket.create_connection',return_value=Mock()) as connect:
-            realtime.connect()
-            query=parse_qs(urlparse(connect.call_args.args[0]).query)
-            self.assertEqual(query['model_id'],['scribe_v2_realtime'])
-            self.assertNotIn('language_code',query)
+            for code in sorted(languages.CLASSIC):
+                anchor='en' if code!='en' else 'id'
+                for a,b in ((code,anchor),(anchor,code)):
+                    realtime.connect({'language_a':a,'language_b':b,'voice_alias':'kilas-male'})
+                    query=parse_qs(urlparse(connect.call_args.args[0]).query)
+                    self.assertEqual(query['model_id'],['scribe_v2_realtime'])
+                    self.assertEqual(query['secondary_languages'],[a,b])
+                    self.assertEqual(query['commit_strategy'],['manual'])
+                    self.assertNotIn('language_code',query)
+            self.assertEqual(connect.call_count,166)
 
     def test_complete_explicit_names_for_all_four_locales_and_no_alias_duplicates(self):
         for locale,rows in languages._LOCALIZED.items():

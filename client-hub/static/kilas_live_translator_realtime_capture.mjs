@@ -29,14 +29,16 @@ export class RealtimeCapture {
     const fail=e=>{if(ticket!==this.version)return;this.cancel(e);if(ready)error(e);};
     try{
       if(!context?.audioWorklet||!this.mediaDevices?.getUserMedia)throw failure('realtime_capture_unavailable',t('Input suara belum didukung browser ini.'));
-      if(context.state!=='running'){
-        await this.bounded(controller.signal,()=>context.resume(),5000,failure('audio_resume',t('Audio belum berjalan. Tekan Lanjutkan untuk menyiapkan audio.')));
-        if(context.state!=='running')throw failure('audio_resume',t('Audio belum berjalan. Tekan Lanjutkan untuk menyiapkan audio.'));
-      }
       const stopLate=stream=>{for(const track of stream?.getTracks?.()||[]){try{track.stop();}catch{}}};
-      let stream;
-      try{stream=await this.bounded(controller.signal,()=>this.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}}),20000,failure('microphone_permission_timeout',t('Izin mikrofon belum dijawab. Periksa izin browser lalu tekan Lanjutkan.')),stopLate);}
-      catch(e){if(e?.name==='NotAllowedError'||e?.name==='SecurityError')throw failure('microphone_permission_denied',t('Izin mikrofon ditolak. Izinkan mikrofon di browser lalu tekan Lanjutkan.'));throw e;}
+      // Both browser permission calls belong to the Hold gesture. Awaiting an
+      // interrupted context first loses that gesture before getUserMedia.
+      const microphone=this.bounded(controller.signal,()=>this.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}}),20000,failure('microphone_permission_timeout',t('Izin mikrofon belum dijawab. Periksa izin browser lalu tekan Lanjutkan.')),stopLate).then(stream=>{
+        if(ticket!==this.version||controller.signal.aborted){stopLate(stream);throw aborted();}this.stream=stream;return stream;
+      }).catch(e=>{if(e?.name==='NotAllowedError'||e?.name==='SecurityError')throw failure('microphone_permission_denied',t('Izin mikrofon ditolak. Izinkan mikrofon di browser lalu tekan Lanjutkan.'));throw e;});
+      const resumeError=Object.assign(failure('audio_resume',t('Audio belum diizinkan atau terputus. Periksa audio browser lalu tekan Lanjutkan.')),{startupStage:'audio_prepare',recoverable:false});
+      const resumed=context.state==='running'?Promise.resolve():this.bounded(controller.signal,()=>context.resume(),5000,resumeError).catch(e=>{if(e?.name==='AbortError')throw e;throw resumeError;});
+      const [stream]=await Promise.all([microphone,resumed]);
+      if(context.state!=='running')throw resumeError;
       if(ticket!==this.version){stopLate(stream);throw aborted();}
       if(!stream?.getTracks?.().length)throw failure('microphone_unavailable',t('Mikrofon tidak tersedia. Periksa perangkat lalu tekan Lanjutkan.'));
       this.stream=stream;

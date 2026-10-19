@@ -41,7 +41,7 @@ export class TranslatorPlayback {
   }
   async resume(op){
     if(op.context.state==='running')return;
-    const error=failure('audio_resume',t('Audio belum diizinkan atau terputus. Periksa audio browser lalu tekan Lanjutkan.'));
+    const error=failure('audio_resume',t('Audio belum diizinkan atau terputus. Periksa audio browser lalu tekan Lanjutkan.'));error.recoverable=false;
     const began=this.now();
     try{await this.bounded(op,()=>op.context.resume(),5000,error);}catch(e){if(this.cancelled(op,e))throw e;throw error;}
     this.check(op);if(op.context.state!=='running')throw error;
@@ -98,6 +98,8 @@ export class TranslatorPlayback {
     const slot=this.prefetched?.url===url&&this.prefetched.signal===signal&&this.prefetched.context===this.getContext()?this.prefetched:null;
     if(slot)this.prefetched=null;else this.discardPrefetch();
     return this.run(signal,isCurrent,async op=>{
+      // Replay is a gesture: resume NOW, before cache decode/fetch can consume it.
+      await this.resume(op);this.check(op);
       const waitBegan=this.now();let buffer;
       if(slot){
         op.controller.signal.addEventListener('abort',()=>slot.controller.abort(),{once:true});

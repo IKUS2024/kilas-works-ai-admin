@@ -76,7 +76,7 @@ for(const stage of ['permission','module','first_pcm','context'])test('native '+
  const work=f.begin(),code={permission:'microphone_permission_timeout',module:'realtime_module_timeout',first_pcm:'realtime_input_timeout',context:'audio_resume'}[stage];
  const failed=assert.rejects(work,error=>error.code===code);await tick();await f.time.fire(stage==='permission'?20000:stage==='module'?10000:5000);await failed;
  assert.equal(f.calls.ready,0);assert.equal(f.calls.pcm,0);assert.equal(f.calls.errors.length,0);assert.equal(f.node.port.onmessage,null);assert.equal(f.time.timers.size,0);
- held.resolve(stage==='permission'?f.stream:undefined);await tick();assert.equal(f.track.stops,stage==='context'?0:1);
+ held.resolve(stage==='permission'?f.stream:undefined);await tick();assert.equal(f.track.stops,1);
 });
 test('first silent PCM confirms readiness without a supplier request',async()=>{
  const f=captureFixture(),work=f.begin();await tick();assert.equal(f.calls.ready,0);f.node.port.onmessage({data:{bytes:new ArrayBuffer(6400),rms:0}});await work;

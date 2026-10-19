@@ -82,7 +82,7 @@ export class TranslatorSession {
   }
   async press(){
     if(!this.pushToTalk||this.state!=='ready'||!this.id)return;
-    const ticket=this.version;this.held=true;this.hadVoice=false;this.releasedAt=null;
+    const ticket=this.version;this.held=true;this.hadVoice=false;this.releasedAt=null;this.pendingPlayback=null;
     try{await this.listen(ticket,true);}
     catch(error){if(ticket===this.version&&this.held)this.pause(error);}
   }
@@ -152,16 +152,20 @@ export class TranslatorSession {
       this.pendingKey=null;this.outputPending=false;
       if(!textAnnounced)releaseTiming('release_to_first_text_ms');
       this.onResult(result);
+      this.pendingPlayback=this.pushToTalk?result.audio_url:null;
+      if(result.playbackError)throw result.playbackError;
       if(!result.streamed){
         const readyAt=this.now();this.stateTo('playing');
         await this.playback.play(result.audio_url,this.controller.signal,()=>ticket===this.version,()=>{this.timing({result_to_audio_start_ms:Math.max(0,this.now()-readyAt)});onStarted();});
       }
       if(ticket!==this.version)return;
+      this.pendingPlayback=null;
       releaseTiming('release_to_complete_ms');
       await this.listen(ticket);
     }catch(e){
       if(ticket!==this.version||this.controller.signal.aborted)return;
-      if(this.state==='playing'&&e.recoverable!==false)e.recoverable=true;
+      if(this.pendingPlayback)e.recoverable=false;
+      else if(this.state==='playing'&&e.recoverable!==false)e.recoverable=true;
       await this.recover(e,ticket);
     }
   }
@@ -223,11 +227,13 @@ export class TranslatorSession {
         if(ticket===this.version)await this.listen(ticket);return;
       }
       if(this.api.resume)await this.startup(ticket,'session_verify',()=>this.verify(ticket),22000,t('Status sesi belum terkonfirmasi. Periksa koneksi lalu tekan Lanjutkan.'));
-      if(ticket!==this.version)return;this.pendingKey=null;await this.listen(ticket);
+      if(ticket!==this.version)return;this.pendingKey=null;
+      if(this.pendingPlayback){this.stateTo('playing');await this.playback.play(this.pendingPlayback,this.controller.signal,()=>ticket===this.version);if(ticket!==this.version)return;this.pendingPlayback=null;}
+      await this.listen(ticket);
     }catch(e){if(ticket===this.version)this.pause(e);}
   }
   end(){
-    const id=this.id;this.held=false;this.clear(this.holdTimer);this.holdTimer=null;this.id=null;this.params=null;this.pendingKey=null;this.outputPending=false;this.resumeOutput=false;++this.version;this.controller?.abort();
+    const id=this.id;this.held=false;this.clear(this.holdTimer);this.holdTimer=null;this.id=null;this.params=null;this.pendingKey=null;this.pendingPlayback=null;this.outputPending=false;this.resumeOutput=false;++this.version;this.controller?.abort();
     // A detached recorder/context can throw while stopping. Continue every cleanup
     // and owner End independently so a device error cannot trap the active UI.
     try{this.capture.cancel();}catch{}try{this.playback.stop();}catch{}try{this.stateTo('ended');}catch{}

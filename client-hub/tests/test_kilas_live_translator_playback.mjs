@@ -221,11 +221,11 @@ test('numeric timings separate full download, decode, device resume and start wi
  f.player.fetchAudio=(_url,options)=>{f.requests.push({options});return download.promise;};
  f.context.decodeAudioData=()=>decode.promise;
  f.context.resume=async()=>{await resume.promise;f.context.state='running';};
- const playing=f.play();await tick();await f.advance(120);
+ const playing=f.play();await tick();await f.advance(40);resume.resolve();await tick();await f.advance(120);
  download.resolve({ok:true,arrayBuffer:async()=>new ArrayBuffer(32)});await tick();assert.equal(f.stats.started,0);
- await f.advance(80);decode.resolve({duration:2});await tick();assert.equal(f.stats.started,0);
- await f.advance(40);resume.resolve();await tick();assert.equal(f.stats.started,1);
- assert.deepEqual(timings,[{audio_download_ms:120},{audio_decode_ms:80},{audio_buffer_wait_ms:200},{audio_resume_ms:40},{audio_start_ms:0}]);
+ await f.advance(80);decode.resolve({duration:2});await tick();
+ assert.equal(f.stats.started,1);
+ assert.deepEqual(timings,[{audio_resume_ms:40},{audio_download_ms:120},{audio_decode_ms:80},{audio_buffer_wait_ms:200},{audio_start_ms:0}]);
  f.context.currentTime=2;f.nodes[0].onended();await playing;assert.equal(f.requests.length,1);assert.equal(f.timers.size,0);
 });
 

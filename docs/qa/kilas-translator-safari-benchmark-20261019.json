@@ -1,0 +1,25 @@
+{
+  "method": "Native Chromium MSE/MP3 or WebAudio decoder, loopback HTTP, synthetic microphone/providers; 200ms translation, 100ms first prefix, 1100ms tail. N=2 per arm. Browser onset proxy, not acoustic/provider latency.",
+  "measurements": [
+    {
+      "arm": "complete",
+      "direction": "id-en",
+      "release_to_browser_onset_ms": 1656.7
+    },
+    {
+      "arm": "complete",
+      "direction": "en-id",
+      "release_to_browser_onset_ms": 1633.7
+    },
+    {
+      "arm": "progressive",
+      "direction": "id-en",
+      "release_to_browser_onset_ms": 647.7
+    },
+    {
+      "arm": "progressive",
+      "direction": "en-id",
+      "release_to_browser_onset_ms": 600.6
+    }
+  ]
+}

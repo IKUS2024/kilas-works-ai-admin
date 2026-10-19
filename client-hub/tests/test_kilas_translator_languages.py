@@ -28,6 +28,22 @@ class CatalogTests(unittest.TestCase):
             request.assert_called_once_with('GET','/models')
             languages._until=0;languages.classic_names();self.assertEqual(request.call_count,2)
 
+    def test_all_catalogue_languages_intersect_speech_support_and_native_wire_routes(self):
+        with patch.object(provider,'configured',return_value=True),patch.object(provider,'request',return_value=self.catalogue(languages.NAMES)) as request:
+            self.assertEqual(set(languages.classic_names()),languages.CLASSIC)
+            for code in languages.NAMES:
+                other='en' if code!='en' else 'id'
+                if code in languages.CLASSIC:
+                    languages.require_classic(code,other);languages.require_classic(other,code)
+                    self.assertEqual(languages.speech_payload('Synthetic text',code)['language_code'],code)
+                else:
+                    for a,b in ((code,other),(other,code)):
+                        with self.assertRaises(ValueError):languages.require_classic(a,b)
+            request.assert_called_once_with('GET','/models')
+        for a in languages.NATIVE:
+            self.assertEqual(native.setup(a)['setup']['generationConfig']['translationConfig']['targetLanguageCode'],languages.native_wire(a))
+            for b in languages.NATIVE-{a}:sessions.require_pair(a,b,voice='gemini-live-two-way')
+
     def test_missing_alpha_malformed_and_failed_catalogue_never_fallback(self):
         for data in ([],{},[{'model_id':'eleven_v3','can_do_text_to_speech':True}],
                      [{'model_id':'eleven_v4','can_do_text_to_speech':False}],

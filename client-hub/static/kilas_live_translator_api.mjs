@@ -120,7 +120,7 @@ export class TranslatorTurns {
         if(result.status==='COMPLETED'&&progressiveTask){
           await progressiveTask;if(progressiveError)throw progressiveError;if(controller.signal.aborted)throw aborted();
           if(result.audio_url!==url+'/audio'||progressiveResult?.sha256!==result.audio_sha256)throw error('stream_invalid',t('Terjemahan audio tidak valid.'));
-          return {...result,streamed:true};
+          return {...result,streamed:true,...(progressiveResult.playbackError?{playbackError:progressiveResult.playbackError}:{})};
         }
         if(onSegment&&result.stream_output==='sentences-v1'&&['PROCESSING','COMPLETED'].includes(result.status)){
           let totalMs=0,previousText='';

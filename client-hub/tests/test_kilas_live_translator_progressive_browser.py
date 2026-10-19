@@ -15,9 +15,9 @@ window.AudioContext=class extends window.qaNativeAudioContext{
  createAnalyser(){return {fftSize:2048,disconnect(){},getFloatTimeDomainData(a){a.fill(qa.rms)}};}
  createBufferSource(){const n=super.createBufferSource(),start=n.start;n.start=function(...a){window.qaAudio.push(performance.now());window.qaOffsets.push(a[1]||0);return start.apply(this,a)};return n;}
 };
-window.qaAudio=[];window.qaMetrics=[];window.qaOffsets=[];window.qaElements=[];
+window.qaAudio=[];window.qaMetrics=[];window.qaOffsets=[];window.qaElements=[];window.qaStartedSources=new Set();
 const info=console.info;console.info=(...args)=>{if(String(args[0]).startsWith('KILAS_LIVE_CLIENT_LATENCY'))qaMetrics.push(String(args[0]));info.apply(console,args)};
-const NativeAudio=window.Audio;window.Audio=function(...args){const a=new NativeAudio(...args);qaElements.push(a);a.addEventListener('playing',()=>qaAudio.push(performance.now()),{once:true});return a;};
+const NativeAudio=window.Audio;window.Audio=function(...args){const a=new NativeAudio(...args);qaElements.push(a);a.addEventListener('playing',()=>{if(a.src.startsWith('blob:')&&!qaStartedSources.has(a.src)){qaStartedSources.add(a.src);qaAudio.push(performance.now());}});return a;};
 '''
 class ProgressiveBrowserTests(unittest.TestCase):
  setUp=fixture.HoldBrowserTests.setUp
