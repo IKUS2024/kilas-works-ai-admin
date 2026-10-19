@@ -403,6 +403,7 @@ summary{min-height:44px}
  .cs-price{font-size:36px}
  .cs-portfolio-grid:not(.is-filtered) [data-portfolio-service="social"]{display:block}
  .cs-portfolio-entry .cs-portfolio-preview{max-width:300px;margin-top:20px}
+ .cs-portfolio-grid:not(.is-filtered) [data-portfolio-service="social"] .cs-portfolio-preview{margin-top:20px}
  .cs-portfolio-grid.is-filtered .cs-portfolio-preview{max-width:300px}
  .cs-portfolio-entry .text-link{margin-top:12px}
  .cs-video-grid{gap:12px}
@@ -410,7 +411,8 @@ summary{min-height:44px}
  .focused-contact .contact-grid{grid-template-columns:1fr;gap:24px}
  .focused-contact .contact-actions{max-width:none;justify-self:stretch}
  .focused-contact h2{font-size:36px}
- .focused-footer .footer-bottom>a{margin-top:6px}
+ .focused-footer .footer-bottom>span{display:block}
+ .focused-footer .footer-bottom>a{display:flex;width:fit-content;margin-top:6px}
 }
 @media(max-width:360px){
  .wrap{width:calc(100% - 32px)}
