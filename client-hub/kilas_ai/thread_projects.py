@@ -41,11 +41,14 @@ def enqueue(owner,thread_id,text,key,mode,model,prepared):
     if workspace_large_outputs.requested(text) and not workspace_large_outputs.capability(owner)['available']:raise ValueError('Ekspor dokumen besar belum lolos verifikasi sandbox. File kecil tetap tersedia.')
     from . import chat_models
     if not model or not chat_models.check(model)['available']:raise ValueError('Model pilihan tidak tersedia. Permintaan tidak dialihkan ke model lain.')
+    from . import workspace_qa_once as qa
+    qa_key=qa.request_key(owner,model,text,prepared)
     # Snapshot the conversation before this turn, never another thread/tab.
     context=store.context(owner,thread_id,selected_model=model)[-8:]
     checkpoint={'origin_thread_id':thread_id,'author_model':model,'request_full':text,
                 'thread_context':json.dumps(context,ensure_ascii=False)[-12000:],
                 'generate_outputs':needs_run(text),'thread_operation_key':key}
+    if qa_key:checkpoint['qa_budget_key']=qa_key
     with jobs.transaction() as conn:
         suffix=' FOR UPDATE' if db.BACKEND=='postgres' else ''
         if not usage._query(conn,'SELECT id FROM kilas_ai_threads WHERE id=? AND user_id=?'+suffix,(thread_id,owner),one=True):abort(404)
@@ -54,13 +57,14 @@ def enqueue(owner,thread_id,text,key,mode,model,prepared):
             ident=json.loads(prior[0]).get('workspace_job_id')
             if not ident:raise ValueError('Permintaan ini sudah diterima.')
             return ident
+        qa.claim(conn,qa_key)
         count=usage._query(conn,"SELECT COUNT(*) FROM kilas_agent_jobs WHERE user_id=? AND status NOT IN ('COMPLETED','FAILED','STOPPED')",(owner,),one=True)[0]
         if count>=20:raise ValueError('Masih ada permintaan yang diproses. Tunggu jawabannya lalu coba lagi.')
         message=usage._query(conn,"INSERT INTO kilas_ai_messages(thread_id,role,content,mode,operation_key) VALUES (?,'user',?,?,?) RETURNING id",(thread_id,text,mode,key),one=True)[0]
         checkpoint['origin_thread_message_id']=message
         ident=usage._query(conn,"INSERT INTO kilas_agent_jobs(user_id,title,instruction,mode,status,constraints_json,next_wake_at,checkpoint_json,max_steps,max_attempts) VALUES (?,?,?,'ONE_SHOT','RUNNING','[]',?,?,1,1) RETURNING id",(owner,' '.join(text.split())[:90],text[:1200],jobs.stamp(),jobs.encode(checkpoint)),one=True)[0]
         payload=jobs.encode({'request':text})
-        usage._query(conn,"INSERT INTO kilas_agent_steps(job_id,sequence,worker,action,instruction,input_json,idempotency_key,status) VALUES (?,1,'PROJECT','create','Membuat struktur dan kode…',?,?,'PENDING')",(ident,payload,secrets.token_hex(24)))
+        usage._query(conn,"INSERT INTO kilas_agent_steps(job_id,sequence,worker,action,instruction,input_json,idempotency_key,status) VALUES (?,1,'PROJECT','create','Membuat struktur dan kode…',?,?,'PENDING')",(ident,payload,qa_key or secrets.token_hex(24)))
         meta=json.dumps({'workspace_job_id':ident,'status':'processing'})
         usage._query(conn,'UPDATE kilas_ai_messages SET metadata_json=? WHERE id=?',(meta,message))
         usage._query(conn,"INSERT INTO kilas_ai_messages(thread_id,role,content,mode,provider,model,operation_key,metadata_json) VALUES (?,'assistant','Menyiapkan jawaban…',?,?,?,?,?)",(thread_id,mode,chat_models.spec(model)['provider'],model,key+':assistant',meta))

@@ -97,6 +97,9 @@ def execute(job, step):
         from .document_worker import run
     elif step['worker'] == 'PROJECT':
         from ..workspace_projects import run
+        from ..workspace_qa_once import for_job
+        with for_job(job,step):
+            return run(job,step,data)
     elif step['worker'] == 'EXECUTION':
         from ..workspace_execution_worker import run
     elif step['worker'] == 'CODE':

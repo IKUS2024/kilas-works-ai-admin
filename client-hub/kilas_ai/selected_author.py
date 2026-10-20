@@ -4,6 +4,8 @@ from . import chat_models,model_policy,providers
 
 class Author:
     def __init__(self,model,prompt,style,attachments=()):
+        from .workspace_qa_once import before_author
+        before_author(model)  # No-op outside the single approved QA job.
         chat_models.spec(model)
         self.model=model;self.metadata={};self.used={'selected_model':model};self.dispatched=False
         from .attachments import prompt_content

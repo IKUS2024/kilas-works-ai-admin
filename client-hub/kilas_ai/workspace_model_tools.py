@@ -66,6 +66,8 @@ def turn(model,history,instruction,output_tokens=8192,effort='medium'):
                  'tools':[{'functionDeclarations':TOOLS}],
                  'generationConfig':{'maxOutputTokens':output_tokens}}
     used={};phase='transport';response=None
+    from .workspace_qa_once import before_send
+    before_send(model,payload)  # One-job guard; no-op for ordinary requests.
     try:
         response=requests.post(url,headers=headers,json=payload,timeout=(5,55));response.raise_for_status();phase='response_json';data=response.json()
         if not isinstance(data,dict):raise ValueError('invalid_response_root')
