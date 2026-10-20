@@ -39,9 +39,7 @@ def main():
       with page.expect_response(lambda r:'/categories?' in r.url and r.request.method=='POST'):group.get_by_role('button',name='Add subcategory…',exact=True).click()
       expect(single.locator('[data-expense-cascade]')).to_contain_text('Cascade child '+scope)
       inserted=db.query_one('SELECT category_id FROM finance_category_workspace_settings WHERE business_id=? AND display_name=?',(case.b,'Cascade child '+scope));assert db.query_one('SELECT parent_category_id FROM finance_category_hierarchy WHERE child_category_id=?',(inserted['category_id'],))['parent_category_id']==empty
-      # A child explicitly created in the picker is immediately available in management.
-      form.locator('[data-expense-manage-categories]').click();managed=page.locator('#category-dialog');current=managed.locator('[data-category-row][data-category-id="'+str(inserted['category_id'])+'"]');expect(current).to_have_attribute('aria-current','true');expect(current).to_be_visible()
-      current.locator('[data-category-edit-popup]').click();created_editor=page.locator('#category-editor-dialog');expect(created_editor.locator('[data-category-edit-form] [name=name]')).to_have_value('Cascade child '+scope);created_editor.get_by_role('button',name='Cancel',exact=True).click();managed.locator('[data-finance-close=category-dialog]').click();expect(form.locator('[data-expense-cascade]').first).to_contain_text('Cascade child '+scope)
+      expect(single.locator('[data-expense-subcategory-display]')).to_have_text('Cascade child '+scope)
      assert b.evaluate('(e)=>Array.from(e.options).filter(o=>o.value&&o.value!=="__add__"&&!o.disabled).every(o=>o.dataset.parent===e.closest("[data-expense-picker]").querySelector("[data-expense-parent]").value)')
      form.locator('[data-expense-split-toggle]').check();rows=form.locator('.expense-split-row')
      for index,(root,children,amount) in enumerate(((parent,kids,'50.00'),(other,otherkids,'50.01'))):
@@ -57,7 +55,7 @@ def main():
       page.goto(origin+case.url+f'/transactions/{tx}/edit?branch_id={branch}');expect(page.locator('[data-expense-split-toggle]')).to_be_checked();edit=page.locator('[data-expense-form]');row=edit.locator('.expense-split-row').first;assert row.locator('[data-expense-child]').input_value()==str(kids[0]['id']);choose(row,other['id']);assert row.locator('[data-expense-child]').input_value()==''
      else:dialog.get_by_role('button',name='Cancel',exact=True).click()
      def manager():
-      page.goto(base);page.locator('[data-transaction-direction=EXPENSE]').click();page.get_by_role('link',name='Manage categories',exact=True).click();box=page.locator('#category-dialog');expect(box).to_be_visible();return box
+      page.goto(base+'#finance-categories-EXPENSE');page.reload();box=page.locator('#category-dialog');expect(box).to_be_visible();return box
      box=manager();section=box.locator('[data-category-direction-section=EXPENSE]');root=section.locator('[data-category-group="'+str(parent['id'])+'"]');box.locator('[data-category-list-edit]').click();assert root.locator('[data-category-archive]').first.is_visible();assert box.evaluate('(e)=>e.scrollWidth<=e.clientWidth+1')
      page.screenshot(path=str(output/f'categories-{scope.lower()}-{width}.png'))
      root.locator(':scope > summary [data-category-edit-popup]').click();editor=page.locator('#category-editor-dialog');edit=editor.locator('[data-category-edit-form]');expect(editor).to_be_visible();assert edit.locator('input[name=icon_key]').count()==18;edit.locator('label:has(input[value=care])').click();assert edit.locator('input[value=care]').is_checked();assert editor.evaluate('(e)=>e.scrollWidth<=e.clientWidth+1');page.screenshot(path=str(output/f'editor-{scope.lower()}-{width}.png'))

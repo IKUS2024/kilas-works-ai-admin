@@ -1,4 +1,4 @@
-"""Expense selection/manager sync and layout; disposable ledger, loopback IO only.
+"""Expense read-only subcategory synchronization and layout; disposable ledger, loopback IO only.
 
 PYTHONPATH=client-hub:client-hub/tests KILAS_QA_CHROMIUM=/usr/bin/chromium \
   python client-hub/tests/finance_expense_category_browser.py
@@ -23,7 +23,8 @@ def ledger_snapshot():
 
 
 def choose(box, parent, child=None):
-    box.locator('[data-expense-cascade]').click()
+    if box.locator('[data-expense-cascade-panel]').is_hidden():
+        box.locator('[data-expense-cascade]').click()
     group = box.locator('[data-expense-group="'+str(parent)+'"]')
     if not group.evaluate('(e)=>e.open'):
         group.locator('summary').click()
@@ -80,6 +81,7 @@ def main():
                     form.locator('[name=amount]').fill('100.01')
                     form.locator('[name=occurred_on]').fill('2025-01-01')
                     form.locator('[name=account_id]').select_option(str(account))
+                    expect(single.locator('[data-expense-subcategory-display]')).to_have_text('No subcategory selected.')
                     before = ledger_snapshot()
                     choose(single, parent['id'], children[0]['id'])
                     summary = single.locator('[data-expense-cascade]').text_content()
@@ -104,23 +106,18 @@ def main():
                         page.screenshot(path=str(output/f'{engine}-{scope.lower()}-expense-{width}.png'))
                         choose(single, parent['id'])
                         page.screenshot(path=str(output/f'{engine}-{scope.lower()}-picker-{width}.png'))
-                    form.locator('[data-expense-manage-categories]').click()
-                    manager = page.locator('#category-dialog')
-                    expect(manager).to_be_visible()
-                    selected_root = manager.locator('[data-category-group="'+str(parent['id'])+'"]')
-                    assert selected_root.evaluate('(e)=>e.open')
-                    expect(selected_root).to_have_attribute('aria-current', 'true')
-                    expect(selected_root.locator('[data-category-row][data-category-id="'+str(children[0]['id'])+'"]')).to_have_attribute('aria-current', 'true')
-                    expect(manager.locator('[data-category-direction-section=EXPENSE]')).to_be_visible()
-                    manager.locator('[data-category-list-edit]').click()
-                    expect(selected_root.locator(':scope > summary [data-category-edit-popup]')).to_be_visible()
-                    expect(selected_root.locator('[data-category-add-child-popup]')).to_be_visible()
-                    expect(selected_root.locator(':scope > summary [data-category-move=down]')).to_be_visible()
-                    manager.locator('[data-category-list-edit]').click()
-                    if width in (390, 768, 1440):
-                        page.screenshot(path=str(output/f'{engine}-{scope.lower()}-manager-{width}.png'))
-                    manager.locator('[data-finance-close=category-dialog]').click()
+                    # This area is a display, never a category-management action.
+                    readout=single.locator('[data-expense-subcategory-display]')
+                    expect(readout).to_have_text(leaf_name)
+                    assert readout.evaluate('(e)=>e.tabIndex === -1 && !e.matches("a,button,input,select,textarea,[tabindex],[href]")')
+                    assert single.locator('.expense-subcategory-readout a,.expense-subcategory-readout button,.expense-subcategory-readout [tabindex]').count()==0
+                    assert form.locator('[data-expense-manage-categories]').count()==0
+                    readout.click()
+                    expect(page.locator('#category-dialog')).to_be_hidden()
                     expect(dialog).to_be_visible()
+                    single.locator('[data-expense-cascade]').focus()
+                    page.keyboard.press('Tab')
+                    assert not readout.evaluate('(e)=>e===document.activeElement')
                     expect(form.locator('[name=amount]')).to_have_value('100.01')
                     expect(single.locator('[data-expense-cascade]')).to_have_text(summary)
                     assert page.url == base
@@ -128,6 +125,7 @@ def main():
                     # Switching parent clears the old child; validation must block saving it.
                     choose(single, other['id'])
                     expect(single.locator('[data-expense-child]')).to_have_value('')
+                    expect(readout).to_have_text('No subcategory selected.')
                     dialog.get_by_role('button', name='Save', exact=True).click()
                     expect(single.locator('[data-expense-cascade-panel]')).to_be_visible()
                     assert not writes
@@ -137,9 +135,8 @@ def main():
                     for i, (root, leaf, value) in enumerate(((parent, children[0], '50.00'), (other, other_children[0], '50.01'))):
                         choose(rows.nth(i), root['id'], leaf['id'])
                         rows.nth(i).locator('[name=split_amount]').fill(value)
-                    form.locator('[data-expense-manage-categories]').click()
-                    expect(manager.locator('[data-category-row][aria-current=true]')).to_have_count(4)
-                    manager.locator('[data-finance-close=category-dialog]').click()
+                        expected=rows.nth(i).locator('[data-expense-child] option[value="'+str(leaf['id'])+'"]').text_content()
+                        expect(rows.nth(i).locator('[data-expense-subcategory-display]')).to_have_text(expected)
                     assert ledger_snapshot() == before and not writes
                     if width == 768:
                         with page.expect_navigation():
@@ -152,12 +149,25 @@ def main():
                         expect(row.locator('[data-expense-child]')).to_have_value(str(children[0]['id']))
                         expect(row.locator('[data-expense-cascade]')).to_contain_text(leaf_name)
                         assert edit.locator('[name=split_amount]').nth(1).input_value() == '50.01'
+                        expect(row.locator('[data-expense-subcategory-display]')).to_have_text(leaf_name)
+                        # The shared picker is also used by other-source expense edits.
+                        with branches.scope(case.b,branch,case.uid):
+                            legacy=finance.create_transaction(case.b,'EXPENSE',10001,account,children[0]['id'],'2025-01-01',source_type='FINANCE_OPERATOR',source_ref=f'{branch:032x}',actor_user_id=case.uid)
+                        page.goto(origin+case.url+f'/transactions/{legacy}/edit?branch_id={branch}')
+                        category_only=page.locator('[data-expense-category-only]');expect(category_only).to_be_visible()
+                        expect(category_only.locator('[data-expense-subcategory-display]')).to_have_text(leaf_name)
+                        legacy_before=ledger_snapshot();choose(category_only,other['id'])
+                        expect(category_only.locator('[data-expense-subcategory-display]')).to_have_text('No subcategory selected.')
+                        category_only.locator('[data-expense-choice="'+str(other_children[0]['id'])+'"]').click()
+                        other_name=category_only.locator('[data-expense-child] option[value="'+str(other_children[0]['id'])+'"]').text_content()
+                        expect(category_only.locator('[data-expense-subcategory-display]')).to_have_text(other_name)
+                        assert ledger_snapshot()==legacy_before
                     else:
                         dialog.get_by_role('button', name='Cancel', exact=True).click()
                         expect(dialog).to_be_hidden()
                         assert ledger_snapshot() == before and not writes
                     assert not errors, errors
-                    print(f'PASS {engine} {scope} {width}: hierarchy/selected-context/no-selection-writes/validation/splits/layout/save-or-cancel', flush=True)
+                    print(f'PASS {engine} {scope} {width}: hierarchy/read-only-subcategory/reset/no-selection-writes/validation/splits/layout/save-or-cancel', flush=True)
                     context.close()
             browser.close()
     finally:

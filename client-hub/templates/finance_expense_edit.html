@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
 {% block title %}{{ ui_t('Edit Pengeluaran') }}{% endblock %}
-{% block finance_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_expense.css',v='expense-category-tree-20261020') }}">{% endblock %}
+{% block finance_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_expense.css',v='expense-subcategory-readout-20261020') }}">{% endblock %}
 {% block content %}
 <section class="card expense-edit"><div class="expense-header"><a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id) }}">{{ ui_t('Batal') }}</a><h1>{{ ui_t('Edit Pengeluaran') }}</h1><button class="btn" type="submit" form="edit-expense">{{ ui_t('Simpan') }}</button></div>
 {% include '_finance_expense_form.html' %}</section>
 <form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=expense.id) }}" onsubmit='return confirm({{ ui_t('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari saldo, ringkasan, dan laporan.')|tojson }});'><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="finance-mini-action">{{ ui_t('Hapus') }}</button></form>
-<script src="{{ url_for('static',filename='finance_expense.js',v='expense-category-tree-20261020') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_expense.js',v='expense-subcategory-readout-20261020') }}" defer></script>
 {% endblock %}

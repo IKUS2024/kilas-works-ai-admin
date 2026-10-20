@@ -588,10 +588,10 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </dialog>
 {% endif %}
 
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_expense.css',v='expense-category-tree-20261020') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_expense.css',v='expense-subcategory-readout-20261020') }}">
 <dialog id="add-expense-dialog" class="finance-sheet"><div class="expense-header"><button type="button" data-finance-close="add-expense-dialog">{{ ui_t('Batal') }}</button><h2>{{ ui_t('Tambah Pengeluaran') }}</h2><button class="btn" type="submit" form="add-expense">{{ ui_t('Simpan') }}</button></div>
 {% with expense=None,expense_splits=[],expense_receipt_exists=False %}{% include '_finance_expense_form.html' %}{% endwith %}</dialog>
-<script src="{{ url_for('static',filename='finance_expense.js',v='expense-category-tree-20261020') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_expense.js',v='expense-subcategory-readout-20261020') }}" defer></script>
 <dialog id="add-transaction-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>{{ ui_t('Tambah Transaksi') }}</h2><button type="button" class="finance-sheet-close" data-finance-close="add-transaction-dialog" aria-label="{{ ui_t('Tutup') }}">×</button></div>
 <div class="finance-sheet-body"><form id="add-transaction" method="post" action="{{ url_for('finance.create_transaction',business_id=business.id,branch_id=g.finance_branch_id) }}" data-finance-entry data-personal="{{ 'true' if finance_workspace_personal else 'false' }}" data-finance-once>

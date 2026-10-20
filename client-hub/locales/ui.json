@@ -8673,5 +8673,6 @@
   "Hiburan": {"en": "Entertainment", "es": "Entretenimiento", "zh": "娱乐"},
   "Pengobatan": {"en": "Treatment", "es": "Tratamiento", "zh": "治疗"},
   "Kelola kategori": {"en": "Manage categories", "es": "Gestionar categorías", "zh": "管理类别"},
-  "Selesai mengedit": {"en": "Done", "es": "Listo", "zh": "完成"}
+  "Selesai mengedit": {"en": "Done", "es": "Listo", "zh": "完成"},
+  "Subkategori belum dipilih.": {"en": "No subcategory selected.", "es": "No se ha seleccionado ninguna subcategoría.", "zh": "尚未选择子分类。"}
 }

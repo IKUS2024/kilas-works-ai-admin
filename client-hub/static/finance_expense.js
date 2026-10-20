@@ -40,42 +40,7 @@
         choice(panel,t('Tambah kategori…'),()=>{close();create(parent,false);});
       }
       summary.onclick=()=>panel.hidden?show():close();box.addEventListener('keydown',event=>{if(event.key==='Escape'&&!panel.hidden){event.preventDefault();event.stopPropagation();close();summary.focus();}});document.addEventListener('click',event=>{if(!box.contains(event.target))close();});
-      const manageLink=box.querySelector('[data-expense-manage-categories]');
-      manageLink?.addEventListener('click',async event=>{
-        const manager=document.querySelector('[data-category-manager-root]');if(!manager)return;
-        event.preventDefault();close();
-        if(form.dataset.expenseCategoriesChanged==='true'){
-          try{
-            const response=await fetch(manageLink.href.split('#')[0],{credentials:'same-origin'});if(!response.ok)throw Error();
-            const fresh=new DOMParser().parseFromString(await response.text(),'text/html');
-            for(const row of fresh.querySelectorAll('[data-category-direction-section=EXPENSE] [data-category-row]')){
-              if(manager.querySelector('[data-category-row][data-category-id="'+row.dataset.categoryId+'"]'))continue;
-              const destination=row.dataset.categoryParent?manager.querySelector('[data-category-group="'+row.dataset.categoryParent+'"] .finance-category-tree-body'):manager.querySelector('[data-category-direction-section=EXPENSE]');
-              if(!destination)continue;
-              const copy=row.cloneNode(true);
-              for(const item of [copy,...copy.querySelectorAll('[data-category-row]')])item.draggable=manager.classList.contains('is-editing');
-              destination.insertBefore(copy,destination.querySelector(':scope > [data-category-add-child-popup],:scope > [data-category-create-popup]'));
-            }
-            const parents=document.querySelector('[data-category-editor-parent]');
-            for(const option of fresh.querySelectorAll('[data-category-editor-parent] option'))if(parents&&![...parents.options].some(item=>item.value===option.value))parents.append(option.cloneNode(true));
-            delete form.dataset.expenseCategoriesChanged;
-          }catch{window.alert(t('Kategori belum dapat disimpan.'));return;}
-        }
-        manager.querySelector('[data-category-direction-tab=EXPENSE]')?.click();
-        const selected=form.querySelector('[data-expense-split-toggle]')?.checked?[...form.querySelectorAll('.expense-split-row')]:[box];
-        const ids=new Set(selected.flatMap(row=>[row.querySelector('[data-expense-parent]').value,row.querySelector('[data-expense-child]').value]).filter(Boolean));
-        for(const row of manager.querySelectorAll('[data-category-row]')){
-          const active=ids.has(row.dataset.categoryId);row.classList.toggle('expense-category-current',active);
-          if(active)row.setAttribute('aria-current','true');else row.removeAttribute('aria-current');
-          let marker=row.querySelector(':scope > [data-expense-selection], :scope > summary > [data-expense-selection]');
-          if(!marker){marker=document.createElement('span');marker.dataset.expenseSelection='';marker.textContent='✓';marker.setAttribute('aria-hidden','true');(row.querySelector(':scope > summary')||row).append(marker);}marker.hidden=!active;
-          if(row.matches('details'))row.open=active;
-        }
-        manager.showModal();requestAnimationFrame(()=>manager.querySelector('.expense-category-current')?.scrollIntoView({block:'nearest'}));
-        manager.addEventListener('close',()=>manageLink.focus(),{once:true});
-      });
-      if(manageLink&&split)single.parentElement.append(manageLink);
-      function update(){for(const group of panel.querySelectorAll('[data-expense-group]'))group.querySelector('.expense-category-selected').textContent=group.dataset.expenseGroup===parent.value?'✓':'';for(const button of panel.querySelectorAll('[data-expense-choice]'))button.setAttribute('aria-pressed',String(button.dataset.expenseChoice===(child.value||parent.value)));let count=0;for(const option of child.options){if(!option.value||option.value==='__add__')continue;option.hidden=option.disabled=option.dataset.parent!==parent.value;if(!option.disabled)count++;}label.hidden=true;child.disabled=!parent.value;parent.required=child.required=false;summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||'')+(child.value?' / '+(child.selectedOptions[0]?.textContent||''):''):t('Pilih kategori');box.dataset.childRequired=String(!!count&&parent.value!==retainedParent);const empty=box.querySelector('[data-expense-empty-child]');if(empty)empty.disabled=!!parent.value;if(child.selectedOptions[0]?.disabled)child.value='';summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||'')+(child.value?' / '+(child.selectedOptions[0]?.textContent||''):''):t('Pilih kategori');}
+      function update(){for(const group of panel.querySelectorAll('[data-expense-group]'))group.querySelector('.expense-category-selected').textContent=group.dataset.expenseGroup===parent.value?'✓':'';for(const button of panel.querySelectorAll('[data-expense-choice]'))button.setAttribute('aria-pressed',String(button.dataset.expenseChoice===(child.value||parent.value)));let count=0;for(const option of child.options){if(!option.value||option.value==='__add__')continue;option.hidden=option.disabled=option.dataset.parent!==parent.value;if(!option.disabled)count++;}label.hidden=true;child.disabled=!parent.value;parent.required=child.required=false;summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||'')+(child.value?' / '+(child.selectedOptions[0]?.textContent||''):''):t('Pilih kategori');box.dataset.childRequired=String(!!count&&parent.value!==retainedParent);const empty=box.querySelector('[data-expense-empty-child]');if(empty)empty.disabled=!!parent.value;if(child.selectedOptions[0]?.disabled)child.value='';const display=box.querySelector('[data-expense-subcategory-display]');display.textContent=child.value?child.selectedOptions[0].textContent:display.dataset.emptyText;display.classList.toggle('is-empty',!child.value);summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||'')+(child.value?' / '+(child.selectedOptions[0]?.textContent||''):''):t('Pilih kategori');}
       if(initial){const leaf=[...child.options].find(o=>o.value===String(initial));parent.value=leaf?leaf.dataset.parent:String(initial);if(!leaf)retainedParent=String(initial);if(leaf)child.value=String(initial);}
       async function create(field,isChild){
         const original=field.dataset.previous||'';field.value=original;
@@ -91,7 +56,7 @@
             for(const option of result.options){const node=new Option(option.name,String(option.id));if(option.parent_category_id)node.dataset.parent=String(option.parent_category_id);(option.parent_category_id?b:a).append(node);}
             a.append(new Option(t('Tambah kategori…'),'__add__'));b.append(new Option(t('Tambah subkategori…'),'__add__'));a.value=av;b.value=bv;
           }
-          form.dataset.expenseCategoriesChanged='true';field.value=String(result.category.id);if(!isChild)child.value='';update();field.dataset.previous=field.value;if(!isChild)show();
+          field.value=String(result.category.id);if(!isChild)child.value='';update();field.dataset.previous=field.value;if(!isChild)show();
         }catch(error){window.alert(error.message||t('Kategori belum dapat disimpan.'));}finally{refresh();}
       }
       for(const [field,isChild] of [[parent,false],[child,true]])field.addEventListener('change',()=>{if(field.value==='__add__'){create(field,isChild);return;}field.dataset.previous=field.value;if(!isChild){child.value='';child.dataset.previous='';}update();});
