@@ -54,6 +54,77 @@ EXPENSE_V4=(
 )
 BUSINESS_UTILITY_V4=(('Listrik','Electricity'),('Air','Water'),('Internet','Internet'),('Telepon','Telephone'),('Gas','Gas'),('Laundry','Laundry'),('Sampah / Kebersihan','Garbage / Cleaning'))
 
+# The complete pre-identity Personal seed, introduced by 42492996. A label is
+# never sufficient provenance: retirement below also requires the initial
+# workspace timing and one mixed Income/Expense creation audit transaction.
+LEGACY_PERSONAL_ROOTS=('Tempat Tinggal / Sewa','Utilitas','Makanan & Belanja Harian','Transportasi','Kesehatan','Belanja Pribadi','Hiburan','Pendidikan','Asuransi','Cicilan / Utang','Keluarga','Donasi','Biaya Tak Terduga')
+LEGACY_PERSONAL_INCOME=('Gaji','Bonus','Freelance / Side Job','Investasi','Hadiah / Transfer Masuk')
+LEGACY_PERSONAL_UTILITIES=('Listrik','Air','Internet','Telepon','Gas','Laundry','Sampah / Kebersihan')
+
+def legacy_personal_seed_ids(workspace,settings,audits):
+    """Pure, fail-closed proof of the old initialization batch; no name guessing.
+
+    Old v1 import's __customer_owned__ means reused, not necessarily edited.
+    Only unchanged scoped settings from the complete original seed batch qualify.
+    Later custom descendants and actual edit/archive audits remain protected.
+    """
+    from datetime import datetime
+    import re
+    def instant(value):
+        try:
+            result=value if isinstance(value,datetime) else datetime.fromisoformat(str(value).replace('Z','+00:00'))
+            return result if result.tzinfo else None
+        except (ValueError,TypeError):return None
+    if not workspace or workspace['workspace_type']!='PERSONAL':return set()
+    started=instant(workspace['created_at'])
+    if not started:return set()
+    owner=workspace['owner_user_id'];branch=workspace['branch_id']
+    def initial(row):
+        made=instant(row.get('setting_created_at'));updated=instant(row.get('setting_updated_at'));raw_updated=instant(row.get('category_updated_at'))
+        return bool(made and updated and raw_updated and 0<=(made-started).total_seconds()<=5 and made==updated and raw_updated<=made and row['storage_name']==row['display_name'])
+    def roots(direction,names):
+        result=[]
+        for name in names:
+            matches=[r for r in settings if r['direction']==direction and r['display_name']==name and r['parent_category_id'] is None and initial(r)]
+            if len(matches)!=1:return []
+            result.append(matches[0])
+        return result
+    expense=roots('EXPENSE',LEGACY_PERSONAL_ROOTS);income=roots('INCOME',LEGACY_PERSONAL_INCOME)
+    if len(expense)!=13 or len(income)!=5:return set()
+    workspace_audit=any(a['action']=='FINANCE_PERSONAL_WORKSPACE_CREATED' and a['actor_user_id']==owner and a['detail']=='finance_record_id='+str(branch) and instant(a['created_at']) and abs((instant(a['created_at'])-started).total_seconds())<=1 for a in audits)
+    if not workspace_audit:return set()
+    # Five new Income roots and at least one new Expense root in the SAME audit
+    # timestamp prove the old ensure_finance_defaults transaction. Per-category
+    # UI actions cannot create that mixed-direction batch. Require subsecond
+    # audit precision; coarse legacy logs cannot establish this proof safely.
+    new=[r for r in expense+income if instant(r.get('category_created_at')) and 0<=(instant(r['category_created_at'])-started).total_seconds()<=5]
+    if len([r for r in new if r['direction']=='INCOME'])!=5 or not any(r['direction']=='EXPENSE' for r in new):return set()
+    stamps=[]
+    for row in new:
+        matches=[a for a in audits if a['action']=='FINANCE_CATEGORY_CREATED' and a['actor_user_id']==owner and a['detail']=='finance_record_id='+str(row['category_id'])]
+        if len(matches)!=1:return set()
+        value=matches[0]['created_at'];stamp=instant(value)
+        if not stamp or (not isinstance(value,datetime) and not re.search(r':\d{2}\.\d{3,}',str(value))) or not 0<=(stamp-started).total_seconds()<=5:return set()
+        stamps.append(stamp)
+    if len(set(stamps))!=1:return set()
+    utility=next(r for r in expense if r['display_name']=='Utilitas')
+    children=[r for r in settings if r['parent_category_id']==utility['category_id'] and r['display_name'] in LEGACY_PERSONAL_UTILITIES and initial(r)]
+    candidates=expense+children
+    edited={a['detail'] for a in audits if a['action'] in ('FINANCE_CATEGORY_UPDATED','FINANCE_CATEGORY_DEACTIVATED')}
+    return {r['category_id'] for r in candidates if 'finance_record_id='+str(r['category_id']) not in edited}
+
+def _legacy_seed_ids(business_id,scope,settings):
+    if scope['workspace_type']!='PERSONAL':return set()
+    if not set(LEGACY_PERSONAL_ROOTS)<={r['display_name'] for r in settings.values() if r['direction']=='EXPENSE' and r['parent_category_id'] is None}:return set()
+    try:
+        workspace=db.query_one('SELECT * FROM finance_branch_workspaces WHERE business_id=? AND workspace_type=? AND owner_user_id=?',(business_id,'PERSONAL',scope['owner_user_id']))
+        audits=db.query_all("SELECT action,actor_user_id,detail,created_at FROM audit_log WHERE business_id=? AND action IN ('FINANCE_PERSONAL_WORKSPACE_CREATED','FINANCE_CATEGORY_CREATED','FINANCE_CATEGORY_UPDATED','FINANCE_CATEGORY_DEACTIVATED')",(business_id,))
+        return legacy_personal_seed_ids(workspace,list(settings.values()),audits)
+    except Exception:
+        # Missing/old audit schemas provide no proof; preserve every unknown row.
+        return set()
+
+
 def _expense_policy(business_id,scope):
     import json
     row=db.query_one('SELECT changes_json FROM finance_category_catalog_versions WHERE business_id=? AND scope_key=? AND version=4',(business_id,scope['scope_key']))
@@ -250,10 +321,12 @@ def decorate(business_id,scope,rows,*,include_inactive=False):
         for previous in policy['preferences_before']:
             if previous.get('missing'):prefs.pop(previous['category_id'],None)
             else:prefs[previous['category_id']]=previous
-    settings={v['category_id']:dict(v) for v in db.query_all('SELECT s.category_id,s.display_name,h.parent_category_id FROM finance_category_workspace_settings s LEFT JOIN finance_category_hierarchy h ON h.business_id=s.business_id AND h.child_category_id=s.category_id WHERE s.business_id=? AND s.scope_key=?',(business_id,scope['scope_key']))}
+    settings={v['category_id']:dict(v) for v in db.query_all('SELECT s.category_id,s.display_name,s.created_at AS setting_created_at,s.updated_at AS setting_updated_at,c.name AS storage_name,c.direction,c.created_at AS category_created_at,c.updated_at AS category_updated_at,h.parent_category_id FROM finance_category_workspace_settings s JOIN finance_categories c ON c.business_id=s.business_id AND c.id=s.category_id LEFT JOIN finance_category_hierarchy h ON h.business_id=s.business_id AND h.child_category_id=s.category_id WHERE s.business_id=? AND s.scope_key=?',(business_id,scope['scope_key']))}
+    legacy=_legacy_seed_ids(business_id,scope,settings) if policy and policy.get('enabled') else set()
+    retired.update(legacy-{int(ident) for ident in approved})
     def proven(ident):
         item=metadata.get(ident);setting=settings.get(ident)
-        return bool(item and setting and item['builtin_name']!='__customer_owned__' and item['builtin_name']==setting['display_name'])
+        return ident in legacy or bool(item and setting and item['builtin_name']!='__customer_owned__' and item['builtin_name']==setting['display_name'])
     # A custom descendant protects its old parent from disappearing. Such rows
     # remain custom context, not additional defaults; names alone prove nothing.
     protected={v['parent_category_id'] for ident,v in settings.items() if v['parent_category_id'] and not proven(ident)}
