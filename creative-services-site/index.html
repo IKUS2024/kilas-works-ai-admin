@@ -66,34 +66,12 @@
 </a>
 <section class="creative-packages" id="creative-services" aria-labelledby="cs-title" lang="id">
 <div class="cs-home-view" id="cs-service-choices">
-<div class="cs-opening">
-<div class="cs-opening-copy">
 <div class="cs-intro cs-home-intro">
 <h1 id="cs-title">
 <span class="cs-title-first">Creative</span>
 <span class="cs-title-second">Services</span>
 </h1>
 <p data-cs-id="Dokumentasi acara dan produksi konten media sosial. Pilih layanan untuk melihat paket." data-cs-en="Event coverage and social media content production. Choose a service to explore the packages.">Dokumentasi acara dan produksi konten media sosial. Pilih layanan untuk melihat paket.</p>
-</div>
-</div>
-<div class="cs-opening-work">
-<a class="cs-hero-frame" href="#event-portfolio">
-<img src="assets/portfolio/event-first-drive.jpg" width="968" height="543" alt="Cuplikan video portofolio acara Kilas Works: panorama kota" fetchpriority="high">
-<span class="cs-frame-caption">
-<span data-cs-id="Foto &amp; Video Acara" data-cs-en="Event Photography &amp; Videography">Foto &amp; Video Acara</span>
-<span aria-hidden="true">
-<svg class="cs-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-<path d="M5 19 19 5M5 5h14v14">
-</path>
-</svg>
-</span>
-</span>
-</a>
-<a class="cs-hero-inset" href="#social-portfolio">
-<img src="assets/portfolio/social-05.jpg" width="337" height="599" alt="Cuplikan produksi konten mode dari portofolio media sosial">
-<span data-cs-id="Konten Media Sosial" data-cs-en="Social Content">Konten Media Sosial</span>
-</a>
-</div>
 </div>
 <div class="cs-service-grid">
 <a class="cs-service-choice" href="#cs-event" data-service-choice="event">
@@ -773,8 +751,22 @@
 <div class="section-heading">
 <h2 data-cs-id="Portofolio" data-cs-en="Portfolio" id="portfolio-title">Portofolio</h2>
 </div>
+<nav class="cs-portfolio-nav" aria-label="Kategori portofolio / Portfolio categories">
+<a href="#event-portfolio" data-portfolio-category="event">
+<span data-cs-id="Acara · 7 video" data-cs-en="Events · 7 videos">Acara · 7 video</span>
+</a>
+<a href="#social-portfolio" data-portfolio-category="social">
+<span data-cs-id="Media Sosial · 6 video" data-cs-en="Social Media · 6 videos">Media Sosial · 6 video</span>
+</a>
+</nav>
 <div class="cs-portfolio-grid" id="cs-portfolio-groups">
-<article class="cs-portfolio-entry" id="event-portfolio" data-portfolio-service="event">
+<article class="cs-portfolio-entry" id="event-portfolio" data-portfolio-service="event" aria-labelledby="event-portfolio-title">
+<div class="cs-portfolio-heading">
+<p class="eyebrow">01 / EVENT</p>
+<h3 data-cs-id="Portofolio Acara" data-cs-en="Event Portfolio" id="event-portfolio-title">Portofolio Acara</h3>
+<p data-cs-id="Foto dan video dokumentasi acara." data-cs-en="Event photography and video coverage.">Foto dan video dokumentasi acara.</p>
+</div>
+<div class="cs-portfolio-media">
 <a class="cs-work-cover cs-event-cover" href="#event-portfolio" data-home-only="" aria-label="Lihat portofolio acara / View event portfolio">
 <img src="assets/portfolio/event-06.jpg" width="599" height="336" loading="lazy" alt="Cuplikan dokumentasi pernikahan dari portofolio acara">
 <span class="cs-cover-action" aria-hidden="true">
@@ -782,20 +774,6 @@
 <path d="M5 19 19 5M5 5h14v14">
 </path>
 </svg>
-</span>
-</a>
-<p class="eyebrow">01 / EVENT</p>
-<h3 data-cs-id="Portofolio Acara" data-cs-en="Event Portfolio">Portofolio Acara</h3>
-<p data-cs-id="Foto dan video dokumentasi acara." data-cs-en="Event photography and video coverage.">Foto dan video dokumentasi acara.</p>
-<a class="text-link" data-portfolio-link="event" target="_blank" rel="noopener noreferrer" hidden>
-<span data-cs-id="Lihat portofolio" data-cs-en="View portfolio">Lihat portofolio</span>
-<span class="link-line" aria-hidden="true">
-</span>
-</a>
-<p data-cs-id="Tautan portofolio belum tersedia." data-cs-en="Portfolio link is not yet available." class="cs-pending-note" data-portfolio-pending="event" hidden>Tautan portofolio belum tersedia.</p>
-<a class="text-link cs-portfolio-open" href="#event-portfolio" data-portfolio-open="event">
-<span data-cs-id="Lihat 7 video" data-cs-en="View 7 videos">Lihat 7 video</span>
-<span class="link-line" aria-hidden="true">
 </span>
 </a>
 <div class="cs-video-grid" data-portfolio-videos="event" hidden>
@@ -940,8 +918,28 @@
 </span>
 </a>
 </div>
+</div>
+<div class="cs-portfolio-actions">
+<a class="text-link" data-portfolio-link="event" target="_blank" rel="noopener noreferrer" hidden>
+<span data-cs-id="Lihat portofolio" data-cs-en="View portfolio">Lihat portofolio</span>
+<span class="link-line" aria-hidden="true">
+</span>
+</a>
+<p data-cs-id="Tautan portofolio belum tersedia." data-cs-en="Portfolio link is not yet available." class="cs-pending-note" data-portfolio-pending="event" hidden>Tautan portofolio belum tersedia.</p>
+<a class="text-link cs-portfolio-open" href="#event-portfolio" data-portfolio-open="event">
+<span data-cs-id="Lihat 7 video acara" data-cs-en="View 7 event videos">Lihat 7 video acara</span>
+<span class="link-line" aria-hidden="true">
+</span>
+</a>
+</div>
 </article>
-<article class="cs-portfolio-entry" id="social-portfolio" data-portfolio-service="social">
+<article class="cs-portfolio-entry" id="social-portfolio" data-portfolio-service="social" aria-labelledby="social-portfolio-title">
+<div class="cs-portfolio-heading">
+<p class="eyebrow">02 / SOCIAL CONTENT</p>
+<h3 data-cs-id="Portofolio Konten Media Sosial" data-cs-en="Social Content Portfolio" id="social-portfolio-title">Portofolio Konten Media Sosial</h3>
+<p data-cs-id="Konten foto dan video dari One More Take." data-cs-en="Photo and video content from One More Take.">Konten foto dan video dari One More Take.</p>
+</div>
+<div class="cs-portfolio-media">
 <a class="cs-work-cover cs-social-cover" href="#social-portfolio" data-home-only="" aria-label="Lihat portofolio konten media sosial / View social content portfolio">
 <img src="assets/portfolio/social-02.jpg" width="337" height="599" loading="lazy" alt="Cuplikan konten produk kecantikan">
 <img src="assets/portfolio/social-03.jpg" width="337" height="599" loading="lazy" alt="Cuplikan konten foto dan video makanan">
@@ -951,23 +949,6 @@
 <path d="M5 19 19 5M5 5h14v14">
 </path>
 </svg>
-</span>
-</a>
-<p class="eyebrow">02 / SOCIAL CONTENT</p>
-<h3 data-cs-id="Portofolio Konten Media Sosial" data-cs-en="Social Content Portfolio">Portofolio Konten Media Sosial</h3>
-<p data-cs-id="Konten foto dan video dari One More Take." data-cs-en="Photo and video content from One More Take.">Konten foto dan video dari One More Take.</p>
-<a class="cs-portfolio-preview" href="https://www.instagram.com/onemoretake.id/reels/" target="_blank" rel="noopener noreferrer" aria-label="One More Take Reels Portfolio">
-<img src="assets/onemoretake-portfolio.jpg" width="1024" height="1536" loading="lazy" decoding="async" alt="Pilihan thumbnail video pendek dari akun Instagram onemoretake.id">
-</a>
-<a class="text-link" data-portfolio-link="social" href="https://www.instagram.com/onemoretake.id/reels/" target="_blank" rel="noopener noreferrer">
-<span data-cs-id="Kunjungi One More Take" data-cs-en="Visit One More Take">Kunjungi One More Take</span>
-<span class="link-line" aria-hidden="true">
-</span>
-</a>
-<p data-cs-id="Tautan portofolio belum tersedia." data-cs-en="Portfolio link is not yet available." class="cs-pending-note" data-portfolio-pending="social" hidden>Tautan portofolio belum tersedia.</p>
-<a class="text-link cs-portfolio-open" href="#social-portfolio" data-portfolio-open="social">
-<span data-cs-id="Lihat 6 video" data-cs-en="View 6 videos">Lihat 6 video</span>
-<span class="link-line" aria-hidden="true">
 </span>
 </a>
 <div class="cs-video-grid" data-portfolio-videos="social" hidden>
@@ -1089,6 +1070,23 @@
 </path>
 </svg>
 </span>
+</span>
+</a>
+</div>
+</div>
+<div class="cs-portfolio-actions">
+<a class="cs-portfolio-preview" href="https://www.instagram.com/onemoretake.id/reels/" target="_blank" rel="noopener noreferrer" aria-label="One More Take Reels Portfolio">
+<img src="assets/onemoretake-portfolio.jpg" width="1024" height="1536" loading="lazy" decoding="async" alt="Pilihan thumbnail video pendek dari akun Instagram onemoretake.id">
+</a>
+<a class="text-link" data-portfolio-link="social" href="https://www.instagram.com/onemoretake.id/reels/" target="_blank" rel="noopener noreferrer">
+<span data-cs-id="Kunjungi One More Take" data-cs-en="Visit One More Take">Kunjungi One More Take</span>
+<span class="link-line" aria-hidden="true">
+</span>
+</a>
+<p data-cs-id="Tautan portofolio belum tersedia." data-cs-en="Portfolio link is not yet available." class="cs-pending-note" data-portfolio-pending="social" hidden>Tautan portofolio belum tersedia.</p>
+<a class="text-link cs-portfolio-open" href="#social-portfolio" data-portfolio-open="social">
+<span data-cs-id="Lihat 6 video media sosial" data-cs-en="View 6 social videos">Lihat 6 video media sosial</span>
+<span class="link-line" aria-hidden="true">
 </span>
 </a>
 </div>
@@ -1222,6 +1220,14 @@ window.KILAS_SERVICES_CONFIG = {
     updateContactLinks();
     if (save) { try { localStorage.setItem('kilas-package-language', language); } catch (_) {} }
   }
+  function updateAnchorOffset() {
+    const header = document.querySelector('.header');
+    document.documentElement.style.scrollPaddingTop = Math.ceil(header.getBoundingClientRect().height + 16) + 'px';
+  }
+  function scrollToSection(target) {
+    updateAnchorOffset();
+    target.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }
   function setView(navigate = false) {
     const hash = window.location.hash;
     const panelId = ['#cs-event','#event-portfolio'].includes(hash) ? 'cs-event' : ['#cs-social','#social-portfolio'].includes(hash) ? 'cs-social' : '';
@@ -1238,20 +1244,24 @@ window.KILAS_SERVICES_CONFIG = {
     portfolioGrids.forEach(grid => { grid.hidden = !group || grid.dataset.portfolioVideos !== group; });
     portfolioOpeners.forEach(link => { link.hidden = !!group; });
     portfolioLayout.classList.toggle('is-filtered', !!group);
+    document.querySelectorAll('[data-portfolio-category]').forEach(link => {
+      if (link.dataset.portfolioCategory === group) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
     if (selectedPortfolioLink) selectedPortfolioLink.href = group ? '#' + group + '-portfolio' : '#portfolio';
     if (!navigate) return;
     if (hash === '#event-portfolio' || hash === '#social-portfolio') {
-      document.querySelector('#portfolio').scrollIntoView({ block: 'start' });
+      scrollToSection(document.querySelector('#portfolio'));
     } else if (panelId) {
       const panel = document.getElementById(panelId);
       panel.focus({ preventScroll: true });
-      document.querySelector('#services').scrollIntoView({ block: 'start' });
+      scrollToSection(document.querySelector('#services'));
     } else if (hash === '#portfolio' || hash === '#contact') {
-      document.querySelector(hash).scrollIntoView({ block: 'start' });
+      scrollToSection(document.querySelector(hash));
     } else if (wasPanel) {
       const choice = choices.find(item => item.getAttribute('href') === '#' + wasPanel);
       if (choice) choice.focus({ preventScroll: true });
-      document.querySelector('#services').scrollIntoView({ block: 'start' });
+      scrollToSection(document.querySelector('#services'));
     }
   }
   for (const key of ['event','social']) {
@@ -1264,10 +1274,29 @@ window.KILAS_SERVICES_CONFIG = {
   }
   languageButtons.forEach(button => button.addEventListener('click', () => setLanguage(button.dataset.csLanguage)));
   packageLinks.forEach(link => link.addEventListener('click', () => { chosenPackage = link; updateContactLinks(); }));
+  document.querySelectorAll('[data-portfolio-category], [data-portfolio-open], .cs-work-cover').forEach(link => {
+    link.addEventListener('click', event => {
+      if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && link.hash === window.location.hash) {
+        event.preventDefault();
+        setView(true);
+      }
+    });
+  });
   window.addEventListener('hashchange', () => setView(true));
+  window.addEventListener('resize', updateAnchorOffset);
+  updateAnchorOffset();
   document.querySelector('#year').textContent = new Date().getFullYear();
   try { setLanguage(localStorage.getItem('kilas-package-language') || 'id', false); } catch (_) { setLanguage('id', false); }
   setView(false);
+  // Native hash scrolling may run after load; restore the collection after layout settles.
+  function restorePortfolioAnchor() {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      updateAnchorOffset();
+      if (['#event-portfolio', '#social-portfolio', '#portfolio'].includes(window.location.hash)) setView(true);
+    }));
+  }
+  window.addEventListener('load', restorePortfolioAnchor, { once: true });
+  document.fonts.ready.then(restorePortfolioAnchor);
 })();
 </script>
 </body>
