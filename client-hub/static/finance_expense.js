@@ -12,15 +12,70 @@
   for(const form of document.querySelectorAll('[data-expense-form]')){
     const split=form.querySelector('[data-expense-split-toggle]'),rows=form.querySelector('[data-expense-splits]'),single=form.querySelector('[data-expense-single]'),add=form.querySelector('[data-expense-add-split]');
     function picker(box,initial){
-      const parent=box.querySelector('[data-expense-parent]'),child=box.querySelector('[data-expense-child]'),label=box.querySelector('[data-expense-child-label]'),summary=box.querySelector('[data-expense-cascade]'),panel=box.querySelector('[data-expense-cascade-panel]');let retainedParent=null,stage='parents';
+      const parent=box.querySelector('[data-expense-parent]'),child=box.querySelector('[data-expense-child]'),label=box.querySelector('[data-expense-child-label]'),summary=box.querySelector('[data-expense-cascade]'),panel=box.querySelector('[data-expense-cascade-panel]');let retainedParent=null;
       const close=()=>{panel.hidden=true;summary.setAttribute('aria-expanded','false');};
-      function choice(text,fn){const button=document.createElement('button');button.type='button';button.textContent=text;button.onclick=event=>{event.stopPropagation();fn();};panel.append(button);}
-      function show(next='parents'){stage=next;panel.replaceChildren();panel.hidden=false;summary.setAttribute('aria-expanded','true');
-        if(stage==='children'&&parent.value){choice('‹ '+t('Kategori'),()=>show('parents'));const title=document.createElement('strong');title.textContent=parent.selectedOptions[0]?.textContent||'';panel.append(title);for(const option of child.options){if(option.value&&option.value!=='__add__'&&option.dataset.parent===parent.value)choice(option.textContent,()=>{child.value=option.value;child.dispatchEvent(new Event('change'));close();});}choice(t('Tambah subkategori…'),()=>{close();create(child,true);});if(![...child.options].some(o=>o.value&&o.value!=='__add__'&&o.dataset.parent===parent.value))choice(t('Pilih kategori ini'),()=>{update();close();});
-        }else{for(const option of parent.options){if(option.value&&option.value!=='__add__')choice(option.textContent,()=>{parent.value=option.value;parent.dispatchEvent(new Event('change'));show('children');});}choice(t('Tambah kategori…'),()=>{close();create(parent,false);});}
+      function icon(option){return (box.querySelector('[data-expense-category-icons]').content.querySelector('[data-category-icon-id="'+option.value+'"]')||box.querySelector('[data-expense-category-icons]').content.querySelector('[data-category-icon-default]')).cloneNode(true);}
+      function choice(container,text,fn,option){
+        const button=document.createElement('button');button.type='button';
+        if(option){const glyph=icon(option);if(glyph)button.append(glyph);button.dataset.expenseChoice=option.value;button.setAttribute('aria-pressed',String(option.value===(child.value||parent.value)));}
+        const copy=document.createElement('span');copy.textContent=text;button.append(copy);
+        button.onclick=event=>{event.stopPropagation();fn();};container.append(button);return button;
       }
-      summary.onclick=()=>panel.hidden?show('parents'):close();box.addEventListener('keydown',event=>{if(event.key==='Escape'){close();summary.focus();}});document.addEventListener('click',event=>{if(!box.contains(event.target))close();});
-      function update(){let count=0;for(const option of child.options){if(!option.value||option.value==='__add__')continue;option.hidden=option.disabled=option.dataset.parent!==parent.value;if(!option.disabled)count++;}label.hidden=true;child.disabled=!parent.value;parent.required=child.required=false;summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||'')+(child.value?' / '+(child.selectedOptions[0]?.textContent||''):''):t('Pilih kategori');box.dataset.childRequired=String(!!count&&parent.value!==retainedParent);const empty=box.querySelector('[data-expense-empty-child]');if(empty)empty.disabled=!!parent.value;if(child.selectedOptions[0]?.disabled)child.value='';summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||'')+(child.value?' / '+(child.selectedOptions[0]?.textContent||''):''):t('Pilih kategori');}
+      function show(){
+        panel.replaceChildren();panel.hidden=false;summary.setAttribute('aria-expanded','true');
+        for(const option of parent.options){
+          if(!option.value||option.value==='__add__')continue;
+          const children=[...child.options].filter(o=>o.value&&o.value!=='__add__'&&o.dataset.parent===option.value);
+          const group=document.createElement('details'),head=document.createElement('summary');group.dataset.expenseGroup=option.value;group.open=parent.value===option.value;
+          const glyph=icon(option);if(glyph)head.append(glyph);
+          const name=document.createElement('strong');name.textContent=option.textContent;head.append(name);
+          const selected=document.createElement('span');selected.className='expense-category-selected';selected.textContent=parent.value===option.value?'✓':'';selected.setAttribute('aria-hidden','true');head.append(selected);
+          const chevron=document.createElement('span');chevron.className='finance-category-chevron';chevron.textContent='›';head.append(chevron);group.append(head);
+          const body=document.createElement('div');body.className='expense-category-children';group.append(body);
+          head.addEventListener('click',()=>{if(parent.value!==option.value){parent.value=option.value;parent.dispatchEvent(new Event('change'));}for(const other of panel.querySelectorAll('details')){if(other!==group)other.open=false;}});
+          for(const leaf of children)choice(body,leaf.textContent,()=>{parent.value=option.value;update();child.value=leaf.value;child.dispatchEvent(new Event('change'));close();summary.focus();},leaf);
+          if(!children.length)choice(body,t('Pilih kategori ini'),()=>{parent.value=option.value;parent.dispatchEvent(new Event('change'));close();summary.focus();},option);
+          choice(body,t('Tambah subkategori…'),()=>{parent.value=option.value;update();close();create(child,true);});panel.append(group);
+        }
+        choice(panel,t('Tambah kategori…'),()=>{close();create(parent,false);});
+      }
+      summary.onclick=()=>panel.hidden?show():close();box.addEventListener('keydown',event=>{if(event.key==='Escape'&&!panel.hidden){event.preventDefault();event.stopPropagation();close();summary.focus();}});document.addEventListener('click',event=>{if(!box.contains(event.target))close();});
+      const manageLink=box.querySelector('[data-expense-manage-categories]');
+      manageLink?.addEventListener('click',async event=>{
+        const manager=document.querySelector('[data-category-manager-root]');if(!manager)return;
+        event.preventDefault();close();
+        if(form.dataset.expenseCategoriesChanged==='true'){
+          try{
+            const response=await fetch(manageLink.href.split('#')[0],{credentials:'same-origin'});if(!response.ok)throw Error();
+            const fresh=new DOMParser().parseFromString(await response.text(),'text/html');
+            for(const row of fresh.querySelectorAll('[data-category-direction-section=EXPENSE] [data-category-row]')){
+              if(manager.querySelector('[data-category-row][data-category-id="'+row.dataset.categoryId+'"]'))continue;
+              const destination=row.dataset.categoryParent?manager.querySelector('[data-category-group="'+row.dataset.categoryParent+'"] .finance-category-tree-body'):manager.querySelector('[data-category-direction-section=EXPENSE]');
+              if(!destination)continue;
+              const copy=row.cloneNode(true);
+              for(const item of [copy,...copy.querySelectorAll('[data-category-row]')])item.draggable=manager.classList.contains('is-editing');
+              destination.insertBefore(copy,destination.querySelector(':scope > [data-category-add-child-popup],:scope > [data-category-create-popup]'));
+            }
+            const parents=document.querySelector('[data-category-editor-parent]');
+            for(const option of fresh.querySelectorAll('[data-category-editor-parent] option'))if(parents&&![...parents.options].some(item=>item.value===option.value))parents.append(option.cloneNode(true));
+            delete form.dataset.expenseCategoriesChanged;
+          }catch{window.alert(t('Kategori belum dapat disimpan.'));return;}
+        }
+        manager.querySelector('[data-category-direction-tab=EXPENSE]')?.click();
+        const selected=form.querySelector('[data-expense-split-toggle]')?.checked?[...form.querySelectorAll('.expense-split-row')]:[box];
+        const ids=new Set(selected.flatMap(row=>[row.querySelector('[data-expense-parent]').value,row.querySelector('[data-expense-child]').value]).filter(Boolean));
+        for(const row of manager.querySelectorAll('[data-category-row]')){
+          const active=ids.has(row.dataset.categoryId);row.classList.toggle('expense-category-current',active);
+          if(active)row.setAttribute('aria-current','true');else row.removeAttribute('aria-current');
+          let marker=row.querySelector(':scope > [data-expense-selection], :scope > summary > [data-expense-selection]');
+          if(!marker){marker=document.createElement('span');marker.dataset.expenseSelection='';marker.textContent='✓';marker.setAttribute('aria-hidden','true');(row.querySelector(':scope > summary')||row).append(marker);}marker.hidden=!active;
+          if(row.matches('details'))row.open=active;
+        }
+        manager.showModal();requestAnimationFrame(()=>manager.querySelector('.expense-category-current')?.scrollIntoView({block:'nearest'}));
+        manager.addEventListener('close',()=>manageLink.focus(),{once:true});
+      });
+      if(manageLink&&split)single.parentElement.append(manageLink);
+      function update(){for(const group of panel.querySelectorAll('[data-expense-group]'))group.querySelector('.expense-category-selected').textContent=group.dataset.expenseGroup===parent.value?'✓':'';for(const button of panel.querySelectorAll('[data-expense-choice]'))button.setAttribute('aria-pressed',String(button.dataset.expenseChoice===(child.value||parent.value)));let count=0;for(const option of child.options){if(!option.value||option.value==='__add__')continue;option.hidden=option.disabled=option.dataset.parent!==parent.value;if(!option.disabled)count++;}label.hidden=true;child.disabled=!parent.value;parent.required=child.required=false;summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||'')+(child.value?' / '+(child.selectedOptions[0]?.textContent||''):''):t('Pilih kategori');box.dataset.childRequired=String(!!count&&parent.value!==retainedParent);const empty=box.querySelector('[data-expense-empty-child]');if(empty)empty.disabled=!!parent.value;if(child.selectedOptions[0]?.disabled)child.value='';summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||'')+(child.value?' / '+(child.selectedOptions[0]?.textContent||''):''):t('Pilih kategori');}
       if(initial){const leaf=[...child.options].find(o=>o.value===String(initial));parent.value=leaf?leaf.dataset.parent:String(initial);if(!leaf)retainedParent=String(initial);if(leaf)child.value=String(initial);}
       async function create(field,isChild){
         const original=field.dataset.previous||'';field.value=original;
@@ -36,20 +91,20 @@
             for(const option of result.options){const node=new Option(option.name,String(option.id));if(option.parent_category_id)node.dataset.parent=String(option.parent_category_id);(option.parent_category_id?b:a).append(node);}
             a.append(new Option(t('Tambah kategori…'),'__add__'));b.append(new Option(t('Tambah subkategori…'),'__add__'));a.value=av;b.value=bv;
           }
-          field.value=String(result.category.id);if(!isChild)child.value='';update();field.dataset.previous=field.value;if(!isChild)show('children');
+          form.dataset.expenseCategoriesChanged='true';field.value=String(result.category.id);if(!isChild)child.value='';update();field.dataset.previous=field.value;if(!isChild)show();
         }catch(error){window.alert(error.message||t('Kategori belum dapat disimpan.'));}finally{refresh();}
       }
       for(const [field,isChild] of [[parent,false],[child,true]])field.addEventListener('change',()=>{if(field.value==='__add__'){create(field,isChild);return;}field.dataset.previous=field.value;if(!isChild){child.value='';child.dataset.previous='';}update();});
-      box.refreshExpensePicker=update;box.openExpensePicker=()=>show(parent.value?'children':'parents');update();parent.dataset.previous=parent.value;child.dataset.previous=child.value;
+      box.refreshExpensePicker=update;box.openExpensePicker=show;update();parent.dataset.previous=parent.value;child.dataset.previous=child.value;
     }
     picker(single,form.dataset.initialCategory);
     if(form.hasAttribute('data-expense-category-only')){form.addEventListener('submit',event=>{const a=single.querySelector('[data-expense-parent]'),b=single.querySelector('[data-expense-child]');if(!a.value||(single.dataset.childRequired==='true'&&!b.value)){event.preventDefault();single.openExpensePicker();summaryFocus();}});function summaryFocus(){single.querySelector('[data-expense-cascade]').focus();}continue;}
-    function row(value){if(rows.children.length>=20)return;const fragment=form.querySelector('template').content.cloneNode(true),box=fragment.firstElementChild;rows.append(box);picker(box,value?.category_id);if(value){const input=box.querySelector('[name="split_amount"]');input.value=(BigInt(value.amount_minor)/100n).toString()+'.'+(BigInt(value.amount_minor)%100n).toString().padStart(2,'0');}box.querySelector('[data-expense-remove-split]').onclick=()=>{if(rows.children.length>2)box.remove();};}
+    function row(value){if(rows.children.length>=20)return;const fragment=form.querySelector('[data-expense-split-template]').content.cloneNode(true),box=fragment.firstElementChild;rows.append(box);picker(box,value?.category_id);if(value){const input=box.querySelector('[name="split_amount"]');input.value=(BigInt(value.amount_minor)/100n).toString()+'.'+(BigInt(value.amount_minor)%100n).toString().padStart(2,'0');}box.querySelector('[data-expense-remove-split]').onclick=()=>{if(rows.children.length>2)box.remove();};}
     function refresh(){if(!split){single.refreshExpensePicker();return;}rows.hidden=add.hidden=!split.checked;single.hidden=split.checked;for(const control of single.querySelectorAll('select,button'))control.disabled=split.checked;if(!split.checked)single.refreshExpensePicker();for(const control of rows.querySelectorAll('input,select,button'))control.disabled=!split.checked;if(split.checked)for(const box of rows.children)box.refreshExpensePicker();}
     const initial=JSON.parse(form.dataset.initialSplits||'[]');for(const value of initial)row(value);if(initial.length)split.checked=true;while(rows.children.length<2)row();
     split.addEventListener('change',refresh);add.onclick=()=>row();refresh();
     // Restore selected leaf categories after initialization (refresh filters child lists).
-    if(initial.length)[...rows.children].forEach((box,i)=>{const leaf=box.querySelector('[data-expense-child]');if([...leaf.options].some(o=>o.value===String(initial[i].category_id)))leaf.value=String(initial[i].category_id);});
+    if(initial.length)[...rows.children].forEach((box,i)=>{const leaf=box.querySelector('[data-expense-child]');if([...leaf.options].some(o=>o.value===String(initial[i].category_id))){leaf.value=String(initial[i].category_id);box.refreshExpensePicker();}});
     const account=form.querySelector('[data-expense-account]');function currency(){form.querySelector('[data-expense-currency]').textContent=account.selectedOptions[0]?.dataset.currency||'';}account.addEventListener('change',currency);currency();
     const photo=form.querySelector('[data-expense-photo]'),photoName=form.querySelector('[data-expense-photo-name]'),photoPlaceholder=form.querySelector('[data-expense-photo-placeholder]'),photoClear=form.querySelector('[data-expense-photo-clear]'),photoError=form.querySelector('[data-expense-photo-error]');
     let photoPreview=form.querySelector('[data-expense-photo-preview]'),photoURL=null,photoPending=null,photoRevision=0;

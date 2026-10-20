@@ -877,8 +877,8 @@ if(categoryEditor){
     });
   }
 
-  for(const button of document.querySelectorAll('[data-category-add-child-popup]')){
-    button.addEventListener('click',()=>{
+  document.addEventListener('click',event=>{
+      const button=event.target.closest('[data-category-add-child-popup]');if(!button)return;
       editorMode='subcategory';
       const kind=String(button.dataset.categoryDirection||currentDirection());
       const parentId=String(button.dataset.categoryParentId||'');
@@ -896,11 +896,10 @@ if(categoryEditor){
       }
       showEditor();
       if(createName)createName.focus({preventScroll:true});
-    });
-  }
+  });
 
-  for(const button of document.querySelectorAll('[data-category-edit-popup]')){
-    button.addEventListener('click',()=>{
+  document.addEventListener('click',event=>{
+      const button=event.target.closest('[data-category-edit-popup]');if(!button)return;
       const id=String(button.dataset.categoryId||'');
       const name=String(button.dataset.categoryName||'');
       const kind=String(button.dataset.categoryKind||'category');
@@ -918,8 +917,7 @@ if(categoryEditor){
         editName.select();
       }
       showEditor();
-    });
-  }
+  });
 
   refreshParents();
 }
