@@ -5,3 +5,5 @@
 <script src="{{ url_for('static',filename='kilas_artifacts.js',v='result-cards-20261019') }}" defer></script>
 {% if ui_model_surface|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_models.css',v='model-clean-header-20261017') }}">{% endif %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
+
+{% include 'kilas_ai/_attachment_assets.html' %}

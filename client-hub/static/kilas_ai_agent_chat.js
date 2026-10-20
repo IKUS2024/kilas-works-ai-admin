@@ -135,6 +135,7 @@
         throw failure;
       }
       accepted = true;
+      if(selected.length)form.dispatchEvent(new Event('work:accepted'));
       if(input.value===draft){input.value='';draftCleared=true;input.dispatchEvent(new Event('input'));}
       if (response.headers.get('content-type')?.includes('text/event-stream')) {
         activeStream=response.headers.get('X-Workspace-Stream');lastEvent=0;
@@ -177,11 +178,11 @@
       form.elements.operation_key.value = Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
     } catch (failure) {
       if(answer)window.KilasMarkdown.finish(answer);
-      if(draftCleared&&!input.value){input.value=draft;input.dispatchEvent(new Event('input'));}
+      if(draftCleared&&!input.value&&!(accepted&&selected.length)){input.value=draft;input.dispatchEvent(new Event('input'));}
       error.textContent = failure.publicMessage || t('Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.');
       error.hidden = false;
       // Same key is retained after an uncertain outcome: retry cannot create duplicate work.
-      if(!accepted)userMessage.closest('.agent-message').remove();
+      if(!accepted){const group=userMessage.parentElement.querySelector('.chat-user-attachments');if(group)window.KilasChatAttachments?.release(group);userMessage.closest('.agent-message').remove();}
       if (accepted) { try { await refresh(); } catch (_) { /* Keep visible local messages. */ } }
     } finally {
       document.dispatchEvent(new Event('kilas:request-finished'));

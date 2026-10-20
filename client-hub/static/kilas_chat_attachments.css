@@ -1,0 +1,18 @@
+/* Uploaded user media only; generated answers and other app surfaces retain their styles. */
+:is(.kilas-home-workspace,.agent-body) .chat-user-attachments{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;width:fit-content;max-width:min(100%,600px);margin-top:8px;min-width:0}
+:is(.kilas-home-workspace,.agent-body) .chat-upload-image{position:relative;display:block;flex:0 1 180px;width:180px;max-width:100%;height:140px;min-width:0;overflow:hidden;border:1px solid var(--line,#e4e5e7);border-radius:14px;background:var(--bg-soft,#f7f7f6);color:inherit;text-decoration:none}
+:is(.kilas-home-workspace,.agent-body) .chat-upload-image img{display:block;width:100%;height:100%;object-fit:cover}
+:is(.kilas-home-workspace,.agent-body) .chat-upload-image img[hidden]{display:none}
+:is(.kilas-home-workspace,.agent-body) .chat-upload-image:focus-visible{outline:2px solid var(--accent,#bd4700);outline-offset:3px}
+:is(.kilas-home-workspace,.agent-body) .chat-upload-image.is-unavailable{display:grid;place-items:center;font-size:13px;color:var(--muted,#62666f)}
+:is(.kilas-home-workspace,.agent-body) .chat-user-attachments .ai-file-card{width:320px;max-width:100%;min-width:0;margin:0}
+.kilas-light .ai-shell .ai-user .chat-user-attachments .ai-file-card{max-width:100%}
+:is(.kilas-home-workspace,.agent-body) :is(.ai-pending-item,.work-pending-file).chat-upload-image{flex:0 0 104px;width:104px;height:88px;padding:0}
+:is(.kilas-home-workspace,.agent-body) :is(.ai-pending-item,.work-pending-file).chat-upload-image button{position:absolute;top:3px;right:3px;display:grid;place-items:center;min-width:30px;min-height:30px;width:30px;height:30px;padding:0;border:1px solid #d5d7da;border-radius:50%;background:#fff;color:#202329;font-size:20px;line-height:1;cursor:pointer}
+:is(.kilas-home-workspace,.agent-body) .chat-upload-image>img{border-radius:0}
+:is(.kilas-home-workspace,.agent-body) .chat-user-attachments:empty{display:none}
+@media(max-width:440px){:is(.kilas-home-workspace,.agent-body) .chat-user-attachments{gap:8px}:is(.kilas-home-workspace,.agent-body) .chat-user-attachments .chat-upload-image{flex-basis:calc(50% - 4px);width:156px;height:128px}:is(.kilas-home-workspace,.agent-body) .chat-user-attachments .chat-upload-image:only-child{flex-basis:180px;width:180px;height:140px}}
+
+:is(.kilas-home-workspace,.agent-body) :is(.ai-user,.agent-message-user) :is(.ai-message-text,.agent-message-text):empty{display:none}
+.agent-body .chat-user-attachments .ai-file-card{display:grid;grid-template-columns:52px minmax(0,1fr);gap:12px;padding:14px;border:1px solid var(--agent-line,#e4e5e7);border-radius:12px;background:var(--agent-panel,#fff)}
+.agent-body .chat-user-attachments .ai-file-actions{grid-column:1/-1}

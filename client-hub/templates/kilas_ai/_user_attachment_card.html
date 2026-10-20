@@ -1,0 +1,5 @@
+{% from 'kilas_ai/_artifact_card.html' import artifact_card with context %}
+{% macro user_attachment(filename,mime_type,byte_size,url) -%}
+{% if mime_type.startswith('image/') %}<a class="chat-upload-image" href="{{ url }}?inline=1" target="_blank" rel="noopener" aria-label="{{ ui_t('Gambar dalam chat') }}"><img src="{{ url }}?inline=1" alt="{{ ui_t('Gambar dalam chat') }}" loading="lazy" decoding="async" width="180" height="140"></a>
+{% else %}{{ artifact_card(filename,byte_size,url,url+'?inline=1' if mime_type=='application/pdf' else none) }}{% endif %}
+{%- endmacro %}
