@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Kilas Works Client Hub{% endblock %}</title>
+{% if kilas_revision_shell|default(false) %}<link rel="preload" href="{{ url_for('static',filename='fonts/manrope-variable.ttf') }}" as="font" type="font/ttf" crossorigin>{% endif %}
 <style>
   :root {
     --bg: #16171a; --bg-soft: #1e2024; --card: #222428; --border: #33363c;
@@ -305,6 +306,18 @@
 {% if finance_ui and finance_ui.enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_revisions.css',v='20261018-branch-plus') }}">{% endif %}
 {% block kilas_feature_styles %}{% endblock %}
 {% if premium_ui %}{% include '_ui_i18n_head.html' %}{% endif %}
+{% if kilas_revision_shell|default(false) %}
+{% set revision_styles_in_head=true %}
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_revision_shell.css',v='consistent-ui-20261012') }}">
+{% if chat_sidebar_enabled|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_sidebar.css',v='sidebar-context-20261017') }}">{% endif %}
+{% endif %}
+{% if chat_styles_in_head|default(false) %}
+{% if group_tab|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_groups.css',v='1') }}">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_capacity_notice.css',v='1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_markdown.css',v='answer-layout-20261020') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_call.css',v='call-public-search-20261017') }}">
+{% endif %}
+{% block initial_component_styles %}{% endblock %}
 </head>
 <body data-finance-month="{{ finance_ui.month if finance_ui else '' }}" data-finance-currency="{{ finance_ui.currency if finance_ui else '' }}" class="{{ 'kilas-light' if premium_ui }} {{ 'account-standalone' if account_standalone }} {{ 'premium-workspace' if premium_workspace }} {{ 'kw-app' if not premium_ui and workspace_ui and workspace_ui.enabled and workspace_ui.product == 'ai' and not (finance_ui and finance_ui.enabled) else '' }} {{ 'finance-app' if finance_ui and finance_ui.enabled else '' }} {% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
 {% if premium_ui and not session.get('user_id') %}<div class="public-language">{% set language_location = 'public' %}{% include '_language_selector.html' %}</div>{% endif %}

@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_generation_feedback.css',v='20261005') }}">
+{% if not feature_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_generation_feedback.css',v='20261005') }}">{% endif %}
 <aside id="generation-feedback" class="generation-feedback" role="status" aria-live="polite" aria-atomic="true" hidden>
   <span class="generation-feedback-icon" aria-hidden="true"></span>
   <div><strong id="generation-feedback-title"></strong><p id="generation-feedback-detail"></p></div>

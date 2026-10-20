@@ -1,9 +1,17 @@
 {% extends 'base.html' %}
+{% set feature_styles_in_head=true %}
 {% block title %}{{ 'Kilas Translator' if active_mode=='translate' else 'Voice Over' }} · Kilas Works
 {% endblock %}
 {% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_audio.css',v='history-origin-20261015') }}">{% endblock %}
+{% block initial_component_styles %}
+{% if upload_translation_visible %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_translator_picker.css',v='stable-picker-20261020') }}">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_generation_feedback.css',v='20261005') }}">
+{% if upload_translation_visible %}{% include 'kilas_translator/_picker_no_script.html' %}{% endif %}
+{% endblock %}
 {% block content %}
-{% if upload_translation_visible %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_translator_picker.css',v='language-names-auto-20261018') }}"><script src="{{ url_for('static',filename='kilas_translator_picker.js',v='language-names-auto-20261018') }}" defer></script>{% endif %}
+{% if upload_translation_visible %}<script src="{{ url_for('static',filename='kilas_translator_picker.js',v='stable-picker-20261020') }}" defer></script>{% endif %}
 {% if home_task %}{% include 'kilas_ai/_home_handoff.html' %}{% endif %}
 {% include 'kilas_content/_handoff.html' %}
 {% with selected_feature=active_mode %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}
@@ -19,7 +27,8 @@
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}-t"><input type="hidden" name="mode" value="translate">
 <label class="audio-upload" for="audio-file"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg><strong>{{ ui_t("Pilih audio atau video") }}</strong><span>{{ ui_t("MP4 maks.") }} {{ max_mb }} {{ ui_t("MB · MP3, WAV, M4A maks.") }} {{ audio_max_mb }} MB · {{ max_seconds//60 }} {{ ui_t("menit") }}</span></label>
 <input type="file" id="audio-file" name="file" accept=".mp4,.mp3,.wav,.m4a" data-max-file-mb="{{ max_mb }}" data-max-audio-mb="{{ audio_max_mb }}" required aria-describedby="audio-duration"><p id="audio-duration" role="status">{{ ui_t("Durasi dibaca sebelum Translate.") }}</p>
-<div class="audio-fields"><label>{{ ui_t("Bahasa sumber") }}<select data-translator-language name="source_language"><option value="auto">{{ ui_t('Auto Detect') }}</option>{% for code,label in dubbing_sources.items() %}<option data-search-name="{{ label }}" value="{{ code }}">{{ translator_language_names.get(code,label) }}</option>{% endfor %}</select></label><label>{{ ui_t("Bahasa tujuan") }}<select data-translator-language name="language">{% for code,label in dubbing_languages.items() %}<option data-search-name="{{ label }}" value="{{ code }}" {{ 'selected' if code=='en' }}>{{ translator_language_names.get(code,label) }}</option>{% endfor %}</select></label></div>
+{% from 'kilas_translator/_language_picker.html' import language_picker with context %}
+<div class="audio-fields"><label>{{ ui_t("Bahasa sumber") }}{{ language_picker('source_language',ui_t('Bahasa sumber'),dubbing_sources,'auto',auto=true) }}</label><label>{{ ui_t("Bahasa tujuan") }}{{ language_picker('language',ui_t('Bahasa tujuan'),dubbing_languages,'en') }}</label></div>
 <button class="btn" type="submit" {{ 'disabled' if not provider_ready or (not balance.exempt and not balance.available) }}>Translate</button>
 </form></section>{% endif %}
 <section id="voiceover-panel" role="tabpanel" aria-labelledby="voiceover-tab" {{ 'hidden' if active_mode!='voiceover' }}>

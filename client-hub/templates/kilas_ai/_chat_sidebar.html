@@ -1,6 +1,6 @@
 {% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
 {% set chat_history = home_ai if home_ai|default(false) else chat_sidebar_history() %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_sidebar.css',v='sidebar-context-20261017') }}">
+{% if not revision_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_sidebar.css',v='sidebar-context-20261017') }}">{% endif %}
 <section class="kilas-chat-sidebar" aria-label="{{ ui_t('Percakapan') }}" data-chat-sidebar>
   {% if home_agent|default(false) %}<form class="home-agent-new" method="post" action="{{ url_for('kilas_ai.agent_new_chat') }}" data-chat-navigation><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">{{ drawer_icon('new-chat') }}<span>{{ ui_t('Chat baru') }}</span></button></form>{% else %}<a class="ai-new" href="{{ url_for('products.product_start') }}" data-chat-navigation>{{ drawer_icon('new-chat') }}<span>{{ ui_t('Chat baru') }}</span></a>{% endif %}
   <a class="chat-history-all chat-library-entry" href="{{ url_for('kilas_ai.library') }}" data-chat-navigation>{{ drawer_icon('library') }}<span>{{ ui_t('Library saya') }}</span>{{ drawer_icon('chevron') }}</a>

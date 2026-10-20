@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_call.css',v='call-public-search-20261017') }}">
+{% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_call.css',v='call-public-search-20261017') }}">{% endif %}
 <dialog id="ai-call-dialog" class="ai-call-dialog" hidden aria-labelledby="ai-call-title">
   <header class="ai-call-header"><h2 id="ai-call-title">AI Call</h2><p id="ai-call-status" role="status" aria-live="polite">{{ ui_t('Menghubungkan…') }}</p></header>
   <div class="ai-call-body"><div class="ai-call-identity" aria-hidden="true"><img src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="160" height="160" alt=""></div><p class="ai-call-name">Kilas</p><p id="ai-call-caption" class="ai-call-caption" aria-label="{{ ui_t('Jawaban suara') }}" aria-live="polite"></p><div id="ai-call-sources" class="ai-call-sources" hidden aria-live="polite"></div><p id="ai-call-error" class="ai-call-error" role="alert" hidden></p></div>

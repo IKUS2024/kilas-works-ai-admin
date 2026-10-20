@@ -1,0 +1,10 @@
+{% macro language_picker(name,label,choices,selected,disabled='',required=false,auto=false,placeholder=false,native=false) -%}
+<span class="translator-picker" data-translator-picker>
+<select data-translator-language name="{{ name }}" {{ 'required' if required }}>
+{% if placeholder %}<option value="" disabled hidden>{{ ui_t('Pilih bahasa') }}</option>{% endif %}
+{% if auto %}<option value="auto" {{ 'selected' if selected=='auto' }}>{{ ui_t('Auto Detect') }}</option>{% endif %}
+{% for code,english in choices.items() %}<option data-search-name="{{ english }}"{% if native %} data-display-code="{{ 'zh-Hans' if code=='zh' else 'pt-PT' if code=='pt' else code }}"{% endif %} value="{{ code }}" {{ 'selected' if code==selected }} {{ 'disabled' if code==disabled }}>{{ translator_language_names.get(code,english) }}</option>{% endfor %}
+</select>
+<button type="button" data-translator-trigger aria-label="{{ label }}" aria-haspopup="listbox" aria-expanded="false" aria-disabled="true">{{ ui_t('Auto Detect') if selected=='auto' else translator_language_names.get(selected,choices[selected]) if selected in choices else ui_t('Belum tersedia') }}</button>
+</span>
+{%- endmacro %}

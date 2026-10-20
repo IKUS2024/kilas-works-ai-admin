@@ -25,7 +25,7 @@
   </main>
 
 </section>
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_markdown.css',v='answer-layout-20261020') }}">
+{% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_markdown.css',v='answer-layout-20261020') }}">{% endif %}
 <script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='answer-layout-20261020') }}" defer></script><script src="{{ url_for('static',filename='kilas_home.js',v='history-empty-fit-20261017') }}" defer></script><script src="{{ url_for('static',filename='kilas_thread_projects.js',v='result-cards-20261019') }}" defer></script><script src="{{ url_for('static',filename='kilas_ai.js',v='result-cards-20261019') }}" defer></script>
 
 {% include 'kilas_ai/_ai_call_surface.html' %}

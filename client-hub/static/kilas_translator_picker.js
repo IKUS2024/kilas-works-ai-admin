@@ -5,10 +5,11 @@
   const fold=value=>String(value).normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase(locale).trim();
   let serial=0;
   for(const select of document.querySelectorAll('select[data-translator-language]')) {
-    const wrapper=document.createElement('span');wrapper.className='translator-picker';
-    select.before(wrapper);wrapper.append(select);select.tabIndex=-1;
+    let wrapper=select.closest('[data-translator-picker]');
+    if(!wrapper){wrapper=document.createElement('span');wrapper.className='translator-picker';select.before(wrapper);wrapper.append(select);}
+    select.tabIndex=-1;
     const label=[...(select.closest('label')?.childNodes||[])].filter(n=>n.nodeType===Node.TEXT_NODE).map(n=>n.textContent).join(' ').trim();
-    const button=document.createElement('button');button.type='button';button.setAttribute('aria-label',label);button.setAttribute('aria-haspopup','listbox');button.setAttribute('aria-expanded','false');
+    const button=wrapper.querySelector('[data-translator-trigger]')||document.createElement('button');button.type='button';button.removeAttribute('aria-disabled');button.setAttribute('aria-label',label);button.setAttribute('aria-haspopup','listbox');button.setAttribute('aria-expanded','false');
     const popup=document.createElement('span');popup.className='translator-picker-popup';popup.hidden=true;
     const search=document.createElement('input');search.type='search';search.autocomplete='off';search.placeholder=t('Cari bahasa');search.setAttribute('aria-label',t('Cari bahasa'));search.setAttribute('role','combobox');search.setAttribute('aria-expanded','true');search.setAttribute('aria-autocomplete','list');
     const list=document.createElement('span');list.className='translator-picker-list';list.id='translator-language-list-'+(++serial);list.setAttribute('role','listbox');list.setAttribute('aria-label',label);search.setAttribute('aria-controls',list.id);button.setAttribute('aria-controls',list.id);
