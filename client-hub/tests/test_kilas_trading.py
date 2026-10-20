@@ -124,7 +124,7 @@ class TradingTests(unittest.TestCase):
         for item in ('Form &amp; Online Assistance','Content Studio','Talent Management'):
             self.assertIn(item,page.text)
         self.assertNotIn('Buka Kilas Trading',self.login(self.other).get('/products/services').text)
-        self.assertIn('https://kilasworks.id',self.client.get('/products/start').text)
+        self.assertIn('/creative-services/',self.client.get('/products/start').text)
 
     def test_services_entry_restored_for_pilot_and_other_accounts(self):
         import re,html
@@ -138,14 +138,14 @@ class TradingTests(unittest.TestCase):
             self.assertNotIn('Kilas Trading',pilot.text)
             links=service_links(pilot.text)
             self.assertTrue(links,route)
-            self.assertTrue(all(a=='https://kilasworks.id' for a in links),route)
+            self.assertTrue(all(a=='/creative-services/' for a in links),route)
         for c in (self.login(self.other),self.login(self.admin)):
             page=c.get('/products/start')
             self.assertIn('Kilas Services',page.text)
             self.assertNotIn('Kilas Trading',page.text)
             links=service_links(page.text)
             self.assertTrue(links)
-            self.assertTrue(all(a=='https://kilasworks.id' for a in links))
+            self.assertTrue(all(a=='/creative-services/' for a in links))
         self.assertNotIn('Kilas Services',self.client.get('/products/services/trading').text.split('<main class="trading"',1)[1].split('</main>',1)[0])
         with patch.dict(os.environ,{'KILAS_TRADING_ENABLED':'false'}):
             self.assertNotIn('href="/products/services/trading"',self.client.get('/products/start').text)

@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kilas Works — Creative Services</title>
 <meta name="description" content="Dokumentasi foto dan video acara serta content plan media sosial dari Kilas Works. Pilih layanan untuk melihat paket dan portofolio.">
-<link rel="canonical" href="https://kilasworks.id/">
-<meta property="og:url" content="https://kilasworks.id/">
+<link rel="canonical" href="https://app.kilasworks.id/creative-services/">
+<meta property="og:url" content="https://app.kilasworks.id/creative-services/">
 <meta name="theme-color" content="#f5f6f2">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="id_ID">
@@ -19,8 +19,7 @@
 <style>.cs-language{display:none!important}#creative-services .cs-panel[hidden]{display:none!important}#creative-services .cs-panel:target[hidden]{display:block!important;margin-top:25px}#creative-services:has(.cs-panel:target) .cs-home-view{display:none!important}</style>
 </noscript>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Kilas Works","legalName":"CV Kilas Teknologi Kreatif","url":"https://kilasworks.id/","hasOfferCatalog":{"@type":"OfferCatalog","name":"Creative Services","itemListElement":[{"@type":"OfferCatalog","name":"Foto & Video Acara"},{"@type":"OfferCatalog","name":"Content Plan Media Sosial"}]}}</script>
-<link rel="preload" href="assets/fonts/instrument-serif.ttf" as="font" type="font/ttf" crossorigin="">
-<link rel="preload" href="assets/fonts/manrope-variable.ttf" as="font" type="font/ttf" crossorigin="">
+<link rel="preload" href="assets/fonts/inter-variable.woff2" as="font" type="font/woff2" crossorigin="">
 <link rel="stylesheet" href="assets/editorial.css">
 </head>
 <body>
@@ -768,7 +767,8 @@
 </div>
 <div class="cs-portfolio-media">
 <a class="cs-work-cover cs-event-cover" href="#event-portfolio" data-home-only="" aria-label="Lihat portofolio acara / View event portfolio">
-<img src="assets/portfolio/event-06.jpg" width="599" height="336" loading="lazy" alt="Cuplikan dokumentasi pernikahan dari portofolio acara">
+<img src="assets/portfolio/event-first-drive.jpg" width="968" height="543" loading="lazy" alt="Thumbnail company profile, Video Acara 01 dari portofolio Kilas Works">
+<span class="cs-cover-label" data-cs-id="Company Profile · Video Acara 01" data-cs-en="Company Profile · Event Video 01">Company Profile · Video Acara 01</span>
 <span class="cs-cover-action" aria-hidden="true">
 <svg class="cs-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 <path d="M5 19 19 5M5 5h14v14">
@@ -1151,6 +1151,10 @@ window.KILAS_SERVICES_CONFIG = {
   const root = document.querySelector('#creative-services');
   if (!root) return;
   const config = window.KILAS_SERVICES_CONFIG || {};
+  // The same source also remains available as the standalone public fallback.
+  if (window.location.pathname.startsWith('/creative-services/')) {
+    document.querySelector('.cs-back-home').href = '/products/start';
+  }
   const languageButtons = [...document.querySelectorAll('[data-cs-language]')];
   const homeView = document.querySelector('#cs-service-choices');
   const panels = [...root.querySelectorAll('.cs-panel')];
@@ -1223,6 +1227,12 @@ window.KILAS_SERVICES_CONFIG = {
   function updateAnchorOffset() {
     const header = document.querySelector('.header');
     document.documentElement.style.scrollPaddingTop = Math.ceil(header.getBoundingClientRect().height + 16) + 'px';
+    const portfolio = document.querySelector('#portfolio');
+    // Native hash restoration can occur after JS scrolling, including cached font reloads.
+    // Match its offset to the portfolio intro so the heading and category navigation stay visible.
+    portfolioGroups.forEach(entry => {
+      if (!entry.hidden) entry.style.scrollMarginTop = Math.max(0, Math.ceil(entry.getBoundingClientRect().top - portfolio.getBoundingClientRect().top)) + 'px';
+    });
   }
   function scrollToSection(target) {
     updateAnchorOffset();
@@ -1248,6 +1258,7 @@ window.KILAS_SERVICES_CONFIG = {
       if (link.dataset.portfolioCategory === group) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
+    updateAnchorOffset();
     if (selectedPortfolioLink) selectedPortfolioLink.href = group ? '#' + group + '-portfolio' : '#portfolio';
     if (!navigate) return;
     if (hash === '#event-portfolio' || hash === '#social-portfolio') {

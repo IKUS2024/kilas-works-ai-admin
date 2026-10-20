@@ -36,6 +36,12 @@ import display_labels
 
 client_bp = Blueprint("client", __name__, url_prefix="")
 
+# Public read-only service pages use the existing client namespace and unchanged app guards.
+from routes_creative_services import creative_services, creative_services_asset
+client_bp.add_url_rule('/creative-services/', view_func=creative_services, methods=['GET'])
+client_bp.add_url_rule('/creative-services/assets/<path:filename>', view_func=creative_services_asset, methods=['GET'])
+
+
 WIZARD_STEPS = ["basics", "services", "operations", "faq", "style", "upload"]
 REQUIRED_STEPS_FOR_AI_SETUP = ["basics", "services", "operations", "faq", "style"]
 
