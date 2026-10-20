@@ -1,0 +1,29 @@
+[
+  {
+    "width": 390,
+    "original_preserved_new_take": true,
+    "double_click_single_post": true,
+    "ambiguous_reload_same_key": true,
+    "read_only_audio_retry": true,
+    "no_overflow": true,
+    "paid_calls": 0
+  },
+  {
+    "width": 768,
+    "original_preserved_new_take": true,
+    "double_click_single_post": true,
+    "ambiguous_reload_same_key": true,
+    "read_only_audio_retry": true,
+    "no_overflow": true,
+    "paid_calls": 0
+  },
+  {
+    "width": 1440,
+    "original_preserved_new_take": true,
+    "double_click_single_post": true,
+    "ambiguous_reload_same_key": true,
+    "read_only_audio_retry": true,
+    "no_overflow": true,
+    "paid_calls": 0
+  }
+]

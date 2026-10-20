@@ -230,6 +230,28 @@ def create():
     return {'url':url_for('kilas_audio.home',ident=ident),'id':ident},201 if new else 200
 
 
+@audio_bp.post('/jobs/<int:ident>/alternate')
+def alternate(ident):
+    user=session['user_id'];job=owned(ident)
+    key=request.form.get('operation_key','')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',key):abort(400)
+    if job['mode']!='voiceover' or job['status']!='COMPLETED' or not job['has_spoken_script']:abort(409)
+    existing=db.query_one('SELECT id,alternate_of FROM kilas_audio_jobs WHERE user_id=? AND operation_key=?',(user,key))
+    if existing:
+        if existing['alternate_of']!=ident:abort(409)
+        return {'url':url_for('kilas_audio.home',ident=existing['id']),'id':existing['id']},200
+    store.require_balance(user)
+    if not provider.configured():raise store.AudioError('Audio sedang belum tersedia. Saldo kamu tetap aman.','not_configured',503)
+    if job['voice_is_personal'] and not personal.owns(user,job['voice_id']):
+        raise store.AudioError('Suara tidak lagi tersedia. Pilih kembali.','voice_unavailable',409)
+    source=db.query_one('SELECT spoken_script,original_script FROM kilas_audio_jobs WHERE id=? AND user_id=?',(ident,user))
+    estimate,reserve=service.estimate(source['spoken_script'])
+    new_id,new=store.create(user,key,'voiceover',job['title'],job['source_language'],job['target_language'],job['voice_id'],job['voice_name'],source['spoken_script'],0,None,estimate,reserve,
+                           original_script=source['original_script'],alternate_of=ident,delivery_stability=0.65 if job['delivery_stability']==0.35 else 0.35)
+    if new:service.submit(user,new_id)
+    return {'url':url_for('kilas_audio.home',ident=new_id),'id':new_id},201 if new else 200
+
+
 @audio_bp.post('/personal-voice/inspect')
 def inspect_personal_voice():
     # Local decoder only: no clone, provider request, voice mutation or balance deduction.

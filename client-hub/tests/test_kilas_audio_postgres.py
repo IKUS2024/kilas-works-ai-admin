@@ -24,7 +24,7 @@ def main():
         values=original();return dict(values,options=values['options']+' -c search_path='+isolated)
     try:
         with patch.object(db,'_postgres_connect_kwargs',side_effect=options):
-            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_','0090_','0091_','0092_','0095_','0098_'))]):db.init_schema()
+            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0083_','0084_','0085_','0086_','0090_','0091_','0092_','0095_','0098_','0110_'))]):db.init_schema()
             before={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert schema.apply_release()==[schema.NAME];assert schema.apply_release()==[]
             after={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
@@ -53,6 +53,14 @@ def main():
             assert schema.apply_release('0095_kilas_free_test')==[]
             assert schema.apply_release('0098_kilas_live_session_output')==['0098_kilas_live_session_output']
             assert schema.apply_release('0098_kilas_live_session_output')==[]
+            legacy_before=dict(db.query_one('SELECT * FROM kilas_audio_jobs WHERE user_id=?',(legacy_user,)))
+            assert schema.apply_release('0110_kilas_voice_alternate')==['0110_kilas_voice_alternate']
+            assert schema.apply_release('0110_kilas_voice_alternate')==[]
+            legacy_after=dict(db.query_one('SELECT * FROM kilas_audio_jobs WHERE user_id=?',(legacy_user,)))
+            assert all(legacy_after[k]==v for k,v in legacy_before.items())
+            assert legacy_after['spoken_script'] is None and legacy_after['alternate_of'] is None
+            assert legacy_after['delivery_stability'] is None and legacy_after['voice_is_personal']==0
+
             with store.locked(0) as conn:
                 user=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
                 admin=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('audio-admin@example.test','hash','KILAS_ADMIN') RETURNING id",one=True)[0]

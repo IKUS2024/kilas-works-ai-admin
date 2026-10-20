@@ -63,7 +63,7 @@ def require_balance(user, required=1):
 
 
 def get(user,ident):
-    return db.query_one("SELECT id,user_id,mode,title,source_language,target_language,voice_id,voice_name,estimated_seconds,source_ms,actual_ms,seconds_charged,status,provider_id,error_code,created_at,updated_at, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL THEN 1 ELSE 0 END AS has_original_script, CASE WHEN substr(result_content,5,4)=? THEN 1 ELSE 0 END AS result_is_video FROM kilas_audio_jobs WHERE id=? AND user_id=?",(b'ftyp',ident,user))
+    return db.query_one("SELECT id,user_id,mode,title,alternate_of,delivery_stability,voice_is_personal, CASE WHEN spoken_script IS NOT NULL THEN 1 ELSE 0 END AS has_spoken_script,source_language,target_language,voice_id,voice_name,estimated_seconds,source_ms,actual_ms,seconds_charged,status,provider_id,error_code,created_at,updated_at, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL THEN 1 ELSE 0 END AS has_original_script, CASE WHEN substr(result_content,5,4)=? THEN 1 ELSE 0 END AS result_is_video FROM kilas_audio_jobs WHERE id=? AND user_id=?",(b'ftyp',ident,user))
 
 
 HISTORY_PAGE_SIZE = 4
@@ -132,13 +132,19 @@ def edit_script(user,ident):
     return row['original_script'] if row else None
 
 
-def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,pcm,estimated,reserve,*,personal_required=False,original_script=None,live_session=None):
+def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,pcm,estimated,reserve,*,personal_required=False,original_script=None,live_session=None,alternate_of=None,delivery_stability=None):
     if mode!='voiceover':original_script=None
     if original_script is not None and (not isinstance(original_script,str) or not 1<=len(original_script)<=4000):
         raise AudioError('Naskah asli maksimal 4.000 karakter; teks tidak dipotong.')
-    fingerprint = hashlib.sha256(json.dumps([mode,title,source,target,voice,script,source_ms],ensure_ascii=False).encode()+(pcm or b'')).hexdigest()
+    fingerprint_inputs=[mode,title,source,target,voice,script,source_ms]
+    if alternate_of is not None:fingerprint_inputs.extend([alternate_of,delivery_stability])
+    fingerprint = hashlib.sha256(json.dumps(fingerprint_inputs,ensure_ascii=False).encode()+(pcm or b'')).hexdigest()
     with locked(user) as conn:
         _expire(conn,user)
+        if alternate_of is not None:
+            origin=usage._query(conn,"SELECT spoken_script,target_language,voice_id,voice_is_personal FROM kilas_audio_jobs WHERE id=? AND user_id=? AND mode='voiceover' AND status='COMPLETED' AND content_origin!='live_session'",(alternate_of,user),one=True)
+            if not origin or not origin[0] or (script,target,voice)!=tuple(origin[:3]) or delivery_stability not in (0.35,0.65):
+                raise AudioError('Versi asal tidak tersedia.','alternate_unavailable',409)
         if live_session:
             from . import live_translator_store as sessions
             session_id,turn_key=live_session
@@ -146,8 +152,11 @@ def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,p
             turn=usage._query(conn,"SELECT status FROM kilas_live_translator_turns WHERE session_id=? AND operation_key=?",(session_id,turn_key),one=True)
             if key!=turn_key+'-audio' or not turn or turn[0]!='PROCESSING':raise AudioError('Ucapan dibatalkan.','turn_cancelled',409)
         saved_voice=usage._query(conn,'SELECT 1 FROM kilas_audio_saved_voices WHERE user_id=? AND voice_id=?',(user,voice),one=True) if mode=='voiceover' else None
+        if alternate_of is not None and origin[3]:
+            owned_voice=usage._query(conn,'SELECT 1 FROM kilas_audio_personal_voices WHERE user_id=? AND voice_id=?',(user,voice),one=True)
+            if not saved_voice and not owned_voice:raise AudioError('Suara tidak lagi tersedia. Pilih kembali.','voice_unavailable',409)
         if personal_required and not saved_voice:raise AudioError('Suara tidak lagi tersedia. Pilih kembali.','voice_unavailable',409)
-        if mode=='voiceover' and (voice_name=='Suara Saya' or saved_voice):
+        if mode=='voiceover' and (voice_name=='Suara Saya' or saved_voice or (alternate_of is not None and origin[3])):
             personal=usage._query(conn,'SELECT voice_id,claim_until FROM kilas_audio_personal_voices WHERE user_id=?',(user,),one=True)
             if not personal or (personal[0]!=voice and not saved_voice) or (personal[1] and usage._as_utc(personal[1])>usage._now()):
                 raise AudioError('Suara Saya sedang diperbarui. Muat ulang lalu coba lagi.','voice_unavailable',409)
@@ -172,6 +181,9 @@ def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,p
         params = (user,key,fingerprint,mode,title,source,target,voice,voice_name,None if live_session else script,None if live_session else original_script,source_ms,None if live_session else pcm,estimated,reserve,'QUEUED',now,now)
         if db.BACKEND=='postgres':ident=usage._query(conn,sql+' RETURNING id',params,one=True)[0]
         else:ident=conn.execute(sql,params).lastrowid
+        if mode=='voiceover' and not live_session:
+            usage._query(conn,'UPDATE kilas_audio_jobs SET spoken_script=?,alternate_of=?,delivery_stability=?,voice_is_personal=? WHERE id=? AND user_id=?',
+                         (script,alternate_of,delivery_stability,int(bool(saved_voice or voice_name=='Suara Saya' or (alternate_of is not None and origin[3]))),ident,user))
         if live_session:
             usage._query(conn,"UPDATE kilas_audio_jobs SET content_origin='live_session',initial_reserved_seconds=? WHERE id=? AND user_id=?",(initial_reserve,ident,user))
             usage._query(conn,"UPDATE kilas_live_translator_turns SET audio_job_id=? WHERE session_id=? AND operation_key=? AND status='PROCESSING'",(ident,session_id,turn_key))

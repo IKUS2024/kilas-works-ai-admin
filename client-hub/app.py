@@ -299,6 +299,7 @@ def create_app():
         audio_schema.apply_release('0092_kilas_live_translator')  # Default-off owner session/turn fences; no provider activation.
         audio_schema.apply_release('0098_kilas_live_session_output')  # Source marker and numeric audit reserve; no historical content deletion.
         audio_schema.apply_release('0104_kilas_translator_consent')  # Empty additive, versioned owner processing permissions; no backfill.
+        audio_schema.apply_release('0110_kilas_voice_alternate')  # Exact standalone VoiceOver snapshots and alternate lineage.
         if os.environ.get('KILAS_LIVE_TRANSLATOR_ENABLED','').lower() in ('1','true','on'):
             from kilas_ai import live_translator_realtime_account
             audio_schema.apply_release('0094_kilas_realtime_check')

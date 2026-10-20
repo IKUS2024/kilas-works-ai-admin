@@ -32,6 +32,7 @@ def submit(user,ident):
                 if not entry:raise store.AudioError('Hasil sementara sesi tidak tersedia.','session_output_expired',409)
                 payload={'script':entry['text']}
             options={'personal':True} if job['voice_name']=='Suara Saya' or personal.owns(user,job['voice_id']) else {}
+            if job['alternate_of'] is not None:options['alternate_stability']=job['delivery_stability']
             if transient:options={'translator':True}
             raw,request_id=provider.speech(payload['script'],job['voice_id'],job['target_language'],**options)
             store.finish(user,ident,raw,media.mp3_duration(raw),request_id)

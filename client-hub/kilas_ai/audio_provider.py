@@ -163,15 +163,15 @@ def dub_result(ident, language, outputs=None):
     return request('GET','/dubbing/'+ident+'/audio/'+language, binary=True)[0]
 
 
-def speech(script, voice, language, *, personal=False,translator=False):
+def speech(script, voice, language, *, personal=False,translator=False,alternate_stability=None):
     # Multilingual v2 is the current documented default. It detects script language;
     # language_code is explicitly unsupported by that model, so do not pretend to enforce it.
-    payload={'text':script,'model_id':'eleven_v4' if personal else 'eleven_multilingual_v2'}
-    if personal:
+    payload={'text':script,'model_id':'eleven_v4' if personal or alternate_stability is not None else 'eleven_multilingual_v2'}
+    if personal or alternate_stability is not None:
         # Documented voice defaults; v4 supports Stability/Similarity, not style/speaker boost.
-        payload['voice_settings']={'stability':0.5,'similarity_boost':0.75}
+        payload['voice_settings']={'stability':0.5 if alternate_stability is None else alternate_stability,'similarity_boost':0.75}
         if language!='auto':payload['language_code']=language
-        logging.getLogger(__name__).info('KILAS_AUDIO_TTS model=eleven_v4 personal=true language=%s',language)
+        logging.getLogger(__name__).info('KILAS_AUDIO_TTS model=eleven_v4 personal=%s language=%s',personal,language)
     if translator:
         from .translator_languages import speech_payload
         payload=speech_payload(script,language)

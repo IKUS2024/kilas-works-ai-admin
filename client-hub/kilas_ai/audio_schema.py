@@ -7,7 +7,7 @@ NAME = '0083_kilas_audio'
 
 
 def apply_release(name=NAME):
-    if name not in (NAME, '0084_kilas_personal_voice', '0085_kilas_voice_preview', '0086_kilas_voice_library', '0090_kilas_audio_script_edit', '0091_kilas_voice_script_transcription', '0092_kilas_live_translator', '0094_kilas_realtime_check', '0095_kilas_free_test', '0098_kilas_live_session_output', '0104_kilas_translator_consent'):raise ValueError('invalid_audio_release')
+    if name not in (NAME, '0084_kilas_personal_voice', '0085_kilas_voice_preview', '0086_kilas_voice_library', '0090_kilas_audio_script_edit', '0091_kilas_voice_script_transcription', '0092_kilas_live_translator', '0094_kilas_realtime_check', '0095_kilas_free_test', '0098_kilas_live_session_output', '0104_kilas_translator_consent', '0110_kilas_voice_alternate'):raise ValueError('invalid_audio_release')
     if db.BACKEND!='postgres':return []
     script=(Path(__file__).resolve().parent.parent/'migrations'/(name+'_postgres.sql')).read_text(encoding='utf-8')
     digest=hashlib.sha256(script.encode()).hexdigest()
