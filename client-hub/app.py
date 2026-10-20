@@ -550,11 +550,6 @@ def create_app():
 
 app = create_app()
 
-# One explicitly approved, expiring synthetic text benchmark; inert by default.
-# Its PostgreSQL claim survives worker restarts and never grants customer credit.
-from kilas_ai import translator_latency_benchmark
-translator_latency_benchmark.start()
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
     # SECURITY (Phase 6): debug mode now defaults to OFF and must be explicitly opted into with

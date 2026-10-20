@@ -1,0 +1,121 @@
+{
+  "campaign": "translator-latency-owner-20261020-v1",
+  "commit": "9e2753f60d1bbe077c8bbf030e62518f8f9c009b",
+  "deploy": "dep-dbbiiu61egvs7385mp8g",
+  "state": "COMPLETED",
+  "attempts": 4,
+  "reserved_micro": 40000,
+  "pre_dispatch_upper_bound_micro": 33424,
+  "standard_cost_micro": 386.7,
+  "conservative_cost_micro": 937.2,
+  "cases": [
+    {
+      "timings": {
+        "translation_http_headers_ms": 8526,
+        "translation_first_sse_line_ms": 8527,
+        "translation_first_sse_event_ms": 8527,
+        "ttft_ms": 8743.1,
+        "total_ms": 11863.6
+      },
+      "model": "gpt-6-luna",
+      "service_tier": "default",
+      "effort": "low",
+      "usage": {
+        "input_tokens": 386,
+        "completion_tokens": 122,
+        "reasoning_tokens": 52
+      },
+      "standard_cost_micro": 99.6,
+      "conservative_cost_micro": 240.35,
+      "translation": {
+        "source_language": "id",
+        "target_language": "en",
+        "text": "My name is Rina, not Budi. It's not Friday; it's scheduled for Monday, October 26, 2026. The total is Rp125,000. Does that include shipping?"
+      },
+      "index": 0,
+      "source": "id",
+      "status": "COMPLETED"
+    },
+    {
+      "timings": {
+        "translation_http_headers_ms": 1881.1,
+        "translation_first_sse_line_ms": 1882,
+        "translation_first_sse_event_ms": 1882,
+        "ttft_ms": 1884.9,
+        "total_ms": 2277.1
+      },
+      "model": "gpt-6-luna",
+      "service_tier": "default",
+      "effort": "none",
+      "usage": {
+        "input_tokens": 386,
+        "completion_tokens": 65,
+        "reasoning_tokens": 0
+      },
+      "standard_cost_micro": 71.1,
+      "conservative_cost_micro": 177.65,
+      "translation": {
+        "source_language": "id",
+        "target_language": "en",
+        "text": "My name is Rina, not Budi. It’s not Friday; the schedule is Monday, October 26, 2026. The total is Rp125,000. Does that include shipping? "
+      },
+      "index": 1,
+      "source": "id",
+      "status": "COMPLETED"
+    },
+    {
+      "timings": {
+        "translation_http_headers_ms": 1457.7,
+        "translation_first_sse_line_ms": 1460.7,
+        "translation_first_sse_event_ms": 1460.7,
+        "ttft_ms": 1478.4,
+        "total_ms": 2052.8
+      },
+      "model": "gpt-6-luna",
+      "service_tier": "default",
+      "effort": "none",
+      "usage": {
+        "input_tokens": 400,
+        "completion_tokens": 91,
+        "reasoning_tokens": 0
+      },
+      "standard_cost_micro": 85.5,
+      "conservative_cost_micro": 210.1,
+      "translation": {
+        "source_language": "en",
+        "target_language": "id",
+        "text": "Bisakah Anda mengantarkan dua kotak, bukan tiga, kepada Rina pada Senin, 26 Oktober 2026? Totalnya 125.000 rupiah, bukan dolar. Berat setiap kotak 2,5 kilogram. Tunggu, tunggu: tolong konfirmasikan biaya pengirimannya terlebih dahulu."
+      },
+      "index": 2,
+      "source": "en",
+      "status": "COMPLETED"
+    },
+    {
+      "timings": {
+        "translation_http_headers_ms": 1967.7,
+        "translation_first_sse_line_ms": 1968.9,
+        "translation_first_sse_event_ms": 1969,
+        "ttft_ms": 1979.3,
+        "total_ms": 2475.8
+      },
+      "model": "gpt-6-luna",
+      "service_tier": "default",
+      "effort": "low",
+      "usage": {
+        "input_tokens": 400,
+        "completion_tokens": 181,
+        "reasoning_tokens": 85
+      },
+      "standard_cost_micro": 130.5,
+      "conservative_cost_micro": 309.1,
+      "translation": {
+        "source_language": "en",
+        "target_language": "id",
+        "text": "Bisakah Anda mengantarkan dua kotak, bukan tiga, kepada Rina pada hari Senin, 26 Oktober 2026? Totalnya 125.000 rupiah, bukan dolar. Berat setiap kotak 2,5 kilogram. Tunggu, tunggu: tolong konfirmasi biaya pengirimannya dulu."
+      },
+      "index": 3,
+      "source": "en",
+      "status": "COMPLETED"
+    }
+  ]
+}

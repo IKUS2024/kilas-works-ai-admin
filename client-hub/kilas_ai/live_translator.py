@@ -39,7 +39,7 @@ def _log_latency(timings,started,success,code=None):
             'audio_reserve_ms','audio_submit_ms','completion_ms')
     stages+=('tts_receive_ms','tts_fences_ms','audio_measure_ms','audio_settlement_ms')
     stages+=('first_tts_byte_ms','first_published_clip_ms','translation_ready_ms','tts_http_headers_ms')
-    stages+=('translation_reserve_ms','translation_first_event_ms','translation_first_delta_arrival_ms')
+    stages+=('translation_reserve_ms','translation_first_event_ms','translation_first_delta_arrival_ms','translation_effort_none')
     stages+=('translation_http_headers_ms','translation_first_sse_line_ms','translation_first_sse_event_ms',
              'translation_first_content_ms','translation_reasoning_tokens')
     stages+=('realtime_input_ms','realtime_transport_ms','realtime_finalize_ms','realtime_commits',
@@ -145,11 +145,17 @@ def require_audio_allowance(owner,reserve=1):
         raise audio_store.AudioError('Batas audio Live Translator tercapai. Sesi dihentikan tanpa pembelian tambahan.','live_audio_limit',429)
 
 
-def translation_profile(text):
+def translation_profile(text,*,pair=None,whole=True):
     # The task is faithful translation, even when quoted speech says SQL, strategy
     # or "brief". Keep its full output budget; never request a shorter answer.
     profile=model_policy.chat_profile([{'role':'user','content':text}])
-    return {**profile,'model':model_policy.luna_model(),'effort':'low',
+    # Four approved real calls preserved short id/en utterances at effort none.
+    # Keep low for other languages, long/very short/complex speech, and clause
+    # reconciliation. This changes effort only: never truncate speech/output.
+    measured=(pair is not None and set(pair)=={'id','en'} and whole
+              and 5<=len(text.split()) and len(text)<=250
+              and profile.get('difficulty') in ('EASY','NORMAL'))
+    return {**profile,'model':model_policy.luna_model(),'effort':'none' if measured else 'low',
             'output_tokens':max(3500,profile['output_tokens'])}
 
 
@@ -238,7 +244,8 @@ def translation_system(a,b):
 
 
 def translation(owner,key,text,a,b,check,*,timings=None,clause_context=None,drafts=None):
-    profile=translation_profile(text);model=profile['model']
+    profile=translation_profile(text,pair=(a,b),whole=clause_context is None and not drafts);model=profile['model']
+    if timings is not None:timings['translation_effort_none']=int(profile['effort']=='none')
     system=translation_system(a,b)
     message=json.dumps({'source_text':text},ensure_ascii=False);drafts=drafts or []
     if clause_context is not None:

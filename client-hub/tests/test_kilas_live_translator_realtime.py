@@ -196,7 +196,7 @@ class RealtimeTests(unittest.TestCase):
  def test_actual_complete_output_pipeline_uses_stable_text_without_any_batch_stt(self):
   text='Ulangi ini. Ulangi ini. Kalimat terakhir.';translated='Repeat this. Repeat this. Last sentence.'
   def stream(*args,**kwargs):
-   self.assertEqual(json.loads(args[2][0]['content']),{'source_text':text});self.assertEqual(args[0],'gpt-6-luna');self.assertEqual(kwargs['profile']['effort'],'low');self.assertIn('faithfully',kwargs['system'])
+   self.assertEqual(json.loads(args[2][0]['content']),{'source_text':text});self.assertEqual(args[0],'gpt-6-luna');self.assertEqual(kwargs['profile']['effort'],'none');self.assertIn('faithfully',kwargs['system'])
    yield {'type':'delta','text':json.dumps({'text':translated,'source_language':'id','target_language':'en'})}
    yield {'type':'finish','reason':'stop'}
   with self.funded(),self.on(),self.owner(),patch.object(branded,'resolve',return_value=fixture.VOICE),patch.object(live.stt,'normalize') as normalize,patch.object(live.stt,'transcribe') as transcribe,patch.object(batch,'claim') as claim,patch.object(providers,'_openai',side_effect=stream) as luna,patch.object(segments,'speech',return_value=audio.mp3(.6)):

@@ -15,7 +15,7 @@ class TranslationTimingTests(unittest.TestCase):
   def reserved(*a,**k):clock[0]+=.3;return reserve(*a,**k)
   def check():clock[0]+=.02;checks.append(True)
   def stream(*a,**k):
-   self.assertEqual(a[0],'gpt-6-luna');self.assertEqual(k['profile'],live.translation_profile('Nama saya Rina, bukan Budi.'));self.assertEqual(k['event_chunk_size'],1)
+   self.assertEqual(a[0],'gpt-6-luna');self.assertEqual(k['profile'],live.translation_profile('Nama saya Rina, bukan Budi.',pair=('id','en')));self.assertEqual(k['event_chunk_size'],1)
    clock[0]+=.7;yield {'type':'delta','text':json.dumps({'text':'My name is Rina, not Budi.','source_language':'id','target_language':'en'})}
    yield {'type':'usage','input_tokens':20,'output_tokens':18};yield {'type':'finish','reason':'stop'}
   with self.funded(),self.on(),patch.object(live,'monotonic',side_effect=lambda:clock[0]),patch.object(usage,'reserve',side_effect=reserved),patch.object(providers,'_openai',side_effect=stream) as provider:
