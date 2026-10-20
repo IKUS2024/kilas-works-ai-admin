@@ -76,6 +76,35 @@ class InitialModelRenderTests(preferences.PreferenceTests):
         with patch.object(chat_models,'_cache',rows(chat_models)),patch.dict(os.environ,{'OPENAI_API_KEY':'changed-synthetic-key'}):
             self.assertIsNone(chat_models.catalog(cache_only=True))
 
+    def test_selector_headings_and_accessibility_follow_locale_on_all_chat_surfaces(self):
+        self.choose('chat','gpt-6-luna');self.choose('image','gpt-image-1-mini')
+        expected={'id':('Pilih model','Model gambar'),'en':('Choose model','Image model'),
+                  'es':('Elegir modelo','Modelo de imagen'),'zh':('选择模型','图像模型')}
+        client=self.client()
+        for locale,headings in expected.items():
+            client.set_cookie('kilas_language',locale)
+            for path in ('/products/start',f'/kilas-ai/threads/{self.thread}',f'/kilas-ai/agent?conversation={self.conversation}'):
+                with self.subTest(locale=locale,path=path),patch.object(chat_models.requests,'get',side_effect=AssertionError('Provider IO forbidden')):
+                    page=client.get(path)
+                self.assertEqual(page.status_code,200)
+                for kind,heading in zip(('chat','image'),headings):
+                    self.assertIn(f'id="{kind}-model-heading">{heading}</h2>',page.text)
+                    self.assertIn(f'aria-label="{heading}: ',page.text)
+                self.assertIn('model-selector-i18n-20261020',page.text)
+
+    def test_selection_errors_use_app_locale_without_changing_model_names(self):
+        import ui_i18n
+        client=self.client()
+        for locale in ui_i18n.LANGUAGES:
+            client.set_cookie('kilas_language',locale)
+            for endpoint,key in (('model','Model tidak valid. Pilih model dari daftar.'),
+                                 ('image-model','Model atau percakapan tidak valid.')):
+                response=client.post('/kilas-ai/chat/'+endpoint,json={'model':'not-a-model'},headers={'X-CSRF-Token':'work-csrf'})
+                self.assertEqual(response.status_code,400)
+                self.assertEqual(response.json['error'],key if locale=='id' else ui_i18n.CATALOG[key][locale])
+            result=client.get('/kilas-ai/chat/models').json
+            self.assertEqual(next(m['name'] for m in result['models'] if m['id']=='gpt-6-luna'),'GPT-6 Luna')
+
     def test_foreign_saved_chat_still_denies_access(self):
         foreign=store.create_thread(self.other)
         self.assertEqual(self.client().get(f'/kilas-ai/threads/{foreign}').status_code,404)

@@ -11,5 +11,5 @@
 {% endfor %}
 {% for kind,message in [('chat','Model Chat tersimpan tidak tersedia. Pilih model lain.'),('image','Model gambar tersimpan tidak tersedia. Pilih model lain.')] %}{% set unavailable=initial_models[kind] and initial_models[kind].available is defined and not initial_models[kind].available %}<p class="chat-model-warning" data-model-warning="{{ kind }}" role="status" {{ 'hidden' if not unavailable }}>{{ ui_t(message) if unavailable else '' }}</p>{% endfor %}
 </div>
-{% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_models.css',v='model-clean-header-20261017') }}">{% endif %}<script src="{{ url_for('static',filename='kilas_chat_models.js',v='model-clean-header-20261017') }}" defer></script>
+{% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_models.css',v='model-clean-header-20261017') }}">{% endif %}<script src="{{ url_for('static',filename='kilas_chat_models.js',v='model-selector-i18n-20261020') }}" defer></script>
 {% endif %}

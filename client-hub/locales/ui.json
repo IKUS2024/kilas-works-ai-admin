@@ -8674,5 +8674,20 @@
   "Pengobatan": {"en": "Treatment", "es": "Tratamiento", "zh": "治疗"},
   "Kelola kategori": {"en": "Manage categories", "es": "Gestionar categorías", "zh": "管理类别"},
   "Selesai mengedit": {"en": "Done", "es": "Listo", "zh": "完成"},
-  "Subkategori belum dipilih.": {"en": "No subcategory selected.", "es": "No se ha seleccionado ninguna subcategoría.", "zh": "尚未选择子分类。"}
+  "Subkategori belum dipilih.": {"en": "No subcategory selected.", "es": "No se ha seleccionado ninguna subcategoría.", "zh": "尚未选择子分类。"},
+  "Pilih model": {"en": "Choose model", "es": "Elegir modelo", "zh": "选择模型"},
+  "Model gambar": {"en": "Image model", "es": "Modelo de imagen", "zh": "图像模型"},
+  "Belum tersedia": {"en": "Not available yet", "es": "Aún no disponible", "zh": "暂不可用"},
+  "Akses belum tersedia": {"en": "Access unavailable", "es": "Acceso no disponible", "zh": "暂无访问权限"},
+  "Daftar model belum dapat dimuat. Buka daftar lagi untuk mencoba.": {"en": "Unable to load models. Reopen the list to try again.", "es": "No se pudieron cargar los modelos. Vuelve a abrir la lista para intentarlo de nuevo.", "zh": "无法加载模型。请重新打开列表重试。"},
+  "Model belum dapat dipilih.": {"en": "Unable to select this model.", "es": "No se pudo seleccionar este modelo.", "zh": "无法选择此模型。"},
+  "Pilih model yang tersedia sebelum mengirim.": {"en": "Choose an available model before sending.", "es": "Elige un modelo disponible antes de enviar.", "zh": "发送前请选择可用的模型。"},
+  "Model hasil belum dilaporkan": {"en": "Response model not reported", "es": "Modelo de respuesta no indicado", "zh": "未提供回答所用模型"},
+  "Model pilihan tidak tersedia. Pilih model lain; permintaan tidak dialihkan.": {"en": "The selected model is unavailable. Choose another model; your request has not been rerouted.", "es": "El modelo seleccionado no está disponible. Elige otro modelo; tu solicitud no se ha redirigido.", "zh": "所选模型不可用。请选择其他模型；请求未被转发。"},
+  "Tidak ada model tersedia. Coba buka daftar lagi.": {"en": "No models are available. Try reopening the list.", "es": "No hay modelos disponibles. Intenta abrir la lista de nuevo.", "zh": "没有可用的模型。请尝试重新打开列表。"},
+  "Model tidak valid. Pilih model dari daftar.": {"en": "Invalid model. Choose a model from the list.", "es": "Modelo no válido. Elige un modelo de la lista.", "zh": "模型无效。请从列表中选择模型。"},
+  "Model atau percakapan tidak valid.": {"en": "Invalid model or conversation.", "es": "Modelo o conversación no válidos.", "zh": "模型或对话无效。"},
+  "Model gambar pilihan tidak tersedia. Pilih model lain; permintaan tidak dialihkan.": {"en": "The selected image model is unavailable. Choose another model; your request has not been rerouted.", "es": "El modelo de imagen seleccionado no está disponible. Elige otro modelo; tu solicitud no se ha redirigido.", "zh": "所选图像模型不可用。请选择其他模型；请求未被转发。"},
+  "Model ini belum tersedia untuk akun layanan. Pilih model lain yang tersedia.": {"en": "This model is unavailable for the service account. Choose another available model.", "es": "Este modelo no está disponible para la cuenta de servicio. Elige otro modelo disponible.", "zh": "服务账户暂时无法使用此模型。请选择其他可用模型。"},
+  "Pilih model gambar yang tersedia sebelum membuat gambar.": {"en": "Choose an available image model before creating an image.", "es": "Elige un modelo de imagen disponible antes de crear una imagen.", "zh": "创建图像前请选择可用的图像模型。"}
 }
