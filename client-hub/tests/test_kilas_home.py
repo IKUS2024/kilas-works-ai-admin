@@ -176,7 +176,12 @@ class HomeTests(unittest.TestCase):
                 if task in ('translate','voiceover'):
                     self.assertIn('action="/kilas-translator/jobs"',html)
                     self.assertIn('data-active-mode="'+task+'"',html)
-                if task!='chat':self.assertIn('Kembali ke Kilas AI Home',html)
+                if task in ('video','translate'):self.assertIn('class="home-task-return"',html)
+                if task=='voiceover':
+                    self.assertNotIn('class="home-task-return"',html)
+                    self.assertIn('class="kilas-feature-navigation"',html)
+                    self.assertIn('id="voiceover-panel"',html)
+                    self.assertIn('class="audio-voices personal-choices"',html)
 
     def test_native_feature_handoff_validated_without_generating(self):
         app=fixture.base.f.fixture.app.app
