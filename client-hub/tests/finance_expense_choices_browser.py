@@ -7,7 +7,7 @@ import test_finance_expense_choices as fixture
 from test_finance_approved_revisions import app
 import finance_service as f,finance_branches as branches,db
 
-OUT=Path('/tmp/kilas-expense-choices-browser')
+OUT=Path('/tmp/kilas-expense-roots-browser')
 def main():
  case=fixture.ExpenseChoiceTests();case.setUp();OUT.mkdir(exist_ok=True);edits={}
  for branch in (case.personal,case.branch):
@@ -15,10 +15,12 @@ def main():
    f.ensure_finance_defaults(case.b,actor_user_id=case.uid)
    root=f.create_category(case.b,'EXPENSE','Biaya Sewa',actor_user_id=case.uid)
    child=f.create_category(case.b,'EXPENSE','Studio rental',parent_category_id=root,actor_user_id=case.uid)
+   for name in ('Fuel','Parking','Tolls','Car Rental','Public Transport','Gas','Internet','Medical Care','Medicine','Laundry'):
+    f.create_category(case.b,'EXPENSE',name,parent_category_id=root,actor_user_id=case.uid)
    f.create_category(case.b,'EXPENSE','Peralatan Kecil',actor_user_id=case.uid)
    english=f.create_category(case.b,'EXPENSE','English equipment',actor_user_id=case.uid)
    f.create_category(case.b,'EXPENSE','Perlengkapan',parent_category_id=english,actor_user_id=case.uid)
-   for name in ('Air','Film','Vegas travel','SewaBali Studio'):f.create_category(case.b,'EXPENSE',name,actor_user_id=case.uid)
+   for name in ('Air','Film','Vegas travel','SewaBali Studio','Fuel','Parking','Internet'):f.create_category(case.b,'EXPENSE',name,actor_user_id=case.uid)
    account=case.pa if branch==case.personal else case.a
    edits[branch]=f.create_transaction(case.b,'EXPENSE',12345,account,child,'2026-09-10',actor_user_id=case.uid)
    income=f.list_categories(case.b,'INCOME',actor_user_id=case.uid)[0]['id']
@@ -27,10 +29,15 @@ def main():
  def snap():return {t:[dict(r) for r in db.query_all('SELECT * FROM '+t)] for t in ['finance_categories','finance_category_workspace_settings','finance_category_hierarchy','finance_transactions','finance_expense_allocations','finance_recurring_expenses']}
  def check(box):
   box.locator('[data-expense-cascade]').click();panel=box.locator('[data-expense-cascade-panel]');roots=panel.locator('[data-expense-root]>[data-expense-choice-label]').all_text_contents()
-  for name in ('Home/Rent','Food','Utilities','Studio rental','English equipment','Air','Film','Vegas travel','SewaBali Studio'):assert name in roots,(name,roots)
-  for name in ('Biaya Sewa','Peralatan Kecil','Perlengkapan'):assert name not in roots
+  for name in ('Home/Rent','Food','Utilities','English equipment','Air','Film','Vegas travel','SewaBali Studio','Fuel','Parking','Internet'):assert name in roots,(name,roots)
+  for name in ('Biaya Sewa','Peralatan Kecil','Perlengkapan','Studio rental','Tolls','Car Rental','Public Transport','Gas','Medical Care','Medicine','Laundry'):assert name not in roots
+  # Main picker IDs must be actual roots, even when a root and orphan share a label.
+  actual_ids=panel.locator('[data-expense-root]').evaluate_all('(nodes)=>nodes.map(n=>n.dataset.expenseRoot)')
+  valid_ids=box.locator('[data-expense-parent] option').evaluate_all('(nodes)=>nodes.filter(n=>n.value&&n.value!=="__add__"&&n.dataset.pickerHidden!=="true").map(n=>n.value)')
+  assert actual_ids==valid_ids
+  for name in ('Fuel','Parking','Internet'):assert roots.count(name)==1
   assert not panel.locator('.expense-category-heading').count()
-  for name in ('Home/Rent','Food','Utilities'):
+  for name in ('Home/Rent','Food','Utilities','Transportation'):
    button=panel.locator('[data-expense-root]').filter(has_text=name);button.click()
    if panel.is_visible():
     assert panel.locator('.expense-category-heading').all_text_contents()==[name]
@@ -44,8 +51,8 @@ def main():
   panel.locator('[data-expense-root]').filter(has_text='Utilities').click();panel.locator('[data-expense-choice]').filter(has_text='Electricity').click()
   expect(box.locator('[data-expense-subcategory-display]')).to_have_text('Electricity')
   assert not box.locator('[data-expense-subcategory-display]').evaluate('(e)=>e.matches("button,a,[tabindex],[href]")')
-  box.locator('[data-expense-cascade]').click();panel.locator('[data-expense-root]').filter(has_text='Studio rental').click()
-  expect(box.locator('[data-expense-subcategory-display]')).to_have_text('Studio rental');assert box.locator('[data-expense-parent]').input_value()!=box.locator('[data-expense-child]').input_value()
+  box.locator('[data-expense-cascade]').click();panel.locator('[data-expense-root]').filter(has_text='Parking').click()
+  expect(box.locator('[data-expense-cascade]')).to_have_text('Parking');expect(box.locator('[data-expense-subcategory-display]')).to_have_text('No subcategory selected.')
  try:
   with sync_playwright() as p:
    browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox']);results=[]

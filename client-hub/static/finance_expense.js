@@ -42,12 +42,9 @@
           button.dataset.expenseRoot=option.value;button.setAttribute('aria-pressed',String(parent.value===option.value));
           if(childrenFor(option).length){const chevron=document.createElement('i');chevron.className='finance-category-chevron';chevron.textContent='›';chevron.setAttribute('aria-hidden','true');button.append(chevron);}
         }
-        // English children of a hidden Indonesian parent remain selectable with
-        // their real parent/child IDs. No database reparenting or relabeling.
-        for(const leaf of child.options){
-          if(!visible(leaf)||parent.querySelector('option[value="'+leaf.dataset.parent+'"]')?.dataset.pickerHidden!=='true')continue;
-          const button=choice(panel,leaf.textContent,()=>{parent.value=leaf.dataset.parent;parent.dispatchEvent(new Event('change'));child.value=leaf.value;child.dispatchEvent(new Event('change'));finish();},leaf);button.dataset.expenseRoot=leaf.value;
-        }
+        // Only actual parent options belong in this view. Legacy children of
+        // hidden parents stay in the backing selects for historical Edit,
+        // without becoming top-level choices or changing stored relationships.
         choice(panel,'Add category…',()=>{close();create(parent,false);});
       }
       summary.onclick=()=>panel.hidden?show():close();box.addEventListener('keydown',event=>{if(event.key==='Escape'&&!panel.hidden){event.preventDefault();event.stopPropagation();close();summary.focus();}});document.addEventListener('click',event=>{if(!box.contains(event.target))close();});
