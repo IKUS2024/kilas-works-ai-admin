@@ -1,5 +1,5 @@
 """Documented API facts versus implemented workspace features; never infer parity."""
-CHECKED_ON='2026-10-17'
+CHECKED_ON='2026-10-20'
 
 
 def chat(model):
@@ -14,6 +14,7 @@ def chat(model):
     return {**item,'source':source,'documentation_checked_on':CHECKED_ON,'ordinary_chat_endpoint':endpoint,
             'workspace_tool_endpoint':'/v1/responses' if provider=='openai' else '/v1/messages' if provider=='anthropic' else '/v1beta/models/'+model+':generateContent',
             'documented_context_tokens':context,'documented_output_tokens':output,
+            'documented_long_decode_tokens':1048576 if model=='gemini-4-argon' else None,
             'app_context_characters':64000,'app_max_output_tokens':24576,
             'vision':True,'streaming':True,'native_function_calling':True,'structured_output_documented':True,
             'reasoning':'adaptive' if provider=='anthropic' else ['low','medium','high'],
@@ -29,9 +30,9 @@ def image(model):
             'documentation_checked_on':CHECKED_ON,'generation_endpoint':'/v1/images/generations' if openai else '/v1beta/models/'+model+':generateContent',
             'edit_endpoint':'/v1/images/edits' if openai else '/v1beta/models/'+model+':generateContent',
             'app_reference_limit':5,'documented_reference_limit':None if openai else 14,
-            'app_quality':'low' if openai else '1K','app_sizes':['1024x1024','1536x1024','1024x1536'] if openai else ['1K'],
-            'app_aspect_ratios':['1:1','3:2','2:3'] if openai else ['1:1','3:2','2:3','3:4','4:3','4:5','5:4','9:16','16:9','21:9'],
-            'app_transparency':model=='gpt-image-1-mini','outputs':['image/png','image/jpeg','image/webp'],
+            'app_quality':'low' if openai else '1K','app_sizes':list(image_models.sizes(model).values()) if openai else ['1K'],
+            'app_aspect_ratios':list(image_models.sizes(model)) if openai else ['1:1','3:2','2:3','3:4','4:3','4:5','5:4','9:16','16:9','21:9'],
+            'app_transparency':image_models.transparency(model),'outputs':['image/png','image/jpeg','image/webp'],
             'editing_input':'original uploaded bytes; incompatible normalized sources rejected',
             'inference_acceptance':'deferred; Models GET confirms access only'}
 

@@ -101,7 +101,7 @@ def violations(request, answer, *, tier='NORMAL', finish='stop', selected=False)
             issues.append('unsupported_citation')
     # Explicit concise requests and short factual follow-ups may legitimately be tiny.
     if (not structured_json and tier in ('DEEP','EXPERT') and len(request) > 35 and len(prose.split()) < 8
-            and not re.search(r'\b(?:singkat|pendek|ringkas|concise|brief|satu kalimat|one sentence)\b', request, re.I)
+            and not model_policy.intelligence.wants_short(request)
             and not re.search(r'^(?:kenapa|knp|lanjut|terus|kalau|yang|yg)\b', request, re.I)):
         issues.append('unusable_depth')
     return list(dict.fromkeys(issues))

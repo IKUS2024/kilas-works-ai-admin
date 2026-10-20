@@ -31,6 +31,20 @@ def spec(model):
          'pricing_checked_on':'2026-10-17'}
 
 
+def sizes(model):
+ """App output sizes within the existing decoded-image/resource envelope."""
+ spec(model)
+ values={'1:1':'1024x1024','3:2':'1536x1024','2:3':'1024x1536'}
+ if model in ('gpt-image-2','gpt-image-2.5-sunburst','gpt-image-2.5-flare'):
+  values.update({'3:4':'864x1152','4:3':'1152x864','4:5':'1024x1280','5:4':'1280x1024','9:16':'864x1536','16:9':'1536x864','21:9':'1792x768'})
+ return values
+
+
+def transparency(model):
+ spec(model)
+ return model in ('gpt-image-1-mini','gpt-image-2.5-sunburst','gpt-image-2.5-flare')
+
+
 def check(model):
  item=spec(model);key=os.environ.get(chat_models.KEYS[item['provider']],'').strip();fingerprint=hashlib.sha256(key.encode()).digest()
  with _lock:
@@ -103,10 +117,10 @@ def requested(owner,surface,ident,value=None,*,required=False):
  return model
 
 
-def forecast(model):
+def forecast(model, input_token_bound=16000):
  p=spec(model)
  # Conservative capacity forecast, not a supplier-dollar hard limit or invoice.
- return Decimal(p['output_usd'])+(Decimal(16000)*Decimal(p['text_input_per_million'])+Decimal(64000)*Decimal(p['image_input_per_million'])+Decimal(8192)*Decimal(p['thinking_output_per_million']))/Decimal(1000000)
+ return Decimal(p['output_usd'])+(Decimal(max(16000,int(input_token_bound)))*Decimal(p['text_input_per_million'])+Decimal(64000)*Decimal(p['image_input_per_million'])+Decimal(8192)*Decimal(p['thinking_output_per_million']))/Decimal(1000000)
 
 
 def cost(model,raw):

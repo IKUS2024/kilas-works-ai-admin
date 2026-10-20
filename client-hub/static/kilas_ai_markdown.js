@@ -100,17 +100,30 @@
         add('math|'+(tex??text)+'|'+mathStatus,()=>{const box=document.createElement('div');if(tex===null){box.textContent=current.complete?lines.slice(begin,index).join('\n'):'…';box.dataset[current.complete?'mathError':'mathIncomplete']='1';}else math(box,tex,true);return box;});
         if(end>=0&&text.slice(end+2).trim()){const tail=text.slice(end+2).trim();add('math-tail|'+tail+'|'+mathStatus,()=>{const p=document.createElement('p');write(p,tail);return p;});}continue;
       }
-      if(/^#{1,3}\s/.test(line)){index++;add('heading|'+line+'|'+phase(line),()=>{const h=document.createElement('h'+(line.match(/^#+/)[0].length+1));write(h,line.replace(/^#{1,3}\s/,''));return h;});continue;}
+      if(/^#{1,6}\s/.test(line)){index++;add('heading|'+line+'|'+phase(line),()=>{const h=document.createElement('h'+Math.min(6,line.match(/^#+/)[0].length+1));write(h,line.replace(/^#{1,6}\s/,''));return h;});continue;}
       if(/^[-*]\s/.test(line)||/^\d+[.)]\s/.test(line)){
-        const ordered=/^\d/.test(line),items=[];while(index<lines.length&&(ordered?/^\d+[.)]\s/:/^[-*]\s/).test(lines[index].trim()))items.push(lines[index++].trim().replace(/^(?:[-*]|\d+[.)])\s/,''));
-        add('list|'+ordered+'|'+items.join('\n')+'|'+phase(items.join('\n')),()=>{const list=document.createElement(ordered?'ol':'ul');if(ordered)list.start=Number(line.match(/^\d+/)[0]);for(const text of items){const li=document.createElement('li');write(li,text);list.append(li);}return list;});continue;
+        const items=[];let item;
+        while(index<lines.length&&(item=lines[index].match(/^(\s*)([-*]|\d+[.)])\s+(.+)$/))){items.push({indent:item[1].replace(/\t/g,'    ').length,marker:item[2],text:item[3]});index++;}
+        add('list|'+JSON.stringify(items)+'|'+phase(items.map(i=>i.text).join('\n')),()=>{
+          const box=document.createElement('div');box.className='ai-list-block';const stack=[];
+          for(const item of items){
+            const ordered=/^\d/.test(item.marker),tag=ordered?'ol':'ul';
+            while(stack.length&&item.indent<stack.at(-1).indent)stack.pop();
+            if(stack.length&&item.indent===stack.at(-1).indent&&stack.at(-1).list.localName!==tag)stack.pop();
+            if(!stack.length||item.indent>stack.at(-1).indent){
+              const list=document.createElement(tag);if(ordered)list.start=parseInt(item.marker,10);
+              (stack.at(-1)?.last||box).append(list);stack.push({indent:item.indent,list,last:null});
+            }
+            const level=stack.at(-1),li=document.createElement('li');write(li,item.text);level.list.append(li);level.last=li;
+          }return box;
+        });continue;
       }
       if(line.startsWith('|')&&index+1<lines.length&&/^\|?[\s:|-]+\|?$/.test(lines[index+1].trim())){
         const rows=[];while(index<lines.length&&lines[index].trim().startsWith('|'))rows.push(lines[index++].trim());
-        add('table|'+rows.join('\n')+'|'+phase(rows.join('\n')),()=>{const scroller=document.createElement('div');scroller.className='ai-table-scroll';const table=document.createElement('table');rows.forEach((row,i)=>{if(i===1)return;const tr=document.createElement('tr');for(const cell of cells(row)){const node=document.createElement(i===0?'th':'td');write(node,cell.trim().replace(/\\\|/g,'|'));tr.append(node);}table.append(tr);});scroller.append(table);return scroller;});continue;
+        add('table|'+rows.join('\n')+'|'+phase(rows.join('\n')),()=>{const scroller=document.createElement('div');scroller.className='ai-table-scroll';scroller.tabIndex=0;scroller.setAttribute('role','region');scroller.setAttribute('aria-label',document.documentElement.lang.startsWith('id')?'Tabel jawaban':'Answer table');const table=document.createElement('table'),head=document.createElement('thead'),body=document.createElement('tbody');table.append(head,body);rows.forEach((row,i)=>{if(i===1)return;const tr=document.createElement('tr');for(const cell of cells(row)){const node=document.createElement(i===0?'th':'td');if(i===0)node.scope='col';write(node,cell.trim().replace(/\\\|/g,'|'));tr.append(node);}(i===0?head:body).append(tr);});scroller.append(table);return scroller;});continue;
       }
       if(line.startsWith('> ')){const parts=[];while(index<lines.length&&lines[index].trim().startsWith('> '))parts.push(lines[index++].trim().slice(2));add('quote|'+parts.join('\n')+'|'+phase(parts.join('\n')),()=>{const quote=document.createElement('blockquote');write(quote,parts.join(' '));return quote;});continue;}
-      const parts=[line];index++;while(index<lines.length&&lines[index].trim()&&!/^(?:#{1,3}\s|[-*]\s|\d+[.)]\s|`{3,}|~{3,}|\||> |\\\[|\$\$)/.test(lines[index].trim()))parts.push(lines[index++].trim());
+      const parts=[line];index++;while(index<lines.length&&lines[index].trim()&&!/^(?:#{1,6}\s|[-*]\s|\d+[.)]\s|`{3,}|~{3,}|\||> |\\\[|\$\$)/.test(lines[index].trim()))parts.push(lines[index++].trim());
       add('paragraph|'+parts.join(' ')+'|'+phase(parts.join(' ')),()=>{const p=document.createElement('p');write(p,parts.join(' '));return p;});
       if(index<=begin)index++;
     }

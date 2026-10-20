@@ -12,8 +12,10 @@ def run(job,step,data):
         from .. import image_models
         if not image_models.check(selected)['available']:return Result('WAITING_CAPABILITY','Model gambar pilihan tidak tersedia; pekerjaan tidak dialihkan.',{'reason':'selected_image_unavailable'})
     if not selected and not os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL'):return Result('WAITING_CAPABILITY','Pembuatan gambar belum tersedia.',{'reason':'image_not_configured'})
+    # Preserve the complete direct image brief and reserve for its actual input bound.
+    prompt=routing.enhance_image_prompt(json.loads(job['checkpoint_json']).get('image_prompt_full') or data['prompt'])
     key=step['idempotency_key']+'-'+str(step['attempts'])
-    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',profile={'image_model':selected} if selected else None)
+    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',profile={'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8'))} if selected else None)
     if not ops:raise ValueError('duplicate_reservation')
     success=False;result={}
     try:
@@ -22,7 +24,7 @@ def run(job,step,data):
         if source and len(source_ids)>1:source=[work_artifacts.image_source(job['user_id'],ident,job['origin_conversation_id']) for ident in source_ids]
         from ..work_runtime import progress
         progress(job,'GENERATING_IMAGE','Membuat gambar…')
-        result=tools.image(routing.enhance_image_prompt(data['prompt']),source=source,request_timeout=60,**({'selected_model':selected} if selected else {}))
+        result=tools.image(prompt,source=source,request_timeout=60,**({'selected_model':selected} if selected else {}))
         extension={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[result['mime']]
         title=' '.join(data['prompt'].split()[:8])
         name=re.sub(r'[^a-z0-9-]+','-',title.lower()).strip('-')[:70] or 'gambar-kilas'

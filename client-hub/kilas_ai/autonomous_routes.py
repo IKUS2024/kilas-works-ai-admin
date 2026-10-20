@@ -111,6 +111,9 @@ def chat(user_id, text):
     session.pop('agent_work_clarification', None)
     try:
         checkpoint={}
+        if work_documents.image_request(text) or editing_image:
+            if len(text)>32000:raise ValueError('image_prompt_too_long')
+            checkpoint['image_prompt_full']=text
         if len(text)>1200:checkpoint['request_full']=text[:24000]
         if document_format and previous and work_documents.REVISE.search(text):checkpoint['document_source_id']=previous['id']
         if editing_image and not image_inputs:checkpoint['image_source_id']=image_previous['id']

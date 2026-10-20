@@ -6,3 +6,28 @@
 .ai-markdown [data-math-error]{white-space:pre-wrap;overflow-wrap:anywhere}
 .ai-markdown blockquote{margin:12px 0;padding:0 16px;color:inherit}
 .ai-markdown .ai-math-inline{display:inline-block;max-width:100%;overflow-x:auto;overflow-y:hidden;vertical-align:middle;padding:3px 0}
+
+/* Answer-only hierarchy; system sans, semantic emphasis without decorative italics. */
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown{font-family:var(--font-ui,system-ui,sans-serif);font-size:1rem;line-height:1.7;min-width:0;overflow-wrap:anywhere;text-align:start}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown :is(p,li){line-height:1.7}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown p{margin:0 0 1em}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown :is(h2,h3,h4,h5,h6){font-family:inherit;font-style:normal;font-weight:650;line-height:1.35;letter-spacing:-.015em;margin:1.6em 0 .6em;text-wrap:pretty}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown h2{font-size:1.3em}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown h3{font-size:1.15em}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown :is(h4,h5,h6){font-size:1em}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown em{font-style:normal;font-weight:550}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown :is(ul,ol){margin:.5em 0 1em;padding-inline-start:1.5em}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown li{margin:.35em 0;padding-inline-start:.15em}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown li :is(ul,ol){margin:.4em 0 .6em}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown pre{border-radius:10px;padding:1em;overflow:auto;overflow-wrap:normal}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown :is(pre,code){font-family:var(--font-code,ui-monospace,monospace)}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown .ai-table-scroll{margin:1em 0 1.25em;border:1px solid var(--line,#dedfe2);border-radius:10px;max-width:100%;overflow:auto}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown table{width:100%;font-size:.9em;line-height:1.55;border-collapse:collapse}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown :is(th,td){padding:.7em .85em;min-width:7em;vertical-align:top;text-align:start}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown th{font-weight:650}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown tr:last-child td{border-bottom:0}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown :is(a,.ai-table-scroll):focus-visible{outline:2px solid var(--accent,#bd4700);outline-offset:3px}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown>:first-child{margin-top:0}
+body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown>:last-child{margin-bottom:0}
+body.kilas-light:not(.finance-app) .kilas-home-workspace .work-image-preview img{width:auto;max-width:100%;height:auto;max-height:min(60vh,640px);object-fit:contain}
+@media(max-width:600px){body.kilas-light:not(.finance-app) :is(.ai-shell,.kilas-home-workspace) .ai-markdown :is(th,td){padding:.6em .7em}}

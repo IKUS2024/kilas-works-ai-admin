@@ -41,6 +41,15 @@ class SelectedArtifactTests(unittest.TestCase):
   self.assertEqual(context['author_model'],'claude-sonnet-5-5');self.assertEqual(context['image_model'],'gpt-image-1-mini')
   chat_models.choose(self.owner,'conversation',self.conversation,'gemini-4-argon')
   self.assertEqual(json.loads(autonomous_store.get(self.owner,job['id'])['checkpoint_json'])['author_model'],'claude-sonnet-5-5')
+ def test_long_image_request_reaches_queued_worker_without_tail_loss(self):
+  text='Buat gambar poster. '+('Warna biru, aksen putih. '*220)+'Tulisan akhir harus UTUH.'
+  r=self.submit('gpt-6-astra',text,selected_image_model='gpt-image-2.5-flare')
+  self.assertEqual(r.status_code,303)
+  job=autonomous_store.list_jobs(self.owner)[0]
+  checkpoint=json.loads(job['checkpoint_json'])
+  self.assertEqual(checkpoint['image_prompt_full'],text)
+  self.assertEqual(checkpoint['image_model'],'gpt-image-2.5-flare')
+  self.assertLessEqual(len(job['instruction']),1200)
  def test_all_ten_document_authors_use_selected_model_with_real_pdf_bytes(self):
   for i,model in enumerate(chat_models.CATALOG):
    job=self.job(model)

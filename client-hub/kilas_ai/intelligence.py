@@ -16,6 +16,14 @@ def text(content):
     return str(content).split("\n\nTeks berikut berhasil diekstrak dari lampiran '",1)[0]
 
 
+def wants_short(text):
+    """Length preferences, not a quoted word or a negated brevity request."""
+    text=str(text).lower().replace('’', "'")
+    text=re.sub(r'```[\s\S]*?```|`[^`]*`|"[^"\n]*"|“[^”\n]*”', ' ', text)
+    text=re.sub(r"\b(?:jangan|tidak|bukan|nggak|gak|ga|tak|do not|don't|not|never)\s+(?:(?:terlalu|terlalu\s+dibuat|dibuat|dibikin|terkesan|terkesan\s+terlalu|terlalu\s+singkat|too|be|make it|keep it)\s+)*(?:singkat|pendek|ringkas|concise|brief|short)\b", ' ', text)
+    return bool(re.search(r'\b(?:singkat|pendek|ringkas|concise|brief|one sentence|satu kalimat)\b',text))
+
+
 def classify(messages, *, task=False):
     users=[m for m in messages if m.get('role')=='user']
     current=text(users[-1].get('content','')) if users else ''
@@ -57,7 +65,7 @@ def classify(messages, *, task=False):
         signals.append('followup')
     difficulty='EXPERT' if score>=7 else 'HARD' if score>=3 else 'NORMAL'
     if (score==0 and len(current)<250 and (transform or re.search(r'^(?:halo|hai|hi|hello|thanks|makasih|terima kasih|apa itu|what is|berapa|what time|2\s*[+*])\b',lower))):difficulty='EASY'
-    explicit_short=bool(re.search(r'\b(?:singkat|pendek|ringkas|concise|brief|one sentence|satu kalimat)\b',lower))
+    explicit_short=wants_short(current)
     depth='QUICK' if explicit_short or difficulty=='EASY' else 'EXPERT' if difficulty=='EXPERT' else 'DEEP' if difficulty=='HARD' else 'STANDARD'
     if getattr(messages,'quality_retry',False):
         difficulty='EXPERT' if difficulty=='EXPERT' else 'HARD'

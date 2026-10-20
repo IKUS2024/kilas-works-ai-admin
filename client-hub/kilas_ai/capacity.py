@@ -25,7 +25,7 @@ def forecast(operation, mode, profile=None):
     from . import usage
     if operation in ('IMAGE_GENERATION','IMAGE_EDIT') and profile and profile.get('image_model'):
         from . import image_models
-        return image_models.forecast(profile['image_model'])
+        return image_models.forecast(profile['image_model'],profile.get('image_input_token_bound',16000))
     if operation in ('CHAT','WEB_SEARCH','PDF') and profile and profile.get('selected_model'):
         from . import chat_models
         bound=profile.get('input_token_bound',12000)+(90000 if operation=='WEB_SEARCH' else 0)

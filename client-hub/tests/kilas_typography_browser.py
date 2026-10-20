@@ -67,7 +67,7 @@ def main():
                     report.append({'surface':surface,'width':width,'single_line_alignment_error_px':max(abs(metrics[k]['svgCenter']-metrics['input']['firstLine']) for k in ('plus','send','call')),'multiline_attachment_keyboard':'PASS','font':metrics['body']['font'],'input_px':metrics['input']['size'],'empty_no_scroll':'PASS'})
                 page.goto(origin+f'/kilas-ai/agent?conversation={populated}',wait_until='networkidle');page.evaluate('document.fonts.ready')
                 prose=page.locator('.agent-message-assistant .agent-message-text').first
-                assert prose.evaluate('e=>parseFloat(getComputedStyle(e).fontSize)===16&&Math.abs(parseFloat(getComputedStyle(e).lineHeight)-26.4)<.2&&getComputedStyle(e).textAlign!=="justify"')
+                assert prose.evaluate('e=>parseFloat(getComputedStyle(e).fontSize)===16&&Math.abs(parseFloat(getComputedStyle(e).lineHeight)-27.2)<.2&&getComputedStyle(e).textAlign!=="justify"')
                 code=prose.locator('pre code').first;expect(code).to_be_visible();assert 'monospace' in code.evaluate('e=>getComputedStyle(e).fontFamily')
                 assert code.evaluate('e=>e.parentElement.scrollWidth>e.parentElement.clientWidth')
                 timeline=page.locator('#agent-conversation');assert timeline.evaluate('e=>e.scrollHeight>e.clientHeight')

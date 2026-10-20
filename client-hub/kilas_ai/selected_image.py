@@ -7,20 +7,33 @@ from . import image_models,selected_provider,tools
 
 def generate(model,prompt,source=None,request_timeout=120):
  item=image_models.spec(model);provider=item['provider']
+ if not isinstance(prompt,str) or not 1<=len(prompt)<=32000:raise tools.ToolUnavailable('Instruksi gambar harus berisi 1–32.000 karakter.',model=model)
  if not image_models.check(model)['available']:raise tools.ToolUnavailable('Model gambar pilihan tidak tersedia.',model=model)
  sources=source if isinstance(source,list) else [source] if source else []
  if len(sources)>5:raise tools.ToolUnavailable('Maksimal lima gambar referensi untuk permintaan ini.',model=model)
  ratio=next(iter(re.findall(r'\b(1:1|3:2|2:3|3:4|4:3|4:5|5:4|9:16|16:9|21:9)\b',prompt)),'1:1')
  explicit_size=re.search(r'\b(\d{3,4})\s*[x×]\s*(\d{3,4})\b',prompt)
- size={'1:1':'1024x1024','3:2':'1536x1024','2:3':'1024x1536'}.get(ratio)
- if explicit_size:size=explicit_size[1]+'x'+explicit_size[2]
- if provider=='google' and explicit_size and size!='1024x1024':raise tools.ToolUnavailable('Rasio ini belum tersedia pada model pilihan. Gunakan 1:1, 3:2, atau 2:3.',model=model)
- if provider=='openai' and size not in ('1024x1024','1536x1024','1024x1536'):
-  raise tools.ToolUnavailable('Rasio ini belum tersedia pada model pilihan. Gunakan 1:1, 3:2, atau 2:3.',model=model)
+ sizes=image_models.sizes(model)
+ size=sizes.get(ratio)
+ if explicit_size:
+  size=explicit_size[1]+'x'+explicit_size[2]
+  requested_ratio=next(iter(re.findall(r'\b(1:1|3:2|2:3|3:4|4:3|4:5|5:4|9:16|16:9|21:9)\b',prompt)),None)
+  from math import gcd
+  width,height=int(explicit_size[1]),int(explicit_size[2])
+  if min(width,height)<=0:raise tools.ToolUnavailable('Ukuran gambar tidak valid.',model=model)
+  divisor=gcd(width,height)
+  actual_ratio=f'{width//divisor}:{height//divisor}'
+  if requested_ratio:
+   rw,rh=map(int,requested_ratio.split(':'))
+   if width*rh!=height*rw:raise tools.ToolUnavailable('Ukuran piksel dan rasio gambar tidak cocok.',model=model)
+  ratio=requested_ratio or next((key for key,value in sizes.items() if value==size),actual_ratio)
+ if provider=='google' and explicit_size and size!='1024x1024':raise tools.ToolUnavailable('Ukuran ini belum tersedia pada alur model pilihan. Gunakan rasio yang didukung tanpa ukuran piksel khusus.',model=model)
+ if provider=='openai' and size not in sizes.values():
+  raise tools.ToolUnavailable('Ukuran ini belum tersedia pada alur model pilihan. Gunakan rasio yang didukung tanpa ukuran piksel khusus.',model=model)
  transparent=bool(re.search(r'(?i)\b(?:transparent|transparan|transparente)\b|透明',prompt))
- if transparent and model!='gpt-image-1-mini':raise tools.ToolUnavailable('Transparansi belum tersedia pada model pilihan. Pilih GPT Image 1 Mini untuk PNG transparan.',model=model)
- if re.search(r'(?i)\b(?:quality|kualitas|calidad)\s*[:=]?\s*(?:high|medium)|\b[24]K\b',prompt):
-  raise tools.ToolUnavailable('Kualitas ini belum tersedia pada alur hemat. Gunakan low / 1K.',model=model)
+ if transparent and not image_models.transparency(model):raise tools.ToolUnavailable('Transparansi belum tersedia pada model pilihan. Pilih model gambar yang mendukung PNG transparan.',model=model)
+ if re.search(r'(?i)\b(?:quality|kualitas|calidad)\s*[:=]?\s*(?:high|medium|xhigh|max|auto|tinggi|sedang)\b|\b[24]K\b',prompt):
+  raise tools.ToolUnavailable('Permintaan kualitas ini memerlukan pengaturan biaya yang belum tersedia di alur ini; gambar tidak dibuat. Kualitas saat ini low / 1K.',model=model)
  for reference in sources:
   if reference.get('normalized') or reference['mime_type'] not in ('image/png','image/jpeg','image/webp') or len(reference['content'])>5*1024*1024:raise tools.ToolUnavailable('Gambar asli belum kompatibel dengan model pilihan.',model=model)
  used={'selected_image_model':model,'billing_unknown':True};metadata={'requested_model':model,'returned_model':'unreported','provider':provider}
@@ -29,7 +42,7 @@ def generate(model,prompt,source=None,request_timeout=120):
   if provider=='openai':
    headers={'Authorization':'Bearer '+os.environ['OPENAI_API_KEY'].strip()}
    if os.environ.get('OPENAI_PROJECT_ID'):headers['OpenAI-Project']=os.environ['OPENAI_PROJECT_ID']
-   payload={'model':model,'prompt':prompt[:4000],'size':size,'quality':'low','n':1}
+   payload={'model':model,'prompt':prompt,'size':size,'quality':'low','n':1}
    if transparent:payload.update(background='transparent',output_format='png')
    if not sources:response=requests.post('https://api.openai.com/v1/images/generations',headers=headers,json=payload,timeout=(10,request_timeout))
    else:
@@ -39,7 +52,7 @@ def generate(model,prompt,source=None,request_timeout=120):
    used.update(input_tokens=raw_usage.get('input_tokens',0),output_tokens=raw_usage.get('output_tokens',0),image_token_usage=raw_usage)
    encoded=data['data'][0]['b64_json']
   else:
-   parts=[{'text':prompt[:4000]}]
+   parts=[{'text':prompt}]
    for reference in sources:parts.append({'inlineData':{'mimeType':reference['mime_type'],'data':base64.b64encode(bytes(reference['content'])).decode()}})
    payload={'contents':[{'role':'user','parts':parts}],'generationConfig':{'responseModalities':['TEXT','IMAGE'],'candidateCount':1,'maxOutputTokens':8192,'imageConfig':{'aspectRatio':ratio,'imageSize':'1K'}}}
    response=requests.post('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',headers={'x-goog-api-key':os.environ['GEMINI_API_KEY'].strip()},json=payload,timeout=(10,request_timeout))
@@ -63,9 +76,10 @@ def generate(model,prompt,source=None,request_timeout=120):
     if abs(pic.width/pic.height-w/h)>.04:raise ValueError('image_ratio')
    if transparent and (pic.mode not in ('RGBA','LA') or pic.getextrema()[-1][0]==255):raise ValueError('transparency_missing')
    dimensions=[pic.width,pic.height]
-   pic.verify()
+  # Pixel inspection (alpha extrema) loads the decoder; verify on a fresh handle.
+  with Image.open(io.BytesIO(raw)) as verified:verified.verify()
   used['billing_unknown']=image_models.cost(model,used.get('image_token_usage')) is None
   return {'raw':raw,'mime':mime,'model':model,'provider':provider,'usage':used,'model_provenance':metadata,'image_options':{'dimensions':dimensions,'aspect_ratio':ratio,'quality':'low' if provider=='openai' else '1K','transparent':transparent,'reference_count':len(sources),'input_bytes_preserved':True}}
- except (requests.RequestException,ValueError,TypeError,KeyError,IndexError,selected_provider.providers.ProviderError):
+ except (requests.RequestException,OSError,ValueError,TypeError,KeyError,IndexError,selected_provider.providers.ProviderError):
   used['billing_unknown']=image_models.cost(model,used.get('image_token_usage')) is None
   raise tools.ToolUnavailable('Gambar belum dapat dibuat dengan model pilihan; permintaan tidak dialihkan.',model=model,usage=used) from None

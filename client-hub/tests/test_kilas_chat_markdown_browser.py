@@ -18,6 +18,13 @@ TEXT=r'''## Synthetic reasoning
 
 - Domain \(x\ge\frac{1}{2}\).
 - Calculation $x_i^2+1=2$.
+  1. Tentukan tujuan.
+  2. Ukur hasil.
+     - Pertahankan anggaran.
+
+#### Langkah berikutnya
+
+Gunakan hasil pengukuran untuk menentukan tindakan.
 
 \[
 \begin{aligned}
@@ -89,6 +96,12 @@ def main():
      expect(body.locator('.ai-math-display mtable > mtr')).to_have_count(2)
      expect(body.locator('pre code')).to_have_text('literal = "<img src=x onerror=alert(1)> and \\(x_1\\)"\nprint(literal)')
      assert body.locator('table tr').last.locator('td').count()==2
+     expect(body.locator('.ai-list-block > ul > li > ol > li')).to_have_count(2)
+     expect(body.locator('ol > li > ul > li')).to_have_text('Pertahankan anggaran.')
+     expect(body.locator('h5')).to_have_text('Langkah berikutnya')
+     assert body.locator('.ai-table-scroll[tabindex="0"] thead th[scope="col"]').count()==2
+     styles=body.evaluate('e=>({font:getComputedStyle(e).fontFamily,em:getComputedStyle(e.querySelector("em")).fontStyle,line:parseFloat(getComputedStyle(e.querySelector("p")).lineHeight),size:parseFloat(getComputedStyle(e).fontSize)})')
+     assert 'sans' in styles['font'] and styles['em']=='normal' and styles['line']>=styles['size']*1.6,styles
      assert page.evaluate('window.qaInjected===undefined') and body.locator('img,script,iframe').count()==0
      assert 'A price is $10 or $20.' in body.inner_text()
      page.wait_for_timeout(60)

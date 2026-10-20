@@ -69,9 +69,9 @@ def dispatch(owner,text,key,conversation):
     if selected=='CHAT' and routing.lookup_topic(text,[m['content'] for m in recent[:-1] if m['role']=='user']):
         selected='WEB'
     if selected=='IMAGE_GENERATE':
-        text=routing.image_prompt(text,previous_answer)[:1200]
+        text=routing.image_prompt(text,previous_answer)
         if not work_documents.image_request(text):
-            text=('Buat gambar dari konsep sebelumnya:\n'+previous_answer[:800]+'\nInstruksi terbaru: '+text)[:1200]
+            text=('Buat gambar dari konsep sebelumnya:\n'+previous_answer+'\nInstruksi terbaru: '+text)
     if not prepared:
         from . import agent_attachments
         request.work_source_materials=agent_attachments.sources(owner,conversation)
@@ -93,7 +93,7 @@ def dispatch(owner,text,key,conversation):
             return work_runtime.handle(owner,text,key,conversation)
         return agent_chat.ordinary(owner,conversation,key) or redirect(url_for('kilas_ai.agent_home'),code=303)
     if selected=='IMAGE_EDIT' and previous and previous['media_type'].startswith('image/') and not any(p['mime_type'].startswith('image/') for p in prepared):
-        text=('Edit gambar sebelumnya: '+text)[:1200]
+        text='Edit gambar sebelumnya: '+text
     if selected=='SCHEDULE' and not work_schedule.REMINDER.search(text) and re.match(r'(?i)^(?:setiap|tiap|every)\b',text) and not routing.fresh_information(routing._normalize(text)) and not re.search(r'(?i)\b(?:buat|riset|research|pantau|monitor|kerjakan)\b',text):
         text='ingatkan '+text
     return work_runtime.handle(owner,text,key,conversation)
