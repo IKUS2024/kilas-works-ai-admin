@@ -11,7 +11,7 @@ import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=app-lan
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
 import {bindRecordToggle,TranslatorMicrophone} from './kilas_live_translator_toggle.mjs?v=record-toggle-20261020';
 import {TranslatorHistory} from './kilas_live_translator_history.mjs?v=record-toggle-20261020';
-import {prepareProgressive,disposeProgressive,progressivePlay} from './kilas_live_translator_progressive.mjs?v=record-toggle-20261020';
+import {prepareProgressive,disposeProgressive,progressivePlay} from './kilas_live_translator_progressive.mjs?v=pending-play-20261020';
 const root=document.querySelector('.kilas-live-translator');
 if(root){
  const form=document.querySelector('#live-setup-form'),setup=document.querySelector('#live-setup'),active=document.querySelector('#live-active'),orb=active.querySelector('.kilas-live-orb'),error=document.querySelector('#live-error');

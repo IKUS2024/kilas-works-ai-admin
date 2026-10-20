@@ -65,6 +65,38 @@ class ProgressiveBrowserTests(unittest.TestCase):
    old=next(v for v in measurements if v['arm']=='complete' and v['direction']==direction);new=next(v for v in measurements if v['arm']=='progressive' and v['direction']==direction);self.assertGreater(old['release_to_browser_onset_ms']-new['release_to_browser_onset_ms'],400)
   out=Path('/tmp/kilas-translator-progressive');out.mkdir(exist_ok=True);(out/'benchmark.json').write_text(json.dumps(measurements,indent=2));print('CONTROLLED_PROGRESSIVE '+json.dumps(measurements))
 
+ def test_small_prefix_pending_play_keeps_feeding_real_decoder_on_mobile(self):
+  self.credit(300);self.raw=audio.mp3(2)
+  def speech(*args,**kwargs):
+   response=self.output_transport()
+   def chunks():yield self.raw[:4096];time.sleep(.35);yield self.raw[4096:]
+   response.iter_content.side_effect=lambda _:chunks();return response
+  # Deterministic startup-buffer policy around the real Chrome decoder.
+  gate="""
+const basePlay=HTMLMediaElement.prototype.play;
+HTMLMediaElement.prototype.play=function(...args){
+ if(!this.src.startsWith('blob:'))return basePlay.apply(this,args);
+ window.qaPlayAttempts=(window.qaPlayAttempts||0)+1;
+ return new Promise((resolve,reject)=>{
+  const began=performance.now(),timer=setInterval(()=>{
+   if(this.buffered.length&&this.buffered.end(0)>=.5){clearInterval(timer);basePlay.apply(this,args).then(resolve,reject);}
+   else if(performance.now()-began>5500){clearInterval(timer);reject(Error('fixture startup starved'));}
+  },5);
+ });
+};
+"""
+  media='window.qaNativeAudioContext=AudioContext;'+browser_fixture.MEDIA+MEDIA_OVERRIDE+gate
+  with self.context(realtime_on=True),patch.object(browser_fixture,'MEDIA',media),patch.object(realtime,'connect',return_value=browser_fixture.AutomaticSocket('Saya mau tiket.')) as connect,patch.object(segments.transport,'request',side_effect=speech) as synth,self.actual_browser() as (page,requests,errors):
+   self.translation_mock.side_effect=lambda *a,**k:(v for v in [{'type':'delta','text':json.dumps(dict(text='I want a ticket.',source_language='id',target_language='en'))},{'type':'usage','input_tokens':90,'output_tokens':40},{'type':'finish','reason':'stop'}])
+   page.set_viewport_size({'width':390,'height':844});page.locator('[name=consent]').check();page.get_by_role('button',name='Start',exact=True).click();page.wait_for_function("!document.querySelector('#live-hold').disabled")
+   fixture.record(page);page.evaluate('qa.rms=.2');page.wait_for_timeout(200);released=page.evaluate('performance.now()');fixture.stop_recording(page);page.evaluate('qa.rms=0')
+   page.wait_for_function('qaAudio.length===1',timeout=4000);onset=page.evaluate('qaAudio[0]')-released
+   page.wait_for_function("!document.querySelector('#live-hold').disabled",timeout=8000)
+   self.assertEqual(page.evaluate('qaPlayAttempts'),1);self.assertEqual(page.evaluate('qa.mics'),0);self.assertEqual(page.locator('.live-replay').count(),1);self.assertTrue(any('progressive_start_wait_ms' in m for m in page.evaluate('qaMetrics')))
+   synth.assert_called_once();connect.assert_called_once();self.assertFalse(errors,errors)
+   print('CONTROLLED_PENDING_PLAY '+json.dumps({'release_to_browser_onset_ms':round(onset,1),'first_prefix_bytes':4096,'tail_delay_ms':350,'viewport_width':390,'synthetic_start_buffer_seconds':.5}))
+   page.locator('#live-end').click()
+
  def test_stop_during_real_progressive_playback_cleans_media_and_never_replays_or_recaptures(self):
   self.credit(300);self.raw=audio.mp3(3);release=Event()
   def speech(*args,**kwargs):

@@ -43,7 +43,7 @@ export function progressivePlay(player,url,signal,isCurrent,onStarted=()=>{}){
   const slot=player.progressiveMedia;
   if(!slot?.ready||slot.context!==op.context)throw permissionFailure();
   const audio=slot.audio,media=new MediaSource(),objectUrl=URL.createObjectURL(media),chunks=[];
-  let buffer=null,total=0,started=false,ended=false,playFailure=null,blocked=null,expectedDigest=null,expectedSize=null;
+  let buffer=null,total=0,started=false,ended=false,playFailure=null,blocked=null,expectedDigest=null,expectedSize=null,startPending=null;
   const onEnded=()=>{ended=true;},onError=()=>{playFailure=failure();};
   let cleaned=false;
   const finalUrl=url.slice(0,-'/progress'.length);
@@ -71,6 +71,11 @@ export function progressivePlay(player,url,signal,isCurrent,onStarted=()=>{}){
     try{await player.resume(op);player.check(op);await player.bounded(op,()=>audio.play(),5000,failure());player.check(op);started=true;onStarted();}
     catch(e){if(e?.name!=='NotAllowedError'&&e?.name!=='SecurityError'&&e?.code!=='audio_resume')throw e;player.check(op);slot.ready=false;blocked=e.code==='audio_resume'?e:permissionFailure();audio.pause();}
    };
+   // play() resolves only once the decoder starts. Keep feeding it while
+   // that promise is pending: some browsers need more than the first prefix.
+   // One attempt per stream, with rejection consumed immediately and surfaced
+   // by the owned operation; late callbacks remain fenced by player.check().
+   const beginStart=()=>{if(!startPending){const began=player.now();startPending=start().then(()=>{if(started)player.timing({progressive_start_wait_ms:Math.max(0,player.now()-began)});},error=>{playFailure=error;});}};
    let complete=false,lastData=player.now(),idleDelay=40;
    while(!complete){
     player.check(op);if(playFailure)throw playFailure;
@@ -89,7 +94,7 @@ export function progressivePlay(player,url,signal,isCurrent,onStarted=()=>{}){
      idleDelay=40;
      if(total+count>Number(size))throw failure();chunks.push(bytes);total+=count;lastData=player.now();
      await wait(buffer,'updateend',15000,()=>buffer.appendBuffer(bytes));
-     if(!started&&!blocked&&buffer.buffered.length&&buffer.buffered.end(0)>=.15)await start();
+     if(!startPending&&buffer.buffered.length&&buffer.buffered.end(0)>=.15)beginStart();
     }
     if(flag==='1'){
      expectedDigest=response.headers.get('X-Audio-SHA256');expectedSize=Number(size);
@@ -101,7 +106,7 @@ export function progressivePlay(player,url,signal,isCurrent,onStarted=()=>{}){
    const raw=new Uint8Array(total);let cursor=0;for(const part of chunks){raw.set(part,cursor);cursor+=part.byteLength;}
    const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',raw))].map(v=>v.toString(16).padStart(2,'0')).join('');if(digest!==expectedDigest)throw failure();
    if(buffer.updating)await wait(buffer,'updateend');media.endOfStream();
-   if(!started&&!blocked)await start();
+   beginStart();await startPending;player.check(op);if(playFailure)throw playFailure;
    // A denied element must not cancel the already-paid producer. Finish the
    // bounded download/digest and retain bytes for the explicit Resume gesture.
    if(blocked){player.check(op);player.remember(finalUrl,raw.buffer);return {sha256:digest,playbackError:blocked};}
