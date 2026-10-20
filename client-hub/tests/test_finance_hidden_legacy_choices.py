@@ -24,7 +24,8 @@ class HiddenLegacyChoices(unittest.TestCase):
   self.assertEqual(response.status_code,200)
   self.assertNotIn(obsolete,{r['id'] for r in contexts[-1]['categories']})
   with branches.scope(self.b,self.personal,self.uid):
-   self.assertFalse(f._category_setting_by_id(self.b,obsolete,self.uid,include_inactive=True)['is_active'])
+   self.assertNotIn(obsolete,{r['id'] for r in f.list_categories(self.b,'EXPENSE',include_children=True,actor_user_id=self.uid)})
+   self.assertTrue(f._category_setting_by_id(self.b,obsolete,self.uid)['is_active'])
    self.assertTrue(db.query_one('SELECT id FROM finance_categories WHERE id=?',(obsolete,)))
  def test_dashboard_add_and_split_template_hide_obsolete_preserve_custom_and_final(self):
   obsolete,valid,tx=self.legacy();contexts=[]
@@ -42,8 +43,8 @@ class HiddenLegacyChoices(unittest.TestCase):
    active=f.list_categories(self.b,'EXPENSE',include_children=True,actor_user_id=self.uid)
    proven={r['category_id'] for r in db.query_all("SELECT category_id FROM finance_catalog_items WHERE business_id=? AND scope_key=?",(self.b,'PERSONAL:'+str(self.uid)))}
    roots=[r for r in active if r['id'] in proven and r.get('parent_category_id') is None]
-   self.assertEqual([r['name'] for r in roots],[v[1] for v in catalog.PERSONAL_V3])
-   self.assertEqual(sum(r['id'] in proven and r.get('parent_category_id') is not None for r in active),45)
+   self.assertEqual([r['display_name'] for r in roots],[v[1] for v in catalog.EXPENSE_V4])
+   self.assertEqual(sum(r['id'] in proven and r.get('parent_category_id') is not None for r in active),42)
    self.assertTrue(old_ids.issubset({r['id'] for r in db.query_all('SELECT * FROM finance_categories')}))
    self.assertEqual([dict(r) for r in db.query_all('SELECT * FROM finance_transactions')],before)
  def test_historical_inactive_choice_and_splits_remain_editable_without_new_use(self):

@@ -38,6 +38,69 @@ PERSONAL_V3=(
  ('bank','Biaya Bank','bank',('Pajak','Administrasi')),
 )
 
+# Owner's ten expense defaults. Child meanings are the existing approved v3
+# list translated into English; Business retains only its existing utility set.
+EXPENSE_V4=(
+ ('housing','Home/Rent','home',(('Sewa','Rent'),('Iuran Lingkungan','Association Fee'),('Pajak Properti','Property Tax'),('Hipotek','Mortgage'),('Staf Rumah Tangga','Household Staff'),('Layanan Rumah','Home Services'))),
+ ('food','Food','food',(('Bahan Makanan','Groceries'),('Restoran','Restaurants'),('Makanan Cepat Saji','Fast Food'))),
+ ('utilities','Utilities','electric',(('Listrik','Electricity'),('Gas / Pemanas','Gas / Heating'),('Internet','Internet'),('Sampah','Garbage'),('Penatu','Laundry'),('Pembersihan','Cleaning'))),
+ ('items','Personal Item','shopping',(('Pakaian','Clothing'),('Rias Wajah','Makeup'),('Perawatan Kulit','Skincare'),('Anak / Mainan','Kids / Toys'))),
+ ('transport','Transportation','transport',(('Bahan Bakar','Fuel'),('Servis Kendaraan','Vehicle Servicing'),('Tol','Tolls'),('Transportasi Daring','Ride-hailing'),('Parkir','Parking'),('Pembayaran Pinjaman Kendaraan','Vehicle Loan Payment'),('Sewa Mobil','Car Rental'))),
+ ('entertainment','Entertainment','entertainment',(('Film','Movies'),('Langganan','Subscriptions'),('Acara','Events'),('Permainan','Games'))),
+ ('medical','Medical','health',(('Prosedur Kosmetik','Cosmetic Procedures'),)),
+ ('holiday','Holiday','transport',(('Penerbangan','Flights'),('Akomodasi','Accommodation'),('Transportasi Lokal','Local Transport'),('Makanan & Minuman','Food & Drinks'),('Aktivitas & Tiket','Activities & Tickets'),('Visa & Dokumen Perjalanan','Visa & Travel Documents'))),
+ ('bank','Bank Charge','bank',(('Pajak','Tax'),('Administrasi','Administration'))),
+ ('misc','Misc/one-time','category',(('Hadiah & Donasi','Gifts & Donations'),('Pembelian Khusus','Special Purchases'),('Lainnya','Other'))),
+)
+BUSINESS_UTILITY_V4=(('Listrik','Electricity'),('Air','Water'),('Internet','Internet'),('Telepon','Telephone'),('Gas','Gas'),('Laundry','Laundry'),('Sampah / Kebersihan','Garbage / Cleaning'))
+
+def _expense_policy(business_id,scope):
+    import json
+    row=db.query_one('SELECT changes_json FROM finance_category_catalog_versions WHERE business_id=? AND scope_key=? AND version=4',(business_id,scope['scope_key']))
+    return json.loads(row['changes_json']) if row else None
+
+def sync_expense(business_id,actor):
+    """Reversible picker policy; never rename, delete or reparent legacy data.
+
+    Caller owns the scoped write lock. Only a persisted seed identity plus an
+    unchanged name and parent can be reused/hidden. Unknown/custom rows survive.
+    Retired defaults remain usable by their existing schedules and edit paths.
+    """
+    import json
+    import finance_service as f
+    if f._finance_write.get()!=(business_id,actor):raise f.FinanceError('business_unavailable')
+    scope=f._category_scope(business_id,actor)
+    if _expense_policy(business_id,scope):return
+    old=[dict(v) for v in db.query_all('SELECT m.*,s.display_name,s.is_active,c.direction,h.parent_category_id FROM finance_catalog_items m JOIN finance_categories c ON c.business_id=m.business_id AND c.id=m.category_id JOIN finance_category_workspace_settings s ON s.business_id=m.business_id AND s.category_id=m.category_id AND s.scope_key=m.scope_key LEFT JOIN finance_category_hierarchy h ON h.business_id=m.business_id AND h.child_category_id=m.category_id WHERE m.business_id=? AND m.scope_key=? AND c.direction=?',(business_id,scope['scope_key'],'EXPENSE'))]
+    proven=lambda r:r['builtin_name']!='__customer_owned__' and r['builtin_name']==r['display_name']
+    originals={key:name for key,name,_,_ in PERSONAL_V3}
+    approved={};created=[];preferences_before=[]
+    def node(key,name,aliases,parent,position,icon_key):
+        candidates=[r for r in old if proven(r) and r['parent_category_id']==parent and r['builtin_name'] in (name,*aliases)]
+        row=candidates[0] if len(candidates)==1 else None
+        if row:ident=row['category_id'];original=row['builtin_name']
+        else:
+            ident=f._create_category(business_id,'EXPENSE','__kilas_'+scope['scope_key']+'_v4.'+key,actor)
+            f._ensure_category_setting(business_id,ident,name,actor)
+            if parent is not None:f._link_category_parent(business_id,ident,parent)
+            mark(business_id,scope['scope_key'],'v4.'+key,ident,position,name);created.append(ident);original=name
+        previous=db.query_one('SELECT * FROM finance_category_preferences WHERE business_id=? AND scope_key=? AND category_id=?',(business_id,scope['scope_key'],ident))
+        preferences_before.append(dict(previous) if previous else {'category_id':ident,'missing':True})
+        preference(business_id,actor,ident,icon_key=icon_key,position=position)
+        approved[str(ident)]={'name':name,'builtin_name':original,'parent_category_id':parent,'key':key}
+        return ident
+    for order,(key,name,icon_key,children) in enumerate(EXPENSE_V4):
+        root=node(key,name,(originals[key],),None,order*100,icon_key)
+        if scope['workspace_type']=='BUSINESS':children=BUSINESS_UTILITY_V4 if key=='utilities' else ()
+        for index,(before,english) in enumerate(children):node(key+'.'+str(index),english,(before,),root,index*100,icon_key)
+    # No raw active flags change: this mapping hides old proven defaults only
+    # from new choices. A false enabled flag reverses the policy without deleting
+    # any category, setting, hierarchy, transaction, allocation, budget or rule.
+    policy={'enabled':True,'approved':approved,'retired':[r['category_id'] for r in old if proven(r) and str(r['category_id']) not in approved], 'created':created,'before':old,'preferences_before':preferences_before}
+    db.execute('INSERT INTO finance_category_catalog_versions VALUES (?,?,4,?)',(business_id,scope['scope_key'],json.dumps(policy,sort_keys=True)))
+    f._audit(business_id,actor,'FINANCE_EXPENSE_REFERENCE_CATALOG_V4',None)
+
+
 ICONS=('category','home','rent','shopping','food','transport','electric','water','internet','phone','health','education','digital','entertainment','care','work','investment','bank')
 
 def icon(value):
@@ -174,24 +237,41 @@ def sync_personal(business_id,actor):
     import finance_service as f
     scope=f._category_scope(business_id,actor)
     if scope['workspace_type']!='PERSONAL':return
-    # A completed final catalog is authoritative, including deliberate archives
-    # and the exact approved cleanup. Never bootstrap superseded versions again.
-    if db.query_one('SELECT 1 FROM finance_category_catalog_versions WHERE business_id=? AND scope_key=? AND version=3',(business_id,scope['scope_key'])):return
-    # Upgrade known legacy identities directly. In particular food.1 remains
-    # Dining Out; the deprecated v2 combined-label transition must not run first.
-    _sync_final(business_id,actor,scope)
+    sync_expense(business_id,actor)
 
 
-def decorate(business_id,scope,rows):
+def decorate(business_id,scope,rows,*,include_inactive=False):
     metadata={v['category_id']:v for v in db.query_all('SELECT * FROM finance_catalog_items WHERE business_id=? AND scope_key=?',(business_id,scope['scope_key']))}
     prefs={v['category_id']:v for v in db.query_all('SELECT * FROM finance_category_preferences WHERE business_id=? AND scope_key=?',(business_id,scope['scope_key']))}
+    policy=_expense_policy(business_id,scope)
+    approved=policy['approved'] if policy and policy.get('enabled') else {}
+    retired=set(policy['retired'] if policy.get('enabled') else policy['created']) if policy else set()
+    if policy and not policy.get('enabled'):
+        for previous in policy['preferences_before']:
+            if previous.get('missing'):prefs.pop(previous['category_id'],None)
+            else:prefs[previous['category_id']]=previous
+    settings={v['category_id']:dict(v) for v in db.query_all('SELECT s.category_id,s.display_name,h.parent_category_id FROM finance_category_workspace_settings s LEFT JOIN finance_category_hierarchy h ON h.business_id=s.business_id AND h.child_category_id=s.category_id WHERE s.business_id=? AND s.scope_key=?',(business_id,scope['scope_key']))}
+    def proven(ident):
+        item=metadata.get(ident);setting=settings.get(ident)
+        return bool(item and setting and item['builtin_name']!='__customer_owned__' and item['builtin_name']==setting['display_name'])
+    # A custom descendant protects its old parent from disappearing. Such rows
+    # remain custom context, not additional defaults; names alone prove nothing.
+    protected={v['parent_category_id'] for ident,v in settings.items() if v['parent_category_id'] and not proven(ident)}
+    retired={ident for ident in retired if ident not in protected and proven(ident) and (not settings[ident]['parent_category_id'] or proven(settings[ident]['parent_category_id']))}
     from flask import has_request_context
     from ui_i18n import translate
     for row in rows:
         item=metadata.get(row['id']);row['display_name']=row['name']
         # Renaming a built-in makes that name customer-owned: leave it verbatim.
         if item and row['name']==item['builtin_name'] and has_request_context():row['display_name']=translate(item['builtin_name'])
+        alias=approved.get(str(row['id']))
+        row['builtin_default']=False
+        if alias and proven(row['id']) and row.get('parent_category_id')==alias['parent_category_id']:
+            row['display_name']=alias['name'];row['builtin_default']=True
+        row['default_retired']=row['id'] in retired
+        if row['default_retired']:row['is_active']=False
         pref=prefs.get(row['id']) or {};row['icon_key']=pref.get('icon_key') or 'category'
         row['catalog_order']=pref.get('sort_order') if pref.get('sort_order') is not None else item['sort_order'] if item else 100000
+    if not include_inactive:rows=[row for row in rows if row['is_active']]
     rows.sort(key=lambda row:(row['direction'],row['catalog_order'],row['name'].casefold(),row['id']))
     return rows

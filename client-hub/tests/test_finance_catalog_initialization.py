@@ -27,9 +27,9 @@ class CatalogInitializationTests(unittest.TestCase):
   with branches.scope(bid,branch,owner):
    f.ensure_finance_defaults(bid,actor_user_id=owner)
    rows=db.query_all("SELECT m.* FROM finance_catalog_items m JOIN finance_categories c ON c.id=m.category_id WHERE m.business_id=? AND c.direction='EXPENSE'",(bid,))
-   self.assertEqual(len(rows),56)
-   self.assertTrue(all(r['canonical_key'].startswith('v3.') for r in rows))
-   self.assertEqual([r['name'] for r in f.list_categories(bid,'EXPENSE',actor_user_id=owner)],[r[1] for r in catalog.PERSONAL_V3])
+   self.assertEqual(len(rows),52)
+   self.assertTrue(all(r['canonical_key'].startswith('v4.') for r in rows))
+   self.assertEqual([r['name'] for r in f.list_categories(bid,'EXPENSE',actor_user_id=owner)],[r[1] for r in catalog.EXPENSE_V4])
  def test_existing_v2_upgrades_without_rewriting_obsolete_identity(self):
   bid,owner,branch=self.old_home('v2-catalog')
   with branches.scope(bid,branch,owner):
@@ -39,7 +39,7 @@ class CatalogInitializationTests(unittest.TestCase):
    f.ensure_finance_defaults(bid,actor_user_id=owner)
    self.assertEqual(dict(db.query_one('SELECT * FROM finance_categories WHERE id=?',(obsolete['category_id'],))),before)
    self.assertEqual(dict(db.query_one('SELECT * FROM finance_catalog_items WHERE category_id=?',(obsolete['category_id'],))),dict(obsolete))
-   self.assertFalse(f._category_setting_by_id(bid,obsolete['category_id'],owner,include_inactive=True)['is_active'])
+   self.assertNotIn(obsolete['category_id'],[r['id'] for r in f.list_categories(bid,'EXPENSE',include_children=True,actor_user_id=owner)])
  def test_partial_v3_reuses_proven_nodes_and_preserves_custom_names(self):
   bid,owner,branch=self.old_home('partial-catalog')
   with branches.scope(bid,branch,owner):

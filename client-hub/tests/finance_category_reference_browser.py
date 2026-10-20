@@ -26,7 +26,7 @@ def main():
       expected=box.locator('[data-expense-child]').evaluate('(e)=>Array.from(e.options).filter(o=>o.value&&o.value!=="__add__"&&o.dataset.parent===e.closest("[data-expense-picker]").querySelector("[data-expense-parent]").value).map(o=>o.textContent)')
       actual=group.locator('[data-expense-choice] span:last-child').all_text_contents();assert actual==expected if expected else len(actual)==1,(actual,expected)
       if leaf is not None:
-       name=box.locator('[data-expense-child] option[value="'+str(leaf)+'"]').text_content();group.locator('[data-expense-choice="'+str(leaf)+'"]').click();assert name in box.locator('[data-expense-cascade]').text_content();expect(panel).to_be_hidden()
+       name=box.locator('[data-expense-child] option[value="'+str(leaf)+'"]').text_content();group.locator('[data-expense-choice="'+str(leaf)+'"]').click();assert box.locator('[data-expense-cascade]').text_content()==box.locator('[data-expense-parent] option:checked').text_content();expect(box.locator('[data-expense-subcategory-display]')).to_have_text(name);expect(panel).to_be_hidden()
       elif not expected:group.locator('[data-expense-choice]').click()
      choose(single,parent['id'],kids[0]['id']);choose(single,other['id']);assert b.input_value()=='';assert not b.is_visible()
      single.locator('[data-expense-cascade]').click() if single.locator('[data-expense-cascade-panel]').is_visible() else None
@@ -37,7 +37,7 @@ def main():
       # Empty parent supports adding exactly one child under that selected parent.
       single.locator('[data-expense-cascade]').click();panel=single.locator('[data-expense-cascade-panel]');group=panel.locator('[data-expense-group="'+str(empty)+'"]');group.locator('summary').click() if not group.evaluate('(e)=>e.open') else None;page.once('dialog',lambda d:d.accept('Cascade child '+scope))
       with page.expect_response(lambda r:'/categories?' in r.url and r.request.method=='POST'):group.get_by_role('button',name='Add subcategory…',exact=True).click()
-      expect(single.locator('[data-expense-cascade]')).to_contain_text('Cascade child '+scope)
+      expect(single.locator('[data-expense-subcategory-display]')).to_have_text('Cascade child '+scope)
       inserted=db.query_one('SELECT category_id FROM finance_category_workspace_settings WHERE business_id=? AND display_name=?',(case.b,'Cascade child '+scope));assert db.query_one('SELECT parent_category_id FROM finance_category_hierarchy WHERE child_category_id=?',(inserted['category_id'],))['parent_category_id']==empty
       expect(single.locator('[data-expense-subcategory-display]')).to_have_text('Cascade child '+scope)
      assert b.evaluate('(e)=>Array.from(e.options).filter(o=>o.value&&o.value!=="__add__"&&!o.disabled).every(o=>o.dataset.parent===e.closest("[data-expense-picker]").querySelector("[data-expense-parent]").value)')

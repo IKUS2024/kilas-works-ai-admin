@@ -135,10 +135,14 @@ def _start_finance_trial_now(business_id, user):
             business_id, include_inactive=False, actor_user_id=user['id'])
     }
     for direction, names in finance.DEFAULT_CATEGORIES.items():
+        if direction=='EXPENSE':continue
         for name in names:
             if (direction, name) not in existing:
                 finance.create_category(
                     business_id, direction, name, actor_user_id=user['id'])
+
+    from finance_category_catalog import sync_expense
+    with finance._write(business_id,user['id']):sync_expense(business_id,user['id'])
 
     session['dashboard_business_id'] = business_id
     session.pop('product_intent', None)

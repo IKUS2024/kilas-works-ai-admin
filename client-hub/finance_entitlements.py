@@ -105,6 +105,7 @@ def setup(business_id, actor_user_id, name, account_type, opening_balance_minor=
             raise finance.FinanceError('finance_read_only')
         account=finance._create_account(business_id,name,account_type,'IDR',opening_balance_minor,actor_user_id)
         for direction,names in finance.DEFAULT_CATEGORIES.items():
+            if direction=='EXPENSE':continue  # Scoped expense catalog initializes after activation.
             for category in names:
                 if not db.query_one('SELECT id FROM finance_categories WHERE business_id=? AND direction=? AND name=?',(business_id,direction,category)):
                     finance._create_category(business_id,direction,category,actor_user_id)

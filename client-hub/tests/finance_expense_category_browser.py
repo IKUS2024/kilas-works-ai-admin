@@ -86,7 +86,7 @@ def main():
                     choose(single, parent['id'], children[0]['id'])
                     summary = single.locator('[data-expense-cascade]').text_content()
                     leaf_name = single.locator('[data-expense-child] option[value="'+str(children[0]['id'])+'"]').text_content()
-                    assert leaf_name in summary
+                    assert summary==single.locator('[data-expense-parent] option:checked').text_content()
                     group = choose(single, parent['id'])
                     expect(group.locator('[aria-pressed=true]')).to_have_attribute('data-expense-choice', str(children[0]['id']))
                     # Escape closes only the picker, leaves the draft and modal intact.
@@ -100,6 +100,10 @@ def main():
                         assert amount['x'] - date['x'] - date['width'] >= 17, (date, amount)
                     else:
                         assert amount['y'] - date['y'] - date['height'] >= 13, (date, amount)
+                    bars=[single.locator('[data-expense-cascade]').bounding_box(),single.locator('[data-expense-subcategory-display]').bounding_box()]
+                    assert abs(bars[0]['width']-bars[1]['width'])<1 and abs(bars[0]['height']-bars[1]['height'])<1,bars
+                    assert form.locator('[data-expense-split-toggle]').bounding_box()['y']>bars[1]['y']+bars[1]['height']
+                    expect(single.locator('.expense-cascade-label')).to_contain_text('Category/Subcategory')
                     assert dialog.evaluate('(e)=>e.scrollWidth<=e.clientWidth+1')
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                     if width in (390, 768, 1440):
@@ -147,7 +151,7 @@ def main():
                         expect(edit.locator('[data-expense-split-toggle]')).to_be_checked()
                         row = edit.locator('.expense-split-row').first
                         expect(row.locator('[data-expense-child]')).to_have_value(str(children[0]['id']))
-                        expect(row.locator('[data-expense-cascade]')).to_contain_text(leaf_name)
+                        expect(row.locator('[data-expense-cascade]')).to_have_text(row.locator('[data-expense-parent] option:checked').text_content())
                         assert edit.locator('[name=split_amount]').nth(1).input_value() == '50.01'
                         expect(row.locator('[data-expense-subcategory-display]')).to_have_text(leaf_name)
                         # The shared picker is also used by other-source expense edits.

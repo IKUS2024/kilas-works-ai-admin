@@ -91,14 +91,14 @@ class FinalFinanceTests(unittest.TestCase):
    before=db.query_one('SELECT count(*) n FROM finance_categories')['n'];f.ensure_finance_defaults(self.b,actor_user_id=self.uid)
    self.assertEqual(before,db.query_one('SELECT count(*) n FROM finance_categories')['n']);self.assertEqual(dict(f.get_transaction(self.b,tx,actor_user_id=self.uid)),old)
    self.assertTrue(ids.issubset({r['id'] for r in f.list_categories(self.b,'EXPENSE',include_children=True,include_inactive=True,actor_user_id=self.uid)}))
-   version=db.query_one('SELECT changes_json FROM finance_category_catalog_versions WHERE business_id=? AND scope_key=? AND version=3',(self.b,'PERSONAL:'+str(self.uid)));self.assertTrue(json.loads(version['changes_json']))
+   version=db.query_one('SELECT changes_json FROM finance_category_catalog_versions WHERE business_id=? AND scope_key=? AND version=4',(self.b,'PERSONAL:'+str(self.uid)));self.assertTrue(json.loads(version['changes_json']))
  def test_final_default_manual_archive_is_not_resurrected(self):
   with branches.scope(self.b,self.personal,self.uid):
    root=f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)[0];child=f.list_category_children(self.b,root['id'],actor_user_id=self.uid)[0];catalog.edit(self.b,self.uid,child['id'],deactivate=True);f.ensure_finance_defaults(self.b,actor_user_id=self.uid);self.assertFalse(f._category_setting_by_id(self.b,child['id'],self.uid,include_inactive=True)['is_active'])
  def test_cleanup_read_only_snapshot_unchanged_refs_and_scope_fail_closed(self):
   import finance_category_cleanup as cleanup
   with branches.scope(self.b,self.personal,self.uid):
-   root=next(v for v in f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid) if v['name']=='Rumah / Sewa');child=f.list_category_children(self.b,root['id'],actor_user_id=self.uid)[0]
+   root=next(v for v in f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid) if v['display_name']=='Home/Rent');child=f.list_category_children(self.b,root['id'],actor_user_id=self.uid)[0]
    before=db.query_one('SELECT count(*) n FROM audit_log')['n'];snapshot=cleanup.snapshot(self.b,self.uid,[child['id']]);self.assertEqual(cleanup.dry_run(self.b,self.uid,snapshot)['permanent_deletion_authorized'],False);self.assertEqual(db.query_one('SELECT count(*) n FROM audit_log')['n'],before)
    f.create_transaction(self.b,'EXPENSE',100,self.pa,child['id'],'2026-09-10',actor_user_id=self.uid)
    with self.assertRaisesRegex(ValueError,'cleanup_references_changed'):cleanup.dry_run(self.b,self.uid,snapshot)

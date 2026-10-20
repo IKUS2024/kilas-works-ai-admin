@@ -104,6 +104,12 @@ def edit_categories(business_id,transaction_id,actor):
         try:finance.sync_business_category_catalog(business_id,actor_user_id=actor)
         except finance.FinanceError as error:
             if str(error)!='finance_read_only':raise
+    else:
+        try:
+            from finance_category_catalog import sync_expense
+            with finance._write(business_id,actor):sync_expense(business_id,actor)
+        except finance.FinanceError as error:
+            if str(error)!='finance_read_only':raise
     retained={transaction['category_id']}|{v['category_id'] for v in allocations(business_id,transaction_id,actor)}
     rows=finance.list_categories(business_id,'EXPENSE',include_inactive=True,include_children=True,actor_user_id=actor)
     retained|={v['parent_category_id'] for v in rows if v['id'] in retained and v.get('parent_category_id')}

@@ -48,29 +48,12 @@ DEFAULT_CATEGORIES = {
         'Produk / Jasa',
         'Bunga Bank',
     ),
-    'EXPENSE': (
-        'Biaya Sewa',
-        'Utilitas',
-        'Konsumsi',
-        'Perlengkapan',
-        'Transportasi',
-        'Gaji',
-        'Biaya Tak Terduga',
-    ),
+    'EXPENSE': ('Home/Rent','Food','Utilities','Personal Item','Transportation','Entertainment','Medical','Holiday','Bank Charge','Misc/one-time'),
 }
 DEFAULT_CATEGORY_CHILDREN = {
     'INCOME': {},
     'EXPENSE': {
-        # Keep the Utilitas subcategories the user already requested.
-        'Utilitas': (
-            'Listrik',
-            'Air',
-            'Internet',
-            'Telepon',
-            'Gas',
-            'Laundry',
-            'Sampah / Kebersihan',
-        ),
+        'Utilities': ('Electricity','Water','Internet','Telephone','Gas','Laundry','Garbage / Cleaning'),
     },
 }
 
@@ -114,7 +97,7 @@ BUSINESS_LEGACY_DEFAULT_NAMES = {
 }
 PERSONAL_DEFAULT_CATEGORIES = {
     'INCOME': ('Gaji', 'Bonus', 'Freelance / Side Job', 'Investasi', 'Hadiah / Transfer Masuk'),
-    'EXPENSE': (),  # The scoped identity catalog below owns six ordered groups.
+    'EXPENSE': (),  # The scoped v4 identity policy owns ten ordered groups.
 }
 PERSONAL_DEFAULT_CATEGORY_CHILDREN = {}
 
@@ -597,6 +580,7 @@ def _link_category_parent(business_id, child_category_id, parent_category_id):
 
 def create_category(business_id, direction, name, *, parent_category_id=None, actor_user_id=None):
     direction, name = _enum(direction, DIRECTIONS), _text(name, 160, True)
+    parent_category_id=_id(parent_category_id) if parent_category_id is not None else None
     if name.casefold() in RETIRED_CATEGORY_NAMES:
         raise FinanceError('category_retired')
     with _write(business_id, actor_user_id):
@@ -607,9 +591,21 @@ def create_category(business_id, direction, name, *, parent_category_id=None, ac
             'LEFT JOIN finance_category_hierarchy h ON h.business_id=c.business_id AND h.child_category_id=c.id '
             'WHERE s.business_id=? AND s.scope_key=? AND c.direction=? AND lower(s.display_name)=lower(?) AND COALESCE(h.parent_category_id,0)=?',
             (business_id, scope['scope_key'], direction, name, parent_category_id or 0))
+        # English display aliases and retired defaults must follow the same
+        # scoped choice policy as the picker; never revive an old hidden ID.
+        hidden_defaults=set()
+        if direction=='EXPENSE':
+            choices=list_categories(business_id,direction,include_inactive=True,include_children=True,actor_user_id=actor_user_id)
+            hidden_defaults={row['id'] for row in choices if row.get('default_retired')}
+            candidates=[row for row in choices if not row.get('default_retired') and row.get('parent_category_id')==parent_category_id and name.casefold() in (row['name'].casefold(),row['display_name'].casefold())]
+            if len(candidates)>1:raise FinanceError('category_exists')
+            if candidates:
+                mapped=candidates[0]
+                if name==mapped['display_name'] or (mapped.get('builtin_default') and name.casefold()==mapped['display_name'].casefold()):name=mapped['name']
+            else:mapped=None
         if mapped:
-            _ensure_category_setting(
-                business_id, mapped['id'], name, actor_user_id, active=True)
+            if not (direction=='EXPENSE' and mapped['is_active'] and mapped.get('name')==name):
+                _ensure_category_setting(business_id,mapped['id'],name,actor_user_id,active=True)
             category_id = mapped['id']
         else:
             existing = db.query_one(
@@ -617,6 +613,9 @@ def create_category(business_id, direction, name, *, parent_category_id=None, ac
                 'WHERE business_id=? AND direction=? AND name=?',
                 (business_id, direction, name))
             storage_name=name
+            if existing and existing['id'] in hidden_defaults:
+                import uuid
+                storage_name='__kilas_custom_'+uuid.uuid4().hex;existing=None
             if existing:
                 link=db.query_one('SELECT parent_category_id FROM finance_category_hierarchy WHERE business_id=? AND child_category_id=?',(business_id,existing['id']))
                 if (link['parent_category_id'] if link else None)!=parent_category_id:
@@ -694,6 +693,10 @@ def update_category_workspace_setting(business_id, category_id, name=None, deact
             'AND lower(s.display_name)=lower(?) AND s.category_id<>? '
             'AND COALESCE((SELECT h.parent_category_id FROM finance_category_hierarchy h WHERE h.business_id=s.business_id AND h.child_category_id=s.category_id),0)=?',
             (business_id, scope['scope_key'], current['direction'], clean, category_id,parent_row['parent_category_id'] if parent_row else 0))
+        if current['direction']=='EXPENSE':
+            # A presentation-only retirement cannot block archiving an unchanged
+            # current choice, nor can it count as a visible rename collision.
+            duplicate=next((row for row in list_categories(business_id,'EXPENSE',include_inactive=True,include_children=True,actor_user_id=actor_user_id) if clean!=current['name'] and row['id']!=category_id and not row.get('default_retired') and row.get('parent_category_id')==(parent_row['parent_category_id'] if parent_row else None) and clean.casefold() in (row['name'].casefold(),row['display_name'].casefold())),None)
         if duplicate:
             raise FinanceError('category_exists')
         cascade_children = []
@@ -781,7 +784,7 @@ def list_categories(business_id, direction=None, include_inactive=False, include
     if not include_children:
         rows = [row for row in rows if row.get('parent_category_id') is None]
     from finance_category_catalog import decorate
-    return decorate(business_id,scope,rows)
+    return decorate(business_id,scope,rows,include_inactive=include_inactive)
 
 
 def list_category_children(business_id, parent_category_id, include_inactive=False, *, actor_user_id=None):
@@ -815,7 +818,7 @@ def list_category_children(business_id, parent_category_id, include_inactive=Fal
     if not include_inactive:
         rows = [row for row in rows if row['name'].casefold() not in RETIRED_CATEGORY_NAMES or _final_other_category(business_id,scope,row['id'])]
     from finance_category_catalog import decorate
-    return decorate(business_id,scope,rows)
+    return decorate(business_id,scope,rows,include_inactive=include_inactive)
 
 
 def sync_business_category_catalog(business_id, *, actor_user_id=None):
@@ -848,6 +851,9 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
                     changed = True
             return changed
 
+        from finance_category_catalog import sync_expense
+        sync_expense(business_id,actor_user_id)
+
         already_synced = db.query_one(
             'SELECT 1 FROM audit_log WHERE business_id=? AND action=? LIMIT 1',
             (business_id, BUSINESS_COMPACT_CATEGORY_SYNC_ACTION))
@@ -859,6 +865,7 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
         # Ensure exactly the requested built-in roots exist. create_category reuses
         # matching underlying category records when possible, so history is preserved.
         for direction, names in DEFAULT_CATEGORIES.items():
+            if direction=='EXPENSE':continue
             for name in names:
                 category_id = create_category(
                     business_id, direction, name,
@@ -878,25 +885,8 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
                         (business_id, category_id))
                     changed = True
 
-        # Utilitas intentionally keeps the previously requested subcategories.
-        utility = next((
-            row for row in list_categories(
-                business_id, 'EXPENSE', include_children=False,
-                actor_user_id=actor_user_id)
-            if row['name'] == 'Utilitas'
-        ), None)
-        if utility:
-            desired_ids.add(utility['id'])
-            for child_name in DEFAULT_CATEGORY_CHILDREN['EXPENSE']['Utilitas']:
-                child_id = create_category(
-                    business_id, 'EXPENSE', child_name,
-                    parent_category_id=utility['id'],
-                    actor_user_id=actor_user_id)
-                desired_ids.add(child_id)
-
-        # Hide only names that Kilas itself seeded in older Business catalogs.
-        # Custom categories created by the user remain active ("sisanya mereka isi sendiri").
         for direction, legacy_names in BUSINESS_LEGACY_DEFAULT_NAMES.items():
+            if direction=='EXPENSE':continue
             rows = db.query_all(
                 'SELECT c.id,s.display_name,s.is_active '
                 'FROM finance_category_workspace_settings s '
@@ -989,14 +979,14 @@ def ensure_finance_defaults(business_id, *, actor_user_id=None):
                 if scope['workspace_type'] == 'PERSONAL' else DEFAULT_CATEGORY_CHILDREN)
             category_ids = {}
             for direction, names in defaults.items():
-                if scope['workspace_type']=='PERSONAL' and direction=='EXPENSE':continue
+                if direction=='EXPENSE':continue
                 for name in names:
                     category_ids[(direction, name)] = create_category(
                         business_id, direction, name, actor_user_id=actor_user_id)
                     from finance_category_catalog import mark
                     mark(business_id,scope['scope_key'],direction+'.'+str(len(category_ids)),category_ids[(direction,name)],len(category_ids)*100,name)
             for direction, parents in children.items():
-                if scope['workspace_type']=='PERSONAL' and direction=='EXPENSE':continue
+                if direction=='EXPENSE':continue
                 for parent_name, child_names in parents.items():
                     parent_id = category_ids.get((direction, parent_name))
                     if parent_id is None:

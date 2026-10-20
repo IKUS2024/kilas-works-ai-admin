@@ -70,11 +70,11 @@ class PurchasePlanTests(unittest.TestCase):
    for language in ('id','en','es','zh'):
     with fixture.fixture.app.test_request_context('/',headers={'Cookie':'kilas_language='+language}):
      roots=f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)
-     expected=[entry[1] for entry in catalog.PERSONAL_V3]
-     self.assertEqual([v['name'] for v in roots[:11]],expected)
+     expected=['Home/Rent','Food','Utilities','Personal Item','Transportation','Entertainment','Medical','Holiday','Bank Charge','Misc/one-time']
+     self.assertEqual([v['name'] for v in roots[:10]],expected)
      self.assertEqual(next(v for v in roots if v['id']==custom)['display_name'],'My custom groceries')
-     if language=='en':self.assertEqual([v['display_name'] for v in roots[:11]],['Home / Rent','Utilities','Personal Items','Food','Entertainment','Transportation','Insurance','Medical','Misc / One-time','Holiday','Bank Charges'])
-     for root,(_,_,_,children) in zip(roots[:11],catalog.PERSONAL_V3):self.assertEqual([v['name'] for v in f.list_category_children(self.b,root['id'],actor_user_id=self.uid)],list(children))
+     self.assertEqual([v['display_name'] for v in roots[:10]],expected)
+     for root,(_,_,_,children) in zip(roots[:10],catalog.EXPENSE_V4):self.assertEqual([v['display_name'] for v in f.list_category_children(self.b,root['id'],actor_user_id=self.uid)],[pair[1] for pair in children])
    before=db.query_one('SELECT COUNT(*) AS n FROM finance_categories')['n'];f.ensure_finance_defaults(self.b,actor_user_id=self.uid);self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM finance_categories')['n'],before)
  def test_receipt_private_route_and_plan_render_never_show_purchase_as_paid(self):
   image=io.BytesIO();Image.new('RGB',(10,10),'white').save(image,'JPEG')
@@ -88,6 +88,8 @@ class PurchasePlanTests(unittest.TestCase):
   with branches.scope(self.b,self.branch,self.uid):
    category=self.categories()[0]
    fields=dict(name='Synthetic recurring',amount='100.01',currency='IDR',category_id=category,cadence='MONTHLY',next_due_on='2026-10-31',begin_next_month='1',end_mode='DATE',end_on='2027-01-31')
+   selected=next(v for v in f.list_categories(self.b,'EXPENSE',include_children=True,actor_user_id=self.uid) if v['id']==category)
+   if selected.get('parent_category_id'):fields.update(category_id=selected['parent_category_id'],subcategory_id=category)
    with patch.object(f,'business_today',return_value=date(2026,10,18)):
     response=self.client.post(self.url+f'/recurring?branch_id={self.branch}',data=fields)
    self.assertEqual(response.status_code,303);rule=f.list_recurring_expenses(self.b,actor_user_id=self.uid)[0]
@@ -134,7 +136,8 @@ class PurchasePlanTests(unittest.TestCase):
    with fixture.fixture.app.test_request_context('/',headers={'Cookie':'kilas_language=en'}):
     rows=f.list_categories(business,'EXPENSE',actor_user_id=owner)
     # The new final built-in and the unproven customer-owned root stay distinct.
-    self.assertEqual(len([v for v in rows if v['name']=='Transportasi']),2)
+    self.assertEqual(len([v for v in rows if v['name']=='Transportasi']),1)
+    self.assertEqual(len([v for v in rows if v['display_name']=='Transportation' and v['builtin_default']]),1)
     self.assertEqual(next(v for v in rows if v['id']==custom)['display_name'],'Transportasi')
  def test_business_defaults_are_distinct_localized_without_translating_custom_names(self):
   with branches.scope(self.b,self.branch,self.uid):
@@ -142,10 +145,10 @@ class PurchasePlanTests(unittest.TestCase):
    for language in ('id','en','es','zh'):
     with fixture.fixture.app.test_request_context('/',headers={'Cookie':'kilas_language='+language}):
      rows=f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)
-     self.assertEqual(len([v for v in rows if v['catalog_order']<100000]),7)
+     self.assertEqual(len([v for v in rows if v['builtin_default']]),10)
      self.assertEqual(next(v for v in rows if v['id']==custom)['display_name'],'Customer-owned ABC')
      self.assertNotIn('housing',[v['canonical_key'] for v in db.query_all('SELECT canonical_key FROM finance_catalog_items WHERE business_id=? AND scope_key=?',(self.b,'BUSINESS'))])
-     if language=='en':self.assertIn('Rent',[v['display_name'] for v in rows])
+     self.assertIn('Home/Rent',[v['display_name'] for v in rows])
 
  def test_plan_linked_account_cannot_move_away_from_scoped_schedule(self):
   with branches.scope(self.b,self.branch,self.uid):

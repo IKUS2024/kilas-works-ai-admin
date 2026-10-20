@@ -10,20 +10,20 @@ class CategoryReferenceTests(unittest.TestCase):
  def rows(self,scope=None,**kw):
   with branches.scope(self.b,scope or self.personal,self.uid):return f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid,**kw)
  def test_exact_reference_order_children_four_locales_and_no_invented_children(self):
-  expected=['Home / Rent','Utilities','Personal Items','Food','Entertainment','Transportation','Insurance','Medical','Misc / One-time','Holiday','Bank Charges']
-  expected_children=[['Rent','Association Fee','Property Tax','Mortgage','Household Staff','Home Services'],['Electricity','Gas / Heating','Internet','Garbage','Laundry','Cleaning'],['Clothing','Makeup','Skincare','Kids / Toys'],['Groceries','Restaurants','Fast Food'],['Movies','Subscriptions','Events','Games'],['Fuel','Vehicle Servicing','Tolls','Ride-hailing','Parking','Vehicle Loan Payment','Car Rental'],['Health Insurance','Vehicle Insurance','Home Insurance'],['Cosmetic Procedures'],['Gifts & Donations','Special Purchases','Other'],['Flights','Accommodation','Local Transport','Food & Drinks','Activities & Tickets','Visa & Travel Documents'],['Tax','Administration']]
+  expected=['Home/Rent','Food','Utilities','Personal Item','Transportation','Entertainment','Medical','Holiday','Bank Charge','Misc/one-time']
+  expected_children=[['Rent','Association Fee','Property Tax','Mortgage','Household Staff','Home Services'],['Groceries','Restaurants','Fast Food'],['Electricity','Gas / Heating','Internet','Garbage','Laundry','Cleaning'],['Clothing','Makeup','Skincare','Kids / Toys'],['Fuel','Vehicle Servicing','Tolls','Ride-hailing','Parking','Vehicle Loan Payment','Car Rental'],['Movies','Subscriptions','Events','Games'],['Cosmetic Procedures'],['Flights','Accommodation','Local Transport','Food & Drinks','Activities & Tickets','Visa & Travel Documents'],['Tax','Administration'],['Gifts & Donations','Special Purchases','Other']]
   with branches.scope(self.b,self.personal,self.uid):
    custom=f.create_category(self.b,'EXPENSE','Customer name ABC',actor_user_id=self.uid)
    before=db.query_one('SELECT count(*) AS n FROM finance_categories')['n']
    for language in ('id','en','es','zh'):
     with fixture.fixture.app.test_request_context('/',headers={'Cookie':'kilas_language='+language}):
      roots=f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)
-     self.assertEqual([v['name'] for v in roots[:11]],[v[1] for v in catalog.PERSONAL_V3])
-     if language=='en':self.assertEqual([v['display_name'] for v in roots[:11]],expected)
+     self.assertEqual([v['display_name'] for v in roots[:10]],expected)
+     self.assertEqual([v['name'] for v in roots[:10]],expected)
      self.assertEqual(next(v['display_name'] for v in roots if v['id']==custom),'Customer name ABC')
-     for index,(root,(_,_,_,names)) in enumerate(zip(roots,catalog.PERSONAL_V3)):
-      children=f.list_category_children(self.b,root['id'],actor_user_id=self.uid);self.assertEqual([v['name'] for v in children],list(names));self.assertTrue(all(v['display_name'] for v in children))
-      if language=='en':self.assertEqual([v['display_name'] for v in children],expected_children[index])
+     for index,root in enumerate(roots[:10]):
+      children=f.list_category_children(self.b,root['id'],actor_user_id=self.uid);self.assertEqual([v['name'] for v in children],expected_children[index]);self.assertTrue(all(v['display_name'] for v in children))
+      self.assertEqual([v['display_name'] for v in children],expected_children[index])
    f.ensure_finance_defaults(self.b,actor_user_id=self.uid);self.assertEqual(db.query_one('SELECT count(*) AS n FROM finance_categories')['n'],before)
    self.assertEqual(finance_personal.resolve_home(self.uid)['branch_id'],self.personal)
  def test_known_legacy_ids_links_and_transaction_survive_version_update_and_journal(self):
@@ -33,10 +33,10 @@ class CategoryReferenceTests(unittest.TestCase):
    child=f._create_category(business,'EXPENSE','private-old-rent',owner);f._ensure_category_setting(business,child,'Sewa',owner);f._link_category_parent(business,child,root);catalog.mark(business,'PERSONAL:'+str(owner),'housing.0',child,1,'Sewa')
    account=f.list_accounts(business,actor_user_id=owner)[0]['id'];tx=f.create_transaction(business,'EXPENSE',10001,account,child,'2025-01-01',actor_user_id=owner);before=dict(f.get_transaction(business,tx,actor_user_id=owner))
    f.ensure_finance_defaults(business,actor_user_id=owner)
-   rows=f.list_categories(business,'EXPENSE',include_children=True,actor_user_id=owner);self.assertEqual(next(v['id'] for v in rows if v['name']=='Rumah / Sewa'),root);self.assertEqual(next(v['id'] for v in rows if v['name']=='Sewa'),child)
+   rows=f.list_categories(business,'EXPENSE',include_children=True,include_inactive=True,actor_user_id=owner);self.assertEqual(next(v['name'] for v in rows if v['id']==root),'Tempat Tinggal');self.assertEqual(next(v['name'] for v in rows if v['id']==child),'Sewa')
    self.assertEqual(dict(f.get_transaction(business,tx,actor_user_id=owner)),before);self.assertEqual(db.query_one('SELECT parent_category_id FROM finance_category_hierarchy WHERE child_category_id=?',(child,))['parent_category_id'],root)
    self.assertEqual(db.query_one('SELECT category_id FROM finance_catalog_items WHERE business_id=? AND canonical_key=?',(business,'housing'))['category_id'],root)
-   journal=db.query_one('SELECT changes_json FROM finance_category_catalog_versions WHERE business_id=?',(business,));self.assertTrue(any(v.get('before',{}).get('category_id')==root for v in json.loads(journal['changes_json'])))
+   journal=db.query_one('SELECT changes_json FROM finance_category_catalog_versions WHERE business_id=? AND version=4',(business,));self.assertTrue(any(v['category_id']==root for v in json.loads(journal['changes_json'])['before']))
  def test_edited_builtin_and_unknown_same_name_are_not_renamed_or_merged(self):
   with branches.scope(self.b,self.personal,self.uid):
    root=self.rows()[0]
@@ -84,7 +84,7 @@ class CategoryReferenceTests(unittest.TestCase):
    root=f._create_category(business,'EXPENSE','private-custom-house',owner);f._ensure_category_setting(business,root,'Customer home legacy',owner);catalog.mark(business,'PERSONAL:'+str(owner),'housing',root,0,'Tempat Tinggal')
    child=f._create_category(business,'EXPENSE','private-custom-maintenance',owner);f._ensure_category_setting(business,child,'Perawatan',owner);f._link_category_parent(business,child,root);catalog.mark(business,'PERSONAL:'+str(owner),'housing.1',child,1,'Perawatan')
    f.ensure_finance_defaults(business,actor_user_id=owner);self.assertTrue(f._category_setting_by_id(business,root,owner)['is_active']);self.assertTrue(f._category_setting_by_id(business,child,owner)['is_active']);self.assertEqual(f._category_setting_by_id(business,root,owner)['name'],'Customer home legacy');self.assertEqual(f.list_category_children(business,root,actor_user_id=owner)[0]['id'],child)
-   fresh=next(v for v in f.list_categories(business,'EXPENSE',actor_user_id=owner) if v['name']=='Rumah / Sewa');self.assertNotEqual(root,fresh['id'])
+   fresh=next(v for v in f.list_categories(business,'EXPENSE',actor_user_id=owner) if v['display_name']=='Home/Rent');self.assertNotEqual(root,fresh['id'])
  def test_archive_shared_business_category_cannot_break_active_bill_in_another_branch(self):
   other=branches.create_branch(self.b,'Other synthetic branch',self.uid)
   with branches.scope(self.b,other,self.uid):
