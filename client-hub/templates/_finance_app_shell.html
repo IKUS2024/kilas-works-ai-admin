@@ -1,6 +1,7 @@
 {% from '_finance_dashboard_icons.html' import icon %}
 {% set ui = finance_ui %}
 {% set display_name = ui.identity_name %}
+<header class="finance-chrome" aria-label="{{ ui_t('Navigasi Kilas Finance') }}">
 <aside class="finance-app-sidebar" aria-label="{{ ui_t('Navigasi Kilas Finance') }}">
 <a class="finance-app-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a>
 <a class="finance-home-return" href="{{ url_for('products.product_start') }}">{{ icon('home') }}{{ ui_t('Home') }}</a><nav class="finance-primary-navigation">{% for area,label,symbol,endpoint,params in [
@@ -19,12 +20,13 @@
 {% if ui.home and ui.can_reset and not finance_read_only and not branch_read_only %}<form method="post" action="{{ url_for('finance.reset_prepare',business_id=business.id,branch_id=selected_branch_id) }}" class="finance-reset-launch"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" aria-label="{{ ui_t('Reset Data Finance') }}" title="{{ ui_t('Reset Data Finance') }}">{{ icon('reset') }}<span>{{ ui_t('Reset') }}</span></button></form>{% endif %}
 </nav>
 <nav class="finance-app-sidebar-bottom"><a href="{{ url_for('auth.account_page') }}">{{ icon('settings') }}{{ ui_t('Pengaturan') }}</a><button type="button" data-finance-ui-open="finance-help-dialog">{{ icon('help') }}{{ ui_t('Bantuan') }}</button></nav>
-{% set language_location = 'finance-sidebar' %}{% include '_language_selector.html' %}</aside>
-<div class="finance-mobile-home"><a href="{{ url_for('products.product_start') }}">← {{ ui_t('Home') }}</a>{% set language_location = 'finance-mobile' %}{% include '_language_selector.html' %}</div>
+</aside>
 <div class="finance-app-topbar">
+<div class="finance-mobile-home"><a href="{{ url_for('products.product_start') }}">← {{ ui_t('Home') }}</a></div>
 {% if ui.area != 'transactions' %}<form class="finance-app-search" method="get" action="{{ url_for('finance.dashboard',business_id=business.id) }}" {% if ui.home %}data-finance-live-period{% endif %}>
 <input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ ui.month }}"><input type="hidden" name="display_currency" value="{{ ui.currency }}">{{ icon('search') }}<input type="search" name="q" value="{{ request.args.get('q','') if ui.home else '' }}" aria-label="{{ ui_t('Cari transaksi, tagihan, atau penerima') }}" placeholder="{{ ui_t('Cari transaksi, tagihan, atau penerima...') }}"><button type="submit" aria-label="{{ ui_t('Cari') }}">→</button></form>{% endif %}
 <a class="finance-app-bell" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,payment_status='unpaid') }}" aria-label="{{ ui_t('Tagihan belum dibayar') }}">{{ icon('bell') }}</a>{% include '_finance_identity.html' %}
+<details class="finance-chrome-popover finance-chrome-language"><summary aria-label="{{ ui_t('Bahasa aplikasi') }}: {{ ui_t(ui_languages[ui_language()]) }}" title="{{ ui_t('Bahasa aplikasi') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18M12 3c-5 5-5 13 0 18"/></svg><span>{{ ui_language()|upper }}</span></summary><div class="finance-chrome-popover-panel">{% set language_location = 'finance-header' %}{% include '_language_selector.html' %}</div></details>
 </div>
 {% if ui.home %}<div class="finance-app-greeting"><h1>{{ display_name }}</h1><p>{{ ui_t('Kelola semua keuanganmu dalam satu tempat.') }}</p></div>{% endif %}
 <div class="finance-context-toolbar {{ 'finance-context-home' if ui.home else '' }}" aria-label="{{ ui_t('Konteks Finance') }}">
@@ -33,13 +35,17 @@
 {% set branch_destination={'bills':'operations','budget':'budget','payees':'payees','invoices':'receivables','reports':'reports','assistant':'assistant'}.get(ui.area,'dashboard') %}
 <form method="get" action="{{ url_for('finance.' ~ branch_destination,business_id=business.id) }}" class="finance-app-branch"><input type="hidden" name="month" value="{{ ui.month }}"><input type="hidden" name="display_currency" value="{{ ui.currency }}">{% if ui.area in ('transactions','accounts') %}<input type="hidden" name="view" value="{{ ui.area }}">{% endif %}{% if ui.area=='transactions' and request.args.get('direction') %}<input type="hidden" name="direction" value="{{ request.args.get('direction') }}">{% endif %}<label for="finance-app-branch">{{ ui_t('Cabang') }}</label><select id="finance-app-branch" name="branch_id" data-finance-ui-submit title="{{ ui_t('Pilih cabang') }}">{% for branch in finance_branches if branch.is_active %}<option value="{{ branch.id }}" {{ 'selected' if branch.id==selected_branch_id }}>{{ branch.name }}</option>{% endfor %}</select><noscript><button>{{ ui_t('Tampilkan') }}</button></noscript></form>
 {% endif %}
+{% set chrome_has_month = ui.area in ('transactions','bills','budget','reports') %}
+{% if chrome_has_month %}<details class="finance-chrome-popover finance-chrome-period"><summary aria-label="{{ ui_t('Bulan') }}: {{ ui.month }}" title="{{ ui_t('Bulan') }}: {{ ui.month }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18m-12 4h3"/></svg></summary><div class="finance-chrome-popover-panel">{% endif %}
 <form method="get" action="{{ url_for('finance.receipt_new',business_id=business.id) if request.endpoint in ('finance.receipt_analyze','finance.receipt_confirm') else (url_for('finance.operator',business_id=business.id) if request.endpoint=='finance.operator_action' else request.path) }}" class="finance-app-context-filter" {% if ui.home %}data-finance-live-period{% endif %}>
 {% for key,value in request.args.items() if key not in ('branch_id','month','display_currency','page','q','preset','start','end','as_of','period_mode','period_month','period_year','range_start','range_end','range_start_month','range_start_year','range_end_month','range_end_year') %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
 <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
 {% if ui.area in ('transactions','bills','budget','reports') %}<label class="fd-sr-only" for="finance-app-month">{{ ui_t('Bulan') }}</label><input id="finance-app-month" type="month" name="month" value="{{ ui.month }}" data-finance-ui-submit aria-label="{{ ui_t('Bulan') }}">{% else %}<input type="hidden" name="month" value="{{ ui.month }}">{% endif %}
 <input type="hidden" name="display_currency" value="{{ ui.currency }}"><noscript><button>{{ ui_t('Tampilkan') }}</button></noscript></form>
+{% if chrome_has_month %}</div></details>{% endif %}
 {% if ui.home and not branch_read_only and not finance_workspace_personal %}<button class="finance-app-more" type="button" data-dashboard-open="branch-dialog" aria-label="{{ ui_t('Tambah Cabang') }}" title="{{ ui_t('Tambah Cabang') }}">{{ icon('plus') }}</button>{% endif %}
 </div>
+</header>
 <dialog class="finance-ui-dialog" id="finance-help-dialog"><div class="finance-ui-dialog-head"><h2>{{ ui_t('Bantuan Finance') }}</h2><button type="button" data-finance-ui-close="finance-help-dialog" aria-label="{{ ui_t('Tutup') }}">×</button></div><div class="finance-ui-dialog-body"><p>{{ ui_t('Pilih ruang, bisnis, cabang, bulan, dan mata uang sebelum membuka rincian.') }}</p><p>{{ ui_t('Saldo akun adalah saldo sekarang. Pemasukan dan pengeluaran mengikuti periode pilihan. Transfer antar akun dan saldo awal tidak dihitung sebagai pendapatan operasional.') }}</p><p>{{ ui_t('Bayar membuka pencatatan pembayaran dengan akun dan tanggal yang kamu pilih. Perubahan data keuangan tetap memakai alur konfirmasi yang tersedia.') }}</p></div></dialog>
 
 {% include '_finance_identity_dialog.html' %}
