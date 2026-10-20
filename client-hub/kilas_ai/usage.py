@@ -227,6 +227,11 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
     now = _now()
     conn = _connect()
     try:
+        from .workspace_qa_once import reserve_model
+        sponsored = reserve_model(conn, user_id, key, tool, profile)
+        if sponsored is not None:
+            conn.commit()
+            return sponsored
         if db.BACKEND == "postgres":
             _query(conn, "SELECT id FROM users WHERE id=? FOR UPDATE", (user_id,), one=True)
         existing = _query(conn, "SELECT 1 FROM kilas_ai_usage WHERE user_id=? AND operation_key=? LIMIT 1",
@@ -350,6 +355,8 @@ def estimate(model, input_tokens, output_tokens, operation, web_search_calls=1, 
 
 def finish(user_id, key, operations, *, success, provider=None, model=None, usage=None):
     usage = usage or {}
+    from .workspace_qa_once import finish_model
+    if finish_model(user_id, key, operations, success, provider, model, usage):return
     input_tokens = max(0, int(usage.get("input_tokens") or usage.get('prompt_tokens') or 0))
     output_tokens = max(0, int(usage.get("output_tokens") or usage.get('completion_tokens') or 0))
     cached_tokens = usage.get('cached_input_tokens') or (usage.get('input_tokens_details') or usage.get('prompt_tokens_details') or {}).get('cached_tokens',0)

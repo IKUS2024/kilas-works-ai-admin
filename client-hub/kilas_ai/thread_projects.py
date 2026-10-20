@@ -63,6 +63,7 @@ def enqueue(owner,thread_id,text,key,mode,model,prepared):
         message=usage._query(conn,"INSERT INTO kilas_ai_messages(thread_id,role,content,mode,operation_key) VALUES (?,'user',?,?,?) RETURNING id",(thread_id,text,mode,key),one=True)[0]
         checkpoint['origin_thread_message_id']=message
         ident=usage._query(conn,"INSERT INTO kilas_agent_jobs(user_id,title,instruction,mode,status,constraints_json,next_wake_at,checkpoint_json,max_steps,max_attempts) VALUES (?,?,?,'ONE_SHOT','RUNNING','[]',?,?,1,1) RETURNING id",(owner,' '.join(text.split())[:90],text[:1200],jobs.stamp(),jobs.encode(checkpoint)),one=True)[0]
+        qa.audit_rearm(conn,ident,qa_key)
         payload=jobs.encode({'request':text})
         usage._query(conn,"INSERT INTO kilas_agent_steps(job_id,sequence,worker,action,instruction,input_json,idempotency_key,status) VALUES (?,1,'PROJECT','create','Membuat struktur dan kode…',?,?,'PENDING')",(ident,payload,qa_key or secrets.token_hex(24)))
         meta=json.dumps({'workspace_job_id':ident,'status':'processing'})
