@@ -1131,5 +1131,11 @@
   "Telepon": "Telephone",
   "Pengobatan": "Treatment",
   "Kelola kategori": "Manage categories",
-  "Selesai mengedit": "Done"
+  "Selesai mengedit": "Done",
+  "Naskah yang diucapkan tidak tersedia.": "The spoken script is unavailable.",
+  "Naskah yang diucapkan tidak tersimpan untuk hasil lama ini.": "The spoken script was not saved for this older result.",
+  "Naskah yang diucapkan tidak tersimpan untuk hasil lama ini. Hasil audio tetap tersimpan.": "The spoken script was not saved for this older result. The audio result is retained.",
+  "Ganti draf yang belum dibuat dengan naskah yang diucapkan pada hasil ini?": "Replace the ungenerated draft with the script spoken in this result?",
+  "Naskah yang diucapkan siap diedit. Klik Generate Voice Over untuk membuat audio baru.": "The spoken script is ready to edit. Click Generate Voice Over to create new audio.",
+  "Naskah yang diucapkan siap diedit. Suara sebelumnya tidak tersedia; pilih suara sebelum membuat audio baru.": "The spoken script is ready to edit. The previous voice is unavailable; select a voice before creating new audio."
 }

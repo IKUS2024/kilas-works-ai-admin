@@ -132,7 +132,7 @@ class AudioTests(unittest.TestCase):
             os.environ['KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE']='invalid'
             self.assertFalse(upload_translation_visible())
 
-    def test_edit_returns_exact_original_not_translation_without_charge_or_provider(self):
+    def test_edit_returns_exact_spoken_translation_without_charge_or_provider(self):
         self.credit(300)
         original='  Naskah asli\n<script>tetap teks</script>  '
         response,_,_=self.create(script=original,translate_script='yes',translated_script='A separate translated voice script.')
@@ -140,7 +140,7 @@ class AudioTests(unittest.TestCase):
         ident=response.json['id'];before=store.balance(self.user)['seconds']
         with patch.object(service,'refresh') as poll,patch.object(provider,'request') as paid:
             result=self.client.get(f'/kilas-translator/jobs/{ident}/script')
-        self.assertEqual(result.status_code,200);self.assertEqual(result.json,{'script':original})
+        self.assertEqual(result.status_code,200);self.assertEqual(result.json,{'script':'A separate translated voice script.','source_kind':'spoken_script','language':'en','voice':None})
         self.assertIn('no-store',result.headers['Cache-Control']);paid.assert_not_called();poll.assert_not_called()
         self.assertEqual(store.balance(self.user)['seconds'],before)
         row=f.db.query_one('SELECT script,original_script FROM kilas_audio_jobs WHERE id=?',(ident,))
@@ -153,9 +153,9 @@ class AudioTests(unittest.TestCase):
         authenticate(other,f.repo.get_user_by_id(self.other))
         self.assertEqual(other.get(f'/kilas-translator/jobs/{ident}/script').status_code,404)
         self.assertEqual(f.app.app.test_client().get(f'/kilas-translator/jobs/{ident}/script').status_code,302)
-        f.db.execute('UPDATE kilas_audio_jobs SET original_script=NULL WHERE id=?',(ident,))
+        f.db.execute('UPDATE kilas_audio_jobs SET spoken_script=NULL WHERE id=?',(ident,))
         self.assertEqual(self.client.get(f'/kilas-translator/jobs/{ident}/script').status_code,409)
-        self.assertIn('Naskah asli tidak tersedia',self.client.get(f'/kilas-translator/jobs/{ident}').get_data(as_text=True))
+        self.assertIn('Naskah yang diucapkan tidak tersimpan',self.client.get(f'/kilas-translator/jobs/{ident}').get_data(as_text=True))
 
     def test_original_archive_retained_during_submission_failure_and_expiry(self):
         self.credit(300)

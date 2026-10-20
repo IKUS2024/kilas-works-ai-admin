@@ -107,6 +107,18 @@
     document.querySelector('#saved-voice-notice').textContent=ready?t('Suara ini digunakan untuk Voice Over berikutnya.'):t('Rekam atau upload audio untuk menyimpannya di akun kamu.');
     choices();
   }
+  document.addEventListener('voice-script-edit',event=>{
+    if(!panel.hidden)cancel.click();
+    const voice=event.detail.voice;
+    const personal=typeof voice==='string'&&voice.startsWith('personal:');
+    const choice=personal?voice.slice(9):voice;
+    const select=personal?library:stock;
+    const available=typeof choice==='string'&&[...select.options].some(option=>option.value===choice&&!option.disabled);
+    document.querySelector('[name=voice_kind][value='+ (personal?'personal':'kilas') +']').checked=true;
+    select.value=available?choice:'';
+    document.querySelector('#saved-voice-rename').hidden=true;updateLibrary();
+    event.detail.voiceRestored=available;
+  });
   library.addEventListener('change',()=>{document.querySelector('#saved-voice-rename').hidden=true;updateLibrary();});
   const renamePanel=document.querySelector('#saved-voice-rename'),newName=document.querySelector('#saved-voice-new-name'),libraryError=document.querySelector('#saved-voice-error');
   document.querySelector('#rename-saved-voice').addEventListener('click',()=>{if(saving||!library.value)return;renamePanel.hidden=false;newName.value=library.selectedOptions[0].textContent;newName.focus();});

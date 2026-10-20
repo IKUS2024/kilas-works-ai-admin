@@ -83,10 +83,10 @@
 <p id="audio-progress" role="status" aria-live="polite" hidden></p><p id="audio-error" role="alert" hidden></p><span id="audio-error-purchase" hidden></span>
 
 </main><aside class="audio-history" id="audio-history" data-history-url="{{ url_for('kilas_audio.history_fragment') }}" data-selected-job="{{ job.id if job else '' }}"><h2>{{ ui_t('Recent') }}</h2><div data-audio-history-content>{% include 'kilas_translator/_history.html' %}</div><p data-audio-history-message role="status" aria-live="polite"></p></aside></div>
-</section>{% include '_generation_feedback.html' %}<script src="{{ url_for('static',filename='kilas_audio.js',v='voice-alternate-20261020') }}" defer></script>
+</section>{% include '_generation_feedback.html' %}<script src="{{ url_for('static',filename='kilas_audio.js',v='spoken-script-edit-20261020') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_audio_history.js',v='app-language-20261015') }}" defer></script>
-<script src="{{ url_for('static',filename='kilas_personal_voice.js',v='original-sample-playback-20261017') }}" defer></script>
-<script src="{{ url_for('static',filename='kilas_voice_script.js',v='app-language-20261015') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_personal_voice.js',v='spoken-script-edit-20261020') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_voice_script.js',v='spoken-script-edit-20261020') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_video_script.js',v='app-language-20261015') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_script_assist.js',v='app-language-20261015') }}" defer></script>
 <script type="module" src="{{ url_for('static',filename='kilas_dictation.mjs',v='app-language-20261015') }}"></script>

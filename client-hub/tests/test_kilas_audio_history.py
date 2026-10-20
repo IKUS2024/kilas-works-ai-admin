@@ -14,6 +14,7 @@ class AudioHistoryTests(unittest.TestCase):
             self.number=getattr(self,'number',0)+1
             key='history-fixture-'+str(self.number)
             f.db.execute("INSERT INTO kilas_audio_jobs(user_id,operation_key,fingerprint,mode,title,source_language,target_language,voice_name,estimated_seconds,reserved_seconds,status,actual_ms,original_script,created_at,updated_at) VALUES (?,?,?,'voiceover',?,'id','en','QA voice',2,0,'COMPLETED',1600,?,'2026-10-15T00:00:00+00:00','2026-10-15T00:00:00+00:00')",(owner,key,'synthetic',f'History {self.number}','Original script' if self.number%2 else None))
+            if self.number%2:f.db.execute('UPDATE kilas_audio_jobs SET spoken_script=? WHERE user_id=? AND operation_key=?',('Original script',owner,key))
             ids.append(f.db.query_one('SELECT id FROM kilas_audio_jobs WHERE user_id=? AND operation_key=?',(owner,key))['id'])
         return ids
 

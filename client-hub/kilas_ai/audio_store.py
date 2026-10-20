@@ -63,7 +63,7 @@ def require_balance(user, required=1):
 
 
 def get(user,ident):
-    return db.query_one("SELECT id,user_id,mode,title,alternate_of,delivery_stability,voice_is_personal, CASE WHEN spoken_script IS NOT NULL THEN 1 ELSE 0 END AS has_spoken_script,source_language,target_language,voice_id,voice_name,estimated_seconds,source_ms,actual_ms,seconds_charged,status,provider_id,error_code,created_at,updated_at, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL THEN 1 ELSE 0 END AS has_original_script, CASE WHEN substr(result_content,5,4)=? THEN 1 ELSE 0 END AS result_is_video FROM kilas_audio_jobs WHERE id=? AND user_id=?",(b'ftyp',ident,user))
+    return db.query_one("SELECT id,user_id,mode,title,alternate_of,delivery_stability,voice_is_personal, CASE WHEN spoken_script IS NOT NULL THEN 1 ELSE 0 END AS has_spoken_script,source_language,target_language,voice_id,voice_name,estimated_seconds,source_ms,actual_ms,seconds_charged,status,provider_id,error_code,created_at,updated_at, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL THEN 1 ELSE 0 END AS has_original_script, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND content_origin!='live_session' AND spoken_script IS NOT NULL AND spoken_script<>'' THEN 1 ELSE 0 END AS has_edit_script, CASE WHEN substr(result_content,5,4)=? THEN 1 ELSE 0 END AS result_is_video FROM kilas_audio_jobs WHERE id=? AND user_id=?",(b'ftyp',ident,user))
 
 
 HISTORY_PAGE_SIZE = 4
@@ -113,7 +113,7 @@ def history_page(user,page=1,*,through=None,kind='voiceover'):
     total=int(count['total']);anchor=int(count['latest'] or 0)
     pages=(total+HISTORY_PAGE_SIZE-1)//HISTORY_PAGE_SIZE
     page=max(1,min(int(page),max(1,pages)))
-    rows=db.query_all("SELECT id,mode,title,source_language,target_language,voice_name,source_ms,actual_ms,status,created_at, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL THEN 1 ELSE 0 END AS has_original_script FROM kilas_audio_jobs WHERE "+where+" AND id<=? ORDER BY id DESC LIMIT ? OFFSET ?",(*params,anchor,HISTORY_PAGE_SIZE,(page-1)*HISTORY_PAGE_SIZE))
+    rows=db.query_all("SELECT id,mode,title,source_language,target_language,voice_name,source_ms,actual_ms,status,created_at, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL THEN 1 ELSE 0 END AS has_original_script, CASE WHEN mode='voiceover' AND status IN ('COMPLETED','FAILED') AND content_origin!='live_session' AND spoken_script IS NOT NULL AND spoken_script<>'' THEN 1 ELSE 0 END AS has_edit_script FROM kilas_audio_jobs WHERE "+where+" AND id<=? ORDER BY id DESC LIMIT ? OFFSET ?",(*params,anchor,HISTORY_PAGE_SIZE,(page-1)*HISTORY_PAGE_SIZE))
     visible=sorted({1,pages,*range(max(1,page-1),min(pages,page+1)+1)}) if pages>1 else []
     numbers=[]
     for number in visible:
@@ -130,6 +130,12 @@ def history(user,page=1):
 def edit_script(user,ident):
     row=db.query_one("SELECT original_script FROM kilas_audio_jobs WHERE id=? AND user_id=? AND mode='voiceover' AND status IN ('COMPLETED','FAILED') AND original_script IS NOT NULL",(ident,user))
     return row['original_script'] if row else None
+
+
+def spoken_edit_script(user,ident):
+    # No inference or original-script fallback: older translated originals are
+    # not evidence of the words actually sent to speech synthesis.
+    return db.query_one("SELECT spoken_script,target_language,voice_id,voice_is_personal FROM kilas_audio_jobs WHERE id=? AND user_id=? AND mode='voiceover' AND status IN ('COMPLETED','FAILED') AND content_origin!='live_session' AND spoken_script IS NOT NULL AND spoken_script<>''",(ident,user))
 
 
 def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,pcm,estimated,reserve,*,personal_required=False,original_script=None,live_session=None,alternate_of=None,delivery_stability=None):

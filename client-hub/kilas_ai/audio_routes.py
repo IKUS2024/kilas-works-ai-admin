@@ -442,17 +442,26 @@ def status(ident):
     return {'status':job['status'],'id':ident,'status_label':{'QUEUED':'Menunggu','PROCESSING':'Diproses','COMPLETED':'Selesai','FAILED':'Belum berhasil'}[job['status']],
             'duration_label':seconds(((job['source_ms'] if job['mode']=='translate' else job['actual_ms'])+999)//1000),
             'balance_html':render_template('kilas_translator/_balance.html',balance=store.balance(session['user_id']),seconds=seconds),
-            'edit_script_url':url_for('kilas_audio.script_for_edit',ident=ident) if job['has_original_script'] else None,
+            'edit_script_url':url_for('kilas_audio.script_for_edit',ident=ident) if job['has_edit_script'] else None,
             'html':render_template('kilas_translator/_result.html',job=job,languages=provider.LANGUAGES,translation_labels=translator.localized_names(),seconds=seconds,video_script_ready=video_budget.ready(session['user_id']))},200,{'Cache-Control':'no-store'}
 
 
 @audio_bp.get('/jobs/<int:ident>/script')
 def script_for_edit(ident):
-    job=owned(ident)
-    text=store.edit_script(session['user_id'],ident)
-    if job['mode']!='voiceover' or text is None:
-        return {'error':'Naskah asli tidak tersedia untuk hasil ini. Hasil audio tetap tersimpan.','code':'script_unavailable'},409,{'Cache-Control':'private, no-store'}
-    return {'script':text},200,{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}
+    owned(ident)
+    user=session['user_id'];snapshot=store.spoken_edit_script(user,ident)
+    headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}
+    if snapshot is None:
+        return {'error':'Naskah yang diucapkan tidak tersimpan untuk hasil lama ini. Hasil audio tetap tersimpan.','code':'script_unavailable'},409,headers
+    # Return a selector understood by the existing form, never another voice
+    # with a similar name. Missing/deleted voices require an explicit choice.
+    voice=None
+    saved=db.query_one('SELECT id FROM kilas_audio_saved_voices WHERE user_id=? AND voice_id=? ORDER BY id LIMIT 1',(user,snapshot['voice_id']))
+    if saved:voice='personal:'+str(saved['id'])
+    if not voice and not snapshot['voice_is_personal']:
+        voice=next((row['alias'] for row in branded.choices() if row['id']==snapshot['voice_id']),None)
+    return {'script':snapshot['spoken_script'],'source_kind':'spoken_script',
+            'language':snapshot['target_language'],'voice':voice},200,headers
 
 
 @audio_bp.get('/jobs/<int:ident>/result')

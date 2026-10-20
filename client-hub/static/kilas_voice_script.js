@@ -10,6 +10,13 @@
     setup.dataset.translationReady=String(!toggle.checked||(!result.hidden&&edited.value.trim().length>0&&!busy));document.dispatchEvent(new Event('voice-translation-state'));
   }
   function invalidate(){version++;options.hidden=!toggle.checked;result.hidden=true;edited.required=false;language.value=toggle.checked?target.value:'auto';source.value='auto';status.hidden=true;error.hidden=true;state();}
+  document.addEventListener('voice-script-edit',event=>{
+    // Invalidate any pending translation before loading the already spoken text.
+    version++;toggle.checked=false;options.hidden=true;result.hidden=true;
+    edited.value='';edited.required=false;language.value=event.detail.language;
+    if([...target.options].some(option=>option.value===event.detail.language))target.value=event.detail.language;
+    source.value=event.detail.language;status.hidden=true;error.hidden=true;state();
+  });
   toggle.addEventListener('change',invalidate);target.addEventListener('change',invalidate);original.addEventListener('input',()=>{if(toggle.checked)invalidate();});edited.addEventListener('input',state);invalidate();
   button.addEventListener('click',async()=>{
     if(busy||!toggle.checked)return;

@@ -823,5 +823,11 @@
   "Model ini belum tersedia untuk akun layanan. Pilih model lain yang tersedia.",
   "Pilih model gambar yang tersedia sebelum membuat gambar.",
   "Gambar dalam chat",
-  "Tidak tersedia"
+  "Tidak tersedia",
+  "Ganti draf yang belum dibuat dengan naskah yang diucapkan pada hasil ini?",
+  "Naskah yang diucapkan siap diedit. Klik Generate Voice Over untuk membuat audio baru.",
+  "Naskah yang diucapkan siap diedit. Suara sebelumnya tidak tersedia; pilih suara sebelum membuat audio baru.",
+  "Naskah yang diucapkan tidak tersedia.",
+  "Naskah yang diucapkan tidak tersimpan untuk hasil lama ini.",
+  "Naskah yang diucapkan tidak tersimpan untuk hasil lama ini. Hasil audio tetap tersimpan."
 ]
