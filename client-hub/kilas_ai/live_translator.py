@@ -40,6 +40,8 @@ def _log_latency(timings,started,success,code=None):
     stages+=('tts_receive_ms','tts_fences_ms','audio_measure_ms','audio_settlement_ms')
     stages+=('first_tts_byte_ms','first_published_clip_ms','translation_ready_ms','tts_http_headers_ms')
     stages+=('translation_reserve_ms','translation_first_event_ms','translation_first_delta_arrival_ms')
+    stages+=('translation_http_headers_ms','translation_first_sse_line_ms','translation_first_sse_event_ms',
+             'translation_first_content_ms','translation_reasoning_tokens')
     stages+=('realtime_input_ms','realtime_transport_ms','realtime_finalize_ms','realtime_commits',
              'incremental_clauses','incremental_provider_ms','incremental_wait_ms','incremental_reused')
     values=' '.join(f'{name}={timings[name]:.1f}' for name in stages if name in timings)
@@ -265,7 +267,7 @@ def translation(owner,key,text,a,b,check,*,timings=None,clause_context=None,draf
         checked()
         stream_started=monotonic();first_delta=True
         dispatched=True
-        stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),[{'role':'user','content':message}],'FAST',system=system,project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'],profile=profile,event_chunk_size=1,response_format=translation_format(a,b,draft_count=len(drafts)))
+        stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),[{'role':'user','content':message}],'FAST',system=system,project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'],profile=profile,event_chunk_size=1,response_format=translation_format(a,b,draft_count=len(drafts)),**({'timings':timings} if timings is not None else {}))
         for event in stream:
             if timings is not None:
                 arrived=(monotonic()-stream_started)*1000

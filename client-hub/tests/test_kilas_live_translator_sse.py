@@ -16,7 +16,7 @@ from kilas_ai import providers,model_policy
 class SSETests(unittest.TestCase):
     def frames(self,value):return ('data: '+json.dumps(value,ensure_ascii=False)+'\n\n').encode()
 
-    def streamed(self,chunk_size,encoding='utf-8'):
+    def streamed(self,chunk_size,encoding='utf-8',timings=None):
         # The provider has sent one complete frame, but not enough bytes to fill
         # the default Requests chunk. Hold the rest of the same request open.
         fragment='Repeated words. '
@@ -33,6 +33,7 @@ class SSETests(unittest.TestCase):
         def consume():
             try:
                 options={} if chunk_size is None else {'event_chunk_size':chunk_size}
+                if timings is not None:options['timings']=timings
                 for event in providers._openai(model_policy.LUNA,'synthetic-only',[{'role':'user','content':'Synthetic source'}],'FAST',**options):
                     events.append(event)
                     if event['type']=='delta':received.set()
@@ -59,6 +60,12 @@ class SSETests(unittest.TestCase):
 
     def test_translator_opt_in_receives_complete_sse_frame_before_delayed_tail(self):
         self.assertTrue(self.streamed(1))
+
+    def test_translator_timing_does_not_wait_for_tail_or_change_utf8(self):
+        timings={}
+        self.assertTrue(self.streamed(1,'ISO-8859-1',timings))
+        for name in ['translation_http_headers_ms','translation_first_sse_line_ms','translation_first_sse_event_ms','translation_first_content_ms']:
+            self.assertIsInstance(timings[name],float)
 
     def test_translator_one_byte_utf8_boundaries_override_requests_no_charset_text_default(self):
         # Each Chinese/Arabic code point spans multiple one-byte reads. Requests

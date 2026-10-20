@@ -1,6 +1,7 @@
 """Private Kilas AI streaming adapters. No Assist router or provider state is reused."""
 import json
 import os
+from time import monotonic
 
 import requests
 
@@ -31,11 +32,19 @@ def candidates(mode, messages=None):
         yield "openai", model, key
 
 
-def _events(response,*,chunk_size=None):
+def _events(response,*,chunk_size=None,timings=None,started=None):
     """Parse provider SSE payloads; both APIs use data lines with JSON objects."""
     parts = []
+    if timings is not None and started is None:started=monotonic()
+    def parsed(payload):
+        try:event=json.loads(payload)
+        except (ValueError,TypeError):raise ProviderError('bad_provider_stream') from None
+        if timings is not None:timings.setdefault('translation_first_sse_event_ms',(monotonic()-started)*1000)
+        return event
     options={} if chunk_size is None else {'chunk_size':chunk_size}
     for raw in response.iter_lines(decode_unicode=True,**options):
+        if timings is not None:
+            timings.setdefault('translation_first_sse_line_ms',(monotonic()-started)*1000)
         line = raw.decode("utf-8") if isinstance(raw, bytes) else (raw or "")
         if line.startswith("data:"):
             parts.append(line[5:].strip())
@@ -44,20 +53,15 @@ def _events(response,*,chunk_size=None):
             parts = []
             if payload == "[DONE]":
                 return
-            try:
-                yield json.loads(payload)
-            except (ValueError, TypeError):
-                raise ProviderError("bad_provider_stream") from None
+            yield parsed(payload)
     if parts:
-        try:
-            yield json.loads("\n".join(parts))
-        except (ValueError, TypeError):
-            raise ProviderError("bad_provider_stream") from None
+        yield parsed("\n".join(parts))
 
 
-def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=None,event_chunk_size=None,response_format=None):
+def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=None,event_chunk_size=None,response_format=None,timings=None):
     # Private server-selected profile; public chat callers retain their routing.
     profile = model_policy.chat_profile(messages) if profile is None else profile
+    started=monotonic() if timings is not None else None
     try:
         with requests.post(
             "https://api.openai.com/v1/chat/completions",
@@ -68,14 +72,20 @@ def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=
                   **({'response_format':response_format} if response_format is not None else {})},
             stream=True, timeout=(10, 90),
         ) as response:
+            if timings is not None:timings['translation_http_headers_ms']=(monotonic()-started)*1000
             response.raise_for_status()
             # Translator can observe complete SSE frames without Requests'
             # default 512-byte fill delay. Existing Chat keeps its transport.
             if event_chunk_size is not None:response.encoding='utf-8'
             event_options={} if event_chunk_size is None else {'chunk_size':event_chunk_size}
+            if timings is not None:event_options.update(timings=timings,started=started)
             for event in _events(response,**event_options):
                 usage = event.get("usage") or {}
                 if usage:
+                    if timings is not None:
+                        details=usage.get('completion_tokens_details')
+                        reasoning=details.get('reasoning_tokens') if isinstance(details,dict) else None
+                        if type(reasoning) is int and reasoning>=0:timings['translation_reasoning_tokens']=reasoning
                     yield {"type": "usage", "input_tokens": usage.get("prompt_tokens", 0),
                            "output_tokens": usage.get("completion_tokens", 0),
                            "cached_input_tokens": (usage.get("prompt_tokens_details") or {}).get("cached_tokens",0)}
@@ -85,6 +95,7 @@ def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=
                         yield {"type":"refusal"}  # Never expose provider refusal content.
                     delta = (choices[0].get("delta") or {}).get("content")
                     if isinstance(delta, str) and delta:
+                        if timings is not None:timings.setdefault('translation_first_content_ms',(monotonic()-started)*1000)
                         yield {"type": "delta", "text": delta}
                     reason = choices[0].get("finish_reason")
                     if reason:
