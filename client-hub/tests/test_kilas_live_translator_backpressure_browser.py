@@ -24,7 +24,7 @@ class BackpressureBrowserTests(unittest.TestCase):
  def begin(self,page):
   page.locator('[name=consent]').check();page.get_by_role('button',name='Start',exact=True).click();page.wait_for_function("!document.querySelector('#live-hold').disabled")
  def hold(self,page,ms):
-  page.locator('#live-hold').hover();page.mouse.down();page.wait_for_function('qa.mics===1');page.evaluate('qa.rms=.2');page.wait_for_timeout(ms);page.mouse.up();page.evaluate('qa.rms=0')
+  fixture.record(page);page.evaluate('qa.rms=.2');page.wait_for_timeout(ms);fixture.stop_recording(page);page.evaluate('qa.rms=0')
  def finish(self,page,n):
   page.wait_for_function('qa.plays==='+str(n),timeout=15000);self.assertEqual(page.evaluate('qa.mics'),0);page.evaluate('qaFinishAudio()');page.wait_for_function("!document.querySelector('#live-hold').disabled")
  def test_slow_reverse_turn_after_replay_idle_resume_preserves_every_byte_and_audio_route(self):
@@ -58,7 +58,7 @@ class BackpressureBrowserTests(unittest.TestCase):
     self.assertTrue(any(len(raw)>32000 for _,raw in accepted));self.assertTrue(all(len(raw)<=128000 for _,raw in accepted))
     self.assertEqual(connect.call_count,3);self.assertEqual(speech.call_count,3);self.assertEqual(direction['n'],3);self.assertEqual(page.locator('.live-message').count(),3)
     self.assertEqual(len([p for m,p in requests if p.endswith('/input/commit')]),3);self.assertFalse(any(p.endswith('/cancel') for m,p in requests))
-    self.assertEqual(page.evaluate('qa.routeOverlaps'),0);self.assertEqual(page.evaluate('navigator.audioSession.type'),'playback');page.locator('#live-end').click();self.assertEqual(page.evaluate('navigator.audioSession.type'),'auto');self.assertEqual(page.evaluate("qa.routeChanges.filter(v=>v==='play-and-record').length"),3);self.assertFalse(errors,errors)
+    self.assertEqual(page.evaluate('qa.routeOverlaps'),0);self.assertEqual(page.evaluate('navigator.audioSession.type'),'playback');page.locator('#live-end').click();self.assertEqual(page.evaluate('navigator.audioSession.type'),'auto');self.assertEqual(page.evaluate("qa.routeChanges.filter(v=>v==='play-and-record').length"),4);self.assertFalse(errors,errors)
   finally:app.before_request_funcs[None].remove(slow)
  def test_missing_worklet_selects_batch_before_speech_and_keeps_transport_on_renewal(self):
   self.credit(300)

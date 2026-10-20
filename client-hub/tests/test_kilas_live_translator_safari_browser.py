@@ -35,7 +35,7 @@ class SafariBrowserTests(unittest.TestCase):
  wait=fixture.HoldBrowserTests.wait
  actual_browser=fixture.HoldBrowserTests.actual_browser
  def speak(self,page,n):
-  page.locator('#live-hold').hover();page.mouse.down();page.wait_for_function('qa.mics===1');page.evaluate('qa.rms=.2');page.wait_for_timeout(220);page.mouse.up();page.evaluate('qa.rms=0');page.wait_for_function('qa.mics===0')
+  fixture.record(page);page.evaluate('qa.rms=.2');page.wait_for_timeout(220);fixture.stop_recording(page);page.evaluate('qa.rms=0');page.wait_for_function('qa.mics===0')
  def exercise(self,mode):
   self.credit(1000);self.raw=audio.mp3(1);measurements=[]
   # Keep PROCESSING long enough to exercise the progressive permission branch.
@@ -53,7 +53,7 @@ class SafariBrowserTests(unittest.TestCase):
    self.translation_mock.side_effect=translation
    page.evaluate('qaPrimeDenied='+str(mode=='prime_denied').lower())
    page.locator('[name=consent]').check();page.get_by_role('button',name='Start',exact=True).click();page.wait_for_function("!document.querySelector('#live-hold').disabled")
-   self.assertEqual(page.evaluate('qa.mics'),0);self.assertTrue(page.evaluate('qaPlayCalls[0].gesture'))
+   self.assertEqual(page.evaluate('qa.mics'),1);self.assertTrue(page.evaluate('qaPlayCalls[0].gesture'))
    if mode=='output_denied':page.evaluate('qaOutputDenied=true')
    self.speak(page,0)
    if mode=='output_denied':
@@ -80,11 +80,10 @@ class SafariBrowserTests(unittest.TestCase):
  def microphone_denial(self,realtime_on):
   self.credit(300)
   with self.context(realtime_on=realtime_on),self.actual_browser() as (page,requests,errors):
-   page.locator('[name=consent]').check();page.get_by_role('button',name='Start',exact=True).click();page.wait_for_function("!document.querySelector('#live-hold').disabled")
    page.evaluate("()=>{window.qaGetMic=navigator.mediaDevices.getUserMedia;navigator.mediaDevices.getUserMedia=()=>Promise.reject(new DOMException('denied','NotAllowedError'));}")
-   page.locator('#live-hold').hover();page.mouse.down();page.locator('#live-resume').wait_for(state='visible');page.mouse.up()
+   page.locator('[name=consent]').check();page.get_by_role('button',name='Start',exact=True).click();page.locator('#live-resume').wait_for(state='visible')
    self.assertIn('Izin mikrofon ditolak',page.locator('#live-error').inner_text());self.assertEqual(page.evaluate('qa.mics'),0);self.assertFalse(any('/input/' in p for m,p in requests))
-   page.evaluate('()=>{navigator.mediaDevices.getUserMedia=qaGetMic;}');page.locator('#live-resume').click();page.wait_for_function("!document.querySelector('#live-hold').disabled");page.locator('#live-hold').hover();page.mouse.down();page.wait_for_function('qa.mics===1');page.mouse.up();page.wait_for_function('qa.mics===0');page.locator('#live-end').click();self.assertFalse(errors,errors)
+   page.evaluate('()=>{navigator.mediaDevices.getUserMedia=qaGetMic;}');page.locator('#live-resume').click();page.wait_for_function("!document.querySelector('#live-hold').disabled");fixture.record(page);fixture.stop_recording(page);page.wait_for_function('qa.mics===0');page.locator('#live-end').click();self.assertFalse(errors,errors)
 
  def test_realtime_microphone_denial_then_fresh_hold_and_stop(self):self.microphone_denial(True)
  def test_batch_microphone_denial_then_fresh_hold_and_stop(self):self.microphone_denial(False)

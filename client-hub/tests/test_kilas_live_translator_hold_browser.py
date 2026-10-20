@@ -7,6 +7,15 @@ import test_kilas_live_translator_app_browser as fixture
 from kilas_ai import live_translator_realtime as realtime,live_translator_segments as segments
 import test_kilas_audio as audio
 
+def record(page):
+ # Initial setup Start now records; later turns use the same toggle button.
+ if page.locator('#live-hold').get_attribute('aria-pressed')!='true':page.locator('#live-hold').click()
+ page.wait_for_function('qa.mics===1')
+ page.wait_for_function("document.querySelector('.kilas-live-orb').dataset.state==='listening'")
+ page.wait_for_timeout(350)
+
+def stop_recording(page):page.locator('#live-hold').click()
+
 class HoldBrowserTests(unittest.TestCase):
  setUp=fixture.BrowserApplicationFlowTests.setUp
  setUpClass=fixture.BrowserApplicationFlowTests.__dict__['setUpClass']
@@ -19,7 +28,7 @@ class HoldBrowserTests(unittest.TestCase):
  output_transport=fixture.BrowserApplicationFlowTests.output_transport
  wait=fixture.BrowserApplicationFlowTests.wait
  actual_browser=fixture.BrowserApplicationFlowTests.actual_browser
- def test_actual_hold_release_four_directions_replay_and_stop_without_auto_capture(self):
+ def test_actual_toggle_four_directions_replay_and_end_without_auto_recapture(self):
   self.credit(300);sources=['Saya tidak pesan 20 tiket.','Did Rina order 12 tickets?','Nama saya Budi.','Do not buy the red bag.'];targets=['I did not order 20 tickets.','Apakah Rina memesan 12 tiket?','My name is Budi.','Jangan beli tas merah itu.'];directions=[('id','en'),('en','id'),('id','en'),('en','id')]
   sockets=iter([fixture.AutomaticSocket(v) for v in sources]);count=0
   def translate(*args,**kwargs):
@@ -30,12 +39,12 @@ class HoldBrowserTests(unittest.TestCase):
   with self.context(realtime_on=True),patch.object(realtime,'connect',side_effect=lambda *a:next(sockets)) as connect,patch.object(segments.transport,'request',side_effect=lambda *a,**k:self.output_transport()) as speech,self.actual_browser() as (page,requests,errors):
    self.translation_mock.side_effect=translate
    page.locator('[name=consent]').check();page.get_by_role('button',name='Start',exact=True).click();page.wait_for_function("document.querySelector('#live-hold')?.disabled===false")
-   self.assertEqual(page.evaluate('qa.starts'),0);self.assertFalse(any('/input/start' in path for _,path in requests))
+   self.assertEqual(page.evaluate('qa.starts'),1);self.assertFalse(any('/input/start' in path for _,path in requests))
    for n,width in enumerate((320,390,768,1440)):
-    page.set_viewport_size({'width':width,'height':900});button=page.locator('#live-hold');button.hover();page.mouse.down();page.wait_for_function('qa.mics===1');page.evaluate('qa.rms=.2');page.wait_for_timeout(200)
+    page.set_viewport_size({'width':width,'height':900});button=page.locator('#live-hold');record(page);page.evaluate('qa.rms=.2');page.wait_for_timeout(200)
     if n==0:
      page.evaluate('qa.rms=0');page.wait_for_timeout(2200);self.assertEqual(count,0);self.assertEqual(speech.call_count,0);page.evaluate('qa.rms=.2');page.wait_for_timeout(100)
-    page.mouse.move(width-2,20);page.mouse.up();page.evaluate('qa.rms=0');page.wait_for_function('qa.plays==='+str(n+1),timeout=8000)
+    page.mouse.move(width-2,20);page.mouse.down();page.mouse.up();self.assertEqual(count,n);stop_recording(page);page.evaluate('qa.rms=0');page.wait_for_function('qa.plays==='+str(n+1),timeout=8000)
     self.assertEqual(page.evaluate('qa.mics'),0);self.assertEqual(page.locator('.live-message').count(),n+1);self.assertEqual(page.locator('.live-message-translated').nth(n).text_content(),targets[n]);self.assertEqual(page.locator('.live-message-original').nth(n).text_content(),sources[n]);self.assertIn('first' if n%2==0 else 'second',page.locator('.live-message').nth(n).get_attribute('class'))
     self.assertTrue(page.evaluate('document.documentElement.scrollWidth<=innerWidth'));self.assertLess(button.bounding_box()['x'],page.locator('#live-end').bounding_box()['x'])
     page.evaluate('qaFinishAudio()');page.wait_for_function("document.querySelector('#live-hold').disabled===false");self.assertEqual(page.evaluate('qa.starts'),n+1)
@@ -51,17 +60,19 @@ class HoldBrowserTests(unittest.TestCase):
    page.locator('.live-replay').first.click();page.wait_for_function('qa.plays===5');self.assertEqual(page.evaluate('qa.mics'),0);page.evaluate('qaFinishAudio()');page.wait_for_function("document.querySelector('#live-hold').disabled===false")
    self.assertEqual(before,(count,connect.call_count,speech.call_count,len([p for _,p in requests if p.endswith('/audio')])));self.assertEqual(bytes(page.evaluate('qa.decoded[4]')),self.raw)
    # Intent cancellation discards fresh speech and cannot auto-rearm after blur.
-   page.locator('#live-hold').hover();page.mouse.down();page.wait_for_function('qa.mics===1');page.evaluate("dispatchEvent(new Event('blur'))");page.mouse.up();page.wait_for_function('qa.mics===0');self.assertEqual(count,4)
+   record(page);page.evaluate("dispatchEvent(new Event('blur'))");page.wait_for_function('qa.mics===0');self.assertEqual(count,4)
    page.locator('#live-end').click();page.wait_for_function("document.querySelector('#live-active').hidden");self.assertEqual(page.locator('.live-message').count(),0);self.assertEqual(page.evaluate('qa.mics'),0);self.assertFalse(errors,errors)
 
  def test_permission_completion_after_release_or_stop_never_starts_worklet_or_supplier(self):
   self.credit(300)
   with self.context(realtime_on=True),patch.object(realtime,'connect') as connect,self.actual_browser() as (page,requests,errors):
-   page.locator('[name=consent]').check();page.get_by_role('button',name='Start',exact=True).click();page.wait_for_function("document.querySelector('#live-hold').disabled===false")
    page.evaluate("() => {const original=navigator.mediaDevices.getUserMedia;navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>{qa.resolveMic=async()=>resolve(await original());});}")
+   page.locator('[name=consent]').check();page.get_by_role('button',name='Start',exact=True).click();page.wait_for_function("document.querySelector('#live-hold').disabled===false")
    for stop in (False,True):
-    page.locator('#live-hold').hover();page.mouse.down();page.wait_for_function('typeof qa.resolveMic==="function"')
+    if stop:page.wait_for_timeout(350);page.locator('#live-hold').click()
+    page.wait_for_function('typeof qa.resolveMic==="function"');page.wait_for_timeout(350)
     if stop:page.locator('#live-end').dispatch_event('click')
-    page.mouse.up();page.evaluate('void qa.resolveMic();delete qa.resolveMic');page.wait_for_function('qa.mics===0');page.wait_for_timeout(50)
+    else:page.locator('#live-hold').click()
+    page.evaluate('void qa.resolveMic();delete qa.resolveMic');page.wait_for_function('qa.mics===0');page.wait_for_timeout(50)
     self.assertEqual(page.evaluate('qa.worklets.length'),0);connect.assert_not_called();self.assertFalse(any('/input/start' in path for _,path in requests))
    self.assertFalse(errors,errors)

@@ -53,7 +53,7 @@ body.kilas-translator-call-active .kilas-live-translator #live-error{flex-shrink
 .kilas-live-translator #live-end.live-hangup:focus-visible{outline:3px solid #fff;outline-offset:4px}
 body.kilas-translator-call-active #live-resume{min-height:48px;background:#23262b;color:#fff;border:1px solid #666}
 
-.kilas-live-translator #live-hold{min-height:64px;max-width:160px;padding:12px 18px;border:1px solid #64748b;border-radius:32px;background:#26384d;color:#fff;font:inherit;font-weight:600;line-height:1.2;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer}
+.kilas-live-translator #live-hold{min-height:64px;max-width:160px;padding:12px 18px;border:1px solid #64748b;border-radius:32px;background:#26384d;color:#fff;font:inherit;font-weight:600;line-height:1.2;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer}
 .kilas-live-translator #live-hold[aria-pressed=true]{background:#1d4ed8;border-color:#93c5fd}
 .kilas-live-translator #live-hold:disabled{opacity:.5;cursor:default}
 .kilas-live-translator #live-hold:focus-visible{outline:3px solid white;outline-offset:4px}

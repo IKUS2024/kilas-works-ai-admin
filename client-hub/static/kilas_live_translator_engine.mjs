@@ -16,8 +16,8 @@ export class SilenceGate {
 }
 
 export class TranslatorSession {
-  constructor({api,capture,playback,pushToTalk=false,onState=()=>{},onResult=()=>{},onError=()=>{},onTiming=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-',''),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
-    Object.assign(this,{api,capture,playback,pushToTalk,onState,onResult,onError,onTiming,now,key,schedule,clear});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.pendingKey=null;this.gate=new SilenceGate();this.suspended=false;
+  constructor({api,capture,playback,pushToTalk=false,recordOnStart=false,onState=()=>{},onResult=()=>{},onError=()=>{},onTiming=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-',''),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
+    Object.assign(this,{api,capture,playback,pushToTalk,recordOnStart,onState,onResult,onError,onTiming,now,key,schedule,clear});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.pendingKey=null;this.gate=new SilenceGate();this.suspended=false;
   }
   stateTo(state){this.state=state;this.onState(state);}
   report(error){try{this.onError(error.message,error);}catch{}}
@@ -55,8 +55,14 @@ export class TranslatorSession {
       this.timing({session_admission_http_ms:Math.max(0,this.now()-admissionBegan)});
       if(ticket!==this.version){await this.endAdmitted(result);return;}
       if(typeof result?.session_id!=='string'||!(/^[a-f0-9]{48}$/).test(result.session_id))throw Object.assign(Error(t('Layanan tidak mengembalikan sesi yang valid. Periksa sesi sebelum memulai kembali.')),{code:'session_response_invalid',startupStage:'session_admission'});
-      this.id=result.session_id;this.inputMode=result.input_mode==='realtime-v1'?'realtime-v1':'batch';if(this.suspended){this.pause(Error(t('Sesi dijeda saat halaman ditinggalkan. Tekan Lanjutkan.')));return;}await this.listen(ticket);
-    }catch(e){if(ticket===this.version){e=startupFailure(e,this.id?'microphone_start':'audio_prepare');if(this.id)this.pause(e);else {this.report(e);this.end();}}}
+      this.id=result.session_id;this.inputMode=result.input_mode==='realtime-v1'?'realtime-v1':'batch';if(this.suspended){this.pause(Error(t('Sesi dijeda saat halaman ditinggalkan. Tekan Lanjutkan.')));return;}
+      if(this.pushToTalk&&this.recordOnStart){this.held=true;this.hadVoice=false;this.releasedAt=null;}
+      await this.listen(ticket,this.pushToTalk&&this.recordOnStart);
+    }catch(e){if(ticket===this.version){
+      // Stop during the initial permission request intentionally returned ready.
+      // Its cancelled capture must not turn that successful Stop into an error.
+      if(this.recordOnStart&&e?.name==='AbortError'&&this.state==='ready'&&!this.held)return;
+      e=startupFailure(e,this.id?'microphone_start':'audio_prepare');if(this.id)this.pause(e);else {this.report(e);this.end();}}}
   }
   async listen(ticket,held=false){
     if(ticket!==this.version)return;
