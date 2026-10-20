@@ -21,6 +21,18 @@
     else {node.textContent='…';node.setAttribute('aria-busy','true');node.dataset.mathPending='1';loadMath();}
     parent.append(node);
   }
+  function sourceLink(text){
+    const label=text.match(/^\[([^\]]+)\]\(/);if(!label)return null;
+    const start=label[0].length;let end=start,depth=0;
+    while(end<text.length){
+      const char=text[end];
+      if(/\s/.test(char))return null;
+      if(char===')'&&depth===0)return {label:label[1],url:text.slice(start,end),length:end+1};
+      if(char==='(')depth++;else if(char===')')depth--;
+      end++;
+    }
+    return null;
+  }
   function inline(parent,text,complete=true){
     // Code and TeX are consumed before Markdown emphasis or links can reinterpret them.
     let index=0,plain='';const emit=()=>{if(plain){parent.append(document.createTextNode(plain));plain='';}};
@@ -36,8 +48,9 @@
       if(tail[0]==='$'&&/^\$(?:\\|[A-Za-z]|[0-9]+[+^_*\/={}])/.test(tail)&&!tail.slice(1).includes('$')){emit();const pending=document.createElement('span');pending.textContent=complete?tail:'…';pending.dataset[complete?'mathError':'mathIncomplete']='1';parent.append(pending);break;}
       if((match=tail.match(/^\*\*([\s\S]*?)(?:\*\*|$)/))){emit();const strong=document.createElement('strong');inline(strong,match[1],complete);parent.append(strong);index+=match[0].length;continue;}
       if((match=tail.match(/^(?:\*([^*]+)\*|_([^_]+)_)/))){emit();const em=document.createElement('em');inline(em,match[1]||match[2],complete);parent.append(em);index+=match[0].length;continue;}
-      if((match=tail.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|^https?:\/\/[^\s<>]+/))){
-        try{const url=new URL(match[2]||match[0]);if(!['http:','https:'].includes(url.protocol)||!url.hostname||url.username||url.password)throw Error();emit();const link=document.createElement('a');link.textContent=match[1]||url.hostname.replace(/^www\./,'');link.href=url.href;link.target='_blank';link.rel='noopener noreferrer nofollow';parent.append(link);index+=match[0].length;continue;}catch{}
+      const source=sourceLink(tail);
+      if(source||(match=tail.match(/^https?:\/\/[^\s<>]+/))){
+        try{const url=new URL(source?source.url:match[0]);if(!['http:','https:'].includes(url.protocol)||!url.hostname||url.username||url.password)throw Error();emit();const link=document.createElement('a');link.textContent=source?source.label:url.hostname.replace(/^www\./,'');link.href=url.href;link.target='_blank';link.rel='noopener noreferrer nofollow';parent.append(link);index+=source?source.length:match[0].length;continue;}catch{}
       }
       if(tail[0]==='\\'&&/[\\`*$[\]_]/.test(tail[1]||'')){plain+=tail[1];index+=2;}else {plain+=text[index];index++;}
     }

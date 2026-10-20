@@ -6,6 +6,15 @@ from . import agent_chat, agent_store, routing, usage, tools, work_runtime, work
 
 
 def intent(text, prepared=(), previous=None, previous_answer=''):
+    # 'Weather tomorrow?' asks for a forecast now. An explicit scheduled action
+    # still follows the existing Work/reminder path below.
+    forecast_now = (routing.fresh_information(text) and re.search(r'(?i)\b(?:cuaca|weather)\b', text)
+                    and not re.search(r'(?i)\b(?:ingatkan|ingetin|remind|pengingat|nanti|later|jam|pukul|at\s+\d|setiap|tiap|every)\b', text)
+                    and not re.match(r'(?i)^(?:besok|tomorrow|lusa|minggu depan|next week)\b', text))
+    if forecast_now:
+        return 'WEB'
+    if re.match(r'(?i)^(?:tolong )?(?:translate|terjemah(?:kan)?|rewrite|tulis ulang|benerin typo|perbaiki typo|ubah kalimat)\b',text):
+        return 'CHAT'
     if work_schedule.future_requested(text) and not work_schedule.REMINDER.search(text) and not re.match(r'(?i)^(?:setiap|tiap|every)\b',text):
         return 'WORK'
     if work_schedule.REMINDER.search(text) or re.match(r'(?i)^(?:setiap|tiap|every)\b',text):
@@ -51,11 +60,10 @@ def dispatch(owner,text,key,conversation):
     status_reply=task_context.reply(owner,conversation,text)
     if status_reply is not None:
         return work_runtime.reply(owner,status_reply,conversation)
-    previous_request=next((m['content'] for m in reversed(recent[:-1]) if m['role']=='user'),'')
     previous_answer=next((m['content'] for m in reversed(recent) if m['role']=='assistant'),'')
     selected=intent(text,prepared,previous,previous_answer)
     if selected=='CHAT' and routing.no_search_requested(text) and (routing.fresh_information(text,respect_no_search=False)
-            or routing.fresh_followup(text,previous_request,respect_no_search=False)):
+            or routing.lookup_topic(text,[m['content'] for m in recent[:-1] if m['role']=='user'],respect_no_search=False)):
         from .chat_web import NO_SEARCH
         return work_runtime.reply(owner,NO_SEARCH,conversation)
     if selected=='CHAT' and routing.lookup_topic(text,[m['content'] for m in recent[:-1] if m['role']=='user']):
@@ -114,15 +122,14 @@ def search(owner,key,conversation):
             result=chat_model_tools.compose(result,context)
             model=result['model'];used=result['usage']
             if result.get('model_metadata'):yield result['model_metadata']
-            from .agent_results import compact_sources
-            sources=compact_sources(result['citations'])[:8]
+            sources=result['citations']
             if not sources:raise tools.ToolUnavailable('sources_missing')
             text=result['text']
-            links=['['+s['title'].replace('[','').replace(']','')+']('+s['url']+')' for s in sources if s['url'] not in text]
+            links=['['+str(i)+'. '+s['title'].replace('[','').replace(']','')+']('+s['url']+')' for i,s in enumerate(sources,1)]
             if links:text+='\n\nSumber: '+', '.join(links)
-            agent_store.append(owner,'assistant',text[:120000 if getattr(context,'selected_model',None) else 12000],conversation,selected_model=getattr(context,'selected_model',None),model_metadata=result.get('model_metadata'))
+            agent_store.append(owner,'assistant',text,conversation,selected_model=getattr(context,'selected_model',None),model_metadata=result.get('model_metadata'))
             success=True
-            yield {'type':'delta','text':text[:120000 if getattr(context,'selected_model',None) else 12000]}
+            yield {'type':'delta','text':text}
             yield {'type':'done'}
         except Exception as error:
             model = getattr(error,'model',None) or model

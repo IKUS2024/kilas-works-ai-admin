@@ -16,8 +16,8 @@ def compose(result, context):
     currency=bool(chat_web.conversion_requested(model_policy.request_text(context[-1]['content'])))
     if not currency:
         latest=model_policy.request_text(context[-1]['content'])
-        previous=next((model_policy.request_text(m['content']) for m in reversed(context[:-1]) if m['role']=='user'),'')
-        currency=bool(chat_web.conversion_followup(latest,previous))
+        currency=bool(chat_web.conversion_followup_context(latest,
+            [model_policy.request_text(m['content']) for m in context[:-1] if m['role']=='user']))
     if currency and result.get('currency_verified'):
         result['model_metadata']={'requested_model':selected,'returned_model':None,'provider':chat_models.spec(selected)['provider'],
             'response_kind':'validated_tool_result','selected_model_called':False,'retrieval_model':result['model']}
@@ -55,7 +55,8 @@ def compose(result, context):
             elif event['type']=='finish':finish=event['reason']
         text=''.join(pieces).strip()
         if finish!='stop' or not text:raise providers.ProviderError('selected_search_incomplete')
-        if not tools._cited_urls_only(text,result['citations']):raise providers.ProviderError('selected_search_unsupported_source')
+        if not tools._cited_urls_only(text,result['citations']) or not tools._citation_indices_valid(text,result['citations']):
+            raise providers.ProviderError('selected_search_unsupported_source')
         if currency and text!=result['text'].strip():raise providers.ProviderError('selected_search_conversion_changed')
         result.update(text=text,model_metadata=metadata)
         return result

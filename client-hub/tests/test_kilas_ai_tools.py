@@ -17,6 +17,7 @@ import app  # noqa: E402
 import repo  # noqa: E402
 from kilas_ai import providers, routing, store, tools, usage  # noqa: E402
 import db  # noqa: E402
+from auth_test_helpers import authenticate  # noqa: E402
 
 
 class FakeResponse:
@@ -53,8 +54,8 @@ class ToolTests(unittest.TestCase):
 
     def client_for(self, owner):
         client = self.app.test_client()
-        with client.session_transaction() as session:
-            session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="tool-csrf")
+        authenticate(client, repo.get_user_by_id(owner), _csrf_token="tool-csrf")
+        client.set_cookie('kilas_language', 'id')
         return client
 
     def test_logo_creation_routes_to_real_image_tool_not_chat_svg(self):

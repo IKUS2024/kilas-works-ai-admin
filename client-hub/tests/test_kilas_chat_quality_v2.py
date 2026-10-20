@@ -176,8 +176,9 @@ class QualityTests(unittest.TestCase):
                 self.assertEqual(routing.tool_for(c['follow_up'],has_previous_content=True,previous_answer=c['prior_assistant']),c['tool_intent'])
 
     def test_send_and_regenerate_clear_broken_prose_and_persist_repair(self):
+        from auth_test_helpers import authenticate
         client=base.fixture.app.app.test_client()
-        with client.session_transaction() as state:state.update(user_id=self.uid,role='CLIENT_OWNER',_csrf_token='quality-csrf')
+        authenticate(client,base.fixture.repo.get_user_by_id(self.uid),_csrf_token='quality-csrf')
         for endpoint in ('send','regenerate'):
             with patch.object(providers,'stream',side_effect=[reply('PDF sudah dibuat.'),reply('Ini jawaban yang berhasil diperbaiki.')]) as call:
                 response=client.post(f'/kilas-ai/threads/{self.thread}/{endpoint}',json={'content':'halo','operation_key':'qualityop_'+endpoint+'0123456789'},headers={'X-CSRF-Token':'quality-csrf'})

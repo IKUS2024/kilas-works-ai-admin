@@ -115,6 +115,20 @@ def conversion_followup(text, previous_request):
     return conversion(f'{match[1]} {previous["base"]} ke {previous["quote"]}')
 
 
+def conversion_followup_context(text, previous_requests):
+    """Trace numeric-only refinements to the same explicit pair; stop at a new topic."""
+    numeric = r'(?i)(?:kalau|untuk|what about|how about|and)\s+\d+(?:[.,]\d+)*\s*[?!.]*'
+    if not re.fullmatch(numeric, text.strip()):
+        return None
+    for previous in reversed(list(previous_requests)[-6:]):
+        result = conversion_followup(text, previous)
+        if result:
+            return result
+        if not re.fullmatch(numeric, previous.strip()):
+            return None
+    return None
+
+
 def _published_rate(value):
     """Accept canonical decimals or explicit grouped decimals without guessing scale."""
     raw = str(value)
@@ -138,7 +152,7 @@ class _QuoteTimeError(ValueError):
         self.evidence_status = status  # Fixed enum only; never retain the raw value.
 
 
-def conversion_answer(spec, raw, citations, normalize_url, now=None):
+def conversion_answer(spec, raw, citations, normalize_url, now=None, *, source_key=None):
     """Require published-rate metadata and cited provenance before any arithmetic."""
     now = now or datetime.now(timezone.utc)
     # Accept one complete JSON code block; no prose scraping or invented defaults.
@@ -159,7 +173,9 @@ def conversion_answer(spec, raw, citations, normalize_url, now=None):
     if dated > now + timedelta(minutes=5) or now - dated > timedelta(days=7):
         raise ValueError('rate_not_current')
     source = normalize_url(data.get('source_url'))
-    if not source or source not in {item['url'] for item in citations}:
+    identity = source_key or (lambda value: value)
+    source = next((item['url'] for item in citations if source and identity(item['url']) == identity(source)), None)
+    if not source:
         raise ValueError('rate_source_missing')
     value = (spec['amount'] * rate).quantize(Decimal('.01'))
     def number(n, digits=2):

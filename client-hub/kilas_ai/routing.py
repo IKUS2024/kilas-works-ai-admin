@@ -180,6 +180,14 @@ def fresh_information(text, *, respect_no_search=True):
         return True
     if re.match(r'^(?:apa itu|what is|jelaskan cara|how to)\b', text) and not re.search(r'\b(?:terbaru|terkini|sekarang|today|current|latest)\b', text):
         return False
+    # Weather forecasts/conditions need live evidence even without 'hari ini'.
+    # Conceptual explanations and supplied/fictional data stay ordinary Chat.
+    if (re.search(r'\b(?:cuaca|weather|prakiraan cuaca|weather forecast)\b', text)
+            and (re.search(r'\b(?:hari ini|besok|lusa|sekarang|saat ini|minggu depan|today|tomorrow|now|current|forecast|prakiraan)\b', text)
+                 or re.match(r'^(?:(?:tolong|bagaimana|gimana|how is|what is|what.s)\s+)?(?:cuaca|weather)\b', text))
+            and not re.search(r'\b(?:buat|tulis|write|create|generate)\b.{0,30}\b(?:puisi|poem|cerita|story|caption|kode|code)\b', text)
+            and not re.search(r'\b(?:jelaskan|explain|contoh|example|sintetis|synthetic|fiktif|fictional|data berikut)\b', text)):
+        return True
     from .chat_web import conversion_requested, supplied_rate
     if conversion_requested(text):
         return not supplied_rate(text)
@@ -231,11 +239,25 @@ def fresh_followup(text, previous_request, *, respect_no_search=True):
 
 def lookup_topic(text,previous_requests,*,respect_no_search=True):
     """Trace a short lookup follow-up chain, stopping at a new unrelated topic."""
-    if not fresh_followup(text,'cari web topik',respect_no_search=respect_no_search):return None
+    context = lookup_context(text, previous_requests, respect_no_search=respect_no_search)
+    return context[0] if context else None
+
+
+def lookup_context(text, previous_requests, *, respect_no_search=True):
+    """User topic plus intervening refinements, with no assistant/private note export."""
+    if not fresh_followup(text, 'cari web topik', respect_no_search=respect_no_search):
+        return []
+    context = []
     for previous in reversed(list(previous_requests)[-6:]):
-        if fresh_information(previous):return previous
-        if not fresh_followup(previous,'cari web topik'):return None
-    return None
+        # Same minimal disclosure contract as Chat retrieval: topic line only.
+        previous = re.split(r'[\r\n]|(?<=[?!])\s+', previous.strip(), maxsplit=1)[0][:500]
+        context.insert(0, previous)
+        referential = bool(re.match(r'(?i)^(?:yang|yg|kalau|what about|how about|and|still|masih)\b', previous))
+        if fresh_information(previous) and not referential:
+            return context
+        if not fresh_followup(previous, 'cari web topik'):
+            return context if fresh_information(previous) else []
+    return []
 
 
 def visual_result_requested(text):

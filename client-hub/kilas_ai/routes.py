@@ -367,11 +367,10 @@ def send(thread_id, *, script_only=False):
     tool = 'CHAT' if script_only else routing.tool_for(content, prepared + ([prior_image] if prior_image else []), search=search,
                             pdf_request=ai_pdf.is_request(content, previous_document),
                             has_previous_content=bool(prior_answer or previous_document), previous_answer=prior_answer)
-    previous_request=next((row['content'] for row in reversed(store.messages(user_id,thread_id,6) or []) if row['role']=='user'),'')
     previous_requests=[row['content'] for row in store.messages(user_id,thread_id,12) if row['role']=='user']
     lookup_topic=routing.lookup_topic(content,previous_requests)
     no_search_current = not script_only and routing.no_search_requested(content) and (
-        routing.fresh_information(content,respect_no_search=False) or routing.fresh_followup(content,previous_request,respect_no_search=False))
+        routing.fresh_information(content,respect_no_search=False) or routing.lookup_topic(content,previous_requests,respect_no_search=False))
     if not script_only and tool=='CHAT' and lookup_topic:
         tool='WEB'
     if tool == "IMAGE_EDIT" and not any(item["mime_type"].startswith("image/") for item in prepared) and not prior_image:

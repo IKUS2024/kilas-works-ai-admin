@@ -33,6 +33,21 @@ def arithmetic_mismatch(request, answer):
     return bool(re.fullmatch(r'-?\d{1,25}',plain)) and int(plain)!=expected
 
 
+def claims_web_lookup(answer):
+    action = r'(?:melakukan\s+)?(?:mencari|menelusuri|mengecek|memeriksa|cek|periksa|pencarian|penelusuran)'
+    target = r'(?:di\s+)?(?:web|internet|situs(?:\s+resmi)?(?:nya)?|sumber\s+terbaru)'
+    pattern = (r'\b(?:(?:saya|aku|gue|kami)\s+(?:(?:sudah|telah)\s+)?' + action + r'\s+' + target +
+               r'|(?:sudah|telah)\s+(?:saya|aku|gue|kami)\s+' + action + r'\s+' + target +
+               r'|I\s+(?:have\s+)?(?:searched|browsed|checked)\s+(?:the\s+)?(?:web|internet|official\s+(?:site|website)))\b')
+    for clause in re.split(r'[.!?;\n]+', answer.replace('’', "'").replace("I've", 'I have')):
+        for match in re.finditer(pattern, clause, re.I):
+            # A conditional prefix is not an execution claim. A later 'no results'
+            # clause does not excuse an earlier claim that a lookup happened.
+            if not re.search(r'\b(?:belum|tidak|jangan|tanpa|bukan|jika|kalau|apabila|if|not|never)\b', clause[:match.start()], re.I):
+                return True
+    return False
+
+
 def violations(request, answer, *, tier='NORMAL', finish='stop', selected=False):
     """Return structural reasons, not a judgment of truth or general prose quality."""
     issues = []
@@ -70,7 +85,7 @@ def violations(request, answer, *, tier='NORMAL', finish='stop', selected=False)
         issues.append('url_dump')
     # This guard is exclusively for ordinary Chat: no Web/artifact call occurred here.
     transformation = bool(re.match(r'^(?:tolong )?(?:translate|terjemah(?:kan)?|rewrite|tulis ulang|benerin typo|perbaiki typo|ubah kalimat)\b', request.strip(), re.I))
-    if not transformation and re.search(r'\b(?:I (?:searched|browsed) (?:the )?(?:web|internet)|(?:saya|aku|gue) (?:sudah |telah )?(?:mencari|menelusuri|mengecek|cek) (?:di )?(?:web|internet))\b', prose, re.I):
+    if not transformation and claims_web_lookup(prose):
         issues.append('fake_web')
     if not transformation and re.search(r'\b(?:(?:file|pdf|gambar|logo|dokumen|email) (?:sudah|telah|berhasil) (?:dibuat|dikirim|disimpan)|(?:I have|I\'ve) (?:created|sent|saved) (?:the |a )?(?:file|pdf|image|email))\b', prose, re.I):
         issues.append('fake_action')
