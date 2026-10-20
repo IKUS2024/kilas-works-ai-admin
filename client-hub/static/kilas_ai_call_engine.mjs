@@ -39,7 +39,7 @@ export class CallSession {
   if(this.state!=='ended')return;
   const ticket=++this.version;this.controller=new AbortController();const signal=this.controller.signal;
   this.ident=this.key();this.path='/kilas-ai/call/'+this.ident;this.admitted=false;this.speaking=false;this.turnSealed=false;this.cursor=0;this.playVersion=0;
-  this.stateTo('connecting');this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;
+  this.stateTo('connecting');this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;this.captionAwaitingAudio=false;
   this.input=new CallInput({request:this.request,path:this.path,signal,onError:error=>this.fail(error,ticket)});
   try{
    // Called synchronously from the click to preserve the audio user gesture.
@@ -76,18 +76,21 @@ export class CallSession {
      if(typeof frame.pcm!=='string'||frame.pcm.length>12800)throw failure('call_protocol');
      // Reply arrival must not erase the question's captured/upload-pending
      // tail. Its original bytes stay ahead of subsequent playback silence.
-     if(!this.speaking||this.turnSealed){this.clear(this.echoTimer);this.echoTimer=null;this.turnSealed=false;this.speaking=true;this.playVersion++;this.input.flush();this.onText('');if(!this.sourceAwaitingAudio)this.onSources([]);this.sourceAwaitingAudio=false;}
+     if(!this.speaking||this.turnSealed){this.clear(this.echoTimer);this.echoTimer=null;this.turnSealed=false;this.speaking=true;this.playVersion++;this.input.flush();if(!this.captionAwaitingAudio)this.onText('');this.captionAwaitingAudio=false;if(!this.sourceAwaitingAudio)this.onSources([]);this.sourceAwaitingAudio=false;}
      this.stateTo('speaking');const raw=Uint8Array.from(atob(frame.pcm),c=>c.charCodeAt(0));this.player.push(raw,'call');
     }else if(frame.type==='text'){
      if(typeof frame.text!=='string'||frame.text.length>4000)throw failure('call_protocol');this.onText(frame.text);
+     // Transcription and audio arrive independently. Preserve an early caption
+     // when this answer's first audio frame arrives, including across polls.
+     this.captionAwaitingAudio=!this.speaking||this.turnSealed;
     }else if(frame.type==='sources'){
      if(!Array.isArray(frame.citations)||frame.citations.length>3||frame.citations.some(item=>!item||typeof item.url!=='string'||item.url.length>2048||typeof item.title!=='string'||item.title.length>160))throw failure('call_protocol');
      this.onSources(frame.citations,frame.checked_on);this.sourceAwaitingAudio=frame.citations.length>0&&(!this.speaking||this.turnSealed);
     }else if(frame.type==='reset'){
-     this.clear(this.echoTimer);this.player.cancel();this.turnSealed=false;this.speaking=false;this.playVersion++;this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;
+     this.clear(this.echoTimer);this.player.cancel();this.turnSealed=false;this.speaking=false;this.playVersion++;this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;this.captionAwaitingAudio=false;
      this.stateTo('listening');
     }else if(frame.type==='turn_complete'){
-     this.turnSealed=true;const generation=this.playVersion;
+     this.turnSealed=true;this.captionAwaitingAudio=false;const generation=this.playVersion;
      this.player.checkpoint().then(()=>{
       if(this.current(ticket)&&generation===this.playVersion){
        // Discard the final worklet frame containing room/speaker decay before
@@ -112,7 +115,7 @@ export class CallSession {
   const path=this.path,admitted=this.admitted;this.admitted=false;this.ident=null;this.path=null;++this.version;
   this.controller?.abort();this.clear(this.timer);this.clear(this.echoTimer);this.clear(this.pollTimer);this.pollResolve?.();this.pollResolve=null;
   try{this.input?.cancel();}catch{}try{this.capture.cancel();}catch{}try{this.player.cancel();}catch{}try{this.stopAudio();}catch{}
-  this.speaking=false;this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;this.stateTo('ended');
+  this.speaking=false;this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;this.captionAwaitingAudio=false;this.stateTo('ended');
   if(path&&admitted){try{Promise.resolve(this.request(path+'/end',{method:'POST',keepalive:true,timeoutMs:8000})).catch(()=>{});}catch{}}
  }
 }

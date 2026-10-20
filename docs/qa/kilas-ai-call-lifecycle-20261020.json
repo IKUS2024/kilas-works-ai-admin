@@ -1,0 +1,153 @@
+{
+  "date": "2026-10-20",
+  "baseline": "ab6f8514e8da53da4f65a3da51faaf2f0eb00182",
+  "provider_io": false,
+  "production_writes": false,
+  "push_or_deploy": false,
+  "before_fix": {
+    "frontend_pass": 26,
+    "frontend_fail": 3,
+    "reproduced": [
+      "early_caption_erased",
+      "next_early_caption_erased",
+      "no_runtime_capture_watchdog"
+    ]
+  },
+  "after_fix": {
+    "lifecycle_capture_player": {
+      "passed": 46,
+      "failed": 0
+    },
+    "targeted_combined_node": {
+      "passed": 117,
+      "failed": 0
+    },
+    "python_call_files": {
+      "passed": 11,
+      "failed": 1,
+      "known_baseline_failure": "test_kilas_ai_call_search_smoke.py",
+      "baseline_error_count": 1,
+      "baseline_failure_count": 2
+    },
+    "preservation_files_passed": [
+      "test_finance_legacy_seed_provenance.py",
+      "test_kilas_translator_measured_effort.py",
+      "test_kilas_live_translator_whole.py",
+      "test_kilas_audio.py"
+    ]
+  },
+  "browser_original": {
+    "synthetic_browser": true,
+    "physical_device_verified": false,
+    "provider_io": false,
+    "semantic_understanding_verified": false,
+    "automaticOpeningRequests": 0,
+    "outputBeforeReply": false,
+    "idleMicrophoneUploads": 1,
+    "capturedBeforeAckBytes": 38400,
+    "capturedPrefixPreservedThroughReply": true,
+    "replyPlayed": true,
+    "returnedToListeningAfterDrain": true,
+    "nextQuestionMicResumed": true,
+    "endStoppedTracks": true,
+    "postEndUploads": 0,
+    "states": [
+      "connecting",
+      "listening",
+      "listening",
+      "listening",
+      "listening",
+      "speaking",
+      "speaking",
+      "speaking",
+      "speaking",
+      "speaking",
+      "listening",
+      "listening",
+      "ended"
+    ],
+    "errors": []
+  },
+  "browser_new": {
+    "synthetic_browser": true,
+    "provider_io": false,
+    "physical_device_verified": false,
+    "results": [
+      {
+        "mode": "normal-and-stalled",
+        "passed": true,
+        "admissions": 2,
+        "microphones": 2,
+        "pageErrors": []
+      },
+      {
+        "mode": "denied",
+        "passed": true,
+        "admissions": 0,
+        "microphones": 1,
+        "pageErrors": []
+      },
+      {
+        "mode": "no-worklet",
+        "passed": true,
+        "admissions": 0,
+        "microphones": 0,
+        "pageErrors": []
+      },
+      {
+        "mode": "no-dialog",
+        "passed": true,
+        "admissions": 0,
+        "microphones": 0,
+        "pageErrors": []
+      }
+    ]
+  },
+  "translator_broad": {
+    "passed": 254,
+    "failed": 12,
+    "failed_names": [
+      "ambiguous admission End requires owner status verification before another Start",
+      "ambiguous admission timeout requires owner status verification before another Start",
+      "audio preparation keeps Memproses and a finite typed failure before any admission",
+      "bounded long recording pauses with End visible; no truncated speech reaches the API",
+      "empty admission response exposes an error and verifies status without microphone or paid turn",
+      "hidden/unloaded page cancels only its turn; foreground verifies it without re-sending the recording",
+      "numeric gap diagnostics separate the time between clips from residual buffer wait",
+      "real page adapter rotates a minute of idle synthetic capture without End or provider submission",
+      "responsive call and icon contracts preserve accessible cancellation, errors, safe areas, and bounded content",
+      "session starts first playback before producer completion, keeps mic off, then resumes after last clip",
+      "submit rejects a stale duplicate before audio context, microphone or network work",
+      "two seconds after voice sends the full synthetic recording once, with capture off during playback"
+    ],
+    "failed_names_equal_clean_main": true
+  },
+  "broad_python_lint": {
+    "existing_findings": 3,
+    "reproduced_clean_main": true
+  },
+  "production_reads": {
+    "render_services": "pending_workspace_confirmation",
+    "public_http": "proxy_denied_403",
+    "logs_read": false,
+    "production_source_verified": false
+  },
+  "protected_paths_unchanged": {
+    "client-hub/finance_category_catalog.py": true,
+    "client-hub/templates/kilas_finance": true,
+    "client-hub/static/kilas_live_translator.mjs": true,
+    "client-hub/kilas_ai/live_translator.py": true,
+    "client-hub/static/kilas_live_translator_api.mjs": true,
+    "client-hub/static/kilas_live_gemini_player.mjs": true,
+    "client-hub/static/kilas_live_translator_pcm.mjs": true,
+    "client-hub/kilas_ai/ai_call.py": true,
+    "client-hub/kilas_ai/ai_call_budget.py": true,
+    "client-hub/kilas_ai/ai_call_public_search.py": true
+  },
+  "remaining_gates": [
+    "explicit_AI_Call_release_authorization",
+    "production_read_only_workspace",
+    "physical_Safari_iOS_Android_acceptance",
+    "separate_budget_approval_before_any_paid_test"
+  ]
+}

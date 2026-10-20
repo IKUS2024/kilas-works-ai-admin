@@ -207,3 +207,49 @@ test('Provider reset without replacement audio keeps visible state consistent wi
   assert.equal(f.states.at(-1),'listening');
  }finally{f.session.end();await started;}
 });
+
+test('Transcription delivered before the first audio frame survives playback start',async()=>{
+ const f=fixture(),started=f.session.start();await tick();
+ f.hold.resolve({state:'LISTENING',frames:[{index:0,type:'text',text:'Synthetic early caption'},
+  {index:1,type:'audio',pcm:Buffer.from(pcm()).toString('base64')},{index:2,type:'turn_complete'}],next_index:3,total_frames:3});
+ await tick();
+ try{assert.equal(f.plays,1);assert.equal(f.captions.at(-1),'Synthetic early caption');}
+ finally{f.session.end();await started;}
+});
+
+test('Early transcription for the next answer clears the old caption once and survives its audio',async()=>{
+ const f=fixture(),started=f.session.start();await tick();
+ const encoded=Buffer.from(pcm()).toString('base64');
+ f.hold.resolve({state:'SPEAKING',frames:[{index:0,type:'audio',pcm:encoded},{index:1,type:'text',text:'First answer'},
+  {index:2,type:'turn_complete'},{index:3,type:'text',text:'Next answer'},
+  {index:4,type:'audio',pcm:encoded},{index:5,type:'turn_complete'}],next_index:6,total_frames:6});
+ await tick();
+ try{assert.equal(f.plays,2);assert.equal(f.captions.at(-1),'Next answer');}
+ finally{f.session.end();await started;}
+});
+
+test('Capture loss after admission sends End, aborts uploads, and never auto-reconnects',async()=>{
+ const f=fixture(),started=f.session.start();await tick();const late=f.capture;
+ f.capture.error({code:'realtime_input_timeout'});await tick();
+ assert.equal(f.session.state,'ended');assert.equal(f.stops,1);assert.equal(f.audioStops,1);
+ assert.deepEqual(f.errors,['realtime_input_timeout']);assert.equal(f.timers.size,0);
+ assert.equal(f.posts.filter(path=>path.endsWith('/end')).length,1);
+ const sent=f.posts.length;late.pcm(pcm());late.error({code:'realtime_input_timeout'});await tick();
+ assert.equal(f.posts.length,sent);assert.equal(f.errors.length,1);
+ f.hold.resolve({state:'LISTENING',frames:[],next_index:0,total_frames:0});await started;
+});
+
+test('Early caption survives a poll boundary; reset and text-only completion cannot leak it to a later answer',async()=>{
+ const f=fixture(),started=f.session.start();await tick();
+ f.hold.resolve({state:'LISTENING',frames:[{index:0,type:'text',text:'Early across polls'}],next_index:1,total_frames:1});await tick();
+ f.hold.promise=Promise.resolve({state:'LISTENING',frames:[
+  {index:1,type:'audio',pcm:Buffer.from(pcm()).toString('base64')}],next_index:2,total_frames:2});
+ let poll=[...f.timers].find(([,v])=>v.ms===250);f.timers.delete(poll[0]);poll[1].fn();await tick();
+ try{
+  assert.equal(f.captions.at(-1),'Early across polls');
+  f.hold.promise=Promise.resolve({state:'LISTENING',frames:[{index:2,type:'reset'},{index:3,type:'text',text:'Text only'},
+   {index:4,type:'turn_complete'},{index:5,type:'audio',pcm:Buffer.from(pcm()).toString('base64')}],next_index:6,total_frames:6});
+  poll=[...f.timers].find(([,v])=>v.ms===250);f.timers.delete(poll[0]);poll[1].fn();await tick();
+  assert.equal(f.plays,2);assert.equal(f.captions.at(-1),'');
+ }finally{f.session.end();await started;}
+});

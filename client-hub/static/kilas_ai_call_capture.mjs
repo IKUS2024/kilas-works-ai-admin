@@ -56,6 +56,10 @@ export class CallCapture {
         const {bytes,rms}=event.data||{};
         if(!(bytes instanceof ArrayBuffer)||!bytes.byteLength||bytes.byteLength>6400||bytes.byteLength%2||!Number.isFinite(rms)){fail(Object.assign(Error(t('Input suara tidak valid.')),{code:'realtime_capture_failed'}));return;}
         if(!ready){ready=true;notifyReady();resolveReady();}
+        // Silence still produces PCM. Missing frames mean capture has stalled,
+        // even when a mobile browser leaves the AudioContext marked running.
+        this.clear(this.idleTimer);
+        this.idleTimer=this.schedule(()=>fail(failure('realtime_input_timeout',t('Input mikrofon belum mengirim audio. Periksa mikrofon lalu tekan Lanjutkan.'))),5000);
         // Forward quiet speech AND silence, including the first frame. The
         // provider needs the continuous sample clock for automatic turn detection.
         pcm(new Uint8Array(bytes));
