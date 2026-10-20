@@ -39,6 +39,7 @@ def _log_latency(timings,started,success,code=None):
             'audio_reserve_ms','audio_submit_ms','completion_ms')
     stages+=('tts_receive_ms','tts_fences_ms','audio_measure_ms','audio_settlement_ms')
     stages+=('first_tts_byte_ms','first_published_clip_ms','translation_ready_ms','tts_http_headers_ms')
+    stages+=('translation_reserve_ms','translation_first_event_ms','translation_first_delta_arrival_ms')
     stages+=('realtime_input_ms','realtime_transport_ms','realtime_finalize_ms','realtime_commits',
              'incremental_clauses','incremental_provider_ms','incremental_wait_ms','incremental_reused')
     values=' '.join(f'{name}={timings[name]:.1f}' for name in stages if name in timings)
@@ -90,11 +91,40 @@ def require_ready(owner=None,*,session_table_checked=False):
     if not ready(owner,session_table_checked=session_table_checked):raise audio_store.AudioError('Live Translator belum aktif. Dukungan provider dan batas biaya belum terverifikasi.','translator_unavailable',503)
 
 
+@contextmanager
+def _read_fence():
+    # Only these Translator SELECTs opt in. Keep every dynamic owner/End/funding
+    # check, but avoid BEGIN/COMMIT round trips around each individual SELECT.
+    # Never alter a caller-owned transaction or another thread's connection.
+    if db.BACKEND!='postgres' or db._transaction_active():
+        yield;return
+    from psycopg2.extensions import TRANSACTION_STATUS_IDLE
+    conn=db.get_connection()
+    if conn.autocommit or conn.get_transaction_status()!=TRANSACTION_STATUS_IDLE:
+        yield;return
+    try:conn.autocommit=True
+    except Exception:
+        # The normal read helper owns its existing bounded stale-connection
+        # recovery. Do not leak driver details or retry a provider operation.
+        db._discard_cached_connection();yield;return
+    try:yield
+    finally:
+        if not conn.closed:
+            try:conn.autocommit=False
+            except Exception:
+                # A failed reset must not leave autocommit on for a later writer.
+                if getattr(db._local,'conn',None) is conn:db._discard_cached_connection()
+                else:
+                    try:conn.close()
+                    except Exception:pass
+
+
 def check_session(owner,ident,key):
     # A current owned ACTIVE/PROCESSING pair snapshot proves the session table
     # exists. Config, funding, user and proof revocation remain fresh per event.
-    info=sessions.check(owner,ident,key)
-    require_ready(owner,session_table_checked=True)
+    with _read_fence():
+        info=sessions.check(owner,ident,key)
+        require_ready(owner,session_table_checked=True)
     return info
 
 
@@ -222,7 +252,9 @@ def translation(owner,key,text,a,b,check,*,timings=None,clause_context=None,draf
     # Technical prompt bound, not a new monetary/user quota. With the existing
     # 4000-character utterance/two-draft caps this stays far below long context.
     if len(message.encode('utf-8'))>60000:raise audio_store.AudioError('Konteks ucapan melebihi batas aman.','translation_failed',503)
-    _,operations=usage.reserve(owner,None,key+'-text','FAST','CHAT',profile=profile)
+    if timings is None:_,operations=usage.reserve(owner,None,key+'-text','FAST','CHAT',profile=profile)
+    else:
+        with _timed(timings,'translation_reserve_ms'):_,operations=usage.reserve(owner,None,key+'-text','FAST','CHAT',profile=profile)
     if not operations:raise audio_store.AudioError('Terjemahan ini sudah diproses.','duplicate_turn',409)
     complete=False;tokens={};parts=[];success=False;refused=False;dispatched=False
     stream=None
@@ -235,7 +267,11 @@ def translation(owner,key,text,a,b,check,*,timings=None,clause_context=None,draf
         dispatched=True
         stream=providers._openai(model,os.environ['OPENAI_API_KEY'].strip(),[{'role':'user','content':message}],'FAST',system=system,project=os.environ['KILAS_LIVE_TRANSLATOR_VERIFIED_PROJECT'],profile=profile,event_chunk_size=1,response_format=translation_format(a,b,draft_count=len(drafts)))
         for event in stream:
-            if timings is not None:timings['translation_events']=timings.get('translation_events',0)+1
+            if timings is not None:
+                arrived=(monotonic()-stream_started)*1000
+                timings.setdefault('translation_first_event_ms',arrived)
+                if event['type']=='delta':timings.setdefault('translation_first_delta_arrival_ms',arrived)
+                timings['translation_events']=timings.get('translation_events',0)+1
             checked()
             if event['type']=='delta':
                 if first_delta:
