@@ -599,6 +599,21 @@ class PublicSearchTests(unittest.TestCase):
         self.search.observe('Cari rekening pribadi saya.'); self.search.turn_complete()
         self.search.observe('Cek lagi kursnya sekarang.'); self.assertIsNone(self.search.fx_pair)
 
+    def test_public_followup_keeps_topic_and_uses_new_location_without_private_history(self):
+        self.search.observe('Bagaimana cuaca Jakarta hari ini?')
+        self.generic('cuaca Jakarta hari ini'); self.wait(); self.search.turn_complete()
+        self.search.observe('Kalau Bandung besok?')
+        self.generic('cuaca Bandung besok', ident='followup'); self.wait()
+        self.assertTrue(self.response()['available'])
+        self.assertIn('cuaca Bandung besok', self.lookups[-1][0][0]['content'])
+        self.assertNotIn('Jakarta', self.lookups[-1][0][0]['content'])
+        self.assertEqual(self.reserve.call_count, 2)
+        self.search.turn_complete(); self.search.observe('Kalau rekening pribadi saya?')
+        with patch.object(search, 'INTENT_WAIT_SECONDS', 0):
+            self.generic('cuaca rekening', ident='private-followup'); self.wait()
+        self.assertFalse(self.response()['available'])
+        self.assertEqual(self.reserve.call_count, 2)
+
     def test_generic_same_topic_retry_uses_only_previous_validated_keywords(self):
         query = 'jadwal museum nasional terbaru'
         self.search.observe('Tolong cari '+query+'.')

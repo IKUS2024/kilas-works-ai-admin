@@ -54,6 +54,23 @@ class PublicQueryTests(unittest.TestCase):
                 self.assertIsNone(query.minimize(keywords, speech))
         self.assertEqual(query.minimize('  jadwal   museum nasional  ', speech), 'jadwal museum nasional')
 
+    def test_short_followup_uses_only_immediate_validated_public_keywords(self):
+        self.assertEqual(query.minimize('cuaca Bandung besok', 'Kalau Bandung besok?',
+            'cuaca Jakarta hari ini'), 'cuaca Bandung besok')
+        self.assertEqual(query.minimize('museum Paris opening hours tomorrow',
+            'What about Paris tomorrow?', 'museum London opening hours'),
+            'museum Paris opening hours tomorrow')
+        for speech, prior, keywords in (
+            ('Kalau Bandung besok?', None, 'cuaca Bandung besok'),
+            ('Kalau Bandung besok?', 'cuaca Jakarta hari ini', 'cuaca Surabaya besok'),
+            ('Kalau rekening pribadi saya?', 'cuaca Jakarta', 'cuaca rekening'),
+            ('Jangan cari Bandung besok', 'cuaca Jakarta', 'cuaca Bandung besok'),
+            ('Cari museum Bandung', 'cuaca Jakarta', 'cuaca museum Bandung'),
+            ('Kalau Bandung besok?', 'cuaca '*40, 'cuaca Bandung besok'),
+        ):
+            with self.subTest(speech=speech, prior=prior):
+                self.assertIsNone(query.minimize(keywords, speech, prior))
+
     def test_greetings_arithmetic_and_optout_are_not_search_consent(self):
         for text in ('Halo', 'How are you?', 'Saya sedang makan.',
                      'Jangan cari berita terbaru', '2 + 2 berapa?',

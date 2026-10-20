@@ -253,3 +253,33 @@ test('Early caption survives a poll boundary; reset and text-only completion can
   assert.equal(f.plays,2);assert.equal(f.captions.at(-1),'');
  }finally{f.session.end();await started;}
 });
+
+for (const mode of ['recover','exhaust','stop','auth']) test(`Read polling recovery: ${mode}`,async()=>{
+ let gets=0,admissions=0;const urls=[];let f;
+ f=fixture({request:async(path,args={})=>{
+  if(path.endsWith('/readiness'))return {available:true};
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST'){admissions++;return {call_id:'a'.repeat(32)};}
+  urls.push(path);gets++;
+  if(mode==='auth')throw Object.assign(Error('auth'),{status:401,code:'auth_required'});
+  if(mode==='recover'&&gets===2)return f.hold.promise;
+  throw Object.assign(Error('timeout'),{code:'request_timeout'});
+ }});
+ const started=f.session.start();await tick();
+ if(mode==='auth'){await started;assert.deepEqual(f.errors,['auth_required']);assert.equal(gets,1);}
+ else {
+  assert.equal(f.stops,0);assert.equal(f.errors.length,0);
+  if(mode==='stop'){f.session.end();await started;assert.equal(gets,1);}
+  else {
+   const advance=async()=>{const item=[...f.timers].find(([,v])=>v.ms===300||v.ms===600);assert.ok(item);f.timers.delete(item[0]);item[1].fn();await tick();};
+   await advance();
+   if(mode==='recover'){
+    assert.equal(f.stops,0);assert.equal(gets,2);assert.equal(urls[0],urls[1]);
+    f.session.end();f.hold.resolve({frames:[],next_index:0,total_frames:0,state:'LISTENING'});await started;
+    assert.deepEqual(f.errors,[]);
+   }else{await advance();await started;assert.equal(gets,3);assert.deepEqual(f.errors,['request_timeout']);}
+  }
+ }
+ assert.equal(admissions,1);assert.equal(f.stops,1);assert.equal(f.session.state,'ended');
+});

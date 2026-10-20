@@ -64,9 +64,23 @@ export class CallSession {
    await this.poll(ticket);
   }catch(error){if(this.current(ticket))this.fail(error,ticket);}
  }
+ async pause(ticket,ms){
+  if(!this.current(ticket))return;
+  await new Promise(resolve=>{this.pollResolve=resolve;this.pollTimer=this.schedule(()=>{this.pollTimer=null;this.pollResolve=null;resolve();},ms);});
+ }
  async poll(ticket){
+  let transientFailures=0;
   while(this.current(ticket)){
-   const value=await this.request(this.path+'?after='+this.cursor,{signal:this.controller.signal,timeoutMs:8000});
+   let value;
+   try{value=await this.request(this.path+'?after='+this.cursor,{signal:this.controller.signal,timeoutMs:8000});transientFailures=0;}
+   catch(error){
+    if(!this.current(ticket))return;
+    // Polling only reads the same server session/cursor. Never repeat admission,
+    // PCM POSTs or provider requests when their outcome may be uncertain.
+    const transient=error?.code==='request_timeout'||error instanceof TypeError||[502,503,504].includes(error?.status);
+    if(!transient||transientFailures>=2)throw error;
+    await this.pause(ticket,300*++transientFailures);continue;
+   }
    if(!this.current(ticket))return;
    if(!Array.isArray(value.frames)||!Number.isInteger(value.next_index)||value.next_index!==this.cursor+value.frames.length)throw failure('call_protocol');
    for(const frame of value.frames){
@@ -107,7 +121,7 @@ export class CallSession {
     if(this.current(ticket))this.fail(failure(value.code||'call_ended'),ticket);return;
    }
    if(value.state==='LISTENING'&&!this.speaking)this.stateTo('listening');
-   await new Promise(resolve=>{this.pollTimer=this.schedule(resolve,250);this.pollResolve=resolve;});
+   await this.pause(ticket,250);
   }
  }
  fail(error,ticket=this.version){if(!this.current(ticket))return;this.end();this.onError(error.code||'call_transport');}

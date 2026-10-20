@@ -75,20 +75,33 @@ def stable_question(text):
         r'apa itu|what is|jelaskan|explain|cara kerja|how does)\b', text))
 
 
-def minimize(query, speech):
+def followup(text):
+    return (context_allowed(text) and len(text)<=250 and bool(re.match(
+        r'(?i)^\s*(?:kalau|bagaimana dengan|gimana dengan|yang tadi|lebih|what about|how about|and the)\b',text)))
+
+
+def minimize(query, speech, previous_query=None):
     """Return only safe, grounded public keywords; None means clarify first."""
     if not isinstance(query, str) or not 3 <= len(query) <= MAX_QUERY_CHARS:
         return None
     if any(unicodedata.category(char).startswith('C') for char in query):
         return None
     query = ' '.join(unicodedata.normalize('NFKC', query).split())
+    prior = previous_query if (isinstance(previous_query, str)
+        and len(previous_query) <= MAX_QUERY_CHARS
+        and context_allowed(previous_query) and followup(speech)) else None
     if (len(query) > MAX_QUERY_CHARS or _PRIVATE.search(query) or _IDENTIFIER.search(query)
-            or _INSTRUCTION.search(query) or not public_request(speech)
+            or _INSTRUCTION.search(query) or not (public_request(speech) or prior)
             or re.search(r'(?i)\b(?:saya|aku|my|mine|kami|our)\b', query)
             or re.search(r'[^\w\s.,?()+-]', query)):
         return None
     words = tokens(query)
-    if len(words) < 2 or not words <= tokens(speech):
+    current=tokens(speech)
+    allowed=current | (tokens(prior) if prior else set())
+    # A refinement must retain a validated topic anchor and use current words.
+    if prior and (not words.intersection(tokens(prior)) or not words.intersection(current)):
+        return None
+    if len(words) < 2 or not words <= allowed:
         return None
     return query
 

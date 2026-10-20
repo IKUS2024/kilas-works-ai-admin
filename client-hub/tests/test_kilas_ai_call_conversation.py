@@ -20,6 +20,9 @@ class ConversationTests(unittest.TestCase):
             self.assertEqual(initial.pop('sessionResumption'), {})
             self.assertEqual(initial, resumed)
             prompt = initial['systemInstruction']['parts'][0]['text']
+            self.assertIn('Match answer depth to the request', prompt)
+            self.assertIn('cover each requested part without filler', prompt)
+            self.assertNotIn('Keep spoken answers concise', prompt)
             self.assertIn('Switch the conversation language only when the person explicitly asks', prompt)
             self.assertNotIn('This is a new conversation', prompt)
             self.assertNotIn('translationConfig', initial['generationConfig'])

@@ -108,7 +108,7 @@ def instructions():
             'Established explanations, product specifications and comparisons can be answered from supported knowledge. '
             'Do not turn them into current-information tasks unless the person asks for a live fact or a search. '
             'Use concise keywords from the latest spoken request, in its language; omit personal details and history. '
-            'For an explicit same-topic retry, you may reuse the immediately previous validated public keywords '
+            'For an explicit same-topic retry or short public follow-up, reuse the immediately previous validated public keywords '
             'or the same ISO currency pair. A new topic, private turn or opt-out ends that context. '
             'You can check public facts beyond Indonesia and currency, including news, products, places and factual topics. '
             'If the currencies are unspecified or ambiguous, ask which pair; do not claim the service lacks access. '
@@ -567,7 +567,7 @@ class PublicSearch:
             until = min(job['deadline'], monotonic()+INTENT_WAIT_SECONDS)
             while True:
                 with self.lock:
-                    minimized = ai_call_public_query.minimize(args['query'], self.buffer) if generic else None
+                    minimized = ai_call_public_query.minimize(args['query'], self.buffer, self.previous_query) if generic else None
                     knowledge_handoff = (generic and ai_call_public_query.stable_question(self.buffer)
                         and (minimized is None or self.used_number == self.number)
                         and not self.speaking and monotonic()-self.last_text_at >= TEXT_SETTLE_SECONDS

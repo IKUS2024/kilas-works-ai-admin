@@ -39,7 +39,8 @@ class UserFirstTests(unittest.TestCase):
         setup=calls.setup()['setup'];prompt=setup['systemInstruction']['parts'][0]['text']
         self.assertEqual(setup['realtimeInputConfig']['activityHandling'],'NO_INTERRUPTION')
         self.assertIn('Wait silently for intelligible speech',prompt)
-        self.assertIn('clear, natural short sentences',prompt)
+        self.assertIn('Use clear spoken sentences',prompt)
+        self.assertIn('cover each requested part without filler',prompt)
         self.assertIn('Distinguish uncertainty from established knowledge',prompt)
         self.assertIn('details, constraints, decisions and references from earlier turns',prompt)
         self.assertNotIn('APP_CALL_OPENING',prompt)

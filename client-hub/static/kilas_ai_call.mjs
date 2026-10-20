@@ -1,8 +1,8 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=app-language-20261015';
-import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-lifecycle-20261020';
+import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-recovery-20261020';
 import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-jitter-20261016';
-import {CallSession} from './kilas_ai_call_engine.mjs?v=call-lifecycle-20261020';
+import {CallSession} from './kilas_ai_call_engine.mjs?v=call-recovery-20261020';
 import {renderCallSources} from './kilas_ai_call_sources.mjs?v=call-public-search-20261017';
 
 const dialog=document.querySelector('#ai-call-dialog');
