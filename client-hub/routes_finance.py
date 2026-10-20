@@ -1738,6 +1738,7 @@ def create_category(business_id, user, business):
                 'direction': row['direction'],
                 'parent_category_id': row.get('parent_category_id'),
                 'parent_name': row.get('parent_name'),
+                'expense_picker_hidden': row.get('expense_picker_hidden', False),
             }
             for row in finance.list_categories(
                 business_id, direction, include_children=True,

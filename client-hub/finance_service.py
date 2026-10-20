@@ -941,6 +941,9 @@ def resolve_category_selection(business_id, direction, category_id, subcategory_
         raise FinanceError('category_parent_mismatch')
     children = list_category_children(
         business_id, category_id, actor_user_id=actor_user_id)
+    if direction == 'EXPENSE':
+        from finance_expense_choices import selectable_children
+        children = selectable_children(children)
     if not children:
         if subcategory_id not in (None, ''):
             raise FinanceError('subcategory_unavailable')

@@ -158,7 +158,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 
 </style>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='finance-full-20261018') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='finance-income-align-20261020') }}">
 {% if not show_transactions and not show_accounts %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_dashboard.css',v='finance-final-20261018') }}">{% endif %}
 {% endblock %}
 {% block content %}
@@ -383,7 +383,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 
 {% if show_transactions %}
 {% set active_finance_area = 'income' if direction == 'INCOME' else ('expense' if direction == 'EXPENSE' else '') %}{% include '_finance_area_nav.html' %}
-<div class="finance-ledger-page" id="transactions">
+<div class="finance-ledger-page {{ 'finance-income-ledger' if direction == 'INCOME' else '' }}" id="transactions">
 <header class="finance-ledger-head">
   <a class="finance-history-back" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id) }}">{{ ui_t('← Finance') }}</a>
   <div class="finance-ledger-head-row">
@@ -458,7 +458,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
     {% set tx_group.date = t.occurred_on %}
     <div class="finance-tx-date">{{ t.occurred_on }}</div>
   {% endif %}
-  <article class="finance-tx-row">
+  <article class="finance-tx-row {{ 'finance-income-row' if t.direction == 'INCOME' else '' }}">
     <div class="finance-tx-main">
       <div class="finance-tx-top">
         <p class="finance-tx-description">{{ t.description or t.notes or ui_t('Tanpa catatan') }}</p>
@@ -588,10 +588,10 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </dialog>
 {% endif %}
 
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_expense.css',v='expense-catalog-v4-20261020') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_expense.css',v='expense-choices-v5-20261020') }}">
 <dialog id="add-expense-dialog" class="finance-sheet"><div class="expense-header"><button type="button" data-finance-close="add-expense-dialog">{{ ui_t('Batal') }}</button><h2>{{ ui_t('Tambah Pengeluaran') }}</h2><button class="btn" type="submit" form="add-expense">{{ ui_t('Simpan') }}</button></div>
 {% with expense=None,expense_splits=[],expense_receipt_exists=False %}{% include '_finance_expense_form.html' %}{% endwith %}</dialog>
-<script src="{{ url_for('static',filename='finance_expense.js',v='expense-catalog-v4-20261020') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_expense.js',v='expense-choices-v5-20261020') }}" defer></script>
 <dialog id="add-transaction-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>{{ ui_t('Tambah Transaksi') }}</h2><button type="button" class="finance-sheet-close" data-finance-close="add-transaction-dialog" aria-label="{{ ui_t('Tutup') }}">×</button></div>
 <div class="finance-sheet-body"><form id="add-transaction" method="post" action="{{ url_for('finance.create_transaction',business_id=business.id,branch_id=g.finance_branch_id) }}" data-finance-entry data-personal="{{ 'true' if finance_workspace_personal else 'false' }}" data-finance-once>

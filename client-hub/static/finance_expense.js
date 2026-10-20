@@ -18,29 +18,48 @@
       function choice(container,text,fn,option){
         const button=document.createElement('button');button.type='button';
         if(option){const glyph=icon(option);if(glyph)button.append(glyph);button.dataset.expenseChoice=option.value;button.setAttribute('aria-pressed',String(option.value===(child.value||parent.value)));}
-        const copy=document.createElement('span');copy.textContent=text;button.append(copy);
+        const copy=document.createElement('span');copy.dataset.expenseChoiceLabel='';copy.textContent=text;button.append(copy);
         button.onclick=event=>{event.stopPropagation();fn();};container.append(button);return button;
       }
+      const visible=option=>option.value&&option.value!=='__add__'&&option.dataset.pickerHidden!=='true';
+      const childrenFor=option=>[...child.options].filter(o=>visible(o)&&o.dataset.parent===option.value);
+      function begin(){panel.replaceChildren();panel.hidden=false;panel.scrollTop=0;summary.setAttribute('aria-expanded','true');}
+      function selectRoot(option){if(parent.value!==option.value){parent.value=option.value;parent.dispatchEvent(new Event('change'));}}
+      function finish(){close();summary.focus();}
+      function showChildren(option){
+        begin();selectRoot(option);
+        const back=choice(panel,'‹ Back to categories',show);back.dataset.expenseBack='';
+        const title=document.createElement('strong');title.className='expense-category-heading';title.textContent=option.textContent;panel.append(title);
+        for(const leaf of childrenFor(option))choice(panel,leaf.textContent,()=>{child.value=leaf.value;child.dispatchEvent(new Event('change'));finish();},leaf);
+        choice(panel,'Add subcategory…',()=>{close();create(child,true);});
+        back.focus();
+      }
       function show(){
-        panel.replaceChildren();panel.hidden=false;summary.setAttribute('aria-expanded','true');
+        begin();
         for(const option of parent.options){
-          if(!option.value||option.value==='__add__')continue;
-          const children=[...child.options].filter(o=>o.value&&o.value!=='__add__'&&o.dataset.parent===option.value);
-          const group=document.createElement('details'),head=document.createElement('summary');group.dataset.expenseGroup=option.value;group.open=parent.value===option.value;
-          const glyph=icon(option);if(glyph)head.append(glyph);
-          const name=document.createElement('strong');name.textContent=option.textContent;head.append(name);
-          const selected=document.createElement('span');selected.className='expense-category-selected';selected.textContent=parent.value===option.value?'✓':'';selected.setAttribute('aria-hidden','true');head.append(selected);
-          const chevron=document.createElement('span');chevron.className='finance-category-chevron';chevron.textContent='›';head.append(chevron);group.append(head);
-          const body=document.createElement('div');body.className='expense-category-children';group.append(body);
-          head.addEventListener('click',()=>{if(parent.value!==option.value){parent.value=option.value;parent.dispatchEvent(new Event('change'));}for(const other of panel.querySelectorAll('details')){if(other!==group)other.open=false;}});
-          for(const leaf of children)choice(body,leaf.textContent,()=>{parent.value=option.value;update();child.value=leaf.value;child.dispatchEvent(new Event('change'));close();summary.focus();},leaf);
-          if(!children.length)choice(body,'Choose this category',()=>{parent.value=option.value;parent.dispatchEvent(new Event('change'));close();summary.focus();},option);
-          choice(body,'Add subcategory…',()=>{parent.value=option.value;update();close();create(child,true);});panel.append(group);
+          if(!visible(option))continue;
+          const button=choice(panel,option.textContent,()=>{selectRoot(option);if(childrenFor(option).length)showChildren(option);else finish();},option);
+          button.dataset.expenseRoot=option.value;button.setAttribute('aria-pressed',String(parent.value===option.value));
+          if(childrenFor(option).length){const chevron=document.createElement('i');chevron.className='finance-category-chevron';chevron.textContent='›';chevron.setAttribute('aria-hidden','true');button.append(chevron);}
+        }
+        // English children of a hidden Indonesian parent remain selectable with
+        // their real parent/child IDs. No database reparenting or relabeling.
+        for(const leaf of child.options){
+          if(!visible(leaf)||parent.querySelector('option[value="'+leaf.dataset.parent+'"]')?.dataset.pickerHidden!=='true')continue;
+          const button=choice(panel,leaf.textContent,()=>{parent.value=leaf.dataset.parent;parent.dispatchEvent(new Event('change'));child.value=leaf.value;child.dispatchEvent(new Event('change'));finish();},leaf);button.dataset.expenseRoot=leaf.value;
         }
         choice(panel,'Add category…',()=>{close();create(parent,false);});
       }
       summary.onclick=()=>panel.hidden?show():close();box.addEventListener('keydown',event=>{if(event.key==='Escape'&&!panel.hidden){event.preventDefault();event.stopPropagation();close();summary.focus();}});document.addEventListener('click',event=>{if(!box.contains(event.target))close();});
-      function update(){for(const group of panel.querySelectorAll('[data-expense-group]'))group.querySelector('.expense-category-selected').textContent=group.dataset.expenseGroup===parent.value?'✓':'';for(const button of panel.querySelectorAll('[data-expense-choice]'))button.setAttribute('aria-pressed',String(button.dataset.expenseChoice===(child.value||parent.value)));let count=0;for(const option of child.options){if(!option.value||option.value==='__add__')continue;option.hidden=option.disabled=option.dataset.parent!==parent.value;if(!option.disabled)count++;}label.hidden=true;child.disabled=!parent.value;parent.required=child.required=false;summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||''):'Choose a category';box.dataset.childRequired=String(!!count&&parent.value!==retainedParent);const empty=box.querySelector('[data-expense-empty-child]');if(empty)empty.disabled=!!parent.value;if(child.selectedOptions[0]?.disabled)child.value='';const display=box.querySelector('[data-expense-subcategory-display]');display.textContent=child.value?child.selectedOptions[0].textContent:display.dataset.emptyText;display.classList.toggle('is-empty',!child.value);summary.textContent=parent.value?(parent.selectedOptions[0]?.textContent||''):'Choose a category';}
+      function update(){
+        let count=0;
+        for(const option of child.options){if(!option.value||option.value==='__add__')continue;option.hidden=option.disabled=option.dataset.parent!==parent.value;if(!option.disabled&&visible(option))count++;}
+        label.hidden=true;child.disabled=!parent.value;parent.required=child.required=false;box.dataset.childRequired=String(!!count&&parent.value!==retainedParent);
+        const empty=box.querySelector('[data-expense-empty-child]');if(empty)empty.disabled=!!parent.value;
+        if(child.selectedOptions[0]?.disabled)child.value='';
+        const display=box.querySelector('[data-expense-subcategory-display]');display.textContent=child.value?child.selectedOptions[0].textContent:display.dataset.emptyText;display.classList.toggle('is-empty',!child.value);
+        summary.textContent=parent.value?(parent.selectedOptions[0]?.dataset.pickerHidden==='true'&&child.value?child.selectedOptions[0].textContent:parent.selectedOptions[0]?.textContent||''):'Choose a category';
+      }
       if(initial){const leaf=[...child.options].find(o=>o.value===String(initial));parent.value=leaf?leaf.dataset.parent:String(initial);if(!leaf)retainedParent=String(initial);if(leaf)child.value=String(initial);}
       async function create(field,isChild){
         const original=field.dataset.previous||'';field.value=original;
@@ -53,7 +72,7 @@
           for(const target of form.querySelectorAll('[data-expense-picker]')){
             const a=target.querySelector('[data-expense-parent]'),b=target.querySelector('[data-expense-child]'),av=a.value,bv=b.value;
             a.replaceChildren(new Option(t('Pilih kategori'),''));b.replaceChildren(new Option(t('Pilih subkategori'),''));
-            for(const option of result.options){const node=new Option(option.name,String(option.id));if(option.parent_category_id)node.dataset.parent=String(option.parent_category_id);(option.parent_category_id?b:a).append(node);}
+            for(const option of result.options){const node=new Option(option.name,String(option.id));node.dataset.pickerHidden=String(!!option.expense_picker_hidden);if(option.parent_category_id)node.dataset.parent=String(option.parent_category_id);(option.parent_category_id?b:a).append(node);}
             a.append(new Option('Add category…','__add__'));b.append(new Option('Add subcategory…','__add__'));a.value=av;b.value=bv;
           }
           field.value=String(result.category.id);if(!isChild)child.value='';update();field.dataset.previous=field.value;if(!isChild)show();

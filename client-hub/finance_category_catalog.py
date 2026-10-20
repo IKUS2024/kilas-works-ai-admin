@@ -343,6 +343,8 @@ def decorate(business_id,scope,rows,*,include_inactive=False):
             row['display_name']=alias['name'];row['builtin_default']=True
         row['default_retired']=row['id'] in retired
         if row['default_retired']:row['is_active']=False
+        from finance_expense_choices import hidden_from_expense_picker
+        row['expense_picker_hidden']=hidden_from_expense_picker(row,parent_label=(settings.get(row.get('parent_category_id')) or {}).get('display_name'))
         pref=prefs.get(row['id']) or {};row['icon_key']=pref.get('icon_key') or 'category'
         row['catalog_order']=pref.get('sort_order') if pref.get('sort_order') is not None else item['sort_order'] if item else 100000
     if not include_inactive:rows=[row for row in rows if row['is_active']]

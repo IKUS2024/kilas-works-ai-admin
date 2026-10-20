@@ -18,14 +18,14 @@ def main():
     for language in ('en','id'):
      ctx=browser.new_context(viewport={'width':width,'height':1000});ctx.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':language,'url':origin}]);page=ctx.new_page();page.set_default_timeout(5000);errors=[];writes=[];page.on('pageerror',lambda e:errors.append(str(e)));page.on('request',lambda r:writes.append(r.url) if r.method!='GET' else None);page.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
      page.goto(origin+f'/business/{bid}/finance?branch_id={branch}&view=transactions&direction=EXPENSE');page.locator('[data-transaction-direction=EXPENSE]').click();dialog=page.locator('#add-expense-dialog');single=dialog.locator('[data-expense-single]');single.locator('[data-expense-cascade]').click()
-     before=case.snapshot();panel=single.locator('[data-expense-cascade-panel]');actual=panel.locator('summary strong').all_text_contents();assert actual==fixture.EXPECTED,actual
-     group=panel.locator('details').first;group.locator('summary').click();group.locator('[data-expense-choice]').first.click();expect(single.locator('[data-expense-cascade]')).to_have_text('Home/Rent');expect(single.locator('[data-expense-subcategory-display]')).to_have_text('Rent')
+     before=case.snapshot();panel=single.locator('[data-expense-cascade-panel]');actual=panel.locator('[data-expense-root]>[data-expense-choice-label]').all_text_contents();assert actual==fixture.EXPECTED,actual
+     panel.locator('[data-expense-root]').first.click();panel.locator('[data-expense-choice]').first.click();expect(single.locator('[data-expense-cascade]')).to_have_text('Home/Rent');expect(single.locator('[data-expense-subcategory-display]')).to_have_text('Rent')
      assert not single.locator('[data-expense-subcategory-display]').evaluate('(e)=>e.matches("a,button,[href],[tabindex]")')
      assert dialog.evaluate('(e)=>e.scrollWidth<=e.clientWidth+1');assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
      if width in (390,768):page.screenshot(path=str(out/f'legacy-{language}-{width}.png'))
      dialog.locator('[data-expense-split-toggle]').check()
      for row in dialog.locator('.expense-split-row').all():
-      row.locator('[data-expense-cascade]').click();assert row.locator('[data-expense-cascade-panel] summary strong').all_text_contents()==fixture.EXPECTED
+      row.locator('[data-expense-cascade]').click();assert row.locator('[data-expense-cascade-panel] [data-expense-root]>[data-expense-choice-label]').all_text_contents()==fixture.EXPECTED
      assert before==case.snapshot();assert not writes;assert not errors,errors
      print(f'PASS exact legacy 23-to-10, single/split, readonly, no writes, {language}, {width}',flush=True);ctx.close()
    browser.close()

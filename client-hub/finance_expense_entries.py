@@ -22,7 +22,8 @@ def validate(business_id, amount, values, actor_user_id, *, retained=None):
         category=finance._id(value['category_id']);money=finance._money(value['amount_minor'],positive=True)
         visible=next((c for c in finance.list_categories(business_id,'EXPENSE',include_children=True,actor_user_id=actor_user_id) if c['id']==category and c['is_active']),None)
         if not visible or category in seen:raise finance.FinanceError('expense_split_invalid')
-        if not visible.get('parent_category_id') and finance.list_category_children(business_id,category,actor_user_id=actor_user_id):raise finance.FinanceError('subcategory_required')
+        from finance_expense_choices import selectable_children
+        if not visible.get('parent_category_id') and selectable_children(finance.list_category_children(business_id,category,actor_user_id=actor_user_id)):raise finance.FinanceError('subcategory_required')
         result.append(dict(category_id=category,amount_minor=money));seen.add(category)
     if sum(v['amount_minor'] for v in result)!=amount:raise finance.FinanceError('expense_split_total')
     return result
