@@ -1,0 +1,116 @@
+{
+  "baseline_commit": "af2215074ea4db8ab3489cd9bae390e48bdce56f",
+  "responsive": {
+    "views": 54,
+    "widths": [
+      1440,
+      1280,
+      1024,
+      820,
+      768,
+      430,
+      390,
+      360,
+      320
+    ],
+    "languages": [
+      "id",
+      "en"
+    ],
+    "views_per_language": [
+      "home",
+      "event",
+      "social"
+    ],
+    "result": "PASS"
+  },
+  "grouping": {
+    "states": 42,
+    "widths": [
+      320,
+      360,
+      390,
+      768,
+      820,
+      1024,
+      1440
+    ],
+    "result": "PASS"
+  },
+  "inquiry": {
+    "package_payload_selections": 36,
+    "widths": [
+      320,
+      820,
+      1440
+    ],
+    "missing_contact_and_no_js_fallback": "PASS",
+    "result": "PASS"
+  },
+  "playback": {
+    "cases": 156,
+    "provider_responses": "synthetic",
+    "real_portfolio_playback_verified": false,
+    "result": "PASS"
+  },
+  "fullscreen": {
+    "cases": 48,
+    "native_chromium_fullscreen": true,
+    "unsupported_and_rejected_api_fallbacks": true,
+    "provider_responses": "synthetic",
+    "real_android_hardware_verified": false,
+    "result": "PASS"
+  },
+  "flask": {
+    "creative_services_tests": 5,
+    "sidebar_product_tests": 3,
+    "result": "PASS"
+  },
+  "preservation": {
+    "prices_unchanged": true,
+    "package_sections_byte_identical": true,
+    "all_13_video_ids_urls_and_posters_unchanged": true,
+    "player_byte_identical": true,
+    "all_existing_media_fonts_byte_identical": true
+  },
+  "candidate_source_sha256": {
+    "creative-services-site/index.html": "ed3fd32eea65920a7d8ec667f278bd60823934e5a95cf384f36ed9eafe122686",
+    "creative-services-site/assets/editorial.css": "5342c146c82c1b2151dba09500305f120cff64efc48f5bdb586037765bd48eef",
+    "creative-services-site/assets/portfolio-player.js": "37b2ed1c0ce8a0e1baa87fa0368c0ab3a5831e9a991aa0c3225f80b7643c9b12"
+  },
+  "production": {
+    "checked_at_utc": "2026-10-21T12:35:30Z",
+    "workspace": "tea-da34t2gu01pc73ft7uf0",
+    "service": "srv-da7ti2psrm7s73dh9i2g",
+    "name": "kilas-works-client-hub",
+    "repo": "https://github.com/IKUS2024/kilas-works-ai-admin",
+    "branch": "main",
+    "auto_deploy": "off",
+    "live_deploy": "dep-dbc4c8ei0phs73aboo00",
+    "live_commit": "af2215074ea4db8ab3489cd9bae390e48bdce56f",
+    "finished_at": "2026-10-21T04:58:02.310598Z",
+    "new_deploy_requested": false,
+    "new_code_pushed": false
+  },
+  "network_blockers": [
+    {
+      "target": "https://app.kilasworks.id/creative-services/",
+      "action": "read-only HTTPS HEAD",
+      "outcome": "denied",
+      "reason": "environment proxy CONNECT 403 Forbidden"
+    },
+    {
+      "target": "https://www.instagram.com/reel/CzHI2JkPo5Q/embed/",
+      "action": "read-only embed fetch",
+      "outcome": "denied",
+      "reason": "environment proxy CONNECT 403 Forbidden"
+    },
+    {
+      "target": "https://render.com/docs/deploys.md",
+      "action": "current deployment documentation fetch",
+      "outcome": "denied",
+      "reason": "HTTP 403"
+    }
+  ],
+  "external_actions": "No WhatsApp messages, purchases, provider generation, configuration changes, push or deploy."
+}

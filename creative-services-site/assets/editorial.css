@@ -247,25 +247,36 @@ html.cs-player-open{overflow:hidden}
 .footer-bottom a{gap:8px}.footer-bottom .cs-icon{width:16px;height:16px}
 
 .cs-video-play{padding:0}.cs-video-play .cs-icon{width:20px;height:20px}
-@media(min-width:651px){
- /* One cinematic opener plus six equal thumbnails forms complete rows. */
- [data-portfolio-videos=event] .cs-video-card:first-child{grid-column:1 / -1}
- [data-portfolio-videos=event] .cs-video-card:first-child .cs-video-thumb{aspect-ratio:3 / 1;max-height:360px}
- [data-portfolio-videos=event] .cs-video-card:first-child img{object-fit:cover}
-}
-@media(min-width:651px) and (max-width:900px){[data-portfolio-videos=event] .cs-video-card:first-child .cs-video-thumb{aspect-ratio:16/9}}
-
-/* Information order is shared by overview and detail: title, description, owned media, actions. */
-.cs-home-intro{display:grid;grid-template-columns:1.1fr 1fr;align-items:center;gap:56px;padding:12px 0 30px}
-.cs-home-intro>p{margin-top:0;max-width:42ch;font-size:16px;line-height:1.75}
+/* Relevant source imagery and consultation lead the overview. */
+.cs-home-intro{display:grid;grid-template-columns:1.1fr 1fr;align-items:center;gap:48px;padding:16px 0 40px}
+.cs-hero-copy h1{font-size:clamp(36px,3.5vw,48px);line-height:1.16}
+.cs-hero-copy>p{max-width:52ch;margin-top:22px}
+.cs-hero-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px 24px;margin-top:28px}
+.cs-hero-actions .button{gap:18px}
+.cs-hero-copy .cs-hero-note{margin-top:12px;font-size:12px;line-height:1.65}
+.cs-hero-work{min-width:0;margin:0;background:#2b302b;color:#fffdf8}
+.cs-hero-cover{height:auto;aspect-ratio:972/544}
+.cs-hero-cover img{width:100%;height:100%;object-fit:contain}
+.cs-hero-work figcaption{padding:16px 20px;font-size:14px;font-weight:650;line-height:1.6}
+.cs-hero-credit{display:block;margin-top:4px;color:#ced2c7;font-size:11px;font-weight:400}
+.cs-portfolio-credit{max-width:82ch;color:var(--muted);font-size:13px;line-height:1.8;margin-bottom:24px}
+.cs-portfolio-credit a{display:inline-block;text-decoration:underline;text-decoration-color:var(--border)}
+.cs-portfolio-credit a:hover{color:var(--orange);text-decoration-color:currentColor}
+.cs-additional-work{grid-column:1/-1;border-top:1px solid var(--border);padding-top:28px;margin-top:8px}
+.cs-additional-work h4{font-size:18px}
+.cs-additional-work p{margin-top:8px;color:var(--muted);font-size:13px}
+.cs-video-caption{align-items:start;flex-direction:column;gap:4px;line-height:1.5}
+.contact-grid>div>.cs-consultation-details{font-size:13px;color:#ced2c7;margin-top:16px}
+.focused-header-links .cs-header-contact{color:var(--orange);text-decoration:underline}
 @media(max-width:900px){.cs-home-intro{gap:32px}.cs-portfolio-entry{padding:22px}}
 @media(max-width:650px){
- .cs-home-intro{display:block;padding:8px 0 24px}
- .cs-home-intro h1{font-size:var(--type-display);line-height:1.12;font-weight:700}
- .cs-title-first,.cs-title-second{display:inline}
- .cs-title-second{margin-left:.1em}
- .cs-title-first:after{content:' '}
- .cs-home-intro>p{margin-top:17px;max-width:38ch;font-size:16px;line-height:1.75}
+ .cs-home-intro{grid-template-columns:1fr;gap:24px;padding:8px 0 28px}
+ .cs-home-intro h1{font-size:clamp(29px,8.2vw,38px);line-height:1.18}
+ .cs-hero-copy>p{margin-top:17px;max-width:38ch;font-size:15px;line-height:1.7}
+ .cs-hero-actions{gap:8px 18px;margin-top:22px}
+ .cs-hero-actions .button{width:100%}
+ .cs-hero-copy .cs-hero-note{margin-top:6px;font-size:12px}
+ .cs-hero-work figcaption{padding:12px 16px;font-size:13px}
  .cs-service-choice{padding:20px;gap:12px}
  .cs-choice-top{display:none}
  .cs-service-choice h2{max-width:20ch;font-size:var(--type-service);line-height:1.25;font-weight:650}
@@ -297,7 +308,7 @@ html.cs-player-open{overflow:hidden}
 }
 @media(max-width:360px){:root{--type-price:28px;--type-page:28px;--type-section:30px}}
 
-/* The requested featured cover reuses the first existing Event video; the gallery order is unchanged. */
+/* The event overview uses the gathering poster from the existing collection. */
 .cs-event-cover{flex-direction:column}
 .cs-event-cover img{height:calc(100% - 48px);min-height:0;flex:1}
 .cs-cover-label{display:block;flex-shrink:0;min-height:48px;background:var(--ink);color:#fffdf8;font-size:12px;line-height:1.6;font-weight:600;padding:13px 64px 13px 14px}

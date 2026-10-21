@@ -1,6 +1,6 @@
 {
   "assets/brand-logo.png": "1caa0419567191f21e07a97c262ac028e4316be29863ade81887963e009237cf",
-  "assets/editorial.css": "5f9bfa3d8168ec3e218214c3495e448d2d6b29f4282c4a2f711a79e3d0c36caf",
+  "assets/editorial.css": "5342c146c82c1b2151dba09500305f120cff64efc48f5bdb586037765bd48eef",
   "assets/favicon.png": "1caa0419567191f21e07a97c262ac028e4316be29863ade81887963e009237cf",
   "assets/fonts/Inter-OFL.txt": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
   "assets/fonts/inter-variable.woff2": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
@@ -19,5 +19,5 @@
   "assets/portfolio/social-05.jpg": "5b4a25a05c97017c28ea2c2bd2bff01db121bd01c4ffca5b9cf20d8a45e4f653",
   "assets/portfolio/social-06.jpg": "ced733c4f0d4d965ab7472c55465154f871ab09aed8b33880fcf2b9e123d657d",
   "assets/portfolio-player.js": "37b2ed1c0ce8a0e1baa87fa0368c0ab3a5831e9a991aa0c3225f80b7643c9b12",
-  "index.html": "6cdca1d024997c4e1af0e6448912d59c5d93a4da69a027ea0d5192a79082f6c1"
+  "index.html": "ed3fd32eea65920a7d8ec667f278bd60823934e5a95cf384f36ed9eafe122686"
 }

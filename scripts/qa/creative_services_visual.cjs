@@ -6,7 +6,7 @@ fs.mkdirSync(root+'/after',{recursive:true});
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH || '/usr/bin/chromium',headless:true,args:['--no-sandbox']});
  const errors=[],results=[]; const page=await browser.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(r.status()>=400)errors.push(r.status()+' '+r.url())});
- for(const width of [1440,1280,1024,768,390,360]){
+ for(const width of [1440,1280,1024,820,768,430,390,360,320]){
   await page.setViewportSize({width,height:width<500?844:1000});
   await page.goto(url,{waitUntil:'networkidle'});await page.evaluate(()=>localStorage.clear());await page.reload({waitUntil:'networkidle'});
   for(const language of ['id','en']){
@@ -25,7 +25,7 @@ fs.mkdirSync(root+'/after',{recursive:true});
   }
  }
  // All existing service cards, portfolio collections, return links and nav destinations.
- for(const width of [1440,1280,1024,768,390,360]){
+ for(const width of [1440,1280,1024,820,768,430,390,360,320]){
   await page.setViewportSize({width,height:width<500?844:1000});await page.goto(url);await page.locator('[data-cs-language=id]').click();
   for(const key of ['event','social']){
    await page.locator(`[data-service-choice=${key}]`).click();await page.waitForURL('**/#cs-'+key);await page.locator('#cs-'+key).waitFor({state:'visible'});
@@ -54,6 +54,6 @@ fs.mkdirSync(root+'/after',{recursive:true});
  await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>document.activeElement.className),'skip-link');await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>document.activeElement.id),'main');
  await page.locator('[data-service-choice=event]').focus();await page.screenshot({path:root+'/after/keyboard-focus-360.png'});
  const fallback=await browser.newPage({viewport:{width:360,height:844}});await fallback.route('**/assets/fonts/**',r=>r.abort());await fallback.goto(url,{waitUntil:'networkidle'});assert.equal(await fallback.evaluate(()=>document.documentElement.scrollWidth),360);await fallback.screenshot({path:root+'/after/fallback-360.png',fullPage:true});await fallback.close();
- fs.writeFileSync(root+'/results.json',JSON.stringify({checks:results,errors,interactions:'Passed: all 6 sizes, both service choices, 13 portfolio URLs, nav/back, 6 package click handlers, contact payload, language, reduced motion, keyboard skip, fallback font.',externalActions:'All external WhatsApp clicks prevented; no message sent; no source video fetched.',modalCount:await page.locator('dialog,[role=dialog]').count()},null,2));
- assert.deepEqual(errors,[]);await browser.close();console.log('PASS: 36 responsive views, all navigation / package interactions, font fallback and reduced motion.');
+ fs.writeFileSync(root+'/results.json',JSON.stringify({checks:results,errors,interactions:'Passed: all 9 sizes, both service choices, 13 portfolio URLs, nav/back, 6 package click handlers, contact payload, language, reduced motion, keyboard skip, fallback font.',externalActions:'All external WhatsApp clicks prevented; no message sent; no source video fetched.',modalCount:await page.locator('dialog,[role=dialog]').count()},null,2));
+ assert.deepEqual(errors,[]);await browser.close();console.log('PASS: 54 responsive views, all navigation / package interactions, font fallback and reduced motion.');
 })().catch(e=>{console.error(e);process.exit(1)});

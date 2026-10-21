@@ -14,11 +14,15 @@ const original={event:[['1_RhxZwkV-XnmrJ4ygHAtJ3rZRMqwJOA3','event-first-drive.j
   return {group,overview,title:heading.textContent.trim(),entry:rect(entry),heading:rect(heading),description:rect(description),media:rect(media),firstAction:actionItems.length?rect(actionItems[0]):null,border:getComputedStyle(entry).borderTopWidth,mediaOwnership:mediaItems.map(img=>({src:img.getAttribute('src'),owner:img.closest('[data-portfolio-service]').dataset.portfolioService,rect:rect(img)})),labelledBy:entry.getAttribute('aria-labelledby'),headingId:heading.id};
  },{group,overview});}
  function assertOwnership(c){assert.equal(c.labelledBy,c.headingId);assert(c.heading.bottom<=c.description.top+1);assert(c.description.bottom<=c.media.top+1);assert(parseFloat(c.border)>=1);for(const m of c.mediaOwnership){assert.equal(m.owner,c.group);assert(m.rect.top>=c.description.bottom-1);assert(m.rect.left>=c.entry.left-1&&m.rect.right<=c.entry.right+1);assert(m.rect.bottom<=c.entry.bottom+1);}if(c.firstAction)assert(c.media.bottom<=c.firstAction.top+1);}
- for(const width of [360,390,768,1024,1440])for(const lang of ['id','en']){
+ for(const width of [320,360,390,768,820,1024,1440])for(const lang of ['id','en']){
   await p.setViewportSize({width,height:width<500?844:1000});await p.goto(url);await p.locator(`[data-cs-language=${lang}]`).click();await settle();
-  assert.equal(await p.locator('#cs-service-choices img').count(),0,'No decorative hero image');
+  assert.equal(await p.locator('.cs-hero-work img').getAttribute('src'),'assets/portfolio/event-04.jpg','Hero uses the existing event gathering poster');
+  assert.equal(await p.locator('.cs-hero-cover').getAttribute('href'),'#event-portfolio');
+  assert.equal(await p.locator('iframe').count(),0,'Provider media remains lazy');
+  assert.equal(await p.locator('[data-consultation]').getAttribute('href'),await p.locator('#cs-contact-whatsapp').getAttribute('href'));
+  const heroCTA=await p.locator('[data-consultation]').boundingBox();assert(heroCTA.y+heroCTA.height<=844||width>=500,'Consultation is visible on arrival on mobile');
   assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth),width,'No overview overflow');
-  const choices=await p.locator('[data-service-choice]').evaluateAll(es=>es.map(e=>({text:e.querySelector('h2').textContent.trim(),top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom})));assert.equal(choices.length,2);assert(choices.every(x=>x.top<844||width>=500),'Both mobile service choices are evident');
+  const choices=await p.locator('[data-service-choice]').evaluateAll(es=>es.map(e=>({text:e.querySelector('h2').textContent.trim(),top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom})));assert.equal(choices.length,2);assert(choices.every(x=>x.bottom>x.top),'Both service choices remain available');
   await p.evaluate(()=>scrollTo({top:0,behavior:'instant'}));await p.screenshot({path:`${out}/home-${width}-${lang}.png`,fullPage:true});
   const overview=[];for(const group of ['event','social']){const c=await groupCheck(group,true);assertOwnership(c);overview.push(c);}
   if(width<651)assert(overview[0].entry.bottom<overview[1].entry.top,'Distinct vertical category boundaries');
@@ -29,7 +33,8 @@ const original={event:[['1_RhxZwkV-XnmrJ4ygHAtJ3rZRMqwJOA3','event-first-drive.j
    assert.equal(await p.locator(`[data-portfolio-category=${group}]`).getAttribute('aria-current'),'page');assert.equal(await p.locator('[data-portfolio-service]:visible').count(),1);
    const c=await groupCheck(group,false);assertOwnership(c);
    const media=p.locator(`[data-portfolio-videos=${group}] .cs-video-card`);assert.equal(await media.count(),original[group].length);
-   for(let i=0;i<original[group].length;i++){assert((await media.nth(i).getAttribute('data-video-source')).includes(original[group][i][0]));assert((await media.nth(i).locator('img').getAttribute('src')).endsWith(original[group][i][1]));}
+   for(let i=0;i<original[group].length;i++){const card=p.locator(`[data-video-id=${group}-${String(i+1).padStart(2,'0')}]`);assert((await card.getAttribute('data-video-source')).includes(original[group][i][0]));assert((await card.locator('img').getAttribute('src')).endsWith(original[group][i][1]));}
+   if(group==='event'){assert.equal(await media.first().getAttribute('data-video-id'),'event-05');assert.equal(await media.last().getAttribute('data-video-id'),'event-01');assert.equal(await media.last().locator('.cs-video-caption>span').first().innerText(),'Company profile');const extra=await p.locator('.cs-additional-work').boundingBox(),profile=await media.last().boundingBox();assert(extra.y+extra.height<=profile.y,'Company profile follows a separate heading');}
    assert.equal(await p.locator('#cs-'+group+' .cs-card').count(),3);
    assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth),width);
    await p.screenshot({path:`${out}/${group}-anchor-${width}-${lang}.png`});await p.locator('#cs-portfolio-groups').screenshot({path:`${out}/${group}-gallery-${width}-${lang}.png`});checks.push({width,lang,view:group,ownership:c,anchor});
@@ -42,5 +47,5 @@ const original={event:[['1_RhxZwkV-XnmrJ4ygHAtJ3rZRMqwJOA3','event-first-drive.j
  await p.goto(url+'#cs-event');await p.evaluate(()=>document.querySelectorAll('[data-service-id]').forEach(a=>a.addEventListener('click',e=>e.preventDefault())));
  for(const group of ['event','social']){await p.goto(url+'#cs-'+group);for(const a of await p.locator('#cs-'+group+' [data-service-id]').all()){const href=await a.getAttribute('href');await a.click();assert.equal(await p.locator('#cs-contact-whatsapp').getAttribute('href'),href);}}
  await p.emulateMedia({reducedMotion:'reduce'});await p.goto(url+'#portfolio');await settle();assert.equal(await p.evaluate(()=>getComputedStyle(document.documentElement).scrollBehavior),'auto');
- assert.deepEqual(errors,[]);fs.writeFileSync(out+'/results.json',JSON.stringify({checks,errors,originalMapping:original,summary:'PASS: 30 overview/category states across 5 widths and 2 languages; geometric ownership/order/boundaries; real nav and direct-hash anchor positions; all original mappings and six package handlers; no hero images.'},null,2));await b.close();console.log('PASS: 30 grouping states, original mapping, category navigation/anchors, compact hero and package actions.');
+ assert.deepEqual(errors,[]);fs.writeFileSync(out+'/results.json',JSON.stringify({checks,errors,originalMapping:original,summary:'PASS: 42 overview/category states across 7 widths and 2 languages; geometric ownership/order/boundaries; real nav and direct-hash anchor positions; all original mappings and six package handlers; relevant hero preview with visible consultation CTA.'},null,2));await b.close();console.log('PASS: 42 grouping states, original mapping, category navigation/anchors, portfolio hero and package actions.');
 })().catch(e=>{console.error(e);process.exit(1)});
