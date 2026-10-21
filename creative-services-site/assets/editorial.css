@@ -148,7 +148,9 @@ main:focus,.cs-panel:focus{outline:none}
 .cs-portfolio-nav a:hover{background:#ebe8df}
 .cs-portfolio-nav a[aria-current=page]{background:var(--ink);border-color:var(--ink);color:#fffdf8}
 .cs-video-grid{grid-column:1 / -1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px 24px;width:100%;margin-top:0}
-.cs-video-card{display:block;min-width:0}
+.cs-video-card{display:block;min-width:0;width:100%;padding:0;border:0;border-radius:0;background:transparent;color:inherit;text-align:left}
+.cs-video-card:disabled{cursor:default}
+.cs-video-access{grid-column:1 / -1;margin:0;max-width:70ch;color:var(--muted);font-size:13px;line-height:1.6}
 .cs-video-thumb{position:relative;display:block;aspect-ratio:16/9;background:#252624;overflow:hidden}
 .cs-video-thumb img{width:100%;height:100%;object-fit:contain}
 [data-portfolio-videos=social]{grid-template-columns:repeat(3,minmax(0,1fr));max-width:1000px}
@@ -156,7 +158,26 @@ main:focus,.cs-panel:focus{outline:none}
 .cs-video-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:#fffdf9;color:var(--ink);font-size:15px;padding-left:2px}
 .cs-video-card:hover .cs-video-play{background:#edc2ae}
 .cs-video-caption{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;padding-block:12px;border-bottom:1px solid var(--border);font-weight:600;font-size:13px}
-.cs-video-caption>span:last-child{font-size:20px;color:var(--orange)}
+.cs-video-caption>.cs-video-provider{font-size:11px;font-weight:500;color:var(--muted);white-space:nowrap}
+/* The existing gallery opens one user-initiated player; provider media stays lazy. */
+html.cs-player-open{overflow:hidden}
+.cs-player{width:min(960px,calc(100% - 24px));max-width:none;max-height:calc(100svh - 24px);margin:auto;padding:0;overflow:auto;overscroll-behavior:contain;border:1px solid var(--border);background:var(--paper);color:var(--ink);font:inherit}
+.cs-player::backdrop{background:rgba(20,22,20,.82)}
+.cs-player:has([data-provider=instagram]){width:min(460px,calc(100% - 24px))}
+.cs-player-header{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 20px;border-bottom:1px solid var(--border);background:var(--paper)}
+.cs-player-header h2{font-size:20px;line-height:1.3;letter-spacing:-.02em}
+.cs-player-provider{margin-bottom:4px;color:var(--muted);font-size:12px;line-height:1.5}
+.cs-player-close{display:flex;align-items:center;gap:8px;flex-shrink:0;min-height:44px;padding:8px 10px;border:1px solid var(--border);background:transparent;color:var(--ink);font-size:13px;font-weight:600}
+.cs-player-close>span:last-child{font-size:24px;line-height:1}
+.cs-player-feedback{padding:16px 20px 18px}
+.cs-player-status{font-size:14px;line-height:1.6;font-weight:600}
+.cs-player-note{margin-top:8px;font-size:12px;line-height:1.65;color:var(--muted)}
+.cs-player-retry{min-height:44px;margin-top:12px;padding:8px 12px;border:1px solid var(--border);background:transparent;color:var(--ink);font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.cs-player-close:hover,.cs-player-retry:hover{background:#ebe8df}
+.cs-player-stage{position:relative;width:100%;aspect-ratio:16/9;background:#161816}
+.cs-player-stage[data-provider=instagram]{aspect-ratio:9/19;background:#fff}
+.cs-player-stage iframe{display:block;width:100%;height:100%;border:0}
+@media(max-width:480px){.cs-player-header{gap:12px;padding:14px}.cs-player-header h2{font-size:18px}.cs-player-feedback{padding:14px}.cs-video-caption{gap:6px}.cs-video-caption>.cs-video-provider{font-size:10px}}
 /* Closing CTA changes the rhythm without adding a new offer. */
 .focused-contact{background:#2b302b;color:#fffdf8}
 .contact-grid{display:grid;grid-template-columns:1.3fr 1fr;align-items:center;gap:90px}

@@ -1,0 +1,18 @@
+{
+  "baseline": "ed45d17f8cba1461fa8d100c02bbc4a6f5fe6d6d",
+  "primary_url": "https://app.kilasworks.id/creative-services/",
+  "cards_with_on_site_provider_player": 13,
+  "locally_hosted_full_videos": 0,
+  "real_provider_playback_verified": 0,
+  "drive_full_files_identified": 2,
+  "instagram_full_files_missing": 11,
+  "browser_ui_cases": 156,
+  "responsive_views": 36,
+  "grouping_states": 30,
+  "route_sidebar_tests_passed": 8,
+  "provider_access_blocker": "All 13 original URLs and retrieval of both prepared Drive files: executor proxy CONNECT 403",
+  "no_paid_services_or_new_hosting": true,
+  "no_dns_security_or_unrelated_module_changes": true,
+  "final_lifecycle_follow_up_cases": 26,
+  "pagehide_back_cleanup_verified": true
+}

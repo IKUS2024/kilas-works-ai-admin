@@ -1,0 +1,160 @@
+{
+  "checked_at": "2026-10-21T01:02:26.912151+00:00",
+  "videos": [
+    {
+      "id": "event-01",
+      "source_url": "https://drive.google.com/file/d/1_RhxZwkV-XnmrJ4ygHAtJ3rZRMqwJOA3/view?usp=drivesdk",
+      "local_full_video": false,
+      "provider": "Google Drive",
+      "embed_url": "https://drive.google.com/file/d/1_RhxZwkV-XnmrJ4ygHAtJ3rZRMqwJOA3/preview",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "drive_metadata": {
+        "name": "compro.mov",
+        "mime_type": "video/quicktime",
+        "bytes": 145259433
+      },
+      "connector_raw_fetch": "succeeded: authenticated file reference prepared",
+      "file_materialization": "blocked: CONNECT 403 Forbidden when retrieving prepared file"
+    },
+    {
+      "id": "event-02",
+      "source_url": "https://www.instagram.com/reel/CzHI2JkPo5Q/",
+      "local_full_video": false,
+      "provider": "Instagram",
+      "embed_url": "https://www.instagram.com/reel/CzHI2JkPo5Q/embed/",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "full_file_status": "missing from repository/workspace; only original Instagram URL and poster available"
+    },
+    {
+      "id": "event-03",
+      "source_url": "https://www.instagram.com/reel/Cs5lhuyg_qB/",
+      "local_full_video": false,
+      "provider": "Instagram",
+      "embed_url": "https://www.instagram.com/reel/Cs5lhuyg_qB/embed/",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "full_file_status": "missing from repository/workspace; only original Instagram URL and poster available"
+    },
+    {
+      "id": "event-04",
+      "source_url": "https://www.instagram.com/reel/CuY-v6tg-NV/",
+      "local_full_video": false,
+      "provider": "Instagram",
+      "embed_url": "https://www.instagram.com/reel/CuY-v6tg-NV/embed/",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "full_file_status": "missing from repository/workspace; only original Instagram URL and poster available"
+    },
+    {
+      "id": "event-05",
+      "source_url": "https://drive.google.com/file/d/1NUKvbCyoEIfsM39rVF3M96FICKMIowtt/view",
+      "local_full_video": false,
+      "provider": "Google Drive",
+      "embed_url": "https://drive.google.com/file/d/1NUKvbCyoEIfsM39rVF3M96FICKMIowtt/preview",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "drive_metadata": {
+        "name": "Video Event 25 Sept.mov",
+        "mime_type": "video/mp4",
+        "bytes": 214436965
+      },
+      "connector_raw_fetch": "succeeded: authenticated file reference prepared",
+      "file_materialization": "blocked: CONNECT 403 Forbidden when retrieving prepared file"
+    },
+    {
+      "id": "event-06",
+      "source_url": "https://www.instagram.com/reel/Cdw6-xnJ0bI/",
+      "local_full_video": false,
+      "provider": "Instagram",
+      "embed_url": "https://www.instagram.com/reel/Cdw6-xnJ0bI/embed/",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "full_file_status": "missing from repository/workspace; only original Instagram URL and poster available"
+    },
+    {
+      "id": "event-07",
+      "source_url": "https://www.instagram.com/tv/CSrOzSYp9-G/",
+      "local_full_video": false,
+      "provider": "Instagram",
+      "embed_url": "https://www.instagram.com/tv/CSrOzSYp9-G/embed/",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "full_file_status": "missing from repository/workspace; only original Instagram URL and poster available"
+    },
+    {
+      "id": "social-01",
+      "source_url": "https://www.instagram.com/reel/CuGo_oHg2tY/",
+      "local_full_video": false,
+      "provider": "Instagram",
+      "embed_url": "https://www.instagram.com/reel/CuGo_oHg2tY/embed/",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "full_file_status": "missing from repository/workspace; only original Instagram URL and poster available"
+    },
+    {
+      "id": "social-02",
+      "source_url": "https://www.instagram.com/reel/Cs2pwEHAdxT/",
+      "local_full_video": false,
+      "provider": "Instagram",
+      "embed_url": "https://www.instagram.com/reel/Cs2pwEHAdxT/embed/",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "full_file_status": "missing from repository/workspace; only original Instagram URL and poster available"
+    },
+    {
+      "id": "social-03",
+      "source_url": "https://www.instagram.com/reel/CsxdzFyg5aA/",
+      "local_full_video": false,
+      "provider": "Instagram",
+      "embed_url": "https://www.instagram.com/reel/CsxdzFyg5aA/embed/",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "full_file_status": "missing from repository/workspace; only original Instagram URL and poster available"
+    },
+    {
+      "id": "social-04",
+      "source_url": "https://www.instagram.com/reel/CsxiIxAAC-w/",
+      "local_full_video": false,
+      "provider": "Instagram",
+      "embed_url": "https://www.instagram.com/reel/CsxiIxAAC-w/embed/",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "full_file_status": "missing from repository/workspace; only original Instagram URL and poster available"
+    },
+    {
+      "id": "social-05",
+      "source_url": "https://www.instagram.com/reel/CsxhaufgmkQ/",
+      "local_full_video": false,
+      "provider": "Instagram",
+      "embed_url": "https://www.instagram.com/reel/CsxhaufgmkQ/embed/",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "full_file_status": "missing from repository/workspace; only original Instagram URL and poster available"
+    },
+    {
+      "id": "social-06",
+      "source_url": "https://www.instagram.com/reel/CvJQ3l_BIrN/",
+      "local_full_video": false,
+      "provider": "Instagram",
+      "embed_url": "https://www.instagram.com/reel/CvJQ3l_BIrN/embed/",
+      "error": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "playback_verification": "not verified: environment proxy blocks source access",
+      "implementation": "on-site modal, provider iframe, click to load",
+      "full_file_status": "missing from repository/workspace; only original Instagram URL and poster available"
+    }
+  ]
+}

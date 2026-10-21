@@ -29,7 +29,7 @@ const original={event:[['1_RhxZwkV-XnmrJ4ygHAtJ3rZRMqwJOA3','event-first-drive.j
    assert.equal(await p.locator(`[data-portfolio-category=${group}]`).getAttribute('aria-current'),'page');assert.equal(await p.locator('[data-portfolio-service]:visible').count(),1);
    const c=await groupCheck(group,false);assertOwnership(c);
    const media=p.locator(`[data-portfolio-videos=${group}] .cs-video-card`);assert.equal(await media.count(),original[group].length);
-   for(let i=0;i<original[group].length;i++){assert((await media.nth(i).getAttribute('href')).includes(original[group][i][0]));assert((await media.nth(i).locator('img').getAttribute('src')).endsWith(original[group][i][1]));}
+   for(let i=0;i<original[group].length;i++){assert((await media.nth(i).getAttribute('data-video-source')).includes(original[group][i][0]));assert((await media.nth(i).locator('img').getAttribute('src')).endsWith(original[group][i][1]));}
    assert.equal(await p.locator('#cs-'+group+' .cs-card').count(),3);
    assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth),width);
    await p.screenshot({path:`${out}/${group}-anchor-${width}-${lang}.png`});await p.locator('#cs-portfolio-groups').screenshot({path:`${out}/${group}-gallery-${width}-${lang}.png`});checks.push({width,lang,view:group,ownership:c,anchor});

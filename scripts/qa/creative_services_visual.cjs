@@ -32,7 +32,7 @@ fs.mkdirSync(root+'/after',{recursive:true});
    assert.equal(await page.locator('#cs-'+key+' .cs-card').count(),3);
    await page.locator('[data-selected-portfolio]').click();await page.waitForURL('**/#'+key+'-portfolio');
    const cards=page.locator(`[data-portfolio-videos=${key}] .cs-video-card`);assert.equal(await cards.count(),key==='event'?7:6);
-   for(const card of await cards.all()){assert(/^https:\/\/(www\.instagram\.com|drive\.google\.com)\//.test(await card.getAttribute('href')));assert.equal(await card.getAttribute('target'),'_blank');}
+   for(const card of await cards.all()){assert(/^https:\/\/(www\.instagram\.com|drive\.google\.com)\//.test(await card.getAttribute('data-video-source')));assert.equal(await card.getAttribute('aria-haspopup'),'dialog');assert.equal(await card.getAttribute('target'),null);assert.equal(await card.isEnabled(),true);}
    await page.locator('#cs-'+key+' .cs-back-services').click();await page.waitForURL('**/#services');await page.locator('[data-service-choice='+key+']').waitFor({state:'visible'});
   }
   await page.locator('.focused-header-links>a[href="#portfolio"]').click();await page.waitForURL('**/#portfolio');
