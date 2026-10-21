@@ -1,0 +1,20 @@
+{
+  "baseline": "9b77d33f92b6a7a9577e2abeb99dad670a276e2d",
+  "primary_url": "https://app.kilasworks.id/creative-services/",
+  "policy_AB_cases": 4,
+  "fullscreen_cases": 48,
+  "responsive_player_cases": 156,
+  "route_sidebar_tests": 8,
+  "real_Chromium_native_fullscreen_verified": true,
+  "native_fullscreen_request_target": "div.cs-player-shell inside dialog",
+  "API_unsupported_and_rejected_fallback_label": "Expanded view / Tampilan diperbesar",
+  "real_Android_hardware_verified": false,
+  "real_provider_video_playback_verified_by_executor": false,
+  "real_provider_state_from_parent": "Drive and Instagram embed thumbnails load; cloud playback progression unconfirmed; owner Android screenshot differs from initial Drive thumbnail and reports missing fullscreen, so universal provider failure is not asserted",
+  "autoplay_regression": "Baseline denies play() after parent card interaction; current delegates cross-origin autoplay and synthetic media advances",
+  "storage_regression": "Baseline sandbox token rejection removed; browser still enforces first-party interaction/consent policy",
+  "referrer_regression": "Origin Referer received by both synthetic providers with real Flask same-origin referrer header and iframe strict-origin-when-cross-origin override",
+  "normal_loaded_copy": "Status and retry hidden; help collapsed; no claim of actual playback from iframe load",
+  "original_13_URLs_thumbnails_prices_CTA_unchanged": true,
+  "global_CSP_auth_and_other_module_source_unchanged": true
+}

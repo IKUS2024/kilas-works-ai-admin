@@ -24,6 +24,14 @@ const expected={
  'social-05':'https://www.instagram.com/reel/CsxhaufgmkQ/embed/',
  'social-06':'https://www.instagram.com/reel/CvJQ3l_BIrN/embed/'
 };
+async function toggleHelp(page){
+ const before=await page.locator('#cs-player-help').evaluate(d=>d.open);
+ await page.locator('#cs-player-help>summary').scrollIntoViewIfNeeded();
+ // Let cross-origin iframe hit-test regions settle after scrolling the dialog.
+ await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+ await page.locator('#cs-player-help>summary').click();
+ await page.waitForFunction(before=>document.querySelector('#cs-player-help').open!==before,before);
+}
 (async()=>{
  const b=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
  const context=await b.newContext({reducedMotion:'reduce'}),p=await context.newPage();
@@ -49,7 +57,7 @@ const expected={
      assert.equal(p.url(),before);assert.equal(context.pages().length,1);assert.equal(await p.locator('iframe').count(),1);
      assert.equal(requests.length,count+1);assert.equal(requests.at(-1),expected[id]);
      const iframe=p.locator('#cs-player-stage iframe');
-     assert.equal(await iframe.getAttribute('src'),expected[id]);assert.equal(await iframe.getAttribute('allow'), 'fullscreen; picture-in-picture; encrypted-media');
+     assert.equal(await iframe.getAttribute('src'),expected[id]);assert.equal(await iframe.getAttribute('allow'), 'autoplay; fullscreen; picture-in-picture; encrypted-media');
      assert(!(await iframe.getAttribute('sandbox')).includes('allow-popups'));assert(!(await iframe.getAttribute('sandbox')).includes('allow-top-navigation'));
      const measurement=await p.evaluate(()=>{
       const dialog=document.querySelector('#cs-video-dialog'),r=dialog.getBoundingClientRect(),close=dialog.querySelector('[data-player-close]').getBoundingClientRect();
@@ -57,13 +65,14 @@ const expected={
      });
      assert(measurement.scroll<=width);assert(measurement.left>=0&&measurement.right<=width);assert(measurement.dialogScroll<=measurement.dialogClient);
      assert(measurement.closeTop>=0&&measurement.closeBottom<=measurement.height);assert(measurement.modal&&measurement.focused);
-     assert((await p.locator('#cs-player-note').innerText()).includes(lang==='en'?'unavailable':'belum tersedia'));
+     assert.equal(await p.locator('#cs-player-status').isVisible(),false);assert.equal(await p.locator('#cs-player-help').evaluate(d=>d.open),false);assert.equal(await p.locator('#cs-player-note').isVisible(),false);assert.equal(await p.locator('[data-player-retry]').isVisible(),false);
      const media=p.frameLocator('#cs-player-stage iframe').locator('video');
      assert.equal(await media.evaluate(v=>v.controls&&v.playsInline&&!v.autoplay),true);
      await media.evaluate(v=>v.play());await p.waitForTimeout(70);
      assert(await media.evaluate(v=>!v.paused&&v.currentTime>0));
      if(id==='social-01'){
       await p.screenshot({path:`${out}/modal-${width}-${lang}-SYNTHETIC-PROVIDER.png`});
+      await toggleHelp(p);assert((await p.locator('#cs-player-note').innerText()).includes(lang==='en'?'unavailable':'belum tersedia'));assert.equal(await p.locator('[data-player-retry]').isVisible(),true);await toggleHelp(p);
       await p.frameLocator('#cs-player-stage iframe').getByRole('button').click();
       assert.equal(p.url(),before);assert.equal(context.pages().length,1);
       await p.locator('[data-player-close]').focus();await p.keyboard.press('Shift+Tab');
@@ -84,7 +93,7 @@ const expected={
  await p.goto(url+'#event-portfolio');await p.locator('[data-video-id=event-01]').click();
  await p.waitForFunction(()=>document.querySelector('#cs-video-dialog').dataset.playerState==='loaded');
  await p.evaluate(()=>window.__oldFrame=document.querySelector('iframe'));
- await p.locator('[data-player-retry]').click();await p.waitForFunction(()=>document.querySelector('#cs-video-dialog').dataset.playerState==='loaded');
+ await toggleHelp(p);await p.locator('[data-player-retry]').click();await p.waitForFunction(()=>document.querySelector('#cs-video-dialog').dataset.playerState==='loaded');
  assert(await p.evaluate(()=>!window.__oldFrame.isConnected&&window.__oldFrame!==document.querySelector('iframe')));assert.equal(await p.locator('iframe').count(),1);
  await p.evaluate(()=>document.querySelector('[data-video-id=event-02]').click());
  assert.equal(await p.locator('iframe').count(),1);assert.equal(await p.locator('iframe').getAttribute('src'),expected['event-02']);
@@ -97,18 +106,18 @@ const expected={
  assert.equal(await p.locator('iframe').count(),0);assert.equal(await p.locator('#cs-video-dialog').evaluate(d=>d.open),false);
  mode='unavailable';await p.goto(url+'#social-portfolio');await p.locator('[data-video-id=social-01]').click();
  await p.waitForFunction(()=>document.querySelector('#cs-video-dialog').dataset.playerState==='loaded');
- assert((await p.locator('#cs-player-status').innerText()).includes('If the video appears'));
+ assert.equal(await p.locator('#cs-player-status').isVisible(),false);await toggleHelp(p);assert((await p.locator('#cs-player-note').innerText()).includes('unavailable'));
  await p.screenshot({path:out+'/provider-unavailable-360.png'});await p.locator('[data-player-close]').click();
  mode='pending';await p.locator('[data-video-id=social-02]').click();
  assert.equal(await p.locator('#cs-player-stage').getAttribute('aria-busy'),'true');
  await p.waitForFunction(()=>document.querySelector('#cs-video-dialog').dataset.playerState==='timeout',null,{timeout:16000});
  assert.equal(await p.locator('#cs-player-stage').getAttribute('aria-busy'),'false');
- assert((await p.locator('#cs-player-status').innerText()).includes('could not be confirmed'));
+ assert((await p.locator('#cs-player-status').innerText()).includes('did not respond'));
  await p.screenshot({path:out+'/provider-timeout-360.png'});await p.keyboard.press('Escape');
  await p.waitForFunction(()=>!document.querySelector('#cs-video-dialog').open&&document.querySelectorAll('iframe').length===0);
  // A failed or disabled script never leaves deceptive enabled play controls.
  const nojs=await b.newPage({javaScriptEnabled:false,viewport:{width:360,height:844}});await nojs.goto(url);assert.equal(await nojs.locator('.cs-video-card:disabled').count(),13);await nojs.close();
  assert.deepEqual(errors,[]);
- fs.writeFileSync(out+'/results.json',JSON.stringify({scope:'Synthetic provider UI and native browser media decoding; NOT actual provider/video playback verification',checks,total:checks.length,errors,additional:['lazy requests','one frame only','retry removes old player','switch removes old player','hash cleanup','keyboard Escape/focus restoration','backdrop close','pagehide/back cleanup','sandbox blocks popups/top navigation','provider denial warning','12-second timeout','no-JS disabled cards']},null,2));
+ fs.writeFileSync(out+'/results.json',JSON.stringify({scope:'Synthetic provider UI and native browser media decoding; NOT actual provider/video playback verification',checks,total:checks.length,errors,additional:['lazy requests','one frame only','retry removes old player','switch removes old player','hash cleanup','keyboard Escape/focus restoration','backdrop close','pagehide/back cleanup','sandbox blocks popups/top navigation','provider denial warning on demand','normal-load status and retry hidden','12-second timeout','no-JS disabled cards']},null,2));
  await b.close();console.log(`PASS ${checks.length} responsive card/player cases and failure/lifecycle checks. Actual source availability remains unverified.`);
 })().catch(e=>{console.error(e);process.exit(1)});

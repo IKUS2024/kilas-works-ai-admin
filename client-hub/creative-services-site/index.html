@@ -1075,17 +1075,25 @@
 </a>
 </div>
 </footer>
-<dialog class="cs-player" id="cs-video-dialog" aria-labelledby="cs-player-title" aria-describedby="cs-player-provider cs-player-note">
+<dialog class="cs-player" id="cs-video-dialog" aria-labelledby="cs-player-title" aria-describedby="cs-player-provider">
+<div class="cs-player-shell">
 <div class="cs-player-header">
-<div><p class="cs-player-provider" id="cs-player-provider"></p><h2 id="cs-player-title"></h2></div>
+<div><p class="cs-player-provider" id="cs-player-provider" aria-live="polite"></p><h2 id="cs-player-title"></h2></div>
+<div class="cs-player-actions">
+<button class="cs-player-fullscreen" type="button" data-player-fullscreen aria-label="Layar penuh" title="Layar penuh"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"></path></svg></button>
 <button class="cs-player-close" type="button" data-player-close autofocus><span data-cs-id="Tutup" data-cs-en="Close">Tutup</span><span aria-hidden="true">×</span></button>
 </div>
-<div class="cs-player-feedback">
+</div>
 <p class="cs-player-status" id="cs-player-status" role="status" aria-live="polite"></p>
+<div class="cs-player-stage" id="cs-player-stage" aria-busy="false"></div>
+<details class="cs-player-help" id="cs-player-help">
+<summary><span data-cs-id="Video tidak mulai?" data-cs-en="Video not starting?">Video tidak mulai?</span></summary>
+<div class="cs-player-feedback">
 <p class="cs-player-note" id="cs-player-note" data-cs-id="Jika video tidak muncul atau meminta login, pemutaran belum tersedia di browser ini. Akses dan cookie mengikuti ketentuan penyedia." data-cs-en="If the video does not appear or asks for sign-in, playback is unavailable in this browser. Provider access and cookie policies apply.">Jika video tidak muncul atau meminta login, pemutaran belum tersedia di browser ini. Akses dan cookie mengikuti ketentuan penyedia.</p>
 <button class="cs-player-retry" type="button" data-player-retry><span data-cs-id="Coba muat ulang" data-cs-en="Retry player">Coba muat ulang</span></button>
 </div>
-<div class="cs-player-stage" id="cs-player-stage" aria-busy="false"></div>
+</details>
+</div>
 </dialog>
 <script src="assets/portfolio-player.js" defer></script>
 <script>

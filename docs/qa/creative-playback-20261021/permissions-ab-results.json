@@ -1,0 +1,79 @@
+{
+  "scope": "Browser policy A/B with synthetic providers, not real portfolio playback. No cookie grants or security flags overridden.",
+  "checks": [
+    {
+      "provider": "drive",
+      "mode": "baseline",
+      "referer": "http://127.0.0.1:8778/",
+      "policy": {
+        "autoplay": false,
+        "referrer": "http://127.0.0.1:8778/",
+        "storageAPI": "function"
+      },
+      "result": "NotAllowedError: play() failed because the user didn't interact with the document first. https://goo.gl/xX8pDD",
+      "paused": true,
+      "currentTime": 0,
+      "storageResult": "NotAllowedError: requestStorageAccess not allowed",
+      "sandboxTokenRejection": true,
+      "warnings": [
+        "requestStorageAccess: Refused to execute request. The document is sandboxed, and the 'allow-storage-access-by-user-activation' keyword is not set."
+      ]
+    },
+    {
+      "provider": "drive",
+      "mode": "current",
+      "referer": "http://127.0.0.1:8778/",
+      "policy": {
+        "autoplay": true,
+        "referrer": "http://127.0.0.1:8778/",
+        "storageAPI": "function"
+      },
+      "result": "playing",
+      "paused": false,
+      "currentTime": 0.243434,
+      "storageResult": "NotAllowedError: requestStorageAccess not allowed",
+      "sandboxTokenRejection": false,
+      "warnings": [
+        "requestStorageAccess: Request denied because the embedded site has never been interacted with as a top-level context",
+        "requestStorageAccess: Permission denied."
+      ]
+    },
+    {
+      "provider": "instagram",
+      "mode": "baseline",
+      "referer": "http://127.0.0.1:8778/",
+      "policy": {
+        "autoplay": false,
+        "referrer": "http://127.0.0.1:8778/",
+        "storageAPI": "function"
+      },
+      "result": "NotAllowedError: play() failed because the user didn't interact with the document first. https://goo.gl/xX8pDD",
+      "paused": true,
+      "currentTime": 0,
+      "storageResult": "NotAllowedError: requestStorageAccess not allowed",
+      "sandboxTokenRejection": true,
+      "warnings": [
+        "requestStorageAccess: Refused to execute request. The document is sandboxed, and the 'allow-storage-access-by-user-activation' keyword is not set."
+      ]
+    },
+    {
+      "provider": "instagram",
+      "mode": "current",
+      "referer": "http://127.0.0.1:8778/",
+      "policy": {
+        "autoplay": true,
+        "referrer": "http://127.0.0.1:8778/",
+        "storageAPI": "function"
+      },
+      "result": "playing",
+      "paused": false,
+      "currentTime": 0.151256,
+      "storageResult": "NotAllowedError: requestStorageAccess not allowed",
+      "sandboxTokenRejection": false,
+      "warnings": [
+        "requestStorageAccess: Request denied because the embedded site has never been interacted with as a top-level context",
+        "requestStorageAccess: Permission denied."
+      ]
+    }
+  ]
+}

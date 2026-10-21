@@ -7,12 +7,68 @@
   const title = dialog.querySelector('#cs-player-title');
   const provider = dialog.querySelector('#cs-player-provider');
   const status = dialog.querySelector('#cs-player-status');
+  const help = dialog.querySelector('#cs-player-help');
   const closeButton = dialog.querySelector('[data-player-close]');
+  const fullscreenButton = dialog.querySelector('[data-player-fullscreen]');
+  const shell = dialog.querySelector('.cs-player-shell');
   let selected = null;
   let frame = null;
   let timeout = null;
   let state = 'loading';
+  let expanded = false;
   const language = () => document.documentElement.lang === 'en' ? 'en' : 'id';
+
+  function ownsFullscreen() {
+    const element = document.fullscreenElement || document.webkitFullscreenElement;
+    return !!element && (element === shell || shell.contains(element));
+  }
+
+  function nativeFullscreenAvailable() {
+    return (typeof shell.requestFullscreen === 'function' && document.fullscreenEnabled !== false) || typeof shell.webkitRequestFullscreen === 'function';
+  }
+
+  function viewMode() {
+    return ownsFullscreen() ? 'native' : expanded ? 'expanded' : 'normal';
+  }
+
+  function updateViewControl() {
+    const en = language() === 'en', mode = viewMode();
+    dialog.dataset.playerView = mode;
+    dialog.classList.toggle('is-expanded', mode === 'expanded');
+    const label = mode === 'native' ? (en ? 'Exit full screen' : 'Keluar layar penuh')
+      : mode === 'expanded' ? (en ? 'Restore player size' : 'Kecilkan pemutar')
+      : nativeFullscreenAvailable() ? (en ? 'Full screen' : 'Layar penuh')
+      : (en ? 'Expand player' : 'Perbesar pemutar');
+    fullscreenButton.setAttribute('aria-label', label);
+    fullscreenButton.title = label;
+    fullscreenButton.querySelector('path').setAttribute('d', mode === 'normal'
+      ? 'M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5'
+      : 'M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5');
+  }
+
+  function leavePlayerView() {
+    expanded = false;
+    if (ownsFullscreen()) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) { try { Promise.resolve(exit.call(document)).catch(() => {}); } catch (_) {} }
+    }
+    updateLanguage();
+  }
+
+  async function togglePlayerView() {
+    if (ownsFullscreen() || expanded) { leavePlayerView(); return; }
+    const request = shell.requestFullscreen || shell.webkitRequestFullscreen;
+    if (request && nativeFullscreenAvailable()) {
+      try {
+        // A dialog itself cannot enter fullscreen; its ordinary child wrapper can.
+        await request.call(shell);
+        if (ownsFullscreen() || !shell.requestFullscreen) { updateLanguage(); return; }
+      } catch (_) { /* Browser denial uses the honestly named viewport fallback. */ }
+    }
+    expanded = true;
+    dialog.scrollTop = 0;
+    updateLanguage();
+  }
 
   function sourceFor(card) {
     // Only the original, explicitly supported public provider URLs are embedded.
@@ -37,6 +93,7 @@
 
   function updateLanguage() {
     const en = language() === 'en';
+    updateViewControl();
     document.querySelectorAll('.cs-video-card').forEach(card => {
       const source = sourceFor(card);
       if (source) card.setAttribute('aria-label', `${en ? 'Open' : 'Buka'} ${labelFor(card)} · ${source.name} ${en ? 'player on this page' : 'di pemutar halaman ini'}`);
@@ -44,20 +101,23 @@
     if (!selected) return;
     const source = sourceFor(selected);
     title.textContent = labelFor(selected);
-    provider.textContent = `${source.name} · ${en ? 'Embedded player' : 'Pemutar sematan'}`;
+    const mode = viewMode();
+    provider.textContent = source.name + (mode === 'native' ? (en ? ' · Full screen' : ' · Layar penuh') : mode === 'expanded' ? (en ? ' · Expanded view' : ' · Tampilan diperbesar') : '');
     if (frame) frame.title = `${labelFor(selected)} · ${source.name}`;
     const messages = en ? {
       loading: `Loading the ${source.name} player…`,
-      loaded: 'If the video appears, press play inside the player. Video access is controlled by the provider.',
-      timeout: 'Player availability could not be confirmed. Check your connection or retry. The provider may restrict this video.',
-      error: 'The player could not load. Check your connection or retry.'
+      loaded: '',
+      timeout: 'The player did not respond. Please retry.',
+      error: 'The player could not load. Please retry.'
     } : {
       loading: `Memuat pemutar ${source.name}…`,
-      loaded: 'Jika video muncul, tekan play di pemutar. Akses video ditentukan oleh penyedia.',
-      timeout: 'Ketersediaan pemutar belum terkonfirmasi. Periksa koneksi atau coba muat ulang. Penyedia mungkin membatasi video ini.',
+      loaded: '',
+      timeout: 'Pemutar belum merespons. Coba muat ulang.',
       error: 'Pemutar gagal dimuat. Periksa koneksi atau coba muat ulang.'
     };
     status.textContent = messages[state];
+    status.hidden = state === 'loaded';
+    if (state === 'error' || state === 'timeout') help.open = true;
     dialog.dataset.playerState = state;
   }
 
@@ -78,16 +138,22 @@
     const source = sourceFor(selected);
     if (!source) return;
     state = 'loading';
+    help.open = false;
     stage.dataset.provider = source.kind;
     stage.hidden = false;
     stage.setAttribute('aria-busy', 'true');
     const nextFrame = document.createElement('iframe');
     frame = nextFrame;
     nextFrame.title = `${labelFor(selected)} · ${source.name}`;
-    nextFrame.allow = 'fullscreen; picture-in-picture; encrypted-media';
+    // A card click activates the parent origin. Delegate media permission so the
+    // provider can start its player asynchronously inside this cross-origin frame.
+    // This does not request autoplay on page load: the frame is still click-only.
+    nextFrame.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media';
     nextFrame.allowFullscreen = true;
     // Provider links cannot replace the Kilas page or open another tab.
-    nextFrame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
+    // The storage token permits a provider to REQUEST access after user activation;
+    // browser consent/cookie restrictions still apply. Navigation stays contained.
+    nextFrame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-storage-access-by-user-activation');
     nextFrame.referrerPolicy = 'strict-origin-when-cross-origin';
     nextFrame.addEventListener('load', () => {
       if (frame !== nextFrame) return;
@@ -131,15 +197,22 @@
     card.addEventListener('click', () => openPlayer(card));
   });
   closeButton.addEventListener('click', () => dialog.close());
+  fullscreenButton.addEventListener('click', togglePlayerView);
+  document.addEventListener('fullscreenchange', updateLanguage);
+  document.addEventListener('webkitfullscreenchange', updateLanguage);
   dialog.querySelector('[data-player-retry]').addEventListener('click', loadPlayer);
   dialog.addEventListener('close', () => {
     const previous = selected;
+    leavePlayerView();
     clearPlayer();
     selected = null;
     document.documentElement.classList.remove('cs-player-open');
     if (previous && previous.isConnected && previous.getClientRects().length) previous.focus({preventScroll: true});
   });
   // Native dialog supplies Escape, inert background and keyboard focus containment.
+  dialog.addEventListener('cancel', event => {
+    if (ownsFullscreen() || expanded) { event.preventDefault(); leavePlayerView(); }
+  });
   dialog.addEventListener('click', event => {
     if (event.target !== dialog) return;
     const rect = dialog.getBoundingClientRect();

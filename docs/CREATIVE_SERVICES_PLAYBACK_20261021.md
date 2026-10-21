@@ -15,15 +15,17 @@ source of truth; all thumbnails and their category/order remain unchanged.
 Closing with the button, Escape or backdrop, switching video, changing collection,
 retrying, or leaving the page removes the old browsing context and its media.
 Native dialog behavior supplies inert background and keyboard containment; focus
-returns to the card. A provider timeout removes the stalled frame. There are no
-autoplay permissions, global provider scripts, paid services or new dependencies.
+returns to the card. A provider timeout removes the stalled frame. The iframe now delegates autoplay after a user opens a card, so asynchronous
+provider playback can use that interaction. No autoplay URL parameter, initial
+page-load provider request, global provider script, paid service or dependency is added.
 The sandbox allows provider scripts/presentation but forbids popups and top-page
 navigation. Fullscreen controls are permitted. Providers may still require login,
 cookies or public embed access; these dependencies are disclosed in the dialog.
 
 Cross-origin iframe `load` is deliberately **not** reported as successful video
-playback. Error pages can also emit it. The persistent conditional/access message,
-retry and close controls remain available. Provider errors that do not emit a
+playback. Error pages can also emit it. Access help and retry remain available through the collapsed “Video not starting?”
+disclosure. A normal iframe load hides loading text; it does not claim playback
+success. Timeout/error states show a short message and open help automatically. Provider errors that do not emit a
 browser error event cannot be reliably detected from the Kilas origin.
 
 The maintained source is `creative-services-site`; regenerate the Client Hub
@@ -92,3 +94,57 @@ executor network access remains blocked.
 
 Official provider documentation: [Instagram public embeds](https://developers.facebook.com/documentation/instagram-platform/embed-button),
 [Google Drive video access/playback](https://support.google.com/drive/answer/2423694).
+
+## Follow-up: media permissions, compact help and Android fullscreen
+
+Parent production checks confirmed that the real Drive and Instagram embeds load
+inside the site, but cloud Play clicks did not confirm progression. A later user
+Android screenshot contains a different Drive frame and reports missing fullscreen;
+this is not evidence of universal provider failure. No real-source playback success
+is inferred from either the cloud check or the synthetic tests.
+
+A real Chromium A/B test reproduces an application restriction in `9b77d33f`:
+parent-card interaction without cross-origin autoplay delegation yields
+`autoplay=false`, `NotAllowedError`, paused media and time zero. The scoped fix adds
+`allow=autoplay` to the existing media/fullscreen permissions. On both synthetic
+provider origins the same real browser now reports `autoplay=true`, starts unmuted
+fixture media and advances time without a second child-frame interaction.
+
+The old sandbox also rejects `requestStorageAccess()` specifically for missing
+`allow-storage-access-by-user-activation`. Adding that token removes our sandbox
+rejection. The browser still denies the test request for lack of first-party
+interaction; no consent, cookie policy or provider authorization is bypassed. Popup
+and top-navigation restrictions are retained. This is compatibility preparation,
+not proof that either provider actually uses this API for the original videos.
+
+The real Flask response has `Referrer-Policy: same-origin`; the iframe explicitly
+sets `strict-origin-when-cross-origin`. A browser test with that exact response
+header confirms the provider receives the origin referrer. No Creative Services
+CSP or Permissions-Policy blocks frame/media access. Unrelated module CSP, auth and
+security headers are unchanged. The official Instagram `embed.js` reader returned
+429; no undocumented internal provider requirement is asserted.
+
+The player now has an accessible fullscreen control for every video. It requests
+native fullscreen on an ordinary wrapper *inside* the dialog, because the standard
+forbids fullscreen requests on a `dialog` itself. Fullscreen retains the existing
+iframe and audio context, shows close/exit controls, flexes to the current dynamic
+viewport and rotates without reloading. If native fullscreen is unsupported or
+rejected, the wrapper fills the available viewport and visibly says “Expanded view”
+(“Tampilan diperbesar”). It never labels that fallback native fullscreen. Escape
+restores the fallback; explicit exit and close also clean up native fullscreen.
+
+Normal loaded view shows only title/provider, playback and a collapsed help summary;
+status paragraphs and retry are hidden until requested or a load failure occurs.
+There is no “playing” assertion based solely on iframe load. Portfolio layout,
+original source URLs, prices, thumbnails and other modules remain unchanged.
+
+Checks: `creative_services_player_permissions.cjs` covers the four real Chromium
+A/B policy cases; `creative_services_fullscreen.cjs` covers 48 native/fullscreen,
+unsupported/rejected fallback, touch, portrait/landscape, orientation, exit/close
+and responsive cases. They use explicitly synthetic provider media and do not
+claim real Android hardware or real portfolio playback verification.
+
+Primary references:
+- [Chrome autoplay delegation](https://developer.chrome.com/blog/autoplay)
+- [WebKit storage-access sandbox prerequisite](https://webkit.org/blog/8124/introducing-storage-access-api/)
+- [Fullscreen standard, including the dialog restriction](https://fullscreen.spec.whatwg.org/)
