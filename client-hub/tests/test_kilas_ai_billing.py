@@ -29,9 +29,15 @@ class BillingTests(unittest.TestCase):
         cls.admin = repo.create_user("ai-billing-admin@example.test", "hash", role="KILAS_ADMIN")
 
     def client_for(self, user, role="CLIENT_OWNER"):
+        import customer_auth
         client = self.app.test_client()
+        with self.app.app_context():
+            token = customer_auth.create(repo.get_user_by_id(user)) if role != 'KILAS_ADMIN' else None
         with client.session_transaction() as session:
             session.update(user_id=user, role=role, _csrf_token="billing-csrf")
+            if token:
+                session[customer_auth.SID] = token
+        client.set_cookie('kilas_language', 'id')
         return client
 
     def test_checkout_owner_isolation_and_manual_activation(self):

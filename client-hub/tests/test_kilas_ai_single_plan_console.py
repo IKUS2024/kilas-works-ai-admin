@@ -34,14 +34,25 @@ class SinglePlanConsoleTests(unittest.TestCase):
                    (cls.business, usage._now().isoformat(), (usage._now() + timedelta(days=7)).isoformat(), usage._now().isoformat()))
 
     def client_for(self, user, role="CLIENT_OWNER"):
+        import customer_auth
         client = self.app.test_client()
+        with self.app.app_context():
+            token = customer_auth.create(repo.get_user_by_id(user)) if role != 'KILAS_ADMIN' else None
         with client.session_transaction() as session:
             session.update(user_id=user, role=role, _csrf_token="console-csrf")
+            if token:
+                session[customer_auth.SID] = token
+        client.set_cookie('kilas_language', 'id')
         return client
 
     def test_customer_offer_and_amount_validation(self):
         client = self.client_for(self.owner)
-        body = client.get("/kilas-ai/usage").get_data(as_text=True)
+        preview = client.get("/kilas-ai/usage").get_data(as_text=True)
+        self.assertIn("Kredit &amp; Penggunaan", preview)
+        self.assertIn('view=legacy', preview)
+        self.assertIn('type="button" disabled', preview)
+        self.assertNotIn('action="/kilas-ai/checkout"', preview)
+        body = client.get("/kilas-ai/usage?view=legacy").get_data(as_text=True)
         self.assertIn("Rp99.000", body)
         self.assertIn("Kapasitas Premium", body)
         self.assertEqual(body.count('action="/kilas-ai/checkout"'), 1)
@@ -71,6 +82,29 @@ class SinglePlanConsoleTests(unittest.TestCase):
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_topup_credits WHERE order_id=?", (order_id,))["n"], 1)
         self.assertGreaterEqual((usage._as_utc(credit["expires_at"]) - usage._now()).days, 364)
         self.assertFalse(topups.balance(self.other)["available"])
+
+    def test_design_proposal_preserves_existing_credit_and_subscription_records(self):
+        now = usage._now()
+        db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?) ON CONFLICT(user_id) DO UPDATE SET plan='PLUS',status='ACTIVE',period_start=excluded.period_start,period_end=excluded.period_end",
+                   (self.owner, now.isoformat(), (now + timedelta(days=30)).isoformat()))
+        db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,150) ON CONFLICT(user_id) DO UPDATE SET seconds=150', (self.owner,))
+        tables = ('kilas_ai_subscriptions', 'kilas_ai_topup_orders', 'kilas_ai_topup_credits',
+                  'kilas_ai_topup_debits', 'kilas_audio_balances', 'kilas_ai_usage')
+        before = {table: db.query_all('SELECT * FROM ' + table) for table in tables}
+        client = self.client_for(self.owner)
+        for language, heading in (('en', 'Credits &amp; Usage'), ('id', 'Kredit &amp; Penggunaan')):
+            client.set_cookie('kilas_language', language)
+            response = client.get('/kilas-ai/usage')
+            self.assertEqual(response.status_code, 200)
+            body = response.get_data(as_text=True)
+            self.assertIn(heading, body)
+            self.assertIn('href="/kilas-ai/usage?view=legacy"', body)
+            self.assertNotIn('name="pack"', body)
+            self.assertNotIn('action="/kilas-ai/topups"', body)
+        self.assertEqual(before, {table: db.query_all('SELECT * FROM ' + table) for table in tables})
+        self.assertEqual(usage.effective_plan(self.owner)['plan'], 'PLUS')
+        self.assertEqual(client.get('/kilas-ai/usage?view=legacy').status_code, 200)
+        self.assertIn('/login', self.app.test_client().get('/kilas-ai/usage').location)
 
     def test_admin_overview_escapes_postgres_percent_wildcard(self):
         with patch.object(platform_console.db, "query_all", return_value=[]), \

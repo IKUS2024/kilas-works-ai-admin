@@ -36,7 +36,7 @@ class RevisionTests(unittest.TestCase):
         profile=html.split('class="kilas-profile-options"',1)[1].split('</div>\n</details>',1)[0]
         self.assertIn('class="kilas-profile-identity"',profile)
         self.assertNotIn('/account',profile)
-        self.assertLess(profile.index('Subscription'),profile.index('App Language'))
+        self.assertLess(profile.index('Credits &amp; Usage'),profile.index('App Language'))
         self.assertLess(profile.index('App Language'),profile.index('Logout'))
         self.assertIn(self.id().lower()+'@example.test',profile)
         self.assertEqual(self.client.get('/kilas-ai/library').status_code,200)
