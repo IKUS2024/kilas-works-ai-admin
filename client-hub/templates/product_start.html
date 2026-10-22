@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
 {% set chat_styles_in_head=kilas_ai_enabled %}
 {% block title %}{{ ui_t('Home · Kilas Works') }}{% endblock %}
-{% block kilas_feature_styles %}{% if kilas_ai_enabled %}{% include 'kilas_ai/_chat_page_styles.html' %}{% endif %}{% endblock %}
+{% block kilas_feature_styles %}{% if kilas_ai_enabled %}{% include 'kilas_ai/_chat_page_styles.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_home_polish.css',v='20261022') }}">{% endif %}{% endblock %}
 {% block content %}
 {% if not chat_styles_in_head %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_home.css', v='chat-unified-20261011') }}">{% endif %}
-<section class="premium-home">
+<section class="premium-home home-polish">
 {% if not kilas_ai_enabled %}<header class="premium-page-heading"><h1>{{ ui_t('Home') }}</h1><p>{{ ui_t('Pilih alat yang tepat untuk pekerjaanmu.') }}</p></header>{% endif %}
 {% if kilas_ai_enabled %}
 {% include 'kilas_ai/_home_workspace.html' %}

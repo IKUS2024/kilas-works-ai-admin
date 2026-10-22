@@ -2,7 +2,7 @@ name: Kilas experience QA
 on:
   push:
     branches: [main]
-    paths: ['client-hub/kilas_ai/library.py', 'client-hub/kilas_ai/home_tasks.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/static/kilas_library*', 'client-hub/static/kilas_voice*', 'client-hub/static/kilas_starters.css', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/kilas_translator/**', 'creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_kilas_experience*', '.gitattributes', '.github/workflows/kilas-experience-qa.yml']
+    paths: ['client-hub/kilas_ai/library.py', 'client-hub/kilas_ai/home_tasks.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/static/kilas_library*', 'client-hub/static/kilas_voice*', 'client-hub/static/kilas_starters.css', 'client-hub/static/kilas_home_polish.css', 'client-hub/templates/product_start.html', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/kilas_translator/**', 'creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_kilas_experience*', 'client-hub/tests/test_kilas_home_polish_browser.py', 'client-hub/tests/test_kilas_library_postgres.py', '.gitattributes', '.github/workflows/kilas-experience-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -51,7 +51,10 @@ jobs:
           python -m unittest discover -s tests -p test_kilas_chat_models.py
           python tests/test_creative_services.py
           python tests/test_kilas_finance_baseline.py
-          node --test tests/test_kilas_dictation.mjs tests/test_transcription_recorder.mjs tests/test_kilas_audio_navigation.mjs tests/test_ui_i18n.mjs
+          node --test tests/test_kilas_dictation.mjs tests/test_transcription_recorder.mjs tests/test_kilas_audio_navigation.mjs tests/test_ui_i18n.mjs tests/test_kilas_home_viewport.cjs
       - name: Responsive task paths with synthetic providers only
         working-directory: client-hub
         run: python tests/test_kilas_experience_browser.py
+      - name: Home layout, draft warning, attachments, repeated taps and keyboard
+        working-directory: client-hub
+        run: python tests/test_kilas_home_polish_browser.py

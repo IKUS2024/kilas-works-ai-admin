@@ -34,7 +34,7 @@ def main():
                 page.on('request',lambda r:writes.append(r.url) if r.method=='POST' else None)
                 page.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
                 page.goto(origin+'/products/start',wait_until='networkidle')
-                expect(page.locator('.home-starters')).to_be_visible();assert page.locator('.home-starters button,.home-starters a').count()==4
+                expect(page.locator('.home-starters')).to_be_visible();assert page.locator('.home-starters button,.home-starters a').count()==3
                 assert page.locator('.home-starters').evaluate('(e)=>e.getBoundingClientRect().bottom<=innerHeight'),width
                 page.screenshot(path=str(output/f'home-{width}.png'),full_page=True)
                 page.locator('[data-home-starter]').first.click();expect(page.locator('#ai-input')).not_to_be_empty();assert not writes
