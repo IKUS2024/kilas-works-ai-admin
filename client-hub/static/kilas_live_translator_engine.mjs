@@ -17,7 +17,7 @@ export class SilenceGate {
 
 export class TranslatorSession {
   constructor({api,capture,playback,pushToTalk=false,recordOnStart=false,continuous=false,onState=()=>{},onResult=()=>{},onError=()=>{},onTiming=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-',''),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
-    this.continuous=continuous;this.running=false;this.runTurns=0;this.runStarted=0;
+    this.continuous=continuous;this.running=false;
     Object.assign(this,{api,capture,playback,pushToTalk,recordOnStart,onState,onResult,onError,onTiming,now,key,schedule,clear});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.pendingKey=null;this.gate=new SilenceGate();this.suspended=false;
   }
   stateTo(state){this.state=state;this.onState(state);}
@@ -67,7 +67,6 @@ export class TranslatorSession {
   }
   async listen(ticket,held=false){
     if(ticket!==this.version)return;
-    if(this.running&&(this.runTurns>=20||this.now()-this.runStarted>=600000))this.running=false;
     if(this.running){held=true;this.held=true;this.hadVoice=false;this.releasedAt=null;}
     if(this.pushToTalk&&!held){this.held=false;this.stateTo('ready');return;}
     const cycle=++this.captureVersion,current=()=>ticket===this.version&&cycle===this.captureVersion;
@@ -80,7 +79,6 @@ export class TranslatorSession {
       level:rms=>{
         if(!current()||this.state!=='listening')return;
         if(this.running){
-          if(this.now()-this.runStarted>=600000){this.release();return;}
           if(rms>=this.gate.threshold)this.hadVoice=true;
           if(this.gate.sample(rms,this.now()))this.release({automatic:true});
           return;
@@ -109,7 +107,6 @@ export class TranslatorSession {
   beginRun(){
     // Batch fallback retains explicit recording. Never describe it as streaming.
     this.running=this.continuous&&this.inputMode==='realtime-v1';
-    this.runTurns=0;this.runStarted=this.now();
     this.gate.silenceMs=this.running?1200:2000;
   }
   release({cancel=false,automatic=false}={}){
@@ -124,7 +121,7 @@ export class TranslatorSession {
       else this.stateTo('ready');
       return;
     }
-    if(this.state==='listening'){this.runTurns++;this.releasedAt=this.now();this.stateTo('finalizing');this.capture.finalize();}
+    if(this.state==='listening'){this.releasedAt=this.now();this.stateTo('finalizing');this.capture.finalize();}
   }
   async utterance(blob,ticket){
     if(ticket!==this.version||this.state!=='finalizing')return;

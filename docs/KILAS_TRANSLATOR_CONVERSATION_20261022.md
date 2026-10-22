@@ -22,9 +22,10 @@ processing and playback, preventing generated audio from entering the next turn.
 Stop flushes current speech, or drains already admitted output, then stays ready.
 End still cancels the session/output immediately. Pointer release never submits.
 
-The conversation run is bounded to 20 turns or 10 minutes per intentional Start,
-in addition to unchanged server concurrency, leases, admission, balances and
-durable supplier-cost reservations. No automatic retry/regeneration after a
+Conversation continues until explicit Stop/End or an existing lifecycle/error
+condition. The initially introduced 20-turn/10-minute run caps were removed to
+restore continuous usability. Server concurrency, per-utterance leases, admission,
+balances and durable supplier-cost reservations remain unchanged. No automatic retry/regeneration after a
 failed utterance; recovery verifies existing work and requires a new Start.
 Background/blur cancels continuation. Batch fallback remains explicitly manual,
 with different visible instructions; it is not called streaming.
@@ -51,7 +52,8 @@ No claim that every language/voice combination has been acoustically tested.
 - 135 focused Node tests passed, including 8 new conversation tests: streaming
   PCM before commit, exact pause boundary, repeated turns, no duplicate callbacks,
   mic/output exclusion, Stop during processing/playback, manual flush, batch
-  distinction, finite-run limits and failure/visibility behavior.
+  distinction, continuation beyond 20 turns/10 minutes, retired callbacks after Stop/End,
+  and failure/visibility behavior.
 - 25 Python realtime tests passed with real disposable SQLite and mocked providers.
 - 4 actual Chromium/Flask toggle tests passed, including two automatic opposite
   directions, exactly two commits/TTS calls, no batch dispatch, Stop during audio
@@ -73,3 +75,10 @@ work used a separate main checkout under this task's writable directory.
 
 Deployment commit/ID and post-live HTTP verification are reported in the release
 handoff after deployment; this document alone is not evidence of production QA.
+
+## Continuity correction validation
+
+The cap-removal revision passed all 135 focused Node tests. Its Chromium run
+passed 3/4 cases initially; the silent realtime startup case timed out awaiting
+the synthetic microphone. An isolated rerun passed (1/1); no application change
+was needed for that rerun. No paid provider calls were made in these checks.

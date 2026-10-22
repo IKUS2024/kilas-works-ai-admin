@@ -37,14 +37,21 @@ test('batch fallback never auto-submits or claims continuous streaming',async()=
  const f=fixture('batch');await f.session.start({});assert.equal(f.session.running,false);f.level(.2,100);f.level(0,4000);assert.equal(f.turns,0);
  f.session.release();await tick();f.finish();await tick();assert.equal(f.session.state,'ready');assert.equal(f.starts,1);f.session.end();
 });
-test('twenty admitted turns require a fresh intentional Start',async()=>{
+test('conversation continues beyond twenty turns and ten minutes until Stop',async()=>{
  const f=fixture();await f.session.start({});
- for(let i=0;i<20;i++){f.level(.2,100);f.level(0,1200);await tick();f.finish();await tick();}
- assert.equal(f.turns,20);assert.equal(f.starts,20);assert.equal(f.session.running,false);assert.equal(f.session.state,'ready');f.session.end();
+ for(let i=0;i<25;i++){f.level(.2,30000);f.level(0,1200);await tick();f.finish();await tick();}
+ assert.equal(f.turns,25);assert.equal(f.starts,26);assert.equal(f.session.running,true);assert.equal(f.session.state,'listening');
+ const old=f.h;f.session.release();old.level(.2);old.pcm(new Uint8Array(6400));old.blob(new Blob(['late']));await tick();
+ assert.equal(f.turns,25);assert.equal(f.starts,26);assert.equal(f.mics,0);assert.equal(f.session.state,'ready');f.session.end();
 });
-test('ten minute idle run stops locally without a provider call',async()=>{
- const f=fixture();await f.session.start({});f.level(0,600000);assert.equal(f.turns,0);assert.equal(f.mics,0);assert.equal(f.session.state,'ready');f.session.end();
+
+test('elapsed session time and silence do not impose a run cutoff; End retires callbacks',async()=>{
+ const f=fixture();let pushes=0;f.api.input.push=async()=>{pushes++;};await f.session.start({});f.level(0,600001);
+ assert.equal(f.turns,0);assert.equal(f.mics,1);assert.equal(f.session.running,true);assert.equal(f.session.state,'listening');
+ const old=f.h;f.session.end();old.level(.2);old.pcm(new Uint8Array(6400));old.blob(new Blob(['late']));await tick();
+ assert.equal(pushes,0);assert.equal(f.turns,0);assert.equal(f.starts,1);assert.equal(f.mics,0);assert.equal(f.session.state,'ended');
 });
+
 test('failure and visibility recovery cannot auto-run or regenerate paid speech',async()=>{
  for(const failure of ['provider','visibility']){
   const f=fixture();await f.session.start({});f.level(.2,100);f.level(0,1200);await tick();
