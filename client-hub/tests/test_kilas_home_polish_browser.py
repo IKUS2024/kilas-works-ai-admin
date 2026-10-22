@@ -56,8 +56,11 @@ def main():
                 trigger=page.locator('[data-model-kind=chat] .chat-model-trigger');trigger.click();expect(page.locator('#chat-model-dialog')).to_be_visible();page.keyboard.press('Escape')
                 expect(page.locator('#chat-model-dialog')).not_to_be_visible()
                 if width<=412:
+                    identity=page.evaluate("()=>({font:getComputedStyle(document.querySelector('.ai-empty h1')).fontSize,logo:getComputedStyle(document.querySelector('.kilas-new-chat-logo')).display,tabs:[...document.querySelectorAll('.home-task-choices>*')].map(e=>e.getBoundingClientRect().width)})")
                     field.focus();page.set_viewport_size({'width':width,'height':460})
                     expect(page.locator('body')).to_have_class(__import__('re').compile('home-keyboard-open'))
+                    focused_identity=page.evaluate("()=>({font:getComputedStyle(document.querySelector('.ai-empty h1')).fontSize,logo:getComputedStyle(document.querySelector('.kilas-new-chat-logo')).display,tabs:[...document.querySelectorAll('.home-task-choices>*')].map(e=>e.getBoundingClientRect().width)})")
+                    assert focused_identity==identity,(width,identity,focused_identity)
                     assert page.locator('#ai-composer').evaluate('e=>e.getBoundingClientRect().bottom<=innerHeight'),width
                     assert page.locator('#ai-composer').evaluate('e=>innerHeight-e.getBoundingClientRect().bottom<60'),width
                     page.screenshot(path=str(output/f'{phase}-keyboard-{width}.png'),full_page=True)
@@ -82,6 +85,30 @@ def main():
                 assert page.locator('#ai-composer').evaluate('e=>0<=innerHeight-e.getBoundingClientRect().bottom&&innerHeight-e.getBoundingClientRect().bottom<60'),width
                 assert page.locator('#ai-messages').evaluate('e=>e.scrollTop>0'),width
                 assert not writes and not errors,(writes,errors)
+                if width<=412:
+                    # Android-like visualViewport-only resize/offset, keeping layout
+                    # width/height unchanged. This is a simulation, not device hardware.
+                    keyboard_page=context.new_page()
+                    keyboard_page.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
+                    keyboard_page.on('pageerror',lambda e:errors.append(str(e)))
+                    keyboard_page.on('request',lambda r:writes.append(r.url) if r.method=='POST' else None)
+                    keyboard_page.add_init_script("""(()=>{const v=new EventTarget();v.height=innerHeight;v.offsetTop=0;Object.defineProperty(window,'visualViewport',{value:v});window.qaViewport=(height,offsetTop=0)=>{v.height=height;v.offsetTop=offsetTop;v.dispatchEvent(new Event('resize'))}})()""")
+                    keyboard_page.goto(origin+'/products/start',wait_until='networkidle')
+                    keyboard_page.locator('#ai-input').fill('Synthetic retained keyboard draft')
+                    appearance="""()=>({font:getComputedStyle(document.querySelector('.ai-empty h1')).fontSize,logo:getComputedStyle(document.querySelector('.kilas-new-chat-logo')).display,logoWidth:getComputedStyle(document.querySelector('.kilas-new-chat-logo')).width,starters:getComputedStyle(document.querySelector('.home-starters')).display,tabs:[...document.querySelectorAll('.home-task-choices>*')].map(e=>({width:e.getBoundingClientRect().width,font:getComputedStyle(e).fontSize,padding:getComputedStyle(e).padding}))})"""
+                    closed=keyboard_page.evaluate(appearance)
+                    for _ in range(2):
+                        keyboard_page.locator('#ai-input').focus();keyboard_page.evaluate('qaViewport(380,48)')
+                        expect(keyboard_page.locator('body')).to_have_class(__import__('re').compile('home-keyboard-open'))
+                        assert keyboard_page.evaluate(appearance)==closed,width
+                        bounds=keyboard_page.evaluate("()=>{const e=document.querySelector('.ai-empty'),r=document.querySelector('#ai-composer').getBoundingClientRect();e.scrollTop=e.scrollHeight;return {bottom:r.bottom,top:r.top,scrollable:e.scrollHeight>e.clientHeight,scrolled:e.scrollTop>0}}")
+                        assert bounds['bottom']<=428 and bounds['top']>=48 and bounds['scrollable'] and bounds['scrolled'],(width,bounds)
+                        expect(keyboard_page.locator('#ai-input')).to_have_value('Synthetic retained keyboard draft')
+                        keyboard_page.screenshot(path=str(output/f'{phase}-visual-keyboard-{width}.png'),full_page=True)
+                        keyboard_page.locator('#ai-input').blur();keyboard_page.evaluate(f'qaViewport({height})')
+                        expect(keyboard_page.locator('body')).not_to_have_class(__import__('re').compile('home-keyboard-open'))
+                        assert keyboard_page.evaluate(appearance)==closed,width
+                    keyboard_page.close();assert not writes and not errors,(writes,errors);geometry['visual_viewport_focus_blur_identity_draft']='PASS'
                 geometry['short_empty_and_populated_scroll_keyboard']='PASS'
                 geometry['state_checks']='PASS';report['viewports'].append(geometry);context.close()
             browser.close()

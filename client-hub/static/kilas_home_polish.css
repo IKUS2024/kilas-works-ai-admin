@@ -1,9 +1,9 @@
 /* Home presentation only. Thread, Voice Over, Translator and Finance keep their shells. */
 .kilas-light .home-polish .kilas-home-workspace .ai-main.is-empty{max-width:760px;justify-content:flex-start;padding-block:0;overflow:hidden}
-.kilas-light .home-polish .kilas-home-workspace .ai-empty:not([hidden]){flex:1;height:auto;min-height:0;padding:16px 0;margin:0 auto;overflow-y:auto;scrollbar-width:thin;justify-content:center}
-.kilas-light .home-polish .kilas-home-workspace .ai-empty>.kilas-new-chat-logo{flex:none;width:72px;height:72px;max-height:none;margin:0 auto 16px}
-.kilas-light .home-polish .kilas-home-workspace .ai-empty h1{font-size:clamp(26px,2.5vw,34px);font-weight:650;line-height:1.25;letter-spacing:-.025em;margin:0}
-.home-polish .kilas-home-workspace .home-starters{display:grid;flex:none;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;max-width:620px;gap:12px;margin:24px auto 0}
+.kilas-light .home-polish .kilas-home-workspace .ai-empty:not([hidden]){flex:1;height:auto;min-height:0;padding:16px 0;margin:0 auto;overflow-y:auto;scrollbar-width:thin;justify-content:flex-start}
+.kilas-light .home-polish .kilas-home-workspace .ai-empty>.kilas-new-chat-logo{display:block;flex:none;width:72px;height:72px;max-height:none;margin:auto auto 16px}
+.kilas-light .home-polish .kilas-home-workspace .ai-empty h1{font-size:clamp(1.5rem,2.6vw,2rem);font-weight:650;line-height:1.25;letter-spacing:-.025em;margin:0;flex:none}
+.home-polish .kilas-home-workspace .home-starters{display:grid;flex:none;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;max-width:620px;gap:12px;margin:24px auto auto}
 .home-polish .kilas-home-workspace .home-starters button{width:100%;min-width:0;min-height:56px;padding:12px 16px;font-size:13px;line-height:1.4;text-wrap:balance}
 .kilas-light .home-polish .kilas-home-workspace .home-workspace-top.has-model-selector{display:flex!important;justify-content:center;align-items:center;min-height:52px;padding-block:4px}
 .home-polish .home-workspace-top.has-model-selector>.chat-model-controls{width:auto;max-width:640px;flex-wrap:nowrap;gap:8px;justify-content:center}
@@ -11,9 +11,9 @@
 .home-polish .home-workspace-top.has-model-selector .chat-model-trigger:hover,.home-polish .home-workspace-top.has-model-selector .chat-model-trigger[aria-expanded=true]{background:#fff0e5;border-color:#edc9ae}
 .home-polish .home-workspace-top.has-model-selector .chat-model-trigger [data-model-label]{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kilas-light .home-polish .kilas-home-workspace .ai-main.is-empty>.home-tool-selector{width:100%;max-width:760px;margin:0 auto 8px}
-.home-polish .kilas-home-workspace .home-task-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;overflow:visible;padding:0;margin:0}
-.home-polish .kilas-home-workspace .home-task-choices>:is(button,a,.kilas-translator-pending){box-sizing:border-box;display:flex;align-items:center;justify-content:center;min-width:0;width:100%;min-height:44px;gap:6px;padding:8px;font-size:13px;white-space:nowrap}
-.home-polish .kilas-home-workspace .home-task-choices svg{flex:none;width:16px;height:16px}
+body.kilas-light .home-polish .kilas-home-workspace .home-tool-selector .home-task-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;overflow:visible;padding:0;margin:0}
+body.kilas-light .home-polish .kilas-home-workspace .home-tool-selector .home-task-choices>:is(button,a,.kilas-translator-pending){box-sizing:border-box;display:flex;align-items:center;justify-content:center;min-width:0;width:100%;min-height:44px;gap:6px;padding:8px;font-size:13px;white-space:nowrap}
+body.kilas-light .home-polish .kilas-home-workspace .home-tool-selector .home-task-choices svg{flex:none;width:16px;height:16px}
 .kilas-light .home-polish .kilas-home-workspace .ai-composer{border-radius:18px;padding:10px 12px;gap:8px;border-color:#c7c9cd}
 .home-polish .kilas-home-workspace #ai-input{min-height:48px;padding-block:10px;line-height:1.6}
 .home-polish .kilas-home-workspace .ai-hint{margin-top:8px}
@@ -25,17 +25,14 @@
  .home-polish .home-workspace-top.has-model-selector>.chat-model-controls{width:100%;gap:8px}
  .home-polish .home-workspace-top.has-model-selector .chat-model-selector{flex:1 1 0;min-width:0}
  .home-polish .home-workspace-top.has-model-selector .chat-model-trigger{width:100%;max-width:100%;justify-content:center;padding:8px;gap:6px}
- .home-polish .kilas-home-workspace .home-task-choices{gap:6px}
- .home-polish .kilas-home-workspace .home-task-choices>:is(button,a,.kilas-translator-pending){font-size:12px;padding:8px 6px;gap:5px}
+ body.kilas-light .home-polish .kilas-home-workspace .home-tool-selector .home-task-choices{gap:6px}
+ body.kilas-light .home-polish .kilas-home-workspace .home-tool-selector .home-task-choices>:is(button,a,.kilas-translator-pending){font-size:12px;padding:8px 6px;gap:5px}
 }
-@media(max-width:360px){.home-polish .kilas-home-workspace .home-task-choices>:is(button,a,.kilas-translator-pending){font-size:11px;gap:4px;padding-inline:4px}.home-polish .kilas-home-workspace .home-task-choices svg{width:14px;height:14px}}
-@media(max-height:540px){
- .kilas-light .home-polish .kilas-home-workspace .ai-empty:not([hidden]){justify-content:flex-start;padding-block:8px}
- .kilas-light .home-polish .kilas-home-workspace .ai-empty>.kilas-new-chat-logo{display:none}
- .kilas-light .home-polish .kilas-home-workspace .ai-empty h1{font-size:22px}
- .home-polish .kilas-home-workspace .home-starters{margin-top:12px}
- .home-polish .kilas-home-workspace .home-starters button{min-height:44px;padding:8px}
-}
-body.home-keyboard-open.kilas-light .home-polish .kilas-home-workspace .ai-empty:not([hidden]){justify-content:flex-start;padding-block:8px}
-body.home-keyboard-open.kilas-light .home-polish .kilas-home-workspace .ai-empty>.kilas-new-chat-logo,body.home-keyboard-open .home-polish .home-starters{display:none}
-body.home-keyboard-open.kilas-light .home-polish .kilas-home-workspace .ai-empty h1{font-size:20px;margin:0}
+@media(max-width:360px){body.kilas-light .home-polish .kilas-home-workspace .home-tool-selector .home-task-choices>:is(button,a,.kilas-translator-pending){font-size:11px;gap:4px;padding-inline:4px}body.kilas-light .home-polish .kilas-home-workspace .home-tool-selector .home-task-choices svg{width:14px;height:14px}}
+/* Retain Home identity while visualViewport changes; only the upper region scrolls. */
+body.home-keyboard-open.kilas-light .home-polish .kilas-home-workspace .ai-empty:not([hidden]){padding:16px 0;justify-content:flex-start}
+body.home-keyboard-open.kilas-light .home-polish .kilas-home-workspace .ai-empty>.kilas-new-chat-logo{display:block;margin:auto auto 16px;width:72px;height:72px}
+body.home-keyboard-open.kilas-light .home-polish .kilas-home-workspace .ai-empty h1{font-size:clamp(1.5rem,2.6vw,2rem);line-height:1.25;margin:0}
+body.home-keyboard-open.kilas-light .home-polish .kilas-home-workspace .home-tool-selector{margin:0 auto 8px}
+body.home-keyboard-open .home-polish .kilas-home-workspace .ai-hint:not([hidden]){display:block}
+@media(max-width:760px){body.home-keyboard-open.kilas-light .home-polish .kilas-home-workspace .ai-empty>.kilas-new-chat-logo{width:56px;height:56px}}
