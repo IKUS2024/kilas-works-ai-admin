@@ -72,7 +72,7 @@ def account_workspace_context():
 @ai_bp.post('/home-task', endpoint='home_task')
 def open_task():
     task = request.form.get('task','chat')
-    brief = request.form.get('brief','').strip()
+    brief = request.form.get('brief','')
     limits = {'chat':12000,'video':2400,'translate':2400,'voiceover':4000}
     if task not in limits or len(brief) > limits[task]:
         abort(400)
@@ -89,14 +89,8 @@ def open_task():
 @ai_bp.get('/library')
 def library():
     from flask import render_template, session
-    import db
-    from . import audio_store, video_store, work_artifacts
-    owner=session['user_id']
-    # Metadata only. Downloads retain existing owner-scoped handlers.
-    files=db.query_all('SELECT id,thread_id,filename,mime_type FROM kilas_ai_attachments WHERE user_id=? ORDER BY id DESC LIMIT 50',(owner,))
-    return render_template('kilas_ai/library.html',files=files,audio=audio_store.history(owner)[:20],
-                           plans=video_store.history(owner)[:20],
-                           artifacts=work_artifacts.listing(owner) if automation_enabled() else [])
+    from .library import collection
+    return render_template('kilas_ai/library.html',**collection(session['user_id'],automation_enabled())),200,{'Cache-Control':'private, no-store','Vary':'Cookie'}
 
 
 @ai_bp.get('/sidebar/history')

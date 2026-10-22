@@ -1,10 +1,26 @@
 {% extends 'base.html' %}
+{% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
 {% block title %}{{ ui_t('My Library') }} · Kilas Works{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_library.css',v='20261022') }}">
 {% with selected_feature='chat' %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}
-<section class="kilas-library"><h1>{{ ui_t('My Library') }}</h1>
-<h2>{{ ui_t('File tersimpan') }}</h2><ul>{% for file in files %}<li><a href="{{ url_for('kilas_ai.attachment_download',thread_id=file.thread_id,attachment_id=file.id) }}">{{ file.filename }}</a></li>{% endfor %}{% for file in artifacts %}<li><a href="{{ url_for('kilas_ai.autonomous_detail',job_id=file.job_id) }}">{{ file.name }}</a></li>{% endfor %}</ul>{% if not files and not artifacts %}<p>{{ ui_t('Belum ada file tersimpan.') }}</p>{% endif %}
-<h2>Voice Over</h2><ul>{% for item in audio %}<li><a href="{{ url_for('kilas_audio.home',ident=item.id) }}">{{ item.title }}</a></li>{% endfor %}</ul>
-{% if plans %}<h2>{{ ui_t('Rencana video tersimpan') }}</h2><ul>{% for item in plans %}<li><a href="{{ url_for('kilas_ai.video_project',project=item.id) }}">{{ item.title }}</a></li>{% endfor %}</ul>{% endif %}
-</section>
+<section class="kilas-library">
+<header><h1>{{ ui_t('My Library') }}</h1><p>{{ ui_t('File, Voice Over, dan rencana video di satu tempat. Terbaru di atas.') }}</p></header>
+<form class="library-tools" method="get" role="search">
+<label for="library-search">{{ ui_t('Cari aset') }}<input id="library-search" name="q" type="search" value="{{ search }}" maxlength="200" placeholder="{{ ui_t('Nama file atau judul chat') }}"></label>
+<label for="library-type">{{ ui_t('Jenis aset') }}<select id="library-type" name="type">{% for value,label in kinds.items() %}<option value="{{ value }}" {{ 'selected' if kind==value }}>{{ ui_t(label) }}</option>{% endfor %}</select></label>
+<button class="btn secondary" type="submit">{{ ui_t('Cari') }}</button>
+{% if search or kind!='all' %}<a href="{{ url_for('kilas_ai.library') }}">{{ ui_t('Reset filter') }}</a>{% endif %}
+</form>
+<p class="library-count" role="status">{{ ui_t('{count} aset',count=total) }}</p>
+{% if assets %}<div class="library-grid">
+{% for item in assets %}<article class="library-asset">
+<a class="library-preview" href="{{ item.open }}" aria-label="{{ ui_t('Buka') }}: {{ item.title }}">{% if item.preview %}<img src="{{ item.preview }}" loading="lazy" decoding="async" alt="{{ item.title }}">{% endif %}<span class="library-placeholder">{{ drawer_icon('mic' if item.kind=='audio' else 'library') }}<span>{{ ui_t(kinds[item.kind]) }}</span></span></a>
+<div class="library-info"><h2><a href="{{ item.open }}" title="{{ item.name }}">{{ item.title }}</a></h2>{% if item.title!=item.name %}<p class="library-filename" title="{{ item.name }}">{{ item.name }}</p>{% endif %}
+<p class="library-meta">{{ ui_t(kinds[item.kind]) }} · <time datetime="{{ item.created }}" data-local-date>{{ item.created[:10] }}</time>{% if item.status %} · {{ ui_t({'COMPLETED':'Selesai','FAILED':'Belum berhasil','QUEUED':'Menunggu','PROCESSING':'Diproses','READY':'Siap','ERROR':'Belum berhasil','GENERATING':'Diproses'}.get(item.status,item.status)) }}{% endif %}</p>
+<div class="library-actions"><a href="{{ item.open }}">{{ ui_t('Buka') }}</a>{% if item.download %}<a href="{{ item.download }}">{{ ui_t('Download') }}</a>{% endif %}{% if item.reuse %}<a href="{{ item.reuse }}">{{ ui_t('Buka chat') }}</a>{% endif %}</div></div>
+</article>{% endfor %}</div>
+{% else %}<div class="library-empty">{{ drawer_icon('library') }}<h2>{{ ui_t('Tidak ada aset yang cocok.' if search or kind!='all' else 'Belum ada file tersimpan.') }}</h2><p>{{ ui_t('Coba kata kunci lain atau simpan hasil dari chat dan Voice Over.') }}</p><a class="btn secondary" href="{{ url_for('products.product_start') }}">{{ ui_t('Kembali ke chat') }}</a></div>{% endif %}
+{% if pages>1 %}<nav class="library-pages" aria-label="{{ ui_t('Halaman pustaka') }}">{% if page>1 %}<a class="btn secondary" href="{{ url_for('kilas_ai.library',page=page-1,q=search,type=kind) }}">{{ ui_t('Sebelumnya') }}</a>{% endif %}<span>{{ ui_t('Halaman {value0} dari {value1}.',value0=page,value1=pages) }}</span>{% if page<pages %}<a class="btn secondary" href="{{ url_for('kilas_ai.library',page=page+1,q=search,type=kind) }}">{{ ui_t('Berikutnya') }}</a>{% endif %}</nav>{% endif %}
+</section><script src="{{ url_for('static',filename='kilas_library.js',v='20261022') }}" defer></script>
 {% endblock %}

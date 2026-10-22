@@ -1,0 +1,37 @@
+name: Kilas experience QA
+on:
+  push:
+    branches: [main]
+    paths: ['client-hub/kilas_ai/library.py', 'client-hub/kilas_ai/home_tasks.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/static/kilas_library*', 'client-hub/static/kilas_voice*', 'client-hub/static/kilas_starters.css', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/kilas_translator/**', 'creative-services-site/**', 'client-hub/tests/test_kilas_experience*', '.github/workflows/kilas-experience-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  nonpaid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python scripts/package_creative_services.py --check
+      - name: Asset isolation, draft handoff, audio and existing model behavior
+        working-directory: client-hub
+        run: |
+          python tests/test_kilas_experience.py
+          python tests/test_kilas_audio.py
+          python tests/test_kilas_audio_history.py
+          python tests/test_kilas_personal_voice.py
+          python tests/test_kilas_audio_video_script.py
+          python -m unittest discover -s tests -p test_kilas_voice_edit.py
+          python -m unittest discover -s tests -p test_kilas_chat_models.py
+          python tests/test_creative_services.py
+          python tests/test_kilas_finance_baseline.py
+          node --test tests/test_kilas_dictation.mjs tests/test_transcription_recorder.mjs tests/test_kilas_audio_navigation.mjs tests/test_ui_i18n.mjs
+      - name: Responsive task paths with synthetic providers only
+        working-directory: client-hub
+        run: python tests/test_kilas_experience_browser.py

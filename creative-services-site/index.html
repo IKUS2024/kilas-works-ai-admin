@@ -1058,7 +1058,13 @@
 <p class="selected-service" id="selected-service" role="status" hidden>
 </p>
 </div>
-<div class="contact-actions">
+<div class="contact-actions"><form class="cs-brief" id="cs-brief">
+<div class="cs-brief-fields"><label><span data-cs-id="Tanggal acara / target" data-cs-en="Event / target date">Tanggal acara / target</span><input type="date" id="cs-brief-date"></label><label><span data-cs-id="Lokasi" data-cs-en="Location">Lokasi</span><input type="text" id="cs-brief-location" maxlength="160" autocomplete="address-level2"></label></div>
+<label for="cs-brief-needs" data-cs-id="Kebutuhan Anda" data-cs-en="What you need">Kebutuhan Anda</label><textarea id="cs-brief-needs" rows="3" maxlength="1200"></textarea>
+<button type="submit" class="button cs-brief-prepare" data-cs-id="Siapkan pesan" data-cs-en="Prepare message">Siapkan pesan</button>
+<label for="cs-brief-message" data-cs-id="Pesan WhatsApp — bisa diedit" data-cs-en="WhatsApp message — editable">Pesan WhatsApp — bisa diedit</label><textarea id="cs-brief-message" rows="6" maxlength="2500" aria-describedby="cs-brief-review"></textarea>
+<p id="cs-brief-review" data-cs-id="Periksa dan edit pesan. WhatsApp dibuka setelah Anda klik; pesan tidak terkirim otomatis." data-cs-en="Review and edit the message. WhatsApp opens when you click; nothing is sent automatically.">Periksa dan edit pesan. WhatsApp dibuka setelah Anda klik; pesan tidak terkirim otomatis.</p>
+</form>
 <a class="button services-cta" id="cs-contact-whatsapp" href="https://wa.me/6282213039137?text=Halo%20Kilas%2C%20saya%20ingin%20bertanya%20tentang%20Creative%20Services." target="_blank" rel="noopener noreferrer">
 <span data-cs-id="Hubungi via WhatsApp" data-cs-en="Contact via WhatsApp">Hubungi via WhatsApp</span>
 <span aria-hidden="true">
@@ -1109,7 +1115,7 @@
 </details>
 </div>
 </dialog>
-<script src="assets/portfolio-player.js" defer></script>
+<link rel="stylesheet" href="assets/brief.css"><script src="assets/portfolio-player.js" defer></script>
 <script>
 window.KILAS_SERVICES_CONFIG = {
   whatsapp: '6282213039137',
@@ -1174,27 +1180,26 @@ window.KILAS_SERVICES_CONFIG = {
     selectedLabel.lang = language;
     selectedLabel.hidden = false;
   }
-  function updateContactLinks() {
-    packageLinks.forEach(link => {
-      const service = link.dataset[language === 'en' ? 'serviceEn' : 'serviceId'];
-      link.dataset.service = service;
-      const url = whatsappUrl(service);
-      link.href = url || '#contact';
-      if (url) { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
-      else { link.removeAttribute('target'); link.removeAttribute('rel'); }
-    });
-    const selected = chosenPackage ? chosenPackage.dataset[language === 'en' ? 'serviceEn' : 'serviceId'] : '';
-    genericContact.hidden = !phone;
-    if (phone) genericContact.href = whatsappUrl(selected);
-    document.querySelectorAll('[data-consultation]').forEach(link => {
-      link.href = phone ? whatsappUrl(selected) : '#contact';
-      if (phone) { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
-      else { link.removeAttribute('target'); link.removeAttribute('rel'); }
-    });
-    contactPending.hidden = !!phone;
-    contactNotice.hidden = !phone;
-    updateSelectedLabel();
+  const brief=document.querySelector('#cs-brief'),message=document.querySelector('#cs-brief-message');
+  function prepareMessage(){
+    const service=chosenPackage?chosenPackage.dataset[language==='en'?'serviceEn':'serviceId']:'';
+    let text=decodeURIComponent(whatsappUrl(service).split('?text=')[1]||'');
+    const date=document.querySelector('#cs-brief-date').value,location=document.querySelector('#cs-brief-location').value,needs=document.querySelector('#cs-brief-needs').value;
+    if(date)text+='\n'+(language==='en'?'Date: ':'Tanggal: ')+date;
+    if(location)text+='\n'+(language==='en'?'Location: ':'Lokasi: ')+location;
+    if(needs)text+='\n'+(language==='en'?'Needs: ':'Kebutuhan: ')+needs;
+    message.value=text;updateContactLinks();
   }
+  function updateContactLinks() {
+    packageLinks.forEach(link=>{link.dataset.service=link.dataset[language==='en'?'serviceEn':'serviceId'];link.href='#contact';link.removeAttribute('target');link.removeAttribute('rel');});
+    document.querySelectorAll('[data-consultation]').forEach(link=>{link.href='#contact';link.removeAttribute('target');link.removeAttribute('rel');});
+    genericContact.hidden=!phone;genericContact.href=phone?'https://wa.me/'+phone+'?text='+encodeURIComponent(message.value):'#contact';
+    genericContact.setAttribute('aria-disabled',String(!message.value.trim()));
+    contactPending.hidden=!!phone;contactNotice.hidden=!phone;updateSelectedLabel();
+  }
+  brief.addEventListener('submit',event=>{event.preventDefault();prepareMessage();message.focus({preventScroll:true});});
+  message.addEventListener('input',updateContactLinks);
+  genericContact.addEventListener('click',event=>{if(!message.value.trim()){event.preventDefault();message.focus();}});
   function setLanguage(next, save = true) {
     language = next === 'en' ? 'en' : 'id';
     root.lang = language;
@@ -1278,7 +1283,8 @@ window.KILAS_SERVICES_CONFIG = {
   window.addEventListener('resize', updateAnchorOffset);
   updateAnchorOffset();
   document.querySelector('#year').textContent = new Date().getFullYear();
-  try { setLanguage(localStorage.getItem('kilas-package-language') || 'id', false); } catch (_) { setLanguage('id', false); }
+  try { const appLanguage=document.cookie.match(/(?:^|; )kilas_language=([^;]+)/)?.[1];setLanguage(appLanguage || localStorage.getItem('kilas-package-language') || 'id', false); } catch (_) { setLanguage('id', false); }
+  prepareMessage();
   setView(false);
   // Native hash scrolling may run after load; restore the collection after layout settles.
   function restorePortfolioAnchor() {

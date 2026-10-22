@@ -16,7 +16,7 @@ class CreativeServicesTests(unittest.TestCase):
     client = fixture.HomeTests.client
 
     def test_generated_bundle_has_exact_source_bytes(self):
-        paths = sorted(str(p.relative_to(SOURCE)) for p in SOURCE.rglob('*') if p.is_file())
+        paths = sorted(p.relative_to(SOURCE).as_posix() for p in SOURCE.rglob('*') if p.is_file())
         manifest = json.loads((BUNDLE / '.source-manifest.json').read_text())
         self.assertEqual(paths, sorted(manifest))
         for name in paths:

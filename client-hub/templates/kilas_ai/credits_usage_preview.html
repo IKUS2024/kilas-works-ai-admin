@@ -20,7 +20,7 @@
   <div class="credits-frame">
     <div class="credits-topbar"><a href="{{ url_for('products.product_start') }}">{{ drawer_icon('home') }}<span>{{ ui_t('Workspace') }}</span></a><span class="credits-topbar-divider" aria-hidden="true">/</span><span>{{ ui_t('Credits & Usage') }}</span><span class="credits-preview-badge">{{ ui_t('Design preview') }}</span></div>
     <main id="kw-main" class="credits-page">
-      <header class="credits-heading"><div><h1>{{ ui_t('Credits & Usage') }}</h1><p>{{ ui_t('A clearer view of your credits and AI activity.') }}</p></div><a class="credits-help-link" href="#credits-how">{{ ui_t('How credits work') }}<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m7 17 10-10M7 7h10v10"/></svg></a></header>
+      <header class="credits-heading"><div><h1>{{ ui_t('Credits & Usage') }}</h1><p>{{ ui_t('Pratinjau desain. Saldo dan aktivitas kredit belum terhubung.') }}</p></div><a class="credits-help-link" href="#credits-how">{{ ui_t('How credits work') }}<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m7 17 10-10M7 7h10v10"/></svg></a></header>
       <div class="credits-preview-note"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg><p>{{ ui_t('Preview only. This wallet is not connected. Existing billing and access are unchanged.') }} <a href="{{ url_for('kilas_ai.usage_page',view='legacy') }}">{{ ui_t('Manage existing billing') }}</a></p></div>
 
       <div class="credits-overview">
@@ -34,7 +34,7 @@
 
           <section class="credits-coverage" id="credits-how" aria-labelledby="credits-how-title">
             <h2 id="credits-how-title">{{ ui_t('One balance. Your AI workspace.') }}</h2>
-            <p>{{ ui_t('The proposed wallet brings AI usage together. Each activity uses credits according to its cost.') }}</p>
+            <p>{{ ui_t('Konsep dompet terpadu ini belum aktif. Penggunaan layanan saat ini mengikuti aturan yang sudah berlaku.') }}</p>
             <ul class="credits-features"><li>{{ drawer_icon('chat') }}{{ ui_t('Chat & search') }}</li><li><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg>{{ ui_t('Images') }}</li><li>{{ drawer_icon('mic') }}{{ ui_t('Voice & translation') }}</li><li>{{ drawer_icon('library') }}{{ ui_t('Files & Work') }}</li></ul>
             <p class="credits-coverage-note">{{ ui_t('Feature rates and wallet terms are still being finalized.') }}</p>
           </section>
@@ -42,7 +42,7 @@
 
         <section class="credits-topup" aria-labelledby="credits-topup-title">
           <div class="credits-topup-heading"><span class="credits-wallet-icon" aria-hidden="true">{{ drawer_icon('finance') }}</span><h2 id="credits-topup-title">{{ ui_t('Add credits') }}</h2></div>
-          <p>{{ ui_t('Choose the amount that works for you.') }}</p>
+          <p>{{ ui_t('Simulasi tampilan saja. Tidak membuat transaksi atau menambah saldo.') }}</p>
           <div class="credits-topup-fields">
             <label for="credits-currency">{{ ui_t('Currency') }}<span>{{ ui_t('Provisional') }}</span></label>
             <select id="credits-currency" aria-describedby="credits-currency-help"><option value="USD">USD · {{ ui_t('US dollar') }}</option><option value="IDR">IDR · {{ ui_t('Indonesian rupiah') }}</option></select>
@@ -54,7 +54,7 @@
           </div>
           <div class="credits-topup-review">
           <div class="credits-estimate"><div><span>{{ ui_t('Estimated credits') }}</span><strong aria-label="{{ ui_t('Estimate unavailable') }}">—</strong></div><p>{{ ui_t('The credit conversion rate is not set yet.') }}</p></div>
-          <button class="credits-pay-button" type="button" disabled aria-describedby="credits-payment-help">{{ ui_t('Continue to payment') }}<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></button>
+          <button class="credits-pay-button" type="button" disabled aria-describedby="credits-payment-help">{{ ui_t('Pembayaran belum tersedia') }}<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></button>
           <p class="credits-payment-help" id="credits-payment-help">{{ ui_t('Payments are not connected in this preview.') }}</p>
           </div>
         </section>

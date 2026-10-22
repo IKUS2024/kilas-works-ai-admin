@@ -15,7 +15,7 @@ TARGET = ROOT / 'client-hub' / 'creative-services-site'
 
 
 def manifest(directory):
-    return {str(p.relative_to(directory)): hashlib.sha256(p.read_bytes()).hexdigest()
+    return {p.relative_to(directory).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted(directory.rglob('*')) if p.is_file() and p.name != '.source-manifest.json'}
 
 
@@ -33,7 +33,7 @@ def main():
         return
     TARGET.mkdir(parents=True, exist_ok=True)
     for path in TARGET.rglob('*'):
-        if path.is_file() and str(path.relative_to(TARGET)) not in expected:
+        if path.is_file() and path.relative_to(TARGET).as_posix() not in expected:
             path.unlink()
     for name in expected:
         destination = TARGET / name
