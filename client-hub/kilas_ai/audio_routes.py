@@ -156,7 +156,8 @@ def home(ident=None,initial_brief=None,home_task=None):
     return_to=request.form.get('return_to','') if request.method=='POST' else ''
     if not re.fullmatch(r'/products/start|/kilas-ai/threads/[0-9]+|/kilas-ai/agent(?:\?conversation=[0-9]+)?',return_to):return_to=''
     latest_job=None
-    if not job and not home_task and active_mode=='voiceover':
+    # Restore the latest result independently of the new Home editor draft.
+    if not job and active_mode=='voiceover':
         latest=db.query_one("SELECT id FROM kilas_audio_jobs WHERE user_id=? AND mode='voiceover' AND status='COMPLETED' AND NOT "+store.live_output_clause()+" AND NOT "+store.learning_output_clause()+" ORDER BY id DESC LIMIT 1",(user,))
         if latest:latest_job=store.get(user,latest['id'])
     state=store.balance(user)

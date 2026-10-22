@@ -8,12 +8,20 @@ from test_kilas_audio import f, provider, service
 
 class Actions(HTMLParser):
     def __init__(self):
-        super().__init__();self.actions=[]
+        super().__init__();self.actions=[];self.in_script=False;self.script=''
 
     def handle_starttag(self, tag, attrs):
         attrs=dict(attrs)
+        if tag=='textarea':self.in_script=attrs.get('id')=='audio-script'
         for name in ('data-audio-edit','data-audio-alternate'):
             if name in attrs:self.actions.append((name,attrs[name]))
+
+
+    def handle_endtag(self, tag):
+        if tag=='textarea':self.in_script=False
+
+    def handle_data(self, text):
+        if self.in_script:self.script+=text
 
 
 class LatestResultTests(unittest.TestCase):
@@ -36,8 +44,24 @@ class LatestResultTests(unittest.TestCase):
         snapshot=self.client.get(f'/kilas-translator/jobs/{ident}/script').json
         self.assertEqual((snapshot['script'],snapshot['language']),('Última traducción.','es'))
 
+    def test_home_handoff_restores_actions_without_replacing_transferred_draft(self):
+        ident=self.source(script='Naskah asli.',translate_script='yes',translated_script='Última traducción.',language='es',translation_source='id')
+        count=f.db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_jobs WHERE user_id=?',(self.user,))['n']
+        with patch.object(service,'submit',side_effect=AssertionError('Handoff must not generate')),patch.object(provider,'request',side_effect=AssertionError('Handoff must not call provider')):
+            for path in ('/kilas-translator?mode=voiceover','/kilas-ai/home-task'):
+                for draft in ('','  Transferred <draft> & 日本語.\nKeep this spacing.  '):
+                    response=self.client.post(path,data={'csrf_token':'audio-csrf','task':'voiceover','brief':draft,'return_to':'/products/start'})
+                    self.assertEqual(response.status_code,200)
+                    parsed=Actions();parsed.feed(response.text)
+                    self.assertEqual(parsed.script,draft)
+                    self.assertIn(('data-audio-alternate',f'/kilas-translator/jobs/{ident}/alternate'),parsed.actions)
+                    self.assertIn('class="audio-latest-result"',response.text)
+        self.assertEqual(f.db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_jobs WHERE user_id=?',(self.user,))['n'],count)
+
     def test_no_history_or_legacy_snapshot_never_offers_alternate(self):
         self.assertNotIn('data-audio-alternate',self.latest())
+        for path in ('/kilas-translator?mode=voiceover','/kilas-ai/home-task'):
+            self.assertNotIn('data-audio-alternate',self.client.post(path,data={'csrf_token':'audio-csrf','task':'voiceover','brief':''}).text)
         ident=self.source()
         f.db.execute('UPDATE kilas_audio_jobs SET spoken_script=NULL WHERE id=?',(ident,))
         self.assertNotIn('data-audio-alternate',self.latest())

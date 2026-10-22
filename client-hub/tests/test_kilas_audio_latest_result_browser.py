@@ -33,6 +33,17 @@ def main():
                 page.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin) else route.abort())
                 latest=page.locator('.audio-latest-result')
                 alternate=latest.locator('[data-audio-alternate]')
+                # Exercise the real Home button and POST handoff, including an empty draft.
+                for draft in ('','  Keep my transferred script. 日本語 & punctuation.  '):
+                    page.goto(origin+'/products/start',wait_until='networkidle')
+                    page.locator('#ai-input,#agent-message').fill(draft)
+                    page.locator('[data-home-task=voiceover]').click()
+                    page.wait_for_url('**/kilas-translator?mode=voiceover')
+                    expect(alternate).to_be_visible()
+                    expect(alternate).to_have_attribute('data-audio-alternate',f'/kilas-translator/jobs/{ident}/alternate')
+                    expect(page.locator('#audio-script')).to_have_value(draft)
+                    page.locator('#translate-tab').click();page.locator('#voiceover-tab').click()
+                    expect(page.locator('#audio-script')).to_have_value(draft)
                 page.goto(origin+'/kilas-translator?mode=voiceover',wait_until='networkidle')
                 for navigation in ('entry','tabs','refresh'):
                     if navigation=='tabs':
@@ -71,7 +82,7 @@ def main():
                 page.goto(origin+'/kilas-translator?mode=voiceover',wait_until='networkidle')
                 expect(page.locator('.audio-latest-result')).to_have_count(0);expect(page.locator('[data-audio-alternate]')).to_have_count(0)
                 assert not errors,errors
-                report.append({'width':width,'direct_entry_tabs_refresh_recent':True,'latest_language_and_voice_edit':True,'alternate_bound_to_result_not_draft':True,'loading_failed_empty_no_alternate':True,'paid_calls':0})
+                report.append({'width':width,'direct_entry_tabs_refresh_recent':True,'real_home_handoff_empty_and_transferred_draft':True,'latest_language_and_voice_edit':True,'alternate_bound_to_result_not_draft':True,'loading_failed_empty_no_alternate':True,'paid_calls':0})
                 context.close();case.doCleanups()
             browser.close()
         (out/'verification.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
