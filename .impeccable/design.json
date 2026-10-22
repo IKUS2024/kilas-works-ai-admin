@@ -3,6 +3,84 @@
   "generatedAt": "2026-10-03T09:18:34.1357578Z",
   "title": "Design System: Kilas Works customer workspace",
   "extensions": {
+    "scopedSurfaces": {
+  "creative-services-studio": {
+    "extensions": {
+      "motion": [
+        {
+          "name": "service-arrow",
+          "value": ".2s cubic-bezier(.16,1,.3,1)",
+          "transform": "translate(3px,-3px)"
+        },
+        {
+          "value": "transition: none !important; scroll-behavior: auto !important",
+          "name": "reduced-motion"
+        }
+      ],
+      "breakpoints": [
+        {
+          "value": "1000px",
+          "name": "compact"
+        },
+        {
+          "value": "600px",
+          "name": "phone"
+        },
+        {
+          "value": "480px",
+          "name": "brief-single-column"
+        }
+      ],
+      "focus": [
+        {
+          "value": "3px solid #b83d12; outline-offset: 5px",
+          "name": "studio"
+        },
+        {
+          "value": "3px solid #ffb591; outline-offset: 5px",
+          "name": "inverse"
+        },
+        {
+          "value": "2px solid #bd4700; outline-offset: 3px",
+          "name": "brief"
+        }
+      ],
+      "shadows": []
+    },
+    "sourceFiles": [
+      "creative-services-site/assets/editorial.css",
+      "creative-services-site/assets/brief.css"
+    ],
+    "appliesTo": [
+      "creative-services-site/",
+      "client-hub/creative-services-site/"
+    ],
+    "document": "docs/CREATIVE_SERVICES_DESIGN.md",
+    "assetProvenance": {
+      "newRasterAssets": false,
+      "logo": "Existing brand-logo.png unchanged.",
+      "manrope": "Font and license copied byte-for-byte from client-hub/static/fonts."
+    },
+    "excludedSurfaces": [
+      "Home",
+      "chat",
+      "VO",
+      "Translator",
+      "Credits",
+      "Finance"
+    ],
+    "narrative": {
+      "northStar": "Kilas Creative Studio",
+      "rules": [
+        {
+          "name": "The Scoped Palette Rule",
+          "section": "colors",
+          "body": "Studio colors apply only to this standalone surface and its generated copy; retain the workspace and Finance palettes."
+        }
+      ]
+    }
+  }
+},
     "colorMeta": {
       "canvas": {
         "role": "neutral",

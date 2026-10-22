@@ -1,10 +1,12 @@
 {
   "assets/brand-logo.png": "1caa0419567191f21e07a97c262ac028e4316be29863ade81887963e009237cf",
   "assets/brief.css": "684d55c852df8ac5dd7d75bdab95bad6e468569515aa0b7087d083927e7f51ec",
-  "assets/editorial.css": "5342c146c82c1b2151dba09500305f120cff64efc48f5bdb586037765bd48eef",
+  "assets/editorial.css": "63daff0e990e68ca739a64025f65ae51c667f215993f0b981308e15728453942",
   "assets/favicon.png": "1caa0419567191f21e07a97c262ac028e4316be29863ade81887963e009237cf",
   "assets/fonts/Inter-OFL.txt": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
   "assets/fonts/inter-variable.woff2": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
+  "assets/fonts/Manrope-OFL.txt": "d6a309fcfb963d329a93baf9df66fa5f3c23a4be2b5f67edf24d6cafecde12ac",
+  "assets/fonts/manrope-variable.ttf": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6",
   "assets/onemoretake-portfolio.jpg": "d205efe287158d8a169d440292efd9f3d81bffa2e379d0d2db3e6977f04312d5",
   "assets/portfolio/event-01.jpg": "26ebba06e68533ac41ae82239dbb9afc247e5c9b2dc1feefc67d1e3021d1ae9a",
   "assets/portfolio/event-02.jpg": "656809cda61179e8e42d5d9380985bca19b06642b0b65bfa0bbf51ed9e7e3fc9",
@@ -20,5 +22,5 @@
   "assets/portfolio/social-05.jpg": "5b4a25a05c97017c28ea2c2bd2bff01db121bd01c4ffca5b9cf20d8a45e4f653",
   "assets/portfolio/social-06.jpg": "ced733c4f0d4d965ab7472c55465154f871ab09aed8b33880fcf2b9e123d657d",
   "assets/portfolio-player.js": "37b2ed1c0ce8a0e1baa87fa0368c0ab3a5831e9a991aa0c3225f80b7643c9b12",
-  "index.html": "d60618f17657c516635116227c605b7b8ffe2d381dc593a57b8be6e92b2b1b4c"
+  "index.html": "79026404413864405d14097127cde33c5574589768c0383e5ea5eb2f9d242973"
 }

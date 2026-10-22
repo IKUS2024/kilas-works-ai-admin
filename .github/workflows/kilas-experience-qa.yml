@@ -55,6 +55,9 @@ jobs:
       - name: Responsive task paths with synthetic providers only
         working-directory: client-hub
         run: python tests/test_kilas_experience_browser.py
+      - name: Creative Studio responsive navigation and editable brief
+        working-directory: client-hub
+        run: python tests/test_creative_studio_browser.py
       - name: Home layout, draft warning, attachments, repeated taps and keyboard
         working-directory: client-hub
         run: python tests/test_kilas_home_polish_browser.py

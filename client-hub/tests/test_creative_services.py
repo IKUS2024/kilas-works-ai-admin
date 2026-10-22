@@ -34,8 +34,10 @@ class CreativeServicesTests(unittest.TestCase):
         self.assertEqual(response.data, (SOURCE / 'index.html').read_bytes())
         self.assertEqual(response.headers['X-Frame-Options'], 'DENY')
         self.assertNotIn('<iframe', response.text)
-        self.assertIn('inter-variable.woff2', response.text)
-        self.assertIn('assets/portfolio/event-first-drive.jpg', response.text)
+        self.assertIn('manrope-variable.ttf', response.text)
+        self.assertIn('https://instagram.com/kilasworks', response.text)
+        self.assertNotIn('onemoretake.id', response.text)
+        self.assertNotIn('data-video-id=', response.text)
         self.assertNotIn('instrument-serif', response.text)
         for name in json.loads((BUNDLE / '.source-manifest.json').read_text()):
             if name == 'index.html':
