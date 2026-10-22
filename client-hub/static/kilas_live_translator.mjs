@@ -1,16 +1,16 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
-import {captureMode,compatibleRecorder,TranslatorAudioRoute} from './kilas_live_translator_capabilities.mjs?v=conversation-continuity-20261022';
+import {captureMode,compatibleRecorder,TranslatorAudioRoute} from './kilas_live_translator_capabilities.mjs?v=clauses-20261022';
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=app-language-20261015';
-import {TranslatorSession} from './kilas_live_translator_engine.mjs?v=conversation-continuity-20261022';
-import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=conversation-continuity-20261022';
-import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=conversation-continuity-20261022';
-import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=conversation-continuity-20261022';
-import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=conversation-continuity-20261022';
+import {StreamingTranslatorSession as TranslatorSession} from './kilas_live_translator_streaming.mjs?v=clauses-20261022';
+import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=clauses-20261022';
+import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=clauses-20261022';
+import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=clauses-20261022';
+import {RealtimeInput} from './kilas_live_translator_realtime_input.mjs?v=clauses-20261022';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=explicit-pair-20261018';
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=app-language-20261015';
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
-import {bindRecordToggle,TranslatorMicrophone} from './kilas_live_translator_toggle.mjs?v=conversation-continuity-20261022';
-import {TranslatorHistory} from './kilas_live_translator_history.mjs?v=conversation-continuity-20261022';
+import {bindRecordToggle,TranslatorMicrophone} from './kilas_live_translator_toggle.mjs?v=clauses-20261022';
+import {TranslatorHistory} from './kilas_live_translator_history.mjs?v=clauses-20261022';
 import {prepareProgressive,disposeProgressive,progressivePlay} from './kilas_live_translator_progressive.mjs?v=pending-play-20261020';
 const root=document.querySelector('.kilas-live-translator');
 if(root){
@@ -57,6 +57,7 @@ if(root){
  };
  const realtimeCapture=new RealtimeCapture({getContext:()=>context,mediaDevices:microphone});let activeCapture=batchCapture,captureEpoch=0;
  const capture={
+  get supportsDuplex(){return navigator.mediaDevices?.getSupportedConstraints?.().echoCancellation===true;},
   start(options){const epoch=++captureEpoch;const restore=()=>{if(epoch===captureEpoch)audioRoute.playback();};activeCapture=options.inputMode==='realtime-v1'?realtimeCapture:batchCapture;audioRoute.capture();
    const restored={...options,blob:value=>{restore();options.blob(value);},error:value=>{restore();options.error(value);}};
    return Promise.resolve(activeCapture.start(restored)).catch(e=>{restore();throw e;});},
@@ -82,6 +83,11 @@ if(root){
  const turns=new TranslatorTurns({json,csrf,wholeUtterance:true});
  const api={
   input:new RealtimeInput({json,csrf,holdToTalk:true,onTiming:latency}),
+  clauses:{
+   cancel:(id,key)=>turns.cancel(id,key),
+   read:(id,key,signal)=>json(turns.path(id,key)+'/clauses',{signal,timeoutMs:10000}),
+   ack:(id,key,index,signal)=>{const data=new FormData();data.append('csrf_token',csrf);data.append('index',String(index));return json(turns.path(id,key)+'/clauses',{method:'POST',body:data,signal,timeoutMs:10000});}
+  },
   async start(data,signal){try{return await json('/kilas-translator/live/sessions',{method:'POST',body:data,signal,timeoutMs:30000});}catch(e){recoverRequested=true;throw e;}},
   turn:(...args)=>turns.turn(...args),resume:(...args)=>turns.resume(...args),
   end:id=>{const text=document.querySelector('#live-translation');text.textContent='';text.hidden=true;return recovery.endKnown(id);},
@@ -102,7 +108,7 @@ if(root){
   document.querySelector('#live-resume').hidden=state!=='paused';
   document.querySelector('#live-state').textContent=orb.getAttribute('aria-label');
   const modeNote=document.querySelector('#live-mode-note');
-  if(modeNote){modeNote.hidden=!session.id;modeNote.textContent=session.inputMode==='realtime-v1'?t('Bicara saat Mendengarkan. Jeda ucapan diterjemahkan otomatis; tunggu suara selesai sebelum berbicara lagi. Stop menghentikan percakapan setelah hasil saat ini.'):t('Mode rekaman: tekan Stop untuk memproses ucapan, lalu Start untuk giliran berikutnya.');}
+  if(modeNote){modeNote.hidden=!session.id;modeNote.textContent=session.inputMode==='realtime-v1'&&session.streaming?t('Terjemahan diputar per klausa sambil mikrofon tetap aktif. Gunakan earphone untuk mengurangi gema. Klausa yang sudah terdengar tidak direvisi. Stop mengakhiri input; End membatalkan sesi.'):session.inputMode==='realtime-v1'?t('Bicara saat Mendengarkan. Jeda ucapan diterjemahkan otomatis; tunggu suara selesai sebelum berbicara lagi. Stop menghentikan percakapan setelah hasil saat ini.'):t('Mode rekaman: tekan Stop untuk memproses ucapan, lalu Start untuk giliran berikutnya.');}
   callLayout.setActive(state!=='ended');
   if(state==='ended'&&(recoverRequested||session.admissionPending)){recoverRequested=false;recovery.checked=false;recovery.refresh();}
  }});

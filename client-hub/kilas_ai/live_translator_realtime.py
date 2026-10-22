@@ -66,7 +66,7 @@ def connect(info):
 
 
 class Relay:
-    def __init__(self,owner,ident,key,info,capability,*,hold_to_talk=False,coalesced=False):
+    def __init__(self,owner,ident,key,info,capability,*,hold_to_talk=False,coalesced=False,clauses=False):
         self.owner,self.ident,self.key,self.info,self.capability=owner,ident,key,info,capability
         self.max_chunk_bytes=COALESCED_CHUNK_BYTES if coalesced else 32000
         self.close_lock=Lock();self.queue=Queue(maxsize=64);self.acks=Queue(maxsize=1);self.lock=Lock();self.closed=Event()
@@ -75,13 +75,18 @@ class Relay:
         self.started=monotonic();self.last_chunk=self.started;self.final_at=None;self.finished=False;self.deadline=None
         self.partial='';self.partial_at=None;self.quiet_bytes=0;self.early_commits=0
         self.clause_cursor=0;self.clause_count=0
-        self.incremental=incremental.Clauses(owner,ident,key,info) if incremental.enabled() and not hold_to_talk else None
+        self.clauses=None
+        if clauses:
+            from . import live_translator_clauses
+            self.clauses=live_translator_clauses.create(owner,ident,key,info)
+        self.incremental=incremental.Clauses(owner,ident,key,info) if incremental.enabled() and not hold_to_talk and not clauses else None
 
     def check(self):
         if self.closed.is_set():raise self.error or failure('turn_cancelled')
         if monotonic()-self.started>=budget.LEASE_MS/1000:raise failure('realtime_deadline')
         live.check_session(self.owner,self.ident,self.key)
         if self.incremental:self.incremental.raise_error()
+        if self.clauses:self.clauses.check()
         if self.closed.is_set():raise self.error or failure('turn_cancelled')
 
     def arm_deadline(self):
@@ -120,6 +125,7 @@ class Relay:
             if input_failure and self.closed.is_set():return
             if error is not None:self.error=error
             if error is not None and self.incremental:self.incremental.cancel()
+            if error is not None and self.clauses:self.clauses.cancel()
             self.closed.set()
             ws=self.ws
         if ws:
@@ -179,7 +185,8 @@ class Relay:
             except Empty:
                 if monotonic()>=deadline:raise failure('realtime_commit_timeout')
         if text:
-            self.pieces.append(text)
+            if self.clauses:self.clauses.offer(text)
+            else:self.pieces.append(text)
             if len(' '.join(self.pieces))>4000:raise failure('realtime_text_limit')
             if self.incremental and not self.final:
                 # An incomplete ACK is combined with following committed text
@@ -250,14 +257,14 @@ class Relay:
                 # auto boundary; wait its sole ack BEFORE any following bytes.
                 offset=0
                 while offset<len(raw):
-                    count=min(32000,len(raw)-offset,COMMIT_BYTES-self.since_commit)
+                    count=min(32000,len(raw)-offset,(4*32000 if self.clauses else COMMIT_BYTES)-self.since_commit)
                     piece=raw[offset:offset+count];self.send(piece);self.sent+=count;self.since_commit+=count;offset+=count
                     if self.incremental:self.observe_audio(piece)
-                    if self.since_commit==COMMIT_BYTES:self.send(b'',True);self.acknowledge()
+                    if self.since_commit==(4*32000 if self.clauses else COMMIT_BYTES):self.send(b'',True);self.acknowledge()
                 if self.early_boundary():
                     self.early_commits+=1;self.send(b'',True);self.acknowledge()
             self.check();text=' '.join(self.pieces).strip()
-            if not text:raise failure('no_speech')
+            if not text and not self.clauses:raise failure('no_speech')
             if not budget.finish(self.capability,True):raise failure('realtime_budget_unsettled')
             success=True;self.close()
             self.deadline.cancel()  # Output has its separate180s processing window.
@@ -267,6 +274,9 @@ class Relay:
             timings['input_finalize_ms']=(finalized-self.final_at)*1000
             timings['input_early_commits']=self.early_commits
             timings.update(self.input_metrics());log_input(True,None,self.started,timings)
+            if self.clauses:
+                self.clauses.offer('',final=True)
+                return
             live.process(self.owner,self.ident,self.key,None,self.info,whole_output=True,committed_text=text,
                 started=self.final_at,incremental=self.incremental,timings={'realtime_input_ms':self.sent/32,
                     'realtime_transport_ms':(finalized-self.started)*1000,
@@ -288,7 +298,7 @@ class Relay:
             finally:connection.close()
 
 
-def start(owner,ident,key,*,hold_to_talk=False,coalesced=False):
+def start(owner,ident,key,*,hold_to_talk=False,coalesced=False,clauses=False):
     require_ready(owner)
     if not _slots.acquire(blocking=False):raise failure('service_busy')
     capability=None;claimed=False
@@ -297,7 +307,7 @@ def start(owner,ident,key,*,hold_to_talk=False,coalesced=False):
         if info['voice_alias']=='gemini-live-native' or info['language_a']=='auto':raise failure('realtime_unverified')
         audio_store.require_balance(owner);live.require_audio_allowance(owner)
         capability=budget.claim(owner,ident,key)
-        relay=Relay(owner,ident,key,info,capability,hold_to_talk=hold_to_talk,coalesced=coalesced)
+        relay=Relay(owner,ident,key,info,capability,hold_to_talk=hold_to_talk,coalesced=coalesced,clauses=clauses)
         with _lock:_relays[(owner,ident,key)]=relay
         Thread(target=relay.run,name='kilas-realtime-turn',daemon=True).start()
         return relay
@@ -333,6 +343,8 @@ def owned(owner,ident,key):
 
 
 def cancel(owner,ident,key=None):
+    from . import live_translator_clauses
+    live_translator_clauses.cancel(owner,ident,key)
     with _lock:relays=[r for (user,session,operation),r in _relays.items() if user==owner and session==ident and (key is None or operation==key)]
     for relay in relays:relay.close(failure('turn_cancelled'))
 

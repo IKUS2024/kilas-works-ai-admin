@@ -49,6 +49,7 @@ from kilas_ai import providers, usage
 
 MEDIA = """
 window.qa={rms:0,mics:0,starts:0,stops:0,plays:0,worklets:[],audio:null,decoded:[]};
+navigator.mediaDevices.getSupportedConstraints=()=>({echoCancellation:false});
 navigator.mediaDevices.getUserMedia=async()=>{
  qa.mics++;qa.starts++;let stopped=false;
  const track={addEventListener(){},stop(){if(!stopped){stopped=true;qa.mics--;qa.stops++;}}};

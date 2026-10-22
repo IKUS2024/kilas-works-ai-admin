@@ -4,7 +4,7 @@ const failure=(code,message)=>Object.assign(Error(message),{code,startupStage:'m
 const aborted=()=>new DOMException(t('Sesi berakhir.'),'AbortError');
 export class RealtimeCapture {
   constructor({getContext,mediaDevices,continuous=false,frameSamples=3200,createNode=(ctx)=>new AudioWorkletNode(ctx,'kilas-pcm',{processorOptions:{frameSamples}}),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
-    Object.assign(this,{getContext,mediaDevices,continuous,createNode,schedule,clear});this.version=0;this.timer=null;this.flushTimer=null;
+    Object.assign(this,{getContext,mediaDevices,continuous,createNode,schedule,clear});this.configuredContinuous=continuous;this.version=0;this.timer=null;this.flushTimer=null;
   }
   cleanup(){
     this.clear(this.timer);this.clear(this.flushTimer);this.clear(this.idleTimer);this.timer=null;this.flushTimer=null;this.idleTimer=null;
@@ -24,7 +24,7 @@ export class RealtimeCapture {
       try{Promise.resolve(work()).then(value=>{if(settled){try{onLate(value);}catch{}return;}finish(resolve,value);},e=>finish(reject,e));}catch(e){finish(reject,e);}
     });
   }
-  async start({level,pcm,blob,error,ready:notifyReady=()=>{}}){
+  async start({duplex=false,level,pcm,blob,error,ready:notifyReady=()=>{}}){
     this.cancel();this.error=error;this.finalizing=false;const ticket=this.version,context=this.getContext(),controller=new AbortController();this.startupController=controller;let heard=false,preRoll=[],ready=false,resolveReady;
     const fail=e=>{if(ticket!==this.version)return;this.cancel(e);if(ready)error(e);};
     try{
@@ -42,6 +42,8 @@ export class RealtimeCapture {
       if(ticket!==this.version){stopLate(stream);throw aborted();}
       if(!stream?.getTracks?.().length)throw failure('microphone_unavailable',t('Mikrofon tidak tersedia. Periksa perangkat lalu tekan Lanjutkan.'));
       this.stream=stream;
+      if(duplex&&!stream.getAudioTracks?.().every(track=>track.getSettings?.().echoCancellation===true))throw failure('duplex_unavailable',t('Peredam gema browser belum tersedia. Mode bergiliran digunakan.'));
+      this.continuous=this.configuredContinuous||duplex;
       stream.getTracks().forEach(track=>track.addEventListener?.('ended',()=>{if(!this.finalizing)fail(Object.assign(Error(t('Mikrofon terputus.')),{code:'microphone_unavailable'}));},{once:true}));
       await this.bounded(controller.signal,()=>context.audioWorklet.addModule('/static/kilas_live_translator_pcm.mjs?v=utterance-pcm-20261016'),10000,failure('realtime_module_timeout',t('Input audio belum dapat dimuat. Periksa koneksi lalu tekan Lanjutkan.')));
       if(ticket!==this.version)throw aborted();
@@ -58,8 +60,8 @@ export class RealtimeCapture {
         if(!(bytes instanceof ArrayBuffer)||!bytes.byteLength||bytes.byteLength>6400||bytes.byteLength%2||!Number.isFinite(rms)){fail(Object.assign(Error(t('Input suara tidak valid.')),{code:'realtime_capture_failed'}));return;}
         if(!ready){ready=true;notifyReady();resolveReady();}
         if(heard||rms>=.015){
-          if(!heard){heard=true;if(!this.continuous)this.timer=this.schedule(()=>fail(Object.assign(Error(t('Ucapan terlalu panjang. Sesi dijeda tanpa menerjemahkan sebagian.')),{code:'utterance_limit'})),179000);for(const previous of preRoll)pcm(new Uint8Array(previous));preRoll=[];}
-          pcm(new Uint8Array(bytes));
+          if(!heard){heard=true;if(!this.continuous)this.timer=this.schedule(()=>fail(Object.assign(Error(t('Ucapan terlalu panjang. Sesi dijeda tanpa menerjemahkan sebagian.')),{code:'utterance_limit'})),179000);for(const previous of preRoll)pcm(new Uint8Array(previous),{rms});preRoll=[];}
+          pcm(new Uint8Array(bytes),{rms});
         }else{preRoll.push(bytes);while(preRoll.length>1&&preRoll.reduce((total,value)=>total+value.byteLength,0)>12800)preRoll.shift();}
         level(rms);
       };

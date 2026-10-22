@@ -8,6 +8,9 @@ from kilas_ai import live_translator_realtime as realtime,live_translator_segmen
 import test_kilas_audio as audio
 
 def record(page):
+ # Wait for admission before reading toggle state; otherwise a queued click
+ # can become Stop when initial Start finishes opening the microphone.
+ page.wait_for_function("document.querySelector('#live-hold')?.disabled===false")
  # Initial setup Start now records; later turns use the same toggle button.
  if page.locator('#live-hold').get_attribute('aria-pressed')!='true':page.locator('#live-hold').click()
  page.wait_for_function('qa.mics===1')

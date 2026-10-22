@@ -98,6 +98,18 @@ def claim(owner,ident,key):
         return info
 
 
+def claim_clause(owner,ident,parent,key):
+    # Internal server-generated child identity; not exposed as HTTP admission.
+    with transaction() as conn:
+        locked(owner,ident,conn)
+        row=usage._query(conn,"SELECT status FROM kilas_live_translator_turns WHERE session_id=? AND operation_key=?",(ident,parent),one=True)
+        if not row or row[0]!='PROCESSING':raise audio_store.AudioError('Ucapan dibatalkan.','turn_cancelled',409)
+        if usage._query(conn,'SELECT 1 FROM kilas_live_translator_turns WHERE operation_key=?',(key,),one=True):raise audio_store.AudioError('Ucapan tidak diulang.','duplicate_turn',409)
+        usage._query(conn,"INSERT INTO kilas_live_translator_turns(operation_key,session_id,status,created_at) VALUES (?,?,'PROCESSING',?)",(key,ident,usage._now().isoformat()))
+        from . import live_translator_output
+        live_translator_output.begin(owner,ident,key,preserve=True)
+
+
 def check(owner,ident,key):
     # This is a read fence, not a mutation. The former transaction opened a fresh
     # connection and locked the session for EVERY streamed translation event, then

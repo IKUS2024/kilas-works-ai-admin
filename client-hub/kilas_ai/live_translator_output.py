@@ -38,7 +38,7 @@ def single_worker():
     except (ValueError,StopIteration):return False
 
 
-def begin(owner,ident,key):
+def begin(owner,ident,key,*,preserve=False):
     # Current service runs one Gunicorn worker/instance. A worker restart loses
     # temporary output and must fail closed, never trigger paid regeneration.
     if not single_worker():raise audio_store.AudioError('Penyimpanan sementara sesi belum tersedia.','session_storage_unavailable',503)
@@ -46,7 +46,7 @@ def begin(owner,ident,key):
     with _lock:
         _expire()
         for old in list(_items):
-            if old[:2]==(owner,ident) and old[2]!=key:del _items[old]
+            if not preserve and old[:2]==(owner,ident) and old[2]!=key:del _items[old]
         address=(owner,ident,key)
         if address in _items:raise audio_store.AudioError('Ucapan ini tidak diulang.','duplicate_turn',409)
         if len(_items)>=MAX_ENTRIES:raise audio_store.AudioError('Penyimpanan sementara sedang penuh.','session_storage_busy',503)

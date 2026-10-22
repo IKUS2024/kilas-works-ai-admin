@@ -22,7 +22,7 @@ export class RealtimeInput {
       turn={id,key,signal,index:0,queued:0,total:0,finishing:false,prepareMs:0,httpMs:0,maxQueued:0,maxChunk:32000,pumping:false,pending:new Uint8Array(MAX_BACKLOG_BYTES),length:0};this.current=turn;
       turn.cancel=()=>{if(!turn.cancelPromise)turn.cancelPromise=this.json(this.path(id,key)+'/cancel',{method:'POST',body:this.form(),keepalive:true,timeoutMs:10000}).catch(()=>null);return turn.cancelPromise;};
       signal.addEventListener('abort',turn.cancel,{once:true});
-      const start=this.form();start.append('chunk_transport','pcm-coalesce-v1');if(this.holdToTalk)start.append('capture_mode','hold-v1');
+      const start=this.form();start.append('chunk_transport','pcm-coalesce-v1');if(this.clauses)start.append('capture_mode','clauses-v1');else if(this.holdToTalk)start.append('capture_mode','hold-v1');
       const admissionBegan=this.now();
       turn.chain=this.json(this.path(id,key)+'/input/start',{method:'POST',body:start,signal,timeoutMs:15000}).then(result=>{if(result.input_mode!=='realtime-v1')throw failure('realtime_protocol');if(result.max_chunk_bytes!==undefined){if(![32000,MAX_CHUNK_BYTES].includes(result.max_chunk_bytes))throw failure('realtime_protocol');turn.maxChunk=result.max_chunk_bytes;}try{this.onTiming({input_admission_http_ms:Math.max(0,this.now()-admissionBegan)});}catch{}});
     }

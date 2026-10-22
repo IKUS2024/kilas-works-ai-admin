@@ -745,11 +745,23 @@ def live_realtime_start(ident,key):
     from . import live_translator_realtime as realtime
     if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
     capture_mode=request.form.get('capture_mode')
-    if capture_mode not in (None,'hold-v1'):raise realtime.failure('realtime_chunk_invalid')
+    if capture_mode not in (None,'hold-v1','clauses-v1'):raise realtime.failure('realtime_chunk_invalid')
     chunk_transport=request.form.get('chunk_transport')
     if chunk_transport not in (None,'pcm-coalesce-v1'):raise realtime.failure('realtime_chunk_invalid')
-    relay=realtime.start(session['user_id'],ident,key,hold_to_talk=capture_mode=='hold-v1',coalesced=chunk_transport=='pcm-coalesce-v1')
+    relay=realtime.start(session['user_id'],ident,key,hold_to_talk=capture_mode=='hold-v1',coalesced=chunk_transport=='pcm-coalesce-v1',clauses=capture_mode=='clauses-v1')
     return {'status':'LISTENING','input_mode':'realtime-v1','max_chunk_bytes':relay.max_chunk_bytes},202,{'Cache-Control':'private, no-store'}
+
+
+@audio_bp.route('/live/sessions/<ident>/turns/<key>/clauses',methods=['GET','POST'])
+def live_clauses(ident,key):
+    from . import live_translator_clauses as clauses
+    if not re.fullmatch(r'live-[a-f0-9]{32}',key):abort(400)
+    stream=clauses.owned(session['user_id'],ident,key)
+    if request.method=='POST':
+        index=request.form.get('index','')
+        if not re.fullmatch(r'0|[1-9][0-9]{0,6}',index):abort(400)
+        stream.ack(int(index))
+    return stream.snapshot(),200,{'Cache-Control':'private, no-store'}
 
 
 @audio_bp.post('/live/sessions/<ident>/turns/<key>/input/chunks/<int:index>')
@@ -800,7 +812,7 @@ def live_translator_turn(ident,key):
         return {'status':state['status'],'stream_output':'sentences-v1',**progress},200,{'Cache-Control':'private, no-store'}
     if state['status']=='COMPLETED':
         from . import live_translator_output as temporary
-        owned_job=db.query_one("SELECT id FROM kilas_audio_jobs WHERE id=? AND user_id=? AND status='COMPLETED' AND content_origin='live_session'",(state['audio_job_id'],session['user_id']))
+        owned_job=db.query_one("SELECT id FROM kilas_audio_jobs WHERE id=? AND user_id=? AND (status='COMPLETED' OR (status='PROCESSING' AND substr(provider_id,1,11)='clauses-v1:')) AND content_origin='live_session'",(state['audio_job_id'],session['user_id']))
         if not owned_job:abort(404)
         job=temporary.get(session['user_id'],ident,key)
         if not job or job['job']!=owned_job['id'] or not job['raw']:
@@ -860,7 +872,7 @@ def live_translator_segment(ident,key,index):
 def live_translator_result(ident,key):
     from . import live_translator_store as sessions
     from . import live_translator_output as temporary
-    row=db.query_one("SELECT s.language_a,s.language_b,s.voice_alias,j.source_language AS actual_source,j.target_language AS actual_target,CASE WHEN t.status='COMPLETED' AND j.status='COMPLETED' AND j.content_origin='live_session' THEN j.id ELSE NULL END AS id FROM kilas_live_translator_sessions s LEFT JOIN kilas_live_translator_turns t ON t.session_id=s.id AND t.operation_key=? LEFT JOIN kilas_audio_jobs j ON j.id=t.audio_job_id AND j.user_id=s.user_id WHERE s.id=? AND s.user_id=? AND s.status='ACTIVE' AND (s.expires_at='' OR s.expires_at>?)",(key,ident,session['user_id'],usage._now().isoformat()))
+    row=db.query_one("SELECT s.language_a,s.language_b,s.voice_alias,j.source_language AS actual_source,j.target_language AS actual_target,CASE WHEN t.status='COMPLETED' AND (j.status='COMPLETED' OR (j.status='PROCESSING' AND substr(j.provider_id,1,11)='clauses-v1:')) AND j.content_origin='live_session' THEN j.id ELSE NULL END AS id FROM kilas_live_translator_sessions s LEFT JOIN kilas_live_translator_turns t ON t.session_id=s.id AND t.operation_key=? LEFT JOIN kilas_audio_jobs j ON j.id=t.audio_job_id AND j.user_id=s.user_id WHERE s.id=? AND s.user_id=? AND s.status='ACTIVE' AND (s.expires_at='' OR s.expires_at>?)",(key,ident,session['user_id'],usage._now().isoformat()))
     if not row:abort(404)
     sessions.require_pair(row['language_a'],row['language_b'],voice=row['voice_alias'])
     if row['id'] is None:abort(404)
