@@ -1,0 +1,2 @@
+{# Both restored and explicitly opened results act on the owned job snapshot. #}
+{% if job.mode=='voiceover' and job.has_edit_script %}<button type="button" class="btn secondary" data-audio-edit="{{ url_for('kilas_audio.script_for_edit',ident=job.id) }}">{{ ui_t("Edit naskah") }}</button>{% endif %}{% if job.mode=='voiceover' and job.has_spoken_script %}<button type="button" class="btn secondary" data-audio-alternate="{{ url_for('kilas_audio.alternate',ident=job.id) }}">{{ ui_t('Buat versi lain') }}</button>{% endif %}
