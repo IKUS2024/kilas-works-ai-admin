@@ -72,7 +72,8 @@
 {% from 'kilas_ai/_chat_icons.html' import chat_icon %}
 <div class="voice-script-workspace">
 {% set editor_script=initial_brief if home_task=='voiceover' and initial_brief is not none else content_draft.script if content_draft and not job else '' %}
-<div class="voice-script-label"><label for="audio-script">{{ ui_t("Naskah") }}</label><div class="voice-script-tools"><button type="button" class="btn secondary" id="voice-assist-copy" aria-label="{{ ui_t('Salin naskah') }}" title="{{ ui_t('Salin naskah') }}">{{ chat_icon('copy') }}</button></div></div><textarea id="audio-script" name="script" maxlength="4000" rows="7" required placeholder="{{ ui_t('Tulis apa yang ingin diucapkan...') }}" aria-describedby="voice-language-status">{{ ('\n' if editor_script.startswith('\n') else '') + editor_script }}</textarea>
+{# Native forms normalize newlines to CRLF; HTML strips the first textarea newline. #}
+<div class="voice-script-label"><label for="audio-script">{{ ui_t("Naskah") }}</label><div class="voice-script-tools"><button type="button" class="btn secondary" id="voice-assist-copy" aria-label="{{ ui_t('Salin naskah') }}" title="{{ ui_t('Salin naskah') }}">{{ chat_icon('copy') }}</button></div></div><textarea id="audio-script" name="script" maxlength="4000" rows="7" required placeholder="{{ ui_t('Tulis apa yang ingin diucapkan...') }}" aria-describedby="voice-language-status">{{ ('\n' if editor_script.startswith('\n') or editor_script.startswith('\r') else '') + editor_script }}</textarea>
 <p id="voice-script-duration" class="voice-script-duration" role="status"></p><p class="voice-duration-note">{{ ui_t('Perkiraan dari panjang naskah. Tempo, bahasa, dan jeda dapat mengubah durasi hasil.') }}</p>
 <p id="voice-language-status" role="status" hidden>{{ ui_t("Bahasa mengikuti naskah.") }}</p>
 {% include 'kilas_translator/_dictation.html' %}
