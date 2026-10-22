@@ -26,9 +26,10 @@
 <button type="submit" class="btn" data-enabled="{{ 'true' if live_ready and voices else 'false' }}" disabled aria-busy="true">Start</button></form></section>
 <section id="live-active" hidden aria-label="{{ ui_t('Sesi Translator') }}"><div class="live-call-body"><div class="kilas-live-orb" role="img" aria-label="{{ ui_t('Mendengarkan') }}" data-state="listening"></div><p id="live-state" role="status" aria-live="polite"></p><div id="live-history" class="live-history" role="log" aria-label="{{ ui_t('Percakapan') }}" aria-live="polite"></div><p id="live-translation" hidden data-legacy-result aria-label="{{ ui_t('Hasil terjemahan') }}" aria-live="polite"></p></div><div class="live-call-controls"><button type="button" id="live-hold" class="live-hold" data-recording-control="toggle-v1" aria-pressed="false" aria-label="{{ ui_t('Mulai Rekam') }}" disabled>Start</button><button type="button" id="live-resume" class="btn secondary" hidden>{{ ui_t("Lanjutkan") }}</button><button type="button" id="live-end" class="live-hangup" aria-label="End" title="End"><svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .41-.24.76-.58.92-.98.49-1.88 1.12-2.68 1.85-.18.18-.43.29-.71.29-.28 0-.53-.11-.71-.29L.29 13.16C.11 12.98 0 12.73 0 12.45c0-.28.11-.53.29-.71C3.34 8.89 7.46 7 12 7s8.66 1.89 11.71 4.74c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.43 2.43c-.18.18-.43.29-.71.29-.28 0-.53-.11-.71-.29-.8-.74-1.7-1.37-2.68-1.85-.34-.16-.58-.51-.58-.92v-3.1C15.15 9.25 13.6 9 12 9z"/></svg><span>End</span></button></div></section>
 <p id="live-error" role="alert" hidden></p>
+<p id="live-mode-note" class="live-session-status" hidden></p>
 <p id="live-session-status" class="live-session-status" role="status" aria-live="polite"></p>
 <button type="button" id="live-recovery-retry" class="btn secondary" hidden>{{ ui_t("Periksa sesi") }}</button>
 </section>
 </div>
-<script type="module" src="{{ url_for('static',filename='kilas_live_translator.mjs',v='pending-play-20261020') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_live_translator.mjs',v='conversation-20261022') }}"></script>
 {% endblock %}

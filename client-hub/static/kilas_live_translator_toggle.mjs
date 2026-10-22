@@ -5,12 +5,12 @@ import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 export function bindRecordToggle({button,session,window,document,now=()=>performance.now()}){
   const cleanup=[];let last=-Infinity;
   const on=(node,type,fn)=>{node.addEventListener(type,fn);cleanup.push(()=>node.removeEventListener?.(type,fn));};
-  const cancel=()=>{if(['opening','listening'].includes(session.state))session.release({cancel:true});};
+  const cancel=()=>{if(session.running||['opening','listening'].includes(session.state))session.release({cancel:true});};
   on(button,'click',event=>{
     event.preventDefault();
     if(button.disabled||event.detail>1||now()-last<300)return;
     if(session.state==='ready'){last=now();session.press();}
-    else if(['opening','listening'].includes(session.state)){last=now();session.release();}
+    else if(session.running||['opening','listening'].includes(session.state)){last=now();session.release();}
   });
   on(button,'keydown',event=>{if(event.repeat&&[' ','Enter'].includes(event.key))event.preventDefault();});
   on(button,'contextmenu',event=>event.preventDefault());

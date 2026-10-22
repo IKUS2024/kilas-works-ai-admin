@@ -22,6 +22,28 @@ class ToggleBrowserTests(unittest.TestCase):
  output_transport=fixture.HoldBrowserTests.output_transport
  wait=fixture.HoldBrowserTests.wait
  actual_browser=fixture.HoldBrowserTests.actual_browser
+ def test_continuous_silence_turns_stream_and_stop_during_audio_prevents_recapture(self):
+  self.credit(300);sources=iter(['Saya mau dua tiket.','Please wait here.']);targets=['I want two tickets.','Tolong tunggu di sini.'];direction={'n':0}
+  with self.context(realtime_on=True),patch.object(realtime,'connect',side_effect=lambda *a:browser.AutomaticSocket(next(sources))) as connect,patch.object(segments.transport,'request',side_effect=lambda *a,**k:self.output_transport()) as speech,self.actual_browser() as (page,requests,errors):
+   def translate(*a,**k):
+    n=direction['n'];direction['n']+=1
+    yield {'type':'delta','text':json.dumps({'text':targets[n],'source_language':'id' if n==0 else 'en','target_language':'en' if n==0 else 'id'})};yield {'type':'usage','input_tokens':90,'output_tokens':30};yield {'type':'finish','reason':'stop'}
+   self.translation_mock.side_effect=translate
+   page.locator('[name=consent]').check();page.get_by_role('button',name='Start',exact=True).click();fixture.record(page)
+   button=page.locator('#live-hold')
+   for n in range(2):
+    page.evaluate('qa.rms=.2');page.wait_for_timeout(400);page.evaluate('qa.rms=0')
+    page.wait_for_function('qa.plays==='+str(n+1),timeout=10000)
+    self.assertEqual(page.evaluate('qa.mics'),0);self.assertEqual(button.inner_text(),'Stop');self.assertFalse(button.is_disabled())
+    if n==1:button.click()
+    page.evaluate('qaFinishAudio()')
+    if n==0:page.wait_for_function("document.querySelector('.kilas-live-orb').dataset.state==='listening'")
+   page.wait_for_function("document.querySelector('.kilas-live-orb').dataset.state==='ready'")
+   self.assertEqual(page.evaluate('qa.starts'),2);self.assertEqual(page.evaluate('qa.mics'),0)
+   self.assertEqual(connect.call_count,2);self.assertEqual(speech.call_count,2);self.batch_mock.assert_not_called()
+   self.assertEqual([page.locator('.live-message-translated').nth(n).inner_text() for n in range(2)],targets)
+   self.assertEqual(len([p for m,p in requests if p.endswith('/input/commit')]),2)
+   page.locator('#live-end').click();self.assertFalse(errors,errors)
  def test_initial_start_records_and_double_clicks_cannot_duplicate_bidirectional_turns(self):
   self.credit(300);directions={'n':0};sources=iter(['Saya mau dua tiket.','Do not buy the red bag.']);targets=['I want two tickets.','Jangan beli tas merah itu.']
   with self.context(realtime_on=True),patch.object(browser,'MEDIA',browser.MEDIA+GESTURE),patch.object(realtime,'connect',side_effect=lambda *a:browser.AutomaticSocket(next(sources))) as connect,patch.object(segments.transport,'request',side_effect=lambda *a,**k:self.output_transport()) as speech,self.actual_browser() as (page,requests,errors):

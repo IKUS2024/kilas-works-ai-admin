@@ -16,7 +16,8 @@ export class SilenceGate {
 }
 
 export class TranslatorSession {
-  constructor({api,capture,playback,pushToTalk=false,recordOnStart=false,onState=()=>{},onResult=()=>{},onError=()=>{},onTiming=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-',''),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
+  constructor({api,capture,playback,pushToTalk=false,recordOnStart=false,continuous=false,onState=()=>{},onResult=()=>{},onError=()=>{},onTiming=()=>{},now=()=>performance.now(),key=()=>crypto.randomUUID().replaceAll('-',''),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
+    this.continuous=continuous;this.running=false;this.runTurns=0;this.runStarted=0;
     Object.assign(this,{api,capture,playback,pushToTalk,recordOnStart,onState,onResult,onError,onTiming,now,key,schedule,clear});this.version=0;this.captureVersion=0;this.state='ended';this.id=null;this.pendingKey=null;this.gate=new SilenceGate();this.suspended=false;
   }
   stateTo(state){this.state=state;this.onState(state);}
@@ -56,7 +57,7 @@ export class TranslatorSession {
       if(ticket!==this.version){await this.endAdmitted(result);return;}
       if(typeof result?.session_id!=='string'||!(/^[a-f0-9]{48}$/).test(result.session_id))throw Object.assign(Error(t('Layanan tidak mengembalikan sesi yang valid. Periksa sesi sebelum memulai kembali.')),{code:'session_response_invalid',startupStage:'session_admission'});
       this.id=result.session_id;this.inputMode=result.input_mode==='realtime-v1'?'realtime-v1':'batch';if(this.suspended){this.pause(Error(t('Sesi dijeda saat halaman ditinggalkan. Tekan Lanjutkan.')));return;}
-      if(this.pushToTalk&&this.recordOnStart){this.held=true;this.hadVoice=false;this.releasedAt=null;}
+      if(this.pushToTalk&&this.recordOnStart){this.beginRun();this.held=true;this.hadVoice=false;this.releasedAt=null;}
       await this.listen(ticket,this.pushToTalk&&this.recordOnStart);
     }catch(e){if(ticket===this.version){
       // Stop during the initial permission request intentionally returned ready.
@@ -66,6 +67,8 @@ export class TranslatorSession {
   }
   async listen(ticket,held=false){
     if(ticket!==this.version)return;
+    if(this.running&&(this.runTurns>=20||this.now()-this.runStarted>=600000))this.running=false;
+    if(this.running){held=true;this.held=true;this.hadVoice=false;this.releasedAt=null;}
     if(this.pushToTalk&&!held){this.held=false;this.stateTo('ready');return;}
     const cycle=++this.captureVersion,current=()=>ticket===this.version&&cycle===this.captureVersion;
     this.gate.reset();this.stateTo('opening');
@@ -74,7 +77,17 @@ export class TranslatorSession {
     await this.startup(ticket,'microphone_start',()=>this.capture.start({
       inputMode:this.inputMode,
       ready:()=>{if(current()&&this.state==='opening'){this.timing({capture_ready_ms:Math.max(0,this.now()-captureBegan)});this.stateTo('listening');if(this.pushToTalk)this.holdTimer=this.schedule(()=>this.release(),175000);}},
-      level:rms=>{if(this.pushToTalk){if(current()&&rms>=this.gate.threshold){this.hadVoice=true;this.gate.lastVoice=this.now();}return;}if(current()&&this.state==='listening'&&this.gate.sample(rms,this.now())){this.stateTo('finalizing');this.capture.finalize();}},
+      level:rms=>{
+        if(!current()||this.state!=='listening')return;
+        if(this.running){
+          if(this.now()-this.runStarted>=600000){this.release();return;}
+          if(rms>=this.gate.threshold)this.hadVoice=true;
+          if(this.gate.sample(rms,this.now()))this.release({automatic:true});
+          return;
+        }
+        if(this.pushToTalk){if(rms>=this.gate.threshold){this.hadVoice=true;this.gate.lastVoice=this.now();}return;}
+        if(this.gate.sample(rms,this.now())){this.stateTo('finalizing');this.capture.finalize();}
+      },
       pcm:bytes=>{
         if(!current()||this.inputMode!=='realtime-v1'||!['listening','finalizing'].includes(this.state))return;
         if(!this.pendingKey)this.pendingKey='live-'+this.key();
@@ -88,11 +101,21 @@ export class TranslatorSession {
   }
   async press(){
     if(!this.pushToTalk||this.state!=='ready'||!this.id)return;
+    this.beginRun();
     const ticket=this.version;this.held=true;this.hadVoice=false;this.releasedAt=null;this.pendingPlayback=null;
     try{await this.listen(ticket,true);}
     catch(error){if(ticket===this.version&&this.held)this.pause(error);}
   }
-  release({cancel=false}={}){
+  beginRun(){
+    // Batch fallback retains explicit recording. Never describe it as streaming.
+    this.running=this.continuous&&this.inputMode==='realtime-v1';
+    this.runTurns=0;this.runStarted=this.now();
+    this.gate.silenceMs=this.running?1200:2000;
+  }
+  release({cancel=false,automatic=false}={}){
+    if(!automatic)this.running=false;
+    // Stop during processing/playback drains the admitted turn, then stays ready.
+    if(!this.held){if(!automatic)this.stateTo(this.state);return;}
     if(!this.pushToTalk||!this.held)return;
     this.held=false;this.clear(this.holdTimer);this.holdTimer=null;
     if(this.state==='opening'||cancel||(!this.hadVoice&&!this.pendingKey)){
@@ -101,7 +124,7 @@ export class TranslatorSession {
       else this.stateTo('ready');
       return;
     }
-    if(this.state==='listening'){this.releasedAt=this.now();this.stateTo('finalizing');this.capture.finalize();}
+    if(this.state==='listening'){this.runTurns++;this.releasedAt=this.now();this.stateTo('finalizing');this.capture.finalize();}
   }
   async utterance(blob,ticket){
     if(ticket!==this.version||this.state!=='finalizing')return;
@@ -185,6 +208,8 @@ export class TranslatorSession {
   }
   async recover(error,ticket){
     if(ticket!==this.version)return;
+    // Require another intentional Start after a failed turn; never paid retry loops.
+    this.running=false;
     // Recovery owns this cycle before awaiting verification; duplicate errors
     // from the cancelled capture cannot pause or start a second recovery.
     ++this.captureVersion;
@@ -208,6 +233,7 @@ export class TranslatorSession {
     finally{if(ticket===this.version&&this.state==='replaying')this.stateTo('ready');}
   }
   pause(error){
+    this.running=false;
     if(!this.id){this.suspended=true;return;}
     this.held=false;this.clear(this.holdTimer);this.holdTimer=null;++this.version;++this.captureVersion;this.controller?.abort();this.pauseReason=error;this.resumeOutput=Boolean(this.pushToTalk&&error?.code==='visibility_suspend'&&this.outputPending&&this.pendingKey);
     try{this.capture.cancel();}catch{}try{this.playback.cancel?.();}catch{}
@@ -239,6 +265,7 @@ export class TranslatorSession {
     }catch(e){if(ticket===this.version)this.pause(e);}
   }
   end(){
+    this.running=false;
     const id=this.id;this.held=false;this.clear(this.holdTimer);this.holdTimer=null;this.id=null;this.params=null;this.pendingKey=null;this.pendingPlayback=null;this.outputPending=false;this.resumeOutput=false;++this.version;this.controller?.abort();
     // A detached recorder/context can throw while stopping. Continue every cleanup
     // and owner End independently so a device error cannot trap the active UI.
