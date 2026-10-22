@@ -15,7 +15,7 @@ Authorized scope: Library, Home starters, explicit Chat → Voice Over drafts, V
 
 All providers mocked; local browser external traffic blocked. Windows QA uses real Flask, SQLite, media processing and Chromium, UTF-8 mode, and a test-only import shim that rejects unrelated Linux sandbox execution.
 
-- New task/asset suite: 5 tests pass, covering owner isolation, foreign media denial, literal search, pagination beyond the old visible limit, no record duplication/deletion, exact draft/CSRF/no-provider behavior, latest result isolation and four app languages.
+- New task/asset suite: 6 tests pass, covering owner isolation, foreign media denial, literal search, pagination beyond the old visible limit, legacy plain/malformed artifact metadata, no record duplication/deletion, exact draft/CSRF/no-provider behavior, latest result isolation and four app languages.
 - Audio: 52 pass; audio history: 4 pass; saved voices: 19 pass; audio video-script: 23 pass; exact spoken edit: 4 pass; selected Chat models: 20 pass; UI localization: 14 pass.
 - Node dictation/recording/navigation/localization: 21 pass. New JavaScript syntax checks pass.
 - New Chromium task paths pass at 320, 390, 820 and 1440px: starters retain an existing draft, synthetic chat, exact/selected-text VO handoff, return/back/forward, voice choice, duration display, Library filter/back and failed-preview fallback, disabled payments, editable WhatsApp message. No audio-generation request is made. Batched visual review and a bounded correction pass cover long names and a compact latest-result panel.
@@ -30,3 +30,5 @@ No paid AI generation, real WhatsApp send, payment, credentials, production data
 Deployment is not established by this document or by a push. Record the exact published commit, Render deploy ID/terminal live status, authenticated affected-page checks and any remaining CI limitations in the final release evidence.
 
 Initial Linux gate on `1d77f55e` caught a stale bundle manifest caused by Windows CRLF hashes versus Git's normalized LF blobs. Scoped `.gitattributes` now fixes LF for the Creative source/bundle; hashes are regenerated and checked against the exact staged Git blobs, including unchanged fonts/images. No production deploy preceded this correction.
+
+Production smoke on `28fb241d` found legacy work metadata containing plain Markdown; PostgreSQL's JSON cast rejected it. The Library query now validates the JSON object before reading its input marker, tolerates legacy plain/malformed metadata without writing source records, and opens the binary via the original owner-scoped file endpoint. A new native PostgreSQL 18 gate uses a disposable loopback schema with these legacy cases, hidden inputs, foreign records, the actual union projection, and literal search. This correction requires its own green gate and verified follow-up deployment; the first live status alone was not completion.

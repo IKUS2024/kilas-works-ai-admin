@@ -7,6 +7,26 @@ on:
 permissions:
   contents: read
 jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:18
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: library_qa}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - name: Native legacy metadata and account-isolation projection
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/library_qa
+          KILAS_LIBRARY_POSTGRES_QA: '1'
+        run: python client-hub/tests/test_kilas_library_postgres.py
   nonpaid:
     runs-on: ubuntu-latest
     timeout-minutes: 15

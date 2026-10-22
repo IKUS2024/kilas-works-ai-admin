@@ -21,6 +21,29 @@ class ExperienceTests(unittest.TestCase):
     setUp=home.HomeTests.setUp
     client=home.HomeTests.client
 
+    def test_legacy_plain_artifact_metadata_preserves_downloads_and_input_privacy(self):
+        from kilas_ai import autonomous_store
+        for owner in (self.owner,self.other):
+            job=autonomous_store.create(owner,'Legacy files')
+            db.execute("INSERT INTO kilas_agent_steps(job_id,sequence,worker,action,instruction,idempotency_key) VALUES (?,1,'FILE','create','Legacy',?)",(job,'legacy-'+str(job)))
+            step=db.query_one('SELECT id FROM kilas_agent_steps WHERE job_id=?',(job,))['id']
+            for number,content in enumerate(('# Legacy markdown','{broken JSON','{"input":true}','{"input":false}')):
+                name=f'legacy-{owner}-{number}.txt'
+                db.execute("INSERT INTO kilas_agent_artifacts(job_id,step_id,name,media_type,content,digest) VALUES (?,?,?,'text/plain',?,?)",(job,step,name,content,name))
+                ident=db.query_one('SELECT id FROM kilas_agent_artifacts WHERE name=?',(name,))['id']
+                db.execute('INSERT INTO kilas_agent_artifact_files(artifact_id,content,byte_size) VALUES (?,?,3)',(ident,b'old'))
+        html=self.client().get('/kilas-ai/library').text
+        for number in (0,1,3):self.assertIn(f'legacy-{self.owner}-{number}.txt',html)
+        self.assertNotIn(f'legacy-{self.owner}-2.txt',html)
+        self.assertNotIn(f'legacy-{self.other}-',html)
+        with home.fixture.base.f.fixture.app.app.test_request_context('/kilas-ai/library'):
+            from kilas_ai.library import collection
+            data=collection(self.owner,True)
+        self.assertEqual(data['total'],3)
+        for item in data['assets']:
+            self.assertEqual(self.client().get(item['open']).data,b'old')
+            self.assertEqual(self.client(self.other).get(item['download']).status_code,404)
+
     def attachment(self,owner,name='1729999999.jpg',date='2026-10-22T00:00:00+00:00'):
         thread=store.create_thread(owner);store.rename_thread(owner,thread,'Product catalogue')
         db.execute('INSERT INTO kilas_ai_attachments(user_id,thread_id,filename,mime_type,byte_size,content,created_at) VALUES (?,?,?,?,?,?,?)',(owner,thread,name,'image/jpeg',3,b'bad',date))

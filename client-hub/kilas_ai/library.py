@@ -9,6 +9,13 @@ from . import audio_store
 KINDS={'all':'Semua aset','image':'Gambar','document':'Dokumen','audio':'Audio','video':'Rencana video','other':'File lainnya'}
 
 
+def output_filter():
+    # Legacy artifact metadata may be plain Markdown. Never cast it blindly.
+    if db.BACKEND=='postgres':
+        return "(CASE WHEN a.content IS JSON OBJECT THEN CAST(a.content AS JSONB)->>'input' ELSE NULL END) IS DISTINCT FROM 'true'"
+    return "COALESCE(CASE WHEN json_valid(a.content) THEN json_extract(a.content,'$.input') ELSE NULL END,0)!=1"
+
+
 def collection(owner, automation):
     kind=request.args.get('type','all');search=request.args.get('q','')[:200].strip()
     try:page=max(1,int(request.args.get('page','1')))
@@ -29,7 +36,7 @@ def collection(owner, automation):
           CASE WHEN substr(a.media_type,1,6)='image/' THEN 'image' WHEN a.media_type IN ('application/zip','application/octet-stream','text/html') THEN 'other' ELSE 'document' END
           FROM kilas_agent_artifacts a JOIN kilas_agent_jobs j ON j.id=a.job_id
           JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE j.user_id=? AND a.name!='_workspace.json'
-          AND """+("(CAST(a.content AS JSONB)->>'input') IS DISTINCT FROM 'true'" if db.BACKEND=='postgres' else "COALESCE(json_extract(a.content,'$.input'),0)!=1"))
+          AND """+output_filter())
         params.append(owner)
     query=' FROM ('+' UNION ALL '.join(parts)+') assets WHERE 1=1'
     if kind!='all':query+=' AND kind=?';params.append(kind)
@@ -55,7 +62,7 @@ def collection(owner, automation):
             if item['status']=='COMPLETED':item['download']=url_for('kilas_audio.result',ident=item['id'],download=1)
         elif item['origin']=='plan':item['open']=url_for('kilas_ai.video_project',project=item['id'])
         else:
-            item['open']=url_for('kilas_ai.autonomous_detail',job_id=item['parent'])
+            item['open']=url_for('kilas_ai.autonomous_artifact',job_id=item['parent'],artifact_id=item['id'])
             item['download']=url_for('kilas_ai.autonomous_artifact',job_id=item['parent'],artifact_id=item['id'],download=1)
         assets.append(item)
     return dict(assets=assets,total=total,page=page,pages=pages,search=search,kind=kind,kinds=KINDS)
