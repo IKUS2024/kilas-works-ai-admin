@@ -34,11 +34,9 @@ def main():
                 page.on('request',lambda r:writes.append(r.url) if r.method=='POST' else None)
                 page.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
                 page.goto(origin+'/products/start',wait_until='networkidle')
-                expect(page.locator('.home-starters')).to_be_visible();assert page.locator('.home-starters button,.home-starters a').count()==3
-                assert page.locator('.home-starters').evaluate('(e)=>e.getBoundingClientRect().bottom<=innerHeight'),width
+                expect(page.locator('.home-starters,[data-home-starter]')).to_have_count(0)
+                expect(page.locator('.kilas-new-chat-logo')).to_be_visible()
                 page.screenshot(path=str(output/f'home-{width}.png'),full_page=True)
-                page.locator('[data-home-starter]').first.click();expect(page.locator('#ai-input')).not_to_be_empty();assert not writes
-                draft=page.locator('#ai-input').input_value();page.locator('[data-home-starter]').nth(1).click();expect(page.locator('#ai-input')).to_have_value(draft)
                 page.locator('#ai-input').fill('Tulis naskah promosi sintetis.');page.locator('#ai-send').click()
                 expect(page.locator('.chat-voice-draft')).to_be_visible();thread_url=page.url
                 page.locator('.chat-voice-draft').click();page.wait_for_load_state('networkidle')

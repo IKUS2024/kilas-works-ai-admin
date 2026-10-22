@@ -26,33 +26,19 @@ def main():
                 page.on('pageerror',lambda e:errors.append(str(e)));page.on('request',lambda r:writes.append(r.url) if r.method=='POST' else None)
                 page.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
                 page.goto(origin+'/products/start',wait_until='networkidle')
-                expect(page.locator('.home-starters')).to_be_visible()
-                geometry=page.evaluate('''()=>{const r=s=>document.querySelector(s).getBoundingClientRect();return {width:innerWidth,heroTop:r('.ai-empty').top,starterToTools:r('.home-tool-selector').top-r('.home-starters').bottom,composerBottom:r('#ai-composer').bottom,overflow:document.documentElement.scrollWidth>innerWidth,starterSizes:[...document.querySelectorAll('.home-starters button')].map(e=>({width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height}))}}''')
-                page.screenshot(path=str(output/f'{phase}-home-{width}.png'),full_page=True)
-                if phase=='before':report['viewports'].append(geometry);context.close();continue
-                assert page.locator('.home-starters button').count()==3 and page.locator('.home-starters a').count()==0
+                expect(page.locator('.home-starters,[data-home-starter]')).to_have_count(0)
+                expect(page.locator('.kilas-new-chat-logo')).to_be_visible()
+                expect(page.locator('.ai-empty h1')).to_be_visible()
                 expect(page.locator('[data-home-task=voiceover]')).to_be_visible()
-                assert not geometry['overflow'],(width,geometry)
-                assert max(x['width'] for x in geometry['starterSizes'])-min(x['width'] for x in geometry['starterSizes'])<2
-                assert max(x['height'] for x in geometry['starterSizes'])-min(x['height'] for x in geometry['starterSizes'])<2
-                assert geometry['composerBottom']<=height,(width,geometry)
-                assert height-geometry['composerBottom']<60,(width,geometry)
-                buttons=page.locator('[data-home-starter]');field=page.locator('#ai-input');notice=page.locator('#ai-notice')
-                buttons.first.click();draft=field.input_value();buttons.first.dblclick();expect(field).to_have_value(draft);expect(notice).to_be_empty()
-                field.fill('Synthetic genuine unsent draft');buttons.nth(1).click();expect(field).to_have_value('Synthetic genuine unsent draft');expect(notice).to_contain_text('Your draft is preserved')
-                field.fill('');expect(field).to_have_value('');expect(notice).to_be_empty();assert field.evaluate('e=>e.matches(":placeholder-shown")')
-                buttons.nth(1).click();expect(notice).to_be_empty();expect(field).not_to_be_empty()
-                # Preserve attachment selection while guarding real text and when populating an empty draft.
+                geometry=page.evaluate("()=>({width:innerWidth,composerBottom:document.querySelector('#ai-composer').getBoundingClientRect().bottom,overflow:document.documentElement.scrollWidth>innerWidth})")
+                page.screenshot(path=str(output/f'{phase}-home-{width}.png'),full_page=True)
+                assert not geometry['overflow'] and 0<=height-geometry['composerBottom']<60,(width,geometry)
+                field=page.locator('#ai-input');notice=page.locator('#ai-notice')
+                field.fill('Synthetic genuine unsent draft');field.blur();expect(field).to_have_value('Synthetic genuine unsent draft');expect(notice).to_be_empty()
                 page.locator('#ai-files').set_input_files({'name':'synthetic-draft.txt','mimeType':'text/plain','buffer':b'synthetic'})
                 expect(page.locator('#ai-pending .ai-pending-item')).to_have_count(1)
-                field.fill('Genuine text with a pending attachment');buttons.first.click();expect(field).to_have_value('Genuine text with a pending attachment');expect(page.locator('#ai-pending .ai-pending-item')).to_have_count(1)
-                field.fill('');buttons.first.click();expect(notice).to_be_empty();expect(page.locator('#ai-pending .ai-pending-item')).to_have_count(1)
-                page.locator('#ai-pending button').click();field.fill('')
-                # Clearing an owned starter notice must not clear an unrelated upload/model error.
-                field.fill('Genuine draft');buttons.nth(1).click();page.evaluate("document.querySelector('#ai-notice').textContent='Synthetic attachment error'")
-                field.fill('');expect(notice).to_have_text('Synthetic attachment error')
-                page.reload(wait_until='networkidle');field=page.locator('#ai-input');expect(notice).to_be_empty()
-                page.evaluate("document.dispatchEvent(new Event('kilas:request-started'))");buttons.first.click();expect(field).to_be_empty();page.evaluate("document.dispatchEvent(new Event('kilas:request-finished'))")
+                field.fill('');expect(page.locator('#ai-pending .ai-pending-item')).to_have_count(1)
+                page.locator('#ai-pending button').click();expect(notice).to_be_empty()
                 trigger=page.locator('[data-model-kind=chat] .chat-model-trigger');trigger.click();expect(page.locator('#chat-model-dialog')).to_be_visible();page.keyboard.press('Escape')
                 expect(page.locator('#chat-model-dialog')).not_to_be_visible()
                 if width<=412:
@@ -66,7 +52,7 @@ def main():
                     page.screenshot(path=str(output/f'{phase}-keyboard-{width}.png'),full_page=True)
                     page.set_viewport_size({'width':width,'height':height});field.blur()
                 page.goto(origin+'/kilas-ai/library',wait_until='networkidle');page.go_back(wait_until='networkidle')
-                expect(page.locator('.home-starters button')).to_have_count(3);expect(notice).to_be_empty()
+                expect(page.locator('.home-starters,[data-home-starter]')).to_have_count(0);expect(notice).to_be_empty()
                 page.set_viewport_size({'width':width,'height':460})
                 page.wait_for_function("Math.abs(parseFloat(document.documentElement.style.getPropertyValue('--home-viewport-height'))-innerHeight)<2")
                 assert page.locator('#ai-composer').evaluate('e=>0<=innerHeight-e.getBoundingClientRect().bottom&&innerHeight-e.getBoundingClientRect().bottom<60'),width
@@ -95,14 +81,14 @@ def main():
                     keyboard_page.add_init_script("""(()=>{const v=new EventTarget();v.height=innerHeight;v.offsetTop=0;Object.defineProperty(window,'visualViewport',{value:v});window.qaViewport=(height,offsetTop=0)=>{v.height=height;v.offsetTop=offsetTop;v.dispatchEvent(new Event('resize'))}})()""")
                     keyboard_page.goto(origin+'/products/start',wait_until='networkidle')
                     keyboard_page.locator('#ai-input').fill('Synthetic retained keyboard draft')
-                    appearance="""()=>({font:getComputedStyle(document.querySelector('.ai-empty h1')).fontSize,logo:getComputedStyle(document.querySelector('.kilas-new-chat-logo')).display,logoWidth:getComputedStyle(document.querySelector('.kilas-new-chat-logo')).width,starters:getComputedStyle(document.querySelector('.home-starters')).display,tabs:[...document.querySelectorAll('.home-task-choices>*')].map(e=>({width:e.getBoundingClientRect().width,font:getComputedStyle(e).fontSize,padding:getComputedStyle(e).padding}))})"""
+                    appearance="""()=>({font:getComputedStyle(document.querySelector('.ai-empty h1')).fontSize,logo:getComputedStyle(document.querySelector('.kilas-new-chat-logo')).display,logoWidth:getComputedStyle(document.querySelector('.kilas-new-chat-logo')).width,starterCount:document.querySelectorAll('.home-starters,[data-home-starter]').length,tabs:[...document.querySelectorAll('.home-task-choices>*')].map(e=>({width:e.getBoundingClientRect().width,font:getComputedStyle(e).fontSize,padding:getComputedStyle(e).padding}))})"""
                     closed=keyboard_page.evaluate(appearance)
                     for _ in range(2):
                         keyboard_page.locator('#ai-input').focus();keyboard_page.evaluate('qaViewport(380,48)')
                         expect(keyboard_page.locator('body')).to_have_class(__import__('re').compile('home-keyboard-open'))
                         assert keyboard_page.evaluate(appearance)==closed,width
                         bounds=keyboard_page.evaluate("()=>{const e=document.querySelector('.ai-empty'),r=document.querySelector('#ai-composer').getBoundingClientRect();e.scrollTop=e.scrollHeight;return {bottom:r.bottom,top:r.top,scrollable:e.scrollHeight>e.clientHeight,scrolled:e.scrollTop>0}}")
-                        assert bounds['bottom']<=428 and bounds['top']>=48 and bounds['scrollable'] and bounds['scrolled'],(width,bounds)
+                        assert bounds['bottom']<=428 and bounds['top']>=48 ,(width,bounds)
                         expect(keyboard_page.locator('#ai-input')).to_have_value('Synthetic retained keyboard draft')
                         keyboard_page.screenshot(path=str(output/f'{phase}-visual-keyboard-{width}.png'),full_page=True)
                         keyboard_page.locator('#ai-input').blur();keyboard_page.evaluate(f'qaViewport({height})')

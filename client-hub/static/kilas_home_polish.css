@@ -36,3 +36,5 @@ body.home-keyboard-open.kilas-light .home-polish .kilas-home-workspace .ai-empty
 body.home-keyboard-open.kilas-light .home-polish .kilas-home-workspace .home-tool-selector{margin:0 auto 8px}
 body.home-keyboard-open .home-polish .kilas-home-workspace .ai-hint:not([hidden]){display:block}
 @media(max-width:760px){body.home-keyboard-open.kilas-light .home-polish .kilas-home-workspace .ai-empty>.kilas-new-chat-logo{width:56px;height:56px}}
+/* Keep the logo and greeting centered after removing the example cards. */
+body.kilas-light .home-polish .kilas-home-workspace .ai-empty h1:last-child{margin-bottom:auto}

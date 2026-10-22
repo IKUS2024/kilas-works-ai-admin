@@ -9,7 +9,7 @@
   <main class="ai-main {{ 'is-empty' if not messages|default([]) else '' }}">
     {% include 'kilas_content/_handoff.html' %}
     {% if home_agent|default(false) %}{% include 'kilas_ai/_agent_home_chat.html' %}{% else %}
-    <header class="ai-empty" {% if messages|default([]) %}hidden{% endif %}><img class="kilas-new-chat-logo" src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="1254" height="1254" alt="Kilas" loading="eager" fetchpriority="high" decoding="async"><h1>{{ ui_t('How can I Help you?') }}</h1>{% include 'kilas_ai/_starters.html' %}</header>
+    <header class="ai-empty" {% if messages|default([]) %}hidden{% endif %}><img class="kilas-new-chat-logo" src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="1254" height="1254" alt="Kilas" loading="eager" fetchpriority="high" decoding="async"><h1>{{ ui_t('How can I Help you?') }}</h1></header>
     <section class="home-task-context" id="home-task-context" aria-live="polite" hidden><h2 data-home-context-title></h2><p data-home-context-description hidden></p><button type="button" data-home-cancel>{{ ui_t('Kembali ke chat') }}</button></section>
     <div class="ai-messages" id="ai-messages" aria-live="polite" {% if not messages|default([]) %}hidden{% endif %}>{% include 'kilas_ai/_thread_messages.html' %}</div>
     {% include 'kilas_ai/_home_task_selector.html' %}

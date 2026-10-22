@@ -107,7 +107,7 @@ class ExperienceTests(unittest.TestCase):
     def test_starters_follow_ui_language_without_changing_models(self):
         for language,label in [('id','Naskah promosi'),('en','Promotional script'),('es','Guion promocional'),('zh','推广文案')]:
             client=self.client();client.set_cookie('kilas_language',language);html=client.get('/products/start').text
-            self.assertIn('home-starters',html);self.assertIn(label,html);self.assertIn('data-chat-model',html)
+            self.assertNotIn('data-home-starter=',html);self.assertNotIn('class="home-starters"',html);self.assertIn('data-chat-model',html);self.assertIn('kilas-new-chat-logo',html)
 
 
 if __name__=='__main__':unittest.main()
