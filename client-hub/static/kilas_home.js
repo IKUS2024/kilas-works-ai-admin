@@ -10,6 +10,7 @@
     const follow=following();
     const height=viewport?viewport.height:window.innerHeight;
     const scale=viewport?.scale||1;
+    document.body.classList.toggle('home-viewport-zoomed',scale>1.01);
     tallestHeight=Math.max(tallestHeight,window.innerHeight);
     const editing=document.activeElement?.matches?.('#ai-input,#agent-message');
     document.documentElement.style.setProperty('--home-viewport-height',`${height}px`);

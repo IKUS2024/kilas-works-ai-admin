@@ -45,6 +45,12 @@ def main():
      if width in (390,1440):
       for scale in (2,3):
        cdp.send('Emulation.setPageScaleFactor',{'pageScaleFactor':scale});check('pinch-'+str(scale))
+      if width==390:
+       cdp.send('Emulation.setPageScaleFactor',{'pageScaleFactor':2})
+       for trigger in page.locator('.chat-model-trigger').all():
+        trigger.click();dialog=page.locator('dialog[open]');dialog.wait_for()
+        assert dialog.evaluate('(e)=>{const r=e.getBoundingClientRect(),v=visualViewport;return r.left>=v.offsetLeft && r.right<=v.offsetLeft+v.width && r.top>=v.offsetTop && r.bottom<=v.offsetTop+v.height}'),'model dialog outside pinch viewport'
+        dialog.locator('[data-model-close]').click()
       cdp.send('Emulation.setPageScaleFactor',{'pageScaleFactor':1})
       # Native visual viewport APIs cannot open a physical OS keyboard in
       # headless Chromium. Feed its documented geometry, including zoom/pan.

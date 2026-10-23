@@ -4,6 +4,7 @@
 .kilas-light .kilas-home-workspace.ai-shell .ai-main{overflow:visible}
 .kilas-light .home-polish .kilas-home-workspace.ai-shell .ai-main.is-empty{overflow:visible}
 body:has(.kilas-home-workspace)>.premium-mobile-header .premium-brand{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+body.home-viewport-zoomed .kilas-home-workspace :is(#chat-model-dialog,#image-model-dialog){left:calc(var(--home-viewport-left,0px) + 8px)!important;top:calc(var(--home-viewport-top,0px) + 8px)!important;transform:none!important;width:min(360px,calc(var(--home-viewport-width,100vw) - 16px));max-height:min(680px,calc(var(--home-viewport-height,100dvh) - 16px))}
 /* Use the actual visible Chat width: media queries still see the wider layout
    viewport during pinch zoom. Keep full-size touch targets and accessible zoom. */
 
