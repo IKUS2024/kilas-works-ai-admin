@@ -12,6 +12,7 @@ import db
 from . import ai_call_budget as budget, live_gemini as wire, live_translator_output as storage
 from . import ai_call_public_search as public_search
 from .ai_call_timing import TurnTiming
+from . import ai_call_settings as preferences
 
 _lock=Lock()
 _calls={}
@@ -35,7 +36,7 @@ def ready(owner):
                 and os.environ.get('GEMINI_API_KEY','').strip())
 
 
-def setup(handle=None):
+def setup(handle=None,settings=None):
     # Separate conversational session; public lookup never imports chat history.
     value = {'setup':{'model':'models/'+budget.MODEL,
         'systemInstruction':{'parts':[{'text':
@@ -62,7 +63,7 @@ def setup(handle=None):
             'After a lookup failure, stay with the person\'s problem: explain the specific limitation once, then help with known constraints, '
             'clearly stated assumptions, practical alternatives or a useful next step. '
             'Do not make repeated apologies or a website referral the entire answer to a request for help. '
-            'Do not claim to perform external actions or to have current information you lack.'}]},
+            'Do not claim to perform external actions or to have current information you lack.' + preferences.instructions(settings)}]},
         'generationConfig':{'responseModalities':['AUDIO'],'maxOutputTokens':1024,
             'speechConfig':{'voiceConfig':{'prebuiltVoiceConfig':{'voiceName':'Kore'}}}},
         'realtimeInputConfig':{'activityHandling':'NO_INTERRUPTION','automaticActivityDetection':{'disabled':False,
@@ -71,13 +72,19 @@ def setup(handle=None):
         'inputAudioTranscription':{},'outputAudioTranscription':{},
         'contextWindowCompression':{'triggerTokens':12000,'slidingWindow':{'targetTokens':6000}},
         'sessionResumption':{'handle':handle} if handle else {}}}
+    if preferences.validate(settings)['mode']=='learning':
+        prompt=value['setup']['systemInstruction']['parts'][0]['text']
+        begin=prompt.index('Begin in the language')
+        end=prompt.index('Match answer depth')
+        value['setup']['systemInstruction']['parts'][0]['text']=prompt[:begin]+prompt[end:]
     if public_search.configured():
         value['setup']['tools'] = [public_search.declaration()]
     return value
 
 
 class Call:
-    def __init__(self,owner,ident,capability,started=None):
+    def __init__(self,owner,ident,capability,started=None,settings=None):
+        self.settings=preferences.validate(settings)
         self.owner,self.ident,self.capability=owner,ident,capability
         self.started=monotonic() if started is None else started
         self.last_seen=monotonic();self.lock=RLock();self.send_lock=Lock();self.closed=Event()
@@ -298,7 +305,7 @@ class Call:
         try:
             self.check();budget.dispatch(self.capability);self.check()
             self.ws=wire.connect();self.check()
-            self.ws.send(json.dumps(setup()))
+            self.ws.send(json.dumps(setup(settings=self.settings)))
             hello=wire.message(self.ws.recv())
             if not isinstance(hello.get('setupComplete'),dict) or any(k in hello for k in ('error','toolCall','goAway')):raise CallError('call_provider')
             self.check();self.ws.settimeout(.5)
@@ -346,7 +353,7 @@ class Call:
             with self.lock:
                 self.ws=socket
                 if self.closed.is_set():socket.shutdown();raise CallError('call_ended',409)
-            self.check();socket.send(json.dumps(setup(handle)))
+            self.check();socket.send(json.dumps(setup(handle,settings=self.settings)))
             hello=wire.message(socket.recv())
             if not isinstance(hello.get('setupComplete'),dict) or any(k in hello for k in ('error','toolCall','goAway')):
                 raise CallError('call_provider')
@@ -354,14 +361,16 @@ class Call:
             self.provider_started=monotonic();self.go_away=False;self.renewing.clear()
 
 
-def start(owner,ident):
+def start(owner,ident,settings=None):
+    try:settings=preferences.validate(settings)
+    except ValueError:raise CallError("call_settings_invalid",400) from None
     began=monotonic()
     if not ready(owner):raise CallError('call_unavailable')
     with _lock:
         if (owner,ident) in _calls:raise CallError('duplicate_turn',409)
         if len(_calls)>=16:raise CallError('service_busy',429)
     capability=budget.claim(owner,ident)
-    call=Call(owner,ident,capability,began)
+    call=Call(owner,ident,capability,began,settings=settings)
     with _lock:_calls[(owner,ident)]=call
     try:Thread(target=call.run,name='kilas-ai-call',daemon=True).start()
     except Exception:

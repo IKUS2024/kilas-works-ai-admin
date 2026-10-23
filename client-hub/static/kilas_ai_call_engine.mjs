@@ -35,7 +35,7 @@ export class CallSession {
  }
  stateTo(value){this.state=value;this.onState(value);}
  current(ticket){return ticket===this.version&&!this.controller?.signal.aborted;}
- async start(){
+ async start(settings={}){
   if(this.state!=='ended')return;
   const ticket=++this.version;this.controller=new AbortController();const signal=this.controller.signal;
   this.ident=this.key();this.path='/kilas-ai/call/'+this.ident;this.admitted=false;this.speaking=false;this.turnSealed=false;this.cursor=0;this.playVersion=0;
@@ -57,7 +57,9 @@ export class CallSession {
     error:error=>this.fail(error,ticket)});
    if(!this.current(ticket))return;
    this.admitted=true;
-   const result=await this.request(this.path,{method:'POST',signal,timeoutMs:12000});
+   this.settings={...settings};
+   const body=new FormData();body.append('settings',JSON.stringify(this.settings));
+   const result=await this.request(this.path,{method:'POST',body,signal,timeoutMs:12000});
    if(!this.current(ticket))return;
    if(result.call_id!==this.ident)throw failure('call_protocol');
    this.input.open();

@@ -18,7 +18,7 @@ def main():
  server=make_server('127.0.0.1',0,app.app,threaded=True);threading.Thread(target=server.serve_forever,daemon=True).start();origin=f'http://127.0.0.1:{server.server_port}';report=[]
  try:
   with sync_playwright() as pw:
-   browser=pw.chromium.launch(headless=True);cookie=case.client().get_cookie('session')
+   browser=pw.chromium.launch(headless=True,executable_path=os.environ.get("KILAS_CHROMIUM"));cookie=case.client().get_cookie('session')
    history=agent_store.new_conversation(case.owner)
    agent_store.append(case.owner,'user','Synthetic retained history.\n'*100,conversation_id=history)
    for route in ('/products/start','/kilas-ai/agent?conversation='+str(case.conversation),'/kilas-ai/agent?conversation='+str(history)):

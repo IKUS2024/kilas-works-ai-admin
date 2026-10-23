@@ -1,5 +1,6 @@
 """AI Call shares authenticated AI access, never Translator endpoints."""
 import re
+import json
 from flask import abort, request, session
 import security
 from .routes import ai_bp
@@ -14,7 +15,7 @@ def csrf():
 
 def failure(error):
     code=getattr(error,'code','call_unavailable')
-    known={'call_unavailable','call_ended','call_input_invalid','call_limit','call_backlog',
+    known={'call_settings_invalid','call_unavailable','call_ended','call_input_invalid','call_limit','call_backlog',
            'call_cursor_invalid','call_transport','not_owned','invalid_operation','already_processing',
            'service_busy','budget_limit','account_credit_limit','attempt_limit','duplicate_turn','reservation_expired'}
     return {'code':code if code in known else 'call_unavailable'},getattr(error,'status',503),HEADERS
@@ -34,7 +35,11 @@ def ai_call_session(ident):
     try:
         if request.method=='POST':
             csrf()
-            call=calls.start(session['user_id'],ident)
+            if request.content_length and request.content_length>4096:raise calls.CallError('call_settings_invalid',400)
+            raw=request.form.get('settings')
+            try:settings=json.loads(raw) if raw is not None else None
+            except (ValueError,TypeError):raise calls.CallError('call_settings_invalid',400) from None
+            call=calls.start(session['user_id'],ident,settings=settings)
             return {'call_id':ident,'state':call.state},202,HEADERS
         call=calls.get(session['user_id'],ident)
         if call is None:return {'state':'CLOSED','code':'call_ended','frames':[],'next_index':0,'total_frames':0},200,HEADERS
