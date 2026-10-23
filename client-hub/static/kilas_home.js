@@ -9,13 +9,20 @@
   const fitViewport=()=>{
     const follow=following();
     const height=viewport?viewport.height:window.innerHeight;
+    const scale=viewport?.scale||1;
     tallestHeight=Math.max(tallestHeight,window.innerHeight);
     const editing=document.activeElement?.matches?.('#ai-input,#agent-message');
     document.documentElement.style.setProperty('--home-viewport-height',`${height}px`);
     document.documentElement.style.setProperty('--home-viewport-top',`${viewport?viewport.offsetTop:0}px`);
-    document.body.classList.toggle('home-keyboard-open',Boolean(height<window.innerHeight-100||(editing&&height<tallestHeight-100)));
+    // Pinch zoom changes both visible dimensions. Reflow inside that rectangle;
+    // normalize its height before detecting a keyboard so zoom alone is not one.
+    document.documentElement.style.setProperty('--home-viewport-width',`${viewport?viewport.width:window.innerWidth}px`);
+    document.documentElement.style.setProperty('--home-viewport-left',`${viewport?viewport.offsetLeft:0}px`);
+    const unscaledHeight=height*scale;
+    document.body.classList.toggle('home-keyboard-open',Boolean(unscaledHeight<window.innerHeight-100||(editing&&unscaledHeight<tallestHeight-100)));
     document.documentElement.style.setProperty('--home-input-max-height',`${Math.max(44,Math.min(144,height-330))}px`);
     root.dispatchEvent(new Event('home:viewport'));
+    if(editing&&root.scrollHeight>root.clientHeight)root.scrollTop=root.scrollHeight;
     if(follow)timeline.scrollTop=timeline.scrollHeight;
   };
   fitViewport();window.addEventListener('resize',fitViewport);

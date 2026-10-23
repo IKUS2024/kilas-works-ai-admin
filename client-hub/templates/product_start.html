@@ -3,7 +3,7 @@
 {% block title %}{{ ui_t('Home · Kilas Works') }}{% endblock %}
 {% block kilas_feature_styles %}{% if kilas_ai_enabled %}{% include 'kilas_ai/_chat_page_styles.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_home_polish.css',v='simple-home-20261022') }}">{% endif %}{% endblock %}
 {% block content %}
-{% if not chat_styles_in_head %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_home.css', v='chat-unified-20261011') }}">{% endif %}
+{% if not chat_styles_in_head %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_home.css', v='chat-zoom-20261023') }}">{% endif %}
 <section class="premium-home home-polish">
 {% if not kilas_ai_enabled %}<header class="premium-page-heading"><h1>{{ ui_t('Home') }}</h1><p>{{ ui_t('Pilih alat yang tepat untuk pekerjaanmu.') }}</p></header>{% endif %}
 {% if kilas_ai_enabled %}
