@@ -37,24 +37,27 @@ def main():
         with patch.object(providers,'stream',side_effect=answer),sync_playwright() as pw:
             browser=pw.chromium.launch(headless=True)
             cookie=case.client().get_cookie('session')
-            for width in (390,1440):
+            for width,scale in ((390,2),(1440,1)):
+                scenario=str(width)+"@"+str(scale)
                 conversation=agent_store.new_conversation(case.owner)
-                context=browser.new_context(viewport={'width':width,'height':900},has_touch=width==390)
+                context=browser.new_context(viewport={'width':width,'height':900},is_mobile=width==390,has_touch=width==390)
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
                 page=context.new_page();errors=[]
                 page.on('pageerror',lambda error:errors.append(str(error)))
                 page.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin) else route.abort())
                 page.goto(origin+f'/kilas-ai/agent?conversation={conversation}',wait_until='networkidle')
+                if scale!=1:
+                    context.new_cdp_session(page).send('Emulation.setPageScaleFactor',{'pageScaleFactor':scale})
                 field=page.locator('#agent-message');send=page.locator('#agent-chat-form button[type=submit]')
                 # Provider failure is terminal; retrying the same prompt gets a new operation.
-                prompt='FAIL '+str(width);field.fill(prompt);send.click();expect(send).to_be_enabled(timeout=15000)
+                prompt='FAIL '+scenario;field.fill(prompt);send.click();expect(send).to_be_enabled(timeout=15000)
                 first=page.locator('[name=operation_key]').input_value()
                 field.fill(prompt);send.click();expect(send).to_be_enabled(timeout=15000);expect(field).to_have_value('')
                 assert calls[prompt]==2
                 assert page.locator('[name=operation_key]').input_value()!=first
                 # Lose the HTTP response after the real server has processed it. Retry replays;
                 # it must not dispatch or reserve a second paid operation.
-                prompt='UNCERTAIN '+str(width)
+                prompt='UNCERTAIN '+scenario
                 def lose(route):route.fetch();route.abort('failed')
                 page.route('**/agent/chat',lose);field.fill(prompt);send.click();expect(send).to_be_enabled(timeout=15000)
                 expect(field).to_have_value(prompt);uncertain_key=page.locator('[name=operation_key]').input_value()
@@ -65,25 +68,27 @@ def main():
                 from PIL import Image
                 import io
                 png=io.BytesIO();Image.new('RGB',(12,8),'green').save(png,'PNG')
-                prompt='UNCERTAIN UPLOAD '+str(width)
+                prompt='UNCERTAIN UPLOAD '+scenario
                 page.locator('#work-source-files').set_input_files({'name':'synthetic.png','mimeType':'image/png','buffer':png.getvalue()})
                 page.route('**/agent/chat',lose);field.fill(prompt);send.click();expect(send).to_be_enabled(timeout=15000)
                 expect(field).to_have_value(prompt);page.unroute('**/agent/chat',lose)
-                send.click();expect(send).to_be_enabled(timeout=15000);expect(field).to_have_value('')
+                assert send.evaluate('(e)=>{let r=e.getBoundingClientRect(),v=visualViewport;return r.bottom<=v.offsetTop+v.height+1}'),'upload retry must keep Send visible'
+                send.click();expect(send).to_be_enabled(timeout=15000)
+                expect(field).to_have_value('')
                 assert calls[prompt]==1
                 # Explicit cancellation and then a new message; no reload required.
-                release.clear();prompt='CANCEL '+str(width);field.fill(prompt);send.click()
+                release.clear();prompt='CANCEL '+scenario;field.fill(prompt);send.click()
                 expect(page.locator('.agent-message-assistant').last).to_contain_text('Synthetic answer '+prompt,timeout=10000)
                 page.locator('[data-unified-stop]').click();release.set();expect(send).to_be_enabled(timeout=15000)
                 for _ in range(100):
                     active=db.query_one("SELECT id FROM kilas_workspace_streams WHERE user_id=? AND state='RUNNING'",(case.owner,))
                     if not active:break
                     threading.Event().wait(.02)
-                field.fill('AFTER CANCEL '+str(width));send.click();expect(send).to_be_enabled(timeout=15000);expect(field).to_have_value('')
-                assert calls['AFTER CANCEL '+str(width)]==1
+                field.fill('AFTER CANCEL '+scenario);send.click();expect(send).to_be_enabled(timeout=15000);expect(field).to_have_value('')
+                assert calls['AFTER CANCEL '+scenario]==1
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 assert not errors,errors
-                report.append({'width':width,'terminal_failure_retry':True,'uncertain_response_replay_without_second_dispatch':True,'cancel_then_new_message':True,'page_errors':0})
+                report.append({'width':width,'scale':scale,'terminal_failure_retry':True,'uncertain_response_replay_without_second_dispatch':True,'cancel_then_new_message':True,'page_errors':0})
                 context.close()
             browser.close()
         print(json.dumps(report,indent=2))

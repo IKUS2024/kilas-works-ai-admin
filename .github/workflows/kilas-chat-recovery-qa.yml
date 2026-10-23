@@ -20,6 +20,7 @@ jobs:
       - run: pip install -r client-hub/requirements.txt
       - run: python -B scripts/run_offline_tests.py --only test_kilas_chat_recovery.py
       - run: node client-hub/tests/test_kilas_chat_operation.cjs
+      - run: node --test client-hub/tests/test_kilas_ai_call.mjs
       - run: |
           python -B scripts/run_offline_tests.py --only test_kilas_chat_models.py
           python -B scripts/run_offline_tests.py --only test_kilas_chat_quality_v2.py

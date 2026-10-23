@@ -6,6 +6,21 @@
   let tallestHeight=window.innerHeight;
   let layoutWidth=window.innerWidth;
   const timeline=root.querySelector('#ai-messages,#agent-conversation');
+  const options=root.querySelector('.home-chat-options'),optionsPanel=options?.querySelector('.home-chat-options-panel');
+  const secondary=[root.querySelector('.home-workspace-top'),root.querySelector('.home-tool-selector'),root.querySelector('[data-ai-call-launch]')].filter(Boolean).map(element=>{
+    const place=document.createComment('Chat control position');element.before(place);return {element,place};
+  });
+  let compact=false;
+  const fitHierarchy=(width,height,scale)=>{
+    const next=Boolean(optionsPanel&&((scale>1.01&&width<800)||height<500||width<280));
+    if(next===compact)return;compact=next;
+    document.body.classList.toggle('home-chat-compact',compact);options.hidden=!compact;options.open=false;
+    for(const {element,place} of secondary){if(compact)optionsPanel.append(element);else place.after(element);}
+  };
+  options?.addEventListener('keydown',event=>{if(event.key==='Escape'){options.open=false;options.querySelector('summary').focus();}});
+  options?.addEventListener('click',event=>{if(event.target.closest('[data-ai-call-launch],[data-home-task]'))options.open=false;});
+  document.querySelector('#ai-call-dialog')?.addEventListener('close',()=>{if(compact)options?.querySelector('summary').focus({preventScroll:true});});
+  root.addEventListener('focusin',event=>{if(event.target.matches('#ai-input,#agent-message')&&options)options.open=false;});
   const following=()=>timeline&&timeline.scrollHeight-timeline.scrollTop-timeline.clientHeight<48;
   const fitViewport=()=>{
     const follow=following();
@@ -23,6 +38,7 @@
     // normalize its height before detecting a keyboard so zoom alone is not one.
     document.documentElement.style.setProperty('--home-viewport-width',`${viewport?viewport.width:window.innerWidth}px`);
     document.documentElement.style.setProperty('--home-viewport-left',`${viewport?viewport.offsetLeft:0}px`);
+    fitHierarchy(viewport?viewport.width:window.innerWidth,height,scale);
     const unscaledHeight=height*scale;
     document.body.classList.toggle('home-keyboard-open',Boolean(unscaledHeight<window.innerHeight-100||(editing&&unscaledHeight<tallestHeight-100)));
     document.documentElement.style.setProperty('--home-input-max-height',`${Math.max(44,Math.min(144,height-330))}px`);
