@@ -61,7 +61,7 @@ def messages(user_id, thread_id, limit=100):
     return list(reversed(rows))
 
 
-def context(user_id, thread_id, *, selected_model=None):
+def context(user_id, thread_id, *, selected_model=None, current_attachments=None):
     from . import usage, fair_use, conversation_context, model_policy
     level = usage.chat_level(user_id)
     recent, budget, _ = fair_use.budgets(level)
@@ -92,7 +92,14 @@ def context(user_id, thread_id, *, selected_model=None):
             break
         attachments = (attachment_context(user_id, thread_id, row["id"], include_content=row["id"] == latest_user_id)
                        if row["role"] == "user" else [])
-        from .attachments import prompt_content
+        from .attachments import prompt_content, restore_visuals
+        if row['id']==latest_user_id:
+            if current_attachments is not None:attachments=list(current_attachments)
+            if not any(item['mime_type'].startswith('image/') or item.get('vision_pages') or item['mime_type']=='application/pdf' for item in attachments):
+                prior=[r['content'] for r in rows if r['role']=='user' and r['id']<row['id']][-4:]
+                if conversation_context.visual_followup(content,prior):
+                    attachments+=latest_visual_attachments(user_id,thread_id,row['id'])
+            attachments=restore_visuals(attachments)
         prompt = prompt_content(content, attachments if row["id"] == latest_user_id else
                                 [item for item in attachments if item["extracted_text"]])
         text_size = len(prompt) if isinstance(prompt, str) else len(prompt[0]["text"])
@@ -137,6 +144,15 @@ def attachment_context(user_id, thread_id, message_id, include_content=False):
     return db.query_all("SELECT filename,mime_type," + content_column + ",extracted_text FROM kilas_ai_attachments "
                         "WHERE user_id=? AND thread_id=? AND message_id=? ORDER BY id LIMIT 5",
                         (user_id, thread_id, message_id))
+
+
+def latest_visual_attachments(user_id,thread_id,before):
+    rows=db.query_all('SELECT a.message_id,a.filename,a.mime_type,a.content,a.extracted_text FROM kilas_ai_attachments a '
+        'JOIN kilas_ai_messages m ON m.id=a.message_id AND m.thread_id=a.thread_id '
+        "WHERE a.user_id=? AND a.thread_id=? AND m.role='user' AND m.id<? AND (a.mime_type IN ('image/jpeg','image/png','image/webp') "
+        "OR (a.mime_type='application/pdf' AND (a.extracted_text LIKE ? OR a.extracted_text LIKE ?))) ORDER BY m.id DESC,a.id LIMIT 5",
+        (user_id,thread_id,before,'%PDF scan:%','%PDF visual pages:%'))
+    return [dict(row) for row in rows if row['message_id']==rows[0]['message_id']]
 
 
 def attachment_list(user_id, thread_id):

@@ -46,3 +46,9 @@ def bounded(messages, budget):
         selected.append(item)
         remaining -= size
     return list(reversed(selected))
+
+
+def visual_followup(text, previous=()):
+    if re.search(r'(?i)\b(?:gambar|foto|image|photo|picture|pdf|scan|halaman|page)\b',text):return True
+    return (len(text)<180 and bool(re.search(r'(?i)\b(?:angka|kanan|kiri|warna|tulisan|yang|yg|ini|itu|lanjut|number|right|left|that|this)\b',text))
+            and any(re.search(r'(?i)\b(?:gambar|foto|image|photo|picture|pdf|scan|halaman|page)\b',value) for value in previous))

@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict');
+const {create}=require('../static/kilas_chat_operation.js');
+const payload=(text,model='gpt-6.1-sol')=>new Map([['message',text],['selected_model',model],['operation_key','ignored'],['csrf_token','ignored']]);
+const state=create('initial_key_0000000001');
+const a=state.begin(payload('First'));
+assert.equal(state.begin(payload('First')),a,'Uncertain identical retry retains key');
+assert.notEqual(state.begin(payload('Changed')),a,'Edited message gets new key');
+const b=state.begin(payload('Changed'));state.terminal();
+assert.notEqual(state.begin(payload('Changed')),b,'Failed/cancelled/completed request permits explicit new submission');
+const c=state.begin(payload('Changed'));assert.notEqual(state.begin(payload('Changed','claude-sonnet-5-5')),c);
+const uploaded={name:'synthetic.png'},fileState=create('upload_key_0000000001');
+const file=new Map([...payload('Read'),['source_files',uploaded]]),key=fileState.begin(file);
+assert.equal(fileState.begin(file),key);assert.notEqual(fileState.begin(new Map([...payload('Read'),['source_files',{name:'other.png'}]])),key);
+console.log('PASS: uncertain retries, edited payloads, terminal failure/cancel, model and attachment changes');

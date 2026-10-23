@@ -9,5 +9,6 @@
           {% else %}<a class="ai-sent-file" href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id) }}">{{ item.filename }}</a>{% endif %}
         {% endfor %}
         {% endif %}
+        {% if message.role == 'assistant' and message.metadata.status in ('interrupted','failed') %}<p class="ai-result-status" role="status">{{ ui_t('Jawaban ini belum selesai. Hasil parsial tersimpan; pilih Buat ulang jawaban untuk mencoba lagi.') }}</p>{% endif %}
         {% if message.metadata.citations %}<div class="ai-sources"><strong>{{ ui_t('Sumber') }}</strong>{% for citation in message.metadata.citations %}<a href="{{ citation.url }}" target="_blank" rel="noopener noreferrer nofollow">{{ citation.title }}</a>{% endfor %}</div>{% endif %}
         {% if message.role == 'assistant' %}<button type="button" class="ai-copy" aria-label="{{ ui_t('Salin') }}" title="{{ ui_t('Salin') }}">{{ chat_icon('copy') }}</button>{% endif %}{% if loop.last and not message.metadata.workspace_job_id %}<button type="button" class="ai-regenerate">{{ ui_t('Buat ulang jawaban') }}</button>{% endif %}</article>{% endfor %}
