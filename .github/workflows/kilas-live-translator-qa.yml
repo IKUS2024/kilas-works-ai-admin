@@ -17,14 +17,18 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - run: pip install -r client-hub/requirements.txt playwright
-      - run: python -m playwright install --with-deps chromium
       - run: |
           for suite in test_kilas_live_translator_clauses.py test_kilas_live_translator_realtime.py; do
             python -B scripts/run_offline_tests.py --only "$suite" || exit 1
           done
       - run: node --test client-hub/tests/test_kilas_live_translator_streaming.mjs client-hub/tests/test_kilas_live_translator_progressive.mjs client-hub/tests/test_kilas_live_translator_realtime.mjs client-hub/tests/test_kilas_live_translator_toggle.mjs
       - run: |
-          export KILAS_QA_CHROMIUM="$(python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')"
+          if command -v google-chrome >/dev/null; then
+            export KILAS_QA_CHROMIUM="$(command -v google-chrome)"
+          else
+            python -m playwright install --with-deps chromium
+            export KILAS_QA_CHROMIUM="$(python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')"
+          fi
           python -B client-hub/tests/test_kilas_live_translator_streaming_browser.py
   synthetic:
     runs-on: ubuntu-latest
