@@ -60,7 +60,7 @@ if(dialog){
   document.activeElement?.blur();dialog.hidden=false;
   try{dialog.showModal();}catch{conceal();return;}
   syncViewport();document.body.classList.add('kilas-ai-call-open');end.focus({preventScroll:true});
-  const send=button.parentNode.querySelector('[type=submit]');
+ const send=button.closest('.kilas-home-workspace')?.querySelector('#ai-send,#agent-chat-form button[type=submit]')||button.parentNode.querySelector('[type=submit]');
   if(send?.disabled){status.textContent=t('Selesaikan jawaban chat sebelum memanggil.');return;}
   session.start();
  }));
