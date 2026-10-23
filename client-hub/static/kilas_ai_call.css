@@ -57,3 +57,25 @@ body.kilas-ai-call-open{overflow:hidden}
 #ai-call-dialog :is(.ai-call-settings,.ai-call-setting-group,.ai-call-consent,button)[hidden]{display:none!important}
 #ai-call-dialog:has(.ai-call-settings:not([hidden])) :is(.ai-call-identity,.ai-call-name){display:none}
 @media(max-width:340px){#ai-call-dialog .ai-call-settings{grid-template-columns:minmax(0,1fr)}}
+
+/* A compact settings surface, with a distinct active-call state. */
+#ai-call-dialog[data-state=ended]{grid-template-rows:auto minmax(0,auto) auto;align-content:start;gap:20px;padding-top:max(28px,env(safe-area-inset-top))}
+#ai-call-dialog .ai-call-header{position:relative;box-sizing:border-box;width:100%;max-width:560px;padding:0 40px;flex:none;overflow:visible}
+#ai-call-dialog .ai-call-header h2{font-size:24px;letter-spacing:-.5px}
+#ai-call-dialog .ai-call-header p{color:#d6e2ed;font-size:14px}
+#ai-call-dialog #ai-call-close{position:absolute;right:0;top:0;display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid #64778a;border-radius:50%;background:#203040;color:#fff;font:26px/1 system-ui;cursor:pointer}
+#ai-call-dialog .ai-call-body{max-width:560px}
+#ai-call-dialog .ai-call-settings{box-sizing:border-box;max-width:none;gap:16px 12px;margin:0;padding:18px;background:#182532;border:1px solid #3b4d60;border-radius:18px}
+#ai-call-dialog .ai-call-settings label{margin:0;color:#e8f0f7;font-weight:550;line-height:1.4}
+#ai-call-dialog .ai-call-settings select{background:#223446;border-color:#71879c;font-weight:500}
+#ai-call-dialog .ai-call-settings label.ai-call-consent{color:#ffe0bf;font-weight:400}
+#ai-call-dialog .ai-call-footer{max-width:560px;width:100%;justify-self:center;gap:8px}
+#ai-call-dialog .ai-call-controls{width:100%;margin:0}
+#ai-call-dialog #ai-call-start{width:100%;background:#f0a369;color:#24160b;border-color:#f0a369;border-radius:12px;font-size:16px}
+#ai-call-dialog .ai-call-error{width:100%;box-sizing:border-box;background:#3b2528;border:1px solid #a06768;border-radius:12px;padding:12px;text-align:left}
+#ai-call-dialog .ai-call-summary{color:#d6e2ed;font-size:14px;margin:0 0 20px}
+#ai-call-dialog [hidden]{display:none!important}
+#ai-call-dialog button:focus-visible,#ai-call-dialog select:focus-visible{outline:3px solid #f0a369;outline-offset:3px}
+#ai-call-dialog.ai-call-compact[data-state=ended]{padding-block:8px;gap:8px;grid-template-rows:auto minmax(0,1fr) auto}
+#ai-call-dialog.ai-call-compact .ai-call-settings{padding:12px;gap:10px}
+#ai-call-dialog.ai-call-compact .ai-call-header{min-height:36px}

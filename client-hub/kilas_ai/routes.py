@@ -33,7 +33,14 @@ def require_access():
     if not session.get("user_id"):
         return redirect(url_for("auth.login_page"))
     user = security.current_user()
-    if not user or session.get("role")!=user["role"] or (user["role"] != "CLIENT_OWNER" and not free_test.eligible(session["user_id"])):
+    if not user or session.get("role")!=user["role"]:
+        abort(404)
+    # Call has its own authenticated-account admission and metering policy.
+    # Do not inherit Chat's historical owner/trial gate or widen other AI routes.
+    if request.endpoint in {"kilas_ai.ai_call_page", "kilas_ai.ai_call_readiness", "kilas_ai.ai_call_session",
+                            "kilas_ai.ai_call_chunk", "kilas_ai.ai_call_end"}:
+        return None
+    if user["role"] != "CLIENT_OWNER" and not free_test.eligible(session["user_id"]):
         abort(404)
 
 

@@ -131,10 +131,10 @@ class CallTests(unittest.TestCase):
         with self.enabled():
             call=self.make();call.accept(0,PCM)
             self.assertEqual(call.expected,1)
-            for index,raw in ((0,PCM),(1,b'x'),(1,PCM*4)):
+            for index,raw in ((0,PCM[::-1]),(1,b'x'),(1,PCM*4)):
                 with self.assertRaises(calls.CallError):call.accept(index,raw)
-            for i in range(1,53):call.accept(i,PCM)
-            with self.assertRaises(calls.CallError) as error:call.accept(53,PCM)
+            for i in range(1,min(128,calls.QUEUE_BYTES//len(PCM))):call.accept(i,PCM)
+            with self.assertRaises(calls.CallError) as error:call.accept(min(128,calls.QUEUE_BYTES//len(PCM)),PCM)
             self.assertEqual(error.exception.code,'call_backlog')
 
     def test_output_frames_continue_past_four_responses_with_metered_renewal(self):
@@ -227,7 +227,7 @@ class CallTests(unittest.TestCase):
                 call.accept(0,PCM)
                 self.assertNotEqual(call.capability,previous)
                 self.assertTrue(budget.active(self.user,call.ident,call.capability))
-            with patch.object(calls,'monotonic',return_value=call.last_seen+9):
+            with patch.object(calls,'monotonic',return_value=call.last_seen+calls.CLIENT_IDLE_SECONDS+1):
                 with self.assertRaises(calls.CallError) as e:call.check()
                 self.assertEqual(e.exception.code,'call_network')
             audio.f.db.execute('INSERT INTO customer_auth_account_state(user_id,disabled) VALUES (?,1) ON CONFLICT(user_id) DO UPDATE SET disabled=1',(self.user,))
@@ -465,14 +465,14 @@ class CallTests(unittest.TestCase):
             self.assertEqual(call.snapshot(cursor)['frames'],[])
             with self.assertRaises(calls.CallError):call.snapshot(cursor-1)
 
-    def test_provider_expiry_requires_fresh_checkpoint_and_preserves_accepted_audio(self):
+    def test_provider_expiry_uses_latest_checkpoint_and_preserves_accepted_audio(self):
         with self.enabled():
             call=self.make();budget.dispatch(call.capability);call.ws=fixture.Socket()
             call.provider_started-=31
             call.publish({'type':'text','text':'Already delivered'})
             call.receive(json.dumps({'sessionResumptionUpdate':{'resumable':True,'newHandle':'stale'}}))
             call.receive(json.dumps({'goAway':{'timeLeft':'30s'}}))
-            self.assertFalse(call.resume_pending);self.assertTrue(call.renewing.is_set())
+            self.assertTrue(call.resume_pending);self.assertTrue(call.renewing.is_set())
             call.receive(json.dumps({'sessionResumptionUpdate':{'resumable':False}}))
             self.assertFalse(call.resume_pending)
             call.receive(json.dumps({'sessionResumptionUpdate':{'resumable':True,'newHandle':'fresh'}}))

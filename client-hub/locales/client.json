@@ -888,5 +888,18 @@
   "Mulai panggilan",
   "Stop audio / Normal",
   "Pilih mode, lalu mulai panggilan.",
-  "Audio dihentikan. Mulai lagi dalam mode Normal."
+  "Audio dihentikan. Mulai lagi dalam mode Normal.",
+  "Memulihkan audio…",
+  "Menghubungkan kembali…",
+  "Coba panggilan lagi",
+  "Koneksi panggilan belum pulih. Pengaturan tetap tersimpan; mulai lagi saat siap.",
+  "Pengiriman audio tertunda terlalu lama. Pengaturan tetap tersimpan; coba lagi.",
+  "Layanan suara menghentikan sesi. Pengaturan tetap tersimpan; coba lagi.",
+  "Layanan suara terputus dan konteks tidak dapat dipulihkan. Mulai panggilan baru saat siap.",
+  "Sesi suara terhenti. Pengaturan tetap tersimpan; coba mulai lagi.",
+  "Respons sesi tidak valid. Mulai panggilan baru saat siap.",
+  "Respons audio tidak valid. Mulai panggilan baru saat siap.",
+  "Mikrofon tidak lagi tersedia. Sambungkan kembali lalu mulai panggilan.",
+  "Browser berhenti mengirim audio mikrofon. Buka kembali tab ini lalu mulai panggilan.",
+  "Perekam audio browser berhenti. Mulai panggilan baru saat siap."
 ]

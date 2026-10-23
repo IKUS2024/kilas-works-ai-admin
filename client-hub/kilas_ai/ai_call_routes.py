@@ -1,7 +1,7 @@
 """AI Call shares authenticated AI access, never Translator endpoints."""
 import re
 import json
-from flask import abort, request, session
+from flask import abort, request, session, render_template
 import security
 from .routes import ai_bp
 from . import ai_call as calls, ai_call_budget as budget
@@ -19,6 +19,11 @@ def failure(error):
            'call_cursor_invalid','call_transport','not_owned','invalid_operation','already_processing',
            'service_busy','budget_limit','account_credit_limit','attempt_limit','duplicate_turn','reservation_expired'}
     return {'code':code if code in known else 'call_unavailable'},getattr(error,'status',503),HEADERS
+
+
+@ai_bp.get('/call')
+def ai_call_page():
+    return render_template('kilas_ai/call.html'),200,HEADERS
 
 
 @ai_bp.get('/call/readiness')
@@ -68,6 +73,6 @@ def ai_call_chunk(ident,index):
 def ai_call_end(ident):
     csrf()
     try:
-        calls.end(session['user_id'],ident)
+        calls.end(session['user_id'],ident,request.form.get('reason','call_ended'))
         return {'state':'CLOSED'},200,HEADERS
     except (calls.CallError,budget.ledger.BudgetError) as error:return failure(error)
