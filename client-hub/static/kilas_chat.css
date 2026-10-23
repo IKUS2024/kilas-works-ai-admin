@@ -1,4 +1,13 @@
 /* Only the Home/legacy chat shells load this shared conversation presentation. */
+.kilas-home-workspace{container-type:inline-size;min-width:0;overflow-y:auto}
+.kilas-light .kilas-home-workspace.ai-shell{min-height:0;overflow-y:auto}
+.kilas-light .kilas-home-workspace.ai-shell .ai-main{overflow:visible}
+.kilas-light .home-polish .kilas-home-workspace.ai-shell .ai-main.is-empty{overflow:visible}
+body:has(.kilas-home-workspace)>.premium-mobile-header .premium-brand{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+body.home-viewport-zoomed .kilas-home-workspace :is(#chat-model-dialog,#image-model-dialog){left:calc(var(--home-viewport-left,0px) + 8px)!important;top:calc(var(--home-viewport-top,0px) + 8px)!important;transform:none!important;width:min(360px,calc(var(--home-viewport-width,100vw) - 16px));max-height:min(680px,calc(var(--home-viewport-height,100dvh) - 16px))}
+/* Use the actual visible Chat width: media queries still see the wider layout
+   viewport during pinch zoom. Keep full-size touch targets and accessible zoom. */
+
 .kilas-light .ai-shell .ai-message{border:0;padding:0;margin:0 0 16px;max-width:100%}
 .kilas-light .ai-shell .ai-message-name{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .kilas-light .ai-shell .chat-visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
@@ -107,3 +116,23 @@ body:has(.kilas-home-workspace) .premium-sidebar .language-selector button{font-
 .kilas-light .kilas-home-workspace :is(.ai-empty,.agent-welcome)>.kilas-new-chat-logo{flex:0 1 96px;min-height:0;max-height:96px;object-fit:contain;margin-block:0 12px}
 .kilas-light .kilas-home-workspace :is(.ai-empty h1,.agent-welcome h3){flex:none;margin-block:0;line-height:1.25}
 .kilas-light .kilas-home-workspace .ai-messages{box-sizing:border-box}
+
+@container(max-width:300px){
+ .kilas-home-workspace .home-workspace-top.has-model-selector>.chat-model-controls{flex-wrap:wrap!important;width:100%;min-width:0}
+ .kilas-home-workspace .home-workspace-top.has-model-selector .chat-model-selector{flex:1 1 140px!important;min-width:0;max-width:100%}
+ .kilas-home-workspace .home-workspace-top.has-model-selector .chat-model-trigger{width:100%;max-width:100%}
+ .kilas-home-workspace .home-workspace-top.has-model-selector .chat-model-trigger [data-model-label]{white-space:normal!important;overflow-wrap:anywhere}
+ body.kilas-light .kilas-home-workspace .home-tool-selector .home-task-choices{display:grid!important;grid-template-columns:minmax(0,1fr);overflow:visible}
+ body.kilas-light .kilas-home-workspace .home-tool-selector .home-task-choices>:is(button,a,.kilas-translator-pending){white-space:normal!important;flex-wrap:wrap;width:100%}
+ .kilas-light .kilas-home-workspace.ai-shell :is(.ai-empty:not([hidden]),#agent-conversation:has(>.agent-welcome:only-child)){min-height:120px}
+ .kilas-light .ai-shell.kilas-home-workspace #ai-composer{grid-template-columns:36px minmax(0,1fr) 44px auto}
+ .kilas-light .ai-shell.kilas-home-workspace #ai-input{grid-column:1/-1;grid-row:1}
+ .kilas-light .ai-shell.kilas-home-workspace #ai-composer .ai-attach{grid-row:2}
+ .kilas-light .ai-shell.kilas-home-workspace #ai-composer :is(.ai-send,.ai-stop,.ai-call-launch){grid-row:2}
+ .kilas-home-workspace #agent-chat-form .ai-composer{flex-wrap:wrap}
+ .kilas-home-workspace #agent-message{flex:1 0 100%;order:-1}
+ .kilas-light .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch){grid-template-columns:44px minmax(0,1fr)}
+ .kilas-light .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch)>textarea{grid-column:1/-1;grid-row:1}
+ .kilas-light .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch) .ai-composer-actions{grid-column:2;grid-row:2;flex-wrap:wrap;justify-content:flex-end}
+ .kilas-light .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer):has(.ai-call-launch) :is(.ai-attach,.work-attachment-bar){grid-row:2}
+}

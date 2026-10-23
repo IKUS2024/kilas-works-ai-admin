@@ -1,9 +1,9 @@
 name: Kilas Chat recovery QA
 on:
   push:
-    branches: [main, 'feature/ai-chat-recovery-*']
+    branches: [main, 'feature/ai-chat-recovery-*', 'feature/ai-chat-zoom-*']
   pull_request:
-    paths: ['client-hub/kilas_ai/**', 'client-hub/static/kilas_chat_operation.js', 'client-hub/static/kilas_ai*.js', 'client-hub/migrations/0111*', 'client-hub/tests/test_kilas_chat_recovery*', '.github/workflows/kilas-chat-recovery-qa.yml']
+    paths: ['client-hub/kilas_ai/**', 'client-hub/static/kilas_chat_operation.js', 'client-hub/static/kilas_home.*', 'client-hub/static/kilas_chat.css', 'client-hub/templates/kilas_ai/**', 'client-hub/tests/test_kilas_chat_zoom_browser.py', 'client-hub/static/kilas_ai*.js', 'client-hub/migrations/0111*', 'client-hub/tests/test_kilas_chat_recovery*', '.github/workflows/kilas-chat-recovery-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -35,6 +35,7 @@ jobs:
       - run: pip install -r client-hub/requirements.txt playwright
       - run: python -m playwright install --with-deps chromium
       - run: python -B client-hub/tests/test_kilas_chat_recovery_browser.py
+      - run: python -B client-hub/tests/test_kilas_chat_zoom_browser.py
   postgres:
     runs-on: ubuntu-latest
     timeout-minutes: 10
