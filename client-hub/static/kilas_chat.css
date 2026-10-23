@@ -159,3 +159,5 @@ body.home-chat-compact .kilas-home-workspace.ai-shell :is(#agent-chat-form,#ai-c
 body.home-chat-compact .kilas-home-workspace.ai-shell :is(#work-pending-files,#ai-pending){position:absolute;bottom:100%;left:0;width:100%;box-sizing:border-box;max-height:max(44px,min(80px,calc(var(--home-viewport-height,100dvh)*.18)));overflow:auto;margin:0;background:#fff;z-index:3}
 body.home-chat-compact .kilas-home-workspace.ai-shell :is(#work-pending-files,#ai-pending):empty{display:none}
 body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-input,#agent-message){max-height:max(44px,min(96px,calc(var(--home-viewport-height,100dvh)*.18)))!important}
+body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-input,#agent-message):placeholder-shown{white-space:pre;overflow:hidden;text-overflow:ellipsis}
+@container(min-width:180px){body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-input,#agent-message){padding-inline:2px!important}}

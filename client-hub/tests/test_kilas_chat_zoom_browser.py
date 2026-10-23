@@ -35,6 +35,7 @@ def main():
       assert result['send']['bottom']<=result['top']+result['height']+1,(name,result)
       if page.locator('body').evaluate('(e)=>e.classList.contains("home-chat-compact")'):
        assert not result['rootScroll'],(name,result)
+       assert page.locator('#ai-input,#agent-message').evaluate('''e=>{let s=getComputedStyle(e);return s.whiteSpace==='pre'&&s.textOverflow==='ellipsis'&&parseFloat(s.lineHeight)+parseFloat(s.paddingTop)+parseFloat(s.paddingBottom)<=e.clientHeight+1}'''),('placeholder must not wrap into a clipped second line',name,result)
        assert page.locator('.home-chat-options>summary').is_visible()
        assert page.locator('.home-chat-options-panel').get_attribute('role')=='group'
        if page.locator('.agent-message').count():
