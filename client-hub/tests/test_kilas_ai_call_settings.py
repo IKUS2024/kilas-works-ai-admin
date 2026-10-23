@@ -30,8 +30,14 @@ class SettingsTests(unittest.TestCase):
                 self.assertIn('Japanese',prompt);self.assertIn('Indonesian',prompt)
                 self.assertIn('advanced',prompt);self.assertIn('correction',prompt)
             elif mode=='roast':
-                self.assertIn('anjing, bangsat',prompt);self.assertIn('immediately drop the roast',prompt)
-            else:self.assertNotIn('anjing',prompt)
+                self.assertIn('anjing, bangsat',prompt);self.assertIn('English fuck',prompt)
+                self.assertIn('consistently casual',prompt);self.assertIn('across turns',prompt)
+                self.assertIn('do not mechanically attach',prompt);self.assertIn('suspend roasting',prompt)
+                self.assertIn('immediately drop the roast',prompt)
+            if mode!='roast':
+                for phrase in ('anjing','English fuck','slang-heavy','coarse persona'):
+                    self.assertNotIn(phrase,prompt)
+                self.assertIn('No coarse roasting',prompt)
 
     def test_actual_resume_uses_call_settings(self):
         call=calls.Call(1,'a'*32,object(),settings={'mode':'learning','target_language':'fr'})
