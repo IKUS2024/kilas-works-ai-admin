@@ -73,7 +73,7 @@ class Relay:
         self.ws=None;self.expected=0;self.accepted=0;self.queued_bytes=0;self.peak_queued_bytes=0;self.final=False
         self.pending_ack=False;self.error=None;self.pieces=[];self.sent=0;self.since_commit=0
         self.started=monotonic();self.last_chunk=self.started;self.final_at=None;self.finished=False;self.deadline=None
-        self.partial='';self.partial_at=None;self.quiet_bytes=0;self.early_commits=0
+        self.partial='';self.partial_at=None;self.quiet_bytes=0;self.early_commits=0;self.phrase_voice_bytes=0
         self.clause_cursor=0;self.clause_count=0
         self.clauses=None
         if clauses:
@@ -177,16 +177,17 @@ class Relay:
                 self.pending_ack=True
         self.ws.send(json.dumps({'message_type':'input_audio_chunk','audio_base_64':base64.b64encode(raw).decode(),'sample_rate':16000,'commit':commit}))
 
-    def acknowledge(self):
+    def acknowledge(self, phrase_end=False):
         deadline=monotonic()+8
         while True:
             self.check()
             try:text=self.acks.get(timeout=.1);break
             except Empty:
                 if monotonic()>=deadline:raise failure('realtime_commit_timeout')
+        if self.clauses and (text or phrase_end):self.clauses.offer(text, phrase_end=phrase_end)
+        if phrase_end:self.phrase_voice_bytes=0
         if text:
-            if self.clauses:self.clauses.offer(text)
-            else:self.pieces.append(text)
+            if not self.clauses:self.pieces.append(text)
             if len(' '.join(self.pieces))>4000:raise failure('realtime_text_limit')
             if self.incremental and not self.final:
                 # An incomplete ACK is combined with following committed text
@@ -203,10 +204,16 @@ class Relay:
         for at in range(0,len(raw),6400):
             block=raw[at:at+6400]
             square=sum(v[0]*v[0] for v in struct.iter_unpack('<h',block))
-            if square/(len(block)//2)>=(.015*32768)**2:self.quiet_bytes=0
+            if square/(len(block)//2)>=(.015*32768)**2:
+                self.quiet_bytes=0;self.phrase_voice_bytes+=len(block)
             else:self.quiet_bytes+=len(block)
 
     def early_boundary(self):
+        if self.clauses:
+            # Commit stable provider text at a natural pause, on the same socket.
+            # Require speech before silence; never translate a partial hypothesis.
+            return (not self.final and self.quiet_bytes>=int(.8*32000)
+                    and self.phrase_voice_bytes>=int(.4*32000))
         if not self.incremental or self.final or self.early_commits>=2 or self.since_commit<3*32000:return False
         with self.lock:
             sentence=self.partial.endswith(('.', '!', '?', '。', '！', '？')) and self.partial_at is not None and monotonic()-self.partial_at>=.4
@@ -259,8 +266,10 @@ class Relay:
                 while offset<len(raw):
                     count=min(32000,len(raw)-offset,(4*32000 if self.clauses else COMMIT_BYTES)-self.since_commit)
                     piece=raw[offset:offset+count];self.send(piece);self.sent+=count;self.since_commit+=count;offset+=count
-                    if self.incremental:self.observe_audio(piece)
-                    if self.since_commit==(4*32000 if self.clauses else COMMIT_BYTES):self.send(b'',True);self.acknowledge()
+                    if self.incremental or self.clauses:self.observe_audio(piece)
+                    if self.clauses and self.early_boundary():
+                        self.early_commits+=1;self.send(b'',True);self.acknowledge(phrase_end=True)
+                    elif self.since_commit==(4*32000 if self.clauses else COMMIT_BYTES):self.send(b'',True);self.acknowledge()
                 if self.early_boundary():
                     self.early_commits+=1;self.send(b'',True);self.acknowledge()
             self.check();text=' '.join(self.pieces).strip()

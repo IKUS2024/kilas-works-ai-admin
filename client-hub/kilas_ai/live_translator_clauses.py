@@ -44,7 +44,7 @@ class Stream:
         if monotonic()-self.last_read > 15:raise failure('clause_client_disconnected')
         sessions.check(self.owner, self.ident, self.key)
 
-    def offer(self, text, final=False):
+    def offer(self, text, final=False, *, phrase_end=False):
         # Only Relay.acknowledge supplies provider-committed text here.
         with self.condition:
             self.check()
@@ -57,7 +57,9 @@ class Stream:
                 if self.tail[match.start()]=='.' and word and (len(word[1])==1 or word[1].lower() in ('dr','mr','mrs','ms','prof','jr','sr','st','vs','etc','e.g','i.e')):continue
                 matches.append(match)
             end=matches[-1].end() if matches else 0
-            if final:end=len(self.tail)
+            # A provider-committed natural pause is also a phrase boundary even
+            # when STT omits punctuation. Fixed-duration commits retain the tail.
+            if final or phrase_end:end=len(self.tail)
             if end:
                 if len(self.pending)+len(self.entries)>=MAX_PENDING:raise failure()
                 self.pending.append(self.tail[:end].strip())

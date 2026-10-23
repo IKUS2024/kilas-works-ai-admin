@@ -1,7 +1,7 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {captureMode,compatibleRecorder,TranslatorAudioRoute} from './kilas_live_translator_capabilities.mjs?v=clauses-20261022';
 import {VoiceRecorder} from './kilas_transcription_recorder.mjs?v=app-language-20261015';
-import {StreamingTranslatorSession as TranslatorSession} from './kilas_live_translator_streaming.mjs?v=clauses-20261022';
+import {StreamingTranslatorSession as TranslatorSession} from './kilas_live_translator_streaming.mjs?v=phrase-pause-20261023';
 import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=clauses-20261022';
 import {requestJSON,TranslatorTurns} from './kilas_live_translator_api.mjs?v=clauses-20261022';
 import {RealtimeCapture} from './kilas_live_translator_realtime_capture.mjs?v=clauses-20261022';

@@ -7,6 +7,25 @@ on:
 permissions:
   contents: read
 jobs:
+  phrase-stream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: |
+          for suite in test_kilas_live_translator_clauses.py test_kilas_live_translator_realtime.py; do
+            python -B scripts/run_offline_tests.py --only "$suite" || exit 1
+          done
+      - run: node --test client-hub/tests/test_kilas_live_translator_streaming.mjs client-hub/tests/test_kilas_live_translator_progressive.mjs client-hub/tests/test_kilas_live_translator_realtime.mjs client-hub/tests/test_kilas_live_translator_toggle.mjs
+      - run: |
+          export KILAS_QA_CHROMIUM="$(python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')"
+          python -B client-hub/tests/test_kilas_live_translator_streaming_browser.py
   synthetic:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -20,7 +39,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python client-hub/tests/test_kilas_live_translator.py
       - run: |
-          for suite in test_kilas_live_translator_transport.py test_kilas_live_translator_sse.py test_kilas_live_translator_whole.py test_kilas_live_translator_realtime.py test_kilas_live_translator_incremental.py test_kilas_live_translator_flow.py; do
+          for suite in test_kilas_live_translator_clauses.py test_kilas_live_translator_transport.py test_kilas_live_translator_sse.py test_kilas_live_translator_whole.py test_kilas_live_translator_realtime.py test_kilas_live_translator_incremental.py test_kilas_live_translator_flow.py; do
             python -B scripts/run_offline_tests.py --only "$suite" || exit 1
           done
       - run: node --test client-hub/tests/test_kilas_live_translator*.mjs

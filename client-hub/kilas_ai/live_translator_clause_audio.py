@@ -63,24 +63,31 @@ class Audio:
             usage._query(conn,'UPDATE kilas_audio_jobs SET actual_ms=?,seconds_charged=?,reserved_seconds=0,initial_reserved_seconds=?,provider_id=?,updated_at=? WHERE id=? AND user_id=?',(total,charge,math.ceil(total/1000),'clauses-v1:settled:'+key,usage._now().isoformat(),self.job,s.owner))
 
     def render(self,key,text,previous):
-        s=self.stream;began=monotonic()
+        s=self.stream;began=monotonic();timings={}
         def check():
             s.check();live.check_session(s.owner,s.ident,key)
             if monotonic()-began>180:raise store.AudioError('Audio melewati batas waktu.','turn_timeout',503)
         check();store.require_balance(s.owner);live.require_audio_allowance(s.owner)
         output.activate(s.owner,s.ident,key)
         result=live.translation(s.owner,key,text,s.info['language_a'],s.info['language_b'],check,clause_context=previous or {'source':'','text':''})
+        timings['translation_ms']=(monotonic()-began)*1000
         check();voice=live.voices.resolve(s.info['voice_alias'])
         if not voice:raise store.AudioError('Suara tidak tersedia.','voice_unavailable',409)
         live.stt.require_subscription_credit();check();self.reserve(key,result,voice);check()
         output.publish_translation(s.owner,s.ident,key,{**result,'source_text':text})
         output.bind(s.owner,s.ident,key,self.job,{**result,'source_text':text})
         self.publish(key,progress=bytearray(),clause=True)
-        raw=segments.speech(result['text'],voice['id'],check,lambda:None,language=result['target_language'],on_chunk=lambda part:self.append(key,part))
+        def first_byte():timings.setdefault('first_audio_ms',(monotonic()-began)*1000)
+        raw=segments.speech(result['text'],voice['id'],check,first_byte,language=result['target_language'],on_chunk=lambda part:self.append(key,part))
         # A fully received response is settled even when End races publication.
         self.settle(key,audio_media.mp3_duration(raw));check()
         self.publish(key,raw=raw,progress=None,audio_sha256=hashlib.sha256(raw).hexdigest())
         sessions.finish(s.owner,s.ident,key,True,self.job)
+        # Numeric evidence only. This measures server work, not audible latency
+        # on a device; it contains no transcript, account, voice ID or credential.
+        timings['complete_ms']=(monotonic()-began)*1000
+        try:print('KILAS_LIVE_CLAUSE '+ ' '.join(f'{name}={value:.1f}' for name,value in timings.items()),flush=True)
+        except OSError:pass
         return result
 
     def finish(self):

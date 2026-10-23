@@ -48,7 +48,9 @@ export class StreamingTranslatorSession extends TranslatorSession {
   pushed.catch(error=>{if(ticket===this.version)this.pause(error);});
   if(!lease.polling){lease.polling=true;pushed.then(()=>this.poll(lease,ticket)).catch(()=>{});}
   // Lease rotation is below existing 180s input limit; capture stays alive.
-  if(lease.bytes>=120*32000||(!voiced&&this.lastVoice!==null&&this.now()-this.lastVoice>=1200))this.finishInput(ticket);
+  // Short pauses commit phrases on the relay, not the supplier session. Close
+  // genuinely idle input after 10s to bound paid silence; Stop closes at once.
+  if(lease.bytes>=120*32000||(!voiced&&this.lastVoice!==null&&this.now()-this.lastVoice>=10000))this.finishInput(ticket);
  }
  async finishInput(ticket){
   const lease=this.lease;

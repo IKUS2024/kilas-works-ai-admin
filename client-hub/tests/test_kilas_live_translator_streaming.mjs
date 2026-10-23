@@ -32,10 +32,18 @@ test('idle capture creates no paid input; Stop and End retire pending callbacks'
  const old=f.h;f.session.end();const count=f.pushes;old.pcm(new Uint8Array(6400),{rms:.2});old.blob(null);await tick();assert.equal(f.pushes,count);assert.equal(f.mics,0);
 });
 test('bounded backlog pauses and cancels rather than opening another supplier or dropping hidden audio',async()=>{
- const f=fixture();f.api.input.finish=async()=>{};await f.session.start({});f.frame();for(let n=0;n<6;n++)f.frame(0);
+ const f=fixture();f.api.input.finish=async()=>{};await f.session.start({});f.frame();for(let n=0;n<50;n++)f.frame(0);
  for(let n=0;n<45;n++)f.frame();assert.equal(f.session.state,'paused');assert.equal(f.mics,0);assert.equal(f.keys.length,1);assert.ok(f.cancels);f.session.end();
 });
 test('unverified echo cancellation selects the existing fallback before supplier dispatch',async()=>{
  const f=fixture(),start=f.capture.start;f.capture.start=async options=>{if(options.duplex)throw Object.assign(Error('no echo protection'),{code:'duplex_unavailable'});return start(options);};
  await f.session.start({});assert.equal(f.session.streaming,false);assert.equal(f.pushes,0);assert.equal(f.session.state,'listening');f.session.end();
+});
+
+test('short conversational pauses keep the input lease open while audio is playing',async()=>{
+ const f=fixture();await f.session.start({});f.frame();await tick();f.clause();await until(()=>f.plays===1);
+ for(let n=0;n<10;n++)f.frame(0);
+ assert.equal(f.session.lease.finishing,false);assert.equal(f.session.bufferBytes,0);
+ const before=f.pushes;f.frame();assert.equal(f.pushes,before+1);assert.equal(f.keys.length,1);
+ f.finish();await until(()=>f.acks.length===1);f.session.release();await until(()=>f.session.state==='ready');f.session.end();
 });

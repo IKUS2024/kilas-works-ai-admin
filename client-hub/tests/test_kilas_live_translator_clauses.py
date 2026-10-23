@@ -90,6 +90,25 @@ class ClauseTests(unittest.TestCase):
             self.assertFalse(stream.worker.is_alive());self.assertEqual(translation.call_count,1);speech.assert_not_called()
             self.assertIsNone(output.get(self.user,stream.ident,stream.key))
 
+    def test_natural_pause_commits_before_four_seconds_without_closing_socket(self):
+        socket=Socket(['Do not send the payment today',''])
+        with self.funded(),self.on(),patch.object(realtime,'connect',return_value=socket) as connect,patch.object(voices,'resolve',return_value=fixture.VOICE),patch.object(providers,'_openai',side_effect=self.stream) as translation,patch.object(segments,'speech',return_value=self.audio):
+            self.credit(300);ident=self.session();key=self.key();info=sessions.claim(self.user,ident,key);cap=budget.claim(self.user,ident,key)
+            self.assertTrue(realtime._slots.acquire(blocking=False))
+            relay=realtime.Relay(self.user,ident,key,info,cap,clauses=True)
+            worker=Thread(target=relay.run);worker.start()
+            try:
+                relay.accept(0,b'\x00\x20'*16000)
+                relay.accept(1,b'\x00\x00'*16000)
+                self.wait(lambda:relay.clauses.entries and sessions.result(self.user,ident,relay.clauses.entries[0]['key'])['status']=='COMPLETED')
+                self.assertFalse(relay.final);self.assertFalse(socket.closed)
+                self.assertEqual(socket.commits,1);self.assertEqual(translation.call_count,1)
+                self.assertEqual(relay.early_commits,1);connect.assert_called_once()
+                relay.clauses.ack(0);relay.commit(2);worker.join(4);relay.clauses.worker.join(4)
+                self.assertTrue(relay.finished);self.assertTrue(relay.clauses.done)
+            finally:
+                relay.close(realtime.failure('turn_cancelled'));worker.join(3);relay.clauses.cancel()
+
     def test_backpressure_and_foreign_owner_fail_before_extra_work(self):
         ident=self.session();key=self.key();info=sessions.claim(self.user,ident,key)
         stream=clauses.Stream(self.user,ident,key,info)
@@ -136,5 +155,24 @@ class ClauseTests(unittest.TestCase):
         stream=clauses.Stream(self.user,ident,key,info);stream.offer('Dr.')
         self.assertEqual(stream.pending,[]);stream.offer('Rina is here.')
         self.assertEqual(stream.pending,['Dr. Rina is here.'])
+
+    def test_pause_flushes_committed_tail_without_punctuation_but_fixed_commit_does_not(self):
+        ident=self.session();key=self.key();info=sessions.claim(self.user,ident,key)
+        stream=clauses.Stream(self.user,ident,key,info)
+        stream.offer('Do not send');self.assertEqual(stream.pending,[])
+        stream.offer('the payment today',phrase_end=True)
+        self.assertEqual(stream.pending,['Do not send the payment today'])
+        self.assertEqual(stream.tail,'');self.assertFalse(stream.final)
+
+    def test_pause_detection_requires_speech_and_survives_fixed_duration_commit(self):
+        relay=object.__new__(realtime.Relay)
+        relay.clauses=True;relay.final=False;relay.quiet_bytes=0;relay.phrase_voice_bytes=0
+        relay.observe_audio(b'\x00\x00'*16000);self.assertFalse(relay.early_boundary())
+        relay.observe_audio(b'\x00\x20'*6400)
+        # A fixed-duration commit resets its own byte window, not phrase speech.
+        relay.since_commit=0;relay.quiet_bytes=0
+        relay.observe_audio(b'\x00\x00'*9600);self.assertFalse(relay.early_boundary())
+        relay.observe_audio(b'\x00\x00'*3200);self.assertTrue(relay.early_boundary())
+        relay.final=True;self.assertFalse(relay.early_boundary())
 
 if __name__=='__main__':unittest.main()
