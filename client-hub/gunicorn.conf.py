@@ -12,6 +12,12 @@ def post_worker_init(worker):
     armed = os.environ.get('KILAS_LIVE_GEMINI_QA_ARM', 'off') not in ('', 'off')
     configured = bool(policy())
     print(f'KILAS_GEMINI_GATE enabled={str(enabled).lower()} policy_valid={str(configured).lower()} qa_armed={str(armed).lower()}', flush=True)
+    try:
+        from kilas_ai.live_gemini_readiness import activation_report
+        activation = activation_report()
+    except Exception:
+        activation = {'reason': 'diagnostic_failed'}
+    print('KILAS_GEMINI_ACTIVATION '+json.dumps(activation, sort_keys=True), flush=True)
     if configured:
         # SELECT-only verification; never create a session or provider request.
         try:
