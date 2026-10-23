@@ -2,7 +2,7 @@ import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=app-language-20261015';
 import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-recovery-20261020';
 import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-jitter-20261016';
-import {CallSession} from './kilas_ai_call_engine.mjs?v=call-recovery-20261020';
+import {CallSession} from './kilas_ai_call_engine.mjs?v=call-modes-20261023';
 import {renderCallSources} from './kilas_ai_call_sources.mjs?v=call-public-search-20261017';
 
 const dialog=document.querySelector('#ai-call-dialog');
@@ -11,7 +11,21 @@ if(dialog){
  document.body.append(dialog);
  const status=dialog.querySelector('#ai-call-status'),caption=dialog.querySelector('#ai-call-caption'),error=dialog.querySelector('#ai-call-error'),end=dialog.querySelector('#ai-call-end');
  const csrf=document.querySelector('meta[name=csrf-token]')?.content||document.querySelector('[name=csrf_token]')?.value;
- let context=null,launcher=null;
+ let context=null,launcher=null,busyChat=false;
+ const settings=dialog.querySelector('#ai-call-settings'),start=dialog.querySelector('#ai-call-start'),normal=dialog.querySelector('#ai-call-normal');
+ const field=name=>dialog.querySelector('#ai-call-'+name);
+ const syncSettings=()=>{
+  const mode=field('mode').value,roast=mode==='roast';
+  field('learning').hidden=mode!=='learning';field('roleplay').hidden=mode!=='roleplay';field('consent').hidden=!roast;
+  for(const option of field('character').options)option.disabled=roast?option.value!=='roast':option.value==='roast';
+  if(roast)field('character').value='roast';else if(field('character').value==='roast')field('character').value='friendly';
+  if(!roast)field('roast-opt-in').checked=false;
+  start.disabled=busyChat||(roast&&!field('roast-opt-in').checked);
+ };
+ field('mode').addEventListener('change',syncSettings);field('roast-opt-in').addEventListener('change',syncSettings);
+ const chosenSettings=()=>({mode:field('mode').value,character:field('character').value,
+  target_language:field('target-language').value,level:field('level').value,
+  explanation_language:field('explanation-language').value,scenario:field('scenario').value,roast_opt_in:field('roast-opt-in').checked});
  const request=(url,options={})=>requestJSON(url,{csrf,...options});
  const capture=new CallCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices});
  let session;
@@ -36,7 +50,7 @@ if(dialog){
  session=new CallSession({request,capture,player,prepare,stopAudio,
   onText:text=>{caption.textContent=text;caption.scrollTop=caption.scrollHeight;},
   onSources:(citations,checkedOn)=>renderCallSources(dialog.querySelector('#ai-call-sources'),citations,checkedOn),
-  onState:state=>{dialog.dataset.state=state;status.textContent=t({connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Kilas berbicara',ended:'Panggilan berakhir.'}[state]||'Menghubungkan…');},
+  onState:state=>{settings.hidden=state!=='ended';start.hidden=state!=='ended';normal.hidden=state==='ended';dialog.dataset.state=state;status.textContent=t({connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Kilas berbicara',ended:'Panggilan berakhir.'}[state]||'Menghubungkan…');},
   onError:code=>{error.textContent=t(messages[code]||'Panggilan terputus. Periksa mikrofon dan koneksi lalu mulai panggilan baru.');error.hidden=false;}
  });
  const syncViewport=()=>{
@@ -54,16 +68,18 @@ if(dialog){
  };
  document.querySelectorAll('[data-ai-call-launch]').forEach(button=>button.addEventListener('click',()=>{
   if(session.state!=='ended')return;
-  launcher=button;
+  launcher=button;busyChat=false;field('roast-opt-in').checked=false;
   error.hidden=true;error.textContent='';caption.textContent='';
   if(typeof dialog.showModal!=='function'){const notice=document.querySelector('#ai-notice,#agent-chat-error');if(notice){notice.hidden=false;notice.textContent=t('Browser ini belum mendukung panggilan suara.');}return;}
   document.activeElement?.blur();dialog.hidden=false;
   try{dialog.showModal();}catch{conceal();return;}
-  syncViewport();document.body.classList.add('kilas-ai-call-open');end.focus({preventScroll:true});
+  syncViewport();document.body.classList.add('kilas-ai-call-open');settings.hidden=false;start.hidden=false;normal.hidden=true;syncSettings();start.focus({preventScroll:true});
  const send=button.closest('.kilas-home-workspace')?.querySelector('#ai-send,#agent-chat-form button[type=submit]')||button.parentNode.querySelector('[type=submit]');
-  if(send?.disabled){status.textContent=t('Selesaikan jawaban chat sebelum memanggil.');return;}
-  session.start();
+  if(send?.disabled){busyChat=true;start.disabled=true;status.textContent=t('Selesaikan jawaban chat sebelum memanggil.');return;}
+  status.textContent=t('Pilih mode, lalu mulai panggilan.');
  }));
+ start.addEventListener('click',()=>{if(start.disabled)return;error.hidden=true;session.start(chosenSettings());});
+ normal.addEventListener('click',()=>{session.end();field('mode').value='normal';field('character').value='friendly';field('roast-opt-in').checked=false;syncSettings();status.textContent=t('Audio dihentikan. Mulai lagi dalam mode Normal.');start.focus({preventScroll:true});});
  end.addEventListener('click',close);dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
  dialog.addEventListener('close',()=>{session.end();conceal();});
  window.addEventListener('resize',syncViewport);window.visualViewport?.addEventListener('resize',syncViewport);window.visualViewport?.addEventListener('scroll',syncViewport);

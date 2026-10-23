@@ -5,7 +5,7 @@ import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-const {chromium}=createRequire(import.meta.url)('playwright');
+const {chromium}=createRequire(process.env.KILAS_CALL_TOOLS||'/tmp/kilas-call-tools/package.json')('playwright');
 const root=fileURLToPath(new URL('../',import.meta.url));
 const pages=JSON.parse(await readFile(process.env.KILAS_AI_CALL_UI_FIXTURE_PATH,'utf8'));
 const surface=pages.id.match(/<dialog id="ai-call-dialog"[\s\S]*?<\/dialog>/)[0];
@@ -68,6 +68,7 @@ try{
   });
   await page.goto(origin);await page.waitForFunction('document.querySelector("#ai-call-dialog").parentNode===document.body');
   await page.locator('[data-ai-call-launch]').click();
+  if(mode!=='no-dialog')await page.locator('#ai-call-start').click();
   if(mode==='no-dialog'){
    await page.waitForTimeout(150);assert.equal(requests.length,0);assert.equal(await page.evaluate('qa.microphones'),0);
   }else if(mode!=='normal-and-stalled'){
@@ -89,6 +90,7 @@ try{
    await page.waitForFunction('qa.streams.every(s=>s.getTracks().every(t=>t.readyState==="ended"))');
    assert.ok(previous.ended);await page.waitForTimeout(100);
    await page.locator('[data-ai-call-launch]').click();
+  if(mode!=='no-dialog')await page.locator('#ai-call-start').click();
    await page.waitForFunction('document.querySelector("#ai-call-dialog").dataset.state==="listening"');
    assert.notEqual(active.id,previous.id);
    // Model a capture pipeline that silently stops delivering, while its

@@ -49,7 +49,7 @@ for(const locale of ['en','id','es','zh'])test(`Call ${locale} actual chat place
  await import('../static/kilas_ai_call.mjs?dom-'+locale);await tick();
  assert.equal(microphones,0);assert.equal(contexts,0);assert.equal(requests,0);assert.equal(dialog.open,false);
  assert.equal(dialog.parentNode,document.body);assert.equal(dialog.hidden,true);
- button.click();await tick();assert.equal(dialog.open,true);assert.equal(document.activeElement,end);assert.equal(contexts,1);assert.equal(microphones,0);assert.equal(requests,1);
+ button.click();await tick();assert.equal(dialog.open,true);assert.equal(document.activeElement,dialog.querySelector('#ai-call-start'));assert.equal(contexts,0);assert.equal(requests,0);dialog.querySelector('#ai-call-start').click();await tick();assert.equal(contexts,1);assert.equal(microphones,0);assert.equal(requests,1);
  assert.equal(dialog.hidden,false);
  const computed=window.getComputedStyle(dialog);assert.equal(computed.display,'grid');assert.equal(computed.position,'fixed');assert.equal(computed.maxWidth,'none');assert.equal(computed.maxHeight,'none');assert.equal(computed.borderRadius,'0');assert.equal(computed.backgroundColor,'rgb(17, 24, 32)');
  const footer=end.closest('footer');assert.equal(footer.parentNode,dialog);assert.equal(window.getComputedStyle(footer).display,'flex');assert.equal(window.getComputedStyle(footer).padding,'0px');assert.equal(dialog.querySelector('#ai-call-privacy'),null);assert.equal(window.getComputedStyle(dialog.querySelector('.ai-call-body')).minHeight,'0');
