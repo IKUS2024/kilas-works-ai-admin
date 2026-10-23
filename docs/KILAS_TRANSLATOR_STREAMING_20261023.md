@@ -115,3 +115,24 @@ regression now explicitly selects trial funding and compares its own starting
 snapshot, rather than assuming separately account-funded operations consume the
 Translator trial. Read-only production query confirms exactly59 matching records
 and $14.75 eligible for exclusion under the stricter evidence predicate.
+
+## Explicit $1 Translator extension — October23 approval
+
+Owner approved raising the cumulative Translator trial from $10 to $11. Added
+`KILAS_TRANSLATOR_TRIAL_EXTENSION_MICRO_USD=1000000`, default zero. It accepts only
+this exact approved extension, against the existing $10 authenticated internal
+policy. Effective Translator guard becomes275,000 IDR at the existing25,000
+internal valuation, within the unchanged500,000 total. It does not claim FX or
+provider billing verification. Shared environment cap/guard remain unchanged.
+
+The extension gets distinct immutable Translator campaign metadata, while its
+spend calculation retains all historical trial liabilities and excludes only
+proven separately account-funded Call operations. AI Call policy callers ignore
+the new setting entirely. No history rewrite, purchase, top-up or credential
+change. Activation requires the extension setting, native ENABLED=true and
+KILAS_TRANSLATOR_PROVIDER=gemini; the latter keeps classic fallback available.
+
+Validation covers exact amount rejection, unchanged Call configuration, retained
+history, two paired leases under $1.10 remaining and rejection of a third. Native
+budget/readiness and AI Call suites pass offline. Provider QA remains separately
+limited to its original $1 approval; this standing extension does not enlarge it.
