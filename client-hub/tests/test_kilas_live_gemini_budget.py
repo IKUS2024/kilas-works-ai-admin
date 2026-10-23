@@ -163,6 +163,42 @@ class GeminiBudgetTests(unittest.TestCase):
             self.assert_denied('gemini_unavailable', lambda: budget.claim(3, 'c'*48, self.key()))
         self.assertEqual(self.query('SELECT COUNT(*) FROM kilas_vo_stt_operations'), (0,))
 
+    def test_account_funded_calls_excluded_only_with_exact_unique_same_tenant_evidence(self):
+        self.execute('CREATE TABLE kilas_ai_usage(user_id INTEGER,operation_key TEXT,operation_type TEXT,mode TEXT,status TEXT,quota_source TEXT,provider TEXT,model TEXT,estimated_cost_usd TEXT)')
+        good = ['AI_CALL', 'SMART', 'COMPLETE', 'BASE', 'google', 'gemini-3.8-live', '0.25']
+        cases = [({}, True), ({'source': 'TOPUP'}, True),
+                 ({'missing': True}, False), ({'owner': 2}, False),
+                 ({'key': 'different'}, False), ({'kind': 'CHAT'}, False),
+                 ({'mode': 'FAST'}, False), ({'status': 'PENDING'}, False),
+                 ({'status': 'FAILED'}, False), ({'source': 'OTHER'}, False),
+                 ({'provider': 'other'}, False), ({'model': 'other'}, False),
+                 ({'cost': '0.24'}, False), ({'cost': '0.26'}, False),
+                 ({'cost': None}, False), ({'cost': 'NaN'}, False),
+                 ({'cost': 'Infinity'}, False), ({'duplicate': True}, False),
+                 ({'dispatch': False}, False), ({'ledger': 'CANCELLED'}, False),
+                 ({'campaign': 'gml-old-translator'}, False)]
+        for index, (change, expected) in enumerate(cases, 200):
+            key = self.key(index)+'-gc'
+            self.seed(250000, change.get('ledger', 'UNKNOWN'), change.get('campaign', 'gml-call-historical'), index)
+            self.execute('UPDATE kilas_vo_stt_operations SET operation_key=?,dispatched_at=? WHERE operation_key=?',
+                         (key, None if change.get('dispatch') is False else '2026-10-16T00:00:00+00:00', self.key(index)+'-gm'))
+            record = [change.get('owner', 1), change.get('key', key)] + good.copy()
+            for field, offset in (('kind',2),('mode',3),('status',4),('source',5),('provider',6),('model',7),('cost',8)):
+                if field in change: record[offset] = change[field]
+            if not change.get('missing'):
+                self.execute('INSERT INTO kilas_ai_usage VALUES (?,?,?,?,?,?,?,?,?)', record)
+                if change.get('duplicate'):
+                    self.execute('INSERT INTO kilas_ai_usage VALUES (?,?,?,?,?,?,?,?,?)', record)
+            with closing(self.connect()) as conn:
+                spend = budget._spend(conn, budget.policy())
+                excluded = sum(int(ok) for _, ok in cases[:index-199])*250000
+                self.assertEqual(spend, (index-199)*250000-excluded, change)
+                # Calling through AI Call keeps its original full total.
+                call_config = dict(budget.policy(), id='gml-call-current')
+                self.assertEqual(budget._spend(conn, call_config), (index-199)*250000)
+        self.assertEqual(self.query('SELECT SUM(charge_micro) FROM kilas_vo_stt_operations')[0], len(cases)*250000)
+        self.assertEqual(self.query("SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status='UNKNOWN'")[0], len(cases)-1)
+
     def test_accounts_share_one_global_lifetime_cap_including_all_historical_users(self):
         for n in range(100, 104):
             self.seed(100000, 'UNKNOWN', 'gml-historical-'+str(n), n, owner=1 if n%2 else 2)

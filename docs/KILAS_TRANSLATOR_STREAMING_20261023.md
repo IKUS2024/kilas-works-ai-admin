@@ -86,3 +86,32 @@ The October16 release note recorded9.9USD retained against the then10USD allowan
 that is historical context, not a current balance. Code deployment alone cannot be
 reported as live working native translation. Final deployment evidence is reported
 in the task handoff; the runtime gate remains the source of truth.
+
+## Funding-source correction — October 23 follow-up
+
+Read-only production reconciliation found $24.65 aggregate retained allowance:
+$5.90 Translator, $4.00 shared-trial Call, and $14.75 across 59 separately
+account-funded Call operations. All 106 operation keys are distinct; none remains
+RESERVED/DISPATCHED. The $14.75 has unique same-user/same-operation COMPLETE
+AI_CALL usage records, SMART mode, BASE/TOPUP source, Google/gemini-3.8-live and
+an exact matching cost. This is accounting evidence, not a provider invoice.
+
+Translator lifetime calculation now excludes only those exact proven separately
+funded envelopes. Every ledger row and its charge remains unchanged. Missing,
+duplicate, cross-user, wrong-key, mismatched-cost/provider/model/source or
+non-complete evidence remains charged. Historical trial, failed/unknown dispatch,
+and QA costs remain counted. AI Call's own `_spend` callers keep the original
+calculation and behavior. QA campaign-specific calculation is unchanged.
+
+Expected corrected shared-trial retention: $9.90; remaining $0.10 under the
+existing $10 cap, still below a paired $0.50 lease. No cap, valuation guard,
+feature flag, account credit or historical amount changed. A proposed additional
+$1 standing Translator allowance is pending explicit approval. It must be scoped
+to Translator rather than editing shared policy values that AI Call also reads.
+
+Validation: native budget tests include 21 evidence variants and untouched-ledger
+assertions; native readiness, pair and AI Call suites pass offline. The Call trial
+regression now explicitly selects trial funding and compares its own starting
+snapshot, rather than assuming separately account-funded operations consume the
+Translator trial. Read-only production query confirms exactly59 matching records
+and $14.75 eligible for exclusion under the stricter evidence predicate.
