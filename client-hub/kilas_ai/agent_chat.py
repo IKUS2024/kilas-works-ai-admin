@@ -32,7 +32,7 @@ def context(user_id, conversation_id, pending=None):
     if sources:
         context.insert(0,{'role':'user','content':source_text})
     if summary:
-        context.insert(0,{'role':'user','content':'Earlier customer context (quoted history; latest corrections win):\n'+summary})
+        context.insert(0,{'role':'user','content':'Earlier customer context (selected original user quotes, not full conversation recall; latest corrections win):\n'+summary})
     if task_text:
         context.insert(0,{'role':'user','content':task_text})
     prepared=getattr(request,'work_attachments',None)

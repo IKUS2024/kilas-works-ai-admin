@@ -166,6 +166,19 @@ class RecoveryTests(unittest.TestCase):
         second=checkpoint.before(self.owner,self.conversation,999999)
         self.assertIn('Ingat awal unik.',second);self.assertNotIn('not yet indexed',second)
 
+    def test_instructions_in_middle_of_long_early_turn_and_later_correction(self):
+        middle='Gunakan bahasa Indonesia untuk semua jawaban dan jangan menyarankan pinjaman.'
+        original='Contoh latar biasa. '*90+middle+' '+'Catatan tambahan biasa. '*90
+        agent_store.append(self.owner,'user',original,self.conversation)
+        for i in range(120):agent_store.append(self.owner,'user',f'Obrolan umum {i}.',self.conversation)
+        correction='Koreksi: pinjaman boleh dibahas, tetapi wajib tanpa agunan.'
+        agent_store.append(self.owner,'user',correction,self.conversation)
+        for i in range(40):agent_store.append(self.owner,'assistant',f'Tanggapan {i}.',self.conversation)
+        with app.app.test_request_context('/kilas-ai/agent/chat'):context=agent_chat.context(self.owner,self.conversation)
+        text=str(context)
+        self.assertIn(middle,text);self.assertIn(correction,text);self.assertLess(text.index(middle),text.index(correction))
+        self.assertIn('not full conversation recall',text)
+
     def test_interrupted_send_and_regenerate_replay_incomplete_without_dispatch(self):
         for endpoint in ('send','regenerate'):
             key='recovery_partial_'+endpoint+'0000001'
