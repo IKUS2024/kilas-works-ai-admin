@@ -60,8 +60,11 @@ def main():
                 page.locator('#library-type').select_option('audio');page.locator('.library-tools button').click();page.wait_for_load_state('networkidle');expect(page.locator('.library-asset')).to_have_count(1)
                 page.go_back(wait_until='networkidle');expect(page.locator('.library-asset')).to_have_count(3)
                 page.goto(origin+'/kilas-translator?mode=voiceover',wait_until='networkidle')
-                expect(page.locator('.audio-latest-result audio')).to_be_visible();assert page.locator('.audio-latest-result a').filter(has_text='MP3').count()==1
-                page.screenshot(path=str(output/f'voice-latest-{width}.png'),full_page=True)
+                expect(page.locator('.audio-latest-result,#audio-result audio')).to_have_count(0)
+                page.screenshot(path=str(output/f'voice-fresh-{width}.png'),full_page=True)
+                page.locator('[data-audio-history]').first.click()
+                expect(page.locator('#audio-result audio')).to_be_visible()
+                expect(page.locator('#audio-result a').filter(has_text='MP3')).to_have_count(1)
                 page.goto(origin+'/kilas-ai/usage',wait_until='networkidle');expect(page.locator('.credits-pay-button')).to_be_disabled();expect(page.locator('.credits-preview-note')).to_be_visible()
                 page.screenshot(path=str(output/f'credits-{width}.png'),full_page=True)
                 page.goto(origin+'/creative-services/#cs-event',wait_until='networkidle');page.locator('[data-service-id]').first.click();page.wait_for_url('**/#contact')

@@ -41,7 +41,7 @@ jobs:
           name: kilas-audio-responsive
           path: |
             /tmp/kilas-audio-browser/
-            /tmp/kilas-latest-result-review/
+            /tmp/kilas-fresh-entry-review/
   postgres:
     runs-on: ubuntu-latest
     timeout-minutes: 10

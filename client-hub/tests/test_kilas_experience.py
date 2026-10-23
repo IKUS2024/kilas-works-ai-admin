@@ -96,13 +96,17 @@ class ExperienceTests(unittest.TestCase):
         self.assertEqual(self.client().post('/kilas-ai/home-task',data={'csrf_token':'work-csrf','task':'voiceover','brief':'x'*4001}).status_code,400)
         self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_jobs WHERE user_id=?',(self.owner,))['n'],0)
 
-    def test_latest_voice_result_excludes_other_owners_live_and_failed_jobs(self):
+    def test_fresh_voice_entry_keeps_owned_history_and_explicit_result_access(self):
         ident=self.audio(self.owner,'Saved readable script');self.audio(self.other,'Foreign latest');self.audio(self.owner,'Failed latest',status='FAILED');self.audio(self.owner,'Live latest','live_session')
         html=self.client().get('/kilas-translator?mode=voiceover').text
-        self.assertIn('audio-latest-result',html);self.assertIn('Saved readable script',html)
-        latest=html.split('class="audio-latest-result"',1)[1].split('class="audio-tabs"',1)[0]
-        self.assertNotIn('Foreign latest',latest);self.assertNotIn('Failed latest',latest);self.assertNotIn('Live latest',latest)
-        self.assertIn(f'/kilas-translator/jobs/{ident}/result',latest)
+        self.assertNotIn('class="audio-latest-result"',html)
+        self.assertNotIn('class="audio-result-section"',html.split('class="audio-tabs"',1)[0])
+        self.assertIn('Saved readable script',html)
+        self.assertNotIn('Foreign latest',html);self.assertNotIn('Live latest',html)
+        self.assertIn(f'data-audio-history="{ident}"',html)
+        selected=self.client().get(f'/kilas-translator/jobs/{ident}').text
+        self.assertIn('class="audio-result-section"',selected)
+        self.assertIn(f'/kilas-translator/jobs/{ident}/result',selected)
 
     def test_starters_follow_ui_language_without_changing_models(self):
         for language,label in [('id','Naskah promosi'),('en','Promotional script'),('es','Guion promocional'),('zh','推广文案')]:

@@ -1,0 +1,13 @@
+# Fresh Voice Over entry — 2026-10-23
+
+Baseline main and live Client Hub: `170e004e7eb4540f9f98aad63f3ad418d540002e`. This revision preserves the Translator phrase-pause release and supersedes only automatic historical-result rendering from the earlier Voice Over fix.
+
+Normal Voice Over GET entry and both Home handoff POST routes now open the creation form without selecting or expanding the latest historical result. Removed the automatic latest-job lookup and its template include. History records and Recent links remain available; no history is deleted. Explicit owned result URLs, generation-result redirects, queued/processing job status and polling, Edit Script, and Generate Another Version retain their existing implementation and authority checks. The shared result-action partial from the earlier fix remains unchanged. Transferred Home drafts remain exact, and Edit Script still loads the stored final spoken script and language.
+
+Validation:
+- Five focused route tests cover direct/default fresh entry with existing history, both Home POST routes with empty and exact transferred drafts, immutable full history rows, explicit result/media/history access, final translated language, queued/processing refresh and completion polling, and invalid/foreign/legacy result exclusions. Fresh direct/Home expectations failed on the baseline before implementation.
+- Chromium at 390 and 1440 CSS pixels covers the real Home button, direct/default entry, tabs and refresh, preserved drafts, explicit Recent/result actions, latest-language/voice editing, a synthetic new-generation redirect, and active-job refresh/completion polling. Alternate submission is intercepted without real regeneration; new generation uses synthetic TTS only.
+- Existing Audio, History, Voice Edit, Alternate, Experience and navigation regression suites are run alongside the focused tests. Experience assertions now reflect the newly requested fresh entry while retaining explicit result access.
+- CI artifacts use `/tmp/kilas-fresh-entry-review/`. No Translator runtime, voice/pricing, Finance, provider, credential, schema or production-data changes.
+
+Production verification and limitations must be reported from the actual deployment result. HTTPS access to the production app and current Render documentation returns HTTP 403 from this cloud environment; no authenticated production browser session is available here. The referenced Library screenshot was resolved with its text summary, but its byte transfer failed, so pixels were not inspected. No paid AI calls, actual paid regeneration, purchases, external sends, or physical-device tests are claimed.

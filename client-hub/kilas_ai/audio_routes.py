@@ -155,16 +155,11 @@ def home(ident=None,initial_brief=None,home_task=None):
     if not upload_translation_visible():active_mode='voiceover'
     return_to=request.form.get('return_to','') if request.method=='POST' else ''
     if not re.fullmatch(r'/products/start|/kilas-ai/threads/[0-9]+|/kilas-ai/agent(?:\?conversation=[0-9]+)?',return_to):return_to=''
-    latest_job=None
-    # Restore the latest result independently of the new Home editor draft.
-    if not job and active_mode=='voiceover':
-        latest=db.query_one("SELECT id FROM kilas_audio_jobs WHERE user_id=? AND mode='voiceover' AND status='COMPLETED' AND NOT "+store.live_output_clause()+" AND NOT "+store.learning_output_clause()+" ORDER BY id DESC LIMIT 1",(user,))
-        if latest:latest_job=store.get(user,latest['id'])
     state=store.balance(user)
     page,through,_=_history_args()
     recent=store.history_page(user,page,through=through,kind=active_mode)
     saved_voices=personal.saved_voices(user)
-    return render_template('kilas_translator/home.html',**recent,selected_job_id=job['id'] if job else None,active_mode=active_mode,video_script_ready=video_budget.ready(user),content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,latest_job=latest_job,return_to=return_to,
+    return render_template('kilas_translator/home.html',**recent,selected_job_id=job['id'] if job else None,active_mode=active_mode,video_script_ready=video_budget.ready(user),content_draft=content_draft,initial_brief=initial_brief,home_task=home_task,balance=state,job=job,return_to=return_to,
                            voices=branded.public_choices(),voice_sample_aliases=branded.sample_aliases(),
                            personal_voice=bool(personal.get(user)),personal_preview=personal.has_preview(user),voice_operation_key=secrets.token_hex(16),
                            saved_voices=saved_voices,
