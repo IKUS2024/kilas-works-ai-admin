@@ -26,42 +26,43 @@ INTERNAL_RESERVE_MIN_MICRO_USD = 250000
 OWNER_PHYSICAL_LEASES_PER_HOUR = 80
 
 
-def policy(*, enabled_key='KILAS_LIVE_GEMINI_ENABLED'):
+def policy(*, enabled_key='KILAS_LIVE_GEMINI_ENABLED', _environment=None):
+    environment = os.environ if _environment is None else _environment
     try:
-        if os.environ.get(enabled_key, '').lower() not in ('true', '1', 'on'):
+        if environment.get(enabled_key, '').lower() not in ('true', '1', 'on'):
             return None
-        if os.environ.get('KILAS_LIVE_GEMINI_BILLING_VERIFIED') != 'yes':
+        if environment.get('KILAS_LIVE_GEMINI_BILLING_VERIFIED') != 'yes':
             return None
-        campaign = os.environ['KILAS_LIVE_GEMINI_CAMPAIGN']
-        owner = int(os.environ['KILAS_LIVE_GEMINI_ALLOWED_OWNER_ID'])
-        cap = int(os.environ['KILAS_LIVE_GEMINI_BUDGET_MICRO_USD'])
-        reserve = int(os.environ['KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD'])
-        mode = os.environ.get('KILAS_LIVE_GEMINI_POLICY', 'qa')
-        audience = os.environ.get('KILAS_LIVE_GEMINI_AUDIENCE', 'owner')
+        campaign = environment['KILAS_LIVE_GEMINI_CAMPAIGN']
+        owner = int(environment['KILAS_LIVE_GEMINI_ALLOWED_OWNER_ID'])
+        cap = int(environment['KILAS_LIVE_GEMINI_BUDGET_MICRO_USD'])
+        reserve = int(environment['KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD'])
+        mode = environment.get('KILAS_LIVE_GEMINI_POLICY', 'qa')
+        audience = environment.get('KILAS_LIVE_GEMINI_AUDIENCE', 'owner')
         if audience not in ('owner', 'authenticated'):
             return None
         valuation = {}
         price_version = PRICE_VERSION
         if mode == 'owner_lifetime':
-            approved_idr = int(os.environ['KILAS_LIVE_GEMINI_TOTAL_IDR'])
+            approved_idr = int(environment['KILAS_LIVE_GEMINI_TOTAL_IDR'])
             if not 0 < approved_idr <= 500000:
                 return None
-            valuation_mode = os.environ.get('KILAS_LIVE_GEMINI_IDR_VALUATION_MODE', 'verified_ceiling')
+            valuation_mode = environment.get('KILAS_LIVE_GEMINI_IDR_VALUATION_MODE', 'verified_ceiling')
             if valuation_mode == 'verified_ceiling':
                 # A verified tax/fee-inclusive bound remains a separate path.
                 # Neither a wallet balance nor a market quote verifies it.
-                if os.environ.get('KILAS_LIVE_GEMINI_IDR_CEILING_VERIFIED') != 'yes':
+                if environment.get('KILAS_LIVE_GEMINI_IDR_CEILING_VERIFIED') != 'yes':
                     return None
-                ceiling = int(os.environ['KILAS_LIVE_GEMINI_IDR_PER_USD_CEILING'])
+                ceiling = int(environment['KILAS_LIVE_GEMINI_IDR_PER_USD_CEILING'])
                 guard_idr = approved_idr
             elif valuation_mode == 'conservative_internal':
                 # Explicit internal accounting assumption, NOT actual FX,
                 # supplier usage, an invoice ceiling or a prepaid hard stop.
                 # All amounts need affirmative configuration; no spend defaults.
-                if os.environ.get('KILAS_LIVE_GEMINI_INTERNAL_VALUATION_ACK') != 'yes':
+                if environment.get('KILAS_LIVE_GEMINI_INTERNAL_VALUATION_ACK') != 'yes':
                     return None
-                ceiling = int(os.environ['KILAS_LIVE_GEMINI_IDR_PER_USD_INTERNAL'])
-                guard_idr = int(os.environ['KILAS_LIVE_GEMINI_INTERNAL_GUARD_IDR'])
+                ceiling = int(environment['KILAS_LIVE_GEMINI_IDR_PER_USD_INTERNAL'])
+                guard_idr = int(environment['KILAS_LIVE_GEMINI_INTERNAL_GUARD_IDR'])
                 if (ceiling < INTERNAL_VALUATION_MIN_IDR_PER_USD
                         or not 0 < guard_idr <= min(approved_idr, INTERNAL_GUARD_MAX_IDR)
                         or reserve < INTERNAL_RESERVE_MIN_MICRO_USD):
@@ -79,7 +80,7 @@ def policy(*, enabled_key='KILAS_LIVE_GEMINI_ENABLED'):
             # is a lifetime cap, not an artificial distant date or auto-renewal.
             expiry_text = 'owner-lifetime-v1'
         elif mode == 'qa':
-            expiry = datetime.fromisoformat(os.environ['KILAS_LIVE_GEMINI_EXPIRES_AT'].replace('Z', '+00:00'))
+            expiry = datetime.fromisoformat(environment['KILAS_LIVE_GEMINI_EXPIRES_AT'].replace('Z', '+00:00'))
             now = datetime.now(timezone.utc)
             if expiry.tzinfo is None or not now < expiry <= now + timedelta(days=31):
                 return None

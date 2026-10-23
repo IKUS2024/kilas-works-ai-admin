@@ -121,3 +121,49 @@ def audience_report(owner_report=None):
     except Exception:
         result['nonowner_reason'] = 'readiness_error'
     return result
+
+
+def activation_report():
+    """Read-only config diagnosis, including when disabled. Never copies secrets.
+
+    The isolated mapping can only parse policy; it never changes admission or
+    process environment. Values are deliberately restricted to policy settings.
+    """
+    import os
+    prefix = 'KILAS_LIVE_GEMINI_'
+    names = ('ENABLED', 'BILLING_VERIFIED', 'CAMPAIGN', 'ALLOWED_OWNER_ID',
+             'BUDGET_MICRO_USD', 'LEASE_RESERVE_MICRO_USD', 'POLICY', 'AUDIENCE',
+             'EXPIRES_AT', 'TOTAL_IDR', 'IDR_VALUATION_MODE',
+             'IDR_CEILING_VERIFIED', 'IDR_PER_USD_CEILING',
+             'INTERNAL_VALUATION_ACK', 'IDR_PER_USD_INTERNAL', 'INTERNAL_GUARD_IDR')
+    environment = {prefix+name: os.environ[prefix+name] for name in names if prefix+name in os.environ}
+    result = {'present': {name: bool(environment.get(prefix+name)) for name in names},
+              'enabled': environment.get(prefix+'ENABLED', '').lower() in ('true', '1', 'on'),
+              'billing_verified': environment.get(prefix+'BILLING_VERIFIED') == 'yes',
+              'mode': environment.get(prefix+'POLICY', 'qa'),
+              'audience': environment.get(prefix+'AUDIENCE', 'owner'),
+              'gemini_key_present': bool(os.environ.get('GEMINI_API_KEY'))}
+    # Numeric policy values and expiry are not credentials or account identities.
+    for name in ('BUDGET_MICRO_USD', 'LEASE_RESERVE_MICRO_USD', 'TOTAL_IDR',
+                 'IDR_PER_USD_CEILING', 'IDR_PER_USD_INTERNAL', 'INTERNAL_GUARD_IDR'):
+        raw = environment.get(prefix+name, '')
+        result[name.lower()] = int(raw) if raw.isdecimal() and len(raw) < 16 else None
+    from datetime import datetime, timezone
+    try:
+        expiry = datetime.fromisoformat(environment.get(prefix+'EXPIRES_AT', '').replace('Z', '+00:00'))
+        result['qa_expired'] = expiry <= datetime.now(timezone.utc)
+    except (ValueError, TypeError):
+        result['qa_expired'] = None
+    environment[prefix+'ENABLED'] = 'true'
+    config = budget.policy(_environment=environment)
+    result['valid_if_enabled'] = bool(config)
+    if config:
+        conn = usage._connect()
+        try:
+            retained = budget._spend(conn, config)
+            result.update(retained_micro_usd=retained,
+                          remaining_micro_usd=max(0, config['global_micro']-retained),
+                          pair_reserve_micro_usd=config['reserve']*2)
+        finally:
+            conn.close()
+    return result

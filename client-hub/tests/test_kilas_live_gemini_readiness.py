@@ -14,6 +14,37 @@ from kilas_ai import live_gemini_readiness as readiness
 class ReadinessTests(unittest.TestCase):
     setUp = fixture.GeminiTests.setUp
 
+    def test_activation_diagnosis_cannot_enable_or_leak_credentials(self):
+        import os
+        from datetime import datetime, timezone, timedelta
+        values = {
+            'KILAS_LIVE_GEMINI_ENABLED': 'false',
+            'KILAS_LIVE_GEMINI_BILLING_VERIFIED': 'yes',
+            'KILAS_LIVE_GEMINI_CAMPAIGN': 'diagnostic',
+            'KILAS_LIVE_GEMINI_ALLOWED_OWNER_ID': '9',
+            'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD': '1000000',
+            'KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD': '100000',
+            'KILAS_LIVE_GEMINI_EXPIRES_AT': (datetime.now(timezone.utc)+timedelta(hours=1)).isoformat(),
+            'GEMINI_API_KEY': 'never-output-this-secret',
+        }
+        with patch.dict(os.environ, values, clear=True), \
+             patch.object(readiness.usage, '_connect') as connection, \
+             patch.object(readiness.budget, '_spend', return_value=200000), \
+             patch.object(readiness.native, 'connect', side_effect=AssertionError('paid IO')):
+            result = readiness.activation_report()
+            self.assertTrue(result['valid_if_enabled'])
+            self.assertFalse(result['enabled'])
+            self.assertEqual(result['remaining_micro_usd'], 800000)
+            self.assertEqual(result['pair_reserve_micro_usd'], 200000)
+            self.assertIsNone(readiness.budget.policy())
+            self.assertEqual(os.environ['KILAS_LIVE_GEMINI_ENABLED'], 'false')
+            self.assertNotIn('never-output-this-secret', json.dumps(result))
+            connection.return_value.commit.assert_not_called()
+        with patch.dict(os.environ, {}, clear=True):
+            result = readiness.activation_report()
+            self.assertFalse(result['valid_if_enabled'])
+            self.assertFalse(result['present']['BUDGET_MICRO_USD'])
+
     def checks(self, *, seconds=90, reserved=0, jobs=0, exempt=False, audience='owner'):
         stack = ExitStack()
         self.addCleanup(stack.close)
