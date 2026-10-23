@@ -1,0 +1,80 @@
+{
+  "synthetic_only": true,
+  "provider_calls": 0,
+  "browser": [
+    {
+      "width": 320,
+      "height": 640,
+      "overflow": false,
+      "endVisible": true,
+      "stateText": "Mendengarkan",
+      "stateStyle": "rgb(85, 93, 103)",
+      "stateHidden": false,
+      "captions": 260,
+      "swap": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "overflow": false,
+      "endVisible": true,
+      "stateText": "Mendengarkan",
+      "stateStyle": "rgb(85, 93, 103)",
+      "stateHidden": false,
+      "captions": 260,
+      "swap": true
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "overflow": false,
+      "endVisible": true,
+      "stateText": "Mendengarkan",
+      "stateStyle": "rgb(85, 93, 103)",
+      "stateHidden": false,
+      "captions": 267,
+      "swap": true
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "overflow": false,
+      "endVisible": true,
+      "stateText": "Mendengarkan",
+      "stateStyle": "rgb(85, 93, 103)",
+      "stateHidden": false,
+      "captions": 267,
+      "swap": true
+    },
+    {
+      "width": 480,
+      "height": 300,
+      "overflow": false,
+      "endVisible": true,
+      "stateText": "Mendengarkan",
+      "stateStyle": "rgb(85, 93, 103)",
+      "stateHidden": false,
+      "captions": 115,
+      "swap": true
+    }
+  ],
+  "chat_zoom_cases": 57,
+  "pipeline": [
+    {
+      "direction": "id->en",
+      "packet_ms": 100,
+      "phrase_pause_ms": 600,
+      "audio_nodes_before_end": 1,
+      "microphone_active": true,
+      "provider_output_still_open": true
+    },
+    {
+      "direction": "en->id",
+      "packet_ms": 100,
+      "phrase_pause_ms": 600,
+      "audio_nodes_before_end": 1,
+      "microphone_active": true,
+      "provider_output_still_open": true
+    }
+  ]
+}

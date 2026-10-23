@@ -15,6 +15,7 @@
 {% include 'kilas_ai/_feature_navigation.html' %}
 <section class="kilas-live-translator" data-ready="{{ 'true' if live_ready else 'false' }}">
 <section id="live-setup"><header class="live-heading"><h1>Translator</h1><p>{{ ui_t("Pilih dua bahasa, lalu mulai percakapan.") }}</p></header>
+<p role="status">{{ ui_t('Mode klasik: pengenalan ucapan, terjemahan, lalu suara.') }} {% if native_available %}<a href="{{ url_for('kilas_audio.live_gemini_home') }}">{{ ui_t('Buka Translator native') }}</a>{% else %}{{ ui_t('Streaming native belum aktif untuk akun ini.') }}{% endif %}</p>
 {% if not live_ready %}<p role="status">{{ ui_t("Translator belum tersedia untuk akun ini.") }}</p>{% endif %}
 <section id="live-recovery" hidden aria-label="{{ ui_t('Pemulihan sesi') }}"><p id="live-recovery-status" role="status" aria-live="polite"></p><p>{{ ui_t("Sesi mungkin masih digunakan di tab atau perangkat lain. Gunakan tab itu, atau akhiri sesi sebelumnya di sini. Mengakhiri sesi membatalkan ucapan yang masih diproses; biaya yang sudah dikirim tetap tercatat.") }}</p><div class="live-recovery-actions"><button type="button" id="live-recovery-end" class="btn secondary" hidden>{{ ui_t("Akhiri sesi sebelumnya") }}</button><button type="button" id="live-recovery-check" class="btn secondary">{{ ui_t("Periksa sesi") }}</button></div></section>
 <form id="live-setup-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

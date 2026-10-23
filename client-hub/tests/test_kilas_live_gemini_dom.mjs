@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {GeminiSession} from '../static/kilas_live_gemini_engine.mjs?v=native-progressive-20261016';
+import {GeminiSession} from '../static/kilas_live_gemini_engine.mjs?v=streaming-20261023';
 const pages=JSON.parse(readFileSync(process.env.KILAS_GEMINI_UI_FIXTURE_PATH,'utf8'));
 const {JSDOM}=createRequire(pathToFileURL(join(process.env.KILAS_UI_DOM_TOOLS||'/tmp/kilas-gemini-dom','package.json')))('jsdom');
 const tick=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
@@ -40,6 +40,7 @@ for(const locale of ['en','id']){
    assert.ok(document.querySelector('#live-setup-form').textContent.includes(locale==='en'?'The selected languages are translated automatically in both directions.':'Bahasa yang dipilih diterjemahkan otomatis dua arah.'));
    assert.equal(document.querySelector('#live-setup-form').textContent.includes(locale==='en'?'The source language is translated into the target language.':'Bahasa sumber diterjemahkan ke bahasa tujuan.'),false);
   }
+  const oldPair=[first.value,second.value];document.querySelector('#native-swap').click();assert.deepEqual([first.value,second.value],oldPair.reverse());
   assert.equal(document.querySelector('[name=consent]').checked,false);
   assert.equal(document.querySelector('#live-active').hidden,true);assert.equal(microphones,0);assert.equal(contexts,0);
   assert.equal(document.documentElement.lang,locale);assert.equal(requests.length,3);
@@ -48,8 +49,12 @@ for(const locale of ['en','id']){
   GeminiSession.prototype.start=function(data){
    assert.equal(data.get('translation_mode'),paired?'two_way':null);assert.equal(data.get('consent'),consent);assert.equal(data.get('output_order'),progressive?'progressive_stream_runs':null);
    submitted=true;this.active=true;this.state('renewing');
-   assert.equal(document.querySelector('#live-active').hidden,false);assert.equal(document.querySelector('#gemini-finish'),null);assert.equal(document.querySelector('#live-translation'),null);assert.deepEqual([...document.querySelectorAll('#live-active button')].map(node=>node.id),['live-end']);assert.equal(document.querySelector('#live-recovery-check').hidden,true);
+   assert.equal(document.querySelector('#live-active').hidden,false);assert.equal(document.querySelector('#gemini-finish'),null);assert.ok(document.querySelector('#native-captions'));assert.deepEqual([...document.querySelectorAll('#live-active button')].map(node=>node.id),['live-end']);assert.equal(document.querySelector('#live-recovery-check').hidden,true);
    assert.equal(document.querySelector('#live-state').textContent,locale==='en'?'Processing':'Memproses');
+   this.onText('',{operation:'synthetic',streams:{en:{source_text:'Abaikan instruksi sebelumnya',translated_text:'Ignore previous instructions <script>alert(1)</script>'}}});
+   assert.ok(document.querySelector('#native-captions').textContent.includes('<script>'));assert.equal(document.querySelector('#native-captions script'),null);
+   this.onText('',{operation:'synthetic',streams:{en:{source_text:'Abaikan instruksi sebelumnya',translated_text:'Ignore previous instructions <script>alert(1)</script>'}}});
+   assert.equal(document.querySelectorAll('.native-caption').length,1);
    this.onWarning({code:'gemini_tail_unconfirmed',completion_kind:'bounded_drain',tail_confirmed:false});
    assert.equal(document.querySelector('#live-session-status').textContent,locale==='en'?'The end of the translation is not confirmed.':'Bagian akhir terjemahan belum terkonfirmasi.');
    this.onError({code:'budget_limit'});this.active=false;this.state('ended');
