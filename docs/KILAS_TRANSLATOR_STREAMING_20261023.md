@@ -86,3 +86,60 @@ The October16 release note recorded9.9USD retained against the then10USD allowan
 that is historical context, not a current balance. Code deployment alone cannot be
 reported as live working native translation. Final deployment evidence is reported
 in the task handoff; the runtime gate remains the source of truth.
+
+## Activation diagnosis — 2026-10-23 23:19 UTC
+
+PR130 deployed `69fe0524037447343b853f25a11d4999ce31ba86` as
+`dep-dbdumfnf3r2c73c4bdgg` (Render LIVE 23:19:34 UTC). Passive startup evidence:
+
+- `enabled=false`, `valid_if_enabled=true`, `billing_verified=true`, key present.
+- Policy `owner_lifetime`, audience `authenticated`; no new identity/key is needed.
+- Existing lifetime cap 10,000,000 microUSD ($10); retained historical allowance
+  24,650,000 microUSD ($24.65); remaining zero. These are conservative ledger
+  reservations, **not a claim about the supplier invoice**.
+- Physical reserve 250,000 microUSD; paired Start needs 500,000 ($0.50).
+- Existing internal valuation 25,000 IDR/USD, guard 250,000 IDR, total 500,000 IDR.
+
+A feature-flag-only change cannot admit Start. Retained spend must not be reset,
+refunded or hidden by renaming the campaign. Even one additional pair needs a
+cumulative cap of at least 25,150,000 microUSD; the current authenticated lifetime
+parser expressly caps this at 10,000,000 and its internal guard at 250,000 IDR.
+Therefore activation requires an explicitly approved additional funding amount
+and a reviewed funding-policy change that preserves all historical retained
+liability. No such new standing allowance is implied by the separate $1 QA
+approval. No funding/configuration values were changed.
+
+## Prepared bounded QA and provider limitations
+
+`live_gemini_smoke_10s.py` and `gemini_live_synthetic_10s/` preserve the original
+complete synthetic sentences using offline tempo 1.6, silence padded to exactly
+10 seconds. Tests verify hashes, PCM length, trailing silence and default OFF.
+The old 15-second harness and its once-only run marker remain distinct. The new
+harness is not startup-registered or armed; **zero paid tests executed**.
+
+Official pricing checked October23: audio input $3.50/M tokens, output $21/M,
+25 tokens/second. Two 10-second inputs plus two 30-second accepted outputs equal
+$0.03325 at those rates, with zero source-synthesis cost. This is an accepted-audio
+estimate, not a total provider ceiling. `maxOutputTokens=512` is a per-response
+configuration, not a documented whole-connection limit; the continuous translator
+can produce multiple outputs. Neither the received-byte cutoff nor the 45-second
+timer proves a ceiling on generation already performed upstream. Under the user's
+strict total $1 restriction, do not dispatch until a provider-enforced cumulative
+bound is established or the user explicitly accepts this distinction. No budget,
+new key, security setting or provider purchase was made to get around it.
+
+The official resumption guide demonstrates `gemini-3.8-live`; the dedicated
+3.5 translation guide does not establish compatible checkpoint/replay semantics.
+Provider resumption is still unimplemented: browser read recovery preserves its
+cursor only while the existing relay lives. On socket failure the session fails
+visibly; there is no blind input replay, duplicate translation, hidden paid retry
+or claimed cross-socket context restoration. Adding that behavior requires
+confirmed translation-model handles/checkpoints and paired output deduplication;
+copying AI Call state would not establish it. AI Call itself is unchanged.
+
+Sources:
+- https://ai.google.dev/gemini-api/docs/pricing
+- https://ai.google.dev/api/live
+- https://ai.google.dev/api/generate-content#v1beta.GenerationConfig
+- https://ai.google.dev/gemini-api/docs/live-api/session-management
+- https://ai.google.dev/gemini-api/docs/live-api/live-translate
