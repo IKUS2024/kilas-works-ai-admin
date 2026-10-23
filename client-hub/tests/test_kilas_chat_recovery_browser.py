@@ -41,9 +41,8 @@ def main():
                 conversation=agent_store.new_conversation(case.owner)
                 context=browser.new_context(viewport={'width':width,'height':900},has_touch=width==390)
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
-                page=context.new_page();errors=[];sent=[]
+                page=context.new_page();errors=[]
                 page.on('pageerror',lambda error:errors.append(str(error)))
-                page.on('request',lambda request:sent.append(request.post_data) if '/agent/chat' in request.url and request.method=='POST' else None)
                 page.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin) else route.abort())
                 page.goto(origin+f'/kilas-ai/agent?conversation={conversation}',wait_until='networkidle')
                 field=page.locator('#agent-message');send=page.locator('#agent-chat-form button[type=submit]')
