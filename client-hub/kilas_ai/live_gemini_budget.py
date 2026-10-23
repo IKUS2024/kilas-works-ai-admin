@@ -154,8 +154,8 @@ def _spend(conn, config):
         return total
     candidates = usage._rows(conn,
         "SELECT user_id,operation_key,charge_micro FROM kilas_vo_stt_operations "
-        "WHERE campaign LIKE 'gml-call-%' AND charge_micro>0 AND dispatched_at IS NOT NULL "
-        "AND status IN ('DISPATCHED','COMPLETED','UNKNOWN')")
+        "WHERE campaign LIKE ? AND charge_micro>0 AND dispatched_at IS NOT NULL "
+        "AND status IN ('DISPATCHED','COMPLETED','UNKNOWN')", ('gml-call-%',))
     if not candidates:
         return total
     from decimal import Decimal, DecimalException
@@ -164,8 +164,8 @@ def _spend(conn, config):
             "SELECT u.user_id,u.operation_key,u.operation_type,u.mode,u.status,u.quota_source,u.provider,u.model,u.estimated_cost_usd "
             "FROM kilas_ai_usage u JOIN kilas_vo_stt_operations o "
             "ON o.user_id=u.user_id AND o.operation_key=u.operation_key "
-            "WHERE o.campaign LIKE 'gml-call-%' AND o.charge_micro>0 AND o.dispatched_at IS NOT NULL "
-            "AND o.status IN ('DISPATCHED','COMPLETED','UNKNOWN')"):
+            "WHERE o.campaign LIKE ? AND o.charge_micro>0 AND o.dispatched_at IS NOT NULL "
+            "AND o.status IN ('DISPATCHED','COMPLETED','UNKNOWN')", ('gml-call-%',)):
         accounts.setdefault(tuple(record[:2]), []).append(record[2:])
     excluded = 0
     for owner, key, charge in candidates:
