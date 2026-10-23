@@ -62,6 +62,10 @@ def main():
        page.evaluate("visualViewport.dispatchEvent(new Event('resize'))")
      # Browser page zoom reflows CSS width. These widths cover the corresponding
      # 200% desktop reflow, separately from actual pinch emulation above.
+     if width==1440:
+      page.locator('#ai-input,#agent-message').focus()
+      page.set_viewport_size({'width':720,'height':422});check('focused-desktop-reflow-200-percent')
+      page.set_viewport_size({'width':1440,'height':844});check('focused-desktop-reflow-reset')
      if width in (320,768):
       page.evaluate('''()=>{for(let e of document.querySelectorAll('.kilas-home-workspace button,.kilas-home-workspace textarea,.kilas-home-workspace [data-kilas-feature]'))e.style.setProperty('font-size',parseFloat(getComputedStyle(e).fontSize)*2+'px','important')}''');check('text-200-percent')
      c.close()

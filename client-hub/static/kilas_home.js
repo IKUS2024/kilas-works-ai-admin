@@ -4,6 +4,7 @@
   // Layout only: visualViewport shrinks when a mobile on-screen keyboard opens.
   const viewport=window.visualViewport;
   let tallestHeight=window.innerHeight;
+  let layoutWidth=window.innerWidth;
   const timeline=root.querySelector('#ai-messages,#agent-conversation');
   const following=()=>timeline&&timeline.scrollHeight-timeline.scrollTop-timeline.clientHeight<48;
   const fitViewport=()=>{
@@ -11,7 +12,10 @@
     const height=viewport?viewport.height:window.innerHeight;
     const scale=viewport?.scale||1;
     document.body.classList.toggle('home-viewport-zoomed',scale>1.01);
-    tallestHeight=Math.max(tallestHeight,window.innerHeight);
+    // Page zoom/window reflow changes CSS width as well as height. Start a new
+    // keyboard baseline there; a keyboard resize keeps the layout width.
+    if(Math.abs(window.innerWidth-layoutWidth)>1){layoutWidth=window.innerWidth;tallestHeight=window.innerHeight;}
+    else tallestHeight=Math.max(tallestHeight,window.innerHeight);
     const editing=document.activeElement?.matches?.('#ai-input,#agent-message');
     document.documentElement.style.setProperty('--home-viewport-height',`${height}px`);
     document.documentElement.style.setProperty('--home-viewport-top',`${viewport?viewport.offsetTop:0}px`);
