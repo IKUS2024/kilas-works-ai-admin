@@ -1,5 +1,8 @@
 name: Kilas Gemini Live Offline QA
 on:
+  pull_request:
+    branches: [main]
+    paths: ['client-hub/kilas_ai/live_gemini*.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/static/kilas_live_gemini*', 'client-hub/templates/kilas_translator/gemini.html', 'client-hub/tests/*kilas_live_gemini*', '.github/workflows/kilas-gemini-live-qa.yml']
   push:
     branches: [main, 'feature/kilas-gemini-*']
     paths: ['client-hub/kilas_ai/live_gemini*.py', 'client-hub/kilas_ai/ai_call*.py', 'client-hub/static/kilas_ai_call*', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/privacy_policy.html', 'client-hub/tests/test_kilas_ai_call*', 'client-hub/tests/test_kilas_sidebar_products*', 'client-hub/static/kilas_chat_sidebar.css', 'client-hub/app.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/kilas_ai/live_translator*.py', 'client-hub/gunicorn.conf.py', 'client-hub/tests/fixtures/gemini_live_synthetic/**', 'client-hub/static/kilas_live_gemini*', 'client-hub/static/kilas_live_translator_engine.mjs', 'client-hub/static/kilas_live_translator.mjs', 'client-hub/static/kilas_live_translator_realtime_capture.mjs', 'client-hub/static/kilas_live_translator_pcm.mjs', 'client-hub/templates/kilas_translator/gemini.html', 'client-hub/templates/kilas_translator/live.html', 'client-hub/tests/test_kilas_live_gemini*', 'client-hub/tests/test_kilas_live_translator*.mjs', 'client-hub/tests/test_kilas_live_translator*.py', 'client-hub/locales/**', '.github/workflows/kilas-gemini-live-qa.yml']
@@ -46,3 +49,26 @@ jobs:
       - run: pip install -r client-hub/requirements.txt
       - run: python -B client-hub/tests/test_kilas_live_gemini_postgres.py
         env: {DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/native_live_qa', KILAS_AI_POSTGRES_QA: '1', PYTHONDONTWRITEBYTECODE: '1'}
+
+  native-streaming:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: npm install --prefix /tmp/kilas-gemini-dom --cache /tmp/kilas-gemini-npm-cache --no-audit --no-fund --save-exact jsdom@26.1.0 playwright@1.58.2
+      - run: /tmp/kilas-gemini-dom/node_modules/.bin/playwright install --with-deps chromium
+      - name: Native streaming wire and account fences without provider IO
+        run: |
+          for suite in test_kilas_live_gemini.py test_kilas_live_gemini_pair.py test_kilas_live_gemini_pair_routes.py test_kilas_live_gemini_validation.py; do
+            python -B scripts/run_offline_tests.py --only "$suite" || exit 1
+          done
+        env: {PYTHONDONTWRITEBYTECODE: '1', KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json}
+      - run: node --test client-hub/tests/test_kilas_live_gemini*.mjs
+        env: {KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json, KILAS_UI_DOM_TOOLS: /tmp/kilas-gemini-dom}
+      - run: node client-hub/tests/kilas_live_gemini_streaming_browser.mjs
+        env: {KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json, KILAS_UI_DOM_TOOLS: /tmp/kilas-gemini-dom}

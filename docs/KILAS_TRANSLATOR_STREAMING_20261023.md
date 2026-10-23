@@ -49,7 +49,8 @@ its existing policy/readiness gates pass and no explicit provider override exist
 - 11 native Python suites pass with network blocked: provider wire, account/role
   isolation, budgets, capture, completion, two-way routing and readiness.
 - Actual Chromium:320×640,390×844,768×1024,1440×900,480×300. No horizontal overflow;
-  End visible, captions scrollable, swap works, state contrast verified. First
+  End visible, captions scrollable, swap works, state contrast verified. Native
+  mobile2× pinch also keeps End inside the visual viewport and ends correctly. First
   inspection caught and fixed inherited white-on-white status text.
 - Existing Chat zoom browser:57 cases pass, including pinch2×/3×,200% text,
   keyboard and history scrolling. No Chat, AI Call, Finance, Creative or Voice Over
@@ -58,6 +59,8 @@ its existing policy/readiness gates pass and no explicit provider override exist
   8-test flow has5 assertions; both reproduced on the unmodified PR128 worktree.
   Other18 legacy non-browser suites pass. Existing Call search-smoke also fails
   on PR128;13 other Call Python suites pass. These unrelated tests were not edited.
+- A dedicated native-streaming PR job preserves the existing broad QA job and
+  adds isolated streaming/DOM/browser checks; PostgreSQL also runs on this PR.
 - Local PostgreSQL test cannot run without an explicitly disposable loopback DB.
   Real speech semantics, injection resistance, microphone/headset quality, provider
   acceptance of the updated setup and real end-to-end latency remain untested.

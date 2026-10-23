@@ -22,6 +22,13 @@ if(root){
  const prepare=new TranslatorPlayback({getContext});
  const capture=new RealtimeCapture({getContext,mediaDevices:navigator.mediaDevices,continuous:true,frameSamples:1600});
  const layout=new TranslatorCallLayout({document,root,endButton:document.querySelector('#live-end')});
+ const fitViewport=()=>{
+  const view=window.visualViewport;
+  for(const name of ['width','height','left','top','right','bottom'])root.style.removeProperty(name);
+  if(session?.active&&view){Object.assign(root.style,{width:view.width+'px',height:view.height+'px',left:view.offsetLeft+'px',top:view.offsetTop+'px',right:'auto',bottom:'auto'});}
+ };
+ window.visualViewport?.addEventListener('resize',fitViewport);window.visualViewport?.addEventListener('scroll',fitViewport);
+ window.addEventListener('resize',fitViewport);
  const latency=values=>{try{console.info('KILAS_GEMINI_CLIENT_LATENCY '+Object.entries(values).filter(([,v])=>Number.isFinite(v)&&v>=0).map(([k,v])=>k+'='+v.toFixed(1)).join(' '));}catch{}};
  const echo=new PlaybackEcho({getContext});
  const player=new GeminiPlayer({getContext:outputContext,maxBufferedSeconds:90,onScheduled:(buffer,at)=>echo.remember(buffer,at),onHold:at=>echo.hold(at),onPlaying:()=>{if(!session.speech?.active)session.state('playing');},onTiming:latency,onStarted:()=>{if(session.firstInputAt!==null)latency({first_audio_scheduled_ms:Math.max(0,performance.now()-session.firstInputAt)});},onError:e=>session.fail(e,session.version)});
@@ -36,7 +43,7 @@ if(root){
   captions.labels[first.value]=second.selectedOptions[0].textContent+' → '+first.selectedOptions[0].textContent;captions.labels[second.value]=first.selectedOptions[0].textContent+' → '+second.selectedOptions[0].textContent;
   if(!context){context=new AudioContext();gain=context.createGain();gain.connect(context.destination);}gain.gain.value=Number(document.querySelector('#native-volume').value)/100;await prepare.prepare(signal,current);
  },onState:state=>{
-  active.hidden=state==='ended';document.querySelector('#live-setup').hidden=state!=='ended';layout.setActive(state!=='ended');
+  active.hidden=state==='ended';document.querySelector('#live-setup').hidden=state!=='ended';layout.setActive(state!=='ended');fitViewport();
   document.querySelector('#live-state').textContent=t(state==='reconnecting'?'Menghubungkan kembali…':state==='listening'?'Mendengarkan':state==='playing'?'Memutar terjemahan':state==='renewing'||state==='processing'||state==='draining'?'Memproses':'Menyiapkan sesi...');update();
   if(state==='ended'){recovery.checked=false;update();}
  },onWarning:()=>{document.querySelector('#live-session-status').textContent=t('Bagian akhir terjemahan belum terkonfirmasi.');},onError:showError});

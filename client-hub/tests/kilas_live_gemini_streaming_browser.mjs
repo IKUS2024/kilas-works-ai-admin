@@ -26,12 +26,12 @@ try{
   await page.locator('#native-swap').click();assert.equal(await page.locator('[name=language_a]').inputValue(),'en');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   if(process.env.KILAS_TRANSLATOR_SCREENSHOTS==='1'&&(width===390||width===1440))await page.screenshot({path:`/tmp/translator-setup-${width}.png`});
-  // Exercise the exact production layout + captions with synthetic content.
+  // Drive the actual UI callback without opening a microphone/provider.
+  await page.evaluate(async()=>{const {GeminiSession}=await import('/static/kilas_live_gemini_engine.mjs?v=streaming-20261023');GeminiSession.prototype.start=function(){this.active=true;this.state('listening');};});
+  await page.locator('[name=consent]').check();await page.locator('#live-setup-form [type=submit]').click();
+  // Exercise the exact production caption renderer with synthetic content.
   await page.evaluate(async()=>{
-   const {TranslatorCallLayout}=await import('/static/kilas_live_translator_call_layout.mjs');
    const {GeminiCaptions}=await import('/static/kilas_live_gemini_captions.mjs');
-   document.querySelector('#live-setup').hidden=true;document.querySelector('#live-active').hidden=false;
-   new TranslatorCallLayout({document,root:document.querySelector('[data-gemini-live]'),endButton:document.querySelector('#live-end')}).setActive(true);
    const captions=new GeminiCaptions({root:document.querySelector('#native-captions'),document,labels:{en:'Indonesia → English',id:'English → Indonesia',original:'Teks asli',translation:'Terjemahan'}});
    captions.update('',{operation:'one',streams:{en:{source_text:'Di mana pintu keberangkatan?',translated_text:'Where is the departure gate?'}}});
    captions.update('',{operation:'two',streams:{id:{source_text:'Continue straight, then turn left.',translated_text:'Lanjutkan lurus, lalu belok kiri.'}}});
@@ -40,6 +40,8 @@ try{
   const geometry=await page.evaluate(()=>{const r=document.querySelector('#live-end').getBoundingClientRect();return {overflow:document.documentElement.scrollWidth>innerWidth+1,endVisible:r.top>=0&&r.bottom<=innerHeight&&r.right<=innerWidth,stateText:document.querySelector('#live-state').textContent,stateStyle:getComputedStyle(document.querySelector('#live-state')).color,stateHidden:document.querySelector('#live-state').hidden,captions:document.querySelector('#native-captions').clientHeight};});
   assert.equal(geometry.overflow,false);assert.equal(geometry.endVisible,true);assert.ok(geometry.captions>50);assert.equal(geometry.stateStyle,'rgb(85, 93, 103)');
   if(process.env.KILAS_TRANSLATOR_SCREENSHOTS==='1'&&(width===390||width===1440))await page.screenshot({path:`/tmp/translator-active-${width}.png`});
+  if(width===390){const cdp=await page.context().newCDPSession(page);await cdp.send('Emulation.setPageScaleFactor',{pageScaleFactor:2});await page.waitForTimeout(100);assert.ok(await page.locator('#live-end').evaluate(e=>{const r=e.getBoundingClientRect(),v=visualViewport;return r.right<=v.offsetLeft+v.width+1&&r.bottom<=v.offsetTop+v.height+1;}));await cdp.send('Emulation.setPageScaleFactor',{pageScaleFactor:1});}
+  await page.locator('#live-end').click();assert.equal(await page.locator('#live-active').isVisible(),false);
   assert.deepEqual(errors,[]);report.push({width,height,...geometry,swap:true});await page.close();
  }
  await writeFile('/tmp/translator-browser-evidence.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));

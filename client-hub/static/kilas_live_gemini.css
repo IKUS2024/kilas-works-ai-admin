@@ -32,3 +32,6 @@ body.kilas-translator-call-active .native-translator #live-active #live-state{co
 .native-translator #live-session-status:empty{display:none}
 .native-translator #live-end.live-hangup:focus-visible{outline:3px solid #a4440b;outline-offset:4px}
 @media(max-height:420px){body.kilas-translator-call-active>.native-translator{padding:8px 16px}.native-translator .native-session-heading{padding-bottom:8px}body.kilas-translator-call-active .native-translator #live-active{gap:8px}.native-translator .live-call-controls{padding-top:8px}.native-translator #live-end.live-hangup{width:44px;height:44px;min-width:44px;min-height:44px}.native-translator .native-caption{padding:10px 0}}
+
+.native-translator .live-call-controls{flex-wrap:wrap}
+.native-translator .native-volume input{width:clamp(44px,15vw,120px)}
