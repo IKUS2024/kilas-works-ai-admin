@@ -1,4 +1,4 @@
-"""Isolated owner-only Gemini Live Translate relay; default OFF, no import IO.
+"""Isolated account-scoped Gemini Live Translate relay; default OFF, no import IO.
 
 One fixed-target stream, not an assistant or automatic bidirectional router.
 Permanent credentials stay on this server. Audio/transcripts exist only in RAM.
@@ -103,14 +103,14 @@ def preview_owner(owner):
 
 
 def setup(target):
-    # Dedicated translation guide + Live API reference, checked 2026-10-16.
+    # Dedicated translation guide + Live API reference, checked 2026-10-23. Translation-only model does not accept prompts.
     # No user instructions, tools, text input, arbitrary model or custom voice.
     from .translator_languages import native_wire,NATIVE
     if target not in NATIVE:raise failure('invalid_language_pair',400)
     return {'setup':{'model':'models/'+MODEL,
-                     'generationConfig':{'responseModalities':['AUDIO'], 'maxOutputTokens':4096,
-                                         'translationConfig':{'targetLanguageCode':native_wire(target), 'echoTargetLanguage':False}},
-                     'inputAudioTranscription':{}, 'outputAudioTranscription':{}}}
+                     'generationConfig':{'responseModalities':['AUDIO'],
+                                         'translationConfig':{'targetLanguageCode':native_wire(target), 'echoTargetLanguage':False},
+                                         'inputAudioTranscription':{}, 'outputAudioTranscription':{}}}}
 
 
 def connect():

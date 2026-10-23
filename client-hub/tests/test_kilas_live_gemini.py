@@ -80,6 +80,10 @@ class GeminiTests(unittest.TestCase):
             self.assertEqual(setup['generationConfig']['translationConfig'],
                              {'targetLanguageCode':target, 'echoTargetLanguage':False})
             self.assertNotIn('systemInstruction', setup)
+            self.assertEqual(setup['generationConfig']['inputAudioTranscription'],{})
+            self.assertEqual(setup['generationConfig']['outputAudioTranscription'],{})
+            self.assertNotIn('tools',setup)
+            self.assertNotIn('maxOutputTokens',setup['generationConfig'])
             self.assertNotIn('speechConfig', setup['generationConfig'])
 
     def config(self, **extra):

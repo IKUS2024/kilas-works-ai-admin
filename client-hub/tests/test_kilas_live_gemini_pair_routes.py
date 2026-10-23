@@ -44,6 +44,17 @@ class PairRouteTests(unittest.TestCase):
             self.assertTrue(all(call.args[0]=='kilas_translator/gemini.html' for call in render.call_args_list))
             classic_voices.assert_not_called();connect.assert_not_called();start.assert_not_called()
 
+    def test_native_is_default_only_with_existing_policy_and_classic_stays_explicit(self):
+        with self.config(),self.shared(),patch.dict(os.environ):
+            os.environ.pop('KILAS_TRANSLATOR_PROVIDER',None)
+            response=self.client.get('/kilas-translator/live')
+            self.assertEqual(response.status_code,302)
+            self.assertTrue(response.location.endswith('/live/gemini'))
+            response=self.client.get('/kilas-translator/live?classic=1')
+            self.assertEqual(response.status_code,200)
+            self.assertIn('Mode klasik:',response.text)
+            self.assertIn('Buka Translator native',response.text)
+
     def test_budget_limited_default_stays_native_for_owner_and_member_without_classic_fallback(self):
         with self.config(),self.shared(KILAS_LIVE_GEMINI_BUDGET_MICRO_USD='500000'):
             # Offline ledger evidence leaves less than one complete pair.
