@@ -17,6 +17,8 @@ import wave
 from datetime import datetime, timezone, timedelta
 
 RUN = 'gmlqa20261016b'
+INPUT_MS = 15000
+FIXTURE_DIRECTORY = 'gemini_live_synthetic'
 SERVICE = 'srv-da7ti2psrm7s73dh9i2g'
 ARM = 'KILAS_LIVE_GEMINI_QA_ARM'
 FIXTURES = {
@@ -60,13 +62,13 @@ def launch():
 
 
 def fixture(language):
-    path = Path(__file__).resolve().parents[1]/'tests'/'fixtures'/'gemini_live_synthetic'/(language+'.wav')
+    path = Path(__file__).resolve().parents[1]/'tests'/'fixtures'/FIXTURE_DIRECTORY/(language+'.wav')
     if hashlib.sha256(path.read_bytes()).hexdigest() != FIXTURES[language]:
         raise ValueError('fixture_changed')
     with wave.open(str(path),'rb') as wav:
-        if (wav.getnchannels(),wav.getsampwidth(),wav.getframerate(),wav.getnframes()) != (1,2,16000,240000):
+        if (wav.getnchannels(),wav.getsampwidth(),wav.getframerate(),wav.getnframes()) != (1,2,16000,INPUT_MS*16):
             raise ValueError('fixture_invalid')
-        return wav.readframes(240000)
+        return wav.readframes(INPUT_MS*16)
 
 
 def report(value):
@@ -81,7 +83,7 @@ def tail_word(text, language):
 def passed(result):
     # These are backend fixture checks, never an audible/Android quality claim.
     return bool(not result.get('code') and result.get('setup_complete')
-                and result.get('input_ms')==15000 and result.get('output_ms',0)>0
+                and result.get('input_ms')==INPUT_MS and result.get('output_ms',0)>0
                 and result.get('streamed_before_input_finished')
                 and result.get('source_tail_word_confirmed') and result.get('target_tail_word_confirmed')
                 and result.get('tail_confirmed') is True
@@ -349,12 +351,13 @@ def run():
     # service remains OFF; the approved campaign has exactly two $0.10 leases.
     os.environ.update({'KILAS_LIVE_GEMINI_ENABLED':'true','KILAS_LIVE_GEMINI_BILLING_VERIFIED':'yes',
                        'KILAS_LIVE_GEMINI_ALLOWED_OWNER_ID':str(configured['owner']),
+                       'KILAS_LIVE_GEMINI_POLICY':'qa',
                        'KILAS_LIVE_GEMINI_CAMPAIGN':RUN,'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD':'200000',
                        'KILAS_LIVE_GEMINI_LEASE_RESERVE_MICRO_USD':'100000',
                        'KILAS_LIVE_GEMINI_EXPIRES_AT':configured['expiry']})
     from . import live_gemini as native, live_gemini_budget as budget
     original_limits = native.INPUT_BYTES,native.OUTPUT_BYTES,budget.LEASE_MS
-    native.INPUT_BYTES, native.OUTPUT_BYTES = 15*32000,30*48000
+    native.INPUT_BYTES, native.OUTPUT_BYTES = INPUT_MS*32,30*48000
     budget.LEASE_MS = 45000
     original_setup = native.setup
     def bounded_setup(target):

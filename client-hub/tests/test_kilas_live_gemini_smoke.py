@@ -17,6 +17,22 @@ class SmokeTests(unittest.TestCase):
         values.update(extra)
         return patch.dict(os.environ,values)
 
+    def test_new_ten_second_harness_is_off_and_uses_complete_offline_sources(self):
+        from kilas_ai import live_gemini_smoke_10s as bounded
+        with patch.dict(os.environ, {smoke.ARM: 'off'}), patch.object(smoke, 'run') as run:
+            bounded.run()
+            run.assert_not_called()
+        with patch.object(smoke, 'INPUT_MS', 10000), \
+             patch.object(smoke, 'FIXTURE_DIRECTORY', 'gemini_live_synthetic_10s'), \
+             patch.object(smoke, 'FIXTURES', bounded.FIXTURES):
+            for language in ('id', 'en'):
+                pcm = smoke.fixture(language)
+                self.assertEqual(len(pcm), 320000)
+                self.assertTrue(any(pcm[:280000]))
+                self.assertFalse(any(pcm[-16000:]))
+        self.assertEqual(smoke.INPUT_MS, 15000)
+        self.assertNotEqual(smoke.RUN, bounded.RUN)
+
     def test_no_child_without_complete_fixed_short_test_policy(self):
         for change in ({smoke.ARM:''},{'RENDER_SERVICE_ID':'different'},
                        {'KILAS_LIVE_GEMINI_QA_EXPIRES_AT':(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat()},
