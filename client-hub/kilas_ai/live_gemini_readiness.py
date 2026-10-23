@@ -154,9 +154,13 @@ def activation_report():
         result['qa_expired'] = expiry <= datetime.now(timezone.utc)
     except (ValueError, TypeError):
         result['qa_expired'] = None
+    extension_key = 'KILAS_TRANSLATOR_TRIAL_EXTENSION_MICRO_USD'
+    environment[extension_key] = os.environ.get(extension_key, '0')
     environment[prefix+'ENABLED'] = 'true'
     config = budget.policy(_environment=environment)
     result['valid_if_enabled'] = bool(config)
+    result['effective_cap_micro_usd'] = config['global_micro'] if config else None
+    result['effective_guard_idr'] = config.get('guard_idr') if config else None
     if config:
         conn = usage._connect()
         try:

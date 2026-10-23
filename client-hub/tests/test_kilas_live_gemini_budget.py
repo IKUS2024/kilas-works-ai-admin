@@ -163,6 +163,36 @@ class GeminiBudgetTests(unittest.TestCase):
             self.assert_denied('gemini_unavailable', lambda: budget.claim(3, 'c'*48, self.key()))
         self.assertEqual(self.query('SELECT COUNT(*) FROM kilas_vo_stt_operations'), (0,))
 
+    def test_approved_extension_is_translator_only_exact_and_retains_history(self):
+        extension = 'KILAS_TRANSLATOR_TRIAL_EXTENSION_MICRO_USD'
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE': 'authenticated',
+                                    'KILAS_AI_CALL_ENABLED': 'true'}):
+            original = budget.policy()
+            call_original = budget.policy(enabled_key='KILAS_AI_CALL_ENABLED')
+            self.seed(9900000, 'UNKNOWN', 'gml-old-trial', 601)
+            with patch.dict(os.environ, {extension: '1000000'}):
+                config = budget.policy()
+                self.assertEqual(config['global_micro'], 11000000)
+                self.assertEqual(config['guard_idr'], 275000)
+                self.assertNotEqual(config['id'], original['id'])
+                self.assertEqual(budget.policy(enabled_key='KILAS_AI_CALL_ENABLED'), call_original)
+                self.assertEqual(os.environ['KILAS_LIVE_GEMINI_BUDGET_MICRO_USD'], '10000000')
+                self.assertEqual(budget.status(1, streams=2)['remaining_micro_usd'], 1100000)
+                for index, owner in ((602, 1), (603, 2)):
+                    reserve = budget.claim(owner, 'a'*48, self.key(index), streams=2)
+                    budget.dispatch(reserve)
+                    budget.finish(reserve, False)
+                self.assertEqual(budget.status(1, streams=2)['remaining_micro_usd'], 100000)
+                self.assert_denied('budget_limit', lambda: budget.claim(3, 'b'*48, self.key(604), streams=2))
+                self.assertEqual(self.query('SELECT charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',
+                                           (self.key(601)+'-gm',)), (9900000,))
+            for invalid in ('-1', '1', '1000001', '2000000', '', 'nan'):
+                with patch.dict(os.environ, {extension: invalid}):
+                    self.assertIsNone(budget.policy())
+                    self.assertEqual(budget.policy(enabled_key='KILAS_AI_CALL_ENABLED'), call_original)
+            with patch.dict(os.environ, {extension:'1000000', 'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD':'9000000'}):
+                self.assertIsNone(budget.policy())
+
     def test_account_funded_calls_excluded_only_with_exact_unique_same_tenant_evidence(self):
         self.execute('CREATE TABLE kilas_ai_usage(user_id INTEGER,operation_key TEXT,operation_type TEXT,mode TEXT,status TEXT,quota_source TEXT,provider TEXT,model TEXT,estimated_cost_usd TEXT)')
         good = ['AI_CALL', 'SMART', 'COMPLETE', 'BASE', 'google', 'gemini-3.8-live', '0.25']
