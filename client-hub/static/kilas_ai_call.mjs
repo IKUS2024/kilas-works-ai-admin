@@ -1,8 +1,8 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=app-language-20261015';
-import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-recovery-20261020';
-import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-jitter-20261016';
-import {CallSession} from './kilas_ai_call_engine.mjs?v=call-modes-20261023';
+import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-reliable-20261023';
+import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-reliable-20261023';
+import {CallSession} from './kilas_ai_call_engine.mjs?v=call-reliable-20261023';
 import {renderCallSources} from './kilas_ai_call_sources.mjs?v=call-public-search-20261017';
 
 const dialog=document.querySelector('#ai-call-dialog');
@@ -34,13 +34,33 @@ if(dialog){
   account_credit_limit:'Kapasitas Premium belum cukup untuk permintaan ini. Tambah kapasitas atau lanjutkan Chat biasa.',
   already_processing:'Selesaikan sesi suara yang sedang diproses sebelum memanggil.',service_busy:'Layanan sedang sibuk. Coba panggil lagi nanti.',
   attempt_limit:'Batas panggilan tercapai. Coba lagi nanti.',
+  call_network:'Koneksi panggilan belum pulih. Pengaturan tetap tersimpan; mulai lagi saat siap.',
+  request_timeout:'Koneksi panggilan belum pulih. Pengaturan tetap tersimpan; mulai lagi saat siap.',
+  call_backlog:'Pengiriman audio tertunda terlalu lama. Pengaturan tetap tersimpan; coba lagi.',
+  call_provider:'Layanan suara menghentikan sesi. Pengaturan tetap tersimpan; coba lagi.',
+  call_provider_disconnected:'Layanan suara terputus dan konteks tidak dapat dipulihkan. Mulai panggilan baru saat siap.',
+  call_transport:'Sesi suara terhenti. Pengaturan tetap tersimpan; coba mulai lagi.',
+  call_protocol:'Respons sesi tidak valid. Mulai panggilan baru saat siap.',
+  call_output_invalid:'Respons audio tidak valid. Mulai panggilan baru saat siap.',
+  microphone_unavailable:'Mikrofon tidak lagi tersedia. Sambungkan kembali lalu mulai panggilan.',
+  realtime_input_timeout:'Browser berhenti mengirim audio mikrofon. Buka kembali tab ini lalu mulai panggilan.',
+  realtime_capture_failed:'Perekam audio browser berhenti. Mulai panggilan baru saat siap.',
   call_ended:'Panggilan berakhir.',call_audio:'Audio belum siap. Periksa izin audio lalu mulai panggilan baru.',
   microphone_permission_denied:'Izin mikrofon ditolak. Izinkan mikrofon lalu mulai panggilan baru.'};
- const stopAudio=()=>{const own=context;context=null;if(own){try{own.close().catch(()=>{});}catch{}}};
+ let audioRecoveryTimer=null;
+ const stopAudio=()=>{clearTimeout(audioRecoveryTimer);audioRecoveryTimer=null;const own=context;context=null;if(own){try{own.close().catch(()=>{});}catch{}}};
  const prepare=signal=>{
   const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)throw Object.assign(Error(''),{code:'call_audio'});
   context=new Audio({latencyHint:'playback'});const own=context;
-  own.addEventListener?.('statechange',()=>{if(context===own&&own.state!=='running'&&session?.state!=='ended')session.fail({code:'call_audio'});});
+  own.addEventListener?.('statechange',()=>{
+   if(context!==own||signal.aborted||session?.state==='ended')return;
+   if(own.state==='running'){clearTimeout(audioRecoveryTimer);audioRecoveryTimer=null;try{player.resume();}catch{session.fail({code:'call_audio'});}return;}
+   if(audioRecoveryTimer)return;
+   player.suspend();status.textContent=t('Memulihkan audio…');
+   audioRecoveryTimer=setTimeout(()=>{audioRecoveryTimer=null;if(context===own&&!signal.aborted&&own.state!=='running')session.fail({code:'call_audio'});},3500);
+   // Resume the existing context only. Never reacquire a mic or restart an ended call.
+   if(own.state==='suspended')Promise.resolve(own.resume()).catch(()=>{});
+  });
   return new Promise((resolve,reject)=>{
    const timer=setTimeout(()=>reject(Object.assign(Error(''),{code:'call_audio'})),5000);
    const cancel=()=>{clearTimeout(timer);reject(new DOMException('Aborted','AbortError'));};signal.addEventListener('abort',cancel,{once:true});
@@ -50,8 +70,8 @@ if(dialog){
  session=new CallSession({request,capture,player,prepare,stopAudio,
   onText:text=>{caption.textContent=text;caption.scrollTop=caption.scrollHeight;},
   onSources:(citations,checkedOn)=>renderCallSources(dialog.querySelector('#ai-call-sources'),citations,checkedOn),
-  onState:state=>{settings.hidden=state!=='ended';start.hidden=state!=='ended';normal.hidden=state==='ended';dialog.dataset.state=state;status.textContent=t({connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Kilas berbicara',ended:'Panggilan berakhir.'}[state]||'Menghubungkan…');},
-  onError:code=>{error.textContent=t(messages[code]||'Panggilan terputus. Periksa mikrofon dan koneksi lalu mulai panggilan baru.');error.hidden=false;}
+  onState:state=>{settings.hidden=state!=='ended';start.hidden=state!=='ended';normal.hidden=state==='ended';end.hidden=state==='ended';field('end-label').hidden=state==='ended';field('summary').hidden=state==='ended';dialog.dataset.state=state;status.textContent=t({reconnecting:'Menghubungkan kembali…',connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Kilas berbicara',ended:'Panggilan berakhir.'}[state]||'Menghubungkan…');},
+  onError:code=>{error.textContent=t(messages[code]||messages.call_transport);error.hidden=false;start.textContent=t('Coba panggilan lagi');}
  });
  const syncViewport=()=>{
   if(!dialog.open)return;const viewport=window.visualViewport;
@@ -73,13 +93,14 @@ if(dialog){
   if(typeof dialog.showModal!=='function'){const notice=document.querySelector('#ai-notice,#agent-chat-error');if(notice){notice.hidden=false;notice.textContent=t('Browser ini belum mendukung panggilan suara.');}return;}
   document.activeElement?.blur();dialog.hidden=false;
   try{dialog.showModal();}catch{conceal();return;}
-  syncViewport();document.body.classList.add('kilas-ai-call-open');settings.hidden=false;start.hidden=false;normal.hidden=true;syncSettings();start.focus({preventScroll:true});
+  syncViewport();document.body.classList.add('kilas-ai-call-open');dialog.dataset.state='ended';settings.hidden=false;start.hidden=false;normal.hidden=true;end.hidden=true;field('end-label').hidden=true;field('summary').hidden=true;start.textContent=t('Mulai panggilan');syncSettings();start.focus({preventScroll:true});
  const send=button.closest('.kilas-home-workspace')?.querySelector('#ai-send,#agent-chat-form button[type=submit]')||button.parentNode.querySelector('[type=submit]');
   if(send?.disabled){busyChat=true;start.disabled=true;status.textContent=t('Selesaikan jawaban chat sebelum memanggil.');return;}
   status.textContent=t('Pilih mode, lalu mulai panggilan.');
  }));
- start.addEventListener('click',()=>{if(start.disabled)return;error.hidden=true;session.start(chosenSettings());});
+ start.addEventListener('click',()=>{if(start.disabled)return;error.hidden=true;field('summary').textContent=field('mode').selectedOptions[0].textContent+' · '+field('character').selectedOptions[0].textContent;session.start(chosenSettings());});
  normal.addEventListener('click',()=>{session.end();field('mode').value='normal';field('character').value='friendly';field('roast-opt-in').checked=false;syncSettings();status.textContent=t('Audio dihentikan. Mulai lagi dalam mode Normal.');start.focus({preventScroll:true});});
+ field('close').addEventListener('click',close);
  end.addEventListener('click',close);dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
  dialog.addEventListener('close',()=>{session.end();conceal();});
  window.addEventListener('resize',syncViewport);window.visualViewport?.addEventListener('resize',syncViewport);window.visualViewport?.addEventListener('scroll',syncViewport);

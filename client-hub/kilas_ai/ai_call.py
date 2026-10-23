@@ -1,5 +1,6 @@
 """One-person Gemini conversation with bounded buffers and renewable funding."""
 import base64
+import hashlib
 import binascii
 import json
 import os
@@ -18,15 +19,22 @@ _lock=Lock()
 _calls={}
 INPUT_BYTES=60*32000
 OUTPUT_BYTES=60*48000
-QUEUE_BYTES=8*32000
+QUEUE_BYTES=20*32000
 MAX_TURNS=4
 POLICY_TTL_SECONDS=3
+CLIENT_IDLE_SECONDS=30
+CLIENT_END_CODES={'call_ended','call_network','call_audio','call_backlog','call_protocol','call_transport','microphone_unavailable','realtime_input_timeout','realtime_capture_failed','request_timeout','auth_required'}
 
 
 class CallError(ValueError):
     def __init__(self,code='call_transport',status=503):
         super().__init__(code)
         self.code,self.status=code,status
+
+
+def wire_connection_error():
+    from websocket import WebSocketConnectionClosedException
+    return WebSocketConnectionClosedException
 
 
 def ready(owner):
@@ -88,7 +96,8 @@ class Call:
         self.owner,self.ident,self.capability=owner,ident,capability
         self.started=monotonic() if started is None else started
         self.last_seen=monotonic();self.lock=RLock();self.send_lock=Lock();self.closed=Event()
-        self.queue=Queue(maxsize=64);self.ws=None;self.state='CONNECTING';self.code=None
+        self.queue=Queue(maxsize=128);self.ws=None;self.state='CONNECTING';self.code=None
+        self.last_chunk_digest=None;self.recovery_times=[];self.recovery_count=0
         self.input_bytes=0;self.output_bytes=0;self.queued=0;self.expected=0
         self.frames=[];self.caption='';self.turns=0;self.interruptions=0;self.timer=None
         self.frame_base=0;self.frame_next=0
@@ -107,7 +116,7 @@ class Call:
         """In-memory PCM/frame fence; database work only at funding boundaries."""
         from .routes import enabled
         if self.closed.is_set():raise CallError('call_ended',409)
-        if monotonic()-self.last_seen>8:raise CallError('call_network',409)
+        if monotonic()-self.last_seen>CLIENT_IDLE_SECONDS:raise CallError('call_network',409)
         if not (enabled() and budget.config() and storage.single_worker()
                 and os.environ.get('GEMINI_API_KEY','').strip()):raise CallError('call_unavailable')
         with self.lock:
@@ -176,6 +185,9 @@ class Call:
         if type(index) is not int or not isinstance(raw,bytes) or not 2<=len(raw)<=16000 or len(raw)%2:raise CallError('call_input_invalid',400)
         with self.lock:
             if self.closed.is_set():raise CallError('call_ended',409)
+            digest=hashlib.sha256(raw).digest()
+            if index==self.expected-1 and digest==self.last_chunk_digest:
+                self.last_seen=monotonic();return  # Lost HTTP ACK: never queue/meter PCM twice.
             if index!=self.expected:raise CallError('call_input_invalid',409)
             if self.input_bytes-self.funded_input+len(raw)>INPUT_BYTES:self.fund()
             if self.queued+len(raw)>QUEUE_BYTES:raise CallError('call_backlog',409)
@@ -185,6 +197,7 @@ class Call:
             samples=[value[0]/32768 for value in struct.iter_unpack('<h',raw)]
             self.input_energy+=sum(value*value for value in samples);self.input_samples+=len(samples)
             self.input_peak=max(self.input_peak,max(abs(value) for value in samples))
+            self.last_chunk_digest=digest
             self.expected+=1;self.input_bytes+=len(raw);self.queued+=len(raw)
             self.last_seen=monotonic()
 
@@ -217,14 +230,14 @@ class Call:
                 # Pause unsent PCM. Only a NEW resumable checkpoint after the
                 # provider's expiry warning can move this same conversation.
                 self.go_away=True;self.go_away_deadline=monotonic()+30
-                self.resume_handle=None;self.renewing.set()
+                self.resume_pending=bool(self.resume_handle);self.renewing.set()
             update=value.get('sessionResumptionUpdate')
             if update is not None:
                 if not isinstance(update,dict):raise CallError('call_provider')
                 handle=update.get('newHandle')
                 if update.get('resumable') is True and isinstance(handle,str) and 0<len(handle)<=8192:
-                    if self.go_away:
-                        self.resume_handle=handle;self.resume_pending=True
+                    self.resume_handle=handle
+                    if self.go_away:self.resume_pending=True
                 else:self.resume_handle=None;self.resume_pending=False
             if content.get('interrupted') is True:
                 self.turn_timing.boundary()
@@ -288,8 +301,11 @@ class Call:
                     with self.send_lock:
                         if self.closed.is_set():return
                         if self.renewing.is_set():continue
-                        self.ws.send(json.dumps({'realtimeInput':{'audio':{
-                            'mimeType':'audio/pcm;rate=16000','data':base64.b64encode(raw).decode('ascii')}}}))
+                        try:
+                            self.ws.send(json.dumps({'realtimeInput':{'audio':{
+                                'mimeType':'audio/pcm;rate=16000','data':base64.b64encode(raw).decode('ascii')}}}))
+                        except (OSError,wire_connection_error()):
+                            self.recover_transport();break  # Delivery uncertain: never replay this PCM.
                         with self.lock:self.sent_bytes+=len(raw);self.sent_chunks+=1
                         break
         except Exception as error:self.stop(getattr(error,'code','call_transport'))
@@ -317,7 +333,9 @@ class Call:
                 if self.resume_pending:self.resume()
                 try:raw=self.ws.recv()
                 except websocket.WebSocketTimeoutException:continue
-                if not raw:raise CallError('call_transport')
+                except (OSError,websocket.WebSocketConnectionClosedException):
+                    self.recover_transport();continue
+                if not raw:self.recover_transport();continue
                 self.transport_check();self.receive(raw)
         except Exception as error:
             code=getattr(error,'code','call_transport')
@@ -332,24 +350,48 @@ class Call:
             except Exception:print('KILAS_AI_CALL settlement=unknown',flush=True)
             db._discard_cached_connection()
             safe_reasons={'call_ended','call_network','call_unavailable','call_backlog','budget_limit','account_credit_limit',
-                          'call_input_invalid','call_output_invalid','call_provider','call_transport'}
+                          'call_input_invalid','call_output_invalid','call_provider','call_provider_disconnected','call_transport'} | CLIENT_END_CODES
             reason=self.code if self.code in safe_reasons else 'call_transport'
-            print(f'KILAS_AI_CALL closed=true reason={reason} input_ms={self.input_bytes/32:.1f} sent_ms={self.sent_bytes/32:.1f} sent_chunks={self.sent_chunks} provider_messages={self.provider_messages} output_ms={self.output_bytes/48:.1f} interruptions={self.interruptions} turns={self.turns} input_rms={math.sqrt(self.input_energy/max(1,self.input_samples)):.5f} input_peak={self.input_peak:.5f} heard_chars={self.input_transcript_chars}',flush=True)
+            print(f'KILAS_AI_CALL closed=true reason={reason} input_ms={self.input_bytes/32:.1f} sent_ms={self.sent_bytes/32:.1f} sent_chunks={self.sent_chunks} provider_messages={self.provider_messages} output_ms={self.output_bytes/48:.1f} interruptions={self.interruptions} recoveries={self.recovery_count} turns={self.turns} input_rms={math.sqrt(self.input_energy/max(1,self.input_samples)):.5f} input_peak={self.input_peak:.5f} heard_chars={self.input_transcript_chars}',flush=True)
             # Counts and enumerated outcomes only; no text, function IDs, queries
             # or customer/account identifiers are included.
             print('KILAS_AI_CALL_SEARCH '+json.dumps(self.public_search.diagnostic(),sort_keys=True),flush=True)
             print('KILAS_AI_CALL_TIMING '+json.dumps(self.turn_timing.report(),sort_keys=True),flush=True)
 
+    def recover_transport(self):
+        """Resume only an existing provider checkpoint, never new admission/replay."""
+        with self.lock:
+            if self.closed.is_set():raise CallError('call_ended',409)
+            if self.resume_pending:return
+            now=monotonic()
+            self.recovery_times=[t for t in self.recovery_times if now-t<60]
+            if not self.resume_handle or len(self.recovery_times)>=2:raise CallError('call_provider_disconnected')
+            self.recovery_times.append(now);self.recovery_count+=1
+            self.resume_pending=True;self.renewing.set();self.state='RECONNECTING'
+            self.publish({'type':'reset'});self.caption=''
+        with self.public_search.lock:
+            job=self.public_search.job
+            ids=[job['id']] if job else []
+        self.public_search.cancel(ids)
+        try:self.ws.shutdown()
+        except Exception:pass
+
     def resume(self):
-        # Exactly one supported handoff per provider warning, with no reconnect
-        # on network errors and no replay of already dispatched mic/output PCM.
+        # Resume the existing checkpoint after expiry or a recoverable transport loss.
+        # Never replay already dispatched mic/output PCM or repeat uncertain setup.
         with self.send_lock:
             self.check()
             with self.lock:
                 if not self.resume_pending or not self.resume_handle:raise CallError('call_provider')
                 handle=self.resume_handle;self.resume_handle=None;self.resume_pending=False
             self.ws.shutdown()
-            socket=wire.connect()
+            socket=None
+            for attempt in range(2):
+                self.check()
+                try:socket=wire.connect();break
+                except (OSError,wire_connection_error()):
+                    if attempt or self.closed.wait(.5):raise CallError('call_provider_disconnected') from None
+            # Never retry once setup is sent: its admission outcome can be uncertain.
             with self.lock:
                 self.ws=socket
                 if self.closed.is_set():socket.shutdown();raise CallError('call_ended',409)
@@ -359,6 +401,7 @@ class Call:
                 raise CallError('call_provider')
             self.check();socket.settimeout(.5)
             self.provider_started=monotonic();self.go_away=False;self.renewing.clear()
+            with self.lock:self.state='LISTENING'
 
 
 def start(owner,ident,settings=None):
@@ -387,7 +430,8 @@ def get(owner,ident):
     return None
 
 
-def end(owner,ident):
+def end(owner,ident,code='call_ended'):
+    if code not in CLIENT_END_CODES:code='call_transport'
     with _lock:call=_calls.get((owner,ident))
-    if call:call.stop(erase=True)
+    if call:call.stop(code,erase=True)
     budget.end(owner,ident)

@@ -8804,5 +8804,18 @@
   "Mulai panggilan": {"en": "Start call", "es": "Iniciar llamada", "zh": "开始通话"},
   "Stop audio / Normal": {"en": "Stop audio / Normal", "es": "Parar audio / Normal", "zh": "停止音频 / 普通"},
   "Pilih mode, lalu mulai panggilan.": {"en": "Choose a mode, then start the call.", "es": "Elige un modo e inicia la llamada.", "zh": "选择模式，然后开始通话。"},
-  "Audio dihentikan. Mulai lagi dalam mode Normal.": {"en": "Audio stopped. Start again in Normal mode.", "es": "Audio detenido. Reinicia en modo Normal.", "zh": "音频已停止。可重新开始普通模式。"}
+  "Audio dihentikan. Mulai lagi dalam mode Normal.": {"en": "Audio stopped. Start again in Normal mode.", "es": "Audio detenido. Reinicia en modo Normal.", "zh": "音频已停止。可重新开始普通模式。"},
+  "Memulihkan audio…": {"en": "Restoring audio…", "es": "Restaurando audio…", "zh": "正在恢复音频…"},
+  "Menghubungkan kembali…": {"en": "Reconnecting…", "es": "Reconectando…", "zh": "正在重新连接…"},
+  "Coba panggilan lagi": {"en": "Try call again", "es": "Reintentar llamada", "zh": "重试通话"},
+  "Koneksi panggilan belum pulih. Pengaturan tetap tersimpan; mulai lagi saat siap.": {"en": "The connection could not recover. Your settings are saved; start again when ready.", "es": "La conexión no se pudo recuperar. Se conservan los ajustes; reinicia cuando estés listo.", "zh": "连接未能恢复。设置已保留，可稍后重试。"},
+  "Pengiriman audio tertunda terlalu lama. Pengaturan tetap tersimpan; coba lagi.": {"en": "Audio upload stalled too long. Your settings are saved; try again.", "es": "El envío de audio se demoró demasiado. Se conservan los ajustes; inténtalo otra vez.", "zh": "音频上传停顿过久。设置已保留，请重试。"},
+  "Layanan suara menghentikan sesi. Pengaturan tetap tersimpan; coba lagi.": {"en": "The voice service ended the session. Your settings are saved; try again.", "es": "El servicio de voz cerró la sesión. Se conservan los ajustes; inténtalo otra vez.", "zh": "语音服务结束了会话。设置已保留，请重试。"},
+  "Layanan suara terputus dan konteks tidak dapat dipulihkan. Mulai panggilan baru saat siap.": {"en": "The voice service disconnected and the context could not be restored. Start a new call when ready.", "es": "El servicio de voz se desconectó y no se pudo recuperar el contexto. Inicia una nueva llamada.", "zh": "语音服务已断开，无法恢复上下文。请重新开始通话。"},
+  "Sesi suara terhenti. Pengaturan tetap tersimpan; coba mulai lagi.": {"en": "The voice session stopped. Your settings are saved; try starting again.", "es": "La sesión de voz se detuvo. Se conservan los ajustes; intenta reiniciar.", "zh": "语音会话已停止。设置已保留，请重试。"},
+  "Respons sesi tidak valid. Mulai panggilan baru saat siap.": {"en": "The session response was invalid. Start a new call when ready.", "es": "La respuesta de sesión no es válida. Inicia una nueva llamada.", "zh": "会话响应无效。请重新开始通话。"},
+  "Respons audio tidak valid. Mulai panggilan baru saat siap.": {"en": "The audio response was invalid. Start a new call when ready.", "es": "La respuesta de audio no es válida. Inicia una nueva llamada.", "zh": "音频响应无效。请重新开始通话。"},
+  "Mikrofon tidak lagi tersedia. Sambungkan kembali lalu mulai panggilan.": {"en": "The microphone is no longer available. Reconnect it, then start the call.", "es": "El micrófono ya no está disponible. Reconéctalo e inicia la llamada.", "zh": "麦克风不再可用。请重新连接后开始通话。"},
+  "Browser berhenti mengirim audio mikrofon. Buka kembali tab ini lalu mulai panggilan.": {"en": "The browser stopped sending microphone audio. Return to this tab, then start the call.", "es": "El navegador dejó de enviar audio. Vuelve a esta pestaña e inicia la llamada.", "zh": "浏览器停止发送麦克风音频。请返回此标签页并重新开始通话。"},
+  "Perekam audio browser berhenti. Mulai panggilan baru saat siap.": {"en": "The browser audio recorder stopped. Start a new call when ready.", "es": "La grabación del navegador se detuvo. Inicia una nueva llamada.", "zh": "浏览器录音已停止。请重新开始通话。"}
 }

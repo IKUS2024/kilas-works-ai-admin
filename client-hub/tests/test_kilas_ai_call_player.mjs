@@ -66,3 +66,17 @@ test('A frozen Android audio clock still fails within the existing bounded watch
  const f=fixture({frozen:true}),player=new CallPlayer(f.options);player.push(pcm());const drained=player.checkpoint(),rejected=assert.rejects(drained,e=>e.code==='audio_stalled');
  f.advanceTo(6000);await rejected;assert.deepEqual(f.errors,['audio_stalled']);player.cancel();
 });
+
+test('Transient mobile suspension holds PCM and pending completion until same context resumes',async()=>{
+ const f=fixture(),player=new CallPlayer(f.options);
+ player.push(pcm());player.suspend();f.context.state='suspended';
+ player.push(pcm(4800,20));let done=false;const drained=player.checkpoint().then(()=>{done=true;});
+ f.advanceTo(1000);assert.equal(done,false);assert.equal(f.starts.length,0);assert.deepEqual(f.errors,[]);
+ f.context.state='running';player.resume();f.advanceTo(3000);await drained;
+ assert.equal(f.starts.reduce((n,x)=>n+x.samples.length,0),9600);assert.deepEqual(f.errors,[]);
+});
+test('End while suspended clears retained audio and prevents later resume playback',async()=>{
+ const f=fixture(),player=new CallPlayer(f.options);player.suspend();player.push(pcm());
+ const drained=player.checkpoint();player.cancel();await assert.rejects(drained,{name:'AbortError'});
+ player.resume();f.advanceTo(5000);assert.equal(f.starts.length,0);assert.equal(player.pausedBytes,0);
+});

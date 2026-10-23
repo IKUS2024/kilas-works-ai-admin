@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}AI Call · Kilas{% endblock %}
+{% block content %}
+<section class="ai-call-entry">
+  <h1>AI Call</h1><p>{{ ui_t('Pilih mode, lalu mulai panggilan.') }}</p>
+  <button type="button" class="btn" data-ai-call-launch>{{ ui_t('Mulai panggilan') }}</button>
+</section>
+{% include 'kilas_ai/_ai_call_surface.html' %}
+{% endblock %}

@@ -20,7 +20,7 @@ test('Input waits for admission, preserves every byte and batches to bounded seq
 test('Input cancellation before admission sends no audio and bounded backlog fails',async()=>{
  const controller=new AbortController();let requests=0;
  const input=new CallInput({signal:controller.signal,path:'/call',request:async()=>{requests++;}});
- for(let i=0;i<16;i++)input.push(new Uint8Array(16000));
+ for(let i=0;i<40;i++)input.push(new Uint8Array(16000));
  assert.throws(()=>input.push(pcm()),/call_backlog/);controller.abort();input.cancel();await tick();assert.equal(requests,0);
 });
 test('Input wrong acknowledgment is terminal and never retried',async()=>{
@@ -282,4 +282,24 @@ for (const mode of ['recover','exhaust','stop','auth']) test(`Read polling recov
   }
  }
  assert.equal(admissions,1);assert.equal(f.stops,1);assert.equal(f.session.state,'ended');
+});
+
+test('Lost upload ACK retries identical bytes/index with bounded backoff, never new admission',async()=>{
+ const requests=[],waits=[],states=[];let n=0;
+ const input=new CallInput({signal:new AbortController().signal,path:'/call',onRecovery:x=>states.push(x),wait:async(signal,ms)=>waits.push(ms),request:async(url,{body})=>{
+  requests.push({url,body:body.slice()});if(n++<2)throw new TypeError('offline');return {accepted_index:0};
+ }});
+ input.push(pcm());input.open();await input.chain;
+ assert.equal(requests.length,3);assert.ok(requests.every(r=>r.url==='/call/chunks/0'));assert.ok(requests.every(r=>Buffer.from(r.body).equals(Buffer.from(pcm()))));assert.deepEqual(waits,[300,600]);assert.equal(states.at(-1),false);assert.equal(input.index,1);assert.equal(input.queued,0);
+});
+test('End during upload backoff prevents retry and releases buffered PCM',async()=>{
+ const controller=new AbortController();let requests=0;
+ const input=new CallInput({signal:controller.signal,path:'/call',wait:async()=>{controller.abort();},request:async()=>{requests++;throw new TypeError('offline');}});
+ input.push(pcm());input.open();await input.chain.catch(()=>{});assert.equal(requests,1);assert.equal(input.queued,0);
+});
+test('Upload auth or validation failure is terminal without retries',async()=>{
+ for(const status of [400,401,403,409,429]){
+  let requests=0;const input=new CallInput({signal:new AbortController().signal,path:'/call',request:async()=>{requests++;throw Object.assign(Error('denied'),{status});}});
+  input.push(pcm());input.open();await input.chain.catch(()=>{});assert.equal(requests,1);
+ }
 });

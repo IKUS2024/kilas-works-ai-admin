@@ -1195,5 +1195,18 @@
   "Mulai panggilan": "Start call",
   "Stop audio / Normal": "Stop audio / Normal",
   "Pilih mode, lalu mulai panggilan.": "Choose a mode, then start the call.",
-  "Audio dihentikan. Mulai lagi dalam mode Normal.": "Audio stopped. Start again in Normal mode."
+  "Audio dihentikan. Mulai lagi dalam mode Normal.": "Audio stopped. Start again in Normal mode.",
+  "Memulihkan audio…": "Restoring audio…",
+  "Menghubungkan kembali…": "Reconnecting…",
+  "Coba panggilan lagi": "Try call again",
+  "Koneksi panggilan belum pulih. Pengaturan tetap tersimpan; mulai lagi saat siap.": "The connection could not recover. Your settings are saved; start again when ready.",
+  "Pengiriman audio tertunda terlalu lama. Pengaturan tetap tersimpan; coba lagi.": "Audio upload stalled too long. Your settings are saved; try again.",
+  "Layanan suara menghentikan sesi. Pengaturan tetap tersimpan; coba lagi.": "The voice service ended the session. Your settings are saved; try again.",
+  "Layanan suara terputus dan konteks tidak dapat dipulihkan. Mulai panggilan baru saat siap.": "The voice service disconnected and the context could not be restored. Start a new call when ready.",
+  "Sesi suara terhenti. Pengaturan tetap tersimpan; coba mulai lagi.": "The voice session stopped. Your settings are saved; try starting again.",
+  "Respons sesi tidak valid. Mulai panggilan baru saat siap.": "The session response was invalid. Start a new call when ready.",
+  "Respons audio tidak valid. Mulai panggilan baru saat siap.": "The audio response was invalid. Start a new call when ready.",
+  "Mikrofon tidak lagi tersedia. Sambungkan kembali lalu mulai panggilan.": "The microphone is no longer available. Reconnect it, then start the call.",
+  "Browser berhenti mengirim audio mikrofon. Buka kembali tab ini lalu mulai panggilan.": "The browser stopped sending microphone audio. Return to this tab, then start the call.",
+  "Perekam audio browser berhenti. Mulai panggilan baru saat siap.": "The browser audio recorder stopped. Start a new call when ready."
 }
