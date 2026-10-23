@@ -1,5 +1,7 @@
 """Owner-scoped Agent conversation and read-only activity over existing runs."""
 import db
+import hashlib
+import json
 from datetime import datetime, timezone
 from flask import has_request_context, session
 from . import usage
@@ -51,11 +53,29 @@ def current_conversation(user_id):
     return selected
 
 
-def claim_request(user_id, conversation_id, key):
+class RequestConflict(ValueError):
+    pass
+
+
+def request_fingerprint(form, attachments=()):
+    fields = sorted((name, form.getlist(name)) for name in form if name not in ('csrf_token','operation_key'))
+    files = [(item['filename'],item['mime_type'],hashlib.sha256(bytes(item['content'])).hexdigest()) for item in attachments]
+    return hashlib.sha256(json.dumps([fields,files],ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+
+
+def claim_request(user_id, conversation_id, key, fingerprint=None):
     """One durable submission key cannot create two tasks, including across tabs."""
     from .autonomous_store import transaction
     with transaction() as conn:
         row = usage._query(conn, 'INSERT INTO kilas_agent_chat_requests(user_id,conversation_id,operation_key) VALUES (?,?,?) ON CONFLICT(user_id,operation_key) DO NOTHING RETURNING operation_key', (user_id, conversation_id, key), one=True)
+        if row and fingerprint:
+            usage._query(conn,'INSERT INTO kilas_chat_request_payloads(user_id,operation_key,conversation_id,fingerprint) VALUES (?,?,?,?)',
+                         (user_id,key,conversation_id,fingerprint))
+        elif not row and fingerprint:
+            prior = usage._query(conn,'SELECT conversation_id,fingerprint FROM kilas_chat_request_payloads WHERE user_id=? AND operation_key=?',
+                                 (user_id,key),one=True)
+            if not prior or prior != (conversation_id,fingerprint):
+                raise RequestConflict('Kunci pesan sudah dipakai untuk permintaan lain. Kirim pesan baru dengan kunci baru.')
         return bool(row)
 
 

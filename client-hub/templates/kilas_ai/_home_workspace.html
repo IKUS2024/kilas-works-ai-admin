@@ -6,6 +6,7 @@
   <div class="home-workspace-top{% if ui_model_surface|default(false) %} has-model-selector{% endif %}">{% if not ui_model_surface|default(false) %}<div class="home-workspace-title"><span class="home-workspace-brand">Kilas AI</span></div>{% endif %}{% include 'kilas_ai/_model_selector.html' %}{% if home_ai.live_available %}<div class="home-workspace-actions"><a href="{{ url_for('kilas_ai.live_assist_home') }}">{{ ui_t('Terjemahan langsung / Bantu jawab') }}</a></div>{% endif %}</div>
   {% include 'kilas_ai/_chat_tabs.html' %}
   <template id="ai-copy-icon">{{ chat_icon('copy') }}</template>
+  <script src="{{ url_for('static',filename='kilas_chat_operation.js',v='chat-recovery-20261023') }}" defer></script>
   <main class="ai-main {{ 'is-empty' if not messages|default([]) else '' }}">
     {% include 'kilas_content/_handoff.html' %}
     {% if home_agent|default(false) %}{% include 'kilas_ai/_agent_home_chat.html' %}{% else %}
@@ -26,7 +27,7 @@
 
 </section>
 {% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_markdown.css',v='answer-layout-20261020') }}">{% endif %}
-<script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='answer-layout-20261020') }}" defer></script><script src="{{ url_for('static',filename='kilas_home.js',v='history-empty-fit-20261017') }}" defer></script><script src="{{ url_for('static',filename='kilas_thread_projects.js',v='result-cards-20261019') }}" defer></script><script src="{{ url_for('static',filename='kilas_ai.js',v='sent-uploads-20261020') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='answer-layout-20261020') }}" defer></script><script src="{{ url_for('static',filename='kilas_home.js',v='history-empty-fit-20261017') }}" defer></script><script src="{{ url_for('static',filename='kilas_thread_projects.js',v='result-cards-20261019') }}" defer></script><script src="{{ url_for('static',filename='kilas_ai.js',v='chat-recovery-20261023') }}" defer></script>
 
 {% include 'kilas_ai/_ai_call_surface.html' %}
 {% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_starters.css',v='20261022') }}">{% endif %}

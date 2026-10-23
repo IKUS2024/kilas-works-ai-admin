@@ -187,7 +187,11 @@ def agent_chat():
             from . import agent_chat as chat_pipeline
             if not image_task:chat_pipeline.context(owner,conversation_id,pending=text)
         except chat_models.SelectionError as error:return {'error':str(error)},400
-    if not agent_store.claim_request(owner, conversation_id, key):
+    try:
+        claimed = agent_store.claim_request(owner, conversation_id, key,
+            agent_store.request_fingerprint(request.form,getattr(request,'work_attachments',())))
+    except agent_store.RequestConflict as error:return {'error':str(error),'code':'operation_payload_conflict'},409
+    if not claimed:
         prior=db.query_one('SELECT id FROM kilas_workspace_streams WHERE user_id=? AND conversation_id=? AND operation_key=?',(owner,conversation_id,key))
         if prior:return workspace_streams.response(prior['id'])
         return {'error': 'Pesan ini sudah diterima. Buka kembali chat untuk melihat hasilnya.'}, 409

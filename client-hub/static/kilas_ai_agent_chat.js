@@ -69,9 +69,11 @@
   let busy = false;
   let controller;
   let activeStream=null,lastEvent=0;
+  const submission=window.KilasChatOperation.create(form.elements.operation_key.value);
   const stop=form.querySelector('[data-unified-stop]');
   stop?.addEventListener('click',async()=>{
     if(activeStream){try{await fetch(`/kilas-ai/work/streams/${activeStream}/cancel`,{method:'POST',headers:{'X-CSRF-Token':form.elements.csrf_token.value,'Content-Type':'application/json'},body:'{}'});}catch(_){} }
+    form.elements.operation_key.value=submission.terminal();
     controller?.abort();
   });
   const canAutoFocus = () => Boolean(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
@@ -116,6 +118,7 @@
     if (busy || !input.value.trim()) return;
     const draft=input.value;
     const data = new FormData(form);
+    form.elements.operation_key.value=submission.begin(data);data.set('operation_key',form.elements.operation_key.value);
     if (!canAutoFocus()) input.blur();
     busy = true;document.dispatchEvent(new Event('kilas:request-started')); send.disabled = true; input.readOnly = true;
     controller=new AbortController();if(stop) stop.hidden=false;
@@ -131,7 +134,7 @@
       const response = await fetch(form.action, {method:'POST',body:data,headers:{'X-Agent-Chat':'1','X-Workspace-Stream':'1'},signal:controller.signal});
       if (!response.ok) {
         const failure=new Error('request');
-        try { const payload=await response.json(); if(typeof payload.error==='string') failure.publicMessage=payload.error; } catch (_) { /* Preserve a safe fallback. */ }
+        try { const payload=await response.json(); if(payload.operation_terminal===true)form.elements.operation_key.value=submission.terminal();if(typeof payload.error==='string') failure.publicMessage=payload.error; } catch (_) { /* Preserve a safe fallback. */ }
         throw failure;
       }
       accepted = true;
@@ -159,8 +162,8 @@
               chat.scrollTop = chat.scrollHeight;
             } else if (update.type === 'model_metadata') { answer ||= message('assistant','');window.KilasChatModels?.badge(answer,update); } else if (update.type === 'activity') thinking.lastElementChild.textContent = t(update.label);
             else if (update.type === 'reset') { if(answer) window.KilasMarkdown.render(answer,''); }
-            else if (update.type === 'error') throw new Error('provider');
-            else if (update.type === 'done') { complete = true; if (answer) { answer.classList.add('ai-markdown'); window.KilasMarkdown.finish(answer); } }
+            else if (update.type === 'error') { form.elements.operation_key.value=submission.terminal();throw new Error('provider'); }
+            else if (update.type === 'done') { form.elements.operation_key.value=submission.terminal();complete = true; if (answer) { answer.classList.add('ai-markdown'); window.KilasMarkdown.finish(answer); } }
           }
           if (done) break;
         }
@@ -175,7 +178,7 @@
       form.dispatchEvent(new Event('work:accepted'));
       startDue();
       const sources=form.querySelector('#work-source-files'); if(sources) sources.value='';
-      form.elements.operation_key.value = Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
+      form.elements.operation_key.value = submission.terminal();
     } catch (failure) {
       if(answer)window.KilasMarkdown.finish(answer);
       if(draftCleared&&!input.value&&!(accepted&&selected.length)){input.value=draft;input.dispatchEvent(new Event('input'));}

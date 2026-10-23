@@ -3,7 +3,7 @@ import re
 
 
 CORRECTION = re.compile(r"\b(?:koreksi|correction|bukan itu|maksud (?:gw|gue|gua|lu|saya|aku)|yang tadi salah|ganti jadi|eh bukan|sebenarnya|actually|instead|changed my mind)\b", re.I)
-CONSTRAINT = re.compile(r"\b(?:jangan|gak mau|nggak mau|tidak mau|ga mau|harus|ingat|bukan|must|never|don't|do not|budget|modal|pilih|decided|prefer|keputusan)\b", re.I)
+CONSTRAINT = re.compile(r"\b(?:jangan|gak mau|nggak mau|tidak mau|ga mau|harus|wajib|ingat|gunakan|selalu|bukan|must|always|never|don't|do not|budget|modal|pilih|decided|prefer|keputusan)\b", re.I)
 
 
 def summary(rows, limit=3000):
@@ -46,3 +46,9 @@ def bounded(messages, budget):
         selected.append(item)
         remaining -= size
     return list(reversed(selected))
+
+
+def visual_followup(text, previous=()):
+    if re.search(r'(?i)\b(?:gambar|foto|image|photo|picture|pdf|scan|halaman|page)\b',text):return True
+    return (len(text)<180 and bool(re.search(r'(?i)\b(?:angka|kanan|kiri|warna|tulisan|yang|yg|ini|itu|lanjut|number|right|left|that|this)\b',text))
+            and any(re.search(r'(?i)\b(?:gambar|foto|image|photo|picture|pdf|scan|halaman|page)\b',value) for value in previous))

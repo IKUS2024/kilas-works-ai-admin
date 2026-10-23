@@ -267,3 +267,22 @@ def prompt_content(text, attachments):
         blocks.append({"type": "image_url", "image_url": {"url": "data:" + attachment["mime_type"] +
                        ";base64," + base64.b64encode(bytes(attachment["content"])).decode("ascii")}})
     return blocks
+
+
+def restore_visuals(items):
+    """Restore bounded PDF pages from already owned, validated stored uploads."""
+    result=[]
+    for source in items[:5]:
+        item=dict(source)
+        if (item['mime_type']=='application/pdf' and item.get('content') and not item.get('vision_pages')
+                and any(marker in (item.get('extracted_text') or '') for marker in ('PDF scan:','PDF visual pages:'))):
+            try:
+                from .capabilities import current
+                from .pdf_vision import render
+                if not current()['uploaded_image_understanding'] or len(item['content'])>MAX_FILE_BYTES:
+                    raise ValueError('visual_input_unavailable')
+                item['vision_pages']=render(bytes(item['content']))
+            except Exception:
+                item['extracted_text']=(item.get('extracted_text') or '')+'\nHalaman visual lampiran belum dapat dibaca ulang. Jangan menebak isinya.'
+        result.append(item)
+    return result

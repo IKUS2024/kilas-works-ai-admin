@@ -13,6 +13,8 @@ def prepare_chat_models(state):
         apply_release('0103_kilas_image_models')
         apply_release('0105_kilas_workspace_streams')
         apply_release('0106_kilas_workspace_execution')
+        apply_release('0111_kilas_chat_recovery')
+        print('KILAS_CHAT_RECOVERY_READY schema=0111 payload_bound=true stream_heartbeat=true bounded_context=true',flush=True)
         from .workspace_execution_proof import maybe_start
         maybe_start(state.app)  # No work without separate proof-specific approval.
         from .workspace_execution_access import log_readiness

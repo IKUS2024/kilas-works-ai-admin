@@ -10,6 +10,8 @@ from . import autonomous_store as store,usage,agent_store
 from .routes import ai_bp
 
 _slots=threading.BoundedSemaphore(2)
+_HeartbeatThread=threading.Thread
+HEARTBEAT_SECONDS=15
 TERMINAL=('COMPLETED','FAILED','CANCELLED','INTERRUPTED')
 
 
@@ -25,10 +27,17 @@ def emit(ident,payload):
         usage._query(conn,'UPDATE kilas_workspace_streams SET updated_at=? WHERE id=?',(store.stamp(),ident))
 
 
-def recover(owner,conversation):
+def _recover(conn,owner):
     # An expired process is an uncertain terminal outcome, never permission to regenerate.
     cutoff=store.stamp(store.now()-timedelta(minutes=5))
-    db.execute("UPDATE kilas_workspace_streams SET state='INTERRUPTED' WHERE user_id=? AND conversation_id=? AND state='RUNNING' AND updated_at<?",(owner,conversation,cutoff))
+    usage._query(conn,"UPDATE kilas_workspace_streams SET state='INTERRUPTED' WHERE user_id=? AND state='RUNNING' AND updated_at<?",(owner,cutoff))
+
+
+def recover(owner,conversation):
+    if not agent_store.conversation(owner,conversation):return
+    with store.transaction() as conn:
+        if db.BACKEND=='postgres':usage._query(conn,'SELECT id FROM users WHERE id=? FOR UPDATE',(owner,),one=True)
+        _recover(conn,owner)
 
 
 def start(owner,conversation,key,factory):
@@ -42,6 +51,8 @@ def start(owner,conversation,key,factory):
         with store.transaction() as conn:
             # One active generation per owner across processes/tabs.
             if db.BACKEND=='postgres':usage._query(conn,'SELECT id FROM users WHERE id=? FOR UPDATE',(owner,),one=True)
+            if not usage._query(conn,'SELECT id FROM kilas_ai_conversations WHERE id=? AND user_id=? AND archived_at IS NULL',(conversation,owner),one=True):abort(404)
+            _recover(conn,owner)
             active=usage._query(conn,"SELECT id FROM kilas_workspace_streams WHERE user_id=? AND state='RUNNING'",(owner,),one=True)
             if active:abort(429)
             ident=usage._query(conn,"INSERT INTO kilas_workspace_streams(user_id,conversation_id,operation_key,created_at,updated_at) VALUES (?,?,?,?,?) RETURNING id",(owner,conversation,key,store.stamp(),store.stamp()),one=True)[0]
@@ -53,6 +64,14 @@ def start(owner,conversation,key,factory):
 
 
 def _run(app,ident,factory):
+    stopped=threading.Event()
+    def heartbeat():
+        with app.app_context():
+            while not stopped.wait(HEARTBEAT_SECONDS):
+                try:db.execute("UPDATE kilas_workspace_streams SET updated_at=? WHERE id=? AND state='RUNNING'",(store.stamp(),ident))
+                except Exception:pass  # A failed DB heartbeat must not start another provider call.
+    pulse=_HeartbeatThread(target=heartbeat,name='workspace-heartbeat-'+str(ident),daemon=True)
+    pulse.start()
     with app.app_context():
         outcome='COMPLETED';buffer='';last=time.monotonic();started=last;had_error=False;count=0;first_delta=True
         try:
@@ -82,7 +101,8 @@ def _run(app,ident,factory):
                     if row:agent_store.append(row['user_id'],'assistant','Pembuatan jawaban dihentikan. Hasil parsial tersimpan; permintaan tidak diulang otomatis.',row['conversation_id'])
                 db.execute('UPDATE kilas_workspace_streams SET state=?,updated_at=? WHERE id=?',(outcome,store.stamp(),ident))
                 emit(ident,{'type':'done','state':outcome})
-            finally:_slots.release()
+            finally:
+                stopped.set();pulse.join(timeout=1);_slots.release()
 
 
 def response(ident):

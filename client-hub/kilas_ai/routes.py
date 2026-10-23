@@ -209,6 +209,19 @@ def _sse(event, payload):
     return "event: " + event + "\ndata: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
 
 
+def _replay_answer(answer):
+    try:metadata=json.loads(answer.get('metadata_json') or '{}')
+    except (ValueError,TypeError):metadata={}
+    status=metadata.get('status','complete')
+    output=_sse('delta',{'text':answer['content']})
+    if status=='complete':
+        output+=_sse('done',{'cached':True,'finish_reason':metadata.get('finish_reason') or 'stop'})
+    else:
+        output+=_sse('incomplete',{'cached':True,'status':status,
+            'message':'Jawaban ini belum selesai. Hasil parsial tersimpan; pilih Buat ulang jawaban untuk mencoba lagi.'})
+    return Response(output,mimetype='text/event-stream',headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'})
+
+
 @ai_bp.post("/threads/<int:thread_id>/regenerate")
 def regenerate(thread_id):
     from . import model_policy, providers, routing, store, chat_quality, usage as ai_usage
@@ -244,8 +257,7 @@ def regenerate(thread_id):
     if plan is None:
         prior = store.operation(user_id, thread_id, key + ":assistant")
         if prior and prior["content"]:
-            return Response(_sse("delta", {"text": prior["content"]}) + _sse("done", {"cached": True}),
-                            mimetype="text/event-stream")
+            return _replay_answer(prior)
         return Response(_sse("busy", {"message": "Jawaban sedang dibuat."}), status=409,
                         mimetype="text/event-stream")
     message_id, created = store.reserve_regeneration(user_id, thread_id, mode, key)
@@ -253,8 +265,7 @@ def regenerate(thread_id):
         ai_usage.finish(user_id, key, operations, success=False)
         prior = store.operation(user_id, thread_id, key + ":assistant")
         if prior and prior["content"]:
-            return Response(_sse("delta", {"text": prior["content"]}) + _sse("done", {"cached": True}),
-                            mimetype="text/event-stream")
+            return _replay_answer(prior)
         return Response(_sse("busy", {"message": "Jawaban sedang dibuat."}), status=409,
                         mimetype="text/event-stream")
 
@@ -387,8 +398,7 @@ def send(thread_id, *, script_only=False):
             return thread_projects.response(thread_id,job_id)
         answer = store.operation(user_id, thread_id, key + ":assistant")
         if answer and answer["content"]:
-            return Response(_sse("delta", {"text": answer["content"]}) + _sse("done", {"cached": True}),
-                            mimetype="text/event-stream")
+            return _replay_answer(answer)
         return Response(_sse("busy", {"message": "Permintaan ini sedang diproses."}), status=409,
                         mimetype="text/event-stream")
     from . import chat_models
@@ -430,12 +440,11 @@ def send(thread_id, *, script_only=False):
         ai_usage.finish(user_id, key, operations, success=False)
         prior = store.operation(user_id, thread_id, key + ":assistant")
         if prior:
-            return Response(_sse("delta", {"text": prior["content"]}) + _sse("done", {"cached": True}),
-                            mimetype="text/event-stream")
+            return _replay_answer(prior)
         return Response(_sse("busy", {"message": "Permintaan ini sedang diproses."}),
                         status=409, mimetype="text/event-stream")
     store.save_attachments(user_id, thread_id, message_id, prepared)
-    context = store.context(user_id, thread_id,selected_model=selected_model)
+    context = store.context(user_id, thread_id,selected_model=selected_model,current_attachments=prepared)
     if selected_model:chat_models.bind(context,selected_model)
 
     def generate():

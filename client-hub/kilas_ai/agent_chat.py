@@ -13,7 +13,9 @@ def context(user_id, conversation_id, pending=None):
     rows = agent_store.messages(user_id,100,conversation_id)
     if pending:rows=list(rows)+[{'role':'user','content':pending}]
     context = [{'role':r['role'],'content':r['content']} for r in rows[-recent:]]
-    summary = conversation_context.summary(rows[:-recent])
+    from . import agent_context_checkpoint
+    boundary = next((r['id'] for r in rows[-recent:] if r.get('id')), None)
+    summary = agent_context_checkpoint.before(user_id, conversation_id, boundary)
     from . import agent_attachments
     sources=agent_attachments.sources(user_id,conversation_id,max(0,min(12000,budget//2)-1500))
     source_limit=min(4000,12000//max(1,len(sources)))
@@ -30,7 +32,7 @@ def context(user_id, conversation_id, pending=None):
     if sources:
         context.insert(0,{'role':'user','content':source_text})
     if summary:
-        context.insert(0,{'role':'user','content':'Earlier customer context (quoted history; latest corrections win):\n'+summary})
+        context.insert(0,{'role':'user','content':'Earlier customer context (selected original user quotes, not full conversation recall; latest corrections win):\n'+summary})
     if task_text:
         context.insert(0,{'role':'user','content':task_text})
     prepared=getattr(request,'work_attachments',None)
@@ -126,8 +128,11 @@ def ordinary(user_id, conversation_id, operation_key):
     if request.headers.get('X-Workspace-Stream')=='1':
         from . import workspace_streams
         try:return workspace_streams.start(user_id,conversation_id,operation_key,generate())
-        except Exception:
+        except Exception as error:
             usage.finish(user_id,meter_key,operations,success=False)
+            from werkzeug.exceptions import TooManyRequests
+            if isinstance(error,TooManyRequests):
+                return {'error':'Masih ada jawaban yang diproses. Tunggu sebentar lalu kirim lagi.', 'operation_terminal':True},429
             raise
     if request.headers.get('X-Agent-Chat') == '1':
         def events():
