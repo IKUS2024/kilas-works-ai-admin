@@ -143,12 +143,50 @@ def ready(owner):
 
 
 def _spend(conn, config):
-    # Lifetime means every native campaign, including historical QA, cancelled
-    # dispatches and unknown outcomes. Renaming a campaign cannot reset spend.
+    # Every historical dispatch remains charged. Only Translator trial accounting
+    # excludes Call envelopes proven funded separately by the same account/key.
+    # Call callers retain their existing calculation and admission behavior.
     lifetime = config['mode'] == 'owner_lifetime'
-    return int(usage._query(conn,
+    total = int(usage._query(conn,
         'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign '+('LIKE ?' if lifetime else '=?'),
         ('gml-%' if lifetime else config['id'],), one=True)[0])
+    if not lifetime or config['id'].startswith('gml-call-'):
+        return total
+    candidates = usage._rows(conn,
+        "SELECT user_id,operation_key,charge_micro FROM kilas_vo_stt_operations "
+        "WHERE campaign LIKE 'gml-call-%' AND charge_micro>0 AND dispatched_at IS NOT NULL "
+        "AND status IN ('DISPATCHED','COMPLETED','UNKNOWN')")
+    if not candidates:
+        return total
+    from decimal import Decimal, DecimalException
+    accounts = {}
+    for record in usage._rows(conn,
+            "SELECT u.user_id,u.operation_key,u.operation_type,u.mode,u.status,u.quota_source,u.provider,u.model,u.estimated_cost_usd "
+            "FROM kilas_ai_usage u JOIN kilas_vo_stt_operations o "
+            "ON o.user_id=u.user_id AND o.operation_key=u.operation_key "
+            "WHERE o.campaign LIKE 'gml-call-%' AND o.charge_micro>0 AND o.dispatched_at IS NOT NULL "
+            "AND o.status IN ('DISPATCHED','COMPLETED','UNKNOWN')"):
+        accounts.setdefault(tuple(record[:2]), []).append(record[2:])
+    excluded = 0
+    for owner, key, charge in candidates:
+        if not re.fullmatch(r'live-[a-f0-9]{32}-gc', key):
+            continue
+        # Full evidence must be unique and exact; partial, mismatched, duplicate,
+        # pending or refunded records cannot free trial capacity. Never infer
+        # funding from another user's matching key or from a campaign name alone.
+        records = accounts.get((owner, key), [])
+        if len(records) != 1:
+            continue
+        kind, mode, status, source, provider, model, cost = records[0]
+        if (kind, mode, status, provider, model) != ('AI_CALL', 'SMART', 'COMPLETE', 'google', 'gemini-3.8-live') or source not in ('BASE', 'TOPUP'):
+            continue
+        try:
+            amount = Decimal(str(cost))*1000000
+            if amount.is_finite() and amount == charge:
+                excluded += charge
+        except (DecimalException, ValueError, TypeError):
+            continue
+    return total-excluded
 
 
 def _stream_count(streams):

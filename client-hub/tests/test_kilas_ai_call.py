@@ -97,12 +97,14 @@ class CallTests(unittest.TestCase):
             self.assertFalse(call.ws)
 
     def test_old_history_and_new_calls_share_one_cap_without_campaign_reset(self):
-        with self.enabled():
+        with self.enabled(), patch.object(budget, 'account_allowance', return_value=None):
             initial=budget.status(self.user)['remaining_micro_usd']
+            with patch.dict(os.environ,{'KILAS_LIVE_GEMINI_ENABLED':'true'}):
+                native_initial=budget.native.status(self.other)['remaining_micro_usd']
             call=self.make();budget.dispatch(call.capability);calls.end(self.user,call.ident)
             self.assertEqual(budget.status(self.other)['remaining_micro_usd'],initial-250000)
             with patch.dict(os.environ,{'KILAS_LIVE_GEMINI_ENABLED':'true'}):
-                self.assertEqual(budget.native.status(self.other)['remaining_micro_usd'],initial-250000)
+                self.assertEqual(budget.native.status(self.other)['remaining_micro_usd'],native_initial-250000)
             row=budget.owned(self.user,call.ident)
             audio.f.db.execute('UPDATE kilas_vo_stt_operations SET charge_micro=? WHERE user_id=? AND operation_key=?',(row['charge_micro']+initial-250000,self.user,budget.key(call.ident)))
             self.assertEqual(budget.status(self.other)['reason'],'budget_limit')
