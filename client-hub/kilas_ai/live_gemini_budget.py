@@ -94,21 +94,22 @@ def policy(*, enabled_key='KILAS_LIVE_GEMINI_ENABLED', _environment=None):
                     and (reserve < INTERNAL_RESERVE_MIN_MICRO_USD or cap > 10000000))):
             return None
         policy_id = 'gml-'+campaign
-        # Explicit October23 approval: exactly $1 extra for Translator only.
+        # Explicit approvals: $1 on Oct23, another $1 on Oct24, Translator only.
         # Other enabled_key callers (especially AI Call) retain byte-identical
         # base policy. New immutable metadata does not reset global history.
         extension = environment.get('KILAS_TRANSLATOR_TRIAL_EXTENSION_MICRO_USD', '0')
         if enabled_key == 'KILAS_LIVE_GEMINI_ENABLED' and extension != '0':
-            if (extension != '1000000' or mode != 'owner_lifetime'
+            if (extension not in ('1000000', '2000000') or mode != 'owner_lifetime'
                     or audience != 'authenticated' or cap != 10000000
                     or valuation.get('valuation_mode') != 'conservative_internal'):
                 return None
-            cap += 1000000
-            valuation['guard_idr'] += valuation['idr_per_usd']
+            cap += int(extension)
+            valuation['guard_idr'] += int(extension)//1000000*valuation['idr_per_usd']
             if valuation['guard_idr'] > valuation['total_idr']:
                 return None
-            policy_id = 'gml-translator-extension-'+hashlib.sha256(campaign.encode()).hexdigest()[:24]
-            price_version += '-translator-approved-extra1000000-v1'
+            identity = campaign if extension == '1000000' else campaign+':'+extension
+            policy_id = 'gml-translator-extension-'+hashlib.sha256(identity.encode()).hexdigest()[:24]
+            price_version += '-translator-approved-extra'+extension+'-v1'
         return {'id':policy_id, 'allowed_owner':owner, 'global_micro':cap,
                 'account_micro':cap, 'reserve':reserve,
                 'expires_at':expiry_text, 'price_version':price_version, 'mode':mode,

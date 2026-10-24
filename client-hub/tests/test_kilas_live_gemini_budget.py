@@ -186,12 +186,36 @@ class GeminiBudgetTests(unittest.TestCase):
                 self.assert_denied('budget_limit', lambda: budget.claim(3, 'b'*48, self.key(604), streams=2))
                 self.assertEqual(self.query('SELECT charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',
                                            (self.key(601)+'-gm',)), (9900000,))
-            for invalid in ('-1', '1', '1000001', '2000000', '', 'nan'):
+            for invalid in ('-1', '1', '1000001', '2000001', '3000000', '', 'nan'):
                 with patch.dict(os.environ, {extension: invalid}):
                     self.assertIsNone(budget.policy())
                     self.assertEqual(budget.policy(enabled_key='KILAS_AI_CALL_ENABLED'), call_original)
             with patch.dict(os.environ, {extension:'1000000', 'KILAS_LIVE_GEMINI_BUDGET_MICRO_USD':'9000000'}):
                 self.assertIsNone(budget.policy())
+
+    def test_second_approved_dollar_preserves_prior_metadata_and_call_policy(self):
+        extension = 'KILAS_TRANSLATOR_TRIAL_EXTENSION_MICRO_USD'
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE':'authenticated',
+                                    'KILAS_AI_CALL_ENABLED':'true', extension:'1000000'}):
+            first = budget.policy()
+            call = budget.policy(enabled_key='KILAS_AI_CALL_ENABLED')
+            self.seed(10900000, 'UNKNOWN', first['id'], 701)
+            with patch.dict(os.environ, {extension:'2000000'}):
+                second = budget.policy()
+                self.assertEqual(second['global_micro'], 12000000)
+                self.assertEqual(second['guard_idr'], 300000)
+                self.assertNotEqual(second['id'], first['id'])
+                self.assertNotEqual(second['price_version'], first['price_version'])
+                self.assertEqual(budget.policy(enabled_key='KILAS_AI_CALL_ENABLED'), call)
+                self.assertEqual(budget.status(2, streams=2)['remaining_micro_usd'], 1100000)
+                for index, owner in ((702, 1), (703, 2)):
+                    reservation = budget.claim(owner, 'b'*48, self.key(index), streams=2)
+                    budget.dispatch(reservation)
+                    budget.finish(reservation, False)
+                self.assert_denied('budget_limit', lambda: budget.claim(3, 'c'*48, self.key(704), streams=2))
+                self.assertEqual(self.query('SELECT charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',
+                                           (self.key(701)+'-gm',)), (10900000,))
+            self.assertEqual(budget.policy(), first)
 
     def test_account_funded_calls_excluded_only_with_exact_unique_same_tenant_evidence(self):
         self.execute('CREATE TABLE kilas_ai_usage(user_id INTEGER,operation_key TEXT,operation_type TEXT,mode TEXT,status TEXT,quota_source TEXT,provider TEXT,model TEXT,estimated_cost_usd TEXT)')
