@@ -34,6 +34,8 @@ def post_worker_init(worker):
     # Default-off, once-only approved synthetic Gemini test in a separate process.
     from kilas_ai.live_gemini_smoke import launch
     launch()
+    from kilas_ai.live_gemini_validation_once import launch as translator_validation
+    translator_validation()
     try:
         from kilas_ai.live_translator_readiness import report as classic_report
         classic = classic_report()

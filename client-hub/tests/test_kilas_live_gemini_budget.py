@@ -186,7 +186,7 @@ class GeminiBudgetTests(unittest.TestCase):
                 self.assert_denied('budget_limit', lambda: budget.claim(3, 'b'*48, self.key(604), streams=2))
                 self.assertEqual(self.query('SELECT charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',
                                            (self.key(601)+'-gm',)), (9900000,))
-            for invalid in ('-1', '1', '1000001', '2000001', '3000000', '', 'nan'):
+            for invalid in ('-1', '1', '1000001', '2000001', '2400001', '3000000', '', 'nan'):
                 with patch.dict(os.environ, {extension: invalid}):
                     self.assertIsNone(budget.policy())
                     self.assertEqual(budget.policy(enabled_key='KILAS_AI_CALL_ENABLED'), call_original)
@@ -237,6 +237,17 @@ class GeminiBudgetTests(unittest.TestCase):
             cap=budget.claim(1,'c'*48,self.key(805),streams=2);budget.dispatch(cap)
             budget.finish(cap,True,verified_usage=VerifiedUsage(0,0,2))
             self.assertFalse(budget.finish(cap,True,verified_usage=VerifiedUsage(0,0,2)))
+
+    def test_explicit_forty_cent_increment_keeps_total_ceiling_finite(self):
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE':'authenticated',
+                                    'KILAS_TRANSLATOR_TRIAL_EXTENSION_MICRO_USD':'2400000'}):
+            config=budget.policy()
+            self.assertEqual(config['global_micro'],12400000)
+            self.assertEqual(config['guard_idr'],310000)
+            self.seed(11900000,'UNKNOWN','gml-prior-retained',901)
+            self.assertEqual(budget.status(1,streams=2)['remaining_micro_usd'],500000)
+            cap=budget.claim(1,'d'*48,self.key(902),streams=2);budget.dispatch(cap);budget.finish(cap,False)
+            self.assert_denied('budget_limit',lambda:budget.claim(2,'e'*48,self.key(903),streams=2))
 
     def test_account_funded_calls_excluded_only_with_exact_unique_same_tenant_evidence(self):
         self.execute('CREATE TABLE kilas_ai_usage(user_id INTEGER,operation_key TEXT,operation_type TEXT,mode TEXT,status TEXT,quota_source TEXT,provider TEXT,model TEXT,estimated_cost_usd TEXT)')
