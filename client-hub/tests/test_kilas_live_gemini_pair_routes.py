@@ -69,6 +69,8 @@ class PairRouteTests(unittest.TestCase):
                 authenticate(self.client,audio.f.repo.get_user_by_id(owner),_csrf_token='audio-csrf')
                 key=self.key(owner+112)
                 cap=budget.claim(owner,'d'*48,key,streams=2);budget.dispatch(cap)
+                self.addCleanup(audio.f.db.execute,'DELETE FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key IN (?,?)',
+                                (owner,key+'-gm2:parent',key+'-gm2:slot'))
                 self.assertIn('data-gemini-ready="false"',self.client.get('/kilas-translator/live/gemini').text)
                 audio.f.db.execute('UPDATE kilas_vo_stt_operations SET created_at=? WHERE user_id=? AND operation_key IN (?,?)',
                                    ((datetime.now(timezone.utc)-timedelta(seconds=121)).isoformat(),owner,key+'-gm2:parent',key+'-gm2:slot'))
