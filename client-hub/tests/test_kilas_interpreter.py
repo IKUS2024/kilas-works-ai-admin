@@ -38,8 +38,9 @@ class InterpreterTests(unittest.TestCase):
         self.assertEqual(len(LANGUAGES),99)
         for code in LANGUAGES:
             target='en' if code!='en' else 'id'
-            prompt=calls.setup(settings={'source':code,'target':target,'consent':True})['setup']['systemInstruction']['parts'][0]['text']
-            self.assertIn('from '+LANGUAGES[code]+' into '+LANGUAGES[target],prompt)
+            for source,destination in ((code,target),(target,code)):
+                prompt=calls.setup(settings={'source':source,'target':destination,'consent':True})['setup']['systemInstruction']['parts'][0]['text']
+                self.assertIn('from '+LANGUAGES[source]+' into '+LANGUAGES[destination],prompt)
 
     def test_fixed_prompt_no_call_personas_tools_or_state(self):
         for source,target in [('id','en'),('en','id')]:
@@ -60,7 +61,7 @@ class InterpreterTests(unittest.TestCase):
                 self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/interpreter')
                 if os.environ.get('KILAS_INTERPRETER_FIXTURE'):Path(os.environ['KILAS_INTERPRETER_FIXTURE']).write_text(page.text)
                 self.assertEqual(page.status_code,200);self.assertIn(b'interpreter-left',page.data);self.assertIn(b'interpreter-right',page.data)
-                self.assertNotIn(b'Privacy Policy',page.data)
+                self.assertNotIn(b'Privacy Policy',page.data);self.assertNotIn(b'classic=1',page.data);self.assertNotIn(b'Other languages / clone',page.data)
                 self.assertTrue(self.client.get('/kilas-translator/interpreter/readiness').json['available'])
             self.assertIn(self.client.post('/kilas-translator/interpreter/'+'a'*32).status_code,(400,403))
             connect.assert_not_called()

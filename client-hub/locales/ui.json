@@ -1,4 +1,6 @@
 {
+  "Mulai": {"id": "Mulai", "en": "Start", "es": "Iniciar", "zh": "开始"},
+  "Akhiri": {"id": "Akhiri", "en": "End", "es": "Finalizar", "zh": "结束"},
   "Kuota Gemini sedang tidak tersedia.": {"id": "Kuota Gemini sedang tidak tersedia.", "en": "Gemini quota is currently unavailable.", "es": "La cuota de Gemini no está disponible.", "zh": "Gemini 配额暂不可用。"},
   "Periksa billing akun Gemini.": {"id": "Periksa billing akun Gemini.", "en": "Check Gemini account billing.", "es": "Revisa la facturación de Gemini.", "zh": "请检查 Gemini 账号的结算状态。"},
   "Setujui pemrosesan ucapan terlebih dahulu.": {"id": "Setujui pemrosesan ucapan terlebih dahulu.", "en": "Consent to speech processing first.", "es": "Acepta primero el procesamiento de voz.", "zh": "请先同意语音处理。"},
