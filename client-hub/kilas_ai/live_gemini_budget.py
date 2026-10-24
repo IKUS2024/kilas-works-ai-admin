@@ -235,6 +235,29 @@ def _group_rows(conn, capability, row, streams):
     return [row, slot]
 
 
+def _preview_active(conn, owner):
+    """Observe typed native expiry without mutating or releasing a ledger row."""
+    cutoff=datetime.now(timezone.utc)-timedelta(seconds=120)
+    for key,campaign,created,price in usage._rows(conn,
+            "SELECT o.operation_key,o.campaign,o.created_at,c.price_version "
+            "FROM kilas_vo_stt_operations o LEFT JOIN kilas_vo_stt_campaigns c ON c.id=o.campaign "
+            "WHERE o.user_id=? AND o.status IN ('RESERVED','DISPATCHED')",(owner,)):
+        # Only this product's proven 90s native leases have the 120s fence.
+        # Other products, unknown policies/keys and malformed dates fail closed.
+        typed=(isinstance(key,str) and re.fullmatch(r'live-[a-f0-9]{32}-gm(?:2:(?:parent|slot))?',key)
+               and isinstance(campaign,str) and campaign.startswith('gml-')
+               and isinstance(price,str) and (price==PRICE_VERSION or price.startswith(PRICE_VERSION+'-')))
+        if typed:
+            try:
+                start=datetime.fromisoformat(created)
+                if start.tzinfo is not None and start<cutoff:
+                    continue  # claim() performs the original locked expiry.
+            except (ValueError,TypeError):
+                pass
+        return True
+    return False
+
+
 def status(owner, *, streams=1):
     """Read-only internal allowance snapshot; never a supplier wallet balance.
 
@@ -256,9 +279,7 @@ def status(owner, *, streams=1):
             return {'available': False, 'reason': 'campaign_blocked' if row[4] else 'campaign_policy_changed'}
         charged = _spend(conn, config)
         remaining = max(0, config['global_micro']-charged)
-        active = bool(usage._query(conn,
-            "SELECT 1 FROM kilas_vo_stt_operations WHERE user_id=? AND status IN ('RESERVED','DISPATCHED')",
-            (owner,), one=True))
+        active = _preview_active(conn,owner)
     reserve = config['reserve']*streams
     reason = 'already_processing' if active else 'budget_limit' if remaining < reserve else None
     return {'available': reason is None, 'reason': reason, 'policy_mode': config['mode'], 'audience': config['audience'],
