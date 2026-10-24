@@ -1,5 +1,6 @@
 """Fresh Voice Over entry and explicit results in Chromium; synthetic provider only."""
 import json
+import tempfile
 import shutil
 import threading
 from pathlib import Path
@@ -16,7 +17,7 @@ def main():
     server=make_server('127.0.0.1',0,f.app.app,threaded=True)
     threading.Thread(target=server.serve_forever,daemon=True).start()
     origin=f'http://127.0.0.1:{server.server_port}'
-    out=Path('/tmp/kilas-fresh-entry-review');out.mkdir(exist_ok=True)
+    out=Path(tempfile.gettempdir())/'kilas-fresh-entry-review';out.mkdir(exist_ok=True)
     report=[]
     try:
         choices=[{'alias':'kilas-female','id':'actualVoice123','name':'Kilas Female','style':'Natural'}]
@@ -49,6 +50,7 @@ def main():
                         page.reload(wait_until='networkidle');fresh()
                 page.screenshot(path=str(out/f'fresh-{width}.png'),full_page=True)
                 # Recent explicitly opens the owned historical result and its actual actions.
+                if not page.locator('#audio-history').is_visible():page.locator('.reference-history-toggle').click()
                 page.locator(f'[data-audio-history="{ident}"]').click()
                 result=page.locator('#audio-result');alternate=result.locator('[data-audio-alternate]')
                 expect(result.locator('audio')).to_be_visible();expect(alternate).to_have_text('Generate another version')

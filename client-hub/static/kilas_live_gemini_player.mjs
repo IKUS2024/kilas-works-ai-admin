@@ -1,7 +1,7 @@
 // Bounded PCM24k mono queue. No provider, network or microphone work on import.
 export class GeminiPlayer {
- constructor({getContext,now=()=>performance.now(),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id),onError=()=>{},onStarted=()=>{},onTiming=()=>{},onScheduled=()=>{},onHold=()=>{},onPlaying=()=>{},maxBufferedSeconds=8}){
-  Object.assign(this,{getContext,now,schedule,clear,onError,onStarted,onTiming,onScheduled,onHold,onPlaying,maxBufferedSeconds});this.version=0;this.reset();
+ constructor({getContext,getDestination=context=>context.destination,now=()=>performance.now(),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id),onError=()=>{},onStarted=()=>{},onTiming=()=>{},onScheduled=()=>{},onHold=()=>{},onPlaying=()=>{},maxBufferedSeconds=8}){
+  Object.assign(this,{getContext,getDestination,now,schedule,clear,onError,onStarted,onTiming,onScheduled,onHold,onPlaying,maxBufferedSeconds});this.version=0;this.reset();
  }
  reset(){
   for(const waiter of this.waiters||[])waiter.reject(new DOMException('Aborted','AbortError'));
@@ -37,7 +37,7 @@ export class GeminiPlayer {
   const context=this.getContext();if(!context||context.state!=='running'){this.fail('audio_stalled');return;}
   const ticket=this.version;
   while(this.queue.length){
-   const entry=this.queue.shift(),{buffer}=entry,node=context.createBufferSource();node.buffer=buffer;node.connect(context.destination);
+   const entry=this.queue.shift(),{buffer}=entry,node=context.createBufferSource();node.buffer=buffer;node.connect(this.getDestination(context));
    const at=Math.max(context.currentTime+.02,this.nextAt);
    if(!this.first){try{this.onTiming({schedule_gap_ms:Math.max(0,(at-this.nextAt)*1000)});}catch{}}
    this.nextAt=at+buffer.duration;entry.at=at;

@@ -1,5 +1,6 @@
 """Actual Chromium edit/regenerate flow with synthetic translation and TTS only."""
 import json
+import tempfile
 import threading
 from pathlib import Path
 from unittest.mock import patch
@@ -15,7 +16,7 @@ def main():
     server=make_server('127.0.0.1',0,f.app.app,threaded=True)
     threading.Thread(target=server.serve_forever,daemon=True).start()
     origin=f'http://127.0.0.1:{server.server_port}'
-    out=Path('/tmp/kilas-voice-spoken-edit-review');out.mkdir(exist_ok=True)
+    out=Path(tempfile.gettempdir())/'kilas-voice-spoken-edit-review';out.mkdir(exist_ok=True)
     report=[]
     try:
         choices=[{'alias':'kilas-male','id':'otherVoice123','name':'Kilas Male','style':'Natural'},{'alias':'kilas-female','id':'actualVoice123','name':'Kilas Female','style':'Natural'}]
@@ -57,6 +58,7 @@ def main():
                 assert 'name="translate_script"' not in posts[0]
                 row=f.db.query_one('SELECT original_script,spoken_script FROM kilas_audio_jobs WHERE id=?',(ident,));assert row['original_script']==original and row['spoken_script']==spoken
                 page.reload(wait_until='networkidle')
+                if not page.locator('#audio-history').is_visible():page.locator('.reference-history-toggle').click()
                 page.locator(f'#audio-history [data-audio-edit="/kilas-translator/jobs/{ident}/script"]').click();expect(script).to_have_value(spoken)
                 # Alternate takes retain the same spoken snapshot and language.
                 alternate=case.client.post(f'/kilas-translator/jobs/{ident}/alternate',data={'csrf_token':'audio-csrf','operation_key':'browser-alternate-123456'}).json['id']

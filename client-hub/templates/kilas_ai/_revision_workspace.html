@@ -1,14 +1,10 @@
 {% if not revision_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_revision_shell.css', v='consistent-ui-20261012') }}">{% endif %}
 <a class="premium-skip" href="#kw-main">{{ ui_t('Lewati navigasi') }}</a>
-{% if request.blueprint == 'kilas_audio' %}
-<header class="kilas-audio-header"><a class="premium-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a>{% include 'kilas_ai/_profile_menu.html' %}</header>
-{% else %}
-<header class="premium-mobile-header"><button type="button" data-premium-menu aria-controls="premium-sidebar" aria-expanded="false" aria-label="{{ ui_t('Buka navigasi') }}">☰</button><a class="premium-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a></header>
+<header class="premium-mobile-header kilas-reference-header"><button type="button" data-premium-menu aria-controls="premium-sidebar" aria-expanded="false" aria-label="{{ ui_t('Buka navigasi') }}"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 5h18M3 12h18M3 19h18"/></svg></button><a class="premium-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a>{% with profile_location='kilas-header' %}{% include 'kilas_ai/_profile_menu.html' %}{% endwith %}</header>
 <button type="button" class="premium-backdrop" data-premium-close aria-label="{{ ui_t('Tutup navigasi') }}" hidden></button>
 <aside class="premium-sidebar kilas-revision-sidebar" id="premium-sidebar" aria-label="{{ ui_t('Workspace Kilas Works') }}">
-  <div class="premium-sidebar-head"><a class="premium-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a><button type="button" data-premium-close aria-label="{{ ui_t('Tutup navigasi') }}">×</button></div>
-  {% include 'kilas_ai/_chat_sidebar.html' %}
+  <div class="premium-sidebar-head"><a class="premium-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a><button type="button" data-premium-close aria-label="{{ ui_t('Tutup navigasi') }}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m5 5 14 14M19 5 5 19"/></svg></button></div>
+  {% if chat_sidebar_history is defined %}{% include 'kilas_ai/_chat_sidebar.html' %}{% else %}{% include '_premium_navigation.html' %}{% endif %}
   <footer class="kilas-sidebar-profile">{% include 'kilas_ai/_profile_menu.html' %}</footer>
 </aside>
-<script src="{{ url_for('static', filename='kilas_premium.js', v='profile-20261011') }}" defer></script>
-{% endif %}
+<script src="{{ url_for('static', filename='kilas_premium.js', v='reference-drawer-20261024') }}" defer></script>

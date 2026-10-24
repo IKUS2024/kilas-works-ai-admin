@@ -319,6 +319,10 @@
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_call.css',v='call-reliable-20261023') }}">
 {% endif %}
 {% block initial_component_styles %}{% endblock %}
+{% if premium_workspace and request.blueprint != 'finance' and (kilas_revision_shell|default(false) or chat_styles_in_head|default(false) or request.blueprint == 'kilas_audio') %}
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_reference_ui.css',v='six-references-20261024') }}">
+<script src="{{ url_for('static',filename='kilas_reference_ui.js',v='six-references-20261024') }}" defer></script>
+{% endif %}
 </head>
 <body data-finance-month="{{ finance_ui.month if finance_ui else '' }}" data-finance-currency="{{ finance_ui.currency if finance_ui else '' }}" class="{{ 'kilas-light' if premium_ui }} {{ 'account-standalone' if account_standalone }} {{ 'premium-workspace' if premium_workspace }} {{ 'kw-app' if not premium_ui and workspace_ui and workspace_ui.enabled and workspace_ui.product == 'ai' and not (finance_ui and finance_ui.enabled) else '' }} {{ 'finance-app' if finance_ui and finance_ui.enabled else '' }} {% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
 {% if premium_ui and not session.get('user_id') %}<div class="public-language">{% set language_location = 'public' %}{% include '_language_selector.html' %}</div>{% endif %}

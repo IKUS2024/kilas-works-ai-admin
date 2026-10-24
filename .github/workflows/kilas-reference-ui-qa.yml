@@ -1,0 +1,45 @@
+name: Kilas six reference UI QA
+on:
+  pull_request:
+    paths: ['client-hub/**', '.github/workflows/kilas-reference-ui-qa.yml']
+  push:
+    branches: [main]
+    paths: ['client-hub/**', '.github/workflows/kilas-reference-ui-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  behavior-and-boundaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt
+      - name: Audio, Call, interpreter and protected Finance behavior
+        working-directory: client-hub
+        run: |
+          for suite in test_kilas_audio.py test_kilas_audio_latest_result.py test_kilas_audio_history.py test_kilas_personal_voice.py test_kilas_ai_call.py test_kilas_interpreter.py test_kilas_finance_baseline.py; do
+            python tests/$suite || exit 1
+          done
+      - name: PCM, lifecycle, cancellation, output routing and keyboard hierarchy
+        run: node --test client-hub/tests/test_kilas_ai_call.mjs client-hub/tests/test_kilas_ai_call_player.mjs client-hub/tests/test_kilas_ai_call_capture.mjs client-hub/tests/test_kilas_ai_call_pcm.mjs client-hub/tests/test_kilas_interpreter.mjs client-hub/tests/test_kilas_home_viewport.cjs
+  responsive-reference-states:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python client-hub/tests/test_kilas_reference_ui_browser.py
+        env: {KILAS_REFERENCE_SCREENSHOTS: /tmp/kilas-reference-ui}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-six-reference-ui
+          path: /tmp/kilas-reference-ui

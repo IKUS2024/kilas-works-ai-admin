@@ -44,6 +44,9 @@ def main():
                 expect(page.locator('a[href^="/kilas-learning"], [data-home-task="learning"]')).to_have_count(0)
                 expect(page.locator('.home-task-choices')).not_to_contain_text('Learning')
                 history=page.locator('#audio-history')
+                expect(history).not_to_be_visible()
+                page.locator('.reference-history-toggle').click()
+                expect(history).to_be_visible()
                 expect(history.locator('[data-audio-history]')).to_have_count(min(4,count))
                 expect(history.locator('.audio-history-pages')).to_have_count(int(count>4))
                 if count<=4:

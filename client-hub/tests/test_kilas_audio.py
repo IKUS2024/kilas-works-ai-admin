@@ -75,7 +75,7 @@ class AudioTests(unittest.TestCase):
             html=self.client.get('/kilas-translator?mode=voiceover').text
         self.assertNotIn('Buat voice over dari naskah dengan suara pilihanmu.',html)
         self.assertNotIn('Voice over dengan suara kamu.',html)
-        self.assertIn('<legend>Pilih suara</legend>',html)
+        self.assertIn('<legend><span>Pilih suara</span>',html)
         self.assertIn('id="add-saved-voice"',html)
         self.assertNotIn('id="open-recorder"',html)
         self.assertNotIn('id="voice-video-file"',html)
