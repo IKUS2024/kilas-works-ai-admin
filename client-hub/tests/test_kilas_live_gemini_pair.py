@@ -345,6 +345,31 @@ class PairTests(unittest.TestCase):
             self.assertNotIn('validation_reason', final)
             self.assertTrue(all('validation_reason' not in stream for stream in final['streams'].values()))
 
+    def test_end_after_audio_completion_is_cancellation_not_settlement_failure(self):
+        with self.config():
+            relay = self.make()
+            en, indonesian = Socket(), Socket()
+            original = audio_store.finish
+            def end_after_finish(*args, **kwargs):
+                result = original(*args, **kwargs)
+                sessions.end(relay.owner, relay.ident)
+                return result
+            def interact(runner):
+                self.assertTrue(en.configured.wait(2) and indonesian.configured.wait(2))
+                relay.accept(0, b'\x02\x00'*1600)
+                en.incoming.put(audio())
+                self.wait(lambda:relay.output_bytes == len(PCM))
+                relay.finish_input(1)
+            with patch.object(audio_store, 'finish', side_effect=end_after_finish):
+                self.run_pair(relay, [en, indonesian], interact)
+            self.assertEqual(relay.error.code, 'session_ended')
+            self.assertNotEqual(relay.error.code, 'gemini_settlement_failed')
+            job = fixture.audio.f.db.query_one('SELECT status,actual_ms FROM kilas_audio_jobs WHERE id=?', (relay.job,))
+            self.assertEqual(job['status'], 'COMPLETED')
+            self.assertGreater(job['actual_ms'], 0)
+            self.assertEqual(self.ledger()['charge'], budget.policy()['reserve']*2)
+            self.assertEqual(len(relay.frames), 0)
+
     def test_settlement_failure_keeps_original_validation_reason_and_redacts_supplier_values(self):
         with self.config():
             relay = self.make()

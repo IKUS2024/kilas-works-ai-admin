@@ -14,7 +14,7 @@ function snapshot(frames=[],extra={}){
  const streams=Object.fromEntries(ids.map(id=>[id,{target_language:id,generation:0,output_closed:closed,tail_confirmed:false,completion_kind:closed?'bounded_drain':null}]));
  return {input_mode:MODE,translation_mode:'two_way',output_order:'progressive_stream_runs',streams,status:closed?'COMPLETED':'PROCESSING',frames,next_index:frames.at(-1)?.index+1||0,translated_text:'',output_closed:closed,total_frames:closed?frames.length:null,tail_confirmed:false,completion_kind:closed?'bounded_drain':null,...extra};
 }
-function fixture({admission={},turnAdmission={},maxBufferedSeconds=8,legacy=false,fast=false}={}){
+function fixture({admission={},turnAdmission={},maxBufferedSeconds=8,legacy=false,fast=false,waitForOutputBeforeFinish=false}={}){
  const c=clock(),nodes=[],requests=[],polls=[],errors=[],warnings=[];let handlers,mic=false,key=0;
  const context={state:'running',destination:{},get currentTime(){return c.now()/1000;},createBuffer(_channels,length,rate){const values=new Float32Array(length);return {length,sampleRate:rate,duration:length/rate,getChannelData:()=>values};},createBufferSource(){const node={connect(){},disconnect(){},stop(){this.stopped=true;},start(at){this.at=at;}};nodes.push(node);return node;}};
  const player=new GeminiPlayer({...c,getContext:()=>context,maxBufferedSeconds});
@@ -28,7 +28,7 @@ function fixture({admission={},turnAdmission={},maxBufferedSeconds=8,legacy=fals
   if(options.method==='POST')return {input_mode:legacy?'gemini-live-two-way-v1':MODE,translation_mode:'two_way',streams:ids,...(legacy?{}:{output_order:'progressive_stream_runs'}),...turnAdmission};
   const result=deferred();polls.push({...result,url});return result.promise;
  };
- const session=new GeminiSession({...c,json,capture,player,prepare:async()=>{},csrf:'synthetic',utterancePlayback:true,...(fast?{endpointMs:600,packetBytes:3200,readRetries:2}:{}),key:()=> (++key).toString(16).padStart(32,'0'),onError:error=>errors.push(error),onWarning:value=>warnings.push(value)});
+ const session=new GeminiSession({waitForOutputBeforeFinish,...c,json,capture,player,prepare:async()=>{},csrf:'synthetic',utterancePlayback:true,...(fast?{endpointMs:600,packetBytes:3200,readRetries:2}:{}),key:()=> (++key).toString(16).padStart(32,'0'),onError:error=>errors.push(error),onWarning:value=>warnings.push(value)});
  const form=new FormData();form.set('translation_mode','two_way');form.set('language_a','id');form.set('language_b','en');form.set('consent',legacy?'gemini-live-two-way-v1':'gemini-live-two-way-v2');if(!legacy)form.set('output_order','progressive_stream_runs');
  const input=async(raw)=>{c.advance(raw.length/32);handlers.pcm(raw);await tick();};
  const voice=async(count=1)=>{for(let i=0;i<count;i++)await input(pcm());},silence=async(count)=>{for(let i=0;i<count;i++)await input(pcm(1600,0));};
@@ -188,4 +188,16 @@ for(const target of ['en','id'])test(`fast ${target} PCM plays before End after6
  assert.equal(f.nodes.length,1);assert.equal(f.mic,true);assert.equal(f.session.active,true);
  assert.equal(f.requests.filter(r=>r.url.endsWith('/end')).length,0);assert.equal(f.session.turn.closed,false);
  console.log(JSON.stringify({synthetic:true,target,uploadedPackets:3,packetMs:100,pauseMs:600,outputNodesBeforeEnd:f.nodes.length,microphoneActive:f.mic}));
+});
+
+
+test('native UI keeps the provider input open through a short pause until first translated PCM',async t=>{
+ const f=fixture({fast:true,waitForOutputBeforeFinish:true});t.after(()=>f.session.end());
+ await f.session.start(f.form);await f.voice();await f.silence(6);
+ assert.equal(f.requests.filter(r=>r.url.endsWith('/finish')).length,0);
+ assert.equal(f.session.active,true);assert.equal(f.mic,true);
+ f.polls[0].resolve(snapshot(Array.from({length:6},(_,i)=>frame(i,'en'))));await tick();
+ assert.equal(f.requests.filter(r=>r.url.endsWith('/finish')).length,1);
+ assert.ok(f.nodes.length>0);assert.equal(f.mic,true);
+ assert.equal(f.requests.filter(r=>r.url.endsWith('/end')).length,0);
 });

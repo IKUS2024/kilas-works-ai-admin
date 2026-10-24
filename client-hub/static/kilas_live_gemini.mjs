@@ -5,7 +5,7 @@ import {TranslatorPlayback} from './kilas_live_translator_playback.mjs?v=app-lan
 import {TranslatorRecovery} from './kilas_live_translator_recovery.mjs?v=app-language-20261015';
 import {syncLanguagePair,validLanguagePair} from './kilas_live_translator_languages.mjs?v=pair-layout-20261012';
 import {TranslatorCallLayout} from './kilas_live_translator_call_layout.mjs?v=call-viewport-20261013';
-import {GeminiSession,GeminiPlayer} from './kilas_live_gemini_engine.mjs?v=streaming-20261023';
+import {GeminiSession,GeminiPlayer} from './kilas_live_gemini_engine.mjs?v=output-boundary-20261024';
 import {PlaybackEcho} from './kilas_live_gemini_echo.mjs?v=native-echo-recovery-20261016';
 import {GeminiCaptions} from './kilas_live_gemini_captions.mjs?v=streaming-20261023';
 const root=document.querySelector('[data-gemini-live]');
@@ -38,7 +38,7 @@ if(root){
    document.querySelector('#live-recovery').hidden=!state.active;document.querySelector('#live-recovery-status').textContent=state.active?t('Sesi sebelumnya masih aktif.'):'';update();
    document.querySelector('#live-recovery-check').hidden=state.checked||state.pending||Boolean(session?.active);
   }});
- session=new GeminiSession({json,capture,player,csrf,utterancePlayback:true,endpointMs:600,packetBytes:3200,readRetries:2,onText:(text,detail)=>{captions.update(text,detail);document.querySelector('#native-caption-empty').hidden=Boolean(document.querySelector('#native-captions').children.length);},isEcho:bytes=>echo.matches(bytes),onTiming:latency,onAdmissionChange:update,endOwned:id=>recovery.endKnown(id),onIdle:()=>recovery.refresh(),prepare:async(signal,current)=>{
+ session=new GeminiSession({json,capture,player,csrf,utterancePlayback:true,waitForOutputBeforeFinish:true,endpointMs:600,packetBytes:3200,readRetries:2,onText:(text,detail)=>{captions.update(text,detail);document.querySelector('#native-caption-empty').hidden=Boolean(document.querySelector('#native-captions').children.length);},isEcho:bytes=>echo.matches(bytes),onTiming:latency,onAdmissionChange:update,endOwned:id=>recovery.endKnown(id),onIdle:()=>recovery.refresh(),prepare:async(signal,current)=>{
   echo.reset();captions.reset();document.querySelector('#native-caption-empty').hidden=false;
   captions.labels[first.value]=second.selectedOptions[0].textContent+' → '+first.selectedOptions[0].textContent;captions.labels[second.value]=first.selectedOptions[0].textContent+' → '+second.selectedOptions[0].textContent;
   if(!context){context=new AudioContext();gain=context.createGain();gain.connect(context.destination);}gain.gain.value=Number(document.querySelector('#native-volume').value)/100;await prepare.prepare(signal,current);
