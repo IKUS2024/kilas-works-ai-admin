@@ -123,6 +123,8 @@ components:
 
 Creative Services uses the separate [scoped studio design](docs/CREATIVE_SERVICES_DESIGN.md). These additions apply only to its standalone surface and generated copy; workspace and Finance tokens below remain unchanged.
 
+AI Chat, its drawer, AI Call, live Translator and Voice Over use the [scoped six-reference design](docs/KILAS_AI_REFERENCE_DESIGN.md), recorded from the owner's October 24 references and current implementation. Its white/peach surfaces and dark Call state are confined to those AI surfaces; this document's global and Finance tokens remain unchanged. Scoped sidecar metadata lives in `.impeccable/design.json` under `extensions.scopedSurfaces.kilas-ai-reference`.
+
 **Creative North Star: "The Quiet Professional Workbench"**
 
 The customer workspace feels calm, precise and trustworthy. White working surfaces, a neutral navigation rail and charcoal text let actual conversations, files and business tasks lead. Kilas orange carries identity and meaningful actions. The premium character comes from hierarchy, readable measures and consistent controls.

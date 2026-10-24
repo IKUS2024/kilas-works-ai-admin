@@ -1,6 +1,7 @@
 """Actual Chromium edit/regenerate flow with synthetic translation and TTS only."""
 import json
 import tempfile
+import shutil
 import threading
 from pathlib import Path
 from unittest.mock import patch
@@ -21,7 +22,7 @@ def main():
     try:
         choices=[{'alias':'kilas-male','id':'otherVoice123','name':'Kilas Male','style':'Natural'},{'alias':'kilas-female','id':'actualVoice123','name':'Kilas Female','style':'Natural'}]
         with patch.object(branded,'choices',return_value=choices),patch.object(provider,'speech',return_value=(VoiceEditTests.audio,'synthetic-only')) as speech,sync_playwright() as pw:
-            browser=pw.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+            browser=pw.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
             for width in (390,1440):
                 case=VoiceEditTests('test_plain_auto_personal_missing_voice_and_legacy');case.id=lambda:'spoken-edit-browser-'+str(width);case.setUp()
                 original='Selamat datang. Ini naskah Indonesia.';language='en' if width==390 else 'es';spoken='Welcome. This is the English script.' if language=='en' else 'Bienvenidos. Este es el texto en español.'

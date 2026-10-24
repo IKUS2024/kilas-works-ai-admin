@@ -9,6 +9,23 @@ on:
 permissions:
   contents: read
 jobs:
+  baseline-regression-comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - name: Distinguish existing legacy failures from candidate regressions
+        run: python scripts/compare_reference_ui_baseline.py
+        env: {KILAS_REFERENCE_BASELINE_REPORT: /tmp/reference-baseline-comparison.json}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-reference-baseline-comparison
+          path: /tmp/reference-baseline-comparison.json
   behavior-and-boundaries:
     runs-on: ubuntu-latest
     timeout-minutes: 12

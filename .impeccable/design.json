@@ -4,6 +4,567 @@
   "title": "Design System: Kilas Works customer workspace",
   "extensions": {
     "scopedSurfaces": {
+      "kilas-ai-reference": {
+        "generatedAt": "2026-10-24T17:28:24.951722+00:00",
+        "title": "Design System: Kilas AI six-reference surfaces",
+        "document": "docs/KILAS_AI_REFERENCE_DESIGN.md",
+        "sourceFiles": [
+          "client-hub/static/kilas_reference_ui.css",
+          "client-hub/static/kilas_reference_ui.js",
+          "client-hub/templates/kilas_ai/_revision_workspace.html",
+          "client-hub/templates/kilas_ai/_ai_call_surface.html",
+          "client-hub/templates/kilas_translator/home.html",
+          "client-hub/static/kilas_interpreter.mjs",
+          "client-hub/static/kilas_ai_call.mjs",
+          "client-hub/locales/ui_en.json",
+          "client-hub/locales/ui_es.json",
+          "client-hub/locales/ui_zh.json"
+        ],
+        "appliesTo": [
+          "AI Chat home",
+          "AI navigation drawer",
+          "AI Call setup and running",
+          "live Translator setup and active",
+          "Voice Over"
+        ],
+        "selectorScope": [
+          "body.kilas-light:has(.kilas-reference-header)",
+          "body:has(.kilas-reference-header)",
+          "#ai-call-dialog"
+        ],
+        "excludedSurfaces": [
+          "Finance",
+          "Assist",
+          "admin",
+          "Creative Services"
+        ],
+        "tokenSource": "docs/KILAS_AI_REFERENCE_DESIGN.md YAML frontmatter; primitives are scoped, not global overrides",
+        "assetProvenance": {
+          "logo": "Existing client-hub/static/kilas-new-chat-logo-lossless.webp unchanged; original black/orange Kilas identity.",
+          "typography": "Existing self-hosted Manrope variable font and system sans fallback.",
+          "newRasterAssets": false,
+          "references": "Six supplied original PNGs in sibling task references directory; see docs/KILAS_SIX_REFERENCE_IMPLEMENTATION.md."
+        },
+        "extensions": {
+          "colorMeta": {
+            "canvas": {
+              "role": "neutral",
+              "displayName": "Canvas",
+              "canonical": "#fff",
+              "tonalRamp": [
+                "oklch(15% 0.00000 89.88)",
+                "oklch(27% 0.00000 89.88)",
+                "oklch(38% 0.00000 89.88)",
+                "oklch(50% 0.00000 89.88)",
+                "oklch(61% 0.00000 89.88)",
+                "oklch(73% 0.00000 89.88)",
+                "oklch(84% 0.00000 89.88)",
+                "oklch(95% 0.00000 89.88)"
+              ]
+            },
+            "ink": {
+              "role": "neutral",
+              "displayName": "Ink",
+              "canonical": "#111b2b",
+              "tonalRamp": [
+                "oklch(15% 0.03478 259.52)",
+                "oklch(27% 0.03478 259.52)",
+                "oklch(38% 0.03478 259.52)",
+                "oklch(50% 0.03478 259.52)",
+                "oklch(61% 0.03478 259.52)",
+                "oklch(73% 0.03478 259.52)",
+                "oklch(84% 0.03478 259.52)",
+                "oklch(95% 0.03478 259.52)"
+              ]
+            },
+            "muted": {
+              "role": "neutral",
+              "displayName": "Muted",
+              "canonical": "#747c8e",
+              "tonalRamp": [
+                "oklch(15% 0.02919 266.44)",
+                "oklch(27% 0.02919 266.44)",
+                "oklch(38% 0.02919 266.44)",
+                "oklch(50% 0.02919 266.44)",
+                "oklch(61% 0.02919 266.44)",
+                "oklch(73% 0.02919 266.44)",
+                "oklch(84% 0.02919 266.44)",
+                "oklch(95% 0.02919 266.44)"
+              ]
+            },
+            "accent": {
+              "role": "primary",
+              "displayName": "Accent",
+              "canonical": "#ed5105",
+              "tonalRamp": [
+                "oklch(15% 0.20332 39.18)",
+                "oklch(27% 0.20332 39.18)",
+                "oklch(38% 0.20332 39.18)",
+                "oklch(50% 0.20332 39.18)",
+                "oklch(61% 0.20332 39.18)",
+                "oklch(73% 0.20332 39.18)",
+                "oklch(84% 0.20332 39.18)",
+                "oklch(95% 0.20332 39.18)"
+              ]
+            },
+            "orange-start": {
+              "role": "primary",
+              "displayName": "Orange Start",
+              "canonical": "#ff841d",
+              "tonalRamp": [
+                "oklch(15% 0.17968 52.83)",
+                "oklch(27% 0.17968 52.83)",
+                "oklch(38% 0.17968 52.83)",
+                "oklch(50% 0.17968 52.83)",
+                "oklch(61% 0.17968 52.83)",
+                "oklch(73% 0.17968 52.83)",
+                "oklch(84% 0.17968 52.83)",
+                "oklch(95% 0.17968 52.83)"
+              ]
+            },
+            "orange-end": {
+              "role": "primary",
+              "displayName": "Orange End",
+              "canonical": "#f45100",
+              "tonalRamp": [
+                "oklch(15% 0.21029 38.81)",
+                "oklch(27% 0.21029 38.81)",
+                "oklch(38% 0.21029 38.81)",
+                "oklch(50% 0.21029 38.81)",
+                "oklch(61% 0.21029 38.81)",
+                "oklch(73% 0.21029 38.81)",
+                "oklch(84% 0.21029 38.81)",
+                "oklch(95% 0.21029 38.81)"
+              ]
+            },
+            "peach-atmosphere": {
+              "role": "neutral",
+              "displayName": "Peach Atmosphere",
+              "canonical": "#fff4eb",
+              "tonalRamp": [
+                "oklch(15% 0.01685 61.96)",
+                "oklch(27% 0.01685 61.96)",
+                "oklch(38% 0.01685 61.96)",
+                "oklch(50% 0.01685 61.96)",
+                "oklch(61% 0.01685 61.96)",
+                "oklch(73% 0.01685 61.96)",
+                "oklch(84% 0.01685 61.96)",
+                "oklch(95% 0.01685 61.96)"
+              ]
+            },
+            "peach-selected": {
+              "role": "neutral",
+              "displayName": "Peach Selected",
+              "canonical": "#fff1e6",
+              "tonalRamp": [
+                "oklch(15% 0.02108 60.75)",
+                "oklch(27% 0.02108 60.75)",
+                "oklch(38% 0.02108 60.75)",
+                "oklch(50% 0.02108 60.75)",
+                "oklch(61% 0.02108 60.75)",
+                "oklch(73% 0.02108 60.75)",
+                "oklch(84% 0.02108 60.75)",
+                "oklch(95% 0.02108 60.75)"
+              ]
+            },
+            "selected-border": {
+              "role": "primary",
+              "displayName": "Selected Border",
+              "canonical": "#ff650c",
+              "tonalRamp": [
+                "oklch(15% 0.20414 42.55)",
+                "oklch(27% 0.20414 42.55)",
+                "oklch(38% 0.20414 42.55)",
+                "oklch(50% 0.20414 42.55)",
+                "oklch(61% 0.20414 42.55)",
+                "oklch(73% 0.20414 42.55)",
+                "oklch(84% 0.20414 42.55)",
+                "oklch(95% 0.20414 42.55)"
+              ]
+            },
+            "divider": {
+              "role": "neutral",
+              "displayName": "Divider",
+              "canonical": "#e5e5e9",
+              "tonalRamp": [
+                "oklch(15% 0.00537 286.29)",
+                "oklch(27% 0.00537 286.29)",
+                "oklch(38% 0.00537 286.29)",
+                "oklch(50% 0.00537 286.29)",
+                "oklch(61% 0.00537 286.29)",
+                "oklch(73% 0.00537 286.29)",
+                "oklch(84% 0.00537 286.29)",
+                "oklch(95% 0.00537 286.29)"
+              ]
+            },
+            "field-border": {
+              "role": "neutral",
+              "displayName": "Field Border",
+              "canonical": "#d4d7df",
+              "tonalRamp": [
+                "oklch(15% 0.01143 269.54)",
+                "oklch(27% 0.01143 269.54)",
+                "oklch(38% 0.01143 269.54)",
+                "oklch(50% 0.01143 269.54)",
+                "oklch(61% 0.01143 269.54)",
+                "oklch(73% 0.01143 269.54)",
+                "oklch(84% 0.01143 269.54)",
+                "oklch(95% 0.01143 269.54)"
+              ]
+            },
+            "quiet-surface": {
+              "role": "neutral",
+              "displayName": "Quiet Surface",
+              "canonical": "#faf9f8",
+              "tonalRamp": [
+                "oklch(15% 0.00171 67.80)",
+                "oklch(27% 0.00171 67.80)",
+                "oklch(38% 0.00171 67.80)",
+                "oklch(50% 0.00171 67.80)",
+                "oklch(61% 0.00171 67.80)",
+                "oklch(73% 0.00171 67.80)",
+                "oklch(84% 0.00171 67.80)",
+                "oklch(95% 0.00171 67.80)"
+              ]
+            },
+            "focus": {
+              "role": "neutral",
+              "displayName": "Focus",
+              "canonical": "#f17023",
+              "tonalRamp": [
+                "oklch(15% 0.17888 46.27)",
+                "oklch(27% 0.17888 46.27)",
+                "oklch(38% 0.17888 46.27)",
+                "oklch(50% 0.17888 46.27)",
+                "oklch(61% 0.17888 46.27)",
+                "oklch(73% 0.17888 46.27)",
+                "oklch(84% 0.17888 46.27)",
+                "oklch(95% 0.17888 46.27)"
+              ]
+            },
+            "call-canvas": {
+              "role": "neutral",
+              "displayName": "Call Canvas",
+              "canonical": "#09131c",
+              "tonalRamp": [
+                "oklch(15% 0.02382 246.62)",
+                "oklch(27% 0.02382 246.62)",
+                "oklch(38% 0.02382 246.62)",
+                "oklch(50% 0.02382 246.62)",
+                "oklch(61% 0.02382 246.62)",
+                "oklch(73% 0.02382 246.62)",
+                "oklch(84% 0.02382 246.62)",
+                "oklch(95% 0.02382 246.62)"
+              ]
+            },
+            "call-surface": {
+              "role": "neutral",
+              "displayName": "Call Surface",
+              "canonical": "#0e1c28",
+              "tonalRamp": [
+                "oklch(15% 0.03067 245.66)",
+                "oklch(27% 0.03067 245.66)",
+                "oklch(38% 0.03067 245.66)",
+                "oklch(50% 0.03067 245.66)",
+                "oklch(61% 0.03067 245.66)",
+                "oklch(73% 0.03067 245.66)",
+                "oklch(84% 0.03067 245.66)",
+                "oklch(95% 0.03067 245.66)"
+              ]
+            },
+            "call-field": {
+              "role": "neutral",
+              "displayName": "Call Field",
+              "canonical": "#152534",
+              "tonalRamp": [
+                "oklch(15% 0.03575 247.82)",
+                "oklch(27% 0.03575 247.82)",
+                "oklch(38% 0.03575 247.82)",
+                "oklch(50% 0.03575 247.82)",
+                "oklch(61% 0.03575 247.82)",
+                "oklch(73% 0.03575 247.82)",
+                "oklch(84% 0.03575 247.82)",
+                "oklch(95% 0.03575 247.82)"
+              ]
+            },
+            "call-ink": {
+              "role": "neutral",
+              "displayName": "Call Ink",
+              "canonical": "#f8fbff",
+              "tonalRamp": [
+                "oklch(15% 0.00621 255.47)",
+                "oklch(27% 0.00621 255.47)",
+                "oklch(38% 0.00621 255.47)",
+                "oklch(50% 0.00621 255.47)",
+                "oklch(61% 0.00621 255.47)",
+                "oklch(73% 0.00621 255.47)",
+                "oklch(84% 0.00621 255.47)",
+                "oklch(95% 0.00621 255.47)"
+              ]
+            },
+            "call-muted": {
+              "role": "neutral",
+              "displayName": "Call Muted",
+              "canonical": "#bad1e5",
+              "tonalRamp": [
+                "oklch(15% 0.03738 244.47)",
+                "oklch(27% 0.03738 244.47)",
+                "oklch(38% 0.03738 244.47)",
+                "oklch(50% 0.03738 244.47)",
+                "oklch(61% 0.03738 244.47)",
+                "oklch(73% 0.03738 244.47)",
+                "oklch(84% 0.03738 244.47)",
+                "oklch(95% 0.03738 244.47)"
+              ]
+            },
+            "call-identity": {
+              "role": "neutral",
+              "displayName": "Call Identity",
+              "canonical": "#ffdfb7",
+              "tonalRamp": [
+                "oklch(15% 0.06304 73.10)",
+                "oklch(27% 0.06304 73.10)",
+                "oklch(38% 0.06304 73.10)",
+                "oklch(50% 0.06304 73.10)",
+                "oklch(61% 0.06304 73.10)",
+                "oklch(73% 0.06304 73.10)",
+                "oklch(84% 0.06304 73.10)",
+                "oklch(95% 0.06304 73.10)"
+              ]
+            },
+            "call-end": {
+              "role": "neutral",
+              "displayName": "Call End",
+              "canonical": "#ff202c",
+              "tonalRamp": [
+                "oklch(15% 0.24731 26.34)",
+                "oklch(27% 0.24731 26.34)",
+                "oklch(38% 0.24731 26.34)",
+                "oklch(50% 0.24731 26.34)",
+                "oklch(61% 0.24731 26.34)",
+                "oklch(73% 0.24731 26.34)",
+                "oklch(84% 0.24731 26.34)",
+                "oklch(95% 0.24731 26.34)"
+              ]
+            }
+          },
+          "typographyMeta": {
+            "welcome": {
+              "displayName": "Chat welcome",
+              "purpose": "Strong centered greeting; 30px at mobile breakpoint."
+            },
+            "script": {
+              "displayName": "Script editor",
+              "purpose": "Readable 17px/1.6 text; source content remains in its original language."
+            },
+            "call-title": {
+              "displayName": "Call title",
+              "purpose": "Dedicated dark dialog title with compact-height adaptations."
+            }
+          },
+          "shadows": [
+            {
+              "name": "drawer",
+              "value": "16px 0 50px #111b2b16"
+            },
+            {
+              "name": "model",
+              "value": "0 8px 28px #35201908"
+            },
+            {
+              "name": "feature",
+              "value": "0 6px 18px #35201905"
+            },
+            {
+              "name": "composer",
+              "value": "0 8px 30px #35201908"
+            },
+            {
+              "name": "translator-panel",
+              "value": "0 12px 40px #35201907"
+            },
+            {
+              "name": "translator-action",
+              "value": "0 14px 24px #ef600b1c"
+            },
+            {
+              "name": "call-identity",
+              "value": "0 0 0 18px #76300444,0 0 0 38px #67280033,0 0 0 64px #51220422"
+            }
+          ],
+          "motion": [
+            {
+              "name": "drawer-slide",
+              "value": ".2s ease",
+              "purpose": "Overlay drawer transform."
+            },
+            {
+              "name": "reduced-motion",
+              "value": "animation:none!important;transition:none!important",
+              "purpose": "Reference workspace and Call reduced-motion override."
+            }
+          ],
+          "breakpoints": [
+            {
+              "name": "mobile-reference",
+              "value": "760px"
+            },
+            {
+              "name": "narrow-header",
+              "value": "390px"
+            },
+            {
+              "name": "stacked-models-voices-tools",
+              "value": "360px"
+            },
+            {
+              "name": "mobile-call",
+              "value": "600px"
+            },
+            {
+              "name": "compact-call-height",
+              "value": "620px",
+              "axis": "height"
+            },
+            {
+              "name": "short-call-height",
+              "value": "440px",
+              "axis": "height"
+            },
+            {
+              "name": "desktop-call-setup",
+              "value": "1000px",
+              "comparison": "min-width"
+            },
+            {
+              "name": "compact-running-call-height",
+              "value": "740px",
+              "axis": "height",
+              "range": "441px to 740px"
+            }
+          ],
+          "focus": [
+            {
+              "name": "light-reference",
+              "value": "2px solid #f17023; outline-offset:3px"
+            }
+          ],
+          "gradients": {
+            "light-action": "linear-gradient(115deg,#ff841d,#f45100)",
+            "call-start": "linear-gradient(115deg,#ff841d,#ff5700)"
+          },
+          "backdrop": {
+            "drawer": "#111b2b55; backdrop-filter:blur(3px)"
+          },
+          "tonalRampProvenance": "Synthesized OKLCH previews from implemented scoped swatches; panel metadata only, not additional CSS tokens.",
+          "layout": {
+            "call-running": "auto auto minmax(0,1fr) auto auto",
+            "call-setup": "auto auto minmax(0,1fr) auto",
+            "call-outer-overflow": "clip",
+            "call-scroll-body": "overflow:auto; padding-bottom:12px; scroll-padding-bottom:24px",
+            "call-status": "Direct dialog child at grid row 4; footer row 5 during running Call.",
+            "call-compact-identity": "140px at 441px to 740px viewport height."
+          }
+        },
+        "components": [
+          {
+            "name": "Reference primary action",
+            "kind": "button",
+            "refersTo": "translator-action",
+            "description": "Full-width light-surface Start or End action; runtime handlers and consent remain separate.",
+            "html": "<button class=\"ds-reference-primary\" type=\"button\">Start</button>",
+            "css": ".ds-reference-primary{width:100%;min-height:62px;border:0;border-radius:16px;padding:12px 20px;background:linear-gradient(115deg,#ff841d,#f45100);color:#fff;font:700 21px Manrope,system-ui,sans-serif;box-shadow:0 14px 24px #ef600b1c;cursor:pointer}.ds-reference-primary:hover{filter:brightness(.97)}.ds-reference-primary:focus-visible{outline:2px solid #f17023;outline-offset:3px}.ds-reference-primary:disabled{opacity:.55;cursor:not-allowed}"
+          },
+          {
+            "name": "Reference secondary action",
+            "kind": "button",
+            "refersTo": "feature-tab",
+            "description": "A quiet secondary control; History intentionally starts closed.",
+            "html": "<button class=\"ds-reference-secondary\" type=\"button\">History</button>",
+            "css": ".ds-reference-secondary{min-height:44px;padding:8px 12px;background:#fff;color:#111b2b;border:1px solid #d5d7da;border-radius:10px;font:600 14px Manrope,system-ui,sans-serif;cursor:pointer}.ds-reference-secondary:hover{background:#faf9f8}.ds-reference-secondary:focus-visible{outline:2px solid #f17023;outline-offset:3px}"
+          },
+          {
+            "name": "Reference script field",
+            "kind": "input",
+            "refersTo": "script-field",
+            "description": "Fresh script input retains the backend 4,000-character limit; input events drive localized count and estimates.",
+            "html": "<label class=\"ds-reference-label\" for=\"ds-reference-script\">Script</label><textarea class=\"ds-reference-script\" id=\"ds-reference-script\" maxlength=\"4000\" placeholder=\"Write what you want to say...\"></textarea>",
+            "css": ".ds-reference-label{display:block;margin-bottom:10px;font:600 18px Manrope,system-ui,sans-serif;color:#111b2b}.ds-reference-script{width:100%;height:150px;resize:vertical;padding:16px 16px 40px;border:1px solid #d4d7df;border-radius:12px;background:#fff;color:#111b2b;font:17px/1.6 Manrope,system-ui,sans-serif}.ds-reference-script::placeholder{color:#747c8e}.ds-reference-script:hover{border-color:#c7c9cd}.ds-reference-script:focus-visible{outline:2px solid #f17023;outline-offset:3px}"
+          },
+          {
+            "name": "Reference feature navigation",
+            "kind": "nav",
+            "refersTo": "feature-tab",
+            "description": "Three full labels retain current-page semantics and adapt at narrow widths.",
+            "html": "<nav class=\"ds-reference-nav\" aria-label=\"AI tools\"><a href=\"#chat\">AI Chat</a><a href=\"#translator\" aria-current=\"page\">Translator</a><a href=\"#voiceover\">Voice Over</a></nav>",
+            "css": ".ds-reference-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.ds-reference-nav a{display:flex;align-items:center;justify-content:center;min-height:56px;padding:12px 8px;border:1px solid #e5e5e9;border-radius:14px;background:#fff;color:#111b2b;text-decoration:none;font:500 16px/1.3 Manrope,system-ui,sans-serif;box-shadow:0 6px 18px #35201905}.ds-reference-nav a[aria-current]{background:#fff1e6;border-color:#ff650c;color:#ee5105}.ds-reference-nav a:hover{background:#fff4eb}.ds-reference-nav a:focus-visible{outline:2px solid #f17023;outline-offset:3px}@media(max-width:360px){.ds-reference-nav a{min-height:62px;font-size:12px;padding:8px 3px}}"
+          },
+          {
+            "name": "Reference voice choice",
+            "kind": "card",
+            "description": "Native radio selection, peach selected surface and compact helper text; personal and Kilas voices keep existing handlers.",
+            "html": "<label class=\"ds-reference-voice\"><input type=\"radio\" name=\"ds-reference-voice\" checked><span><strong>Kilas Voice</strong><small>Ready-to-use voices</small></span></label>",
+            "css": ".ds-reference-voice{display:flex;align-items:center;gap:16px;min-height:82px;padding:16px;border:1px solid #e0e1e6;border-radius:12px;background:#fff;color:#111b2b;font-family:Manrope,system-ui,sans-serif;cursor:pointer}.ds-reference-voice:has(:checked){background:#fff4eb;border-color:#f59758;color:#b84a06}.ds-reference-voice input{width:21px;height:21px;accent-color:#d85b0a}.ds-reference-voice small{display:block;font-size:13px;color:#747c8e}.ds-reference-voice strong{font-size:17px}.ds-reference-voice:hover{border-color:#f59758}.ds-reference-voice input:focus-visible{outline:2px solid #f17023;outline-offset:3px}"
+          },
+          {
+            "name": "Reference model selector",
+            "kind": "custom",
+            "refersTo": "model-selector",
+            "description": "Paired text/image model selectors; wrapping preserves full names at small widths.",
+            "html": "<button class=\"ds-reference-model\" type=\"button\" aria-haspopup=\"menu\"><span>Text model</span><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></button>",
+            "css": ".ds-reference-model{display:flex;align-items:center;gap:12px;width:100%;min-height:58px;padding:12px 16px;border:1px solid #e4e5e9;border-radius:16px;background:#fff;color:#111b2b;box-shadow:0 8px 28px #35201908;font:16px Manrope,system-ui,sans-serif;cursor:pointer;text-align:left}.ds-reference-model span{min-width:0;overflow-wrap:anywhere;line-height:1.4}.ds-reference-model svg{margin-left:auto;flex:none}.ds-reference-model:hover{background:#fff4eb}.ds-reference-model:focus-visible{outline:2px solid #f17023;outline-offset:3px}"
+          },
+          {
+            "name": "Reference Call control",
+            "kind": "button",
+            "refersTo": "call-end",
+            "description": "Destructive action in the full-viewport dark Call footer; the existing cancellation handler remains authoritative.",
+            "html": "<div class=\"ds-reference-call\"><button class=\"ds-reference-end\" type=\"button\" aria-label=\"End call\"><svg viewBox=\"0 0 24 24\" width=\"28\" height=\"28\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M3 14c5-6 13-6 18 0M5 12v5m14-5v5\"/></svg></button><span>End call</span></div>",
+            "css": ".ds-reference-call{display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px;background:#09131c;color:#fff;font:14px Manrope,system-ui,sans-serif}.ds-reference-end{display:grid;place-items:center;width:70px;height:70px;border:0;border-radius:50%;background:#ff202c;color:#fff;cursor:pointer}.ds-reference-end:hover{filter:brightness(.95)}.ds-reference-end:focus-visible{outline:3px solid #ff9b45;outline-offset:3px}"
+          }
+        ],
+        "narrative": {
+          "northStar": "The Kilas Reference Workspace",
+          "overview": "This records the implemented six-image direction approved for AI Chat, its drawer, AI Call, live Translator and Voice Over. White working surfaces, peach accents, generous rounded controls and the existing black/orange Kilas identity follow the supplied references. AI Call switches to a dedicated dark viewport; the surrounding product remains light.\n\nThe source of visual authority is [the six-reference contract](KILAS_SIX_REFERENCE_IMPLEMENTATION.md), the current `client-hub/static/kilas_reference_ui.css`, participating templates and their existing handlers. This guide describes the finished correction batch, including the centered closed-drawer canvas, full narrow labels, Call header/status capsule and compact Voice Over spacing. It does not imply a deployment or final reviewer verdict.",
+          "keyCharacteristics": [
+            "White/peach AI workspace with deliberate orange actions and selection.",
+            "Existing Kilas logo asset and self-hosted Manrope.",
+            "Header and overlay drawer at every width; centered work without a reserved rail.",
+            "Separate setup and running compositions for Translator and Call.",
+            "Actual scripts, histories, account state and controls remain authoritative."
+          ],
+          "rules": [
+            {
+              "name": "The Scoped Reference Rule",
+              "section": "colors",
+              "body": "Apply these tokens only to the named AI reference surfaces; preserve Finance and the other existing product themes."
+            }
+          ],
+          "dos": [
+            "Do keep the genuine existing Kilas identity and self-hosted Manrope.",
+            "Do use the six-reference contract and current scoped CSS when extending these surfaces.",
+            "Do preserve complete labels, visible focus, actual runtime state and the existing controls.",
+            "Do keep UI locale separate from user content and media language settings.",
+            "Do preserve the 4,000-character script cap, fresh entry and intentional history access."
+          ],
+          "donts": [
+            "Don't apply this surface palette or geometry to Finance, Assist, admin or Creative Services.",
+            "Don't replace real handlers, provider gates, consent or persistent histories with visual stand-ins.",
+            "Don't infer successful provider audio, deployment or accessibility certification from synthetic captures."
+          ]
+        },
+        "behaviorSafeguards": {
+          "scriptMaxCharacters": 4000,
+          "history": "Fresh editor unless explicit handoff/draft; History starts closed and remains intentional.",
+          "locale": "Explicit UI copy only; preserve script/content and independent call/media language settings. Localized count follows document language. Exact Connecting/Reconnecting keys include source ellipsis punctuation.",
+          "call": "Native modal; pinned brand/title, direct-child real status capsule and footer; scrollable body; cancellation and focus restoration. Setup does not start capture.",
+          "translator": "Explicit consent, distinct language pair, direction click starts capture; account language preference never persists consent/audio."
+        },
+        "evidence": {
+          "captures": ".impeccable/review/{chat,drawer,call-setup,call-connecting,translator-setup,translator-active,voiceover}-{1440,820,412,390,320}.png",
+          "kind": "Local synthetic visual evidence; final verdict, test/deployment results and physical/provider quality remain release-report concerns."
+        }
+      },
   "creative-services-studio": {
     "extensions": {
       "motion": [

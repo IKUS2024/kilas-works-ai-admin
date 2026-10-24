@@ -29,6 +29,12 @@ def main():
                 page.evaluate('document.activeElement?.blur();document.querySelectorAll("*").forEach(e=>{if(e.scrollTop)e.scrollTop=0});scrollTo(0,0)');page.wait_for_timeout(100)
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),(name,width,'horizontal overflow')
                 assert not page.errors,(name,width,page.errors)
+                if name.startswith('call-'):
+                    bounds=page.evaluate("""()=>{const dialog=document.querySelector('#ai-call-dialog'),chrome=dialog.querySelector('.reference-call-chrome'),capsule=dialog.querySelector('.reference-call-status'),footer=dialog.querySelector('.ai-call-footer');const rect=e=>({top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom,height:e.getBoundingClientRect().height});return {height:innerHeight,chrome:rect(chrome),capsule:rect(capsule),footer:rect(footer),scroll:dialog.scrollTop}}""")
+                    assert bounds['chrome']['top']>=0 and bounds['chrome']['height']>=36,(name,width,bounds)
+                    if name=='call-connecting':assert bounds['capsule']['height']>=40 and bounds['capsule']['bottom']<=bounds['footer']['top']+1,(name,width,bounds)
+                    report.setdefault('call_regions',[]).append({'name':name,'width':width,**bounds})
+                report.setdefault('geometry',[]).append({'name':name,'width':width,**page.evaluate("""()=>{const h=document.querySelector('.kilas-reference-header'),w=document.querySelector('body>.wrap');return {header:h?{top:h.getBoundingClientRect().top,height:h.getBoundingClientRect().height,display:getComputedStyle(h).display,position:getComputedStyle(h).position}:null,wrap:w?{top:w.getBoundingClientRect().top,left:w.getBoundingClientRect().left,width:w.getBoundingClientRect().width,position:getComputedStyle(w).position}:null,scrollY}}""")})
                 path=output/f'{name}-{width}.png';page.screenshot(path=str(path),full_page=True);report['captures'].append(str(path))
             sizes=((1440,1000),(820,1100),(412,760),(390,760),(320,700))
             case=home.ExperienceTests('test_starters_follow_ui_language_without_changing_models');case.setUp()

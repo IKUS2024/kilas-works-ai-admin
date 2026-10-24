@@ -21,6 +21,10 @@ if(dialog){
   field('mute')?.setAttribute('aria-pressed',String(muted));field('hold')?.setAttribute('aria-pressed',String(held));field('speaker')?.setAttribute('aria-pressed',String(speaker));
   if(controls)controls.hidden=session?.state==='ended';
  };
+ const statusRegion=dialog.querySelector('.reference-call-status');
+ if(statusRegion)dialog.insertBefore(statusRegion,dialog.querySelector('.ai-call-footer'));
+ const statusCapsule=statusRegion?.querySelector('span');
+ if(statusCapsule)new window.MutationObserver(()=>{statusCapsule.textContent=status.textContent;}).observe(status,{childList:true,subtree:true,characterData:true});
  const syncSettings=()=>{
   const mode=field('mode').value,roast=mode==='roast';
   field('learning').hidden=mode!=='learning';field('roleplay').hidden=mode!=='roleplay';field('consent').hidden=!roast;
@@ -79,7 +83,7 @@ if(dialog){
  session=new CallSession({request,capture,player,prepare,stopAudio,
   onText:text=>{caption.textContent=text;caption.scrollTop=caption.scrollHeight;},
   onSources:(citations,checkedOn)=>renderCallSources(dialog.querySelector('#ai-call-sources'),citations,checkedOn),
-  onState:state=>{if(state==='ended'){muted=false;held=false;speaker=true;}queueMicrotask(syncControls);settings.hidden=state!=='ended';start.hidden=state!=='ended';normal.hidden=state==='ended';end.hidden=state==='ended';field('end-label').hidden=state==='ended';field('summary').hidden=state==='ended';dialog.dataset.state=state;status.textContent=held?t('On hold'):t({reconnecting:'Menghubungkan kembali…',connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Kilas berbicara',ended:'Panggilan berakhir.'}[state]||'Menghubungkan…');},
+  onState:state=>{if(state==='connecting'){dialog.scrollTop=0;}if(state==='ended'){muted=false;held=false;speaker=true;}queueMicrotask(syncControls);settings.hidden=state!=='ended';start.hidden=state!=='ended';normal.hidden=state==='ended';end.hidden=state==='ended';field('end-label').hidden=state==='ended';field('summary').hidden=state==='ended';dialog.dataset.state=state;status.textContent=held?t('On hold'):t({reconnecting:'Menghubungkan kembali…',connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Kilas berbicara',ended:'Panggilan berakhir.'}[state]||'Menghubungkan…');},
   onError:code=>{error.textContent=t(messages[code]||messages.call_transport);error.hidden=false;start.textContent=t('Coba panggilan lagi');}
  });
  field('mute')?.addEventListener('click',()=>{muted=!muted;syncControls();});

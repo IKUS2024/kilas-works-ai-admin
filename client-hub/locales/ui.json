@@ -1,4 +1,6 @@
 {
+  "Menghubungkan…": {"id":"Menghubungkan…","en":"Connecting…","es":"Conectando…","zh":"正在连接…"},
+  "Menghubungkan kembali…": {"id":"Menghubungkan kembali…","en":"Reconnecting…","es":"Reconectando…","zh":"正在重新连接…"},
   "Select voice": {"id":"Pilih suara","en":"Select voice","es":"Seleccionar voz","zh":"选择声音"},
   "Translate text or speech between languages quickly and accurately.": {"id": "Terjemahkan teks atau ucapan antarbahasa dengan cepat dan akurat.", "en": "Translate text or speech between languages quickly and accurately.", "es": "Traduce texto o voz entre idiomas de forma rápida y precisa.", "zh": "快速准确地翻译文字或语音。"},
   "Real-time voice translation": {"id": "Terjemahan suara secara langsung", "en": "Real-time voice translation", "es": "Traducción de voz en tiempo real", "zh": "实时语音翻译"},
