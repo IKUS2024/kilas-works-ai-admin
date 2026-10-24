@@ -110,6 +110,9 @@ def policy(*, enabled_key='KILAS_LIVE_GEMINI_ENABLED', _environment=None):
             identity = campaign if extension == '1000000' else campaign+':'+extension
             policy_id = 'gml-translator-extension-'+hashlib.sha256(identity.encode()).hexdigest()[:24]
             price_version += '-translator-approved-extra'+extension+'-v1'
+        if enabled_key == 'KILAS_LIVE_GEMINI_ENABLED' and mode == 'owner_lifetime':
+            policy_id = 'gml-usage-v1-'+hashlib.sha256(policy_id.encode()).hexdigest()[:24]
+            price_version += '-prospective-usage-v1'
         return {'id':policy_id, 'allowed_owner':owner, 'global_micro':cap,
                 'account_micro':cap, 'reserve':reserve,
                 'expires_at':expiry_text, 'price_version':price_version, 'mode':mode,
@@ -224,7 +227,8 @@ def _group_rows(conn, capability, row, streams):
         return [row]
     slot = ledger._row(conn, capability.owner, capability.key.removesuffix(':parent')+':slot')
     if (not slot or slot[1:4] != row[1:4] or slot[4] != 0 or slot[5:] != row[5:]
-            or (row[4] <= 0 and row[3] != 'CANCELLED')):
+            or (row[4] <= 0 and row[3] != 'CANCELLED'
+                    and not (row[3] == 'COMPLETED' and row[1].startswith('gml-usage-v1-')))):
         # A malformed or partially changed pair cannot dispatch or release its
         # parent charge. Ordinary lifecycle transitions always update both.
         raise ledger.BudgetError('invalid_reservation')
@@ -363,7 +367,7 @@ def dispatch(capability):
                          (datetime.now(timezone.utc).isoformat(), item[0]))
 
 
-def finish(capability, success):
+def finish(capability, success, *, verified_usage=None):
     # Settlement remains possible after expiry, flag-off, End or policy edits.
     streams = _capability_streams(capability)
     if type(capability.owner) is not int or not 0 < capability.owner <= 10**9:
@@ -378,7 +382,22 @@ def finish(capability, success):
             return False
         dispatched = row[3] == 'DISPATCHED'
         status = 'COMPLETED' if success and dispatched else 'UNKNOWN' if dispatched else 'CANCELLED'
+        charge = row[4] if dispatched else 0
+        from .live_gemini_usage import VerifiedUsage
+        if (success and dispatched and MODEL == 'gemini-3.5-live-translate-preview'
+                and row[1].startswith('gml-usage-v1-')
+                and type(verified_usage) is VerifiedUsage and verified_usage.streams == streams
+                and type(verified_usage.input_tokens) is int and verified_usage.input_tokens >= 0
+                and type(verified_usage.output_tokens) is int and verified_usage.output_tokens >= 0
+                ):
+            usage._query(conn, 'UPDATE kilas_vo_stt_operations SET input_tokens=?,output_tokens=?,actual_estimate_micro=? WHERE id=?',
+                         (verified_usage.input_tokens,verified_usage.output_tokens,verified_usage.micro_usd,row[0]))
+            if verified_usage.micro_usd <= charge:
+                charge = verified_usage.micro_usd
+            else:
+                # A violated envelope cannot silently admit another operation.
+                usage._query(conn, 'UPDATE kilas_vo_stt_campaigns SET blocked=1 WHERE id=?', (row[1],))
         for item in rows:
             usage._query(conn, 'UPDATE kilas_vo_stt_operations SET status=?,charge_micro=?,finished_at=? WHERE id=?',
-                         (status, item[4] if dispatched else 0, datetime.now(timezone.utc).isoformat(), item[0]))
+                         (status, charge if item is rows[0] else 0, datetime.now(timezone.utc).isoformat(), item[0]))
         return success and dispatched
