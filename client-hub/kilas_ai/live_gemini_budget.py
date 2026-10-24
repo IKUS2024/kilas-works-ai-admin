@@ -99,12 +99,12 @@ def policy(*, enabled_key='KILAS_LIVE_GEMINI_ENABLED', _environment=None):
         # base policy. New immutable metadata does not reset global history.
         extension = environment.get('KILAS_TRANSLATOR_TRIAL_EXTENSION_MICRO_USD', '0')
         if enabled_key == 'KILAS_LIVE_GEMINI_ENABLED' and extension != '0':
-            if (extension not in ('1000000', '2000000') or mode != 'owner_lifetime'
+            if (extension not in ('1000000', '2000000', '2400000') or mode != 'owner_lifetime'
                     or audience != 'authenticated' or cap != 10000000
                     or valuation.get('valuation_mode') != 'conservative_internal'):
                 return None
             cap += int(extension)
-            valuation['guard_idr'] += int(extension)//1000000*valuation['idr_per_usd']
+            valuation['guard_idr'] += (int(extension)*valuation['idr_per_usd']+999999)//1000000
             if valuation['guard_idr'] > valuation['total_idr']:
                 return None
             identity = campaign if extension == '1000000' else campaign+':'+extension
