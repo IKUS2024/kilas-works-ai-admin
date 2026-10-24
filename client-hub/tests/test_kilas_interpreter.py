@@ -33,6 +33,14 @@ class InterpreterTests(unittest.TestCase):
         self.addCleanup(lambda:calls._calls.pop((self.user,ident),None));self.addCleanup(lambda:calls.end(self.user,ident))
         return call
 
+    def test_official_language_catalog_selects_prompt_without_provider_calls(self):
+        from kilas_ai.interpreter_settings import LANGUAGES
+        self.assertEqual(len(LANGUAGES),99)
+        for code in LANGUAGES:
+            target='en' if code!='en' else 'id'
+            prompt=calls.setup(settings={'source':code,'target':target,'consent':True})['setup']['systemInstruction']['parts'][0]['text']
+            self.assertIn('from '+LANGUAGES[code]+' into '+LANGUAGES[target],prompt)
+
     def test_fixed_prompt_no_call_personas_tools_or_state(self):
         for source,target in [('id','en'),('en','id')]:
             value=calls.setup(settings={'source':source,'target':target,'consent':True})['setup']
