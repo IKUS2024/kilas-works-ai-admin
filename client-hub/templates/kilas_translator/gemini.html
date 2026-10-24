@@ -27,7 +27,7 @@
 {% if gemini_two_way %}<p id="gemini-pair-summary" role="status" aria-live="polite">{{ ui_t(languages['id']) }} ↔ {{ ui_t(languages['en']) }}</p>{% endif %}
 <p class="native-voice-note">{{ ui_t('Suara Google, bukan clone.') }}</p>
 <a class="native-fallback" href="{{ url_for('kilas_audio.live_translator_home',classic='1') }}">{{ ui_t('Bahasa lain atau suara clone → Translator klasik') }}</a>
-<label class="live-consent"><input type="checkbox" name="consent" value="{{ 'gemini-live-two-way-v2' if gemini_progressive else 'gemini-live-two-way-v1' if gemini_two_way else 'gemini-live-v1' }}" required><span>{{ ui_t('Saya mengizinkan pemrosesan ucapan oleh Google.') }} <a href="{{ url_for('privacy_policy') }}#audio-processing" target="_blank" rel="noopener">{{ ui_t('Kebijakan Privasi') }}</a></span></label>
+<label class="live-consent"><input type="checkbox" name="consent" value="{{ 'gemini-live-two-way-v2' if gemini_progressive else 'gemini-live-two-way-v1' if gemini_two_way else 'gemini-live-v1' }}" required><span>{{ ui_t('Saya mengizinkan pemrosesan ucapan oleh Google.') }}</span></label>
 <button type="submit" class="btn" disabled>{{ ui_t('Start') }}</button></form></section>
 <section id="live-active" hidden aria-label="{{ ui_t('Sesi Translator') }}">
 <div class="native-session-heading"><h2>Translator</h2><p id="native-active-pair"></p><p id="live-state" role="status" aria-live="polite"></p></div>

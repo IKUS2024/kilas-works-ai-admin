@@ -407,6 +407,8 @@ class GeminiTests(unittest.TestCase):
                 self.assertEqual(response.status_code,200)
                 self.assertIn('<html lang="'+locale+'">',response.text)
                 self.assertIn('Google voice, not your clone.' if locale=='en' else 'Suara Google, bukan clone.',response.text)
+                self.assertNotIn('#audio-processing', response.text)
+                self.assertIn('name="consent"', response.text)
                 self.assertNotIn('Translator · Gemini',response.text)
                 self.assertNotIn('id="gemini-finish"',response.text)
                 self.assertNotIn('id="live-translation"',response.text)
