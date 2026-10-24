@@ -5,7 +5,7 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='interpreter-kilas-7') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='interpreter-distinct-8') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
@@ -15,9 +15,9 @@
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <section id="interpreter-setup">
 <div class="interpreter-language-pair">
-<label>{{ ui_t('Bahasa sumber') }}<select id="interpreter-language-a" name="language_a">{% for code,name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='id' }}>{{ name }}</option>{% endfor %}</select></label>
+<label>{{ ui_t('Bahasa sumber') }}<select id="interpreter-language-a" name="language_a">{% for code,name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='id' }} {{ 'disabled' if code=='en' }}>{{ name }}</option>{% endfor %}</select></label>
 <button type="button" class="btn secondary" id="interpreter-swap" aria-label="{{ ui_t('Tukar bahasa') }}"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/></svg></button>
-<label>{{ ui_t('Bahasa tujuan') }}<select id="interpreter-language-b" name="language_b">{% for code,name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }}>{{ name }}</option>{% endfor %}</select></label>
+<label>{{ ui_t('Bahasa tujuan') }}<select id="interpreter-language-b" name="language_b">{% for code,name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }} {{ 'disabled' if code=='id' }}>{{ name }}</option>{% endfor %}</select></label>
 </div>
 <label class="live-consent"><input type="checkbox" id="interpreter-consent"><span>{{ ui_t('Saya mengizinkan pemrosesan ucapan oleh Google.') }}</span></label>
 <button type="button" class="btn" id="interpreter-start">{{ ui_t('Mulai') }}</button>
@@ -34,5 +34,5 @@
 <p id="interpreter-error" role="alert" hidden></p>
 
 </section></div>
-<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='interpreter-kilas-7') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='interpreter-distinct-8') }}"></script>
 {% endblock %}
