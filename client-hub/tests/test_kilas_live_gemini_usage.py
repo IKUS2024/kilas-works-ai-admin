@@ -29,6 +29,12 @@ class UsageTests(unittest.TestCase):
                 e=UsageEvidence();e.observe(value,True);self.assertIsNone(e.verified(0,0,True))
         e=UsageEvidence();e.observe(event(),False);self.assertIsNone(e.verified(0,0,True))
 
+    def test_later_terminal_usage_cannot_cover_an_unmetered_or_interrupted_response(self):
+        for content in ({'generationComplete':True},{'interrupted':True}):
+            evidence=UsageEvidence();evidence.observe({'serverContent':content},False)
+            evidence.observe(event(100,100),True)
+            self.assertIsNone(evidence.verified(0,0,True))
+
     def test_duplicate_and_cumulative_observations_never_reduce_cost(self):
         e=UsageEvidence();e.observe(event(10,20,False),False);e.observe(event(10,20,False),False);e.observe(event(20,40),True)
         self.assertEqual(e.verified(0,0,True),VerifiedUsage(40,80))
