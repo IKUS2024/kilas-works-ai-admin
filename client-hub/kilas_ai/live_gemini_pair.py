@@ -103,6 +103,9 @@ class Stream(native.Relay):
                 raise failure('gemini_output_limit', 429)
             super().accept_pcm(pcm)
             pair.output_bytes += len(pcm)
+            if not any(pcm):
+                pair.silent_output_bytes += len(pcm)
+                return
             pair.last_output_at = self.last_output_at
             if pair.first_output_at is None:
                 pair.first_output_at = self.first_output_at
@@ -201,6 +204,7 @@ class Pair(native.Relay):
                 except Empty:
                     continue
                 if raw is None:
+                    self.pad_input_end()
                     for stream in self.streams.values():
                         self.check()
                         with stream.lock:
@@ -214,23 +218,24 @@ class Pair(native.Relay):
                 with self.lock:
                     self.queued -= len(raw)
                 for offset in range(0, len(raw), 3200):
-                    packet = raw[offset:offset+3200]
-                    value = json.dumps({'realtimeInput':{'audio':{
-                        'mimeType':'audio/pcm;rate=16000',
-                        'data':base64.b64encode(packet).decode('ascii')}}})
-                    for stream in self.streams.values():
-                        self.check()
-                        stream.ws.send(value)
-                        with stream.lock:
-                            stream.sent_bytes += len(packet)
-                            stream.sent_packets += 1
-                    with self.lock:
-                        self.sent_bytes += len(packet)  # One accepted capture, delivered to both.
-                        self.sent_packets += 1
+                    self.send_packet(raw[offset:offset+3200])
         except Exception as error:
             self.stop(error if isinstance(error, audio_store.AudioError) else failure())
         finally:
             db._discard_cached_connection()
+
+    def send_packet(self, packet):
+        value=json.dumps({'realtimeInput':{'audio':{
+            'mimeType':'audio/pcm;rate=16000', 'data':base64.b64encode(packet).decode('ascii')}}})
+        for stream in self.streams.values():
+            self.check()
+            stream.ws.send(value)
+            with stream.lock:
+                stream.sent_bytes += len(packet)
+                stream.sent_packets += 1
+        with self.lock:
+            self.sent_bytes += len(packet)
+            self.sent_packets += 1
 
     def receive_stream(self, stream):
         import websocket

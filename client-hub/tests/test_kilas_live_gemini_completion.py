@@ -75,6 +75,34 @@ class CompletionTests(unittest.TestCase):
     row = fixture.GeminiTests.row
     wait = fixture.GeminiTests.wait
 
+    def test_continuous_zero_pcm_is_metered_without_playback_or_extending_drain(self):
+        with self.config():
+            relay=self.make();relay.started=0;relay.end_at=10
+            with patch.object(native,'monotonic',return_value=11):relay.accept_pcm(bytes(12000))
+            self.assertEqual(relay.output_bytes,12000)
+            self.assertEqual(relay.silent_output_bytes,12000)
+            self.assertEqual(relay.frames,[]);self.assertIsNone(relay.first_output_at)
+            self.assertEqual(relay.drain_deadline(),14)
+            with patch.object(native,'monotonic',return_value=12):relay.accept_pcm(PCM)
+            self.assertEqual(relay.first_output_at,12);self.assertEqual(len(relay.frames),1)
+            with patch.object(native,'monotonic',return_value=13):relay.accept_pcm(bytes(12000))
+            self.assertEqual(relay.last_output_at,12);self.assertEqual(relay.drain_deadline(),14)
+            self.assertEqual(relay.output_bytes,28800)
+            self.assertEqual(relay.silent_output_bytes,24000)
+            budget.finish(relay.capability,False);audio_store.fail(self.user,relay.job,'synthetic_cleanup')
+
+    def test_end_padding_is_paced_counted_and_never_exceeds_original_input_limit(self):
+        with self.config():
+            relay=self.make();relay.ws=ContinuousSocket();relay.sent_bytes=31000
+            with patch.object(native,'END_PADDING_SECONDS',2),patch.object(native,'INPUT_BYTES',32000), \
+                 patch.object(relay,'check'),patch.object(relay.cancelled,'wait',return_value=False) as paced:
+                relay.pad_input_end()
+            self.assertEqual(relay.sent_bytes,32000);self.assertEqual(relay.sent_packets,1)
+            packet=json.loads(json.dumps(relay.ws.sent[-1]))['realtimeInput']['audio']
+            self.assertEqual(base64.b64decode(packet['data']),bytes(1000))
+            paced.assert_called_once_with(1000/32000)
+            budget.finish(relay.capability,False);audio_store.fail(self.user,relay.job,'synthetic_cleanup')
+
     def run_socket(self, socket):
         relay = self.make()
         relay.accept(0, b'\x01\x00' * 1600)

@@ -65,6 +65,22 @@ class PairTests(unittest.TestCase):
     key = fixture.GeminiTests.key
     wait = fixture.GeminiTests.wait
 
+    def test_zero_filler_cannot_choose_or_block_the_speaking_direction(self):
+        with self.config():
+            relay=self.make();silent=relay.streams['en'];speaking=relay.streams['id']
+            with silent.lock:silent.accept_pcm(bytes(12000))
+            self.assertEqual(relay.output_order,[]);self.assertEqual(relay.frames,[])
+            self.assertIsNone(relay.first_output_at)
+            with speaking.lock:speaking.accept_pcm(PCM)
+            self.assertEqual(relay.output_order,['id'])
+            self.assertEqual(relay.frames[0]['stream_id'],'id')
+            self.assertEqual(base64.b64decode(relay.frames[0]['pcm']),PCM)
+            self.assertEqual(relay.output_bytes,16800)
+            self.assertEqual(relay.silent_output_bytes,12000)
+            with silent.lock:silent.accept_pcm(bytes(12000))
+            self.assertEqual(len(relay.frames),1)
+            budget.finish(relay.capability,False);audio_store.fail(self.user,relay.job,'synthetic_cleanup')
+
     def make(self, voice=pair.VOICE):
         self.credit(300)
         ident = sessions.create(self.user, 'en', 'id', voice)
