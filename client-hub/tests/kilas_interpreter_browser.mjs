@@ -12,16 +12,16 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.
 const browser=await chromium.launch({executablePath:existsSync('/usr/bin/chromium')?'/usr/bin/chromium':undefined,headless:true,args:['--no-sandbox']});
 try{
  for(const [width,height] of [[320,640],[390,844],[768,1024],[1440,900],[480,300]]){
-  const page=await browser.newPage({viewport:{width,height}}),errors=[],starts=[],ends=[];let current=null,heldEnd=null;
+  const page=await browser.newPage({viewport:{width,height}}),errors=[],starts=[],ends=[];let current=null,heldEnd=null,available=true;
   page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>{
-   window.playEvidence=[];window.micStopped=0;
-   navigator.mediaDevices.getUserMedia=async()=>{const ctx=new AudioContext(),osc=ctx.createOscillator(),out=ctx.createMediaStreamDestination();osc.frequency.value=220;osc.connect(out);osc.start();for(const track of out.stream.getTracks()){const stop=track.stop.bind(track);track.stop=()=>{window.micStopped++;stop();osc.stop();ctx.close();};}return out.stream;};
+   window.playEvidence=[];window.micStopped=0;window.micStarted=0;
+   navigator.mediaDevices.getUserMedia=async()=>{window.micStarted++;const ctx=new AudioContext(),osc=ctx.createOscillator(),out=ctx.createMediaStreamDestination();osc.frequency.value=220;osc.connect(out);osc.start();for(const track of out.stream.getTracks()){const stop=track.stop.bind(track);track.stop=()=>{window.micStopped++;stop();osc.stop();ctx.close();};}return out.stream;};
    const start=AudioBufferSourceNode.prototype.start;AudioBufferSourceNode.prototype.start=function(at){window.playEvidence.push({samples:this.buffer.length,rate:this.buffer.sampleRate,peak:Math.max(...this.buffer.getChannelData(0)),at});return start.call(this,at);};
   });
   await page.route('**/kilas-translator/interpreter/**',async route=>{
    const req=route.request(),url=new URL(req.url());
-   if(url.pathname.endsWith('/readiness'))return route.fulfill({json:{available:true}});
+   if(url.pathname.endsWith('/readiness'))return route.fulfill({json:{available,reason:available?null:"budget_limit"}});
    if(url.pathname.endsWith('/end')){ends.push(url.pathname);if(heldEnd)await heldEnd;return route.fulfill({json:{state:'CLOSED'}});}
    if(url.pathname.includes('/chunks/'))return route.fulfill({json:{accepted_index:Number(url.pathname.split('/').at(-1))}});
    const ident=url.pathname.split('/').at(-1);
@@ -30,7 +30,7 @@ try{
    const frames=after===0?[{index:0,type:'original',text:starts.length===1?'Di mana airnya?':'Where is the water?'},{index:1,type:'text',text:starts.length===1?'Where is the water?':'Di mana airnya?'},{index:2,type:'audio',pcm:raw.toString('base64')},{index:3,type:'turn_complete'}]:[];
    return route.fulfill({json:{state:'LISTENING',frames,next_index:after+frames.length,total_frames:4}});
   });
-  await page.goto(origin);assert.equal(await page.locator('#interpreter-active').isVisible(),false);assert.equal(await page.locator('#interpreter-language-a option').count(),99);await page.locator('#interpreter-language-a').selectOption('ja');await page.locator('#interpreter-language-b').selectOption('fr');await page.locator('#interpreter-consent').check();await page.locator('#interpreter-start').click();assert.equal(starts.length,0);assert.equal(await page.evaluate(()=>window.micStopped),0);assert.equal(await page.locator('#interpreter-setup').isVisible(),false);assert.match(await page.locator('#interpreter-left').textContent(),/Japanese.*French/);await page.locator('#interpreter-left').click();
+  await page.goto(origin);assert.equal(await page.locator('#interpreter-volume').count(),0);assert.equal(await page.locator('#interpreter-original').count(),0);assert.equal(await page.locator('#interpreter-caption').count(),0);await page.locator('#interpreter-start').click();assert.equal(await page.locator('#interpreter-error').isVisible(),true);assert.equal(await page.locator('#interpreter-active').isVisible(),false);assert.equal(await page.locator('#interpreter-language-a option').count(),99);await page.locator('#interpreter-language-a').selectOption('ja');await page.locator('#interpreter-language-b').selectOption('fr');await page.locator('#interpreter-consent').check();await page.locator('#interpreter-start').click();assert.equal(starts.length,0);assert.equal(await page.evaluate(()=>window.micStopped),0);assert.equal(await page.locator('#interpreter-setup').isVisible(),false);assert.match(await page.locator('#interpreter-left').textContent(),/Japanese.*French/);await page.locator('#interpreter-left').click();
   await page.waitForFunction(()=>window.playEvidence.length>0);assert.equal(starts.length,1);assert.ok(starts[0].body.includes('"source":"ja"'));
   assert.ok(await page.locator('#interpreter-left').getAttribute('aria-pressed')==='true');
   await page.locator('#interpreter-left').click();assert.equal(starts.length,1);
@@ -38,6 +38,7 @@ try{
   release();heldEnd=null;await page.waitForFunction(()=>window.playEvidence.length===2);assert.equal(starts.length,2);assert.ok(starts[1].body.includes('"source":"fr"'));
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   if(width===390||width===1440)await page.screenshot({path:'/tmp/interpreter-active-'+width+'.png'});await page.locator('#interpreter-end').click();assert.equal(await page.locator('#interpreter-active').isVisible(),false);assert.equal(await page.locator('#interpreter-language-a').inputValue(),'ja');assert.equal(await page.locator('#interpreter-language-b').inputValue(),'fr');assert.ok(await page.evaluate(()=>window.micStopped>=2));
+  available=false;const admitted=starts.length,mics=await page.evaluate(()=>window.micStarted);await page.locator('#interpreter-start').click();await page.locator('#interpreter-left').click();await page.waitForFunction(()=>document.querySelector('#interpreter-state').textContent.includes('allowance')||document.querySelector('#interpreter-state').textContent.includes('Batas biaya'));assert.equal(starts.length,admitted);assert.equal(await page.evaluate(()=>window.micStarted),mics);assert.equal(await page.locator('#interpreter-left').isDisabled(),false);await page.locator('#interpreter-end').click();
   const evidence=await page.evaluate(()=>window.playEvidence);assert.ok(evidence.every(x=>x.rate===24000&&x.peak>.2));assert.deepEqual(errors,[]);if(width===390||width===1440)await page.screenshot({path:'/tmp/interpreter-setup-'+width+'.png'});
   console.log(JSON.stringify({width,height,starts:starts.length,ends:ends.length,audioBeforeEnd:evidence,tracksStopped:await page.evaluate(()=>window.micStopped)}));await page.close();
  }

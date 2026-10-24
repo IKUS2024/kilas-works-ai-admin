@@ -8,14 +8,12 @@ if(root){
  const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),end=field('end'),consent=field('consent');
  const request=(url,options={})=>requestJSON(url,{csrf:root.querySelector('[name=csrf_token]').value,...options});
  let active=false,pair=null,context=null,side=null,switching=false,generation=0,recoveryTimer=null;
- const sync=()=>{left.disabled=right.disabled=!active||switching;end.disabled=false;field('start').disabled=!consent.checked||field('language-a').value===field('language-b').value;left.setAttribute('aria-pressed',String(side===pair?.a));right.setAttribute('aria-pressed',String(side===pair?.b));};
- const enter=()=>{if(field('start').disabled||active)return;pair={a:field('language-a').value,b:field('language-b').value};left.textContent=field('language-a').selectedOptions[0].text+' → '+field('language-b').selectedOptions[0].text;right.textContent=field('language-b').selectedOptions[0].text+' → '+field('language-a').selectedOptions[0].text;active=true;field('setup').hidden=true;field('active').hidden=false;field('error').hidden=true;sync();};
- const messages={budget_limit:'Batas biaya Translator tercapai.',already_processing:'Sesi sebelumnya belum selesai. Tunggu sebentar lalu pilih arah lagi.',attempt_limit:'Batas sesi tercapai. Coba lagi nanti.',call_unavailable:'Translator sedang tidak tersedia.',microphone_permission_denied:'Izinkan mikrofon di browser.',call_audio:'Audio belum siap. Periksa izin audio.',call_ended:'Sesi berakhir.',call_network:'Koneksi terputus. Pilih arah untuk mulai lagi.',call_provider:'Gemini menghentikan sesi.',call_provider_disconnected:'Koneksi Gemini terputus.'};
- const showError=code=>{field('error').hidden=false;field('error').textContent=t(messages[code]||'Sesi terhenti. Pilih arah untuk mulai lagi.');};
+ const sync=()=>{left.disabled=right.disabled=!active||switching;end.disabled=false;left.setAttribute('aria-pressed',String(side===pair?.a));right.setAttribute('aria-pressed',String(side===pair?.b));};
+ const enter=()=>{if(active)return;if(!consent.checked){consent.focus();showError('consent_required');return;}if(field('language-a').value===field('language-b').value){showError('same_language');return;}pair={a:field('language-a').value,b:field('language-b').value};left.textContent=field('language-a').selectedOptions[0].text+' → '+field('language-b').selectedOptions[0].text;right.textContent=field('language-b').selectedOptions[0].text+' → '+field('language-a').selectedOptions[0].text;active=true;field('setup').hidden=true;field('active').hidden=false;field('error').hidden=true;sync();};
+ const messages={consent_required:'Setujui pemrosesan ucapan terlebih dahulu.',same_language:'Pilih bahasa sumber dan tujuan yang berbeda.',budget_limit:'Batas biaya Translator tercapai.',already_processing:'Sesi sebelumnya belum selesai. Tunggu sebentar lalu pilih arah lagi.',attempt_limit:'Batas sesi tercapai. Coba lagi nanti.',call_unavailable:'Translator sedang tidak tersedia.',microphone_permission_denied:'Izinkan mikrofon di browser.',call_audio:'Audio belum siap. Periksa izin audio.',call_ended:'Sesi berakhir.',call_network:'Koneksi terputus. Pilih arah untuk mulai lagi.',call_provider:'Gemini menghentikan sesi.',call_provider_disconnected:'Koneksi Gemini terputus.'};
+ const showError=code=>{field('error').hidden=false;field('error').textContent=t(messages[code]||'Sesi terhenti. Pilih arah untuk mulai lagi.');if(active)field('state').textContent=field('error').textContent;};
  const capture=new CallCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices});
  const player=new CallPlayer({getContext:()=>context,onError:()=>session.fail({code:'call_audio'})});
- // Scale only copied playback PCM; microphone and shared Call player are untouched.
- const push=player.push.bind(player);player.push=(raw,scope)=>{const gain=Number(field('volume').value)/100;if(gain===1)return push(raw,scope);const copy=raw.slice(),view=new DataView(copy.buffer);for(let at=0;at<copy.length;at+=2)view.setInt16(at,Math.round(view.getInt16(at,true)*gain),true);return push(copy,scope);};
  const stopAudio=()=>{clearTimeout(recoveryTimer);recoveryTimer=null;const own=context;context=null;if(own)own.close().catch(()=>{});};
  const openAudio=()=>{
   const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)throw Object.assign(Error(),{code:'call_audio'});
@@ -29,11 +27,10 @@ if(root){
   return own.resume();
  };
  const session=new CallSession({request,capture,player,stopAudio,prepare:()=>context?.state==='running'?Promise.resolve():Promise.reject(Object.assign(Error(),{code:'call_audio'})),
-  onText:text=>{field('caption').textContent=text;},onOriginal:text=>{field('original').textContent=text;},
   onState:state=>{field('state').textContent=t({ended:'Pilih arah bicara',connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Menerjemahkan',reconnecting:'Menghubungkan kembali…'}[state]||state);field('orb').dataset.state=state==='speaking'?'playing':state==='connecting'||state==='reconnecting'?'processing':'listening';if(state==='ended')side=null;sync();},onError:showError});
  async function select(source){
   if(!active||switching||!consent.checked||(side===source&&session.state!=='ended'))return;
-  const ticket=++generation;switching=true;session.end();field('error').hidden=true;field('original').textContent='';sync();
+  const ticket=++generation;switching=true;session.end();field('error').hidden=true;sync();
   try{
    // Resume audio in this click, before waiting for the old server End ACK.
    const audio=openAudio();await Promise.all([audio,session.ending]);
@@ -42,5 +39,5 @@ if(root){
   }catch(error){if(ticket===generation){switching=false;session.end();showError(error.code||'call_network');sync();}}
  }
  left.addEventListener('click',()=>select(pair.a));right.addEventListener('click',()=>select(pair.b));consent.addEventListener('change',sync);field('start').addEventListener('click',enter);for(const name of ['language-a','language-b'])field(name).addEventListener('change',sync);field('swap').addEventListener('click',()=>{const a=field('language-a'),b=field('language-b');[a.value,b.value]=[b.value,a.value];sync();});
- const close=()=>{++generation;switching=false;session.end();active=false;field('setup').hidden=false;field('active').hidden=true;sync();};end.addEventListener('click',close);window.addEventListener('pagehide',close);document.addEventListener('visibilitychange',()=>{if(document.hidden)close();});sync();
+ const close=()=>{++generation;switching=false;session.end();active=false;field('error').hidden=true;field('setup').hidden=false;field('active').hidden=true;sync();};end.addEventListener('click',close);window.addEventListener('pagehide',close);document.addEventListener('visibilitychange',()=>{if(document.hidden)close();});sync();
 }

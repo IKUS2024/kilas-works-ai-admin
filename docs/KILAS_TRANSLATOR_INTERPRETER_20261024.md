@@ -17,3 +17,9 @@ No paid provider test is performed for this release. Physical Android microphone
 The user confirmed PR149 works on their device. The speech engine remains unchanged. The setup page now selects A/B before Start; Start opens the prior blue-orb active surface without opening audio capture or a provider socket. The two speaker buttons then select A→B and B→A. End returns to setup with the language pair retained.
 
 The catalog contains 99 distinct languages from the current official Live API capabilities table: https://ai.google.dev/gemini-api/docs/live-api/capabilities#supported-languages (checked 2026-10-24). Norwegian `nb` is an alias, not a separate entry. This table is more current than the initial 97-language launch announcement. These are documented options, not a claim that all pairs were physically tested or have equal translation quality. No additional provider tests or budget changes accompany this UI release.
+
+## Minimal controls and visible admission failures
+
+Removed the visible volume control, original/translated transcript sections and stock-voice explanatory copy at the user's request. Audio transport and stock voice configuration are unchanged. Start now reports missing consent or identical language choices instead of staying silently disabled. A rejected speaking attempt shows its concise status beside the orb and leaves configuration/End usable. No funding is added or borrowed.
+
+Five viewport browser cases cover available and exhausted readiness, both direction buttons, serialized switching, no admission/microphone on exhausted funding, End and retained language choices. The attached MP4 was identified through Library metadata but had no directly readable content; no visual inspection of the recording is claimed.

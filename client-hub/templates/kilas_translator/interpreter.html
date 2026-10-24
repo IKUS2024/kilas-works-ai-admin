@@ -5,7 +5,7 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='interpreter-setup-2') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='interpreter-minimal-3') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
@@ -20,7 +20,7 @@
 <label>{{ ui_t('Bahasa tujuan') }}<select id="interpreter-language-b" name="language_b">{% for code,name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }}>{{ name }}</option>{% endfor %}</select></label>
 </div>
 <label class="live-consent"><input type="checkbox" id="interpreter-consent"><span>{{ ui_t('Saya mengizinkan pemrosesan ucapan oleh Google.') }}</span></label>
-<button type="button" class="btn" id="interpreter-start" disabled>Start</button>
+<button type="button" class="btn" id="interpreter-start">Start</button>
 </section>
 <section id="interpreter-active" hidden>
 <div class="kilas-live-orb" id="interpreter-orb" data-state="listening" role="img" aria-label="{{ ui_t('Mendengarkan') }}"></div>
@@ -29,11 +29,10 @@
 <button type="button" class="btn secondary" id="interpreter-left" aria-pressed="false" disabled></button>
 <button type="button" class="btn secondary" id="interpreter-right" aria-pressed="false" disabled></button>
 </div>
-<div class="interpreter-transcripts"><section><h2>{{ ui_t('Teks asli') }}</h2><p id="interpreter-original" aria-live="polite"></p></section><section><h2>{{ ui_t('Terjemahan') }}</h2><p id="interpreter-caption" aria-live="polite"></p></section></div>
-<div class="interpreter-controls"><label>Volume <input id="interpreter-volume" type="range" min="0" max="100" value="100"></label><button type="button" class="btn secondary" id="interpreter-end" disabled>End</button></div>
+<div class="interpreter-controls"><button type="button" class="btn secondary" id="interpreter-end">End</button></div>
 </section>
 <p id="interpreter-error" role="alert" hidden></p>
-<footer><small>{{ ui_t('Suara Google, bukan clone.') }}</small><a href="{{ url_for('kilas_audio.live_translator_home',classic='1') }}">{{ ui_t('Bahasa lain / clone') }}</a></footer>
+<footer><a href="{{ url_for('kilas_audio.live_translator_home',classic='1') }}">{{ ui_t('Bahasa lain / clone') }}</a></footer>
 </section></div>
-<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='interpreter-setup-2') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='interpreter-minimal-3') }}"></script>
 {% endblock %}
