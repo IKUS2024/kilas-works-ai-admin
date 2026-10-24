@@ -1,4 +1,6 @@
 {
+  "Kuota Gemini sedang tidak tersedia.": {"id": "Kuota Gemini sedang tidak tersedia.", "en": "Gemini quota is currently unavailable.", "es": "La cuota de Gemini no está disponible.", "zh": "Gemini 配额暂不可用。"},
+  "Periksa billing akun Gemini.": {"id": "Periksa billing akun Gemini.", "en": "Check Gemini account billing.", "es": "Revisa la facturación de Gemini.", "zh": "请检查 Gemini 账号的结算状态。"},
   "Setujui pemrosesan ucapan terlebih dahulu.": {"id": "Setujui pemrosesan ucapan terlebih dahulu.", "en": "Consent to speech processing first.", "es": "Acepta primero el procesamiento de voz.", "zh": "请先同意语音处理。"},
   "Indonesia → Inggris": {"id": "Indonesia → Inggris", "en": "Indonesian → English", "es": "Indonesio → Inglés", "zh": "印尼语 → 英语"},
   "Inggris → Indonesia": {"id": "Inggris → Indonesia", "en": "English → Indonesian", "es": "Inglés → Indonesio", "zh": "英语 → 印尼语"},

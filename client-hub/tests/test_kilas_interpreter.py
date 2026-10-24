@@ -126,6 +126,56 @@ class InterpreterTests(unittest.TestCase):
             self.assertEqual(self.client.post(path+'/end',headers=headers).status_code,404)
             self.assertFalse(call.closed.is_set());connect.assert_not_called()
 
+    def test_operator_routes_preserve_exhausted_history_and_meter_separately(self):
+        with self.enabled(),patch.object(calls.Thread,'start'),patch.object(calls.wire,'connect') as connect:
+            old=self.make();budget.dispatch(old.capability);calls.end(self.user,old.ident)
+            trial=budget.config()
+            fixture.audio.f.db.execute('UPDATE kilas_vo_stt_operations SET charge_micro=? WHERE operation_key=?',(trial['global_micro'],old.capability.key))
+            self.addCleanup(lambda:fixture.audio.f.db.execute('UPDATE kilas_vo_stt_operations SET charge_micro=250000 WHERE operation_key=?',(old.capability.key,)))
+            original=dict(budget.owned(self.user,old.ident))
+            with budget.transaction() as conn:historical_spend=budget.native._spend(conn,trial)
+            self.assertFalse(budget.status(self.user)['available'])
+            with patch.dict(os.environ,{'KILAS_TRANSLATOR_FUNDING_MODE':'operator'}),patch.object(ai_call_budget,'account_allowance',side_effect=AssertionError('Call funding touched')):
+                for role in ('CLIENT_OWNER','CLIENT_STAFF'):
+                    if role=='CLIENT_STAFF':self.login_other(role)
+                    self.assertEqual(self.client.get('/kilas-translator/interpreter').status_code,200)
+                    ready=self.client.get('/kilas-translator/interpreter/readiness').json
+                    self.assertTrue(ready['available']);self.assertEqual(ready['funding'],'operator');self.assertIsNone(ready['remaining_micro_usd'])
+                ident=uuid4().hex;path='/kilas-translator/interpreter/'+ident;headers={'X-CSRF-Token':'audio-csrf'}
+                self.assertEqual(self.client.post(path,headers=headers,data={'settings':json.dumps(SETTINGS)}).status_code,202)
+                call=calls.get(self.other,ident)
+                self.addCleanup(lambda:calls._calls.pop((self.other,ident),None))
+                self.assertFalse(budget.status(self.other)['available'])
+                budget.dispatch(call.capability);call.fund()
+                self.assertEqual(budget.owned(self.other,ident)['campaign'],'operator-interpreter-v1')
+                calls.end(self.other,ident)
+                self.assertFalse(budget.active(self.other,ident,call.capability))
+                with budget.transaction() as conn:
+                    self.assertEqual(budget.native._spend(conn,trial),historical_spend)
+                    rows=budget.usage._rows(conn,"SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE campaign='operator-interpreter-v1' AND fingerprint=?",(budget.hashlib.sha256(('interpreter:'+ident).encode()).hexdigest(),))
+                self.assertEqual(rows,[('UNKNOWN',250000),('UNKNOWN',250000)])
+                self.assertEqual(dict(budget.owned(self.user,old.ident)),original)
+                self.assertTrue(budget.status(self.other)['available'])
+                with patch.object(budget.ledger,'GLOBAL_CONCURRENCY',0):
+                    with self.assertRaisesRegex(budget.ledger.BudgetError,'service_busy'):budget.claim(self.other,uuid4().hex)
+                with patch.object(budget.ledger,'OWNER_HOURLY_ATTEMPTS',0):
+                    with self.assertRaisesRegex(budget.ledger.BudgetError,'attempt_limit'):budget.claim(self.other,uuid4().hex)
+            connect.assert_not_called()
+
+    def test_operator_existing_route_security_and_recovery(self):
+        with patch.dict(os.environ,{'KILAS_TRANSLATOR_FUNDING_MODE':'operator'}):
+            self.test_actual_post_route_checks_settings_and_keeps_account_isolation()
+
+    def test_operator_stale_recovery(self):
+        with patch.dict(os.environ,{'KILAS_TRANSLATOR_FUNDING_MODE':'operator'}):
+            self.test_expired_own_lease_preview_preserves_charge_live_blocks()
+
+    def test_provider_errors_are_categories_not_raw_messages(self):
+        call=calls.Call(1,'d'*32,object(),settings=SETTINGS)
+        for error,expected in [({'code':429,'status':'RESOURCE_EXHAUSTED','message':'private details'},'call_provider_quota'),({'code':403,'message':'Billing disabled private details'},'call_provider_billing'),({'code':500,'message':'private details'},'call_provider')]:
+            with self.assertRaises(calls.CallError) as caught:call.receive(json.dumps({'error':error}))
+            self.assertEqual(caught.exception.code,expected);self.assertNotIn('private',str(caught.exception))
+
     def test_resumption_preserves_direction_no_new_admission_or_uncertain_replay(self):
         call=calls.Call(1,'c'*32,object(),settings=SETTINGS);call.check=Mock();call.ws=Mock()
         call.receive('{"sessionResumptionUpdate":{"resumable":true,"newHandle":"checkpoint"}}');call.recover_transport()
