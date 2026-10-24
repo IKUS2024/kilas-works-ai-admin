@@ -16,7 +16,7 @@
 {% include 'kilas_content/_handoff.html' %}
 {% with selected_feature=active_mode %}{% include 'kilas_ai/_feature_navigation.html' %}{% endwith %}
 <section class="audio-studio" id="audio-studio" data-max-seconds="{{ max_seconds }}" data-active-mode="{{ active_mode }}">
-<header class="audio-heading"><div><h1>{{ 'Kilas Translator' if active_mode=='translate' else 'Voice Over' }}</h1></div></header>
+<header class="audio-heading"><div><h1>{{ 'Kilas Translator' if active_mode=='translate' else 'Voice Over' }}</h1>{% if active_mode=='voiceover' %}<p>{{ ui_t('Turn text into natural, high-quality voice.') }}</p>{% endif %}</div><button type="button" class="btn secondary reference-history-toggle" aria-controls="audio-history" aria-expanded="false">{{ ui_t("Riwayat") }}</button></header>
 {% if return_to %}<p class="audio-draft-return"><a href="{{ return_to }}">{{ ui_t('Kembali ke chat') }}</a> · {{ ui_t('Naskah siap diedit. Belum ada suara yang dibuat.') }}</p>{% endif %}
 <div class="audio-workbench"><main class="audio-primary">
 
@@ -36,9 +36,9 @@
 
 <form action="{{ url_for('kilas_audio.create') }}" method="post" data-audio-form>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}-v"><input type="hidden" name="mode" value="voiceover">
-<fieldset class="audio-voices personal-choices"><legend>{{ ui_t("Pilih suara") }}</legend>
-<label class="audio-voice"><input type="radio" name="voice_kind" value="personal"><span><strong>{{ ui_t("Suara Saya") }}</strong><small id="personal-voice-state">{{ ui_t('Siap digunakan' if personal_voice else 'Suara kamu sendiri') }}</small></span></label>
-<label class="audio-voice"><input type="radio" name="voice_kind" value="kilas" checked><span><strong>{{ ui_t("Suara Kilas") }}</strong><small>{{ ui_t("Pilihan suara siap pakai") }}</small></span></label>
+<fieldset class="audio-voices personal-choices"><legend><span>{{ ui_t("Pilih suara") }}</span><button type="button" class="btn secondary" data-reference-my-voice>{{ ui_t("Suara Saya") }} <span aria-hidden="true">→</span></button></legend>
+<label class="audio-voice"><input type="radio" name="voice_kind" value="personal"><svg class="reference-voice-wave" viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 13v6M10 7v18M16 3v26M22 7v18M28 13v6"/></svg><span><strong>{{ ui_t("Suara Saya") }}</strong><small id="personal-voice-state">{{ ui_t('Siap digunakan' if personal_voice else 'Suara kamu sendiri') }}</small></span></label>
+<label class="audio-voice"><input type="radio" name="voice_kind" value="kilas" checked><svg class="reference-voice-wave" viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 13v6M10 7v18M16 3v26M22 7v18M28 13v6"/></svg><span><strong>{{ ui_t("Suara Kilas") }}</strong><small>{{ ui_t("Pilihan suara siap pakai") }}</small></span></label>
 </fieldset>
 <input type="hidden" name="voice" id="selected-voice" value="kilas-male">
 <section id="personal-voice-setup" class="personal-voice-setup" data-ready="{{ 'true' if personal_voice else 'false' }}" data-operation-key="{{ voice_operation_key }}" hidden>
@@ -67,12 +67,13 @@
 <label class="voice-consent"><input type="checkbox" id="voice-consent"><span>{{ ui_t("Saya menyatakan bahwa suara ini adalah suara saya sendiri atau saya memiliki izin untuk menggunakannya.") }}</span></label>
 <button type="button" class="btn" id="save-personal-voice" disabled>{{ ui_t("Simpan Suara") }}</button><p id="record-error" role="alert" hidden></p>
 </div></section>
-<div id="kilas-voice-options"><label for="kilas-voice-choice">{{ ui_t("Suara Kilas") }}</label><select id="kilas-voice-choice">{% if voices and not voices|selectattr('alias','equalto','kilas-male')|list %}<option value="" selected disabled>{{ ui_t("Kilas Male belum tersedia") }}</option>{% endif %}{% for voice in voices %}<option value="{{ voice.alias }}" data-sample="{{ 'true' if voice.alias in voice_sample_aliases else 'false' }}">{{ voice.name }}</option>{% else %}<option value="">{{ ui_t("Suara belum tersedia") }}</option>{% endfor %}</select>{% if voice_sample_aliases %}<button type="button" class="btn secondary" id="play-kilas-preview" hidden>{{ ui_t("Putar Contoh Suara") }}</button><audio id="kilas-preview" controls preload="none" hidden aria-label="{{ ui_t('Putar Contoh Suara') }}"></audio><p id="kilas-preview-error" role="alert" hidden></p>{% endif %}</div>
+<div id="kilas-voice-options"><label for="kilas-voice-choice">{{ ui_t("Select voice") }}</label><select id="kilas-voice-choice">{% if voices and not voices|selectattr('alias','equalto','kilas-male')|list %}<option value="" selected disabled>{{ ui_t("Kilas Male belum tersedia") }}</option>{% endif %}{% for voice in voices %}<option value="{{ voice.alias }}" data-sample="{{ 'true' if voice.alias in voice_sample_aliases else 'false' }}">{{ voice.name }}</option>{% else %}<option value="">{{ ui_t("Suara belum tersedia") }}</option>{% endfor %}</select>{% if voice_sample_aliases %}<button type="button" class="btn secondary" id="play-kilas-preview" hidden><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="m8 4 13 8-13 8z"/></svg><span>{{ ui_t("Putar Contoh Suara") }}</span></button><audio id="kilas-preview" controls preload="none" hidden aria-label="{{ ui_t('Putar Contoh Suara') }}"></audio><p id="kilas-preview-error" role="alert" hidden></p>{% endif %}</div>
 {% from 'kilas_ai/_chat_icons.html' import chat_icon %}
 <div class="voice-script-workspace">
 {% set editor_script=initial_brief if home_task=='voiceover' and initial_brief is not none else content_draft.script if content_draft and not job else '' %}
 {# Native forms normalize newlines to CRLF; HTML strips the first textarea newline. #}
-<div class="voice-script-label"><label for="audio-script">{{ ui_t("Naskah") }}</label><div class="voice-script-tools"><button type="button" class="btn secondary" id="voice-assist-copy" aria-label="{{ ui_t('Salin naskah') }}" title="{{ ui_t('Salin naskah') }}">{{ chat_icon('copy') }}</button></div></div><textarea id="audio-script" name="script" maxlength="4000" rows="7" required placeholder="{{ ui_t('Tulis apa yang ingin diucapkan...') }}" aria-describedby="voice-language-status">{{ ('\n' if editor_script.startswith('\n') or editor_script.startswith('\r') else '') + editor_script }}</textarea>
+<div class="voice-script-label"><label for="audio-script">{{ ui_t("Naskah") }}</label><div class="voice-script-tools"><button type="button" class="btn secondary" id="reference-script-paste">{{ chat_icon('copy') }} {{ ui_t('Paste') }}</button><button type="button" class="btn secondary" id="voice-assist-copy" aria-label="{{ ui_t('Salin naskah') }}" title="{{ ui_t('Salin naskah') }}">{{ chat_icon('copy') }}</button></div></div><textarea id="audio-script" name="script" maxlength="4000" rows="7" required placeholder="{{ ui_t('Tulis apa yang ingin diucapkan...') }}" aria-describedby="voice-language-status">{{ ('\n' if editor_script.startswith('\n') or editor_script.startswith('\r') else '') + editor_script }}</textarea>
+<p class="reference-script-count" id="reference-script-count" aria-live="off">0 / 4,000</p>
 <p id="voice-script-duration" class="voice-script-duration" role="status"></p><p class="voice-duration-note">{{ ui_t('Perkiraan dari panjang naskah. Tempo, bahasa, dan jeda dapat mengubah durasi hasil.') }}</p>
 <p id="voice-language-status" role="status" hidden>{{ ui_t("Bahasa mengikuti naskah.") }}</p>
 {% include 'kilas_translator/_dictation.html' %}
@@ -86,7 +87,7 @@
 </form></section>
 <p id="audio-progress" role="status" aria-live="polite" hidden></p><p id="audio-error" role="alert" hidden></p><span id="audio-error-purchase" hidden></span>
 
-</main><aside class="audio-history" id="audio-history" data-history-url="{{ url_for('kilas_audio.history_fragment') }}" data-selected-job="{{ job.id if job else '' }}"><h2>{{ ui_t('Recent') }}</h2><div data-audio-history-content>{% include 'kilas_translator/_history.html' %}</div><p data-audio-history-message role="status" aria-live="polite"></p></aside></div>
+</main><aside class="audio-history" id="audio-history" hidden data-history-url="{{ url_for('kilas_audio.history_fragment') }}" data-selected-job="{{ job.id if job else '' }}"><h2>{{ ui_t('Recent') }}</h2><div data-audio-history-content>{% include 'kilas_translator/_history.html' %}</div><p data-audio-history-message role="status" aria-live="polite"></p></aside></div>
 </section><script src="{{ url_for('static',filename='kilas_voice_presentation.js',v='20261022') }}" defer></script><link rel="stylesheet" href="{{ url_for('static',filename='kilas_voice_presentation.css',v='20261022') }}">{% include '_generation_feedback.html' %}<script src="{{ url_for('static',filename='kilas_audio.js',v='spoken-script-edit-20261020') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_audio_history.js',v='app-language-20261015') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_personal_voice.js',v='spoken-script-edit-20261020') }}" defer></script>

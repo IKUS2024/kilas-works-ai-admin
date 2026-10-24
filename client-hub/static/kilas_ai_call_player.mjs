@@ -1,5 +1,5 @@
 // Call-only jitter buffer. The shared Translator player remains unchanged.
-import {GeminiPlayer} from './kilas_live_gemini_player.mjs?v=native-progressive-20261016';
+import {GeminiPlayer} from './kilas_live_gemini_player.mjs?v=call-output-20261024';
 
 export class CallPlayer {
  constructor({schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id),...options}){

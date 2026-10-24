@@ -5,13 +5,13 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='interpreter-distinct-8') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='reference-directions-20261024') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
 {% set selected_feature='live' %}{% include 'kilas_ai/_feature_navigation.html' %}
 <section class="kilas-live-translator interpreter" id="interpreter" data-preference-key="interpreter-languages-v1-{{ session.get('user_id') }}">
-<header class="live-heading"><h1>Translator</h1></header>
+<header class="live-heading"><span class="reference-translator-icon" aria-hidden="true">{% set icon='language' %}{% include 'kilas_ai/_home_task_icon.html' %}</span><div><h1>Translator</h1><p class="interpreter-setup-description">{{ ui_t('Translate text or speech between languages quickly and accurately.') }}</p><p class="interpreter-active-description">{{ ui_t('Real-time voice translation') }}</p></div></header>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <section id="interpreter-setup">
 <div class="interpreter-language-pair">
@@ -23,8 +23,9 @@
 <button type="button" class="btn" id="interpreter-start">{{ ui_t('Mulai') }}</button>
 </section>
 <section id="interpreter-active" hidden>
-<div class="interpreter-identity" id="interpreter-orb" data-state="idle"><img src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="160" height="160" alt="Kilas" decoding="async"></div>
-<p id="interpreter-state" role="status" aria-live="polite">{{ ui_t('Pilih arah bicara') }}</p>
+<div class="interpreter-identity" id="interpreter-orb" data-state="idle"><img src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="160" height="160" alt="Kilas" decoding="async"><span class="reference-orbit-speech" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></span><span class="reference-orbit-language" aria-hidden="true">{% set icon="language" %}{% include "kilas_ai/_home_task_icon.html" %}</span></div>
+<h2 class="interpreter-direction-heading">{{ ui_t('Pilih arah bicara') }}</h2><p class="interpreter-direction-help">{{ ui_t('Select the language flow for this conversation') }}</p>
+<p id="interpreter-state" data-state="idle" role="status" aria-live="polite">{{ ui_t('Pilih arah bicara') }}</p>
 <div class="interpreter-directions" role="group" aria-label="{{ ui_t('Arah terjemahan') }}">
 <button type="button" class="btn secondary" id="interpreter-left" aria-pressed="false" disabled></button>
 <button type="button" class="btn secondary" id="interpreter-right" aria-pressed="false" disabled></button>
@@ -34,5 +35,5 @@
 <p id="interpreter-error" role="alert" hidden></p>
 
 </section></div>
-<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='interpreter-distinct-8') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='reference-directions-20261024') }}"></script>
 {% endblock %}

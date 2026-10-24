@@ -1,7 +1,7 @@
 import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=app-language-20261015';
 import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-reliable-20261023';
-import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-reliable-20261023';
+import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-output-20261024';
 import {CallSession} from './kilas_ai_call_engine.mjs?v=call-reliable-20261023';
 import {renderCallSources} from './kilas_ai_call_sources.mjs?v=call-public-search-20261017';
 
@@ -11,9 +11,20 @@ if(dialog){
  document.body.append(dialog);
  const status=dialog.querySelector('#ai-call-status'),caption=dialog.querySelector('#ai-call-caption'),error=dialog.querySelector('#ai-call-error'),end=dialog.querySelector('#ai-call-end');
  const csrf=document.querySelector('meta[name=csrf-token]')?.content||document.querySelector('[name=csrf_token]')?.value;
- let context=null,launcher=null,busyChat=false;
+ let context=null,output=null,launcher=null,busyChat=false,muted=false,held=false,speaker=true;
  const settings=dialog.querySelector('#ai-call-settings'),start=dialog.querySelector('#ai-call-start'),normal=dialog.querySelector('#ai-call-normal');
  const field=name=>dialog.querySelector('#ai-call-'+name);
+ const controls=dialog.querySelector('.reference-call-actions');
+ const syncControls=()=>{
+  for(const track of capture.stream?.getAudioTracks()||[])track.enabled=!muted&&!held;
+  if(output)output.gain.value=speaker&&!held?1:0;
+  field('mute')?.setAttribute('aria-pressed',String(muted));field('hold')?.setAttribute('aria-pressed',String(held));field('speaker')?.setAttribute('aria-pressed',String(speaker));
+  if(controls)controls.hidden=session?.state==='ended';
+ };
+ const statusRegion=dialog.querySelector('.reference-call-status');
+ if(statusRegion)dialog.insertBefore(statusRegion,dialog.querySelector('.ai-call-footer'));
+ const statusCapsule=statusRegion?.querySelector('span');
+ if(statusCapsule)new window.MutationObserver(()=>{statusCapsule.textContent=status.textContent;}).observe(status,{childList:true,subtree:true,characterData:true});
  const syncSettings=()=>{
   const mode=field('mode').value,roast=mode==='roast';
   field('learning').hidden=mode!=='learning';field('roleplay').hidden=mode!=='roleplay';field('consent').hidden=!roast;
@@ -28,8 +39,10 @@ if(dialog){
   explanation_language:field('explanation-language').value,scenario:field('scenario').value,roast_opt_in:field('roast-opt-in').checked});
  const request=(url,options={})=>requestJSON(url,{csrf,...options});
  const capture=new CallCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices});
+ const captureStart=capture.start.bind(capture);
+ capture.start=options=>captureStart({...options,ready:()=>{syncControls();options.ready?.();},pcm:raw=>options.pcm(muted||held?new Uint8Array(raw.length):raw)});
  let session;
- const player=new CallPlayer({getContext:()=>context,onError:()=>session?.fail({code:'call_audio'})});
+ const player=new CallPlayer({getContext:()=>context,getDestination:ctx=>output||ctx.destination,onError:()=>session?.fail({code:'call_audio'})});
  const messages={call_unavailable:'Panggilan belum tersedia untuk akun ini.',budget_limit:'Batas biaya tercapai. Panggilan dihentikan.',
   account_credit_limit:'Kapasitas Premium belum cukup untuk permintaan ini. Tambah kapasitas atau lanjutkan Chat biasa.',
   already_processing:'Selesaikan sesi suara yang sedang diproses sebelum memanggil.',service_busy:'Layanan sedang sibuk. Coba panggil lagi nanti.',
@@ -48,10 +61,10 @@ if(dialog){
   call_ended:'Panggilan berakhir.',call_audio:'Audio belum siap. Periksa izin audio lalu mulai panggilan baru.',
   microphone_permission_denied:'Izin mikrofon ditolak. Izinkan mikrofon lalu mulai panggilan baru.'};
  let audioRecoveryTimer=null;
- const stopAudio=()=>{clearTimeout(audioRecoveryTimer);audioRecoveryTimer=null;const own=context;context=null;if(own){try{own.close().catch(()=>{});}catch{}}};
+ const stopAudio=()=>{clearTimeout(audioRecoveryTimer);audioRecoveryTimer=null;const own=context;context=null;output=null;if(own){try{own.close().catch(()=>{});}catch{}}};
  const prepare=signal=>{
   const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)throw Object.assign(Error(''),{code:'call_audio'});
-  context=new Audio({latencyHint:'playback'});const own=context;
+  context=new Audio({latencyHint:'playback'});const own=context;output=own.createGain();output.connect(own.destination);syncControls();
   own.addEventListener?.('statechange',()=>{
    if(context!==own||signal.aborted||session?.state==='ended')return;
    if(own.state==='running'){clearTimeout(audioRecoveryTimer);audioRecoveryTimer=null;try{player.resume();}catch{session.fail({code:'call_audio'});}return;}
@@ -70,9 +83,14 @@ if(dialog){
  session=new CallSession({request,capture,player,prepare,stopAudio,
   onText:text=>{caption.textContent=text;caption.scrollTop=caption.scrollHeight;},
   onSources:(citations,checkedOn)=>renderCallSources(dialog.querySelector('#ai-call-sources'),citations,checkedOn),
-  onState:state=>{settings.hidden=state!=='ended';start.hidden=state!=='ended';normal.hidden=state==='ended';end.hidden=state==='ended';field('end-label').hidden=state==='ended';field('summary').hidden=state==='ended';dialog.dataset.state=state;status.textContent=t({reconnecting:'Menghubungkan kembali…',connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Kilas berbicara',ended:'Panggilan berakhir.'}[state]||'Menghubungkan…');},
+  onState:state=>{if(state==='connecting'){dialog.scrollTop=0;}if(state==='ended'){muted=false;held=false;speaker=true;}queueMicrotask(syncControls);settings.hidden=state!=='ended';start.hidden=state!=='ended';normal.hidden=state==='ended';end.hidden=state==='ended';field('end-label').hidden=state==='ended';field('summary').hidden=state==='ended';dialog.dataset.state=state;status.textContent=held?t('On hold'):t({reconnecting:'Menghubungkan kembali…',connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Kilas berbicara',ended:'Panggilan berakhir.'}[state]||'Menghubungkan…');},
   onError:code=>{error.textContent=t(messages[code]||messages.call_transport);error.hidden=false;start.textContent=t('Coba panggilan lagi');}
  });
+ field('mute')?.addEventListener('click',()=>{muted=!muted;syncControls();});
+ field('hold')?.addEventListener('click',()=>{held=!held;syncControls();if(held)status.textContent=t('On hold');else status.textContent=t(session.state==='speaking'?'Kilas berbicara':'Mendengarkan');});
+ field('speaker')?.addEventListener('click',()=>{speaker=!speaker;syncControls();});
+ // Keep End in the same action row, with the existing cancellation handler.
+ const endSlot=dialog.querySelector('.reference-call-end-slot');if(endSlot)endSlot.append(end,field('end-label'));
  const syncViewport=()=>{
   if(!dialog.open)return;const viewport=window.visualViewport;
   dialog.classList.toggle('ai-call-compact',(viewport?.height||window.innerHeight)<440);

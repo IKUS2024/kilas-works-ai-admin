@@ -62,6 +62,7 @@ def main():
                 page.goto(origin+'/kilas-translator?mode=voiceover',wait_until='networkidle')
                 expect(page.locator('.audio-latest-result,#audio-result audio')).to_have_count(0)
                 page.screenshot(path=str(output/f'voice-fresh-{width}.png'),full_page=True)
+                if not page.locator('#audio-history').is_visible():page.locator('.reference-history-toggle').click()
                 page.locator('[data-audio-history]').first.click()
                 expect(page.locator('#audio-result audio')).to_be_visible()
                 expect(page.locator('#audio-result a').filter(has_text='MP3')).to_have_count(1)

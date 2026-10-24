@@ -8,11 +8,12 @@
   const desktop = matchMedia('(min-width: 761px)');
   let open = false;
   function update(next, restore) {
-    open = next && !desktop.matches;
+    const drawer = Boolean(document.querySelector('.kilas-reference-header'));
+    open = next && (drawer || !desktop.matches);
     document.body.classList.toggle('premium-menu-open', open);
     trigger.setAttribute('aria-expanded', String(open));
     backdrop.hidden = !open;
-    sidebar.inert = !desktop.matches && !open;
+    sidebar.inert = (drawer || !desktop.matches) && !open;
     if (open) sidebar.querySelector('[data-premium-close]').focus({preventScroll:true});
     else if (restore) trigger.focus({preventScroll:true});
   }

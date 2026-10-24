@@ -43,7 +43,7 @@ for(const locale of ['en','id','es','zh'])test(`Call ${locale} actual chat place
  const values={window,document,KilasUI:window.KilasUI,FormData:window.FormData,
   navigator:{mediaDevices:{getUserMedia(){microphones++;throw Error('Forbidden media QA');}},sendBeacon(){throw Error('No provider admission');}},
   fetch:async()=>{requests++;return {ok:true,redirected:false,json:async()=>({available:false,reason:'budget_limit'})};}};
- window.AudioContext=class{constructor(options){assert.equal(options.latencyHint,'playback');contexts++;this.state='running';}resume(){return Promise.resolve();}close(){return Promise.resolve();}addEventListener(){}};
+ window.AudioContext=class{constructor(options){assert.equal(options.latencyHint,'playback');contexts++;this.state='running';}createGain(){return {gain:{value:1},connect(){}};}resume(){return Promise.resolve();}close(){return Promise.resolve();}addEventListener(){}};
  const previous={};for(const [key,value] of Object.entries(values)){previous[key]=Object.getOwnPropertyDescriptor(globalThis,key);Object.defineProperty(globalThis,key,{value,writable:true,configurable:true});}
  t.after(()=>{for(const [key,value] of Object.entries(previous)){if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}});
  await import('../static/kilas_ai_call.mjs?dom-'+locale);await tick();
@@ -51,8 +51,8 @@ for(const locale of ['en','id','es','zh'])test(`Call ${locale} actual chat place
  assert.equal(dialog.parentNode,document.body);assert.equal(dialog.hidden,true);
  button.click();await tick();assert.equal(dialog.open,true);assert.equal(document.activeElement,dialog.querySelector('#ai-call-start'));assert.equal(contexts,0);assert.equal(requests,0);dialog.querySelector('#ai-call-start').click();await tick();assert.equal(contexts,1);assert.equal(microphones,0);assert.equal(requests,1);
  assert.equal(dialog.hidden,false);
- const computed=window.getComputedStyle(dialog);assert.equal(computed.display,'grid');assert.equal(computed.position,'fixed');assert.equal(computed.maxWidth,'none');assert.equal(computed.maxHeight,'none');assert.equal(computed.borderRadius,'0');assert.equal(computed.backgroundColor,'rgb(17, 24, 32)');
- const footer=end.closest('footer');assert.equal(footer.parentNode,dialog);assert.equal(window.getComputedStyle(footer).display,'flex');assert.equal(window.getComputedStyle(footer).padding,'0px');assert.equal(dialog.querySelector('#ai-call-privacy'),null);assert.equal(window.getComputedStyle(dialog.querySelector('.ai-call-body')).minHeight,'0');
+ const computed=window.getComputedStyle(dialog);assert.equal(computed.display,'grid');assert.equal(computed.position,'fixed');assert.equal(computed.maxWidth,'none');assert.equal(computed.maxHeight,'none');assert.equal(parseFloat(computed.borderRadius),0);assert.equal(computed.backgroundColor,'rgb(17, 24, 32)');
+ const footer=end.closest('footer');assert.equal(footer.parentNode,dialog);assert.equal(window.getComputedStyle(footer).display,'flex');assert.equal(window.getComputedStyle(footer).padding,'0px');assert.equal(dialog.querySelector('#ai-call-privacy'),null);assert.equal(parseFloat(window.getComputedStyle(dialog.querySelector('.ai-call-body')).minHeight),0);
  assert.equal(dialog.style.getPropertyValue('--ai-call-height'),'740px');assert.equal(dialog.style.getPropertyValue('--ai-call-width'),'393px');
  Object.assign(viewport,{height:390,width:740,offsetTop:5,offsetLeft:2});viewport.dispatchEvent(new window.Event('resize'));
  assert.equal(dialog.style.getPropertyValue('--ai-call-height'),'390px');assert.equal(dialog.style.getPropertyValue('--ai-call-top'),'5px');assert.equal(dialog.style.getPropertyValue('--ai-call-width'),'740px');assert.equal(dialog.style.getPropertyValue('--ai-call-left'),'2px');

@@ -46,7 +46,8 @@ def main():
                     field.focus();page.set_viewport_size({'width':width,'height':460})
                     expect(page.locator('body')).to_have_class(__import__('re').compile('home-keyboard-open'))
                     focused_identity=page.evaluate("()=>({font:getComputedStyle(document.querySelector('.ai-empty h1')).fontSize,logo:getComputedStyle(document.querySelector('.kilas-new-chat-logo')).display,tabs:[...document.querySelectorAll('.home-task-choices>*')].map(e=>e.getBoundingClientRect().width)})")
-                    assert focused_identity==identity,(width,identity,focused_identity)
+                    expect(page.locator('.home-chat-options')).to_be_visible()
+                    expect(page.locator('body')).to_have_class(__import__('re').compile('home-chat-compact'))
                     assert page.locator('#ai-composer').evaluate('e=>e.getBoundingClientRect().bottom<=innerHeight'),width
                     assert page.locator('#ai-composer').evaluate('e=>innerHeight-e.getBoundingClientRect().bottom<60'),width
                     page.screenshot(path=str(output/f'{phase}-keyboard-{width}.png'),full_page=True)
@@ -63,7 +64,7 @@ def main():
                 for transcript_height in (height,460):
                     page.set_viewport_size({'width':width,'height':transcript_height})
                     page.wait_for_function("Math.abs(parseFloat(document.documentElement.style.getPropertyValue('--home-viewport-height'))-innerHeight)<2")
-                    result=page.evaluate('''()=>{const m=document.querySelector('#ai-messages'),c=document.querySelector('#ai-composer'),t=document.querySelector('.home-tool-selector');m.scrollTop=150;return {scrollable:m.scrollHeight>m.clientHeight,readingPosition:m.scrollTop,bottom:c.getBoundingClientRect().bottom,overlap:m.getBoundingClientRect().bottom>t.getBoundingClientRect().top+1,overflow:document.documentElement.scrollWidth>innerWidth}}''')
+                    result=page.evaluate('''()=>{const m=document.querySelector('#ai-messages'),c=document.querySelector('#ai-composer'),tool=document.querySelector('.home-tool-selector'),t=tool.closest('.home-chat-options')?document.querySelector('.ai-composer-area'):tool;m.scrollTop=150;return {scrollable:m.scrollHeight>m.clientHeight,readingPosition:m.scrollTop,bottom:c.getBoundingClientRect().bottom,overlap:m.getBoundingClientRect().bottom>t.getBoundingClientRect().top+1,overflow:document.documentElement.scrollWidth>innerWidth}}''')
                     assert result['scrollable'] and result['readingPosition']>0 and not result['overlap'] and not result['overflow'],(width,transcript_height,result)
                     assert 0<=transcript_height-result['bottom']<60,(width,transcript_height,result)
                 field.focus();page.set_viewport_size({'width':width,'height':380})
@@ -86,7 +87,7 @@ def main():
                     for _ in range(2):
                         keyboard_page.locator('#ai-input').focus();keyboard_page.evaluate('qaViewport(380,48)')
                         expect(keyboard_page.locator('body')).to_have_class(__import__('re').compile('home-keyboard-open'))
-                        assert keyboard_page.evaluate(appearance)==closed,width
+                        expect(keyboard_page.locator('.home-chat-options')).to_be_visible()
                         bounds=keyboard_page.evaluate("()=>{const e=document.querySelector('.ai-empty'),r=document.querySelector('#ai-composer').getBoundingClientRect();e.scrollTop=e.scrollHeight;return {bottom:r.bottom,top:r.top,scrollable:e.scrollHeight>e.clientHeight,scrolled:e.scrollTop>0}}")
                         assert bounds['bottom']<=428 and bounds['top']>=48 ,(width,bounds)
                         expect(keyboard_page.locator('#ai-input')).to_have_value('Synthetic retained keyboard draft')

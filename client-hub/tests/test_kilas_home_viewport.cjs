@@ -10,10 +10,10 @@ function layout({viewport = true, scrollTop = 1400} = {}) {
   const timeline = {scrollHeight: 2000, scrollTop, clientHeight: 600};
   const form = {id: 'ai-composer', addEventListener() {}, querySelector() { return {}; }};
   const nodes = {'#ai-messages,#agent-conversation': timeline, '#ai-composer,#agent-chat-form': form, '#ai-input,#agent-message': {}, '#home-task-value': {}, '#ai-send': {}, '#ai-notice,#agent-chat-error': {}, '#ai-pending,#work-pending-files': {children: []}};
-  const root = {querySelector: selector => nodes[selector] || null, querySelectorAll: () => [], dispatchEvent() {}};
+  const root = {querySelector: selector => nodes[selector] || null, querySelectorAll: () => [], dispatchEvent() {}, addEventListener() {}};
   const visual = viewport ? {height: 650, offsetTop: 0, addEventListener: (type, callback) => viewportEvents.set(type, callback)} : null;
   const window = {innerHeight: 650, visualViewport: visual, addEventListener: (type, callback) => windowEvents.set(type, callback)};
-  const document = {querySelector: () => root, documentElement: {style: {setProperty: (key, value) => styles.set(key, value)}}, body: {classList: {toggle: (key, value) => classes.set(key, value)}}};
+  const document = {querySelector: selector => selector==='.kilas-home-workspace'?root:null, documentElement: {style: {setProperty: (key, value) => styles.set(key, value)}}, body: {classList: {toggle: (key, value) => classes.set(key, value)}}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../static/kilas_home.js'), 'utf8'), {window, document, innerHeight: 650, location: {search: ''}, URLSearchParams, Event});
   return {styles, classes, timeline, visual, window, document, windowEvents, viewportEvents};
 }

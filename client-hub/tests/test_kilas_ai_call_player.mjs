@@ -9,13 +9,19 @@ function fixture({deviceRate=48000,frozen=false}={}){
  const schedule=(fn,ms)=>{timers.set(++id,{fn,at:time+ms});return id;},clear=id=>timers.delete(id);
  const context={sampleRate:deviceRate,state:'running',get currentTime(){return frozen?0:time/1000;},destination:{},
   createBuffer(channels,length,rate){assert.equal(channels,1);assert.equal(rate,24000);const samples=new Float32Array(length);return {length,sampleRate:rate,duration:length/rate,getChannelData:()=>samples};},
-  createBufferSource(){const node={connect(){},disconnect(){},stop(){this.stopped=true;clear(this.timer);},start(at){this.at=at;starts.push({at,duration:this.buffer.duration,samples:this.buffer.getChannelData(0),node:this});if(!frozen)this.timer=schedule(()=>node.onended?.(),(at+this.buffer.duration-context.currentTime)*1000);}};nodes.push(node);return node;}};
+  createBufferSource(){const node={connect(destination){this.destination=destination;},disconnect(){},stop(){this.stopped=true;clear(this.timer);},start(at){this.at=at;starts.push({at,duration:this.buffer.duration,samples:this.buffer.getChannelData(0),node:this});if(!frozen)this.timer=schedule(()=>node.onended?.(),(at+this.buffer.duration-context.currentTime)*1000);}};nodes.push(node);return node;}};
  const f={context,timers,nodes,starts,errors,options:{getContext:()=>context,now:()=>time,schedule,clear,onError:e=>errors.push(e.code)},
   advanceTo(end){let loops=0;while(true){const due=[...timers].filter(([,v])=>v.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!due)break;if(++loops>10000)throw Error('Timer loop');time=due[1].at;timers.delete(due[0]);due[1].fn();}time=end;},
   gaps(){return starts.slice(1).map((x,i)=>Math.max(0,x.at-starts[i].at-starts[i].duration)).filter(x=>x>1/24000);}};
  return f;
 }
 const pcm=(samples=4800,value=1234)=>{const raw=new Uint8Array(samples*2),view=new DataView(raw.buffer);for(let i=0;i<samples;i++)view.setInt16(i*2,value,true);return raw;};
+
+test('Call uses its controllable output while default Gemini playback retains the hardware destination',()=>{
+ const call=fixture(),output={gain:{value:0}},player=new CallPlayer({...call.options,getDestination:()=>output});
+ player.push(pcm());player.release();call.advanceTo(400);assert.ok(call.nodes.length);assert.equal(call.nodes[0].destination,output);
+ const legacy=fixture(),gemini=new GeminiPlayer(legacy.options);gemini.push(pcm());legacy.advanceTo(400);assert.ok(legacy.nodes.length);assert.equal(legacy.nodes[0].destination,legacy.context.destination);
+});
 
 test('Call jitter cushion removes the reproduced poll-delivery gap without changing the Translator player',async t=>{
  const deliveries=[0,220,590,640,870,1040,1490,1510,1700,1930,2150,2290,2610,2690,2890,3150,3300,3470,3720,3900];
