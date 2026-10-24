@@ -103,14 +103,15 @@ def preview_owner(owner):
 
 
 def setup(target):
-    # Dedicated translation guide + Live API reference, checked 2026-10-23. Translation-only model does not accept prompts.
-    # No user instructions, tools, text input, arbitrary model or custom voice.
+    # API schema + official google-genai 2.33.0 converter, checked Oct24.
+    # Captions belong to setup; translationConfig belongs to generationConfig.
+    # The translation guide's raw example nests captions differently from both.
     from .translator_languages import native_wire,NATIVE
     if target not in NATIVE:raise failure('invalid_language_pair',400)
     return {'setup':{'model':'models/'+MODEL,
                      'generationConfig':{'responseModalities':['AUDIO'],
-                                         'translationConfig':{'targetLanguageCode':native_wire(target), 'echoTargetLanguage':False},
-                                         'inputAudioTranscription':{}, 'outputAudioTranscription':{}}}}
+                                         'translationConfig':{'targetLanguageCode':native_wire(target), 'echoTargetLanguage':False}},
+                     'inputAudioTranscription':{}, 'outputAudioTranscription':{}}}
 
 
 def connect():
