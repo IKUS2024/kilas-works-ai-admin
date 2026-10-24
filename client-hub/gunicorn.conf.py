@@ -31,6 +31,12 @@ def post_worker_init(worker):
         except Exception:
             audience = {'audience':None, 'nonowner':None, 'nonowner_reason':'readiness_check_failed'}
         print('KILAS_GEMINI_AUDIENCE_READY '+json.dumps(audience,sort_keys=True), flush=True)
+    try:
+        from kilas_ai.interpreter_readiness import report as interpreter_report
+        interpreter = interpreter_report()
+    except Exception:
+        interpreter = {'reason':'readiness_check_failed','paid_qa':False}
+    print('KILAS_INTERPRETER_READY '+json.dumps(interpreter,sort_keys=True), flush=True)
     # Default-off, once-only approved synthetic Gemini test in a separate process.
     from kilas_ai.live_gemini_smoke import launch
     launch()

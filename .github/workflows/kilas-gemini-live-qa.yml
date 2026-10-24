@@ -2,10 +2,10 @@ name: Kilas Gemini Live Offline QA
 on:
   pull_request:
     branches: [main]
-    paths: ['client-hub/kilas_ai/live_gemini*.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/static/kilas_live_gemini*', 'client-hub/templates/kilas_translator/gemini.html', 'client-hub/tests/*kilas_live_gemini*', '.github/workflows/kilas-gemini-live-qa.yml']
+    paths: ['client-hub/kilas_ai/interpreter*.py', 'client-hub/static/kilas_interpreter*', 'client-hub/templates/kilas_translator/interpreter.html', 'client-hub/tests/test_kilas_interpreter*', 'client-hub/kilas_ai/live_gemini*.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/static/kilas_live_gemini*', 'client-hub/templates/kilas_translator/gemini.html', 'client-hub/tests/*kilas_live_gemini*', '.github/workflows/kilas-gemini-live-qa.yml']
   push:
     branches: [main, 'feature/kilas-gemini-*']
-    paths: ['client-hub/kilas_ai/live_gemini*.py', 'client-hub/kilas_ai/ai_call*.py', 'client-hub/static/kilas_ai_call*', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/privacy_policy.html', 'client-hub/tests/test_kilas_ai_call*', 'client-hub/tests/test_kilas_sidebar_products*', 'client-hub/static/kilas_chat_sidebar.css', 'client-hub/app.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/kilas_ai/live_translator*.py', 'client-hub/gunicorn.conf.py', 'client-hub/tests/fixtures/gemini_live_synthetic/**', 'client-hub/static/kilas_live_gemini*', 'client-hub/static/kilas_live_translator_engine.mjs', 'client-hub/static/kilas_live_translator.mjs', 'client-hub/static/kilas_live_translator_realtime_capture.mjs', 'client-hub/static/kilas_live_translator_pcm.mjs', 'client-hub/templates/kilas_translator/gemini.html', 'client-hub/templates/kilas_translator/live.html', 'client-hub/tests/test_kilas_live_gemini*', 'client-hub/tests/test_kilas_live_translator*.mjs', 'client-hub/tests/test_kilas_live_translator*.py', 'client-hub/locales/**', '.github/workflows/kilas-gemini-live-qa.yml']
+    paths: ['client-hub/kilas_ai/interpreter*.py', 'client-hub/static/kilas_interpreter*', 'client-hub/templates/kilas_translator/interpreter.html', 'client-hub/tests/test_kilas_interpreter*', 'client-hub/kilas_ai/live_gemini*.py', 'client-hub/kilas_ai/ai_call*.py', 'client-hub/static/kilas_ai_call*', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/privacy_policy.html', 'client-hub/tests/test_kilas_ai_call*', 'client-hub/tests/test_kilas_sidebar_products*', 'client-hub/static/kilas_chat_sidebar.css', 'client-hub/app.py', 'client-hub/kilas_ai/audio_routes.py', 'client-hub/kilas_ai/live_translator*.py', 'client-hub/gunicorn.conf.py', 'client-hub/tests/fixtures/gemini_live_synthetic/**', 'client-hub/static/kilas_live_gemini*', 'client-hub/static/kilas_live_translator_engine.mjs', 'client-hub/static/kilas_live_translator.mjs', 'client-hub/static/kilas_live_translator_realtime_capture.mjs', 'client-hub/static/kilas_live_translator_pcm.mjs', 'client-hub/templates/kilas_translator/gemini.html', 'client-hub/templates/kilas_translator/live.html', 'client-hub/tests/test_kilas_live_gemini*', 'client-hub/tests/test_kilas_live_translator*.mjs', 'client-hub/tests/test_kilas_live_translator*.py', 'client-hub/locales/**', '.github/workflows/kilas-gemini-live-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -27,7 +27,7 @@ jobs:
           for suite in test_kilas_sidebar_products.py test_kilas_sidebar_history.py test_kilas_ai_call.py test_kilas_ai_call_settings.py test_kilas_ai_call_recovery.py test_kilas_live_gemini_smoke.py test_kilas_live_gemini.py test_kilas_live_gemini_validation.py test_kilas_live_gemini_completion.py test_kilas_live_gemini_pair.py test_kilas_live_gemini_pair_budget.py test_kilas_live_gemini_pair_routes.py test_kilas_live_gemini_capture.py test_kilas_live_gemini_budget.py test_kilas_live_gemini_capture_routes.py test_kilas_live_gemini_readiness.py test_kilas_live_translator_restore.py test_kilas_live_translator_incremental.py test_kilas_live_translator_transport.py test_kilas_live_translator_realtime_check.py test_kilas_free_test.py test_kilas_live_translator_flow.py test_kilas_live_translator_segments.py test_kilas_live_translator_sse.py test_kilas_live_translator.py test_kilas_live_translator_realtime.py test_kilas_live_translator_whole.py test_kilas_audio.py test_kilas_personal_voice.py test_kilas_audio_history.py test_ui_i18n.py test_ui_english_consistency.py test_kilas_learning_retirement.py; do
             python -B scripts/run_offline_tests.py --only "$suite" || exit 1
           done
-        env: {PYTHONDONTWRITEBYTECODE: '1', KILAS_SIDEBAR_PRODUCTS_FIXTURE_PATH: /tmp/kilas-sidebar-products-ui.json, KILAS_AI_CALL_UI_FIXTURE_PATH: /tmp/kilas-ai-call-ui.json, KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json}
+        env: {PYTHONDONTWRITEBYTECODE: '1', KILAS_SIDEBAR_PRODUCTS_FIXTURE_PATH: /tmp/kilas-sidebar-products-ui.json, KILAS_AI_CALL_UI_FIXTURE_PATH: /tmp/kilas-ai-call-ui.json, KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json, KILAS_INTERPRETER_FIXTURE: /tmp/kilas-interpreter.html}
       - name: Browser-free PCM playback, native lifecycle and original Live regression
         run: node --test client-hub/tests/test_kilas_sidebar_products_dom.mjs client-hub/tests/test_kilas_ai_call*.mjs client-hub/tests/test_kilas_live_gemini*.mjs client-hub/tests/test_kilas_live_translator*.mjs
         env: {KILAS_SIDEBAR_PRODUCTS_FIXTURE_PATH: /tmp/kilas-sidebar-products-ui.json, KILAS_AI_CALL_UI_FIXTURE_PATH: /tmp/kilas-ai-call-ui.json, KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json, KILAS_UI_DOM_TOOLS: /tmp/kilas-gemini-dom}
@@ -64,11 +64,12 @@ jobs:
       - run: /tmp/kilas-gemini-dom/node_modules/.bin/playwright install --with-deps chromium
       - name: Native streaming wire and account fences without provider IO
         run: |
-          for suite in test_kilas_live_gemini.py test_kilas_live_gemini_completion.py test_kilas_live_gemini_pair.py test_kilas_live_gemini_pair_routes.py test_kilas_live_gemini_validation.py test_kilas_live_gemini_budget.py test_kilas_live_gemini_usage.py test_kilas_live_gemini_validation_once.py test_kilas_live_gemini_natural_qa.py test_kilas_live_gemini_readiness.py test_kilas_ai_call.py; do
+          for suite in test_kilas_interpreter.py test_kilas_live_gemini.py test_kilas_live_gemini_completion.py test_kilas_live_gemini_pair.py test_kilas_live_gemini_pair_routes.py test_kilas_live_gemini_validation.py test_kilas_live_gemini_budget.py test_kilas_live_gemini_usage.py test_kilas_live_gemini_validation_once.py test_kilas_live_gemini_natural_qa.py test_kilas_live_gemini_readiness.py test_kilas_ai_call.py; do
             python -B scripts/run_offline_tests.py --only "$suite" || exit 1
           done
-        env: {PYTHONDONTWRITEBYTECODE: '1', KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json}
-      - run: node --test client-hub/tests/test_kilas_live_gemini*.mjs
+        env: {PYTHONDONTWRITEBYTECODE: '1', KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json, KILAS_INTERPRETER_FIXTURE: /tmp/kilas-interpreter.html}
+      - run: node --test client-hub/tests/test_kilas_interpreter.mjs client-hub/tests/test_kilas_live_gemini*.mjs
         env: {KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json, KILAS_UI_DOM_TOOLS: /tmp/kilas-gemini-dom}
+      - run: node client-hub/tests/kilas_interpreter_browser.mjs
       - run: node client-hub/tests/kilas_live_gemini_streaming_browser.mjs
         env: {KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json, KILAS_UI_DOM_TOOLS: /tmp/kilas-gemini-dom}

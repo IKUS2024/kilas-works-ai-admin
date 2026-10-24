@@ -207,8 +207,8 @@ class GeminiTests(unittest.TestCase):
                     self.assertEqual(response.status_code,200)
                     self.assertEqual(response.headers['Cache-Control'],'private, no-store')
                     self.assertIn('value="gemini-live-two-way-v2"',response.text)
-                    self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/live/gemini')
-                    self.assertEqual(self.client.get('/kilas-translator?mode=live').location,'/kilas-translator/live/gemini')
+                    self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/interpreter')
+                    self.assertEqual(self.client.get('/kilas-translator?mode=live').location,'/kilas-translator/interpreter')
                     for path in ('/kilas-translator','/kilas-translator?mode=voiceover',
                                  '/kilas-translator/jobs/0?mode=live','/kilas-translator/history',
                                  '/kilas-translator/live?classic=1','/kilas-translator?mode=live&classic=1',
@@ -334,7 +334,7 @@ class GeminiTests(unittest.TestCase):
             for path in ('/kilas-translator/live','/kilas-translator?mode=live'):
                 response=self.client.get(path)
                 self.assertEqual(response.status_code,302)
-                self.assertEqual(response.location,'/kilas-translator/live/gemini')
+                self.assertEqual(response.location,'/kilas-translator/interpreter')
                 self.assertEqual(response.headers['Cache-Control'],'private, no-store')
             legacy=sessions.create(self.user,'id','en','kilas-male')
             before=dict(audio.f.db.query_one('SELECT * FROM kilas_live_translator_sessions WHERE id=?',(legacy,)))
@@ -344,10 +344,10 @@ class GeminiTests(unittest.TestCase):
                 self.assertNotIn('/static/kilas_live_gemini.mjs',response.text)
                 self.assertEqual(dict(audio.f.db.query_one('SELECT * FROM kilas_live_translator_sessions WHERE id=?',(legacy,))),before)
             self.assertEqual(self.client.post('/kilas-translator/live/sessions/'+legacy+'/end',data={'csrf_token':'audio-csrf'}).status_code,200)
-            self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/live/gemini')
+            self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/interpreter')
             current=sessions.create(self.user,'id','en',native.VOICE)
             self.addCleanup(sessions.end,self.user,current)
-            self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/live/gemini')
+            self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/interpreter')
             self.assertEqual(sessions.status(self.user,current)['status'],'ACTIVE')
             for path in ('/kilas-translator/live?classic=1','/kilas-translator?mode=live&classic=1'):
                 response=self.client.get(path)
