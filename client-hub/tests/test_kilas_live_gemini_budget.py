@@ -82,6 +82,34 @@ class GeminiBudgetTests(unittest.TestCase):
             call()
         self.assertEqual(caught.exception.code, code)
 
+    def test_expired_native_preview_retains_charges_until_normal_locked_claim(self):
+        for status in ('RESERVED','DISPATCHED'):
+            self.execute('DELETE FROM kilas_vo_stt_operations')
+            self.seed(250000,status,'gml-old-native',700)
+            with patch.object(budget.ledger,'_expire',side_effect=AssertionError('preview mutation')):
+                preview=budget.status(1,streams=2)
+            self.assertTrue(preview['available']);self.assertEqual(preview['remaining_micro_usd'],9750000)
+            self.assertEqual(self.query('SELECT status,charge_micro FROM kilas_vo_stt_operations'),(status,250000))
+            current=self.claim(701)
+            self.assertEqual(self.query('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',(self.key(700)+'-gm',)),('UNKNOWN',250000))
+            self.assertEqual(budget.status(1)['reason'],'already_processing')
+            budget.finish(current,False)
+
+    def test_preview_keeps_live_uncertain_and_other_product_leases_fenced(self):
+        cases=[('gml-old-native',(datetime.now(timezone.utc)-timedelta(seconds=119)).isoformat(),None,None),
+               ('gml-old-native','',None,None),('gml-old-native','bad-time',None,None),
+               ('gml-old-native','2000-01-01T00:00:00',None,None),
+               ('voiceover-old','2000-01-01T00:00:00+00:00',None,None),
+               ('gml-old-native','2000-01-01T00:00:00+00:00','unknown-policy',None),
+               ('gml-old-native','2000-01-01T00:00:00+00:00',None,'live-'+('c'*32)+'-gc')]
+        for campaign,created,price,key in cases:
+            self.execute('DELETE FROM kilas_vo_stt_operations');self.seed(250000,'DISPATCHED',campaign,702)
+            self.execute('UPDATE kilas_vo_stt_operations SET created_at=?',(created,))
+            if price:self.execute('UPDATE kilas_vo_stt_campaigns SET price_version=? WHERE id=?',(price,campaign))
+            if key:self.execute('UPDATE kilas_vo_stt_operations SET operation_key=?',(key,))
+            self.assertEqual(budget.status(1)['reason'],'already_processing',(campaign,created,price,key))
+            self.execute('UPDATE kilas_vo_stt_campaigns SET price_version=?',(budget.PRICE_VERSION,))
+
     def test_key_presence_never_enables_spend_and_all_internal_amounts_are_explicit(self):
         with patch.dict(os.environ, {'GEMINI_API_KEY': 'synthetic-only'}, clear=True), \
              patch.object(budget.usage, '_connect') as connect:

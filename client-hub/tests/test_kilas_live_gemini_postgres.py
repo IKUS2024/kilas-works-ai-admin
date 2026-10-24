@@ -63,6 +63,12 @@ def main():
                 assert len(reservations)==1 and 'duplicate_turn' in results, results
                 capability=reservations[0]
                 budget.dispatch(capability)
+                assert budget.status(owner)['reason']=='already_processing'
+                db.execute('UPDATE kilas_vo_stt_operations SET created_at=? WHERE operation_key=?',
+                           ((datetime.now(timezone.utc)-timedelta(seconds=121)).isoformat(),key+'-gm'))
+                preview=budget.status(owner)
+                assert preview['available'] and preview['remaining_micro_usd']==4000,preview
+                assert db.query_one('SELECT status FROM kilas_vo_stt_operations WHERE operation_key=?',(key+'-gm',))['status']=='DISPATCHED'
                 assert not budget.finish(capability,False)
                 row=db.query_one('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',(key+'-gm',))
                 assert row['status']=='UNKNOWN' and row['charge_micro']==1000

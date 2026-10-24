@@ -2,6 +2,7 @@
 import io
 import os
 import unittest
+from datetime import datetime,timezone,timedelta
 from unittest.mock import Mock, patch
 
 import test_kilas_live_gemini as fixture
@@ -60,6 +61,26 @@ class PairRouteTests(unittest.TestCase):
                     self.assertIn('name="language_b"', response.text)
                     self.assertNotIn('id="native-admission-status"', response.text)
                     self.assertNotIn('Percakapan dua bahasa, mengalir lebih dekat.', response.text)
+            connect.assert_not_called()
+
+    def test_owner_and_member_page_recovers_only_after_native_expiry_without_refund(self):
+        with self.config(),self.shared(),patch.object(native,'connect') as connect:
+            for owner in (self.user,self.other):
+                authenticate(self.client,audio.f.repo.get_user_by_id(owner),_csrf_token='audio-csrf')
+                key=self.key(owner+112)
+                cap=budget.claim(owner,'d'*48,key,streams=2);budget.dispatch(cap)
+                self.assertIn('data-gemini-ready="false"',self.client.get('/kilas-translator/live/gemini').text)
+                audio.f.db.execute('UPDATE kilas_vo_stt_operations SET created_at=? WHERE user_id=? AND operation_key IN (?,?)',
+                                   ((datetime.now(timezone.utc)-timedelta(seconds=121)).isoformat(),owner,key+'-gm2:parent',key+'-gm2:slot'))
+                with patch.object(budget.ledger,'_expire',side_effect=AssertionError('GET must remain read only')):
+                    page=self.client.get('/kilas-translator/live/gemini')
+                self.assertEqual(page.status_code,200)
+                self.assertIn('data-gemini-ready="true"',page.text)
+                rows=audio.f.db.query_all('SELECT status,charge_micro FROM kilas_vo_stt_operations WHERE user_id=? AND operation_key IN (?,?)',
+                                         (owner,key+'-gm2:parent',key+'-gm2:slot'))
+                self.assertTrue(all(row['status']=='DISPATCHED' for row in rows))
+                self.assertEqual(sum(row['charge_micro'] for row in rows),500000)
+                budget.finish(cap,False)
             connect.assert_not_called()
 
     def test_native_is_default_only_with_existing_policy_and_classic_stays_explicit(self):
