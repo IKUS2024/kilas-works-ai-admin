@@ -109,7 +109,7 @@ class Stream(native.Relay):
             pair.last_output_at = self.last_output_at
             if pair.first_output_at is None:
                 pair.first_output_at = self.first_output_at
-            if self.target not in pair.output_order:
+            if not pair.progressive and self.target not in pair.output_order:
                 pair.output_order.append(self.target)
             pair._publish_stream_locked(self)
 
@@ -168,6 +168,14 @@ class Pair(native.Relay):
         """Append a permitted stream delta while child and pair locks are held."""
         if not self.progressive or self.discarded:
             return
+        # A suppressed target can send low nonzero comfort noise as well as
+        # zero padding. Translation captions distinguish a speaking stream
+        # without throwing away quiet speech or trusting noise amplitude.
+        # Hold early PCM until its caption arrives; all raw bytes stay metered.
+        if not stream.target_text.strip():
+            return
+        if stream.frames and stream.target not in self.output_order:
+            self.output_order.append(stream.target)
         primary = self.output_order[0] if self.output_order else None
         if primary is None:
             if not all(item.stopped for item in self.streams.values()):
@@ -397,6 +405,8 @@ class Pair(native.Relay):
                 for target in self.output_order + [key for key in self.streams if key not in self.output_order]:
                     stream = self.streams[target]
                     with stream.lock:
+                        if self.progressive and not stream.target_text.strip():
+                            continue
                         frames.extend({'stream_id':target, 'target_language':target, **frame}
                                       for frame in stream.frames)
                 self.publish(frames)
