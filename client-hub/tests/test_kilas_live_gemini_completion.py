@@ -86,6 +86,24 @@ class CompletionTests(unittest.TestCase):
             relay.run()
         return relay
 
+    def test_active_output_past_six_seconds_drains_until_quiet_within_original_lease(self):
+        with self.config():
+            relay=self.make()
+            relay.started=0;relay.end_at=10;relay.last_output_at=16
+            with patch.object(budget,'LEASE_MS',90000),patch.object(native,'monotonic',return_value=16.1):
+                self.assertEqual(relay.drain_deadline(),17.5)
+                self.assertFalse(relay.finish_drain())
+            relay.last_output_at=20
+            with patch.object(native,'monotonic',return_value=20.1):
+                self.assertEqual(relay.drain_deadline(),21.5)
+                self.assertFalse(relay.finish_drain())
+            with patch.object(native,'monotonic',return_value=21.6):
+                self.assertTrue(relay.finish_drain())
+                self.assertFalse(relay.tail_confirmed)
+                self.assertEqual(relay.completion_kind,'bounded_drain')
+            relay.end_at=88;relay.last_output_at=89.9
+            self.assertEqual(relay.drain_deadline(),90)
+
     def test_continuous_stream_locally_finishes_and_retains_unconfirmed_tail(self):
         with self.config():
             socket = ContinuousSocket()

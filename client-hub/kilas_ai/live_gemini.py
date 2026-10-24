@@ -35,10 +35,11 @@ VALIDATION_REASONS = frozenset((
 # Continuous Live Translate does not promise a turn EOF. Google's example
 # uses four seconds, but that is not a semantic completion signal:
 # https://github.com/google-gemini/gemini-live-api-examples/blob/3bcae1162d1bc6955672153310e4f84eba6621ff/command-line/python/translate.py
-# Keep a short quiet period after a late PCM packet, within a fixed six-second
-# maximum and the original paid lease. Never turn that bound into proof of EOF.
+# Keep receiving while translated PCM is arriving, within the original paid
+# lease. A short fixed post-input cap can truncate slower translated speech.
+# A quiet local stop is still not proof of provider EOF.
 TAIL_GRACE_SECONDS = 4
-TAIL_MAX_SECONDS = 6
+TAIL_MAX_SECONDS = 90  # Absolute lease deadline below is always the tighter bound.
 TAIL_QUIET_SECONDS = 1.5
 _lock = Lock()
 _items = {}
