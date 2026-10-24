@@ -31,6 +31,18 @@ class CallError(ValueError):
         self.code,self.status=code,status
 
 
+def provider_error(error):
+    """Expose categories only, never upstream messages or credentials."""
+    if not isinstance(error,dict):return CallError('call_provider')
+    status=str(error.get('status','')).upper()
+    message=str(error.get('message','')).lower()
+    if ('billing' in message or 'payment required' in message) and error.get('code') in (400,402,403,429):
+        return CallError('call_provider_billing')
+    if error.get('code')==429 or status=='RESOURCE_EXHAUSTED':
+        return CallError('call_provider_quota')
+    return CallError('call_provider')
+
+
 def wire_connection_error():
     from websocket import WebSocketConnectionClosedException
     return WebSocketConnectionClosedException
@@ -173,7 +185,7 @@ class Call:
 
     def receive(self,raw):
         value=wire.message(raw)
-        if 'error' in value:raise CallError('call_provider')
+        if 'error' in value:raise provider_error(value['error'])
         activity = value.get('voiceActivity')
         if isinstance(activity,dict):
             self.turn_timing.activity(activity.get('type'))
@@ -284,6 +296,7 @@ class Call:
             self.ws=wire.connect();self.check()
             self.ws.send(json.dumps(setup(settings=self.settings)))
             hello=wire.message(self.ws.recv())
+            if 'error' in hello:raise provider_error(hello['error'])
             if not isinstance(hello.get('setupComplete'),dict) or any(k in hello for k in ('error','toolCall','goAway')):raise CallError('call_provider')
             self.check();self.ws.settimeout(.5)
             with self.lock:self.state='LISTENING'
@@ -353,6 +366,7 @@ class Call:
                 if self.closed.is_set():socket.shutdown();raise CallError('call_ended',409)
             self.check();socket.send(json.dumps(setup(handle,settings=self.settings)))
             hello=wire.message(socket.recv())
+            if 'error' in hello:raise provider_error(hello['error'])
             if not isinstance(hello.get('setupComplete'),dict) or any(k in hello for k in ('error','toolCall','goAway')):
                 raise CallError('call_provider')
             self.check();socket.settimeout(.5)

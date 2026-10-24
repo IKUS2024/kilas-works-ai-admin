@@ -5,7 +5,7 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='interpreter-lifecycle-4') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='interpreter-operator-5') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
@@ -34,5 +34,5 @@
 <p id="interpreter-error" role="alert" hidden></p>
 <footer><a href="{{ url_for('kilas_audio.live_translator_home',classic='1') }}">{{ ui_t('Bahasa lain / clone') }}</a></footer>
 </section></div>
-<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='interpreter-lifecycle-4') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='interpreter-operator-5') }}"></script>
 {% endblock %}
