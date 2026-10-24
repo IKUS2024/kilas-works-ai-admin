@@ -41,6 +41,7 @@ VALIDATION_REASONS = frozenset((
 TAIL_GRACE_SECONDS = 4
 TAIL_MAX_SECONDS = 90  # Absolute lease deadline below is always the tighter bound.
 TAIL_QUIET_SECONDS = 1.5
+END_PADDING_SECONDS = 2  # Bounded paced silence before ending continuous input.
 _lock = Lock()
 _items = {}
 _slots = BoundedSemaphore(2)
@@ -185,6 +186,7 @@ class Relay:
         self.tail_confirmed = False
         self.first_input_at = self.first_output_at = None
         self.sent_bytes = self.sent_packets = self.received_packets = self.rejected_output_bytes = 0
+        self.silent_output_bytes = 0
         self.interruption_count = 0
         self.last_output_at = None
         self.expires = self.started + 600
@@ -260,6 +262,7 @@ class Relay:
                     'input_accepted_bytes':self.accepted, 'input_sent_bytes':self.sent_bytes,
                     'input_sent_packets':self.sent_packets, 'output_accepted_bytes':self.output_bytes,
                     'output_received_packets':self.received_packets,
+                    'silent_output_bytes':self.silent_output_bytes,
                     'output_rejected_bytes':self.rejected_output_bytes,
                     'last_output_after_start_ms':None if self.last_output_at is None else round((self.last_output_at-self.started)*1000,1),
                     'first_error_code':getattr(self.first_error,'code',None)}
@@ -304,6 +307,7 @@ class Relay:
                 except Empty:
                     continue
                 if raw is None:
+                    self.pad_input_end()
                     # Publish the sent state before a fast EOS acknowledgement
                     # can acquire receive's lock. Never hold this for normal PCM.
                     with self.lock:
@@ -315,17 +319,30 @@ class Relay:
                     self.queued -= len(raw)
                 # Forward 100ms PCM16/16k frames, including silence after speech.
                 for offset in range(0, len(raw), 3200):
-                    self.check()
-                    self.ws.send(json.dumps({'realtimeInput':{'audio':{
-                        'mimeType':'audio/pcm;rate=16000',
-                        'data':base64.b64encode(raw[offset:offset+3200]).decode('ascii')}}}))
-                    with self.lock:
-                        self.sent_bytes += len(raw[offset:offset+3200])
-                        self.sent_packets += 1
+                    self.send_packet(raw[offset:offset+3200])
         except Exception as error:
             self.stop(error if isinstance(error, audio_store.AudioError) else failure())
         finally:
             db._discard_cached_connection()
+
+    def send_packet(self, packet):
+        self.check()
+        self.ws.send(json.dumps({'realtimeInput':{'audio':{
+            'mimeType':'audio/pcm;rate=16000', 'data':base64.b64encode(packet).decode('ascii')}}}))
+        with self.lock:
+            self.sent_bytes += len(packet)
+            self.sent_packets += 1
+
+    def pad_input_end(self):
+        # audioStreamEnd pauses the input; it is not a translation turn EOF.
+        # Let the streaming recognizer consume a short real-time silent tail.
+        # Padding is counted in sent usage and never exceeds the input ceiling.
+        remaining=min(int(END_PADDING_SECONDS*32000),max(0,INPUT_BYTES-self.sent_bytes))
+        for offset in range(0,remaining,3200):
+            packet=bytes(min(3200,remaining-offset))
+            self.send_packet(packet)
+            self.cancelled.wait(len(packet)/32000)
+            self.check()
 
     def watch(self):
         try:
@@ -441,6 +458,12 @@ class Relay:
             self.rejected_output_bytes += len(pcm)
             raise failure('gemini_output_limit', 429)
         self.output_bytes += len(pcm)
+        # This interpreter sends continuous exact-zero PCM even when silent.
+        # Keep it in provider metering/limits, but never let filler select the
+        # speaking direction, postpone drain, or queue seconds of silence.
+        if not any(pcm):
+            self.silent_output_bytes += len(pcm)
+            return
         self.last_output_at = monotonic()
         if self.first_output_at is None:
             self.first_output_at = self.last_output_at

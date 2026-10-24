@@ -2,16 +2,14 @@
 import base64
 from datetime import datetime, timezone, timedelta
 import hashlib
-import io
 import json
 import os
 import signal
 import subprocess
 import sys
 import time
-import wave
 
-RUN='gmlnatural20261024'
+RUN='gmlflush20261024'
 ARM='KILAS_TRANSLATOR_NATURAL_QA_ARM'
 EXPIRY='KILAS_TRANSLATOR_NATURAL_QA_EXPIRES_AT'
 
@@ -52,17 +50,18 @@ def full_enough(result):
                 and result.get('all_accepted_pcm_read') and result.get('post_end_output_access')=='blocked')
 
 
-def paired(configured, samples, observations):
-    from . import live_gemini as native, live_gemini_pair as pair, live_translator_store as sessions
-    owner=configured['owner'];ident=sessions.create(owner,'id','en',pair.VOICE)
-    key='live-'+hashlib.sha256((RUN+'pair').encode()).hexdigest()[:32]
-    relay=None;result={'run':RUN,'case':'pair','physical_streams':2}
+def paired(configured, samples, observations, ident, source, observation_start):
+    from . import live_gemini as native, live_gemini_pair as pair
+    owner=configured['owner'];target='en' if source=='id' else 'id'
+    key='live-'+hashlib.sha256((RUN+source).encode()).hexdigest()[:32]
+    relay=None;result={'run':RUN,'case':source+'-'+target,'physical_streams':2}
     try:
         relay=pair.start(owner,ident,key);started=time.monotonic()
-        raw=samples['id']+bytes(32000)+samples['en']
+        raw=samples[source]
         for index,offset in enumerate(range(0,len(raw),16000)):
             if relay.finished:break
             relay.accept(index,raw[offset:offset+16000]);time.sleep(max(0,started+(index+1)*.5-time.monotonic()))
+        input_finished_at=time.monotonic()
         if not relay.finished:relay.finish_input(relay.expected)
         deadline=started+85
         while not relay.finished and time.monotonic()<deadline:time.sleep(.05)
@@ -75,31 +74,42 @@ def paired(configured, samples, observations):
             for frame in snapshot['frames']:
                 if frame['type']=='audio':audio[frame['stream_id']].extend(base64.b64decode(frame['pcm'],validate=True))
             cursor=snapshot['next_index']
-        result.update(input_ms=relay.accepted/32,output_ms=relay.output_bytes/48,tail_confirmed=relay.tail_confirmed,
-                      completion=relay.completion_kind,code=getattr(relay.error,'code',None),all_accepted_read=sum(map(len,audio.values()))==relay.output_bytes,
+        result.update(input_ms=relay.accepted/32,output_ms=sum(map(len,audio.values()))/48,
+                      provider_output_ms=relay.output_bytes/48,silent_output_ms=relay.silent_output_bytes/48,
+                      tail_confirmed=relay.tail_confirmed,streamed_before_input_finished=relay.first_output_at is not None and relay.first_output_at<input_finished_at,
+                      finish_to_settled_ms=round((time.monotonic()-input_finished_at)*1000,1),
+                      completion=relay.completion_kind,code=getattr(relay.error,'code',None),all_accepted_read=sum(map(len,audio.values()))==relay.output_bytes-relay.silent_output_bytes,
                       streams={target:{'source_text':stream.source_text,'translated_text':stream.target_text,'output_ms':stream.output_bytes/48,
                                'first_pcm_ms':None if stream.first_output_at is None else (stream.first_output_at-relay.started)*1000,
-                               'setup_complete':observations[i].get('setup_complete',False)}
+                               'setup_complete':observations[observation_start+i].get('setup_complete',False)}
                                for i,(target,stream) in enumerate(relay.streams.items())})
-        for target,pcm in audio.items():pcm_proof('pair-'+target,bytes(pcm))
-        result['passed_mechanics']=bool(not result['code'] and result['all_accepted_read'] and all(stream['output_ms']>0 and stream['setup_complete'] for stream in result['streams'].values()))
+        pcm_proof('pair-'+target,bytes(audio[target]))
+        result['passed_mechanics']=bool(not result['code'] and result['all_accepted_read'] and audio[target] and not audio[source]
+                                        and all(stream['setup_complete'] for stream in result['streams'].values()))
+        result['complete_caption_tail']=bool(smoke_tail(result['streams'][target]['source_text'],source)
+                                             and smoke_tail(result['streams'][target]['translated_text'],target))
     finally:
-        sessions.end(owner,ident);pair.cancel(owner,ident)
         print('KILAS_NATURAL_QA '+json.dumps(result,separators=(',',':')),flush=True)
     return result
+
+
+def smoke_tail(text,language):
+    from .live_gemini_smoke import tail_word
+    return tail_word(text,language)
 
 
 def run():
     configured=config()
     if not configured:return
     os.environ[ARM]='off'
-    from . import live_gemini_smoke as smoke, live_gemini as native, live_gemini_budget as budget, live_gemini_capture as capture
+    from . import live_gemini_smoke as smoke, live_gemini as native, live_gemini_budget as budget
+    from . import live_gemini_pair as pair, live_translator_store as sessions
     allowance=budget.status(configured['owner'],streams=2)
     if not allowance.get('available') or allowance.get('remaining_micro_usd',0)<1000000:
         print('KILAS_NATURAL_QA '+json.dumps({'run':RUN,'status':'insufficient_allowance_no_calls'}),flush=True);return
     # Hash-verified original15-second natural-rate eSpeak sources, no synthesis.
     samples={language:smoke.fixture(language) for language in ('id','en')}
-    smoke.RUN=RUN;smoke.passed=full_enough
+    smoke.RUN=RUN
     if not smoke.once(configured):
         print('KILAS_NATURAL_QA '+json.dumps({'run':RUN,'status':'already_attempted_no_retry'}),flush=True);return
     original_connect=native.connect;original_setup=native.setup;probe=smoke.ProbeSocket
@@ -119,28 +129,28 @@ def run():
     smoke.ProbeSocket=TimedProbe
     def setup(target):
         value=original_setup(target);value['setup']['generationConfig']['maxOutputTokens']=2048;return value
-    native.setup=setup;native.INPUT_BYTES=59*32000;native.OUTPUT_BYTES=45*48000
-    signal.alarm(240)
+    native.setup=setup;native.INPUT_BYTES=59*32000;native.OUTPUT_BYTES=90*48000
+    signal.alarm(180)
+    ident=None
     try:
-        print('KILAS_NATURAL_QA '+json.dumps({'run':RUN,'status':'started','max_cases':3,'max_physical_sockets':4,'reserved_total_micro':1000000}),flush=True)
+        print('KILAS_NATURAL_QA '+json.dumps({'run':RUN,'status':'started','max_cases':2,'max_physical_sockets':4,'reserved_total_micro':1000000}),flush=True)
         outcomes=[]
-        for source,target in (('id','en'),('en','id')):
-            result=smoke.session(configured,source,target,samples[source]);outcomes.append({'direction':source+'-'+target,'complete_captions':full_enough(result)})
-            if result.get('fixture_capture_id'):
-                artifact=capture.export(configured['owner'],result['fixture_capture_id'],'wav')
-                with wave.open(io.BytesIO(artifact['data']),'rb') as wav:
-                    if (wav.getnchannels(),wav.getsampwidth(),wav.getframerate())!=(1,2,24000):raise ValueError('output_format')
-                    pcm_proof(source+'-'+target,wav.readframes(wav.getnframes()))
-        native.OUTPUT_BYTES=90*48000
+        ident=sessions.create(configured['owner'],'id','en',pair.VOICE)
         def observed_connect():
             observation={'usage_snapshots':[],'setup_complete':False};observations.append(observation)
             return TimedProbe(original_connect(),observation)
         native.connect=observed_connect
-        result=paired(configured,samples,observations)
-        print('KILAS_NATURAL_QA '+json.dumps({'run':RUN,'status':'finished_no_retry','single_directions':outcomes,'pair_mechanics':result.get('passed_mechanics',False),'pair_events':observations},separators=(',',':')),flush=True)
+        for source in ('id','en'):
+            before=len(observations)
+            result=paired(configured,samples,observations,ident,source,before)
+            outcomes.append({'source':source,'passed_mechanics':result.get('passed_mechanics',False),'complete_caption_tail':result.get('complete_caption_tail',False)})
+        print('KILAS_NATURAL_QA '+json.dumps({'run':RUN,'status':'finished_no_retry','same_logical_session':True,'outcomes':outcomes,'pair_events':observations},separators=(',',':')),flush=True)
     except Exception:
         print('KILAS_NATURAL_QA '+json.dumps({'run':RUN,'status':'stopped_no_retry'}),flush=True)
-    finally:signal.alarm(0)
+    finally:
+        signal.alarm(0)
+        if ident is not None:
+            sessions.end(configured['owner'],ident);pair.cancel(configured['owner'],ident)
 
 
 if __name__=='__main__':run()

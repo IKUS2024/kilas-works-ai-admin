@@ -8,6 +8,7 @@ import time
 import unittest
 from contextlib import redirect_stdout
 from datetime import datetime, timezone, timedelta
+from contextlib import contextmanager
 from queue import Queue
 from threading import Thread, Event
 from unittest.mock import patch
@@ -95,6 +96,7 @@ class GeminiTests(unittest.TestCase):
             self.assertNotIn('inputAudioTranscription', native.setup(target)['setup']['generationConfig'])
             self.assertNotIn('outputAudioTranscription', native.setup(target)['setup']['generationConfig'])
 
+    @contextmanager
     def config(self, **extra):
         values = {'KILAS_TRANSLATOR_PROVIDER':'gemini',
                   'KILAS_LIVE_GEMINI_ENABLED':'true', 'KILAS_LIVE_GEMINI_BILLING_VERIFIED':'yes',
@@ -105,7 +107,8 @@ class GeminiTests(unittest.TestCase):
                   'KILAS_LIVE_GEMINI_EXPIRES_AT':(datetime.now(timezone.utc)+timedelta(hours=1)).isoformat(),
                   'GEMINI_API_KEY':'synthetic-native-key-not-real', 'KILAS_LIVE_TRANSLATOR_AUDIO_SECONDS':'600'}
         values.update(extra)
-        return patch.dict(os.environ, values)
+        with patch.dict(os.environ, values),patch.object(native,'END_PADDING_SECONDS',0):
+            yield
 
     def make(self):
         self.credit(300)
