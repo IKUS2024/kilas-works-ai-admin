@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% set feature_styles_in_head=true %}
+{% block title %}Translator · Kilas Works{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_live_translator.css',v='call-viewport-20261013') }}">{% endblock %}
+{% block initial_component_styles %}
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='interpreter-1') }}">
+{% endblock %}
+{% block content %}
+<div class="kilas-live-page">
+{% set selected_feature='live' %}{% include 'kilas_ai/_feature_navigation.html' %}
+<section class="kilas-live-translator interpreter" id="interpreter">
+<header class="live-heading"><h1>Translator</h1></header>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="interpreter-directions" role="group" aria-label="Arah terjemahan">
+<button type="button" class="btn secondary" id="interpreter-left" aria-pressed="false" disabled><span>Indonesia → Inggris</span><small>Bicara Indonesia</small></button>
+<button type="button" class="btn secondary" id="interpreter-right" aria-pressed="false" disabled><span>Inggris → Indonesia</span><small>Speak English</small></button>
+</div>
+<p id="interpreter-state" role="status" aria-live="polite">Pilih arah bicara</p>
+<label class="live-consent"><input type="checkbox" id="interpreter-consent"><span>Saya mengizinkan pemrosesan ucapan oleh Google.</span></label>
+<div class="interpreter-transcripts"><section><h2>Asli</h2><p id="interpreter-original" aria-live="polite"></p></section><section><h2>Terjemahan</h2><p id="interpreter-caption" aria-live="polite"></p></section></div>
+<div class="interpreter-controls"><label>Volume <input id="interpreter-volume" type="range" min="0" max="100" value="100"></label><button type="button" class="btn secondary" id="interpreter-end" disabled>End</button></div>
+<p id="interpreter-error" role="alert" hidden></p>
+<footer><small>Suara Google, bukan clone.</small><a href="{{ url_for('kilas_audio.live_translator_home',classic='1') }}">Bahasa lain / clone</a></footer>
+</section></div>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='interpreter-1') }}"></script>
+{% endblock %}

@@ -264,6 +264,7 @@ def create_app():
     from kilas_ai import autonomous_routes  # Additive jobs remain behind their own disabled-by-default flag.
     from kilas_ai import connector_routes  # Owner-only OAuth and exact-payload approval routes.
     from kilas_ai.audio_routes import audio_bp
+    from kilas_ai import interpreter_routes  # noqa: F401
     app.register_blueprint(audio_bp)
     from kilas_ai.learning_routes import learning_bp
     app.register_blueprint(learning_bp)
@@ -493,7 +494,8 @@ def create_app():
             # edited) keeps working unchanged, matching the "keep all existing tests passing"
             # instruction for this phase.
             return None
-        if request.endpoint in ('kilas_ai.ai_call_session','kilas_ai.ai_call_chunk','kilas_ai.ai_call_end'):
+        if request.endpoint in ('kilas_ai.ai_call_session','kilas_ai.ai_call_chunk','kilas_ai.ai_call_end',
+                                'kilas_audio.interpreter_session','kilas_audio.interpreter_chunk','kilas_audio.interpreter_end'):
             # Call PCM is binary, so validate its same-origin CSRF header too.
             # End's page-exit beacon uses the existing form token instead.
             token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')

@@ -34,7 +34,7 @@ class PairRouteTests(unittest.TestCase):
 
     def assert_disabled_native_default(self, notice="Batas biaya Translator tercapai."):
         with patch.object(audio_routes,'render_template',wraps=audio_routes.render_template) as render,patch.object(branded,'public_choices') as classic_voices,patch.object(native,'connect') as connect,patch.object(pair,'start') as start:
-            for path in ('/kilas-translator/live','/kilas-translator?mode=live'):
+            for path in ('/kilas-translator/live/gemini',):
                 response=self.client.get(path,follow_redirects=True)
                 self.assertEqual(response.status_code,200)
                 self.assertEqual(response.request.path,'/kilas-translator/live/gemini')
@@ -53,7 +53,7 @@ class PairRouteTests(unittest.TestCase):
         with self.config(), self.shared(), patch.object(native, 'connect') as connect:
             for owner in (self.user, self.other):
                 if owner == self.other: self.login_other()
-                for path in ('/kilas-translator/live', '/kilas-translator?mode=live', '/kilas-translator/live/gemini'):
+                for path in ('/kilas-translator/live/gemini',):
                     response = self.client.get(path, follow_redirects=True)
                     self.assertEqual(response.status_code, 200)
                     self.assertIn('data-gemini-ready="true"', response.text)
@@ -90,7 +90,7 @@ class PairRouteTests(unittest.TestCase):
             os.environ.pop('KILAS_TRANSLATOR_PROVIDER',None)
             response=self.client.get('/kilas-translator/live')
             self.assertEqual(response.status_code,302)
-            self.assertTrue(response.location.endswith('/live/gemini'))
+            self.assertTrue(response.location.endswith('/interpreter'))
             response=self.client.get('/kilas-translator/live?classic=1')
             self.assertEqual(response.status_code,200)
             self.assertIn('Mode klasik:',response.text)
@@ -252,7 +252,7 @@ class PairRouteTests(unittest.TestCase):
             self.assertTrue('data-gemini-translation-mode="two_way"' in response.text)
             self.assertTrue('value="'+pair.INPUT_MODE+'"' in response.text)
             paired=self.create()
-            self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/live/gemini')
+            self.assertEqual(self.client.get('/kilas-translator/live').location,'/kilas-translator/interpreter')
             self.assertEqual(sessions.status(self.user,paired)['status'],'ACTIVE')
             connect.assert_not_called()
 
@@ -359,7 +359,7 @@ class PairRouteTests(unittest.TestCase):
         relay=Mock();relay.snapshot.return_value={**pair.protocol(before),'frames':[]}
         with self.config(),self.shared(),patch.object(native,'connect') as connect,patch.object(pair,'start') as start,patch.object(pair,'owned',return_value=relay):
             for path in ('/kilas-translator/live','/kilas-translator?mode=live'):
-                self.assertEqual(self.client.get(path).location,'/kilas-translator/live/gemini')
+                self.assertEqual(self.client.get(path).location,'/kilas-translator/interpreter')
             page=self.client.get('/kilas-translator/live/gemini')
             self.assertTrue('value="'+pair.LEGACY_INPUT_MODE+'"' in page.text)
             self.assertTrue('name="output_order"' not in page.text)

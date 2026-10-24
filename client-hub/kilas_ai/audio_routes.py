@@ -57,6 +57,8 @@ def _native_route_access(user):
     from . import live_gemini as native, live_gemini_pair as pair
     endpoint=request.endpoint
     shared=_shared_native_user(user)
+    if endpoint in {'kilas_audio.interpreter_page','kilas_audio.interpreter_readiness','kilas_audio.interpreter_session','kilas_audio.interpreter_chunk','kilas_audio.interpreter_end'}:
+        return shared
     if endpoint=='kilas_audio.live_gemini_home':
         return shared or _active_native_session(user)
     if endpoint in {
@@ -528,7 +530,7 @@ def live_translator_home():
     if _native_default_ready(session['user_id']):
         # Navigation never ends or replaces an active session. Native Start
         # retains the existing session_busy fence and explicit recovery UI.
-        return redirect(url_for('kilas_audio.live_gemini_home')),302,{'Cache-Control':'private, no-store'}
+        return redirect(url_for('kilas_audio.interpreter_page' if native.ready(session['user_id']) else 'kilas_audio.live_gemini_home')),302,{'Cache-Control':'private, no-store'}
     languages=translator.classic_names()
     return render_template('kilas_translator/live.html',native_available=native.ready(session['user_id']),live_ready=live.ready(session['user_id']) and len(languages)>1,voices=branded.public_choices(),languages=languages,translator_language_names=translator.localized_names()),200,{'Cache-Control':'private, no-store'}
 
