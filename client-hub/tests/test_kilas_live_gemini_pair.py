@@ -370,6 +370,28 @@ class PairTests(unittest.TestCase):
             self.assertEqual(self.ledger()['charge'], budget.policy()['reserve']*2)
             self.assertEqual(len(relay.frames), 0)
 
+    def test_terminal_provider_usage_is_forwarded_only_for_a_complete_pair(self):
+        with self.config():
+            relay=self.make();sockets=[Socket(),Socket()]
+            # Each socket receives its own complete terminal usage evidence.
+            for sock in sockets:
+                original=sock.send
+                def send(raw, sock=sock, original=original):
+                    value=json.loads(raw)
+                    if value.get('realtimeInput',{}).get('audioStreamEnd'):
+                        sock.sent.append(value)
+                        sock.incoming.put(json.dumps({'usageMetadata':{'promptTokenCount':3,'responseTokenCount':0,'totalTokenCount':3},'serverContent':{'turnComplete':True}}))
+                    else:original(raw)
+                sock.send=send
+            def interact(runner):
+                self.assertTrue(all(sock.configured.wait(2) for sock in sockets))
+                relay.accept(0,b'\x02\x00'*1600);relay.finish_input(1)
+            original_finish=budget.finish
+            with patch.object(budget,'finish',wraps=original_finish) as settle:
+                self.run_pair(relay,sockets,interact)
+            evidence=settle.call_args.kwargs['verified_usage']
+            self.assertEqual((evidence.input_tokens,evidence.output_tokens,evidence.streams),(6,0,2))
+
     def test_settlement_failure_keeps_original_validation_reason_and_redacts_supplier_values(self):
         with self.config():
             relay = self.make()

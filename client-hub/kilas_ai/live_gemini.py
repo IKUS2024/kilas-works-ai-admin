@@ -156,6 +156,8 @@ def message(raw):
 
 class Relay:
     def __init__(self, owner, ident, key, info, capability, job, lease_started=None):
+        from .live_gemini_usage import UsageEvidence
+        self.usage_evidence = UsageEvidence()
         self.owner, self.ident, self.key, self.info = owner, ident, key, info
         self.capability, self.job = capability, job
         self.lock = Lock()
@@ -360,6 +362,7 @@ class Relay:
                 if not isinstance(content, dict):
                     raise invalid_response('content_shape')
                 self.validate_content(content)
+                self.usage_evidence.observe(value, self.end_sent.is_set())
                 if content.get('interrupted') is True:
                     self.interruption_count += 1
                     self.generation += 1
@@ -524,7 +527,11 @@ class Relay:
                         raise failure('gemini_settlement_failed')
                 else:
                     audio_store.fail(self.owner, self.job, getattr(self.error,'code','gemini_transport'))
-                budget.finish(self.capability, success)
+                evidence = self.usage_evidence.verified(self.sent_bytes, self.output_bytes, self.tail_confirmed) if success else None
+                if evidence is None:
+                    budget.finish(self.capability, success)
+                else:
+                    budget.finish(self.capability, success, verified_usage=evidence)
                 finish_session(self, success)
             except Exception:
                 with self.error_lock:

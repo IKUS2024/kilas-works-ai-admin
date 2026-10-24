@@ -368,7 +368,13 @@ class Pair(native.Relay):
                         raise failure('gemini_settlement_failed')
                 else:
                     audio_store.fail(self.owner, self.job, getattr(self.error, 'code', 'gemini_transport'))
-                budget.finish(self.capability, success)
+                from .live_gemini_usage import combine
+                evidence = combine([stream.usage_evidence.verified(self.sent_bytes, stream.output_bytes, stream.tail_confirmed)
+                                    for stream in self.streams.values()]) if success else None
+                if evidence is None:
+                    budget.finish(self.capability, success)
+                else:
+                    budget.finish(self.capability, success, verified_usage=evidence)
                 native.finish_session(self, success)
             except Exception:
                 with self.error_lock:

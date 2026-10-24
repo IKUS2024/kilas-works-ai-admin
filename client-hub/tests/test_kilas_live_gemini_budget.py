@@ -217,6 +217,27 @@ class GeminiBudgetTests(unittest.TestCase):
                                            (self.key(701)+'-gm',)), (10900000,))
             self.assertEqual(budget.policy(), first)
 
+    def test_prospective_usage_settlement_is_idempotent_and_keeps_uncertain_reserves(self):
+        from kilas_ai.live_gemini_usage import VerifiedUsage
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE':'authenticated'}):
+            self.seed(100000, 'UNKNOWN', 'gml-historical-protected', 800)
+            capability = budget.claim(1, 'a'*48, self.key(801), streams=2)
+            budget.dispatch(capability)
+            proof = VerifiedUsage(100,200,2)
+            self.assertTrue(budget.finish(capability, True, verified_usage=proof))
+            row=self.query('SELECT charge_micro,input_tokens,output_tokens,actual_estimate_micro FROM kilas_vo_stt_operations WHERE operation_key=?',(capability.key,))
+            self.assertEqual(row, (4550,100,200,4550))
+            self.assertFalse(budget.finish(capability, True, verified_usage=VerifiedUsage(0,0,2)))
+            self.assertEqual(self.query('SELECT charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',(capability.key,))[0],4550)
+            self.assertEqual(self.query('SELECT charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',(self.key(800)+'-gm',))[0],100000)
+            for index, success, evidence in ((802,False,proof),(803,True,None),(804,True,VerifiedUsage(1,1,1))):
+                cap=budget.claim(1,'b'*48,self.key(index),streams=2);budget.dispatch(cap)
+                budget.finish(cap,success,verified_usage=evidence)
+                self.assertEqual(self.query('SELECT charge_micro FROM kilas_vo_stt_operations WHERE operation_key=?',(cap.key,))[0],500000)
+            cap=budget.claim(1,'c'*48,self.key(805),streams=2);budget.dispatch(cap)
+            budget.finish(cap,True,verified_usage=VerifiedUsage(0,0,2))
+            self.assertFalse(budget.finish(cap,True,verified_usage=VerifiedUsage(0,0,2)))
+
     def test_account_funded_calls_excluded_only_with_exact_unique_same_tenant_evidence(self):
         self.execute('CREATE TABLE kilas_ai_usage(user_id INTEGER,operation_key TEXT,operation_type TEXT,mode TEXT,status TEXT,quota_source TEXT,provider TEXT,model TEXT,estimated_cost_usd TEXT)')
         good = ['AI_CALL', 'SMART', 'COMPLETE', 'BASE', 'google', 'gemini-3.8-live', '0.25']
