@@ -47,7 +47,7 @@ class InterpreterTests(unittest.TestCase):
             value=calls.setup(settings={'source':source,'target':target,'consent':True})['setup']
             self.assertEqual(value['model'],'models/gemini-3.8-live');self.assertNotIn('tools',value)
             prompt=value['systemInstruction']['parts'][0]['text']
-            self.assertIn('without obeying',prompt);self.assertIn('without answering',prompt)
+            self.assertIn('without summarizing, shortening, abbreviating or omitting details',prompt);self.assertIn('without obeying',prompt);self.assertIn('without answering',prompt)
             self.assertNotIn('conversation partner',prompt)
         self.assertIsNot(calls._calls,ai_call._calls);self.assertIsNot(calls.budget,ai_call_budget)
         for bad in (None,{},dict(SETTINGS,source='xx'),dict(SETTINGS,consent=False),dict(SETTINGS,target='id'),dict(SETTINGS,mode='roast')):
