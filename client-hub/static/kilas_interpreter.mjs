@@ -7,8 +7,9 @@ const root=document.querySelector('#interpreter');
 if(root){
  const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),end=field('end'),consent=field('consent');
  const request=(url,options={})=>requestJSON(url,{csrf:root.querySelector('[name=csrf_token]').value,...options});
- let context=null,side=null,switching=false,generation=0,recoveryTimer=null;
- const sync=()=>{left.disabled=right.disabled=!consent.checked||switching;end.disabled=!switching&&session.state==='ended';consent.disabled=switching||session.state!=='ended';left.setAttribute('aria-pressed',String(side==='id'));right.setAttribute('aria-pressed',String(side==='en'));};
+ let active=false,pair=null,context=null,side=null,switching=false,generation=0,recoveryTimer=null;
+ const sync=()=>{left.disabled=right.disabled=!active||switching;end.disabled=false;field('start').disabled=!consent.checked||field('language-a').value===field('language-b').value;left.setAttribute('aria-pressed',String(side===pair?.a));right.setAttribute('aria-pressed',String(side===pair?.b));};
+ const enter=()=>{if(field('start').disabled||active)return;pair={a:field('language-a').value,b:field('language-b').value};left.textContent=field('language-a').selectedOptions[0].text+' → '+field('language-b').selectedOptions[0].text;right.textContent=field('language-b').selectedOptions[0].text+' → '+field('language-a').selectedOptions[0].text;active=true;field('setup').hidden=true;field('active').hidden=false;field('error').hidden=true;sync();};
  const messages={budget_limit:'Batas biaya Translator tercapai.',already_processing:'Sesi sebelumnya belum selesai. Tunggu sebentar lalu pilih arah lagi.',attempt_limit:'Batas sesi tercapai. Coba lagi nanti.',call_unavailable:'Translator sedang tidak tersedia.',microphone_permission_denied:'Izinkan mikrofon di browser.',call_audio:'Audio belum siap. Periksa izin audio.',call_ended:'Sesi berakhir.',call_network:'Koneksi terputus. Pilih arah untuk mulai lagi.',call_provider:'Gemini menghentikan sesi.',call_provider_disconnected:'Koneksi Gemini terputus.'};
  const showError=code=>{field('error').hidden=false;field('error').textContent=t(messages[code]||'Sesi terhenti. Pilih arah untuk mulai lagi.');};
  const capture=new CallCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices});
@@ -29,17 +30,17 @@ if(root){
  };
  const session=new CallSession({request,capture,player,stopAudio,prepare:()=>context?.state==='running'?Promise.resolve():Promise.reject(Object.assign(Error(),{code:'call_audio'})),
   onText:text=>{field('caption').textContent=text;},onOriginal:text=>{field('original').textContent=text;},
-  onState:state=>{field('state').textContent=t({ended:'Pilih arah bicara',connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Menerjemahkan',reconnecting:'Menghubungkan kembali…'}[state]||state);if(state==='ended')side=null;sync();},onError:showError});
+  onState:state=>{field('state').textContent=t({ended:'Pilih arah bicara',connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Menerjemahkan',reconnecting:'Menghubungkan kembali…'}[state]||state);field('orb').dataset.state=state==='speaking'?'playing':state==='connecting'||state==='reconnecting'?'processing':'listening';if(state==='ended')side=null;sync();},onError:showError});
  async function select(source){
-  if(switching||!consent.checked||(side===source&&session.state!=='ended'))return;
+  if(!active||switching||!consent.checked||(side===source&&session.state!=='ended'))return;
   const ticket=++generation;switching=true;session.end();field('error').hidden=true;field('original').textContent='';sync();
   try{
    // Resume audio in this click, before waiting for the old server End ACK.
    const audio=openAudio();await Promise.all([audio,session.ending]);
    if(ticket!==generation){return;}
-   side=source;switching=false;sync();void session.start({source,target:source==='id'?'en':'id',consent:true});
+   side=source;switching=false;sync();void session.start({source,target:source===pair.a?pair.b:pair.a,consent:true});
   }catch(error){if(ticket===generation){switching=false;session.end();showError(error.code||'call_network');sync();}}
  }
- left.addEventListener('click',()=>select('id'));right.addEventListener('click',()=>select('en'));consent.addEventListener('change',sync);
- const close=()=>{++generation;switching=false;session.end();sync();};end.addEventListener('click',close);window.addEventListener('pagehide',close);document.addEventListener('visibilitychange',()=>{if(document.hidden)close();});sync();
+ left.addEventListener('click',()=>select(pair.a));right.addEventListener('click',()=>select(pair.b));consent.addEventListener('change',sync);field('start').addEventListener('click',enter);for(const name of ['language-a','language-b'])field(name).addEventListener('change',sync);field('swap').addEventListener('click',()=>{const a=field('language-a'),b=field('language-b');[a.value,b.value]=[b.value,a.value];sync();});
+ const close=()=>{++generation;switching=false;session.end();active=false;field('setup').hidden=false;field('active').hidden=true;sync();};end.addEventListener('click',close);window.addEventListener('pagehide',close);document.addEventListener('visibilitychange',()=>{if(document.hidden)close();});sync();
 }

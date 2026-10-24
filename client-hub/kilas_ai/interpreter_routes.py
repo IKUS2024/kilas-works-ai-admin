@@ -23,7 +23,8 @@ def failure(error):
 
 @ai_bp.get('/interpreter')
 def interpreter_page():
-    return render_template('kilas_translator/interpreter.html'),200,HEADERS
+    from .interpreter_settings import LANGUAGES
+    return render_template('kilas_translator/interpreter.html',languages=LANGUAGES),200,HEADERS
 
 
 @ai_bp.get('/interpreter/readiness')

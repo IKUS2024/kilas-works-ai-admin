@@ -30,15 +30,15 @@ try{
    const frames=after===0?[{index:0,type:'original',text:starts.length===1?'Di mana airnya?':'Where is the water?'},{index:1,type:'text',text:starts.length===1?'Where is the water?':'Di mana airnya?'},{index:2,type:'audio',pcm:raw.toString('base64')},{index:3,type:'turn_complete'}]:[];
    return route.fulfill({json:{state:'LISTENING',frames,next_index:after+frames.length,total_frames:4}});
   });
-  await page.goto(origin);await page.locator('#interpreter-consent').check();await page.locator('#interpreter-left').click();
-  await page.waitForFunction(()=>window.playEvidence.length>0);assert.equal(starts.length,1);assert.ok(starts[0].body.includes('"source":"id"'));
+  await page.goto(origin);assert.equal(await page.locator('#interpreter-active').isVisible(),false);assert.equal(await page.locator('#interpreter-language-a option').count(),99);await page.locator('#interpreter-language-a').selectOption('ja');await page.locator('#interpreter-language-b').selectOption('fr');await page.locator('#interpreter-consent').check();await page.locator('#interpreter-start').click();assert.equal(starts.length,0);assert.equal(await page.evaluate(()=>window.micStopped),0);assert.equal(await page.locator('#interpreter-setup').isVisible(),false);assert.match(await page.locator('#interpreter-left').textContent(),/Japanese.*French/);await page.locator('#interpreter-left').click();
+  await page.waitForFunction(()=>window.playEvidence.length>0);assert.equal(starts.length,1);assert.ok(starts[0].body.includes('"source":"ja"'));
   assert.ok(await page.locator('#interpreter-left').getAttribute('aria-pressed')==='true');
   await page.locator('#interpreter-left').click();assert.equal(starts.length,1);
   let release;heldEnd=new Promise(r=>release=r);await page.locator('#interpreter-right').click();await page.waitForTimeout(100);assert.equal(starts.length,1);assert.equal(await page.locator('#interpreter-left').isDisabled(),true);
-  release();heldEnd=null;await page.waitForFunction(()=>window.playEvidence.length===2);assert.equal(starts.length,2);assert.ok(starts[1].body.includes('"source":"en"'));
+  release();heldEnd=null;await page.waitForFunction(()=>window.playEvidence.length===2);assert.equal(starts.length,2);assert.ok(starts[1].body.includes('"source":"fr"'));
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
-  await page.locator('#interpreter-end').click();assert.equal(await page.locator('#interpreter-end').isDisabled(),true);assert.ok(await page.evaluate(()=>window.micStopped>=2));
-  const evidence=await page.evaluate(()=>window.playEvidence);assert.ok(evidence.every(x=>x.rate===24000&&x.peak>.2));assert.deepEqual(errors,[]);
+  if(width===390||width===1440)await page.screenshot({path:'/tmp/interpreter-active-'+width+'.png'});await page.locator('#interpreter-end').click();assert.equal(await page.locator('#interpreter-active').isVisible(),false);assert.equal(await page.locator('#interpreter-language-a').inputValue(),'ja');assert.equal(await page.locator('#interpreter-language-b').inputValue(),'fr');assert.ok(await page.evaluate(()=>window.micStopped>=2));
+  const evidence=await page.evaluate(()=>window.playEvidence);assert.ok(evidence.every(x=>x.rate===24000&&x.peak>.2));assert.deepEqual(errors,[]);if(width===390||width===1440)await page.screenshot({path:'/tmp/interpreter-setup-'+width+'.png'});
   console.log(JSON.stringify({width,height,starts:starts.length,ends:ends.length,audioBeforeEnd:evidence,tracksStopped:await page.evaluate(()=>window.micStopped)}));await page.close();
  }
 }finally{await browser.close();server.close();}

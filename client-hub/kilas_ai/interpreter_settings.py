@@ -1,5 +1,9 @@
 """Fixed selected direction; speech can never change settings or trigger tools."""
-LANGUAGES={'id':'Indonesian','en':'English'}
+import json
+from pathlib import Path
+
+# Official native Live API table; Norwegian nb is an alias, not an extra language.
+LANGUAGES=json.loads(Path(__file__).with_name('interpreter_languages.json').read_text())
 
 def validate(value):
     if not isinstance(value,dict) or set(value)!={'source','target','consent'}:
