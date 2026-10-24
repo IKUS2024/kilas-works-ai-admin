@@ -114,6 +114,8 @@ class InterpreterTests(unittest.TestCase):
         with self.enabled(),patch.object(calls.Thread,'start'),patch.object(calls.wire,'connect') as connect:
             ident=uuid4().hex;path='/kilas-translator/interpreter/'+ident
             headers={'X-CSRF-Token':'audio-csrf'}
+            equal=self.client.post(path,headers=headers,data={'settings':json.dumps(dict(SETTINGS,target='id'))})
+            self.assertEqual(equal.status_code,400)
             invalid=self.client.post(path,headers=headers,data={'settings':json.dumps(dict(SETTINGS,mode='roast'))})
             self.assertEqual(invalid.status_code,400)
             response=self.client.post(path,headers=headers,data={'settings':json.dumps(SETTINGS)})

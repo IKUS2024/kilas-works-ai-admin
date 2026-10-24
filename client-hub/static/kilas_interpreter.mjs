@@ -7,22 +7,32 @@ const root=document.querySelector('#interpreter');
 if(root){
  const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),end=field('end'),consent=field('consent');
  // Keep only this account's explicit language choices; never persist consent/audio.
- const a=field('language-a'),b=field('language-b');
+ const a=field('language-a'),b=field('language-b');let restoredEqual=false;let previousPair=[a.value,b.value];
  try{
   const names=new Intl.DisplayNames([document.documentElement.lang||'en'],{type:'language',fallback:'none'});
   for(const select of [a,b])for(const option of select.options){try{const name=names.of(option.value);if(name&&name.toLowerCase()!==option.value.toLowerCase())option.textContent=name;}catch{}}
  }catch{}
  try{
   const saved=JSON.parse(localStorage.getItem(root.dataset.preferenceKey));
-  if(saved&&[a,b].every((select,i)=>Array.from(select.options).some(option=>option.value===saved[i]))&&saved[0]!==saved[1]){a.value=saved[0];b.value=saved[1];}
+  if(saved&&[a,b].every((select,i)=>Array.from(select.options).some(option=>option.value===saved[i]))){a.value=saved[0];b.value=saved[1];restoredEqual=saved[0]===saved[1];}
  }catch{}
  const savePair=()=>{try{localStorage.setItem(root.dataset.preferenceKey,JSON.stringify([a.value,b.value]));}catch{}};
+ const updatePair=(changed,notify=true)=>{
+  if(a.value===b.value){
+   const select=changed==='language-a'?a:b,other=select===a?b:a;
+   const candidates=[previousPair[select===a?0:1],'en','id',...Array.from(select.options,option=>option.value)];
+   select.value=candidates.find(code=>code!==other.value&&Array.from(select.options).some(option=>option.value===code));
+   if(notify)showError('language_adjusted');
+  }
+  for(const [select,other] of [[a,b],[b,a]])for(const option of select.options)option.disabled=option.value===other.value;
+  previousPair=[a.value,b.value];savePair();sync();
+ };
  const request=(url,options={})=>requestJSON(url,{csrf:root.querySelector('[name=csrf_token]').value,...options});
  let active=false,pair=null,context=null,side=null,switching=false,generation=0,recoveryTimer=null;
  const sync=()=>{left.disabled=right.disabled=!active||switching;end.disabled=false;left.setAttribute('aria-pressed',String(side===pair?.a));right.setAttribute('aria-pressed',String(side===pair?.b));};
  const directionLabel=(button,source,target)=>{const from=document.createElement('span'),arrow=document.createElement('span'),to=document.createElement('span');from.textContent=source;arrow.textContent=' → ';arrow.className='interpreter-arrow';to.textContent=target;button.replaceChildren(from,arrow,to);};
  const enter=()=>{if(active)return;if(!consent.checked){consent.focus();showError('consent_required');return;}if(field('language-a').value===field('language-b').value){showError('same_language');return;}pair={a:field('language-a').value,b:field('language-b').value};directionLabel(left,a.selectedOptions[0].text,b.selectedOptions[0].text);directionLabel(right,b.selectedOptions[0].text,a.selectedOptions[0].text);active=true;field('setup').hidden=true;field('active').hidden=false;field('error').hidden=true;sync();};
- const messages={call_provider_quota:'Kuota Gemini sedang tidak tersedia.',call_provider_billing:'Periksa billing akun Gemini.',consent_required:'Setujui pemrosesan ucapan terlebih dahulu.',same_language:'Pilih bahasa sumber dan tujuan yang berbeda.',budget_limit:'Batas biaya Translator tercapai.',already_processing:'Sesi sebelumnya belum selesai. Tunggu sebentar lalu pilih arah lagi.',attempt_limit:'Batas sesi tercapai. Coba lagi nanti.',call_unavailable:'Translator sedang tidak tersedia.',microphone_permission_denied:'Izinkan mikrofon di browser.',call_audio:'Audio belum siap. Periksa izin audio.',call_ended:'Sesi berakhir.',call_network:'Koneksi terputus. Pilih arah untuk mulai lagi.',call_provider:'Gemini menghentikan sesi.',call_provider_disconnected:'Koneksi Gemini terputus.'};
+ const messages={language_adjusted:'Bahasa yang sama telah disesuaikan.',call_provider_quota:'Kuota Gemini sedang tidak tersedia.',call_provider_billing:'Periksa billing akun Gemini.',consent_required:'Setujui pemrosesan ucapan terlebih dahulu.',same_language:'Pilih bahasa sumber dan tujuan yang berbeda.',budget_limit:'Batas biaya Translator tercapai.',already_processing:'Sesi sebelumnya belum selesai. Tunggu sebentar lalu pilih arah lagi.',attempt_limit:'Batas sesi tercapai. Coba lagi nanti.',call_unavailable:'Translator sedang tidak tersedia.',microphone_permission_denied:'Izinkan mikrofon di browser.',call_audio:'Audio belum siap. Periksa izin audio.',call_ended:'Sesi berakhir.',call_network:'Koneksi terputus. Pilih arah untuk mulai lagi.',call_provider:'Gemini menghentikan sesi.',call_provider_disconnected:'Koneksi Gemini terputus.'};
  const showError=code=>{const message=t(messages[code]||'Sesi terhenti. Pilih arah untuk mulai lagi.');field('error').hidden=active;field('error').textContent=message;if(active)field('state').textContent=message;};
  const capture=new CallCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices});
  const player=new CallPlayer({getContext:()=>context,onError:()=>session.fail({code:'call_audio'})});
@@ -50,8 +60,8 @@ if(root){
    side=source;switching=false;sync();void session.start({source,target:source===pair.a?pair.b:pair.a,consent:true});
   }catch(error){if(ticket===generation){switching=false;session.end();showError(error.code||'call_network');sync();}}
  }
- left.addEventListener('click',()=>select(pair.a));right.addEventListener('click',()=>select(pair.b));consent.addEventListener('change',sync);field('start').addEventListener('click',enter);for(const name of ['language-a','language-b'])field(name).addEventListener('change',()=>{savePair();sync();});field('swap').addEventListener('click',()=>{const a=field('language-a'),b=field('language-b');[a.value,b.value]=[b.value,a.value];savePair();sync();});
+ left.addEventListener('click',()=>select(pair.a));right.addEventListener('click',()=>select(pair.b));consent.addEventListener('change',sync);field('start').addEventListener('click',enter);for(const name of ['language-a','language-b'])field(name).addEventListener('change',()=>updatePair(name));field('swap').addEventListener('click',()=>{const a=field('language-a'),b=field('language-b');[a.value,b.value]=[b.value,a.value];updatePair('language-b');});
  // Backgrounding stops capture immediately, but only explicit End leaves this screen.
  const suspend=()=>{++generation;switching=false;session.end();sync();};
- const close=()=>{suspend();active=false;field('error').hidden=true;field('setup').hidden=false;field('active').hidden=true;sync();};end.addEventListener('click',close);window.addEventListener('pagehide',suspend);document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend();});sync();
+ const close=()=>{suspend();active=false;field('error').hidden=true;field('setup').hidden=false;field('active').hidden=true;sync();};end.addEventListener('click',close);window.addEventListener('pagehide',suspend);document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend();});updatePair('language-b',restoredEqual);
 }

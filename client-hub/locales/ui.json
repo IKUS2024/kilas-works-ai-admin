@@ -1,4 +1,5 @@
 {
+  "Bahasa yang sama telah disesuaikan.": {"id": "Bahasa yang sama telah disesuaikan.", "en": "Matching languages have been adjusted.", "es": "Se han ajustado los idiomas coincidentes.", "zh": "已调整相同的语言选择。"},
   "Mulai": {"id": "Mulai", "en": "Start", "es": "Iniciar", "zh": "开始"},
   "Akhiri": {"id": "Akhiri", "en": "End", "es": "Finalizar", "zh": "结束"},
   "Kuota Gemini sedang tidak tersedia.": {"id": "Kuota Gemini sedang tidak tersedia.", "en": "Gemini quota is currently unavailable.", "es": "La cuota de Gemini no está disponible.", "zh": "Gemini 配额暂不可用。"},
