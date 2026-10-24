@@ -6,8 +6,8 @@ const failure=code=>Object.assign(Error(code),{code});
 const INPUT_BYTES=59*32000,QUEUE_BYTES=8*32000;
 const OUTPUT_BYTES=90*48000;
 export class GeminiSession {
- constructor({json,capture,player,prepare,csrf,endOwned=null,onIdle=()=>{},onAdmissionChange=()=>{},key=()=>crypto.randomUUID().replaceAll('-',''),onState=()=>{},onText=()=>{},onError=()=>{},onWarning=()=>{},onTiming=()=>{},utterancePlayback=false,endpointMs=2000,packetBytes=16000,readRetries=0,isEcho=()=>false,now=()=>performance.now(),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id)}){
-  Object.assign(this,{json,capture,player,prepare,csrf,endOwned,onIdle,onAdmissionChange,key,onState,onText,onError,onWarning,onTiming,utterancePlayback,isEcho,now,schedule,clear});this.endpointSamples=Math.max(600,Math.min(2000,endpointMs))*16;this.packetBytes=packetBytes===3200?3200:16000;this.readRetries=Math.max(0,Math.min(2,readRetries));this.version=0;this.id=null;this.active=false;this.admissionPending=false;
+ constructor({json,capture,player,prepare,csrf,endOwned=null,onIdle=()=>{},onAdmissionChange=()=>{},key=()=>crypto.randomUUID().replaceAll('-',''),onState=()=>{},onText=()=>{},onError=()=>{},onWarning=()=>{},onTiming=()=>{},utterancePlayback=false,waitForOutputBeforeFinish=false,endpointMs=2000,packetBytes=16000,readRetries=0,isEcho=()=>false,now=()=>performance.now(),schedule=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id)}){
+  Object.assign(this,{json,capture,player,prepare,csrf,endOwned,onIdle,onAdmissionChange,key,onState,onText,onError,onWarning,onTiming,utterancePlayback,waitForOutputBeforeFinish,isEcho,now,schedule,clear});this.endpointSamples=Math.max(600,Math.min(2000,endpointMs))*16;this.packetBytes=packetBytes===3200?3200:16000;this.readRetries=Math.max(0,Math.min(2,readRetries));this.version=0;this.id=null;this.active=false;this.admissionPending=false;
  }
  get firstInputAt(){return this.turn?.firstInputAt??null;}
  get cursor(){return this.turn?.cursor??0;}
@@ -81,7 +81,7 @@ export class GeminiSession {
    this.state(this.player.pendingSamples?'playing':'processing');this.player.release();
    // Prefer a quiet renewal near the physical bound. A speech endpoint opens
    // playout, not a new paid connection or an unconditional stream close.
-   if(this.turn&&(this.twoWay||this.turn.totalBytes>=45*32000))this.finish();
+   if(this.turn&&((this.twoWay&&(!this.waitForOutputBeforeFinish||this.turn.outputSeen))||this.turn.totalBytes>=45*32000))this.finish();
   }
  }
  push(bytes,ticket){
@@ -219,6 +219,7 @@ export class GeminiSession {
    this.onText(result.translated_text,{operation:turn.operation,source_text:result.source_text||'',streams:this.twoWay?result.streams:null,complete:result.output_closed===true});
    // Coherent pages can play before socket closure. The local speech gate
    // keeps their accepted samples held until the speaker reaches the endpoint.
+   if(this.waitForOutputBeforeFinish&&this.twoWay&&turn.outputSeen&&!this.speech.active&&!turn.finishing)this.finish();
    if(this.progressive){this.queueOutput(turn);this.feedOutput(ticket).catch(()=>{});}
    const failed=result.status==='FAILED'||result.status==='CANCELLED';
    if(failed&&!this.stopping){this.stopping=true;if(!this.utterancePlayback)this.capture.cancel();this.clear(turn.timer);this.state('draining');}

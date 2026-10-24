@@ -122,6 +122,20 @@ def connect():
                                        timeout=5, enable_multithread=True, redirect_limit=0)
 
 
+def finish_session(relay, success):
+    """End may commit after audio/accounting finish but before session finish."""
+    try:
+        sessions.finish(relay.owner, relay.ident, relay.key, success, relay.job,
+                        None if success else getattr(relay.error, 'code', 'gemini_transport'))
+    except audio_store.AudioError as error:
+        if not success or error.code != 'session_ended':
+            raise
+        # Expected explicit End race, not a failed accounting operation. Keep
+        # charged audio/allowance and the existing CANCELLED turn untouched.
+        relay.stop(error)
+        sessions.finish(relay.owner, relay.ident, relay.key, False, relay.job, error.code)
+
+
 def message(raw):
     # WebSocket peers may carry JSON in a text or UTF-8 binary frame. Bound
     # bytes before decoding, and never accept arbitrary binary audio here.
@@ -511,8 +525,7 @@ class Relay:
                 else:
                     audio_store.fail(self.owner, self.job, getattr(self.error,'code','gemini_transport'))
                 budget.finish(self.capability, success)
-                sessions.finish(self.owner, self.ident, self.key, success, self.job,
-                                None if success else getattr(self.error,'code','gemini_transport'))
+                finish_session(self, success)
             except Exception:
                 with self.error_lock:
                     self.error = failure('gemini_settlement_failed')

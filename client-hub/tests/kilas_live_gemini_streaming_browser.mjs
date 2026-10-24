@@ -27,7 +27,7 @@ try{
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   if(process.env.KILAS_TRANSLATOR_SCREENSHOTS==='1'&&(width===390||width===1440))await page.screenshot({path:`/tmp/translator-setup-${width}.png`});
   // Drive the actual UI callback without opening a microphone/provider.
-  await page.evaluate(async()=>{const {GeminiSession}=await import('/static/kilas_live_gemini_engine.mjs?v=streaming-20261023');GeminiSession.prototype.start=function(){this.active=true;this.state('listening');};});
+  await page.evaluate(async()=>{const {GeminiSession}=await import('/static/kilas_live_gemini_engine.mjs?v=output-boundary-20261024');GeminiSession.prototype.start=function(){this.active=true;this.state('listening');};});
   await page.locator('[name=consent]').check();await page.locator('#live-setup-form [type=submit]').click();
   // Exercise the exact production caption renderer with synthetic content.
   await page.evaluate(async()=>{

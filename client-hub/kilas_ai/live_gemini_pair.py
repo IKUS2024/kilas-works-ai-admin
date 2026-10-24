@@ -369,8 +369,7 @@ class Pair(native.Relay):
                 else:
                     audio_store.fail(self.owner, self.job, getattr(self.error, 'code', 'gemini_transport'))
                 budget.finish(self.capability, success)
-                sessions.finish(self.owner, self.ident, self.key, success, self.job,
-                                None if success else getattr(self.error, 'code', 'gemini_transport'))
+                native.finish_session(self, success)
             except Exception:
                 with self.error_lock:
                     self.error = failure('gemini_settlement_failed')
