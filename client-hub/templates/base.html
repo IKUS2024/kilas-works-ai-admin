@@ -320,7 +320,7 @@
 {% endif %}
 {% block initial_component_styles %}{% endblock %}
 {% if premium_workspace and request.blueprint != 'finance' and (kilas_revision_shell|default(false) or chat_styles_in_head|default(false) or request.blueprint == 'kilas_audio') %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_reference_ui.css',v='mobile-drawer-keyboard-20261024') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_reference_ui.css',v='proportion-polish-20261025') }}">
 <script src="{{ url_for('static',filename='kilas_reference_ui.js',v='six-references-20261024') }}" defer></script>
 {% endif %}
 </head>
