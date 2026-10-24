@@ -1,3 +1,4 @@
+import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=app-language-20261015';
 import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-reliable-20261023';
 import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-reliable-20261023';
@@ -9,7 +10,7 @@ if(root){
  let context=null,side=null,switching=false,generation=0,recoveryTimer=null;
  const sync=()=>{left.disabled=right.disabled=!consent.checked||switching;end.disabled=!switching&&session.state==='ended';consent.disabled=switching||session.state!=='ended';left.setAttribute('aria-pressed',String(side==='id'));right.setAttribute('aria-pressed',String(side==='en'));};
  const messages={budget_limit:'Batas biaya Translator tercapai.',already_processing:'Sesi sebelumnya belum selesai. Tunggu sebentar lalu pilih arah lagi.',attempt_limit:'Batas sesi tercapai. Coba lagi nanti.',call_unavailable:'Translator sedang tidak tersedia.',microphone_permission_denied:'Izinkan mikrofon di browser.',call_audio:'Audio belum siap. Periksa izin audio.',call_ended:'Sesi berakhir.',call_network:'Koneksi terputus. Pilih arah untuk mulai lagi.',call_provider:'Gemini menghentikan sesi.',call_provider_disconnected:'Koneksi Gemini terputus.'};
- const showError=code=>{field('error').hidden=false;field('error').textContent=messages[code]||'Sesi terhenti. Pilih arah untuk mulai lagi.';};
+ const showError=code=>{field('error').hidden=false;field('error').textContent=t(messages[code]||'Sesi terhenti. Pilih arah untuk mulai lagi.');};
  const capture=new CallCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices});
  const player=new CallPlayer({getContext:()=>context,onError:()=>session.fail({code:'call_audio'})});
  // Scale only copied playback PCM; microphone and shared Call player are untouched.
@@ -28,7 +29,7 @@ if(root){
  };
  const session=new CallSession({request,capture,player,stopAudio,prepare:()=>context?.state==='running'?Promise.resolve():Promise.reject(Object.assign(Error(),{code:'call_audio'})),
   onText:text=>{field('caption').textContent=text;},onOriginal:text=>{field('original').textContent=text;},
-  onState:state=>{field('state').textContent={ended:'Pilih arah bicara',connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Menerjemahkan',reconnecting:'Menghubungkan kembali…'}[state]||state;if(state==='ended')side=null;sync();},onError:showError});
+  onState:state=>{field('state').textContent=t({ended:'Pilih arah bicara',connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Menerjemahkan',reconnecting:'Menghubungkan kembali…'}[state]||state);if(state==='ended')side=null;sync();},onError:showError});
  async function select(source){
   if(switching||!consent.checked||(side===source&&session.state!=='ended'))return;
   const ticket=++generation;switching=true;session.end();field('error').hidden=true;field('original').textContent='';sync();
