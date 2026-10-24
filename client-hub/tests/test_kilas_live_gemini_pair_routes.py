@@ -31,18 +31,36 @@ class PairRouteTests(unittest.TestCase):
         self.addCleanup(sessions.end,owner,ident)
         return ident
 
-    def assert_disabled_native_default(self):
+    def assert_disabled_native_default(self, notice="Batas biaya Translator tercapai."):
         with patch.object(audio_routes,'render_template',wraps=audio_routes.render_template) as render,patch.object(branded,'public_choices') as classic_voices,patch.object(native,'connect') as connect,patch.object(pair,'start') as start:
             for path in ('/kilas-translator/live','/kilas-translator?mode=live'):
                 response=self.client.get(path,follow_redirects=True)
                 self.assertEqual(response.status_code,200)
                 self.assertEqual(response.request.path,'/kilas-translator/live/gemini')
-                self.assertTrue('Translator belum tersedia untuk akun ini.' in response.text)
-                self.assertTrue('class="btn" disabled>Start</button>' in response.text)
-                self.assertTrue('id="live-setup-form"' not in response.text)
+                self.assertNotIn('Translator belum tersedia untuk akun ini.', response.text)
+                self.assertIn('id="native-admission-status"', response.text)
+                self.assertIn(notice, response.text)
+                self.assertIn('type="submit" class="btn" disabled', response.text)
+                self.assertIn('id="live-setup-form"', response.text)
+                self.assertIn('name="language_a"', response.text)
+                self.assertIn('name="language_b"', response.text)
             self.assertTrue(render.call_args_list)
             self.assertTrue(all(call.args[0]=='kilas_translator/gemini.html' for call in render.call_args_list))
             classic_voices.assert_not_called();connect.assert_not_called();start.assert_not_called()
+
+    def test_actual_ready_page_renders_pair_controls_for_owner_and_member(self):
+        with self.config(), self.shared(), patch.object(native, 'connect') as connect:
+            for owner in (self.user, self.other):
+                if owner == self.other: self.login_other()
+                for path in ('/kilas-translator/live', '/kilas-translator?mode=live', '/kilas-translator/live/gemini'):
+                    response = self.client.get(path, follow_redirects=True)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertIn('data-gemini-ready="true"', response.text)
+                    self.assertIn('name="language_a"', response.text)
+                    self.assertIn('name="language_b"', response.text)
+                    self.assertNotIn('id="native-admission-status"', response.text)
+                    self.assertNotIn('Percakapan dua bahasa, mengalir lebih dekat.', response.text)
+            connect.assert_not_called()
 
     def test_native_is_default_only_with_existing_policy_and_classic_stays_explicit(self):
         with self.config(),self.shared(),patch.dict(os.environ):
@@ -81,7 +99,7 @@ class PairRouteTests(unittest.TestCase):
                     self.assertEqual(budget.status(owner,streams=2)['reason'],'already_processing')
                     self.assertFalse(pair.ready(owner))
                     self.assertIsNone(sessions.active(owner))
-                    self.assert_disabled_native_default()
+                    self.assert_disabled_native_default("Sesi lain masih diproses.")
                     self.assertEqual(self.client.post('/kilas-translator/live/gemini/sessions',data=self.fields()).status_code,404)
                     self.assertEqual(audio.f.db.query_one("SELECT COUNT(*) AS n FROM kilas_vo_stt_operations WHERE user_id=? AND status='RESERVED'",(owner,))['n'],1)
                 finally:

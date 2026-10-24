@@ -1,4 +1,8 @@
 {
+  "Batas biaya Translator tercapai.": {"id": "Batas biaya Translator tercapai.", "en": "Translator allowance reached.", "es": "Se alcanzó el límite del traductor.", "zh": "翻译额度已用尽。"},
+  "Sesi lain masih diproses.": {"id": "Sesi lain masih diproses.", "en": "Another session is still processing.", "es": "Otra sesión sigue en proceso.", "zh": "另一会话仍在处理中。"},
+  "Translator sedang tidak tersedia.": {"id": "Translator sedang tidak tersedia.", "en": "Translator is currently unavailable.", "es": "El traductor no está disponible.", "zh": "翻译暂时不可用。"},
+  "Suara Google, bukan clone.": {"id": "Suara Google, bukan clone.", "en": "Google voice, not your clone.", "es": "Voz de Google, no tu clon.", "zh": "Google 语音，非克隆音色。"},
   "Mode klasik: pengenalan ucapan, terjemahan, lalu suara.": {"id": "Mode klasik: pengenalan ucapan, terjemahan, lalu suara.", "en": "Classic mode: speech recognition, translation, then voice.", "es": "Modo clásico: reconocimiento de voz, traducción y luego voz.", "zh": "经典模式：先识别语音，再翻译并合成语音。"},
   "Buka Translator native": {"id": "Buka Translator native", "en": "Open native Translator", "es": "Abrir traductor nativo", "zh": "打开原生翻译"},
   "Streaming native belum aktif untuk akun ini.": {"id": "Streaming native belum aktif untuk akun ini.", "en": "Native streaming is not active for this account.", "es": "La transmisión nativa no está activa para esta cuenta.", "zh": "此账户尚未启用原生流式翻译。"},

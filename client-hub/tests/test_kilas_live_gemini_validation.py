@@ -77,7 +77,7 @@ class ValidationTests(unittest.TestCase):
         return error
 
     def test_message_reasons_are_fixed_and_preserve_public_error(self):
-        cases = ((None, 'message_type'), (PRIVATE+'{', 'message_json'),
+        cases = (('', 'peer_closed'), (b'', 'peer_closed'), (None, 'message_type'), (PRIVATE+'{', 'message_json'),
                  (b'\xff'+PRIVATE.encode(), 'message_json'),
                  (json.dumps([PRIVATE]), 'message_object'))
         for raw, reason in cases:

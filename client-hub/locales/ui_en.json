@@ -1,4 +1,8 @@
 {
+  "Batas biaya Translator tercapai.": "Translator allowance reached.",
+  "Sesi lain masih diproses.": "Another session is still processing.",
+  "Translator sedang tidak tersedia.": "Translator is currently unavailable.",
+  "Suara Google, bukan clone.": "Google voice, not your clone.",
   "Mode klasik: pengenalan ucapan, terjemahan, lalu suara.": "Classic mode: speech recognition, translation, then voice.",
   "Buka Translator native": "Open native Translator",
   "Streaming native belum aktif untuk akun ini.": "Native streaming is not active for this account.",

@@ -136,3 +136,26 @@ Validation covers exact amount rejection, unchanged Call configuration, retained
 history, two paired leases under $1.10 remaining and rejection of a third. Native
 budget/readiness and AI Call suites pass offline. Provider QA remains separately
 limited to its original $1 approval; this standing extension does not enlarge it.
+
+## October24 page regression
+
+Read-only production evidence: two paired operations at23:57:32/39 UTC retained
+$0.50 each after dispatch, both failed with message_json, input100ms/output0ms.
+The original $1.10 remaining therefore became$0.10. No outstanding reservations
+or account eligibility change explains the screenshot. The page used pair.ready
+(which includes funding/busy gates) as an account-availability gate and replaced
+all controls with a misleading account-ineligible message.
+
+Now authenticated native landing pages retain both language selectors, swap and
+classic fallback, while admission remains disabled with a specific funding/busy
+notice. Real session admission and account isolation are unchanged. Removed
+repeated introduction/explanation; retained compact voice distinction, consent,
+status and essential errors. Tests exercise actual entry redirects and rendered
+pages for owner and member accounts in ready, exhausted and busy states. Browser
+verification covers five viewport sizes and active End visibility.
+
+The old provider log cannot distinguish malformed JSON from an empty close frame;
+it does not prove why Gemini rejected/disconnected. Empty closes now have a
+separate peer_closed diagnostic with no payload logging. This does not claim to
+repair or verify the upstream failure. No paid test, cap increase, retained-cost
+release, credential/security change or modification to other product modules.

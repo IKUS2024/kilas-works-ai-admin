@@ -25,7 +25,7 @@ MAX_MESSAGE = 1024 * 1024
 MAX_TEXT = 4000
 # Internal diagnostic codes only. Never attach provider values or payloads.
 VALIDATION_REASONS = frozenset((
-    'message_type', 'message_size', 'message_json', 'message_object',
+    'message_type', 'message_size', 'message_json', 'message_object', 'peer_closed',
     'provider_error', 'provider_go_away', 'unexpected_tool_call',
     'content_shape', 'transcript_shape', 'input_language',
     'output_language', 'text_limit', 'turn_shape', 'part_shape', 'audio_shape',
@@ -126,6 +126,8 @@ def message(raw):
     # bytes before decoding, and never accept arbitrary binary audio here.
     if not isinstance(raw,(str,bytes)):
         raise invalid_response('message_type')
+    if raw in ('', b''):
+        raise invalid_response('peer_closed')
     if len(raw)>MAX_MESSAGE:
         raise invalid_response('message_size')
     try:
