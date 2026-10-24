@@ -310,7 +310,7 @@
 {% if kilas_revision_shell|default(false) %}
 {% set revision_styles_in_head=true %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_revision_shell.css',v='consistent-ui-20261012') }}">
-{% if chat_sidebar_enabled|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_sidebar.css',v='sidebar-context-20261017') }}">{% endif %}
+{% if chat_sidebar_enabled|default(false) or chat_sidebar_history is defined %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_sidebar.css',v='sidebar-context-20261017') }}">{% endif %}
 {% endif %}
 {% if chat_styles_in_head|default(false) %}
 {% if group_tab|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_groups.css',v='1') }}">{% endif %}
@@ -320,7 +320,7 @@
 {% endif %}
 {% block initial_component_styles %}{% endblock %}
 {% if premium_workspace and request.blueprint != 'finance' and (kilas_revision_shell|default(false) or chat_styles_in_head|default(false) or request.blueprint == 'kilas_audio') %}
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_reference_ui.css',v='six-references-20261024') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_reference_ui.css',v='mobile-drawer-keyboard-20261024') }}">
 <script src="{{ url_for('static',filename='kilas_reference_ui.js',v='six-references-20261024') }}" defer></script>
 {% endif %}
 </head>
