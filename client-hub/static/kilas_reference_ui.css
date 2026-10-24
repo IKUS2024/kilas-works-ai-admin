@@ -154,3 +154,28 @@ body #ai-call-dialog[data-state=ended]{grid-template-rows:auto auto minmax(0,1fr
 body #ai-call-dialog[data-state=ended]>.ai-call-footer{grid-row:4}
 @media(max-height:740px) and (min-height:441px){body #ai-call-dialog:not([data-state=ended]) .ai-call-summary{margin:0 0 12px}body #ai-call-dialog:not([data-state=ended]) .ai-call-identity{width:140px;height:140px;padding:20px;margin:12px auto}body #ai-call-dialog:not([data-state=ended]) .ai-call-name{font-size:24px;line-height:1.25;margin-bottom:4px}}
 @media(prefers-reduced-motion:reduce){body:has(.kilas-reference-header) *,#ai-call-dialog *{animation:none!important;transition:none!important}}
+/* The drawer gives saved conversations their own space on every AI surface. */
+body.kilas-light:has(>.kilas-reference-header) .premium-sidebar.kilas-revision-sidebar{top:var(--home-viewport-top,0px);bottom:auto;height:var(--home-viewport-height,100dvh);padding:16px 20px max(12px,env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain}
+body:has(>.kilas-reference-header) .kilas-revision-sidebar .premium-sidebar-head{flex:none;min-height:44px;margin:0 0 12px;padding:0}
+body:has(>.kilas-reference-header) .kilas-revision-sidebar .premium-sidebar-head .premium-brand{font-size:24px}
+body.kilas-light:has(>.kilas-reference-header) .kilas-revision-sidebar .kilas-chat-sidebar{display:flex;flex:1 0 440px;flex-direction:column;min-height:440px;margin:0 0 8px;overflow:visible}
+body:has(>.kilas-reference-header) .kilas-chat-sidebar>:not(.chat-history-content){flex:none}
+body:has(>.kilas-reference-header) .kilas-revision-sidebar .ai-new{min-height:48px!important;font-size:16px!important;gap:10px;margin:0 0 8px!important;border-radius:14px!important;padding:10px}
+body:has(>.kilas-reference-header) .kilas-revision-sidebar .chat-library-entry{min-height:48px!important;font-size:15px!important;gap:12px!important;margin:0!important;padding:4px 0!important}
+body:has(>.kilas-reference-header) .kilas-revision-sidebar :is(.chat-library-entry>svg:first-child,.chat-product-entry>svg,.chat-product-entry button>svg){width:20px;height:20px;padding:8px;border-radius:10px}
+body:has(>.kilas-reference-header) .kilas-revision-sidebar .chat-product-entry{margin:4px 0!important;padding:0!important;font-size:14px!important}
+body:has(>.kilas-reference-header) .kilas-revision-sidebar :is(a.chat-product-entry,.chat-product-entry button){min-height:48px;padding:6px 10px!important;gap:12px!important;font-size:14px!important}
+body:has(>.kilas-reference-header) .kilas-revision-sidebar .kilas-chat-sidebar h2{margin:12px 0 2px;font-size:15px}
+body.kilas-light:has(>.kilas-reference-header) .kilas-revision-sidebar .chat-history-content:not([hidden]){display:flex;flex-direction:column;flex:1;min-height:108px}
+body.kilas-light:has(>.kilas-reference-header) .kilas-revision-sidebar .ai-history{display:block;flex:1;min-height:64px;overflow:auto;padding:4px;overscroll-behavior:contain;scrollbar-width:thin}
+body:has(>.kilas-reference-header) .kilas-revision-sidebar .ai-history>a{min-height:44px!important;padding:10px 8px!important;font-size:13px!important;color:var(--text);text-decoration:none;white-space:nowrap}
+body:has(>.kilas-reference-header) .kilas-revision-sidebar .chat-history-expand{min-height:44px;margin:0!important;padding:8px 4px;font-size:13px!important}
+body:has(>.kilas-reference-header) .kilas-revision-sidebar .kilas-sidebar-profile{position:relative;bottom:auto;flex:none;margin-top:0;padding:8px 0 0}
+/* Focusing an empty chat keeps its identity inside the smaller visible space. */
+body.home-chat-compact:has(>.kilas-reference-header)>.kilas-reference-header .premium-brand{font-size:22px;letter-spacing:-.035em}
+body.home-chat-compact:has(>.kilas-reference-header)>.kilas-reference-header .premium-brand span{display:inline}
+body.home-chat-compact:has(>.kilas-reference-header) .kilas-home-workspace.ai-shell .ai-empty:not([hidden]){visibility:visible;display:flex;justify-content:center;gap:8px;padding:8px 0!important;overflow:auto}
+body.home-chat-compact:has(>.kilas-reference-header) .kilas-home-workspace.ai-shell :is(.ai-empty,.agent-welcome)>.kilas-new-chat-logo{display:block!important;flex:0 0 40px;width:40px;height:40px;max-height:40px;margin:0 auto;object-fit:contain}
+body.home-chat-compact:has(>.kilas-reference-header) .kilas-home-workspace.ai-shell :is(.ai-empty h1,.agent-welcome h3){display:block!important;font-size:20px;line-height:1.25;margin:0 auto;flex:none}
+@media(max-width:360px){body.home-chat-compact:has(>.kilas-reference-header)>.kilas-reference-header .premium-brand{font-size:20px}}
+body.home-chat-compact:has(>.kilas-reference-header) .kilas-home-workspace.ai-shell :is(#ai-pending,#work-pending-files){position:static;grid-column:1/-1;grid-row:3;max-height:min(64px,18dvh)}
