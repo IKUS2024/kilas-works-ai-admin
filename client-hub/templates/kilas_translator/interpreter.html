@@ -5,11 +5,11 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='reference-directions-20261024') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='language-symbols-20261025') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
-{% set selected_feature='live' %}{% include 'kilas_ai/_feature_navigation.html' %}
+<div id="interpreter-navigation">{% set selected_feature='live' %}{% include 'kilas_ai/_feature_navigation.html' %}</div>
 <section class="kilas-live-translator interpreter" id="interpreter" data-preference-key="interpreter-languages-v1-{{ session.get('user_id') }}">
 <header class="live-heading"><span class="reference-translator-icon" aria-hidden="true">{% set icon='language' %}{% include 'kilas_ai/_home_task_icon.html' %}</span><div><h1>Translator</h1><p class="interpreter-setup-description">{{ ui_t('Translate text or speech between languages quickly and accurately.') }}</p><p class="interpreter-active-description">{{ ui_t('Real-time voice translation') }}</p></div></header>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -35,5 +35,5 @@
 <p id="interpreter-error" role="alert" hidden></p>
 
 </section></div>
-<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='reference-directions-20261024') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='language-symbols-20261025') }}"></script>
 {% endblock %}
