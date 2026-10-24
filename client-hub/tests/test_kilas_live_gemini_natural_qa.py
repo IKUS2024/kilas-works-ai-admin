@@ -5,10 +5,23 @@ import unittest
 from contextlib import redirect_stdout
 from datetime import datetime,timezone,timedelta
 from unittest.mock import patch
+from types import SimpleNamespace
 from kilas_ai import live_gemini_natural_qa as qa, live_gemini_budget as budget, live_gemini_smoke as smoke
+from kilas_ai import live_gemini as native, live_gemini_pair as pair
 
 
 class NaturalTests(unittest.TestCase):
+    def test_early_failure_records_safe_cause_and_waits_for_durable_cleanup(self):
+        error=native.invalid_response('output_language')
+        def rejected(*args):raise error
+        relay=SimpleNamespace(finished=False,accept=rejected,error=error,streams={},diagnostics=lambda:{'first_error_code':error.code})
+        relay.stop=lambda reason:setattr(relay,'finished',True)
+        with patch.object(pair,'start',return_value=relay),redirect_stdout(io.StringIO()):
+            result=qa.paired({'owner':9},{'id':bytes(32000)},[],'a'*48,'id',0)
+        self.assertEqual(result['code'],'gemini_response_invalid')
+        self.assertEqual(result['relay_code'],'gemini_response_invalid')
+        self.assertTrue(result['settled_after_cleanup'])
+
     def test_default_off_and_expiry_bound(self):
         with patch.dict(os.environ,{},clear=True),patch.object(qa.subprocess,'Popen') as child:
             self.assertFalse(qa.launch());qa.run();child.assert_not_called()

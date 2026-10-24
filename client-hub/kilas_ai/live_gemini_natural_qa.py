@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 
-RUN='gmlcaption20261024'
+RUN='gmldiag20261024'
 ARM='KILAS_TRANSLATOR_NATURAL_QA_ARM'
 EXPIRY='KILAS_TRANSLATOR_NATURAL_QA_EXPIRES_AT'
 
@@ -88,6 +88,17 @@ def paired(configured, samples, observations, ident, source, observation_start):
                                         and all(stream['setup_complete'] for stream in result['streams'].values()))
         result['complete_caption_tail']=bool(smoke_tail(result['streams'][target]['source_text'],source)
                                              and smoke_tail(result['streams'][target]['translated_text'],target))
+    except Exception as error:
+        result.update(code=error.code if isinstance(error,native.audio_store.AudioError) else 'qa_internal',
+                      exception_kind=type(error).__name__ if type(error).__name__ in ('AudioError','ValueError','KeyError','TypeError','RuntimeError') else 'other')
+        if relay is not None:
+            result.update(relay_code=getattr(relay.error,'code',None),
+                          stream_errors={target:{'validation_reason':stream.validation_reason,'provider_status':stream.provider_status}
+                                         for target,stream in relay.streams.items()},protocol=relay.diagnostics())
+            relay.stop(native.failure('qa_cancelled'))
+            deadline=time.monotonic()+10
+            while not relay.finished and time.monotonic()<deadline:time.sleep(.05)
+            result['settled_after_cleanup']=relay.finished
     finally:
         print('KILAS_NATURAL_QA '+json.dumps(result,separators=(',',':')),flush=True)
     return result
@@ -144,6 +155,9 @@ def run():
             before=len(observations)
             result=paired(configured,samples,observations,ident,source,before)
             outcomes.append({'source':source,'passed_mechanics':result.get('passed_mechanics',False),'complete_caption_tail':result.get('complete_caption_tail',False)})
+            if result.get('code'):
+                print('KILAS_NATURAL_QA '+json.dumps({'run':RUN,'status':'failed_no_retry','outcomes':outcomes,'pair_events':observations},separators=(',',':')),flush=True)
+                return
         print('KILAS_NATURAL_QA '+json.dumps({'run':RUN,'status':'finished_no_retry','same_logical_session':True,'outcomes':outcomes,'pair_events':observations},separators=(',',':')),flush=True)
     except Exception:
         print('KILAS_NATURAL_QA '+json.dumps({'run':RUN,'status':'stopped_no_retry'}),flush=True)
