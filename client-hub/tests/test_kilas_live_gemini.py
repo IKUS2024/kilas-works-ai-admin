@@ -80,11 +80,20 @@ class GeminiTests(unittest.TestCase):
             self.assertEqual(setup['generationConfig']['translationConfig'],
                              {'targetLanguageCode':target, 'echoTargetLanguage':False})
             self.assertNotIn('systemInstruction', setup)
-            self.assertEqual(setup['generationConfig']['inputAudioTranscription'],{})
-            self.assertEqual(setup['generationConfig']['outputAudioTranscription'],{})
+            self.assertEqual(setup['inputAudioTranscription'],{})
+            self.assertEqual(setup['outputAudioTranscription'],{})
             self.assertNotIn('tools',setup)
             self.assertNotIn('maxOutputTokens',setup['generationConfig'])
             self.assertNotIn('speechConfig', setup['generationConfig'])
+
+    def test_wire_matches_offline_official_sdk_fixture(self):
+        # Generated offline using google-genai2.33.0 LiveConnectParameters
+        # converter, with socket.connect blocked. No SDK runtime dependency.
+        expected = json.loads((Path(__file__).parent/'fixtures'/'gemini_sdk_translate_setup.json').read_text())
+        self.assertEqual(native.setup('id'), expected)
+        for target in ('id', 'en'):
+            self.assertNotIn('inputAudioTranscription', native.setup(target)['setup']['generationConfig'])
+            self.assertNotIn('outputAudioTranscription', native.setup(target)['setup']['generationConfig'])
 
     def config(self, **extra):
         values = {'KILAS_TRANSLATOR_PROVIDER':'gemini',
