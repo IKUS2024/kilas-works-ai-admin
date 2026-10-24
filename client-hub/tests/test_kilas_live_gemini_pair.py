@@ -17,6 +17,7 @@ PCM = b'\x01\x00' * 2400
 
 
 def audio(pcm=PCM, **content):
+    content.setdefault('outputTranscription',{'text':'Synthetic translation. '})
     content['modelTurn'] = {'parts':[{'inlineData':{
         'mimeType':'audio/pcm;rate=24000', 'data':base64.b64encode(pcm).decode('ascii')}}]}
     return json.dumps({'serverContent':content})
@@ -71,7 +72,9 @@ class PairTests(unittest.TestCase):
             with silent.lock:silent.accept_pcm(bytes(12000))
             self.assertEqual(relay.output_order,[]);self.assertEqual(relay.frames,[])
             self.assertIsNone(relay.first_output_at)
-            with speaking.lock:speaking.accept_pcm(PCM)
+            with speaking.lock:
+                speaking.target_text='Quiet translation.'
+                speaking.accept_pcm(PCM)
             self.assertEqual(relay.output_order,['id'])
             self.assertEqual(relay.frames[0]['stream_id'],'id')
             self.assertEqual(base64.b64decode(relay.frames[0]['pcm']),PCM)
@@ -79,6 +82,22 @@ class PairTests(unittest.TestCase):
             self.assertEqual(relay.silent_output_bytes,12000)
             with silent.lock:silent.accept_pcm(bytes(12000))
             self.assertEqual(len(relay.frames),1)
+            budget.finish(relay.capability,False);audio_store.fail(self.user,relay.job,'synthetic_cleanup')
+
+    def test_comfort_noise_waits_for_caption_and_cannot_block_early_quiet_speech(self):
+        with self.config():
+            relay=self.make();noise=relay.streams['en'];speech=relay.streams['id']
+            with noise.lock:noise.accept_pcm(PCM)
+            self.assertEqual(relay.frames,[]);self.assertEqual(relay.output_order,[])
+            with speech.lock:speech.accept_pcm(PCM)
+            self.assertEqual(relay.frames,[])
+            speech.receive(json.dumps({'serverContent':{'outputTranscription':{'text':'Terjemahan.'}}}))
+            self.assertEqual(relay.output_order,['id'])
+            self.assertEqual(len(relay.frames),1)
+            self.assertEqual(base64.b64decode(relay.frames[0]['pcm']),PCM)
+            relay.stream_stopped(noise);relay.stream_stopped(speech)
+            self.assertEqual([f['stream_id'] for f in relay.frames],['id'])
+            self.assertEqual(relay.output_bytes,2*len(PCM))
             budget.finish(relay.capability,False);audio_store.fail(self.user,relay.job,'synthetic_cleanup')
 
     def make(self, voice=pair.VOICE):

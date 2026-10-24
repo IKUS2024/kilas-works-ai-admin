@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 
-RUN='gmlflush20261024'
+RUN='gmlcaption20261024'
 ARM='KILAS_TRANSLATOR_NATURAL_QA_ARM'
 EXPIRY='KILAS_TRANSLATOR_NATURAL_QA_EXPIRES_AT'
 
@@ -78,7 +78,7 @@ def paired(configured, samples, observations, ident, source, observation_start):
                       provider_output_ms=relay.output_bytes/48,silent_output_ms=relay.silent_output_bytes/48,
                       tail_confirmed=relay.tail_confirmed,streamed_before_input_finished=relay.first_output_at is not None and relay.first_output_at<input_finished_at,
                       finish_to_settled_ms=round((time.monotonic()-input_finished_at)*1000,1),
-                      completion=relay.completion_kind,code=getattr(relay.error,'code',None),all_accepted_read=sum(map(len,audio.values()))==relay.output_bytes-relay.silent_output_bytes,
+                      completion=relay.completion_kind,code=getattr(relay.error,'code',None),all_accepted_read=sum(map(len,audio.values()))==sum(stream.output_bytes-stream.silent_output_bytes for stream in relay.streams.values() if stream.target_text.strip()),
                       streams={target:{'source_text':stream.source_text,'translated_text':stream.target_text,'output_ms':stream.output_bytes/48,
                                'first_pcm_ms':None if stream.first_output_at is None else (stream.first_output_at-relay.started)*1000,
                                'setup_complete':observations[observation_start+i].get('setup_complete',False)}
