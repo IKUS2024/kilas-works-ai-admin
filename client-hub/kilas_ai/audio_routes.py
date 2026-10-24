@@ -621,8 +621,13 @@ def live_gemini_home():
     recovery_only = not enabled and _active_native_session(session['user_id'])
     if not enabled and not recovery_only and not native.ready(session['user_id']) and not native.preview_owner(session['user_id']):
         raise native.failure('gemini_unavailable',404)
+    from . import live_gemini_budget as native_budget
+    admission = native_budget.status(session['user_id'], streams=2 if two_way else 1)
+    notice = ('Batas biaya Translator tercapai.' if admission.get('reason') == 'budget_limit'
+              else 'Sesi lain masih diproses.' if admission.get('reason') == 'already_processing'
+              else 'Translator sedang tidak tersedia.' if not enabled else '')
     return render_template('kilas_translator/gemini.html', languages=translator.native_names(),translator_language_names=translator.localized_names(native=True), gemini_ready=enabled,
-                           gemini_recovery_only=recovery_only,gemini_two_way=two_way,
+                           gemini_recovery_only=recovery_only,gemini_two_way=two_way,gemini_notice=notice,
                            gemini_protocol=_native_protocol(backend,info)),200,{'Cache-Control':'private, no-store'}
 
 

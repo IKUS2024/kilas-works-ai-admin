@@ -37,7 +37,7 @@ for(const locale of ['en','id']){
    assert.equal(document.querySelector('#gemini-pair-summary').textContent,first.selectedOptions[0].textContent+' ↔ '+second.selectedOptions[0].textContent);
    assert.ok(first.closest('label').textContent.includes(locale==='en'?'First language':'Bahasa pertama'));
    assert.ok(second.closest('label').textContent.includes(locale==='en'?'Second language':'Bahasa kedua'));
-   assert.ok(document.querySelector('#live-setup-form').textContent.includes(locale==='en'?'The selected languages are translated automatically in both directions.':'Bahasa yang dipilih diterjemahkan otomatis dua arah.'));
+   assert.ok(document.querySelector('#live-setup-form').textContent.includes(locale==='en'?'Google voice, not your clone.':'Suara Google, bukan clone.'));
    assert.equal(document.querySelector('#live-setup-form').textContent.includes(locale==='en'?'The source language is translated into the target language.':'Bahasa sumber diterjemahkan ke bahasa tujuan.'),false);
   }
   const oldPair=[first.value,second.value];document.querySelector('#native-swap').click();assert.deepEqual([first.value,second.value],oldPair.reverse());
