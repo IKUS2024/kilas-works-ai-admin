@@ -269,7 +269,7 @@ def main():
                                  KILAS_LIVE_GEMINI_BUDGET_MICRO_USD=str(prior_call+500000),
                                  KILAS_LIVE_GEMINI_AUDIENCE='authenticated',KILAS_AI_CALL_ENABLED='true',KILAS_AI_ENABLED='true')
                 with patch.dict(os.environ,call_config):
-                    with call_budget.transaction() as conn:budget.ledger._campaign(conn,budget.policy())
+                    with call_budget.transaction() as conn:budget.ledger._campaign(conn,call_budget.config()['base'])
                     cancelled=uuid.uuid4().hex
                     call_budget.end(owner,cancelled)
                     try:call_budget.claim(owner,cancelled)
