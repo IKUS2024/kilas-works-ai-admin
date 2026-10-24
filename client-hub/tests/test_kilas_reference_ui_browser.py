@@ -63,6 +63,7 @@ def main():
                         expect(page.locator('#ai-pending .ai-pending-item')).to_have_count(1);page.locator('#ai-pending button').click();page.locator('#ai-input').fill('')
                         page.locator('[data-premium-menu]').click();expect(page.locator('#premium-sidebar')).not_to_have_attribute('inert','');capture(page,'drawer',width);page.keyboard.press('Escape')
                         assert page.locator('[data-premium-menu]').get_attribute('aria-expanded')=='false'
+                        if options.is_visible():options.locator('summary').click()
                         page.locator('[data-ai-call-launch]').click();expect(page.locator('#ai-call-settings')).to_be_visible();capture(page,'call-setup',width)
                         # Hold readiness pending to inspect real connecting state without mic/provider admission.
                         page.evaluate("""()=>{const fetch=window.fetch;window.fetch=(url,options)=>String(url).endsWith('/call/readiness')?new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')),{once:true})):fetch(url,options)}""")
