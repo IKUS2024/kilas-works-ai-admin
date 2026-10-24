@@ -23,3 +23,9 @@ The catalog contains 99 distinct languages from the current official Live API ca
 Removed the visible volume control, original/translated transcript sections and stock-voice explanatory copy at the user's request. Audio transport and stock voice configuration are unchanged. Start now reports missing consent or identical language choices instead of staying silently disabled. A rejected speaking attempt shows its concise status beside the orb and leaves configuration/End usable. No funding is added or borrowed.
 
 Five viewport browser cases cover available and exhausted readiness, both direction buttons, serialized switching, no admission/microphone on exhausted funding, End and retained language choices. The attached MP4 was identified through Library metadata but had no directly readable content; no visual inspection of the recording is claimed.
+
+### Active-screen lifecycle correction
+
+The PR151 UI called the full End/navigation handler on every hidden-tab event. A browser regression reproduces the active screen returning to setup immediately after a synthetic visibility change, even before paid admission. Background/pagehide now stops capture, playback and pending admission without resetting the chosen pair or active screen; returning never auto-resumes a provider session. Only explicit End returns to setup. Active errors render once beside the orb instead of repeating below End. No transport, funding or eligibility changes.
+
+The new screenshot's Library extraction reports the active orb, directional controls and duplicated allowance error. Pixel materialization failed (`download failed`); this is not direct visual inspection of the user's image. Local Chromium rendering and the visibility regression were inspected/tested at five viewports. Exhausted-budget attempts still make no admission or microphone request. No paid calls were made; the cumulative $17.40 ceiling remains unchanged.
