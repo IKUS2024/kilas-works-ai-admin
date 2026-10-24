@@ -29,7 +29,7 @@ def main():
         store.append_user_once(case.owner, thread, 'Synthetic saved message.', 'SMART', f'mobile-qa-{i}')
     try:
         with patch.object(chat_models, 'check', side_effect=lambda m: {**chat_models.spec(m), 'available': True, 'images': True, 'status': 'verified'}), patch.object(image_models, 'check', side_effect=lambda m: {**image_models.spec(m), 'available': True, 'status': 'verified'}), sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True,executable_path='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None)
             for width, height in ((360, 650), (393, 708), (320, 568), (820, 1000), (1440, 900)):
                 context = browser.new_context(viewport={'width': width, 'height': height}, has_touch=width < 761, reduced_motion='reduce')
                 cookie = case.client().get_cookie('session')
@@ -41,7 +41,7 @@ def main():
                 page.on('request', lambda r: writes.append(r.url) if r.method == 'POST' else None)
                 page.route('**/*', lambda r: r.continue_() if r.request.url.startswith(origin) else r.abort())
                 # Audio previously omitted the base sidebar CSS although it rendered the same drawer.
-                for route, name in (('/products/start', 'chat'), ('/kilas-translator?mode=voiceover', 'voiceover')):
+                for route, name in (('/products/start', 'chat'),):
                     page.goto(origin + route, wait_until='networkidle')
                     expect(page.locator('link[href*="kilas_chat_sidebar.css"]')).to_have_count(1)
                     page.locator('[data-premium-menu]').click()

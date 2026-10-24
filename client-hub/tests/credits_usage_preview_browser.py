@@ -73,16 +73,12 @@ def main():
                         page.screenshot(path=str(output / f'credits-{language}-payments.png'), full_page=True)
                     page.keyboard.press('Home')
                     expect(page.locator('#credits-usage-panel')).to_be_visible()
-                    if width <= 760:
-                        opener = page.locator('[data-premium-menu]')
-                        opener.click()
-                        expect(opener).to_have_attribute('aria-expanded', 'true')
-                        profile = page.locator('.kilas-profile-menu')
-                        profile.locator('>summary').click()
-                        expect(profile.locator('a').first).to_have_text('Credits & Usage' if language == 'en' else 'Kredit & Penggunaan')
-                        page.keyboard.press('Escape')
-                        expect(opener).to_have_attribute('aria-expanded', 'false')
-                        expect(opener).to_be_focused()
+                    expect(page.locator('[data-premium-menu], #premium-sidebar, .premium-backdrop')).to_have_count(0)
+                    expect(page.locator('.kilas-tool-home')).to_be_visible()
+                    profile = page.locator('.kilas-profile-menu')
+                    profile.locator('>summary').click()
+                    expect(profile.locator('a').first).to_have_text('Credits & Usage' if language == 'en' else 'Kredit & Penggunaan')
+                    profile.locator('>summary').click()
                     assert not errors, errors
                     assert not unexpected, unexpected
                     assert not writes, writes

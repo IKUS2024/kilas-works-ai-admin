@@ -40,6 +40,24 @@ class SidebarProductsTests(unittest.TestCase):
         target=os.environ.get('KILAS_SIDEBAR_PRODUCTS_FIXTURE_PATH')
         if target:Path(target).write_text(json.dumps(pages),encoding='utf-8')
 
+    def test_named_tools_omit_chat_drawer_without_changing_billing_rows(self):
+        client=self.client()
+        tables=('kilas_ai_subscriptions','kilas_ai_invoices','kilas_audio_balances','kilas_audio_orders','kilas_ai_topup_orders')
+        def snapshot():
+            return {table:[dict(row) for row in db.query_all('SELECT * FROM '+table+' ORDER BY 1')] for table in tables}
+        before=snapshot()
+        for locale in LANGUAGES:
+            client.set_cookie('kilas_language',locale)
+            for path in ('/kilas-ai/usage','/kilas-ai/usage?view=legacy','/kilas-translator?mode=voiceover','/kilas-translator?mode=translate','/kilas-translator/interpreter','/kilas-translator/live'):
+                response=client.get(path,follow_redirects=True)
+                self.assertEqual(response.status_code,200,path)
+                self.assertIn('kilas-tool-header',response.text,path)
+                for token in ('id="premium-sidebar"','data-premium-menu','premium-backdrop','data-chat-sidebar','kilas_premium.js','kilas_chat_sidebar.js','kilas_chat_sidebar.css'):
+                    self.assertNotIn(token,response.text,(path,token))
+                self.assertIn('href="/products/start"',response.text)
+        self.assertEqual(snapshot(),before)
+        self.assertIn('id="premium-sidebar"',client.get('/products/start').text)
+
     def finance_fixture(self):
         own=repo.create_business(self.owner,'Owned synthetic Finance',package='NONE')
         other=repo.create_business(self.other,'Foreign synthetic Finance',package='NONE')
