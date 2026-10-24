@@ -6,6 +6,17 @@ import {CallSession} from './kilas_interpreter_engine.mjs?v=interpreter-1';
 const root=document.querySelector('#interpreter');
 if(root){
  const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),end=field('end'),consent=field('consent');
+ // Keep only this account's explicit language choices; never persist consent/audio.
+ const a=field('language-a'),b=field('language-b');
+ try{
+  const names=new Intl.DisplayNames([document.documentElement.lang||'en'],{type:'language'});
+  for(const select of [a,b])for(const option of select.options)option.textContent=names.of(option.value)||option.textContent;
+ }catch{}
+ try{
+  const saved=JSON.parse(localStorage.getItem(root.dataset.preferenceKey));
+  if(saved&&[a,b].every((select,i)=>Array.from(select.options).some(option=>option.value===saved[i]))&&saved[0]!==saved[1]){a.value=saved[0];b.value=saved[1];}
+ }catch{}
+ const savePair=()=>{try{localStorage.setItem(root.dataset.preferenceKey,JSON.stringify([a.value,b.value]));}catch{}};
  const request=(url,options={})=>requestJSON(url,{csrf:root.querySelector('[name=csrf_token]').value,...options});
  let active=false,pair=null,context=null,side=null,switching=false,generation=0,recoveryTimer=null;
  const sync=()=>{left.disabled=right.disabled=!active||switching;end.disabled=false;left.setAttribute('aria-pressed',String(side===pair?.a));right.setAttribute('aria-pressed',String(side===pair?.b));};
@@ -24,7 +35,7 @@ if(root){
    player.suspend();if(!recoveryTimer)recoveryTimer=setTimeout(()=>{if(context===own&&own.state!=='running')session.fail({code:'call_audio'});},3500);
    if(own.state==='suspended')own.resume().catch(()=>{});
   });
-  return own.resume();
+  return new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Object.assign(Error(),{code:'call_audio'})),3500);Promise.resolve(own.resume()).then(()=>{clearTimeout(timeout);resolve();},error=>{clearTimeout(timeout);reject(error);});});
  };
  const session=new CallSession({request,capture,player,stopAudio,prepare:()=>context?.state==='running'?Promise.resolve():Promise.reject(Object.assign(Error(),{code:'call_audio'})),
   onState:state=>{field('state').textContent=t({ended:'Pilih arah bicara',connecting:'Menghubungkan…',listening:'Mendengarkan',speaking:'Menerjemahkan',reconnecting:'Menghubungkan kembali…'}[state]||state);field('orb').dataset.state=state==='speaking'?'playing':state==='connecting'||state==='reconnecting'?'processing':'listening';if(state==='ended')side=null;sync();},onError:showError});
@@ -38,7 +49,7 @@ if(root){
    side=source;switching=false;sync();void session.start({source,target:source===pair.a?pair.b:pair.a,consent:true});
   }catch(error){if(ticket===generation){switching=false;session.end();showError(error.code||'call_network');sync();}}
  }
- left.addEventListener('click',()=>select(pair.a));right.addEventListener('click',()=>select(pair.b));consent.addEventListener('change',sync);field('start').addEventListener('click',enter);for(const name of ['language-a','language-b'])field(name).addEventListener('change',sync);field('swap').addEventListener('click',()=>{const a=field('language-a'),b=field('language-b');[a.value,b.value]=[b.value,a.value];sync();});
+ left.addEventListener('click',()=>select(pair.a));right.addEventListener('click',()=>select(pair.b));consent.addEventListener('change',sync);field('start').addEventListener('click',enter);for(const name of ['language-a','language-b'])field(name).addEventListener('change',()=>{savePair();sync();});field('swap').addEventListener('click',()=>{const a=field('language-a'),b=field('language-b');[a.value,b.value]=[b.value,a.value];savePair();sync();});
  // Backgrounding stops capture immediately, but only explicit End leaves this screen.
  const suspend=()=>{++generation;switching=false;session.end();sync();};
  const close=()=>{suspend();active=false;field('error').hidden=true;field('setup').hidden=false;field('active').hidden=true;sync();};end.addEventListener('click',close);window.addEventListener('pagehide',suspend);document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend();});sync();

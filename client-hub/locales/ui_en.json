@@ -1,4 +1,6 @@
 {
+  "Mulai": "Start",
+  "Akhiri": "End",
   "Kuota Gemini sedang tidak tersedia.": "Gemini quota is currently unavailable.",
   "Periksa billing akun Gemini.": "Check Gemini account billing.",
   "Setujui pemrosesan ucapan terlebih dahulu.": "Consent to speech processing first.",
