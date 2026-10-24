@@ -249,6 +249,18 @@ class GeminiBudgetTests(unittest.TestCase):
             cap=budget.claim(1,'d'*48,self.key(902),streams=2);budget.dispatch(cap);budget.finish(cap,False)
             self.assert_denied('budget_limit',lambda:budget.claim(2,'e'*48,self.key(903),streams=2))
 
+    def test_approved_five_dollars_does_not_reset_previous_retention(self):
+        with patch.dict(os.environ, {'KILAS_LIVE_GEMINI_AUDIENCE':'authenticated',
+                                    'KILAS_TRANSLATOR_TRIAL_EXTENSION_MICRO_USD':'7400000',
+                                    'KILAS_AI_CALL_ENABLED':'true'}):
+            current=budget.policy();call=budget.policy(enabled_key='KILAS_AI_CALL_ENABLED')
+            self.assertEqual(current['global_micro'],17400000)
+            self.assertEqual(current['guard_idr'],435000)
+            self.assertEqual(call['global_micro'],10000000)
+            self.seed(12400000,'UNKNOWN','gml-all-previous-liability',950)
+            self.assertEqual(budget.status(2,streams=2)['remaining_micro_usd'],5000000)
+            with patch.dict(os.environ,{'KILAS_TRANSLATOR_TRIAL_EXTENSION_MICRO_USD':'7400001'}):self.assertIsNone(budget.policy())
+
     def test_account_funded_calls_excluded_only_with_exact_unique_same_tenant_evidence(self):
         self.execute('CREATE TABLE kilas_ai_usage(user_id INTEGER,operation_key TEXT,operation_type TEXT,mode TEXT,status TEXT,quota_source TEXT,provider TEXT,model TEXT,estimated_cost_usd TEXT)')
         good = ['AI_CALL', 'SMART', 'COMPLETE', 'BASE', 'google', 'gemini-3.8-live', '0.25']

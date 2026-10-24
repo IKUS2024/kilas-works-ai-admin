@@ -36,6 +36,8 @@ def post_worker_init(worker):
     launch()
     from kilas_ai.live_gemini_validation_once import launch as translator_validation
     translator_validation()
+    from kilas_ai.live_gemini_natural_qa import launch as natural_validation
+    natural_validation()
     try:
         from kilas_ai.live_translator_readiness import report as classic_report
         classic = classic_report()
