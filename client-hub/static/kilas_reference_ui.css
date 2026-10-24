@@ -184,7 +184,7 @@ body.kilas-light:has(.kilas-reference-header) .kilas-home-workspace .home-worksp
 body.kilas-light:has(.kilas-reference-header) .home-workspace-top .chat-model-trigger{min-height:52px!important;padding-block:8px}
 body.kilas-light:has(.kilas-reference-header) .kilas-home-workspace .ai-empty>.kilas-new-chat-logo{width:72px;height:72px;margin-bottom:16px}
 body.kilas-light:has(.kilas-reference-header) .kilas-home-workspace .ai-empty h1{font-size:clamp(26px,2.6vw,34px);line-height:1.3}
-body.kilas-light:has(.kilas-reference-header) .home-tool-selector .home-task-choices>:is(a,button,.kilas-translator-pending){min-height:48px;padding-block:10px}
+body.kilas-light:has(.kilas-reference-header) .home-tool-selector .home-task-choices>:is(a,button,.kilas-translator-pending){min-height:48px!important;padding-block:10px}
 body:has(.kilas-reference-header) .kilas-feature-navigation{margin-block:8px 20px}
 body:has(.kilas-reference-header) .interpreter .live-heading{align-items:flex-start;gap:14px;margin-bottom:24px!important}
 body:has(.kilas-reference-header) .interpreter .reference-translator-icon{width:52px;height:52px;border-radius:14px}
@@ -221,7 +221,7 @@ body #ai-call-dialog #ai-call-start{min-height:52px;font-size:18px}
 }
 @media(max-width:600px){
  /* Keep full labels and touch targets; only this strip may scroll horizontally. */
- body.kilas-light:has(.kilas-reference-header):not(.home-chat-compact) .home-tool-selector .home-task-choices{display:flex;gap:8px;overflow-x:auto;overscroll-behavior-x:contain;padding:4px 1px;scrollbar-width:thin}
+ body.kilas-light:has(.kilas-reference-header):not(.home-chat-compact) .home-tool-selector .home-task-choices{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overscroll-behavior-x:contain;padding:4px 1px;scrollbar-width:thin}
  body.kilas-light:has(.kilas-reference-header):not(.home-chat-compact) .home-tool-selector .home-task-choices>:is(a,button,.kilas-translator-pending){flex:1 0 104px;width:auto;min-width:104px;flex-direction:row;white-space:nowrap;font-size:14px;gap:8px;padding-inline:10px}
  body.kilas-light:has(.kilas-reference-header) .home-task-choices svg{width:20px;height:20px}
 }

@@ -25,10 +25,15 @@ def main():
                 page=context.new_page();page.errors=[];page.on('pageerror',lambda e:page.errors.append(str(e)))
                 page.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
                 return context,page
-            def capture(page,name,width):
-                page.evaluate('document.activeElement?.blur();document.querySelectorAll("*").forEach(e=>{if(e.scrollTop)e.scrollTop=0});scrollTo(0,0)');page.wait_for_timeout(100)
+            def capture(page,name,width,reset_scroll=True):
+                page.evaluate('document.activeElement?.blur()')
+                if reset_scroll:page.evaluate('document.querySelectorAll("*").forEach(e=>{if(e.scrollTop)e.scrollTop=0});scrollTo(0,0)')
+                page.wait_for_timeout(100)
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),(name,width,'horizontal overflow')
                 assert not page.errors,(name,width,page.errors)
+                if name in ('chat','translator-setup','voiceover') and not page.locator('body').evaluate("e=>e.classList.contains('home-chat-compact')"):
+                    rows=page.locator('.home-task-choices').evaluate("e=>[...e.children].map(c=>({top:c.getBoundingClientRect().top,height:c.getBoundingClientRect().height}))")
+                    assert max(r['top'] for r in rows)-min(r['top'] for r in rows)<=1 and all(r['height']>=44 for r in rows),(name,width,rows)
                 if name.startswith('call-'):
                     bounds=page.evaluate("""()=>{const dialog=document.querySelector('#ai-call-dialog'),chrome=dialog.querySelector('.reference-call-chrome'),capsule=dialog.querySelector('.reference-call-status'),footer=dialog.querySelector('.ai-call-footer');const rect=e=>({top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom,height:e.getBoundingClientRect().height});return {height:innerHeight,chrome:rect(chrome),capsule:rect(capsule),footer:rect(footer),scroll:dialog.scrollTop}}""")
                     assert bounds['chrome']['top']>=0 and bounds['chrome']['height']>=36,(name,width,bounds)
@@ -45,12 +50,15 @@ def main():
                     for width,height in sizes:
                         context,page=page_for(case.client(),width,height);page.goto(origin+'/products/start',wait_until='networkidle')
                         expect(page.locator('.kilas-new-chat-logo')).to_be_visible();capture(page,'chat',width)
+                        options=page.locator('.home-chat-options')
+                        if options.is_visible():options.locator('summary').click()
                         page.locator('[data-model-kind=chat] .chat-model-trigger').click()
                         expect(page.locator('#chat-model-dialog')).to_be_visible()
                         box=page.locator('#chat-model-dialog').bounding_box()
                         assert box['x']>=0 and box['x']+box['width']<=width+1 and box['y']>=0 and box['y']+box['height']<=height+1,(width,box)
                         capture(page,'chat-model-menu',width)
                         page.locator('#chat-model-dialog [data-model-close]').click()
+                        if options.is_visible() and options.get_attribute('open') is not None:options.locator('summary').click()
                         page.locator('#ai-input').fill('Synthetic unsent draft '+('long content '*12));page.locator('#ai-files').set_input_files({'name':'synthetic.txt','mimeType':'text/plain','buffer':b'synthetic attachment'})
                         expect(page.locator('#ai-pending .ai-pending-item')).to_have_count(1);page.locator('#ai-pending button').click();page.locator('#ai-input').fill('')
                         page.locator('[data-premium-menu]').click();expect(page.locator('#premium-sidebar')).not_to_have_attribute('inert','');capture(page,'drawer',width);page.keyboard.press('Escape')
@@ -73,7 +81,10 @@ def main():
                         geometry=page.evaluate("""()=>{const r=s=>document.querySelector(s).getBoundingClientRect();return {messages:r('#ai-messages').toJSON(),composer:r('#ai-composer').toJSON(),pending:r('#ai-pending').toJSON()}}""")
                         assert geometry['messages']['bottom']<=geometry['composer']['top']+1,(width,geometry)
                         assert geometry['pending']['top']>=geometry['composer']['top'] and geometry['composer']['bottom']<=height+1,(width,geometry)
-                        capture(page,'chat-filled-attachments',width)
+                        page.locator('#ai-messages').evaluate('e=>e.scrollTop=e.scrollHeight')
+                        last=page.locator('#ai-messages .ai-message').last.bounding_box()
+                        assert last['y']+last['height']<=geometry['messages']['bottom']+1,(width,last,geometry)
+                        capture(page,'chat-filled-attachments',width,reset_scroll=False)
                         report['checks'].append({'surface':'chat/call','width':width,'errors':page.errors,'filled':geometry});context.close()
             finally:case.doCleanups()
             case=interpreter.InterpreterTests('test_owner_member_route_and_csrf_isolation');case.setUp()
