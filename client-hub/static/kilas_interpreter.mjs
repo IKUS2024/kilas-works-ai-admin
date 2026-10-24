@@ -5,7 +5,7 @@ import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-reliable-20261023';
 import {CallSession} from './kilas_interpreter_engine.mjs?v=interpreter-1';
 const root=document.querySelector('#interpreter');
 if(root){
- const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),end=field('end'),consent=field('consent');
+ const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),end=field('end'),consent=field('consent'),navigation=document.querySelector('#interpreter-navigation');
  // Keep only this account's explicit language choices; never persist consent/audio.
  const a=field('language-a'),b=field('language-b');let restoredEqual=false;let previousPair=[a.value,b.value];
  try{
@@ -31,7 +31,7 @@ if(root){
  };
  const request=(url,options={})=>requestJSON(url,{csrf:root.querySelector('[name=csrf_token]').value,...options});
  let active=false,pair=null,context=null,side=null,switching=false,generation=0,recoveryTimer=null;
- const sync=()=>{left.disabled=right.disabled=!active||switching;end.disabled=false;left.setAttribute('aria-pressed',String(side===pair?.a));right.setAttribute('aria-pressed',String(side===pair?.b));};
+ const sync=()=>{navigation.hidden=active;left.disabled=right.disabled=!active||switching;end.disabled=false;left.setAttribute('aria-pressed',String(side===pair?.a));right.setAttribute('aria-pressed',String(side===pair?.b));};
  const directionLabel=(button,source,target)=>{const from=document.createElement('span'),arrow=document.createElement('span'),to=document.createElement('span');from.textContent=source;arrow.textContent=' → ';arrow.className='interpreter-arrow';to.textContent=target;button.replaceChildren(from,arrow,to);};
  const enter=()=>{if(active)return;if(!consent.checked){consent.focus();showError('consent_required');return;}if(field('language-a').value===field('language-b').value){showError('same_language');return;}pair={a:field('language-a').value,b:field('language-b').value};directionLabel(left,a.selectedOptions[0].text,b.selectedOptions[0].text);directionLabel(right,b.selectedOptions[0].text,a.selectedOptions[0].text);for(const [button,source,target] of [[left,pair.a,pair.b],[right,pair.b,pair.a]]){button.firstElementChild.dataset.language=source;button.lastElementChild.dataset.language=target;}active=true;field('state').dataset.state='idle';field('setup').hidden=true;field('active').hidden=false;field('error').hidden=true;sync();};
  const messages={language_adjusted:'Bahasa yang sama telah disesuaikan.',call_provider_quota:'Kuota Gemini sedang tidak tersedia.',call_provider_billing:'Periksa billing akun Gemini.',consent_required:'Setujui pemrosesan ucapan terlebih dahulu.',same_language:'Pilih bahasa sumber dan tujuan yang berbeda.',budget_limit:'Batas biaya Translator tercapai.',already_processing:'Sesi sebelumnya belum selesai. Tunggu sebentar lalu pilih arah lagi.',attempt_limit:'Batas sesi tercapai. Coba lagi nanti.',call_unavailable:'Translator sedang tidak tersedia.',microphone_permission_denied:'Izinkan mikrofon di browser.',call_audio:'Audio belum siap. Periksa izin audio.',call_ended:'Sesi berakhir.',call_network:'Koneksi terputus. Pilih arah untuk mulai lagi.',call_provider:'Gemini menghentikan sesi.',call_provider_disconnected:'Koneksi Gemini terputus.'};
