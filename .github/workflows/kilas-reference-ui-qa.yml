@@ -39,7 +39,7 @@ jobs:
       - name: Audio, Call, interpreter and protected Finance behavior
         working-directory: client-hub
         run: |
-          for suite in test_kilas_audio.py test_kilas_audio_latest_result.py test_kilas_audio_history.py test_kilas_personal_voice.py test_kilas_ai_call.py test_kilas_interpreter.py test_kilas_finance_baseline.py; do
+          for suite in test_kilas_audio.py test_kilas_audio_latest_result.py test_kilas_audio_history.py test_kilas_personal_voice.py test_kilas_ai_call.py test_kilas_interpreter.py test_kilas_sidebar_products.py test_kilas_finance_baseline.py; do
             python tests/$suite || exit 1
           done
       - name: PCM, lifecycle, cancellation, output routing and keyboard hierarchy
@@ -57,6 +57,7 @@ jobs:
         env: {KILAS_REFERENCE_SCREENSHOTS: /tmp/kilas-reference-ui}
       - run: python client-hub/tests/test_kilas_mobile_drawer_keyboard_browser.py
         env: {KILAS_MOBILE_SCREENSHOTS: /tmp/kilas-reference-ui/mobile-correction}
+      - run: python client-hub/tests/kilas_tools_navigation_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

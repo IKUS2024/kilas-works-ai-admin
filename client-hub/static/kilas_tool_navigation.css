@@ -1,0 +1,10 @@
+/* Named tool pages only: no chat drawer or reserved conversation rail. */
+body.premium-workspace>.kilas-tool-header{display:flex!important;position:relative;inset:auto;align-items:center;gap:16px;height:82px;box-sizing:border-box;padding:14px 24px;background:transparent;border:0}
+.kilas-tool-header .premium-brand{font-family:Manrope,system-ui,sans-serif;font-size:26px;font-weight:800;letter-spacing:-.04em;color:#101929;white-space:nowrap}
+.kilas-tool-header .premium-brand span{color:#f04e00}
+.kilas-tool-header>.kilas-tool-home{display:grid;place-items:center;width:44px;height:44px;flex:none;color:#111b2b;border-radius:10px}
+.kilas-tool-header>.kilas-profile-menu{margin-left:auto}
+.kilas-tool-header .kilas-profile-options{position:absolute;right:0;top:100%;width:min(290px,calc(100vw - 24px));z-index:100;background:#fff}
+.kilas-tool-header a:focus-visible,.kilas-tool-header summary:focus-visible{outline:2px solid #bd4700;outline-offset:3px}
+body.premium-workspace:has(>.kilas-tool-header)>.wrap,body.premium-workspace:has(>.kilas-tool-header)>main,body.credits-design-preview:has(>.kilas-tool-header)>.credits-frame{margin-left:0!important}
+@media(max-width:400px){body.premium-workspace>.kilas-tool-header{gap:8px;padding-inline:16px}.kilas-tool-header .premium-brand{font-size:23px}.kilas-tool-header .kilas-profile-menu>summary{gap:6px;font-size:14px}}
