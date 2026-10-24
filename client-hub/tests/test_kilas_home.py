@@ -98,7 +98,7 @@ class HomeTests(unittest.TestCase):
         for route in ('/products/start','/account?workspace=home','/kilas-translator?mode=voiceover','/kilas-ai/video','/kilas-ai/usage','/kilas-ai/threads/'+str(owned)):
             response=self.client().get(route);self.assertEqual(response.status_code,200)
             html=response.text
-            if route.startswith('/account'):
+            if route.startswith(('/account','/kilas-translator','/kilas-ai/usage')):
                 self.assertNotIn('data-chat-sidebar',html)
                 self.assertNotIn('My &lt;script&gt; saved title',html)
             else:
