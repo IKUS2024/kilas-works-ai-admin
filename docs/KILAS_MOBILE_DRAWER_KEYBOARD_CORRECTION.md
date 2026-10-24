@@ -6,7 +6,7 @@ This records the narrow correction in [PR 158](https://github.com/IKUS2024/kilas
 
 The three originals are preserved in the task's `mobile-bug-references/` folder: `1000345677.jpg`, `1000345675.jpg` and `1000345679.jpg`. The builder and independent reviewer inspected all three. Their archive is `E:\edit kilas\chat-layout-bug-screenshots.zip` (272,362 bytes), SHA-256 `ee0fabb7b079ee6aaf32ca266e307fc89892af7312c0648494f25098f035144f`.
 
-The disposable reproduction of main `14fe` confirmed the drawer failure at 360 by 650 pixels: history collapsed to 8 pixels; its bottom was 615.8 pixels while Profile started at 535 pixels; the first saved-chat row began at 669.8 pixels, beyond the viewport. The Finance navigation row occupied 66 pixels. PR 157's enlarged menu rows consumed the space intended for history and allowed content to overlap the footer.
+The disposable reproduction of main `14fe` confirmed the drawer failure at 360 by 650 pixels: history collapsed to 8 pixels; its bottom was 615.8 pixels while Profile started at 535 pixels; the first saved-chat row ended at 669.8 pixels, beyond the viewport. The Finance navigation row occupied 66 pixels. PR 157's enlarged menu rows consumed the space intended for history and allowed content to overlap the footer.
 
 Voice Over had an additional loading defect: the audio blueprint rendered the chat drawer with `chat_sidebar_enabled=False`, so the base sidebar stylesheet was omitted. The compact chat rules also hid the central logo, welcome and Works wordmark segment. Finally, absolutely positioned pending attachment previews could overlay conversation content in the reduced viewport.
 
