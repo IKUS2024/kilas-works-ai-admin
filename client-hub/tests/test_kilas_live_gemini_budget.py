@@ -101,6 +101,7 @@ class GeminiBudgetTests(unittest.TestCase):
                ('gml-old-native','2000-01-01T00:00:00',None,None),
                ('voiceover-old','2000-01-01T00:00:00+00:00',None,None),
                ('gml-old-native','2000-01-01T00:00:00+00:00','unknown-policy',None),
+               ('gml-old-native','2000-01-01T00:00:00+00:00',budget.PRICE_VERSION+'unknown',None),
                ('gml-old-native','2000-01-01T00:00:00+00:00',None,'live-'+('c'*32)+'-gc')]
         for campaign,created,price,key in cases:
             self.execute('DELETE FROM kilas_vo_stt_operations');self.seed(250000,'DISPATCHED',campaign,702)

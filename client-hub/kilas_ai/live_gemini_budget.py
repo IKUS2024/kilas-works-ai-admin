@@ -246,7 +246,7 @@ def _preview_active(conn, owner):
         # Other products, unknown policies/keys and malformed dates fail closed.
         typed=(isinstance(key,str) and re.fullmatch(r'live-[a-f0-9]{32}-gm(?:2:(?:parent|slot))?',key)
                and isinstance(campaign,str) and campaign.startswith('gml-')
-               and isinstance(price,str) and price.startswith(PRICE_VERSION))
+               and isinstance(price,str) and (price==PRICE_VERSION or price.startswith(PRICE_VERSION+'-')))
         if typed:
             try:
                 start=datetime.fromisoformat(created)
