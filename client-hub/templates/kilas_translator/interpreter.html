@@ -5,7 +5,7 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='interpreter-polished-6') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='interpreter-kilas-7') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
@@ -23,7 +23,7 @@
 <button type="button" class="btn" id="interpreter-start">{{ ui_t('Mulai') }}</button>
 </section>
 <section id="interpreter-active" hidden>
-<div class="kilas-live-orb" id="interpreter-orb" data-state="listening" role="img" aria-label="{{ ui_t('Mendengarkan') }}"></div>
+<div class="interpreter-identity" id="interpreter-orb" data-state="idle"><img src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="160" height="160" alt="Kilas" decoding="async"></div>
 <p id="interpreter-state" role="status" aria-live="polite">{{ ui_t('Pilih arah bicara') }}</p>
 <div class="interpreter-directions" role="group" aria-label="{{ ui_t('Arah terjemahan') }}">
 <button type="button" class="btn secondary" id="interpreter-left" aria-pressed="false" disabled></button>
@@ -34,5 +34,5 @@
 <p id="interpreter-error" role="alert" hidden></p>
 
 </section></div>
-<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='interpreter-polished-6') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='interpreter-kilas-7') }}"></script>
 {% endblock %}
