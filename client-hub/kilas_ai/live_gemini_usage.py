@@ -28,6 +28,11 @@ class UsageEvidence:
 
     def observe(self, value, input_ended):
         metadata = value.get('usageMetadata')
+        content = value.get('serverContent', {})
+        if isinstance(content,dict) and (content.get('interrupted') is True
+                or (content.get('generationComplete') is True and metadata is None)):
+            # A later response's totals cannot prove omitted earlier usage.
+            self.invalid = True
         if metadata is None:
             return
         self.events += 1
