@@ -225,3 +225,6 @@ body #ai-call-dialog #ai-call-start{min-height:52px;font-size:18px}
  body.kilas-light:has(.kilas-reference-header):not(.home-chat-compact) .home-tool-selector .home-task-choices>:is(a,button,.kilas-translator-pending){flex:1 0 104px;width:auto;min-width:104px;flex-direction:row;white-space:nowrap;font-size:14px;gap:8px;padding-inline:10px}
  body.kilas-light:has(.kilas-reference-header) .home-task-choices svg{width:20px;height:20px}
 }
+/* Lift only the requested task rows; preserve compact/keyboard and active-call layout. */
+body.kilas-light.premium-workspace:not(.home-chat-compact):has(>.kilas-reference-header):is(:has(#interpreter-setup:not([hidden])),:has(.audio-studio))>.wrap{padding-top:4px!important}
+body.kilas-light:not(.home-chat-compact):has(>.kilas-reference-header) .kilas-home-workspace .ai-main>.home-tool-selector{margin-bottom:16px!important}
