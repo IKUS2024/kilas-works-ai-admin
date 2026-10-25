@@ -1,0 +1,7 @@
+# Header-to-task-row spacing
+
+Narrow spacing follow-up to PR161; two scoped CSS declarations and a cache version change. Translator setup and Voice Over use 4px top content padding, producing a measured 12px header-to-tabs gap. AI Chat keeps its existing composer-adjacent task row and raises it 8px via bottom margin. Compact/keyboard Chat and active Translator are excluded, retaining PR158/161 behavior. No typography, icons, colors, APIs, billing or Finance changes.
+
+Before/after Chromium measurements at eight viewport sizes are in qa/kilas-header-tab-spacing-20261025.json. Tool gaps change 36→12px at 320/390/412 widths and 50→12px at 768/820/1024/1440 widths and landscape844. Normal Chat task rows rise8px, while compact landscape remains unchanged. Header positions/heights are unchanged in all24 measured cases. Chat's header-to-task distance includes the existing welcome/model/composer layout; it is not an empty spacer and that structure is preserved.
+
+Full reference-state browser checks and separate mobile drawer/keyboard checks passed. Local mobile/tablet/desktop screenshots inspected; no new horizontal overflow or header overlap. Interpreter Start/End/icons/distinct-language regression checked without provider calls. The supplied screenshot resolved but both supported consumer-local materialization attempts failed with download failed; user pixels were unavailable, and no claim of direct inspection is made. Authenticated production browser and physical-device checks remain unperformed.

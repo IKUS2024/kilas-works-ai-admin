@@ -18,7 +18,7 @@ def main():
     origin=f'http://127.0.0.1:{server.server_port}'
     try:
         with sync_playwright() as p:
-            browser=p.chromium.launch(headless=True)
+            browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None)
             def page_for(client,width,height):
                 context=browser.new_context(viewport={'width':width,'height':height},reduced_motion='reduce')
                 cookie=client.get_cookie('session');context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'en','url':origin}])
@@ -34,6 +34,11 @@ def main():
                 if name in ('chat','translator-setup','voiceover') and not page.locator('body').evaluate("e=>e.classList.contains('home-chat-compact')"):
                     rows=page.locator('.home-task-choices').evaluate("e=>[...e.children].map(c=>({top:c.getBoundingClientRect().top,height:c.getBoundingClientRect().height}))")
                     assert max(r['top'] for r in rows)-min(r['top'] for r in rows)<=1 and all(r['height']>=44 for r in rows),(name,width,rows)
+                if name in ('chat','translator-setup','voiceover'):
+                    spacing=page.evaluate('''()=>{const h=document.querySelector('body>.kilas-reference-header'),b=h.querySelector('.premium-brand'),t=document.querySelector('.home-task-choices');return {headerBottom:h.getBoundingClientRect().bottom,brandBottom:b.getBoundingClientRect().bottom,tabsTop:t.getBoundingClientRect().top,gap:t.getBoundingClientRect().top-h.getBoundingClientRect().bottom}}''')
+                    assert spacing['gap']>=0,(name,width,spacing)
+                    if name in ('translator-setup','voiceover'):assert abs(spacing['gap']-12)<1,(name,width,spacing)
+                    report.setdefault('header_tab_spacing',[]).append({'name':name,'width':width,**spacing})
                 if name.startswith('call-'):
                     bounds=page.evaluate("""()=>{const dialog=document.querySelector('#ai-call-dialog'),chrome=dialog.querySelector('.reference-call-chrome'),capsule=dialog.querySelector('.reference-call-status'),footer=dialog.querySelector('.ai-call-footer');const rect=e=>({top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom,height:e.getBoundingClientRect().height});return {height:innerHeight,chrome:rect(chrome),capsule:rect(capsule),footer:rect(footer),scroll:dialog.scrollTop}}""")
                     assert bounds['chrome']['top']>=0 and bounds['chrome']['height']>=36,(name,width,bounds)
