@@ -228,3 +228,19 @@ body #ai-call-dialog #ai-call-start{min-height:52px;font-size:18px}
 /* Lift only the requested task rows; preserve compact/keyboard and active-call layout. */
 body.kilas-light.premium-workspace:not(.home-chat-compact):has(>.kilas-reference-header):is(:has(#interpreter-setup:not([hidden])),:has(.audio-studio))>.wrap{padding-top:4px!important}
 body.kilas-light:not(.home-chat-compact):has(>.kilas-reference-header) .kilas-home-workspace .ai-main>.home-tool-selector{margin-bottom:16px!important}
+/* Balanced type on the three requested surfaces; retain native field and hit-area sizes. */
+body.kilas-light:has(>.kilas-reference-header) .kilas-home-workspace .ai-empty h1{font-size:clamp(24px,2.2vw,30px)}
+body.kilas-light:not(.home-chat-compact):has(>.kilas-reference-header) :is(.kilas-home-workspace,.kilas-feature-navigation) .home-task-choices>:is(a,button,.kilas-translator-pending){font-size:14px!important}
+body.kilas-light:has(>.kilas-reference-header) #interpreter .live-heading h1,body.kilas-light:has(>.kilas-reference-header) .audio-studio .audio-heading h1{font-size:26px!important}
+body.kilas-light:has(>.kilas-reference-header) #interpreter .live-heading p,body.kilas-light:has(>.kilas-reference-header) .audio-studio .audio-heading p{font-size:14px;line-height:1.5}
+body.kilas-light:has(>.kilas-reference-header) #interpreter .interpreter-language-pair label{font-size:14px!important}
+body.kilas-light:has(>.kilas-reference-header) #interpreter .live-consent{font-size:14px}
+body.kilas-light:has(>.kilas-reference-header) #interpreter :is(#interpreter-start,#interpreter-end){font-size:16px}
+body.kilas-light:has(>.kilas-reference-header) #interpreter .interpreter-direction-heading{font-size:21px}
+body.kilas-light:has(>.kilas-reference-header) #interpreter .interpreter-direction-help{font-size:14px}
+body.kilas-light:has(>.kilas-reference-header) #interpreter .interpreter-directions>button{font-size:16px!important}
+body.kilas-light:has(>.kilas-reference-header) .audio-studio .audio-voices legend{font-size:15px!important}
+body.kilas-light:has(>.kilas-reference-header) .audio-studio .audio-voice strong{font-size:15px!important}
+body.kilas-light:has(>.kilas-reference-header) .audio-studio #play-kilas-preview{font-size:14px}
+body.kilas-light:has(>.kilas-reference-header) .audio-studio #voice-generate{font-size:16px}
+@media(max-width:760px){body.kilas-light:has(>.kilas-reference-header) #interpreter .live-heading h1,body.kilas-light:has(>.kilas-reference-header) .audio-studio .audio-heading h1{font-size:24px!important}}

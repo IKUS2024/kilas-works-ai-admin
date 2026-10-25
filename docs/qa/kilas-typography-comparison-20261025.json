@@ -1,0 +1,401 @@
+[
+  {
+    "page": "chat",
+    "width": 1440,
+    "selector": ".ai-empty h1",
+    "before_px": 34,
+    "after_px": 30
+  },
+  {
+    "page": "chat",
+    "width": 1440,
+    "selector": ".chat-model-trigger",
+    "before_px": 13,
+    "after_px": 13
+  },
+  {
+    "page": "chat",
+    "width": 1440,
+    "selector": "#ai-input",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "chat",
+    "width": 768,
+    "selector": ".ai-empty h1",
+    "before_px": 26,
+    "after_px": 24
+  },
+  {
+    "page": "chat",
+    "width": 768,
+    "selector": ".chat-model-trigger",
+    "before_px": 13,
+    "after_px": 13
+  },
+  {
+    "page": "chat",
+    "width": 768,
+    "selector": "#ai-input",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "chat",
+    "width": 390,
+    "selector": ".ai-empty h1",
+    "before_px": 26,
+    "after_px": 24
+  },
+  {
+    "page": "chat",
+    "width": 390,
+    "selector": ".chat-model-trigger",
+    "before_px": 13,
+    "after_px": 13
+  },
+  {
+    "page": "chat",
+    "width": 390,
+    "selector": "#ai-input",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "translator-setup",
+    "width": 1440,
+    "selector": ".live-heading h1",
+    "before_px": 28,
+    "after_px": 26
+  },
+  {
+    "page": "translator-setup",
+    "width": 1440,
+    "selector": ".live-heading p",
+    "before_px": 16,
+    "after_px": 14
+  },
+  {
+    "page": "translator-setup",
+    "width": 1440,
+    "selector": ".interpreter-language-pair label",
+    "before_px": 16,
+    "after_px": 14
+  },
+  {
+    "page": "translator-setup",
+    "width": 1440,
+    "selector": ".interpreter-language-pair select",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "translator-setup",
+    "width": 1440,
+    "selector": ".live-consent",
+    "before_px": 15,
+    "after_px": 14
+  },
+  {
+    "page": "translator-setup",
+    "width": 1440,
+    "selector": "#interpreter-start",
+    "before_px": 17,
+    "after_px": 16
+  },
+  {
+    "page": "translator-setup",
+    "width": 768,
+    "selector": ".live-heading h1",
+    "before_px": 28,
+    "after_px": 26
+  },
+  {
+    "page": "translator-setup",
+    "width": 768,
+    "selector": ".live-heading p",
+    "before_px": 16,
+    "after_px": 14
+  },
+  {
+    "page": "translator-setup",
+    "width": 768,
+    "selector": ".interpreter-language-pair label",
+    "before_px": 16,
+    "after_px": 14
+  },
+  {
+    "page": "translator-setup",
+    "width": 768,
+    "selector": ".interpreter-language-pair select",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "translator-setup",
+    "width": 768,
+    "selector": ".live-consent",
+    "before_px": 15,
+    "after_px": 14
+  },
+  {
+    "page": "translator-setup",
+    "width": 768,
+    "selector": "#interpreter-start",
+    "before_px": 17,
+    "after_px": 16
+  },
+  {
+    "page": "translator-setup",
+    "width": 390,
+    "selector": ".live-heading h1",
+    "before_px": 26,
+    "after_px": 24
+  },
+  {
+    "page": "translator-setup",
+    "width": 390,
+    "selector": ".live-heading p",
+    "before_px": 14,
+    "after_px": 14
+  },
+  {
+    "page": "translator-setup",
+    "width": 390,
+    "selector": ".interpreter-language-pair label",
+    "before_px": 16,
+    "after_px": 14
+  },
+  {
+    "page": "translator-setup",
+    "width": 390,
+    "selector": ".interpreter-language-pair select",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "translator-setup",
+    "width": 390,
+    "selector": ".live-consent",
+    "before_px": 15,
+    "after_px": 14
+  },
+  {
+    "page": "translator-setup",
+    "width": 390,
+    "selector": "#interpreter-start",
+    "before_px": 17,
+    "after_px": 16
+  },
+  {
+    "page": "voiceover",
+    "width": 1440,
+    "selector": ".audio-heading h1",
+    "before_px": 28,
+    "after_px": 26
+  },
+  {
+    "page": "voiceover",
+    "width": 1440,
+    "selector": ".reference-history-toggle",
+    "before_px": 14,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 1440,
+    "selector": "[data-reference-my-voice]",
+    "before_px": 14,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 1440,
+    "selector": "label[for=kilas-voice-choice]",
+    "before_px": 14,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 1440,
+    "selector": ".audio-voice strong",
+    "before_px": 16,
+    "after_px": 15
+  },
+  {
+    "page": "voiceover",
+    "width": 1440,
+    "selector": ".audio-voice small",
+    "before_px": 13,
+    "after_px": 13
+  },
+  {
+    "page": "voiceover",
+    "width": 1440,
+    "selector": "#kilas-voice-choice",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "voiceover",
+    "width": 1440,
+    "selector": "#play-kilas-preview",
+    "before_px": 16,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 1440,
+    "selector": "#audio-script",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "voiceover",
+    "width": 1440,
+    "selector": "#voice-generate",
+    "before_px": 17,
+    "after_px": 16
+  },
+  {
+    "page": "voiceover",
+    "width": 768,
+    "selector": ".audio-heading h1",
+    "before_px": 28,
+    "after_px": 26
+  },
+  {
+    "page": "voiceover",
+    "width": 768,
+    "selector": ".reference-history-toggle",
+    "before_px": 14,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 768,
+    "selector": "[data-reference-my-voice]",
+    "before_px": 14,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 768,
+    "selector": "label[for=kilas-voice-choice]",
+    "before_px": 14,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 768,
+    "selector": ".audio-voice strong",
+    "before_px": 16,
+    "after_px": 15
+  },
+  {
+    "page": "voiceover",
+    "width": 768,
+    "selector": ".audio-voice small",
+    "before_px": 13,
+    "after_px": 13
+  },
+  {
+    "page": "voiceover",
+    "width": 768,
+    "selector": "#kilas-voice-choice",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "voiceover",
+    "width": 768,
+    "selector": "#play-kilas-preview",
+    "before_px": 16,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 768,
+    "selector": "#audio-script",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "voiceover",
+    "width": 768,
+    "selector": "#voice-generate",
+    "before_px": 17,
+    "after_px": 16
+  },
+  {
+    "page": "voiceover",
+    "width": 390,
+    "selector": ".audio-heading h1",
+    "before_px": 26,
+    "after_px": 24
+  },
+  {
+    "page": "voiceover",
+    "width": 390,
+    "selector": ".reference-history-toggle",
+    "before_px": 14,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 390,
+    "selector": "[data-reference-my-voice]",
+    "before_px": 14,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 390,
+    "selector": "label[for=kilas-voice-choice]",
+    "before_px": 14,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 390,
+    "selector": ".audio-voice strong",
+    "before_px": 15,
+    "after_px": 15
+  },
+  {
+    "page": "voiceover",
+    "width": 390,
+    "selector": ".audio-voice small",
+    "before_px": 12,
+    "after_px": 12
+  },
+  {
+    "page": "voiceover",
+    "width": 390,
+    "selector": "#kilas-voice-choice",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "voiceover",
+    "width": 390,
+    "selector": "#play-kilas-preview",
+    "before_px": 16,
+    "after_px": 14
+  },
+  {
+    "page": "voiceover",
+    "width": 390,
+    "selector": "#audio-script",
+    "before_px": 16,
+    "after_px": 16
+  },
+  {
+    "page": "voiceover",
+    "width": 390,
+    "selector": "#voice-generate",
+    "before_px": 17,
+    "after_px": 16
+  }
+]

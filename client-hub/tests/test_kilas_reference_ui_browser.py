@@ -39,6 +39,14 @@ def main():
                     assert spacing['gap']>=0,(name,width,spacing)
                     if name in ('translator-setup','voiceover'):assert abs(spacing['gap']-12)<1,(name,width,spacing)
                     report.setdefault('header_tab_spacing',[]).append({'name':name,'width':width,**spacing})
+                if name in ('chat','translator-setup','voiceover'):
+                    selectors={'chat':['.ai-empty h1','.chat-model-trigger','.home-task-choices>:is(a,button)','#ai-input'],'translator-setup':['.live-heading h1','.live-heading p','.interpreter-language-pair label','.interpreter-language-pair select','.live-consent','#interpreter-start'],'voiceover':['.audio-heading h1','.reference-history-toggle','[data-reference-my-voice]','label[for=kilas-voice-choice]','.audio-voice strong','.audio-voice small','#kilas-voice-choice','#play-kilas-preview','#audio-script','#voice-generate']}[name]
+                    measured_types=page.evaluate('''selectors=>selectors.map(selector=>{const e=document.querySelector(selector);if(!e)return {selector,missing:true};const s=getComputedStyle(e),r=e.getBoundingClientRect();return {selector,fontSize:parseFloat(s.fontSize),lineHeight:s.lineHeight,height:r.height,display:s.display}})''',selectors)
+                    for item in measured_types:
+                        if item.get('missing'):continue
+                        if item['selector'] in ('#ai-input','.interpreter-language-pair select','#kilas-voice-choice','#audio-script'):assert item['fontSize']>=16,(name,width,item)
+                        if item['selector'] in ('.reference-history-toggle','[data-reference-my-voice]','#interpreter-start','#voice-generate','.home-task-choices>:is(a,button)'):assert item['height']>=44,(name,width,item)
+                    report.setdefault('typography',[]).append({'name':name,'width':width,'sizes':measured_types})
                 if name.startswith('call-'):
                     bounds=page.evaluate("""()=>{const dialog=document.querySelector('#ai-call-dialog'),chrome=dialog.querySelector('.reference-call-chrome'),capsule=dialog.querySelector('.reference-call-status'),footer=dialog.querySelector('.ai-call-footer');const rect=e=>({top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom,height:e.getBoundingClientRect().height});return {height:innerHeight,chrome:rect(chrome),capsule:rect(capsule),footer:rect(footer),scroll:dialog.scrollTop}}""")
                     assert bounds['chrome']['top']>=0 and bounds['chrome']['height']>=36,(name,width,bounds)
@@ -46,6 +54,20 @@ def main():
                     report.setdefault('call_regions',[]).append({'name':name,'width':width,**bounds})
                 report.setdefault('geometry',[]).append({'name':name,'width':width,**page.evaluate("""()=>{const h=document.querySelector('.kilas-reference-header'),w=document.querySelector('body>.wrap');return {header:h?{top:h.getBoundingClientRect().top,height:h.getBoundingClientRect().height,display:getComputedStyle(h).display,position:getComputedStyle(h).position}:null,wrap:w?{top:w.getBoundingClientRect().top,left:w.getBoundingClientRect().left,width:w.getBoundingClientRect().width,position:getComputedStyle(w).position}:null,scrollY}}""")})
                 path=output/f'{name}-{width}.png';page.screenshot(path=str(path),full_page=True);report['captures'].append(str(path))
+                if width==390 and name in ('chat','translator-setup','voiceover'):
+                    context=page.context
+                    context.add_cookies([{'name':'kilas_language','value':'es','url':origin}]);page.reload(wait_until='networkidle')
+                    assert page.locator('html').get_attribute('lang')=='es'
+                    page.evaluate("""name=>{const target=name==='chat'?document.querySelector('.chat-model-trigger [data-model-label]'):name==='voiceover'?document.querySelector('.audio-voice strong'):document.querySelector('#interpreter-language-a option:checked');if(target){target.textContent='Nombre completo de idioma o modelo con una descripción muy larga para comprobar la lectura';if(target.tagName==='OPTION')target.parentElement.dispatchEvent(new Event('change'));}}""",name)
+                    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),(name,'long Spanish label overflow')
+                    viewport=page.viewport_size;page.set_viewport_size({'width':320,'height':viewport['height']})
+                    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),(name,'narrow long label overflow')
+                    page.set_viewport_size(viewport)
+                    zoom=context.new_cdp_session(page);zoom.send('Emulation.setPageScaleFactor',{'pageScaleFactor':2})
+                    assert page.evaluate('visualViewport.scale>=1.9'),(name,'browser pinch zoom blocked')
+                    zoom.send('Emulation.setPageScaleFactor',{'pageScaleFactor':1});zoom.detach()
+                    context.add_cookies([{'name':'kilas_language','value':'en','url':origin}]);page.reload(wait_until='networkidle')
+                    report.setdefault('typography_accessibility',[]).append({'surface':name,'translated_long_labels_320':True,'browser_scale_2':True})
             sizes=((1440,1000),(1024,768),(820,1100),(768,1024),(412,760),(390,760),(320,700),(844,390))
             case=home.ExperienceTests('test_starters_follow_ui_language_without_changing_models');case.setUp()
             try:
