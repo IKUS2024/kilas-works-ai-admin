@@ -85,7 +85,7 @@ def main():
                 expect(page.locator('#voice-assist-script')).to_have_count(0)
                 expect(page.get_by_role('button',name='Pakai naskah')).to_have_count(0)
                 page.locator('#voice-assist-generate').click();expect(page.locator('#voice-assist-status')).to_contain_text('terlebih dahulu')
-                expect(page.locator('#voice-assist-copy')).to_be_disabled()
+                expect(page.locator('#voice-assist-copy')).to_have_count(0)
                 page.select_option('#voice-assist-mode','generate')
                 page.locator('#voice-assist-mic').click();expect(page.locator('#voice-assist-mic-stop')).to_be_visible()
                 page.evaluate("qaDictation.onresult({resultIndex:0,results:[Object.assign([{transcript:'Naskah promosi yang singkat.'}],{isFinal:true})]})")
@@ -111,7 +111,7 @@ def main():
                 page.locator('#voice-assist-generate').click();expect(page.locator('#voice-assist-status')).to_contain_text('masuk ke kolom',timeout=20000)
                 page.fill('#audio-script','Naskah sintetis yang telah saya edit.')
                 expect(page.locator('#voice-assist-undo')).to_be_hidden()
-                page.locator('#voice-assist-copy').click();expect(page.locator('#voice-assist-status')).to_have_text('Naskah disalin.')
+                page.locator('#audio-script').focus();page.keyboard.press('ControlOrMeta+A');page.keyboard.press('ControlOrMeta+C')
                 assert page.evaluate('navigator.clipboard.readText()')=='Naskah sintetis yang telah saya edit.'
                 assert audio_jobs==[],audio_jobs
                 page.locator('#voice-assist-mic').click();page.evaluate("qaDictation.onerror({error:'not-allowed'});qaDictation.onend()")

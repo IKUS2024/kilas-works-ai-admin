@@ -5,10 +5,6 @@
  if(script&&count){
   const update=()=>{count.textContent=new Intl.NumberFormat(document.documentElement.lang||'en').format(script.value.length)+' / '+new Intl.NumberFormat(document.documentElement.lang||'en').format(script.maxLength);};
   script.addEventListener('input',update);document.addEventListener('voice-script-edit',update);update();
-  document.querySelector('#reference-script-paste')?.addEventListener('click',async()=>{
-   try{const text=await navigator.clipboard.readText();script.value=text.slice(0,script.maxLength);script.dispatchEvent(new Event('input',{bubbles:true}));script.focus();}
-   catch{const error=document.querySelector('#audio-error');if(error){error.textContent=t('Clipboard access is unavailable. Paste directly into the script.');error.hidden=false;}script.focus();}
-  });
  }
  const record=document.querySelector('#dictation-start');if(record){const label=document.createElement('span');label.textContent=t('Record Script');record.append(label);}
  const history=document.querySelector('#audio-history'),historyToggle=document.querySelector('.reference-history-toggle');

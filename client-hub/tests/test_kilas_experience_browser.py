@@ -41,7 +41,7 @@ def main():
                 expect(page.locator('.chat-voice-draft')).to_be_visible();thread_url=page.url
                 page.locator('.chat-voice-draft').click();page.wait_for_load_state('networkidle')
                 expect(page.locator('#audio-script')).to_have_value(script)
-                expect(page.locator('#voice-script-duration')).to_contain_text('Perkiraan durasi')
+                expect(page.locator('#voice-script-duration,.voice-duration-note')).to_have_count(0)
                 assert not any('/jobs' in url for url in writes)
                 expect(page.locator('.audio-draft-return a')).to_have_attribute('href',urlsplit(thread_url).path)
                 page.screenshot(path=str(output/f'voice-draft-{width}.png'),full_page=True)
