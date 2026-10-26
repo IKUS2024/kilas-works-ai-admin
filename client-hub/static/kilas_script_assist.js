@@ -6,10 +6,9 @@
   const prompt=el('prompt'),script=document.querySelector('#audio-script'),status=el('status'),generate=el('generate'),stop=el('stop'),mic=el('mic'),micStop=el('mic-stop');
   let thread=null,controller=null,recognition=null,dictating=false,version=0,undo=null;
   const mode=el('mode');
-  const changed=()=>{version++;undo=null;el('undo').hidden=true;usable();};
+  const changed=()=>{version++;undo=null;el('undo').hidden=true;};
   const apply=value=>{script.value=value;script.dispatchEvent(new Event('input',{bubbles:true}));};
   mode.addEventListener('change',()=>{haltDictation();el('idea').hidden=mode.value!=='generate';});
-  const usable=()=>{el('copy').disabled=!script.value.trim();};
   const haltDictation=()=>{if(recognition)recognition.abort();dictating=false;micStop.hidden=true;mic.disabled=!!controller||!Recognition;};
   const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!Recognition){mic.disabled=true;el('mic-note').textContent=t('Dikte belum didukung browser ini. Ketik arahan naskah di atas.');}
@@ -49,9 +48,8 @@
       if(version!==startVersion||script.value!==before){status.textContent=t('Naskah sudah kamu edit. Hasil AI tidak menimpa edit tersebut; lihat percakapan atau coba lagi.');return;}
       apply(draft);undo={before,applied:draft,version};el('undo').hidden=false;status.textContent=t('Naskah masuk ke kolom dan siap diperiksa. Belum ada audio yang dibuat.');
     }catch(error){status.textContent=error.name==='AbortError'?t('AI dihentikan. Naskah semula tetap aman; belum ada audio yang dibuat.'):error instanceof TypeError?t('Koneksi terputus. Periksa naskah atau coba lagi.'):error.message;}
-    finally{controller=null;root.dataset.busy='false';generate.disabled=false;prompt.disabled=false;mode.disabled=false;mic.disabled=!Recognition;stop.hidden=true;usable();}
+    finally{controller=null;root.dataset.busy='false';generate.disabled=false;prompt.disabled=false;mode.disabled=false;mic.disabled=!Recognition;stop.hidden=true;}
   });
   script.addEventListener('input',changed);
-  el('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(script.value);status.textContent=t('Naskah disalin.');}catch(_){status.textContent=t('Salin otomatis belum tersedia. Pilih teks naskah untuk menyalin.');script.focus();script.select();}});
-  el('undo').addEventListener('click',()=>{if(!undo||controller)return;if(script.value!==undo.applied||version!==undo.version){undo=null;el('undo').hidden=true;return;}const before=undo.before;apply(before);status.textContent=t('Naskah sebelum bantuan AI dikembalikan.');});usable();
+  el('undo').addEventListener('click',()=>{if(!undo||controller)return;if(script.value!==undo.applied||version!==undo.version){undo=null;el('undo').hidden=true;return;}const before=undo.before;apply(before);status.textContent=t('Naskah sebelum bantuan AI dikembalikan.');});
 })();

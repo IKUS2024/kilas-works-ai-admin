@@ -63,12 +63,14 @@ class AudioTests(unittest.TestCase):
         self.assertNotIn('reservasi hingga',html)
         self.assertIn('Bantu AI memakai kuota chat.',html)
         self.assertIn('id="voice-assist-status" role="status" aria-live="polite"></p>',html)
-        for ident in ('audio-script','voice-language-status','voice-assist-copy','voice-assist-generate','voice-translate-toggle','voice-generate'):
+        for ident in ('audio-script','voice-language-status','voice-assist-generate','voice-translate-toggle','voice-generate'):
             self.assertEqual(html.count('id="'+ident+'"'),1)
         self.assertIn('aria-describedby="voice-language-status"',html)
         self.assertIn('aria-label="Dikte Naskah"',html)
         self.assertNotIn('<span>Dikte</span>',html)
-        self.assertIn('aria-label="Salin naskah"',html)
+        for ident in ('voice-assist-copy','reference-script-paste','voice-script-duration'):
+            self.assertNotIn('id="'+ident+'"',html)
+        self.assertNotIn('class="voice-duration-note"',html)
 
     def test_compact_video_copy_keeps_privacy_and_disabled_consent(self):
         with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false','KILAS_VOICE_VIDEO_SCRIPT_ENABLED':'false'}):
