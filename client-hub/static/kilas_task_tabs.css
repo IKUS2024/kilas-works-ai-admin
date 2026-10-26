@@ -24,7 +24,7 @@ body.kilas-light.premium-workspace:not(.finance-app) .kilas-task-navigation :is(
  outline:2px solid #bd4700;outline-offset:2px;
 }
 body.kilas-light.premium-workspace:not(.finance-app):has(>.kilas-tool-header):has(.kilas-task-navigation)>.wrap{padding-top:4px!important}
-body.kilas-light.premium-workspace:not(.finance-app) .kilas-feature-navigation:has(.kilas-task-navigation){margin:0 auto 20px}
+body.kilas-light.premium-workspace:not(.finance-app) .kilas-feature-navigation:has(.kilas-task-navigation){margin:8px auto 20px}
 @media(max-width:760px){
  body.kilas-light.premium-workspace:not(.finance-app):has(>.kilas-reference-header) .home-tool-selector.kilas-task-navigation .home-task-choices{max-width:calc(100vw - 40px);gap:6px}
 }

@@ -89,6 +89,8 @@ def main():
                         metrics = verify(active)
                         if active == 'Voice Over':
                             expect(page.locator('#reference-script-paste,#voice-assist-copy,.voice-duration-note')).to_have_count(0)
+                            expect(page.locator('#voice-assist-mic,#voice-assist-mic-stop')).to_have_count(0)
+                            expect(page.locator('#dictation-start,#dictation-undo,#voice-assist-generate')).to_have_count(3)
                         if locale == 'en' and width in (320, 1440):
                             name = 'interpreter' if path.endswith('interpreter') else active.replace(' ', '-').lower()
                             page.screenshot(path=str(output / f'{name}-{width}.png'))
