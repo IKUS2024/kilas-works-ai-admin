@@ -1,6 +1,7 @@
 """Tab geometry and native navigation on disposable data; provider IO is blocked."""
 import json
 import logging
+import shutil
 import threading
 from pathlib import Path
 from unittest.mock import patch
@@ -38,7 +39,7 @@ def main():
              patch.object(chat_models, 'check', side_effect=lambda m: {**chat_models.spec(m), 'available': True, 'images': True, 'status': 'verified'}), \
              patch.object(image_models, 'check', side_effect=lambda m: {**image_models.spec(m), 'available': True, 'status': 'verified'}), \
              sync_playwright() as pw:
-            browser = pw.chromium.launch(executable_path='/usr/bin/chromium', args=['--no-sandbox'])
+            browser = pw.chromium.launch(executable_path=shutil.which('chromium'), args=['--no-sandbox'])
             for locale in ('en', 'id'):
                 for width in (320, 360, 390, 600, 601, 760, 768, 1024, 1440):
                     context = browser.new_context(viewport={'width': width, 'height': 900}, reduced_motion='reduce')
