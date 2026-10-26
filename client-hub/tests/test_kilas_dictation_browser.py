@@ -1,6 +1,7 @@
 """Naskah microphone failure/cancellation regressions; local UI, zero provider IO."""
 import json
 import os
+import shutil
 import tempfile
 import threading
 from pathlib import Path
@@ -40,17 +41,21 @@ def main():
     try:
         blocked = AssertionError('No real provider allowed')
         with patch.object(budget, 'ready', return_value=True), patch.object(stt, 'transcribe', side_effect=blocked), patch.object(audio_provider, 'request', side_effect=blocked), patch.object(providers, '_openai', side_effect=blocked), sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, executable_path=shutil.which('chromium'))
             for width in (320, 360, 390, 430, 1440):
                 cookie = case.client().get_cookie('session')
                 context = browser.new_context(viewport={'width': width, 'height': 900}, has_touch=width < 761)
-                context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}])
+                context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin},
+                                     {'name': 'kilas_language', 'value': 'id', 'url': origin}])
                 context.add_init_script(MIC)
                 page = context.new_page()
                 errors = []
                 page.on('pageerror', lambda e: errors.append(str(e)))
                 page.route('**/*', lambda r: r.continue_() if r.request.url.startswith(origin) else r.abort())
                 page.goto(origin+'/kilas-translator?mode=voiceover', wait_until='networkidle')
+                expect(page.locator('#voice-assist-mic,#voice-assist-mic-stop')).to_have_count(0)
+                expect(page.locator('#voice-assist-generate')).to_have_count(1)
+                expect(page.locator('#dictation-start,#dictation-undo')).to_have_count(2)
                 expect(page.locator('#voiceover-panel a[href*="/privacy"]')).to_have_count(0)
                 script = page.locator('#audio-script')
                 script.fill('Naskah awal.')

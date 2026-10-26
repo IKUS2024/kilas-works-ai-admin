@@ -3,39 +3,24 @@
   const t=(message,values)=>window.KilasUI ? window.KilasUI.t(message,values) : Object.entries(values||{}).reduce((text,[key,value])=>text.replaceAll('{'+key+'}',String(value)),message);
   const root=document.querySelector('#voice-script-assist');if(!root)return;
   const el=name=>document.querySelector('#voice-assist-'+name);
-  const prompt=el('prompt'),script=document.querySelector('#audio-script'),status=el('status'),generate=el('generate'),stop=el('stop'),mic=el('mic'),micStop=el('mic-stop');
-  let thread=null,controller=null,recognition=null,dictating=false,version=0,undo=null;
+  const prompt=el('prompt'),script=document.querySelector('#audio-script'),status=el('status'),generate=el('generate'),stop=el('stop');
+  let thread=null,controller=null,version=0,undo=null;
   const mode=el('mode');
   const changed=()=>{version++;undo=null;el('undo').hidden=true;};
   const apply=value=>{script.value=value;script.dispatchEvent(new Event('input',{bubbles:true}));};
-  mode.addEventListener('change',()=>{haltDictation();el('idea').hidden=mode.value!=='generate';});
-  const haltDictation=()=>{if(recognition)recognition.abort();dictating=false;micStop.hidden=true;mic.disabled=!!controller||!Recognition;};
-  const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!Recognition){mic.disabled=true;el('mic-note').textContent=t('Dikte belum didukung browser ini. Ketik arahan naskah di atas.');}
-  else {
-    mic.addEventListener('click',()=>{
-      if(dictating||controller)return;
-      mode.value='generate';el('idea').hidden=false;
-      const initial=prompt.value.trim();recognition=new Recognition();recognition.lang=document.documentElement.lang||'id-ID';recognition.continuous=false;recognition.interimResults=false;
-      recognition.onresult=event=>{if(document.hidden||!root.open)return;let text=initial;for(let i=event.resultIndex;i<event.results.length;i++)if(event.results[i].isFinal)text+=' '+event.results[i][0].transcript;prompt.value=text.trim().slice(0,4000);status.textContent=t('Dikte masuk ke arahan. Periksa teks, lalu tekan Bantu naskah.');};
-      recognition.onerror=event=>{status.textContent=event.error==='not-allowed'?t('Izin mic tidak diberikan. Kamu tetap bisa mengetik arahan.'):event.error==='aborted'?t('Dikte dihentikan. Arahan tetap bisa diedit.'):t('Dikte belum berhasil. Ketik arahan atau coba mic lagi.');};
-      recognition.onend=()=>{dictating=false;micStop.hidden=true;mic.disabled=!!controller||!Recognition;};
-      try{recognition.start();dictating=true;mic.disabled=true;micStop.hidden=false;status.textContent=t('Mendengarkan arahan. Tekan Stop dikte untuk berhenti.');}catch(_){haltDictation();status.textContent=t('Mic belum dapat dimulai. Ketik arahan atau coba lagi.');}
-    });
-  }
-  micStop.addEventListener('click',()=>{recognition?.stop();status.textContent=t('Menghentikan dikte…');});
-  function leave(){haltDictation();controller?.abort();}
+  mode.addEventListener('change',()=>{el('idea').hidden=mode.value!=='generate';});
+  function leave(){controller?.abort();}
   document.addEventListener('visibilitychange',()=>{if(document.hidden)leave();});window.addEventListener('pagehide',leave);
   document.querySelector('#translate-tab')?.addEventListener('click',leave);root.addEventListener('toggle',()=>{if(!root.open)leave();});
   stop.addEventListener('click',()=>controller?.abort());
   async function checked(response){if(response.redirected)throw Error(t('Sesi berakhir. Masuk kembali untuk melanjutkan.'));if(!response.ok){let body;try{body=await response.json();}catch(_){}throw Error(body?.error||t('Naskah belum berhasil dibuat. Coba lagi.'));}return response;}
   generate.addEventListener('click',async()=>{
-    if(controller||dictating)return;
+    if(controller)return;
     if(document.querySelector('#voice-video-script')?.dataset.busy==='true'){status.textContent=t('Selesaikan pengambilan naskah video terlebih dahulu.');return;}
     const content=(mode.value==='tidy'?script.value:prompt.value).trim(),before=script.value,startVersion=version;
     if(!content){status.textContent=mode.value==='tidy'?t('Tulis naskah terlebih dahulu, atau pilih Buat naskah dari ide.'):t('Tulis atau dikte ide terlebih dahulu.');(mode.value==='tidy'?script:prompt).focus();return;}
     if(content.length>4000){status.textContent=t('Naskah atau ide maksimal 4.000 karakter. Teks tetap aman.');return;}
-    controller=new AbortController();root.dataset.busy='true';generate.disabled=true;prompt.disabled=true;mode.disabled=true;mic.disabled=true;stop.hidden=false;status.textContent=t('Menulis naskah…');
+    controller=new AbortController();root.dataset.busy='true';generate.disabled=true;prompt.disabled=true;mode.disabled=true;stop.hidden=false;status.textContent=t('Menulis naskah…');
     const csrf=document.querySelector('#voiceover-panel [name=csrf_token]').value;
     const headers={'Content-Type':'application/json','X-CSRF-Token':csrf};
     try {
@@ -48,7 +33,7 @@
       if(version!==startVersion||script.value!==before){status.textContent=t('Naskah sudah kamu edit. Hasil AI tidak menimpa edit tersebut; lihat percakapan atau coba lagi.');return;}
       apply(draft);undo={before,applied:draft,version};el('undo').hidden=false;status.textContent=t('Naskah masuk ke kolom dan siap diperiksa. Belum ada audio yang dibuat.');
     }catch(error){status.textContent=error.name==='AbortError'?t('AI dihentikan. Naskah semula tetap aman; belum ada audio yang dibuat.'):error instanceof TypeError?t('Koneksi terputus. Periksa naskah atau coba lagi.'):error.message;}
-    finally{controller=null;root.dataset.busy='false';generate.disabled=false;prompt.disabled=false;mode.disabled=false;mic.disabled=!Recognition;stop.hidden=true;}
+    finally{controller=null;root.dataset.busy='false';generate.disabled=false;prompt.disabled=false;mode.disabled=false;stop.hidden=true;}
   });
   script.addEventListener('input',changed);
   el('undo').addEventListener('click',()=>{if(!undo||controller)return;if(script.value!==undo.applied||version!==undo.version){undo=null;el('undo').hidden=true;return;}const before=undo.before;apply(before);status.textContent=t('Naskah sebelum bantuan AI dikembalikan.');});

@@ -58,6 +58,7 @@ jobs:
       - run: python client-hub/tests/test_kilas_mobile_drawer_keyboard_browser.py
         env: {KILAS_MOBILE_SCREENSHOTS: /tmp/kilas-reference-ui/mobile-correction}
       - run: python client-hub/tests/kilas_tools_navigation_browser.py
+      - run: python client-hub/tests/kilas_task_tabs_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
