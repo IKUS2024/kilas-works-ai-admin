@@ -99,9 +99,17 @@ def main():
                             assert field.evaluate('e=>{e.scrollTop=e.scrollHeight;return e.scrollHeight<=e.clientHeight||e.scrollTop>0}')
                             picker=page.locator('#ai-files,#work-source-files')
                             picker.set_input_files([{'name':'synthetic-notes.txt','mimeType':'text/plain','buffer':b'Fixture notes.'}])
-                            for selector in ('.ai-attach,.work-add-file','#ai-send,#agent-chat-form button[type=submit]'):
-                                c=page.locator(selector);expect(c).to_be_in_viewport()
-                                assert c.evaluate('e=>{const r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}')
+                            for attached_height in (350,300):
+                                resize(attached_height,12 if mode=='visual' else 0)
+                                for selector in ('.ai-attach,.work-add-file','#ai-send,#agent-chat-form button[type=submit]','#ai-pending button,#work-pending-files button'):
+                                    c=page.locator(selector).first;expect(c).to_be_in_viewport()
+                                    assert c.evaluate('e=>{const r=e.getBoundingClientRect(),v=visualViewport;return r.top>=v.offsetTop&&r.bottom<=v.offsetTop+v.height+1&&e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}'),(mode,width,name,attached_height,selector)
+                                attached=page.evaluate(GEOMETRY)
+                                assert attached['composer']['bottom']<=attached_height+attached['top']+1,(mode,width,name,attached)
+                                for control in attached['controls']:
+                                    assert control['visible'] and control['hit'] and control['bottom']<=attached_height+attached['top']+1,(mode,width,name,control)
+                                if cycle==0 and width==320 and attached_height==300:
+                                    page.screenshot(path=str(output/f'{name}-{mode}-320-pending.png'))
                             page.locator('#ai-pending button,#work-pending-files button').first.click()
                             field.fill(DRAFT);field.focus()
                             timeline=page.locator('#ai-messages,#agent-conversation')
