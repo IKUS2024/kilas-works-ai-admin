@@ -36,6 +36,8 @@ if(root){
   const $=id=>document.getElementById('copilot-'+id), mic=$('mic'),state=$('state'),action=$('action'),error=$('error');
   const translate=$('translate'),target=$('target'),style=$('style'),consent=$('consent'),cancel=$('cancel');
   const csrf=$('csrf').value, turns=JSON.parse($('initial').textContent);
+  const resultTools=root.querySelector('.copilot-result-tools');
+  const styleButtons=[...root.querySelectorAll('[data-copilot-style]')];let textSize=22;
   let phase='idle',epoch=0,capture=null,chunks=[],sessionId=root.dataset.sessionId,operation=null,controller=null,timer=null,partial=null;
   const messages={
     silence:'Tidak terdengar ucapan. Dekatkan mikrofon ke speaker, lalu rekam lagi.',
@@ -55,13 +57,15 @@ if(root){
   function notice(code){error.textContent=messages[code]||'Pemrosesan gagal. Periksa koneksi lalu mulai rekaman baru.';error.hidden=false;}
   function setPhase(next){
     phase=next;root.dataset.state=next;
+    root.dataset.view=['stopping','processing','streaming'].includes(next)||(next==='idle'&&turns.length)?'results':'capture';
     const busy=['requesting','stopping','processing','streaming'].includes(next);
     mic.disabled=busy;mic.setAttribute('aria-pressed',String(next==='listening'));
     mic.setAttribute('aria-label',next==='listening'?'Berhenti dan proses jawaban':next==='captured'?'Proses rekaman':'Mulai mendengarkan');
     state.textContent=({idle:'Mikrofon mati',requesting:'Meminta izin mikrofon…',listening:'Mendengarkan…',stopping:'Menyiapkan rekaman…',captured:'Rekaman selesai · mikrofon mati',processing:'Memproses…',streaming:'Menyiapkan saran jawaban…'})[next];
-    action.textContent=next==='listening'?'Tekan lagi untuk menyiapkan jawaban':next==='captured'?'Tekan untuk memproses rekaman':busy?'Mohon tunggu…':'Tekan untuk mendengarkan';
+    action.textContent=next==='listening'?'Tekan untuk menyiapkan jawaban':next==='captured'?'Proses rekaman':busy?'Mohon tunggu…':turns.length?'Dengarkan lagi':'Tekan untuk mendengarkan';
     cancel.hidden=next==='idle';
     for(const el of [translate,target,style,consent])el.disabled=next!=='idle';
+    styleButtons.forEach(button=>button.disabled=next!=='idle');$('wave').hidden=next!=='listening';
   }
   function paragraph(parent,className,label,text){
     const h=document.createElement('h3');h.textContent=label;
@@ -69,24 +73,44 @@ if(root){
   }
   function draw(){
     const container=$('turns');container.replaceChildren();
-    for(const turn of [...turns].reverse()){
+    let previous=null;
+    [...turns].reverse().forEach((turn,index)=>{
       const article=document.createElement('article');article.className='copilot-turn';
       if(translate.checked){
-        paragraph(article,'copilot-source','Ucapan yang didengar',turn.source);
-        paragraph(article,'copilot-source-translation','Terjemahan ucapan',turn.source_translation||'Terjemahan belum dibuat untuk rekaman ini.');
+        const source=document.createElement('section');source.className='copilot-source-card';
+        paragraph(source,'copilot-source','Ucapan yang didengar',turn.source);
+        paragraph(source,'copilot-source-translation','Terjemahan ucapan',turn.source_translation||'Terjemahan belum dibuat untuk rekaman ini.');article.append(source);
       }
-      paragraph(article,'copilot-reply','Saran jawaban AI',turn.reply);
-      if(translate.checked)paragraph(article,'copilot-reply-translation','Terjemahan saran · '+([...target.options].find(option=>option.value===turn.target)?.textContent||''),turn.reply_translation||'Terjemahan belum dibuat untuk rekaman ini.');
+      const answer=document.createElement('section');answer.className='copilot-answer-card';
+      paragraph(answer,'copilot-reply','Saran jawaban AI',turn.reply);
+      if(translate.checked)paragraph(answer,'copilot-reply-translation','Terjemahan · '+([...target.options].find(option=>option.value===turn.target)?.textContent||''),turn.reply_translation||'Terjemahan belum dibuat untuk rekaman ini.');
       const copy=document.createElement('button');copy.type='button';copy.className='copilot-copy';copy.textContent='Salin jawaban';
       copy.addEventListener('click',async()=>{
         try{await navigator.clipboard.writeText(turn.reply);copy.textContent='Tersalin';setTimeout(()=>copy.textContent='Salin jawaban',1500);}
         catch{notice('copy_failed');error.textContent='Belum dapat menyalin. Pilih teks jawaban lalu salin secara manual.';}
-      });article.append(copy);container.append(article);
-    }
-    document.querySelector('.copilot-result-tools').hidden=!turns.length;$('disclosure').hidden=!turns.length;
+      });answer.append(copy);if(!index)answer.append(resultTools);article.append(answer);
+      if(!index)container.append(article);
+      else{
+        if(!previous){previous=document.createElement('details');previous.className='copilot-previous';const summary=document.createElement('summary');summary.textContent='Jawaban sebelumnya ('+(turns.length-1)+')';previous.append(summary);container.append(previous);}
+        previous.append(article);
+      }
+    });
+    resultTools.hidden=!turns.length;$('disclosure').hidden=!turns.length;
   }
   translate.addEventListener('change',()=>{$('target-wrap').hidden=!translate.checked;draw();});
-  $('text-size').addEventListener('change',e=>root.style.setProperty('--copilot-text-size',e.target.value+'px'));
+  styleButtons.forEach(button=>button.addEventListener('click',()=>{style.value=button.dataset.copilotStyle;styleButtons.forEach(b=>b.setAttribute('aria-pressed',String(b===button)));}));
+  function size(delta){textSize=Math.max(18,Math.min(30,textSize+delta));root.style.setProperty('--copilot-text-size',textSize+'px');$('smaller').disabled=textSize===18;$('larger').disabled=textSize===30;}
+  $('smaller').addEventListener('click',()=>size(-2));$('larger').addEventListener('click',()=>size(2));
+  function waveform(samples){
+    const canvas=$('wave'),context=canvas.getContext('2d');if(!context)return;
+    context.clearRect(0,0,320,48);context.fillStyle='#ed651b';
+    for(let bar=0;bar<40;bar++){
+      const from=Math.floor(bar*samples.length/40),to=Math.floor((bar+1)*samples.length/40);let sum=0;
+      for(let at=from;at<to;at++)sum+=samples[at]**2;
+      const height=Math.min(46,Math.sqrt(sum/Math.max(1,to-from))*160);
+      if(height>0.2)context.fillRect(bar*8+2,(48-height)/2,4,height);
+    }
+  }
   function release(){
     clearTimeout(timer);timer=null;
     if(!capture)return;
@@ -104,7 +128,7 @@ if(root){
   }
   function reset(code,beacon=false){
     ++epoch;cancelRequest(beacon);operation=null;controller?.abort();controller=null;
-    release();chunks=[];partial?.remove();partial=null;setPhase('idle');if(code)notice(code);
+    release();chunks=[];partial?.remove();partial=null;draw();setPhase('idle');if(code)notice(code);
   }
   async function begin(){
     error.hidden=true;
@@ -126,7 +150,7 @@ if(root){
       });capture.encoder=encoder;
       node.onaudioprocess=e=>{
         if(mine!==epoch||phase!=='listening')return;
-        try{encoder.feed([e.inputBuffer.getChannelData(0)]);}catch{reset('microphone');}
+        try{const samples=e.inputBuffer.getChannelData(0);encoder.feed([samples]);waveform(samples);}catch{reset('microphone');}
       };
       source.connect(node);node.connect(gain);gain.connect(context.destination);
       stream.getAudioTracks().forEach(track=>track.addEventListener('ended',()=>{if(mine===epoch&&phase==='listening')reset('microphone');}));
@@ -152,9 +176,10 @@ if(root){
   }
   async function process(){
     const mine=epoch;setPhase('stopping');error.hidden=true;
+    $('turns').replaceChildren();resultTools.hidden=true;$('disclosure').hidden=true;
     capture?.encoder.finish();release();
     const blob=wav(chunks);chunks=[];
-    if(blob.size<3244){setPhase('idle');notice('unclear_audio');return;}
+    if(blob.size<3244){draw();setPhase('idle');notice('unclear_audio');return;}
     operation=crypto.randomUUID().replaceAll('-','');controller=new AbortController();
     const form=new FormData();form.set('csrf_token',csrf);form.set('audio',blob,'recording.wav');form.set('consent','yes');
     form.set('style',style.value);form.set('translate',translate.checked?'yes':'no');if(translate.checked)form.set('target',target.value);
@@ -168,7 +193,7 @@ if(root){
         if(event.type==='status')state.textContent=event.text;
         if(event.type==='delta'){
           setPhase('streaming');
-          if(!partial){partial=document.createElement('article');partial.className='copilot-turn is-partial';partial.setAttribute('aria-label','Saran AI sedang diproses');paragraph(partial,'copilot-reply','Saran jawaban AI · belum selesai','');$('turns').prepend(partial);partial.scrollIntoView({block:'start',behavior:'instant'});}
+          if(!partial){partial=document.createElement('article');partial.className='copilot-turn is-partial';partial.setAttribute('aria-label','Saran AI sedang diproses');const card=document.createElement('section');card.className='copilot-answer-card';paragraph(card,'copilot-reply','Saran jawaban AI · belum selesai','');card.append(resultTools);partial.append(card);$('turns').prepend(partial);resultTools.hidden=false;}
           partial.querySelector('.copilot-reply').textContent+=event.text;
         }
         if(event.type==='complete'){
@@ -180,12 +205,12 @@ if(root){
             link.textContent=event.title||event.turn.source.slice(0,68);link.title=link.textContent;link.setAttribute('aria-current','page');list.prepend(link);
             list.querySelector('.ai-sidebar-empty')?.remove();
           }
-          state.textContent='Jawaban siap · mikrofon mati';
+          state.textContent='Jawaban siap';
         }
       });
-      if(mine===epoch){operation=null;controller=null;setPhase('idle');state.textContent='Jawaban siap · mikrofon mati';}
+      if(mine===epoch){operation=null;controller=null;setPhase('idle');state.textContent='Jawaban siap';}
     }catch(e){
-      if(mine===epoch){cancelRequest();operation=null;partial?.remove();partial=null;setPhase('idle');notice(e.message);}
+      if(mine===epoch){cancelRequest();operation=null;partial?.remove();partial=null;draw();setPhase('idle');notice(e.message);}
     }finally{clearTimeout(timeout);}
   }
   mic.addEventListener('click',()=>{if(phase==='idle')begin();else if(['listening','captured'].includes(phase))process();});

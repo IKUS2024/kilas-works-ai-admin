@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_copilot_navigation.css',v='20261027') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_copilot_navigation.css',v='20261027b') }}">
 <nav class="copilot-task-nav" aria-label="Pilihan alat">
   <a href="{{ url_for('kilas_ai.home') }}" {% if selected_feature|default('copilot')=='copilot' %}aria-current="page"{% endif %}>Copilot</a>
   <a href="{{ url_for('kilas_audio.live_translator_home') }}" {% if selected_feature|default('') in ('live','translate','gemini') %}aria-current="page"{% endif %}>Translator</a>

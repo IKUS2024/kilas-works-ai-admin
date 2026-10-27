@@ -120,3 +120,14 @@ Client Hub `srv-da7ti2psrm7s73dh9i2g`, workspace `tea-da34t2gu01pc73ft7uf0`,
 automatic deploy OFF. Existing startup logs confirm OpenAI key presence only;
 they do not prove model access or paid connectivity. Publication, exact-commit CI
 and terminal Render LIVE verification are pending this checkpoint.
+
+### Parent visual correction
+
+The parent inspected the original reference pixels and the first CI artifact,
+then rejected the initial visual layout. The revision uses a separate compact
+results state, a prominent peach reply card, a white source/translation card only
+when enabled, orange microphone/stop, an actual input-energy waveform, segmented
+style controls and compact A−/A+ buttons on the reply card. Previous turns remain
+available in a collapsed history section. The primary sidebar action is solid
+orange with white text. No live transcript is fabricated: this implementation
+transcribes only after explicit stop, and the concise UI says so.

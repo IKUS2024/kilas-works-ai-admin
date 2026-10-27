@@ -79,11 +79,14 @@ def main():
                 assert not page.locator('textarea').count()
                 assert 'AI Chat' not in page.locator('body').inner_text()
                 assert page.locator('.kilas-profile-menu[open]').count() == 0
+                assert page.locator('.premium-skip').evaluate('e=>e.getBoundingClientRect().bottom<0')
                 page.screenshot(path=str(output/f'idle-{width}.png'),full_page=True,animations='disabled')
                 page.locator('#copilot-mic').click()
                 expect(page.locator('#copilot-error')).to_contain_text('Centang izin')
                 assert page.evaluate('micRequests') == 0
                 page.locator('#copilot-consent').check()
+                page.locator('[data-copilot-style=profesional]').click()
+                expect(page.locator('[data-copilot-style=profesional]')).to_have_attribute('aria-pressed','true')
                 page.locator('#copilot-mic').click()
                 expect(page.locator('#copilot-state')).to_have_text('Mendengarkan…')
                 before = len(provider_calls)
@@ -94,6 +97,8 @@ def main():
                 page.locator('#copilot-mic').click()
                 expect(page.locator('.copilot-reply')).to_have_text('Could you clarify the timeline?')
                 expect(page.locator('#copilot-state')).to_contain_text('Jawaban siap')
+                off_y=page.locator('.copilot-answer-card').first.bounding_box()['y'];assert off_y<500
+                assert fixture.copilot.turns(case.owner,int(page.locator('#copilot').get_attribute('data-session-id')))[-1]['style']=='profesional'
                 assert page.evaluate('stoppedTracks') >= 1
                 assert page.locator('.copilot-source').count() == 0
                 assert len(provider_calls) == before+2
@@ -108,7 +113,8 @@ def main():
                 expect(page.locator('.copilot-reply')).to_have_count(2)
                 expect(page.locator('.copilot-reply-translation').first).to_have_text('Bisa jelaskan jadwalnya?')
                 expect(page.locator('.copilot-source').first).to_have_text('When can you start?')
-                page.locator('#copilot-text-size').select_option('26')
+                on_y=page.locator('.copilot-answer-card').first.bounding_box()['y'];assert on_y<820
+                page.locator('#copilot-larger').click();page.locator('#copilot-larger').click()
                 assert page.locator('.copilot-reply').first.evaluate('e=>getComputedStyle(e).fontSize') == '26px'
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), width
                 page.screenshot(path=str(output/f'results-on-{width}.png'), full_page=True)
@@ -153,7 +159,7 @@ def main():
                     if active=='Voice Over':assert page.locator('#audio-script').count()==1
                     else:assert page.locator('#live-setup-form').count()==1
                     page.screenshot(path=str(output/f'{active.replace(" ","-")}-{width}.png'),full_page=True)
-                report['cases'].append({'width':width,'idle_start_stop_results_translation_history_consent_permission_cancel_profile_overflow':'PASS'})
+                report['cases'].append({'width':width,'reply_top_off':off_y,'reply_top_on':on_y,'idle_start_stop_results_translation_history_consent_permission_cancel_profile_overflow':'PASS'})
                 context.close()
             # Network/interrupt/cancellation verification with the real request stack.
             context = browser.new_context(viewport={'width':1280,'height':900})
