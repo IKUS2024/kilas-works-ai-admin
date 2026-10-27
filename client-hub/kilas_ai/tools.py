@@ -423,39 +423,9 @@ def finalize_scheduled_search(instruction, search_text, citations):
 
 
 def image(prompt, source=None, *, request_timeout=120, selected_model=None):
-    if selected_model:
-        from .selected_image import generate
-        return generate(selected_model,prompt,source,request_timeout)
-    model = os.environ.get("KILAS_AI_OPENAI_IMAGE_MODEL", "").strip()
-    if not model:
-        raise ToolUnavailable("Pembuatan gambar belum tersedia.")
-    key = _openai_key()
-    headers = {"Authorization": "Bearer " + key}
-    data = None
-    try:
-        if source is None:
-            response = requests.post("https://api.openai.com/v1/images/generations",
-                headers=headers, json={"model": model, "prompt": prompt[:4000], "size": "1024x1024", "quality": "low", "n": 1},
-                timeout=(10, request_timeout))
-        else:
-            response = requests.post("https://api.openai.com/v1/images/edits", headers=headers,
-                data={"model": model, "prompt": prompt[:4000], "size": "1024x1024", "quality": "low", "n": "1"},
-                files={"image": (source["filename"], bytes(source["content"]), source["mime_type"])},
-                timeout=(10, request_timeout))
-        response.raise_for_status()
-        data = response.json()
-        encoded = data["data"][0]["b64_json"]
-        raw = base64.b64decode(encoded, validate=True)
-        if not raw or len(raw) > 8 * 1024 * 1024:
-            raise ValueError("image_size")
-        with Image.open(io.BytesIO(raw)) as opened:
-            opened.verify()
-        with Image.open(io.BytesIO(raw)) as opened:
-            mime = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}.get(opened.format)
-            if not mime or opened.width * opened.height > 20_000_000:
-                raise ValueError("image_format")
-    except (requests.RequestException, ValueError, KeyError, IndexError, TypeError):
-        raise ToolUnavailable("Gambar belum dapat dibuat. Coba lagi.",
-            model=model if isinstance(data,dict) else None,
-            usage=data.get('usage') if isinstance(data,dict) else None) from None
-    return {"raw": raw, "mime": mime, "model": model, "usage": data.get("usage") or {}}
+    from . import image_models
+    model=selected_model or os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL','').strip()
+    if model not in image_models.CATALOG:
+        raise ToolUnavailable('Pilih model gambar yang tersedia sebelum membuat gambar.')
+    from .selected_image import generate
+    return generate(model,prompt,source,request_timeout)

@@ -40,7 +40,10 @@ class AnswerModelAuditTests(unittest.TestCase):
         concept='Konsep poster: '+('detail warna dan posisi. '*60)+' Tulisan akhir harus UTUH.'
         self.assertIn(concept,routing.image_prompt('buat gambarnya dari konsep tadi',concept))
 
-    def _generate(self,model,prompt,size=(1024,1024),transparent=False):
+    def _generate(self,model,prompt,size=None,transparent=False):
+        if size is None:
+            from kilas_ai.image_options import resolve
+            size=tuple(map(int,resolve(model,prompt)['size'].split('x')))
         image=io.BytesIO();Image.new('RGBA' if transparent else 'RGB',size,(10,20,30,0) if transparent else 'blue').save(image,format='PNG')
         encoded=base64.b64encode(image.getvalue()).decode()
         data={'model':model,'data':[{'b64_json':encoded}]}
@@ -59,11 +62,11 @@ class AnswerModelAuditTests(unittest.TestCase):
                 payload,result=self._generate(model,prompt)
                 self.assertEqual(result['model'],model)
                 if image_models.spec(model)['provider']=='openai':
-                    self.assertEqual(payload['prompt'],prompt);self.assertEqual(payload['quality'],'low')
+                    self.assertEqual(payload['prompt'],prompt);self.assertEqual(payload['quality'],'high')
                     self.assertEqual(payload['model'],model)
                 else:
                     self.assertEqual(payload['contents'][0]['parts'][0]['text'],prompt)
-                    self.assertEqual(payload['generationConfig']['imageConfig']['imageSize'],'1K')
+                    self.assertEqual(payload['generationConfig']['imageConfig']['imageSize'],image_models.spec(model)['quality'])
 
     def test_flare_and_sunburst_transparency_is_supported(self):
         for model in ('gpt-image-2.5-flare','gpt-image-2.5-sunburst','gpt-image-1-mini'):
@@ -75,13 +78,13 @@ class AnswerModelAuditTests(unittest.TestCase):
         for model in ('gpt-image-2','gpt-image-2.5-flare','gpt-image-2.5-sunburst'):
             for ratio,size in (('16:9',(1536,864)),('9:16',(864,1536)),('4:5',(1024,1280))):
                 with self.subTest(model=model,ratio=ratio):
-                    payload,result=self._generate(model,'Buat poster rasio '+ratio,size)
+                    payload,result=self._generate(model,'Buat poster rasio '+ratio+' '+str(size[0])+'x'+str(size[1]),size)
                     self.assertEqual(payload['size'],f'{size[0]}x{size[1]}')
                     self.assertEqual(result['image_options']['dimensions'],list(size))
 
     def test_invalid_or_cost_increasing_options_fail_without_provider_call(self):
         with patch.object(image_models,'check',return_value={'available':True}),patch.object(selected_image.requests,'post') as post:
-            for model,prompt in (('gpt-image-1-mini','Buat 16:9'),('gpt-image-2','Buat transparan'),('gemini-3.1-flash-lite-image','Buat 4K'),('gpt-image-2.5-flare','quality high'),('gpt-image-2.5-flare','quality max'),('gpt-image-2.5-flare','16:9 1024x1024'),('gpt-image-2.5-flare','000x000'),('gpt-image-2.5-flare','x'*32001)):
+            for model,prompt in (('gpt-image-1-mini','Buat 16:9'),('gpt-image-2','Buat transparan'),('gemini-3.1-flash-lite-image','Buat 4K'),('gpt-image-2','quality max'),('gpt-image-2.5-flare','16:9 1024x1024'),('gpt-image-2.5-flare','000x000'),('gpt-image-2.5-flare','x'*32001)):
                 with self.subTest(model=model,prompt=prompt[:40]),self.assertRaises(tools.ToolUnavailable):selected_image.generate(model,prompt)
             post.assert_not_called()
 

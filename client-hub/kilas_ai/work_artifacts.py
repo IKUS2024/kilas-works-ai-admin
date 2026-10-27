@@ -31,7 +31,7 @@ def listing(user_id,job_id=None,conversation_id=None):
     where='j.user_id=?';params=[user_id]
     if job_id is not None:where+=' AND j.id=?';params.append(job_id)
     if conversation_id is not None:where+=' AND j.origin_conversation_id=?';params.append(conversation_id)
-    return [{**dict(r),'model_provenance':json.loads(r['content']).get('model_provenance'),'validation':json.loads(r['content']).get('validation',{})} for r in db.query_all('SELECT a.id,a.job_id,a.name,a.media_type,a.content,f.byte_size FROM kilas_agent_artifacts a JOIN kilas_agent_jobs j ON j.id=a.job_id JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE '+where+' ORDER BY a.id DESC LIMIT 20',tuple(params)) if not json.loads(r['content']).get('input')]
+    return [{**dict(r),'model_provenance':json.loads(r['content']).get('model_provenance'),'validation':json.loads(r['content']).get('validation',{}),'image_options':json.loads(r['content']).get('image_options')} for r in db.query_all('SELECT a.id,a.job_id,a.name,a.media_type,a.content,f.byte_size FROM kilas_agent_artifacts a JOIN kilas_agent_jobs j ON j.id=a.job_id JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE '+where+' ORDER BY a.id DESC LIMIT 20',tuple(params)) if not json.loads(r['content']).get('input')]
 
 
 def latest_document(user_id,conversation_id):
@@ -50,3 +50,9 @@ def image_source(user_id,artifact_id,conversation_id):
     row=db.query_one('SELECT a.name,a.media_type,f.content FROM kilas_agent_artifacts a JOIN kilas_agent_jobs j ON j.id=a.job_id JOIN kilas_agent_artifact_files f ON f.artifact_id=a.id WHERE a.id=? AND j.user_id=? AND j.origin_conversation_id=?',(artifact_id,user_id,conversation_id))
     if not row or not row['media_type'].startswith('image/'):raise ValueError('source_not_owned')
     return {'filename':row['name'],'mime_type':row['media_type'],'content':bytes(row['content'])}
+
+
+def document_image_context(user_id,artifact_id,conversation_id):
+    row=db.query_one('SELECT j.checkpoint_json FROM kilas_agent_artifacts a JOIN kilas_agent_jobs j ON j.id=a.job_id WHERE a.id=? AND j.user_id=? AND j.origin_conversation_id=?',(artifact_id,user_id,conversation_id))
+    if not row:raise ValueError('source_not_owned')
+    return json.loads(row['checkpoint_json'])

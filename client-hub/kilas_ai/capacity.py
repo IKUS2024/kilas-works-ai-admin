@@ -23,9 +23,14 @@ def premium(operation, mode, thread_id, key, model=None):
 
 def forecast(operation, mode, profile=None):
     from . import usage
+    if operation in ('IMAGE_GENERATION','IMAGE_EDIT'):
+        from . import image_models
+        if not profile or not profile.get('image_model'):
+            configured=os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL','').strip()
+            if configured in image_models.CATALOG:profile={**(profile or {}),'image_model':configured}
     if operation in ('IMAGE_GENERATION','IMAGE_EDIT') and profile and profile.get('image_model'):
         from . import image_models
-        return image_models.forecast(profile['image_model'],profile.get('image_input_token_bound',16000))
+        return image_models.forecast(profile['image_model'],profile.get('image_input_token_bound',16000),profile.get('image_prompt',''))
     if operation in ('CHAT','WEB_SEARCH','PDF') and profile and profile.get('selected_model'):
         from . import chat_models
         bound=profile.get('input_token_bound',12000)+(90000 if operation=='WEB_SEARCH' else 0)

@@ -10,7 +10,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 MAX_MARKDOWN = 24000
@@ -113,7 +113,7 @@ def _table(lines, styles, width, professional=False):
     return table
 
 
-def render(markdown, *, title_hint="Dokumen", logo=None, cover=False, professional=False):
+def render(markdown, *, title_hint="Dokumen", logo=None, cover=False, professional=False, images=(), brochure=False):
     if not isinstance(markdown, str):
         raise ValueError('invalid_document_source')
     text = markdown.strip()
@@ -121,6 +121,19 @@ def render(markdown, *, title_hint="Dokumen", logo=None, cover=False, profession
         raise ValueError("empty_document")
     if len(text) > MAX_MARKDOWN:
         raise ValueError('document_too_long')
+    images=list(images)
+    if len(images)>5:raise ValueError('document_image_limit')
+    # Supplied images only. No URL/file resolver or remote fetch is permitted.
+    from .workspace_output_formats import validate as validate_image
+    image_sizes=[]
+    for item in images:
+        from PIL import Image as PILImage
+        raw=bytes(item['content'])
+        mime=item['mime_type']
+        if mime not in ('image/png','image/jpeg','image/webp'):raise ValueError('invalid_document_image')
+        extension={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[mime]
+        validate_image('image.'+extension,mime,raw)
+        with PILImage.open(io.BytesIO(raw)) as opened:image_sizes.append(opened.size)
     styles = _styles()
     lines = text.splitlines()
     title = next((line[2:].strip() for line in lines if line.startswith("# ")), title_hint.strip() or "Dokumen")[:100]
@@ -146,6 +159,19 @@ def render(markdown, *, title_hint="Dokumen", logo=None, cover=False, profession
                 story.insert(position + 1, Spacer(1, 20))
         except Exception:
             pass
+    used_images=set()
+    def embedded(number,caption=''):
+        if not 1<=number<=len(images):raise ValueError('document_image_not_supplied')
+        used_images.add(number)
+        w,h=image_sizes[number-1]
+        scale=min(width/w,245/h)
+        figure=Image(io.BytesIO(bytes(images[number-1]['content'])),width=w*scale,height=h*scale)
+        figure.hAlign='CENTER'
+        parts=[figure,Spacer(1,8)]
+        if caption:parts.append(Paragraph(_inline(caption),styles['cell']))
+        parts.append(Spacer(1,14))
+        return KeepTogether(parts)
+    if brochure and images and not re.search(r'!\[.*?\]\(',text):story.append(embedded(1))
     index = 0
     title_skipped = False
     while index < len(lines):
@@ -155,6 +181,12 @@ def render(markdown, *, title_hint="Dokumen", logo=None, cover=False, profession
             continue
         if line.startswith("# ") and not title_skipped:
             title_skipped = True
+        elif line=='<!-- pagebreak -->':
+            story.append(PageBreak())
+        elif line.startswith('!['):
+            match=re.fullmatch(r'!\[([^]\n]*)\]\(image:([1-5])\)',line)
+            if not match:raise ValueError('document_image_not_supplied')
+            story.append(embedded(int(match[2]),match[1]))
         elif line.startswith("## "):
             story.append(Paragraph(_inline(line[3:]), styles["h2"]))
         elif line.startswith("### "):
@@ -174,7 +206,7 @@ def render(markdown, *, title_hint="Dokumen", logo=None, cover=False, profession
             story.append(Paragraph("•  " + _inline(bullet), styles["bullet"]))
         else:
             paragraph = [line]
-            while index + 1 < len(lines) and lines[index + 1].strip() and not re.match(r"^(?:#|[-*] |\d+[.)] |\|)", lines[index + 1].strip()):
+            while index + 1 < len(lines) and lines[index + 1].strip() and not re.match(r"^(?:#|!\[|<!-- pagebreak -->|[-*] |\d+[.)] |\|)", lines[index + 1].strip()):
                 index += 1
                 paragraph.append(lines[index].strip())
             story.append(Paragraph(_inline(" ".join(paragraph)), styles["body"]))
@@ -203,4 +235,4 @@ def render(markdown, *, title_hint="Dokumen", logo=None, cover=False, profession
     from .workspace_output_formats import validate
     validate(filename + '.pdf', 'application/pdf', raw)
     return {"filename": filename + ".pdf", "mime_type": "application/pdf", "byte_size": len(raw),
-            "content": raw, "extracted_text": text, "title": title}
+            "content": raw, "extracted_text": text, "title": title, "validation":{"embedded_images":len(used_images),"text_selectable":True,"layout":"brochure" if brochure else "document"}}

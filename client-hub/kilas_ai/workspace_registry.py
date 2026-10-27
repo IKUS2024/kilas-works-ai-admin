@@ -1,5 +1,5 @@
 """Documented API facts versus implemented workspace features; never infer parity."""
-CHECKED_ON='2026-10-20'
+CHECKED_ON='2026-10-27'
 
 
 def chat(model):
@@ -30,7 +30,7 @@ def image(model):
             'documentation_checked_on':CHECKED_ON,'generation_endpoint':'/v1/images/generations' if openai else '/v1beta/models/'+model+':generateContent',
             'edit_endpoint':'/v1/images/edits' if openai else '/v1beta/models/'+model+':generateContent',
             'app_reference_limit':5,'documented_reference_limit':None if openai else 14,
-            'app_quality':'low' if openai else '1K','app_sizes':list(image_models.sizes(model).values()) if openai else ['1K'],
+            'app_quality':item['quality'],'app_quality_options':(['low','medium','high','auto']+(['xhigh','max'] if model.startswith('gpt-image-2.5-') else [])) if openai else (['1K','2K','4K'] if model=='gemini-3-pro-image' else ['1K']),'app_sizes':list(image_models.sizes(model).values()) if openai else (['1K','2K','4K'] if model=='gemini-3-pro-image' else ['1K']),'custom_dimensions':model in ('gpt-image-2','gpt-image-2.5-sunburst','gpt-image-2.5-flare'),
             'app_aspect_ratios':list(image_models.sizes(model)) if openai else ['1:1','3:2','2:3','3:4','4:3','4:5','5:4','9:16','16:9','21:9'],
             'app_transparency':image_models.transparency(model),'outputs':['image/png','image/jpeg','image/webp'],
             'editing_input':'original uploaded bytes; incompatible normalized sources rejected',

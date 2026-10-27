@@ -3,7 +3,7 @@
 Only native image endpoints are offered. No text-model alias, credentials write,
 inference access probe, automatic provider fallback or provider tools.
 """
-import hashlib,json,os,re,threading
+import hashlib,json,os,re,threading,math
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from time import monotonic
@@ -26,9 +26,9 @@ _cache={};_lock=threading.Lock()
 def spec(model):
  if not isinstance(model,str) or model not in CATALOG:raise SelectionError('Model gambar tidak valid.')
  p,name,ti,ii,io,to,price=CATALOG[model]
- return {'id':model,'provider':p,'name':name,'output_usd':format(Decimal(price),'f'),'size':'1024x1024','quality':'low' if p=='openai' else 'native 1K',
+ return {'id':model,'provider':p,'name':name,'output_usd':format(Decimal(price),'f'),'size':'1024x1024' if model in ('gpt-image-1-mini','gemini-3.1-flash-lite-image') else '2048x2048','quality':'high' if p=='openai' else '2K' if model=='gemini-3-pro-image' else '1K',
          'text_input_per_million':format(Decimal(ti),'f'),'image_input_per_million':format(Decimal(ii),'f'),'image_output_per_million':format(Decimal(io),'f'),'thinking_output_per_million':format(Decimal(to),'f'),
-         'pricing_checked_on':'2026-10-17'}
+         'pricing_checked_on':'2026-10-27','estimate_settings':'historical 1024x1024 low / 1K; request-specific capacity reserve is separate'}
 
 
 def sizes(model):
@@ -83,7 +83,7 @@ def catalog(*,cache_only=False):
  items=sorted((m for m in checked if m['available']),key=lambda m:(m['provider'],Decimal(m['output_usd'])))
  configured=os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL','gpt-image-2').strip()
  default=next((m['id'] for m in items if m['id']==configured),None) or next((m['id'] for m in items),None)
- return {'models':items,'default':default,'pricing_checked_on':'2026-10-17'}
+ return {'models':items,'default':default,'pricing_checked_on':'2026-10-27','estimate_settings':'historical 1024x1024 low / 1K; request-specific capacity reserve is separate'}
 
 
 def warmup():
@@ -117,10 +117,18 @@ def requested(owner,surface,ident,value=None,*,required=False):
  return model
 
 
-def forecast(model, input_token_bound=16000):
+def forecast(model, input_token_bound=16000, prompt=""):
  p=spec(model)
  # Conservative capacity forecast, not a supplier-dollar hard limit or invoice.
- return Decimal(p['output_usd'])+(Decimal(max(16000,int(input_token_bound)))*Decimal(p['text_input_per_million'])+Decimal(64000)*Decimal(p['image_input_per_million'])+Decimal(8192)*Decimal(p['thinking_output_per_million']))/Decimal(1000000)
+ from .image_options import resolve
+ from . import tools
+ try:options=resolve(model,prompt)
+ except tools.ToolUnavailable:options=resolve(model,'')
+ pixels=math.prod(map(int,options['size'].split('x')))
+ if p['provider']=='google':output_tokens=1120 if options['quality']!='4K' else 2000
+ elif model=='gpt-image-1-mini':output_tokens={'low':408,'medium':1584,'high':6240,'auto':6240}[options['quality']]
+ else:output_tokens={'low':2048,'medium':8192,'high':32768,'auto':32768,'xhigh':65536,'max':131072}[options['quality']]*(2 if pixels>4194304 else 1)
+ return (Decimal(output_tokens)*Decimal(p['image_output_per_million'])/Decimal(1000000))+(Decimal(max(16000,int(input_token_bound)))*Decimal(p['text_input_per_million'])+Decimal(64000)*Decimal(p['image_input_per_million'])+Decimal(8192)*Decimal(p['thinking_output_per_million']))/Decimal(1000000)
 
 
 def cost(model,raw):
