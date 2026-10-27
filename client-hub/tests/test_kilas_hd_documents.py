@@ -34,6 +34,9 @@ class HighResolutionTests(unittest.TestCase):
         self.assertGreater(image_models.forecast('gpt-image-2.5-flare',prompt='4K quality max'),image_models.forecast('gpt-image-2.5-flare',prompt='1K quality low'))
         with self.assertRaises(tools.ToolUnavailable):image_options.resolve('gemini-3.1-flash-lite-image','4K')
         with self.assertRaises(tools.ToolUnavailable):image_options.resolve('gpt-image-1-mini','quality max')
+        with self.assertRaises(tools.ToolUnavailable):image_options.resolve('gpt-image-2','8K')
+        self.assertEqual(image_options.resolve('gemini-3-pro-image','2K 16:9')['size'],'2752x1536')
+        self.assertEqual(image_options.resolve('gemini-3-pro-image','4K 3:2')['size'],'5056x3392')
     def test_4k_provider_original_is_never_reencoded_and_edit_input_preserved(self):
         for model,size,prompt in [('gpt-image-2.5-flare',(3840,2160),'Buat visual 3840x2160 16:9 quality max'),('gemini-3-pro-image',(4096,4096),'Buat gambar 4K')]:
             raw=picture(size);encoded=base64.b64encode(raw).decode()
@@ -47,6 +50,13 @@ class HighResolutionTests(unittest.TestCase):
             else:
                 payload=post.call_args.kwargs['json'];self.assertEqual(payload['generationConfig']['imageConfig']['imageSize'],'4K')
                 self.assertEqual(base64.b64decode(payload['contents'][0]['parts'][1]['inlineData']['data']),reference['content'])
+    def test_native_png_above_old_8mib_ceiling_preserves_bytes_and_other_limits(self):
+        stream=io.BytesIO();Image.frombytes('RGB',(2048,2048),os.urandom(2048*2048*3)).save(stream,'PNG')
+        raw=stream.getvalue();self.assertGreater(len(raw),8*1024*1024)
+        file={'filename':'native.png','mime_type':'image/png','content':raw}
+        self.assertEqual(work_artifacts.validate(file),raw)
+        with self.assertRaises(ValueError):work_artifacts.validate({'filename':'large.txt','mime_type':'text/plain','content':b'x'*(8*1024*1024+1)})
+
     def test_low_resolution_response_cannot_be_labeled_2k(self):
         raw=picture((1024,1024));data={'model':'gpt-image-2','data':[{'b64_json':base64.b64encode(raw).decode()}]}
         with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic'}),patch.object(image_models,'check',return_value={'available':True}),patch.object(selected_image.requests,'post',return_value=SimpleNamespace(raise_for_status=lambda:None,json=lambda:data)):
