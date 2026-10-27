@@ -62,6 +62,7 @@ def main():
                     cookie=case.client().get_cookie('session')
                     context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
                     if mode=='visual':context.add_init_script(VIEWPORT)
+                    context.add_init_script("window.qaMicRequests=0;navigator.mediaDevices.getUserMedia=()=>{window.qaMicRequests++;return Promise.reject(Error('Microphone forbidden in keyboard QA'))}")
                     context.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
                     page=context.new_page();errors=[];writes=[]
                     page.on('pageerror',lambda e:errors.append(str(e)))
@@ -115,6 +116,13 @@ def main():
                             assert not page.evaluate(GEOMETRY)['inline']
                             field.focus()
                         if name=='home':
+                            if width==390:
+                                field.focus();resize(390)
+                                call=page.locator('[data-ai-call-launch]');call.click()
+                                expect(page.locator('#ai-call-dialog')).to_be_visible()
+                                assert page.evaluate('qaMicRequests')==0
+                                page.locator('#ai-call-dialog').evaluate('e=>e.close()')
+                                expect(call).to_be_focused();expect(field).to_have_value(DRAFT)
                             field.blur();resize(844)
                             page.locator('.home-task-choices a').filter(has_text='Translator').click()
                             page.wait_for_load_state('networkidle')

@@ -27,7 +27,9 @@
   };
   options?.addEventListener('keydown',event=>{if(event.key==='Escape'){options.open=false;options.querySelector('summary').focus();}});
   options?.addEventListener('click',event=>{if(event.target.closest('[data-ai-call-launch],[data-home-task]'))options.open=false;});
-  document.querySelector('#ai-call-dialog')?.addEventListener('close',()=>{if(compact)options?.querySelector('summary').focus({preventScroll:true});});
+  document.querySelector('#ai-call-dialog')?.addEventListener('close',()=>{
+    if(compact)(keyboardInline?root.querySelector('[data-ai-call-launch]'):options?.querySelector('summary'))?.focus({preventScroll:true});
+  });
   root.addEventListener('focusin',event=>{if(event.target.matches('#ai-input,#agent-message')&&options)options.open=false;});
   const following=()=>timeline&&timeline.scrollHeight-timeline.scrollTop-timeline.clientHeight<48;
   const fitViewport=()=>{
