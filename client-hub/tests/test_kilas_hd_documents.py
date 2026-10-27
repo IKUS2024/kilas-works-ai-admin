@@ -97,5 +97,17 @@ class OwnedDocumentTests(f.SelectedArtifactTests):
         self.assertEqual(self.client(self.other).get(url).status_code,404)
         image_url=f'/kilas-ai/agent/jobs/{image_job["id"]}/artifacts/{image_id}?download=1'
         self.assertEqual(self.client().get(image_url).data,raw);self.assertEqual(self.client(self.other).get(image_url).status_code,404)
+        for number in range(2):
+            self.assertEqual(work_artifacts.document_image_context(self.owner,ident,self.conversation)['document_image_ids'],[image_id])
+            revision_id=autonomous_store.create(self.owner,'Revisi brosur PDF data sintetis, paket Rp25.000',conversation_id=self.conversation,checkpoint={'author_model':'gpt-6.1-sol','document_source_id':ident})
+            revision=dict(autonomous_store.get(self.owner,revision_id))
+            with patch.object(f.f.providers,'stream',side_effect=stream):updated=document_worker.run(revision,self.step('hd-revision-'+str(number)),{'format':'pdf','request':revision['instruction']})
+            updated_file=updated.artifacts[0]['binary_file']
+            self.assertEqual(updated_file['validation']['embedded_images'],1)
+            self.assertEqual(PdfReader(io.BytesIO(updated_file['content'])).pages[0].images[0].image.size,(2048,2048))
+            with autonomous_store.transaction() as conn:
+                sid=usage._query(conn,"INSERT INTO kilas_agent_steps(job_id,sequence,worker,action,instruction,input_json,idempotency_key,status) VALUES (?,1,'DOCUMENT','create','Synthetic','{}',?,'SUCCEEDED') RETURNING id",(revision_id,'hd-revision-save-'+str(number)),one=True)[0]
+                ident=work_artifacts.persist(conn,revision,{'id':sid},updated_file)
+
 
 if __name__=='__main__':unittest.main()

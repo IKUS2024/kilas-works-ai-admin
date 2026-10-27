@@ -20,7 +20,7 @@ def persist(conn,job,step,file):
     if file.get('validation',{}).get('transport')=='kilas.large.v1':
         from . import workspace_large_outputs as large
         large.publishing(conn,job,file['validation'].get('large_run_id'),len(raw))
-    metadata=json.dumps({'source':(file.get('extracted_text') or '')[:24000],'title':file.get('title',''),'format':file['filename'].rsplit('.',1)[-1],'input':bool(file.get('input')), 'model_provenance':file.get('model_provenance'),'retention_policy':RETENTION_POLICY,'validation':file.get('validation',{}),'image_options':file.get('image_options')},ensure_ascii=False)
+    metadata=json.dumps({'source':(file.get('extracted_text') or '')[:24000],'title':file.get('title',''),'format':file['filename'].rsplit('.',1)[-1],'input':bool(file.get('input')), 'model_provenance':file.get('model_provenance'),'retention_policy':RETENTION_POLICY,'validation':file.get('validation',{}),'image_options':file.get('image_options'),'document_image_context':file.get('document_image_context')},ensure_ascii=False)
     digest=hashlib.sha256(raw).hexdigest()
     row=usage._query(conn,'INSERT INTO kilas_agent_artifacts(job_id,step_id,name,media_type,content,digest) VALUES (?,?,?,?,?,?) ON CONFLICT(step_id,name,digest) DO NOTHING RETURNING id',(job['id'],step['id'],file['filename'][:100],file['mime_type'],metadata,digest),one=True)
     if row:usage._query(conn,'INSERT INTO kilas_agent_artifact_files(artifact_id,content,byte_size) VALUES (?,?,?)',(row[0],raw,len(raw)))
@@ -53,6 +53,6 @@ def image_source(user_id,artifact_id,conversation_id):
 
 
 def document_image_context(user_id,artifact_id,conversation_id):
-    row=db.query_one('SELECT j.checkpoint_json FROM kilas_agent_artifacts a JOIN kilas_agent_jobs j ON j.id=a.job_id WHERE a.id=? AND j.user_id=? AND j.origin_conversation_id=?',(artifact_id,user_id,conversation_id))
+    row=db.query_one('SELECT j.checkpoint_json,a.content FROM kilas_agent_artifacts a JOIN kilas_agent_jobs j ON j.id=a.job_id WHERE a.id=? AND j.user_id=? AND j.origin_conversation_id=?',(artifact_id,user_id,conversation_id))
     if not row:raise ValueError('source_not_owned')
-    return json.loads(row['checkpoint_json'])
+    return json.loads(row['content']).get('document_image_context') or json.loads(row['checkpoint_json'])

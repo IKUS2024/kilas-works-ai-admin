@@ -78,6 +78,7 @@ def run(job,step,data):
             file={'filename':name+'.'+format,'mime_type':work_artifacts.MIMES[format],'content':source.encode('utf-8'),'extracted_text':source,'title':title}
         work_runtime.progress(job,'VERIFYING','Memeriksa hasil…')
         work_artifacts.validate(file)
+        if format=='pdf' and document_images:file['document_image_context']={k:image_context[k] for k in ('origin_message_id','document_image_ids') if k in image_context}
         if author:file['model_provenance']=author.provenance()
         success=True
         return Result('SUCCEEDED','Dokumen selesai dan siap digunakan.',{'title':file['title'],'format':format,'document_ready':True,**({'model_provenance':author.provenance()} if author else {})},[{'binary_file':file}],used,True)

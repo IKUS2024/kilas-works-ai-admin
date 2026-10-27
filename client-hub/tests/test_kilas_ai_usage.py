@@ -30,8 +30,8 @@ class UsageTests(unittest.TestCase):
 
     def client_for(self, owner):
         client = self.app.test_client()
-        with client.session_transaction() as session:
-            session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="usage-csrf")
+        from auth_test_helpers import authenticate
+        authenticate(client,repo.get_user_by_id(owner),_csrf_token='usage-csrf')
         return client
 
     def test_email_qa_exemption_is_exact_server_owned_and_metered(self):

@@ -135,7 +135,8 @@ class ConnectionTests(unittest.TestCase):
         self.mapped()
         with self.assertRaises(PermissionError):flow.set_stage(self.bid,{'id':self.uid,'role':'CLIENT_OWNER'},'Waiting OTP')
         client=fixture.fresh_client()
-        with client.session_transaction() as session:session.update(user_id=self.uid,role='CLIENT_OWNER',_csrf_token='test')
+        from auth_test_helpers import authenticate
+        authenticate(client,repo.get_user_by_id(self.uid),_csrf_token='test')
         self.assertEqual(client.get('/platform/').status_code,403)
         self.assertEqual(client.get(f'/platform/business/{self.bid}').status_code,403)
         self.assertEqual(client.get(f'/business/{self.other}/assist-whatsapp').status_code,404)

@@ -30,3 +30,7 @@ Official contracts checked2026-10-27:
 - https://developers.openai.com/api/docs/guides/image-generation
 - https://ai.google.dev/gemini-api/docs/image-generation
 - https://ai.google.dev/api/generate-content#ImageConfig
+
+Initial focused local runs passed native/PDF17 tests (including inherited selected-artifact regressions), selected artifacts10, answer model audit9, work documents, existing PDF/tools, image follow-up, thread documents, PDF boundaries and protected Finance baseline. Four additional suites failed identically on an extracted unchanged `main`: attachments, usage, unified history and Assist connection HTTP. Their fixtures now use the existing `auth_test_helpers.authenticate` to obtain real revocable test sessions, and history supplies a real submitted message before expecting it in meaningful history. No middleware, security assertion or production auth was changed. All four suites then passed. Repeated document revisions now persist their owned image-source context and retain the native embedded image across two revisions.
+
+Draft PR168 first head4f6a39009b5b828db98a903971146e38173e6222. Initial CI proves native/PDF contracts/rendering pass; the new workflow then stopped at the historical usage fixture (fixed in the next commit). Broad legacy Assist/WhatsApp/release/UI jobs also report historical login/onboarding fixture failures; these remain distinct from the image/document changes and require release disposition. No merge or deploy is claimed while gates remain unresolved.

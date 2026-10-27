@@ -183,7 +183,10 @@ class UnifiedTests(unittest.TestCase):
     def test_unified_navigation_and_legacy_history(self):
         thread=store.create_thread(self.owner)
         html=self.client().get('/kilas-ai/agent?view=history').text
-        self.assertIn('Previous conversations',html)
+        self.assertNotIn('/kilas-ai/threads/'+str(thread)+'\"',html)
+        store.append_user_once(self.owner,thread,'Pesan untuk riwayat','FAST','history-meaningful-message')
+        html=self.client().get('/kilas-ai/agent?view=history').text
+        self.assertIn('Percakapan sebelumnya',html)
         self.assertIn('/kilas-ai/threads/'+str(thread),html)
         self.assertEqual(self.client().get('/kilas-ai/threads/'+str(thread)).status_code,200)
         html=self.client().get('/kilas-ai/agent').text
