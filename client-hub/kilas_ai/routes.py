@@ -433,9 +433,16 @@ def send(thread_id, *, script_only=False):
             from ui_i18n import translate
             return {'error':translate(str(error))},429
     image_prompt=(routing.enhance_image_prompt(routing.image_prompt(content,prior_answer),content) if tool=='IMAGE_GENERATE' else content) if tool in ('IMAGE_GENERATE','IMAGE_EDIT') else None
+    if tool in ('IMAGE_GENERATE','IMAGE_EDIT'):
+        effective_image=selected_image or os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL','').strip()
+        if effective_image in image_models.CATALOG:
+            from .image_options import resolve
+            from .tools import ToolUnavailable
+            try:resolve(effective_image,image_prompt)
+            except ToolUnavailable as error:return {'error':str(error)},400
     try:
         plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool,
-            profile={'image_model':selected_image,'image_input_token_bound':512+len(image_prompt.encode('utf-8'))} if selected_image and tool in ('IMAGE_GENERATE','IMAGE_EDIT') else model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF','PPTX') else None)
+            profile={'image_model':selected_image,'image_input_token_bound':512+len(image_prompt.encode('utf-8')),'image_prompt':image_prompt} if tool in ('IMAGE_GENERATE','IMAGE_EDIT') else model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF','PPTX') else None)
     except ai_usage.UsageLimit as error:
         from .chat_web import UNVERIFIED
         return {"error": str(error) + (' ' + UNVERIFIED if tool == 'WEB' else '')}, 429
@@ -495,6 +502,8 @@ def send(thread_id, *, script_only=False):
                 document_format=tool.lower()
                 previous=previous_document if tool=='PDF' else store.latest_generated_document(user_id,thread_id,
                     mime_type='application/vnd.openxmlformats-officedocument.presentationml.presentation')
+                document_images=[item for item in prepared if item['mime_type'].startswith('image/')]
+                if not document_images and prior_image and re.search(r'(?i)\b(?:gambar|foto|image|photo)\b',content):document_images=[prior_image]
                 document_context = ai_pdf.document_context(context, previous["extracted_text"] if previous else None,format=document_format)
                 if selected_model:
                     document_context=chat_models.bind(model_policy.ChatContext(document_context),selected_model)
@@ -524,7 +533,7 @@ def send(thread_id, *, script_only=False):
                 try:
                     if tool=='PDF':
                         result = ai_pdf.render("".join(pieces), title_hint=content[:80], logo=logo,
-                                               cover=bool(re.search(r"\b(?:cover|sampul)(?:nya)?\b", content.lower())))
+                                               cover=bool(re.search(r"\b(?:cover|sampul)(?:nya)?\b", content.lower())),images=document_images,brochure=bool(re.search(r'(?i)\b(?:brosur|brochure|flyer|leaflet)\b',content)))
                     else:
                         from . import work_office,work_artifacts
                         result=work_office.render("".join(pieces),'pptx')
@@ -582,8 +591,7 @@ def send(thread_id, *, script_only=False):
                     result = ai_tools.image(prompt, source if tool == "IMAGE_EDIT" else None,**({'selected_model':selected_image} if selected_image else {}))
                     if result.get('model_provenance'):yield _sse('model',result['model_provenance'])
                     provider, model = result.get("provider","openai"), result["model"]
-                    if selected_image:usage.update(result["usage"])
-                    else:usage.update({k: int(v or 0) for k, v in result["usage"].items() if k in usage})
+                    usage.update(result['usage'])
                     label = "Gambar selesai diedit." if tool == "IMAGE_EDIT" else "Gambar selesai dibuat."
                     assistant_id = store.append_assistant(user_id, thread_id, label, mode, provider, model, key,
                         {"status": "complete", "tool": tool.lower(), "usage": result["usage"], "model_metadata":result.get("model_provenance")})

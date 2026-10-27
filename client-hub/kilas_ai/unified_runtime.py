@@ -38,6 +38,7 @@ def intent(text, prepared=(), previous=None, previous_answer=''):
     images=list(prepared)
     if previous and previous['media_type'].startswith('image/') and routing.may_edit_image(text):
         images.append({'mime_type':previous['media_type']})
+    if work_documents.intent(text) and re.search(r'(?i)\b(?:pdf|brosur|brochure|flyer|leaflet)\b',text) and not routing.document_creation_prohibited(text):return 'DOCUMENT'
     tool=routing.tool_for(text,images,has_previous_content=bool(previous),previous_answer=previous_answer)
     if tool=='PPTX':return 'DOCUMENT'
     if tool=='CHAT' and routing.document_creation_prohibited(text):return 'CHAT'

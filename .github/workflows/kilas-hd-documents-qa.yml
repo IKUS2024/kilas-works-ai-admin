@@ -1,0 +1,41 @@
+name: Kilas HD Image and Document QA
+on:
+  pull_request:
+    paths: ['client-hub/kilas_ai/**', 'client-hub/templates/kilas_ai/**', 'client-hub/tests/test_kilas_hd_documents.py', 'client-hub/tests/test_kilas_selected_artifacts.py', 'client-hub/tests/test_kilas_answer_model_audit.py', '.github/workflows/kilas-hd-documents-qa.yml']
+  push:
+    branches: [main, feature/kilas-hd-documents-20261027]
+    paths: ['client-hub/kilas_ai/**', 'client-hub/templates/kilas_ai/**', 'client-hub/tests/test_kilas_hd_documents.py', 'client-hub/tests/test_kilas_selected_artifacts.py', 'client-hub/tests/test_kilas_answer_model_audit.py', '.github/workflows/kilas-hd-documents-qa.yml']
+permissions:
+  contents: read
+jobs:
+  native-and-pdf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - name: Offline native contracts, original bytes, PDF rendering and tenant download integrity
+        env:
+          KILAS_HD_EVIDENCE_DIR: /tmp/kilas-hd-evidence
+        run: |
+          python -B scripts/run_offline_tests.py --only test_kilas_hd_documents.py
+          python -B scripts/run_offline_tests.py --only test_kilas_selected_artifacts.py
+          python -B scripts/run_offline_tests.py --only test_kilas_answer_model_audit.py
+          python -B scripts/run_offline_tests.py --only test_kilas_work_documents.py
+          python -B scripts/run_offline_tests.py --only test_kilas_ai_pdf.py
+          python -B scripts/run_offline_tests.py --only test_kilas_ai_tools.py
+          python -B scripts/run_offline_tests.py --only test_kilas_ai_usage.py
+          python -B scripts/run_offline_tests.py --only test_kilas_ai_attachments.py
+          python -B scripts/run_offline_tests.py --only test_kilas_ai_unified.py
+          python -B scripts/run_offline_tests.py --only test_kilas_agent_chat_experience.py
+          python -B scripts/run_offline_tests.py --only test_assist_billing.py
+          python -B scripts/run_offline_tests.py --only test_assist_crm_cleanup.py
+          python -B scripts/run_offline_tests.py --only test_assist_master_journey.py
+          python -B scripts/run_offline_tests.py --only test_assist_business_media.py
+          python -B scripts/run_offline_tests.py --only test_assist_media.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-brochure-pdf
+          path: /tmp/kilas-hd-evidence

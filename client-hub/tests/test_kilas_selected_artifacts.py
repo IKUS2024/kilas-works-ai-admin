@@ -85,17 +85,18 @@ class SelectedArtifactTests(unittest.TestCase):
   self.assertNotEqual(client.post('/kilas-ai/chat/image-model',json={'model':'gpt-image-2'}).status_code,200)
   with self.assertRaises(chat_models.SelectionError):image_models.spec('gpt-6.1-sol')
  def test_native_image_models_exact_payload_binary_metadata_and_usage(self):
-  image=io.BytesIO();Image.new('RGB',(1024,1024),'blue').save(image,format='PNG');encoded=base64.b64encode(image.getvalue()).decode()
+  image=io.BytesIO();Image.new('RGB',(2048,2048),'blue').save(image,format='PNG');encoded=base64.b64encode(image.getvalue()).decode()
   for model in image_models.CATALOG:
    provider=image_models.spec(model)['provider']
+   image=io.BytesIO();Image.new('RGB',(1024,1024) if model in ('gpt-image-1-mini','gemini-3.1-flash-lite-image') else (2048,2048),'blue').save(image,format='PNG');encoded=base64.b64encode(image.getvalue()).decode()
    data=({'model':model,'data':[{'b64_json':encoded}],'usage':{'input_tokens':20,'input_tokens_details':{'text_tokens':10,'image_tokens':10},'output_tokens':1120}} if provider=='openai' else
          {'modelVersion':model,'candidates':[{'finishReason':'STOP','content':{'parts':[{'inlineData':{'mimeType':'image/png','data':encoded}}]}}],'usageMetadata':{'promptTokenCount':20,'candidatesTokenCount':1120,'thoughtsTokenCount':5,'candidatesTokensDetails':[{'modality':'IMAGE','tokenCount':1120}]}})
    with self.subTest(model=model),patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic','GEMINI_API_KEY':'synthetic'}),patch.object(selected_image.requests,'post',return_value=SimpleNamespace(raise_for_status=lambda:None,json=lambda:data)) as post:
     result=tools.image('Synthetic image',selected_model=model)
    self.assertEqual(result['model_provenance']['returned_model'],model);self.assertEqual(result['raw'],image.getvalue());self.assertEqual(post.call_count,1)
    payload=post.call_args.kwargs['json'];self.assertNotIn('tools',payload)
-   if provider=='openai':self.assertEqual(payload['model'],model);self.assertEqual(payload['quality'],'low');self.assertEqual(payload['size'],'1024x1024')
-   else:self.assertIn(model,post.call_args.args[0]);self.assertEqual(payload['generationConfig']['imageConfig']['imageSize'],'1K')
+   if provider=='openai':self.assertEqual(payload['model'],model);self.assertEqual(payload['quality'],'high');self.assertEqual(payload['size'],image_models.spec(model)['size'])
+   else:self.assertIn(model,post.call_args.args[0]);self.assertEqual(payload['generationConfig']['imageConfig']['imageSize'],image_models.spec(model)['quality'])
    self.assertGreater(image_models.cost(model,result['usage']['image_token_usage']),0)
  def test_image_unknown_cost_keeps_forecast_and_blocks_model_substitution(self):
   self.assertIsNone(image_models.cost('gpt-image-2',{}))

@@ -25,8 +25,8 @@ class MasterJourneyTests(unittest.TestCase):
         repo.replace_business_services(self.bid, ['Foto produk Rp2.000.000'])
         self.business = repo.get_business(self.bid)
         self.client = fixture.fresh_client()
-        with self.client.session_transaction() as session:
-            session.update(user_id=self.uid, role='CLIENT_OWNER', _csrf_token='master-test')
+        from auth_test_helpers import authenticate
+        authenticate(self.client,repo.get_user_by_id(self.uid),_csrf_token='master-test')
 
     def complete_onboarding(self):
         for step in journey.ONBOARDING_PARTS:

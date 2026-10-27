@@ -53,6 +53,7 @@ def chat(user_id, text):
     image_inputs=[item for item in getattr(request,'work_attachments',[]) if item['mime_type'].startswith('image/')]
     image_previous=next((item for item in work_artifacts.listing(user_id,conversation_id=conversation_id) if item['media_type'].startswith('image/')),None)
     editing_image=routing.tool_for(text)== 'IMAGE_EDIT' or (image_inputs and (routing.may_edit_image(text) or work_documents.image_request(text)))
+    if document_format and re.search(r'(?i)\b(?:pdf|brosur|brochure|flyer|leaflet)\b',text):editing_image=False
     if editing_image:document_format=None
     if editing_image and not image_inputs and not image_previous:
         agent_store.append(user_id,'assistant','Tambahkan gambar yang ingin diubah.')
@@ -117,6 +118,7 @@ def chat(user_id, text):
         if len(text)>1200:checkpoint['request_full']=text[:24000]
         if document_format and previous and work_documents.REVISE.search(text):checkpoint['document_source_id']=previous['id']
         if editing_image and not image_inputs:checkpoint['image_source_id']=image_previous['id']
+        if document_format and image_previous and re.search(r'(?i)\b(?:gambar|foto|image|photo|visual)\b.{0,35}\b(?:tadi|sebelum|previous|above|terakhir|last)\w*|\b(?:previous|last)\s+image',text):checkpoint['document_image_ids']=[image_previous['id']]
         sources=getattr(request,'work_source_materials',None)
         if sources:checkpoint['source_materials']=sources
         job_id=store.create(user_id,agent_intents.research_instruction(text)[:1200],mode=spec['mode'],constraints=[text[:1200]],

@@ -28,8 +28,9 @@ class ChatTests(unittest.TestCase):
         self.other = repo.create_user(self._testMethodName+'@other.example.test', 'hash')
         self.conv = chats.new_conversation(self.owner)
         self.client = app.app.test_client()
-        with self.client.session_transaction() as state:
-            state.update(user_id=self.owner, role='CLIENT_OWNER', _csrf_token='chat-qa', agent_conversation_id=self.conv)
+        self.client.set_cookie('kilas_language','id')
+        from auth_test_helpers import authenticate
+        authenticate(self.client,repo.get_user_by_id(self.owner),_csrf_token='chat-qa',agent_conversation_id=self.conv)
         app.app.config.update(TESTING=True, CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)
 
     def send(self, text, **extra):
@@ -243,8 +244,10 @@ class ChatTests(unittest.TestCase):
 
     def test_ui_advanced_collapsed_no_utc(self):
         page=self.client.get('/kilas-ai/agent').get_data(as_text=True)
-        self.assertNotIn('UTC',page)
-        self.assertNotIn('detik',page)
+        # Translation dictionaries and audio scripts are not visible scheduler UI.
+        visible=__import__('re').sub(r'<script\b[^>]*>.*?</script>','',page,flags=__import__('re').S)
+        self.assertNotIn('UTC',visible)
+        self.assertNotIn('detik',visible)
         self.assertNotIn('<details class="autonomous-options">',page)
         self.assertNotIn('autonomous-options" open',page)
 

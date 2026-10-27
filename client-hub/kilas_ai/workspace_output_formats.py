@@ -126,7 +126,7 @@ def pdf(raw):
 
 def _validate(name,mime,raw,*,nested=False,large=False):
     extension=filename(name)
-    if mime!=MIMES[extension] or not isinstance(raw,bytes) or not 0<len(raw)<=MAX_RAW:raise ValueError('invalid_work_file')
+    if mime!=MIMES[extension] or not isinstance(raw,bytes) or not 0<len(raw)<=(32*1024*1024 if mime and mime.startswith('image/') else MAX_RAW):raise ValueError('invalid_work_file')
     if raw.startswith((b'MZ',b'\x7fELF')):raise ValueError('executable_output')
     if extension=='zip':
         if nested:raise ValueError('nested_archive')

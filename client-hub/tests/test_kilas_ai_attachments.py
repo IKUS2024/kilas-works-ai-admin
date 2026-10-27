@@ -57,8 +57,8 @@ class AttachmentTests(unittest.TestCase):
 
     def client_for(self, owner):
         client = self.app.test_client()
-        with client.session_transaction() as session:
-            session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="file-csrf")
+        from auth_test_helpers import authenticate
+        authenticate(client,repo.get_user_by_id(owner),_csrf_token='file-csrf')
         return client
 
     def test_plan_attachment_counts_remain_bounded_and_account_specific(self):

@@ -32,8 +32,8 @@ class CRMTests(runtime_fixture.RuntimeTests):
             'country':'Indonesia', 'short_description':'TENANT ONLY'})
         self.phone = '14048836437'
         self.client = fixture.fresh_client()
-        with self.client.session_transaction() as session:
-            session.update(user_id=self.uid,role='CLIENT_OWNER',_csrf_token='crm-test')
+        from auth_test_helpers import authenticate
+        authenticate(self.client,repo.get_user_by_id(self.uid),_csrf_token='crm-test')
         self.send = Mock(return_value=(True,None))
         self.marker = None
 
@@ -54,7 +54,9 @@ class CRMTests(runtime_fixture.RuntimeTests):
                 whatsapp.handle(self.bid,'456',{'messages':[{'id':'paid-'+str(self.n),'from':self.phone,
                     'timestamp':str(int(time.time())),'type':'text','text':{'body':text}}],
                     'contacts':[{'wa_id':self.phone,'profile':{'name':name}}]},'messages')
-        self.customer = customers.list_customers(self.bid)[0][0]
+        # A newly reconciled second contact may sort first on slower CI runs.
+        self.customer = next(row for row in customers.list_customers(self.bid)[0]
+                             if re.sub(r'\D','',row.get('phone') or '') == re.sub(r'\D','',self.phone))
         return customer_insights._stored(self.bid,self.customer['id'])['insight']
 
     def test_information_stays_lead_and_concrete_request_promotes_one_identity(self):

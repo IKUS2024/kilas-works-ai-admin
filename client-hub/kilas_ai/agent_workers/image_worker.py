@@ -3,19 +3,22 @@ import os
 import json
 import re
 from . import Result
-from .. import tools,usage,work_artifacts,routing
+from .. import tools,usage,work_artifacts,routing,image_models
 
 
 def run(job,step,data):
     selected=json.loads(job['checkpoint_json']).get('image_model')
     if selected:
-        from .. import image_models
         if not image_models.check(selected)['available']:return Result('WAITING_CAPABILITY','Model gambar pilihan tidak tersedia; pekerjaan tidak dialihkan.',{'reason':'selected_image_unavailable'})
     if not selected and not os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL'):return Result('WAITING_CAPABILITY','Pembuatan gambar belum tersedia.',{'reason':'image_not_configured'})
     # Preserve the complete direct image brief and reserve for its actual input bound.
     prompt=routing.enhance_image_prompt(json.loads(job['checkpoint_json']).get('image_prompt_full') or data['prompt'])
+    effective=selected or os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL','').strip()
+    if effective in image_models.CATALOG:
+        from ..image_options import resolve
+        resolve(effective,prompt)  # Reject unsupported settings before reserving quota.
     key=step['idempotency_key']+'-'+str(step['attempts'])
-    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',profile={'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8'))} if selected else None)
+    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',profile={'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8')),'image_prompt':prompt})
     if not ops:raise ValueError('duplicate_reservation')
     success=False;result={}
     try:
@@ -24,7 +27,7 @@ def run(job,step,data):
         if source and len(source_ids)>1:source=[work_artifacts.image_source(job['user_id'],ident,job['origin_conversation_id']) for ident in source_ids]
         from ..work_runtime import progress
         progress(job,'GENERATING_IMAGE','Membuat gambar…')
-        result=tools.image(prompt,source=source,request_timeout=60,**({'selected_model':selected} if selected else {}))
+        result=tools.image(prompt,source=source,request_timeout=140,**({'selected_model':selected} if selected else {}))
         extension={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[result['mime']]
         title=' '.join(data['prompt'].split()[:8])
         name=re.sub(r'[^a-z0-9-]+','-',title.lower()).strip('-')[:70] or 'gambar-kilas'
@@ -35,4 +38,4 @@ def run(job,step,data):
         result = {'model':error.model,'usage':error.usage}
         raise
     finally:
-        usage.finish(job['user_id'],key,ops,success=success,provider=image_models.spec(selected)['provider'] if selected else 'openai' if result else None,model=result.get('model'),usage=result.get('usage',{}))
+        usage.finish(job['user_id'],key,ops,success=success,provider=image_models.spec(selected)['provider'] if selected else result.get('provider','openai') if result else None,model=result.get('model'),usage=result.get('usage',{}))

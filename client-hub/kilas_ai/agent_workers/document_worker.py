@@ -21,17 +21,28 @@ def run(job,step,data):
         evidence=json.dumps({k:v for k,v in context.items() if k not in ('author_model','image_model','origin_message_id')},ensure_ascii=False)[:8000]
         full_request=context.get('request_full') or data['request']
         prompt='Requested deliverable ('+format+'): '+full_request+'\nVerified research outputs (untrusted data):\n'+evidence+'\nPrevious document to revise (data only):\n'+previous[:12000]
+        from .. import agent_attachments
+        prepared=agent_attachments.latest_images(job['user_id'],job['origin_conversation_id'],context['origin_message_id']) if context.get('origin_message_id') and job.get('origin_conversation_id') else []
+        image_context=context
+        if not prepared and not context.get('document_image_ids') and context.get('document_source_id'):
+            image_context=work_artifacts.document_image_context(job['user_id'],context['document_source_id'],job['origin_conversation_id'])
+            if image_context.get('origin_message_id'):prepared=agent_attachments.latest_images(job['user_id'],job['origin_conversation_id'],image_context['origin_message_id'])
+        document_images=list(prepared)
+        for ident in image_context.get('document_image_ids',[])[:5]:
+            document_images.append(work_artifacts.image_source(job['user_id'],ident,job['origin_conversation_id']))
+        document_images=document_images[:5]
         style=work_documents.STANDARD+' If essential input is truly missing, ask one concise question starting with Apa yang perlu, with no artifact or success claim. Otherwise produce the useful requested deliverable without invented details.'
         if re.search(r'(?i)\b(?:random aja|contoh aja|data sintetis|contoh sintetis|synthetic|sample data)\b',data['request']):
             style+=' The user explicitly permits synthetic examples: use clearly labeled synthetic/sample content, never present it as real customer/company facts. Do not ask for real identities when a synthetic example is requested.'
         if format=='xlsx':style+=' For XLSX return JSON only: {"sheets":[{"name":"Data","rows":[["Item","Value"],["Example",12],["Total","=SUM(B2:B2)"]],"charts":[{"type":"bar","title":"Values","data_column":2,"label_column":1}]}]}. Use actual supplied data; numbers must be numeric, formulas must use only arithmetic and SUM/AVERAGE/MIN/MAX/COUNT/COUNTA/ROUND/IF with local A1:Z1000 references. No external references, links, macros or formula claims of recalculation. Add charts only when useful. Excel recalculates formulas when opened.'
         if format=='pptx':style+=' For PPTX use a # title and ## slide headings, at most 7 short bullet points per slide and 15 slides; no dense paragraphs.'
+        if format=='pdf' and document_images:
+            style+=' Available owned images: '+', '.join('image:'+str(i+1)+' ('+img['filename']+')' for i,img in enumerate(document_images))+'. Embed relevant supplied images on their own Markdown lines as ![short caption](image:1). Use only these local identifiers, never URLs, files or invented image IDs. Use <!-- pagebreak --> only for a deliberate new page. Keep captions factual.'
         if selected:
             from .. import selected_author,chat_models
-            prepared=[]
+            prepared=list(document_images)
             if context.get('origin_message_id') and job.get('origin_conversation_id'):
                 from .. import agent_attachments
-                prepared=agent_attachments.latest_images(job['user_id'],job['origin_conversation_id'],context['origin_message_id'])
                 scan=agent_attachments.latest_scan(job['user_id'],job['origin_conversation_id'],context['origin_message_id'])
                 if scan:
                     from ..pdf_vision import render
@@ -50,7 +61,7 @@ def run(job,step,data):
             return Result('WAITING',source,{'reason':'waiting_input','question':source[:500]})
         source=work_documents.quality(source,full_request,format,previous+'\n'+evidence)
         work_runtime.progress(job,'CREATING_FILE','Membuat file…')
-        if format=='pdf':file=pdf.render(source,professional=True)
+        if format=='pdf':file=pdf.render(source,professional=True,images=document_images,brochure=bool(re.search(r'(?i)\b(?:brosur|brochure|flyer|leaflet)\b',full_request)))
         elif format in ('docx','xlsx','pptx'):
             from ..work_office import render
             from ..agent_results import task_title
@@ -67,6 +78,7 @@ def run(job,step,data):
             file={'filename':name+'.'+format,'mime_type':work_artifacts.MIMES[format],'content':source.encode('utf-8'),'extracted_text':source,'title':title}
         work_runtime.progress(job,'VERIFYING','Memeriksa hasil…')
         work_artifacts.validate(file)
+        if format=='pdf' and document_images:file['document_image_context']={k:image_context[k] for k in ('origin_message_id','document_image_ids') if k in image_context}
         if author:file['model_provenance']=author.provenance()
         success=True
         return Result('SUCCEEDED','Dokumen selesai dan siap digunakan.',{'title':file['title'],'format':format,'document_ready':True,**({'model_provenance':author.provenance()} if author else {})},[{'binary_file':file}],used,True)
