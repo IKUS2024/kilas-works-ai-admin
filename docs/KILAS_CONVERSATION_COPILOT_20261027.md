@@ -89,6 +89,11 @@ rejects before transcription. Real audio and paid-provider tests are NOT RUN.
   drawer/Profile, navigation cleanup, Translator/VO controls and no overflow PASS.
 - Python compilation, JavaScript syntax and diff whitespace checks PASS. This is
   a Flask/Jinja/plain-JS application; package.json has no application build/lint.
+- The original Home/sidebar compatibility fixture explicitly selects the retained
+  legacy visibility mode. Its existing assertions and engine coverage remain;
+  the Copilot suite separately checks the default primary UI and hidden legacy
+  entries. This prevents obsolete visible-Chat expectations from redefining the
+  owner's approved default experience.
 - Existing `test_kilas_ai_chat.py` direct run: 5 failures/8 tests. Identical 5/8
   failures reproduced on untouched `1a529a13`, from obsolete auth fixtures.
 - Existing translator consent suite: 3 failures/4 tests. Identical 3/4 reproduced

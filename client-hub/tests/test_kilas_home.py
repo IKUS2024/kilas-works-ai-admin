@@ -13,6 +13,10 @@ class HomeTests(unittest.TestCase):
 
     def setUp(self):
         fixture.UnifiedTests.setUp(self)
+        # These are retained generic Chat/handoff compatibility tests. The new
+        # default Copilot entry and hidden-Chat policy have their own suite.
+        legacy=patch.dict(os.environ,{'KILAS_COPILOT_VISIBLE':'false'})
+        legacy.start();self.addCleanup(legacy.stop)
         self.offering=patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'true'});self.offering.start();self.addCleanup(self.offering.stop)
         self.network=patch('requests.sessions.Session.request',side_effect=AssertionError('External transport forbidden'))
         self.network.start();self.addCleanup(self.network.stop)

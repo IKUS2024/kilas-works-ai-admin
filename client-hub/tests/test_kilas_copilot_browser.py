@@ -53,7 +53,7 @@ def main():
         provider_calls.append('stt')
         if slow[0]: hold.wait(8)
         return 'When can you start?'
-    def text(system, content):
+    def text(system, content, **options):
         provider_calls.append('text')
         if system.startswith('Translate'):
             yield from fixture.answer(json.dumps({'source_translation': 'Kapan Anda bisa mulai?', 'reply_translation': 'Bisa jelaskan jadwalnya?'}))

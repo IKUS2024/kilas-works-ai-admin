@@ -211,6 +211,9 @@ class CopilotTests(unittest.TestCase):
             list(copilot.text_stream('system', 'content'))
         self.assertEqual(called.call_args.args[0], 'gpt-6-luna')
         self.assertEqual(called.call_args.kwargs['profile'], {'output_tokens': 1024, 'effort': 'low'})
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'synthetic-only'}), patch.object(providers, '_openai', return_value=iter(())) as called:
+            list(copilot.text_stream('Return JSON', '{}', json_mode=True))
+        self.assertEqual(called.call_args.kwargs['response_format'], {'type':'json_object'})
 
     def test_copilot_history_pagination_hides_legacy_without_mutating_rows(self):
         expected = []
