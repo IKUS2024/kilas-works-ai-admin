@@ -37,6 +37,9 @@ class HighResolutionTests(unittest.TestCase):
         with self.assertRaises(tools.ToolUnavailable):image_options.resolve('gpt-image-2','8K')
         self.assertEqual(image_options.resolve('gemini-3-pro-image','2K 16:9')['size'],'2752x1536')
         self.assertEqual(image_options.resolve('gemini-3-pro-image','4K 3:2')['size'],'5056x3392')
+        from kilas_ai import capacity
+        with patch.dict(os.environ,{'KILAS_AI_OPENAI_IMAGE_MODEL':'gpt-image-2.5-flare'}):
+            self.assertEqual(capacity.forecast('IMAGE_GENERATION','FAST',{'image_model':None,'image_prompt':'4K quality max'}),image_models.forecast('gpt-image-2.5-flare',prompt='4K quality max'))
     def test_4k_provider_original_is_never_reencoded_and_edit_input_preserved(self):
         for model,size,prompt in [('gpt-image-2.5-flare',(3840,2160),'Buat visual 3840x2160 16:9 quality max'),('gemini-3-pro-image',(4096,4096),'Buat gambar 4K')]:
             raw=picture(size);encoded=base64.b64encode(raw).decode()

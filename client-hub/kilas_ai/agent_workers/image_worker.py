@@ -15,7 +15,7 @@ def run(job,step,data):
     # Preserve the complete direct image brief and reserve for its actual input bound.
     prompt=routing.enhance_image_prompt(json.loads(job['checkpoint_json']).get('image_prompt_full') or data['prompt'])
     key=step['idempotency_key']+'-'+str(step['attempts'])
-    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',profile={'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8')),'image_prompt':prompt} if selected else None)
+    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',profile={'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8')),'image_prompt':prompt})
     if not ops:raise ValueError('duplicate_reservation')
     success=False;result={}
     try:
@@ -35,4 +35,4 @@ def run(job,step,data):
         result = {'model':error.model,'usage':error.usage}
         raise
     finally:
-        usage.finish(job['user_id'],key,ops,success=success,provider=image_models.spec(selected)['provider'] if selected else 'openai' if result else None,model=result.get('model'),usage=result.get('usage',{}))
+        usage.finish(job['user_id'],key,ops,success=success,provider=image_models.spec(selected)['provider'] if selected else result.get('provider','openai') if result else None,model=result.get('model'),usage=result.get('usage',{}))

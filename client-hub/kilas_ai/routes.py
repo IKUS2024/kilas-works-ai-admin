@@ -435,7 +435,7 @@ def send(thread_id, *, script_only=False):
     image_prompt=(routing.enhance_image_prompt(routing.image_prompt(content,prior_answer),content) if tool=='IMAGE_GENERATE' else content) if tool in ('IMAGE_GENERATE','IMAGE_EDIT') else None
     try:
         plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool,
-            profile={'image_model':selected_image,'image_input_token_bound':512+len(image_prompt.encode('utf-8')),'image_prompt':image_prompt} if selected_image and tool in ('IMAGE_GENERATE','IMAGE_EDIT') else model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF','PPTX') else None)
+            profile={'image_model':selected_image,'image_input_token_bound':512+len(image_prompt.encode('utf-8')),'image_prompt':image_prompt} if tool in ('IMAGE_GENERATE','IMAGE_EDIT') else model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF','PPTX') else None)
     except ai_usage.UsageLimit as error:
         from .chat_web import UNVERIFIED
         return {"error": str(error) + (' ' + UNVERIFIED if tool == 'WEB' else '')}, 429
