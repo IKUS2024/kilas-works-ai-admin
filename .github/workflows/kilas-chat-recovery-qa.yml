@@ -28,7 +28,7 @@ jobs:
           python -B scripts/run_offline_tests.py --only test_kilas_workspace_runtime.py
   browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

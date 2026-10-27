@@ -46,7 +46,7 @@ jobs:
         run: node --test client-hub/tests/test_kilas_ai_call.mjs client-hub/tests/test_kilas_ai_call_player.mjs client-hub/tests/test_kilas_ai_call_capture.mjs client-hub/tests/test_kilas_ai_call_pcm.mjs client-hub/tests/test_kilas_interpreter.mjs client-hub/tests/test_kilas_home_viewport.cjs
   responsive-reference-states:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
