@@ -29,6 +29,12 @@ jobs:
           python -B scripts/run_offline_tests.py --only test_kilas_ai_usage.py
           python -B scripts/run_offline_tests.py --only test_kilas_ai_attachments.py
           python -B scripts/run_offline_tests.py --only test_kilas_ai_unified.py
+          python -B scripts/run_offline_tests.py --only test_kilas_agent_chat_experience.py
+          python -B scripts/run_offline_tests.py --only test_assist_billing.py
+          python -B scripts/run_offline_tests.py --only test_assist_crm_cleanup.py
+          python -B scripts/run_offline_tests.py --only test_assist_master_journey.py
+          python -B scripts/run_offline_tests.py --only test_assist_business_media.py
+          python -B scripts/run_offline_tests.py --only test_assist_media.py
       - uses: actions/upload-artifact@v4
         with:
           name: synthetic-brochure-pdf

@@ -23,7 +23,8 @@ class MediaTests(unittest.TestCase):
         self.result={'summary':'Tampak bukti transfer; perlu verifikasi pemilik.','payment_detected':True,
             'amount_minor':9900000,'currency':'IDR','date':'2026-09-27','bank':'Bank Contoh','reference':'REF-TEST'}
         self.client=fixture.fresh_client()
-        with self.client.session_transaction() as session:session.update(user_id=self.uid,role='CLIENT_OWNER',_csrf_token='test')
+        from auth_test_helpers import authenticate
+        authenticate(self.client,repo.get_user_by_id(self.uid),_csrf_token='test')
 
     def test_candidate_is_cached_and_never_posts_payment_or_income(self):
         import inbox_service,finance_service
@@ -42,7 +43,8 @@ class MediaTests(unittest.TestCase):
         self.assertIn('belum konfirmasi dana diterima',page.text)
 
     def test_cross_tenant_media_id_and_candidate_are_not_accessible(self):
-        with self.client.session_transaction() as session:session.update(user_id=self.otheruid)
+        from auth_test_helpers import authenticate
+        authenticate(self.client,repo.get_user_by_id(self.otheruid))
         self.assertEqual(self.client.get(f"/business/{self.bid}/media/{self.media['id']}/review").status_code,404)
         self.assertEqual(self.client.get(f"/business/{self.other}/media/{self.media['id']}/review").status_code,404)
         with self.assertRaisesRegex(ValueError,'media_not_found'):assist_media.owned(self.other,self.media['id'])

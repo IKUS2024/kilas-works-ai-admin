@@ -85,9 +85,8 @@ class BillingTests(unittest.TestCase):
     def test_owner_checkout_post_creates_one_purchase_and_reuses_retry(self):
         repo.upsert_business_profile(self.bid,dict(category='Jasa',short_description='Foto produk',primary_language='id'))
         client=fixture.fresh_client()
-        with client.session_transaction() as session:
-            session['user_id']=self.owner
-            session['csrf_token']='checkout-test'
+        from auth_test_helpers import authenticate
+        authenticate(client,repo.get_user_by_id(self.owner),_csrf_token='checkout-test')
         path=f'/business/{self.bid}/ai-admin/checkout?plan=ai_admin_pro'
         first=client.post(path,data={'csrf_token':'checkout-test'})
         retry=client.post(path,data={'csrf_token':'checkout-test'})
@@ -108,8 +107,8 @@ class BillingTests(unittest.TestCase):
                 for field in ('operating_hours','online_or_offline','business_phone','trusted_owner_phone'):
                     self.assertIn(field,missing)
                 client=fixture.fresh_client()
-                with client.session_transaction() as session:
-                    session.update(user_id=self.owner,csrf_token='checkout-test')
+                from auth_test_helpers import authenticate
+                authenticate(client,repo.get_user_by_id(self.owner),_csrf_token='checkout-test')
                 path=f'/business/{bid}/ai-admin/checkout?plan={plan}'
                 page=client.get(path)
                 self.assertEqual(page.status_code,200)
@@ -138,15 +137,15 @@ class BillingTests(unittest.TestCase):
         client=fixture.fresh_client()
         path=f'/business/{self.bid}/ai-admin/checkout'
         self.assertEqual(client.get(path).status_code,302)
-        with client.session_transaction() as session:
-            session.update(user_id=self.owner,csrf_token='checkout-test')
+        from auth_test_helpers import authenticate
+        authenticate(client,repo.get_user_by_id(self.owner),_csrf_token='checkout-test')
         self.assertIn('/wizard/',client.get(path).location)
         repo.upsert_business_profile(self.bid,dict(category='Jasa',short_description='Foto produk',primary_language='id'))
         self.assertEqual(client.get(path+'?plan=not-a-plan').status_code,400)
         self.assertEqual(client.post(path+'?plan=not-a-plan',data={'csrf_token':'checkout-test'}).status_code,400)
         other=repo.create_user('foreign@test.invalid','hash')
-        with client.session_transaction() as session:
-            session['user_id']=other
+        from auth_test_helpers import authenticate
+        authenticate(client,repo.get_user_by_id(other))
         self.assertEqual(client.get(path).status_code,404)
         self.assertEqual(client.post(path,data={'csrf_token':'checkout-test'}).status_code,404)
         self.assertIsNone(billing.pending(self.bid))

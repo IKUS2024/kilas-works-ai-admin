@@ -32,8 +32,8 @@ class CRMTests(runtime_fixture.RuntimeTests):
             'country':'Indonesia', 'short_description':'TENANT ONLY'})
         self.phone = '14048836437'
         self.client = fixture.fresh_client()
-        with self.client.session_transaction() as session:
-            session.update(user_id=self.uid,role='CLIENT_OWNER',_csrf_token='crm-test')
+        from auth_test_helpers import authenticate
+        authenticate(self.client,repo.get_user_by_id(self.uid),_csrf_token='crm-test')
         self.send = Mock(return_value=(True,None))
         self.marker = None
 
