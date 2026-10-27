@@ -164,6 +164,13 @@ class CopilotTests(unittest.TestCase):
             self.assertIn('operation_already_submitted', self.post().get_data(as_text=True))
             stt.assert_not_called()
         self.assertEqual(len(copilot.turns(self.owner, self.ident)), 1)
+        self.key = uuid.uuid4().hex
+        copilot.claim(self.owner, self.ident, self.key, 'in-flight')
+        with patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe') as stt:
+            self.assertIn('operation_already_submitted', self.post().get_data(as_text=True))
+            stt.assert_not_called()
+        self.assertTrue(copilot.active(self.owner, self.ident, self.key))
+        copilot.cancel(self.owner, self.ident, self.key)
 
     def test_cancel_before_post_is_persisted_tombstone(self):
         path = f'/kilas-ai/copilot/sessions/{self.ident}/{self.key}/cancel'
@@ -258,6 +265,29 @@ class CopilotTests(unittest.TestCase):
             copilot.claim(self.owner, ident, uuid.uuid4().hex, 'active')
         with self.assertRaisesRegex(copilot.CopilotError, 'operation_busy'):
             copilot.claim(self.owner, self.ident, self.key, 'fourth')
+
+    def test_heartbeat_disconnect_fences_blocked_provider_without_cancel_post(self):
+        import threading
+        self.premium()
+        entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+        def stt(_):
+            entered.set()
+            release.wait(3)
+            finished.set()
+            return 'private voice'
+        with patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe', side_effect=stt), patch.object(copilot, 'text_stream') as text:
+            response = self.post()
+            try:
+                reader = iter(response.response)
+                self.assertTrue(entered.wait(2))
+                frames = [next(reader), next(reader), next(reader)]
+                self.assertTrue(any(b'heartbeat' in frame if isinstance(frame, bytes) else 'heartbeat' in frame for frame in frames), repr(frames))
+                response.close()
+                self.assertFalse(copilot.active(self.owner, self.ident, self.key))
+            finally:
+                response.close();release.set();finished.wait(2)
+            text.assert_not_called()
+        self.assertEqual(copilot.turns(self.owner, self.ident), [])
 
 
 if __name__ == '__main__':

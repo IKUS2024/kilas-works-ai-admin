@@ -3,6 +3,7 @@ import json
 import os
 import threading
 import time
+import requests
 from pathlib import Path
 from unittest.mock import patch
 from playwright.sync_api import sync_playwright, expect
@@ -49,9 +50,11 @@ def main():
     provider_calls = []
     hold = threading.Event()
     slow = [False]
+    provider_entered=threading.Event()
     def stt(raw):
         provider_calls.append('stt')
-        if slow[0]: hold.wait(8)
+        if slow[0]:
+            provider_entered.set();hold.wait(8)
         return 'When can you start?'
     def text(system, content, **options):
         provider_calls.append('text')
@@ -176,6 +179,33 @@ def main():
             assert not page.locator('.copilot-reply').count()
             report['cases'].append({'cancellation_in_flight_and_navigation_cleanup':'PASS'})
             browser.close()
+            # Reproduce production's single sync WSGI worker: no cancel POST can
+            # be served while this response is open. Heartbeats detect abort and
+            # fence the next model without changing global Gunicorn settings.
+            sync_server=make_server('127.0.0.1',0,application,threaded=False)
+            threading.Thread(target=sync_server.serve_forever,daemon=True).start()
+            hold.clear();provider_entered.clear();slow[0]=True
+            op='sync_disconnect_'+str(time.time_ns())
+            response=None
+            try:
+                response=requests.post(f'http://127.0.0.1:{sync_server.server_port}/kilas-ai/copilot/sessions/{case.ident}/{op}/process',
+                    cookies={cookie.key:cookie.value},data={'csrf_token':'copilot-csrf','consent':'yes'},
+                    files={'audio':('recording.wav',fixture.recording(),'audio/wav')},stream=True,timeout=(3,5))
+                assert response.status_code==200
+                assert provider_entered.wait(2)
+                lines=response.iter_lines(chunk_size=1)
+                assert any(b'heartbeat' in next(lines) for _ in range(8))
+                before=provider_calls.count('text');response.close()
+                deadline=time.monotonic()+3
+                while copilot.active(case.owner,case.ident,op) and time.monotonic()<deadline:time.sleep(.05)
+                assert not copilot.active(case.owner,case.ident,op)
+                hold.set();time.sleep(.25)
+                assert provider_calls.count('text')==before
+                assert copilot.turns(case.owner,case.ident)==[]
+                report['cases'].append({'single_sync_wsgi_disconnect_fence':'PASS'})
+            finally:
+                if response:response.close()
+                hold.set();sync_server.shutdown()
     finally:
         hold.set();server.shutdown()
     (output/'report.json').write_text(json.dumps(report,indent=2))

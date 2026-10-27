@@ -53,6 +53,7 @@ if(root){
     operation_already_submitted:'Rekaman ini sudah dikirim. Buka ulang sesi untuk memeriksa hasilnya; tidak dikirim ulang otomatis.',
     operation_busy:'Masih ada proses aktif di sesi ini. Tunggu atau batalkan proses sebelumnya.',
     network:'Koneksi terputus. Hasil belum terkonfirmasi; buka ulang sesi sebelum mencoba rekaman baru.',
+    server_busy:'Server masih memproses permintaan lain. Tunggu sebentar, lalu mulai rekaman baru.',
   };
   function notice(code){error.textContent=messages[code]||'Pemrosesan gagal. Periksa koneksi lalu mulai rekaman baru.';error.hidden=false;}
   function setPhase(next){
@@ -215,6 +216,7 @@ if(root){
   }
   mic.addEventListener('click',()=>{if(phase==='idle')begin();else if(['listening','captured'].includes(phase))process();});
   cancel.addEventListener('click',()=>reset('cancelled'));
+  window.addEventListener('beforeunload',()=>reset(null,true));
   window.addEventListener('pagehide',()=>reset(null,true));
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&phase!=='idle')reset('cancelled',true);});
   window.addEventListener('offline',()=>{if(phase!=='idle')reset('network',true);});

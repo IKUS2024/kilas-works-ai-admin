@@ -1,8 +1,12 @@
 """Copilot uses the existing blueprint's authentication, tenant and CSRF gates."""
 import json
-from flask import abort, render_template, request, session, Response, stream_with_context, url_for
+from queue import Queue, Empty, Full
+from threading import BoundedSemaphore, Event, Thread
+from flask import abort, current_app, render_template, request, session, Response, stream_with_context, url_for
 from .routes import ai_bp
 from . import copilot
+
+_slots = BoundedSemaphore(2)
 
 
 def page(ident=None):
@@ -61,12 +65,62 @@ def process(ident, operation_key):
     except copilot.CopilotError as error:
         return {'code': str(error)}, error.status
 
+    if not _slots.acquire(blocking=False):
+        return {'code': 'server_busy'}, 503
+    app = current_app._get_current_object()
+    queue, stopped, done = Queue(maxsize=32), Event(), Event()
+
+    def publish(event):
+        while not stopped.is_set():
+            try:
+                queue.put(event, timeout=.2)
+                return
+            except Full:
+                continue
+
+    def run():
+        # Provider waits must not prevent the WSGI writer from detecting a
+        # disconnected browser on Render's existing single synchronous worker.
+        with app.app_context():
+            factory = copilot.process(owner, ident, operation_key, raw, silent, style, target)
+            try:
+                for event in factory:
+                    if stopped.is_set():
+                        break
+                    publish(event)
+            except copilot.CopilotError as error:
+                publish({'type': 'error', 'code': str(error)})
+            except Exception:
+                publish({'type': 'error', 'code': 'provider_failed'})
+            finally:
+                try:
+                    factory.close()
+                finally:
+                    done.set()
+                    _slots.release()
+
     def events():
+        terminal = False
         try:
+            Thread(target=run, name='copilot-turn', daemon=True).start()
             yield ': Copilot\n\n'
-            for event in copilot.process(owner, ident, operation_key, raw, silent, style, target):
+            while not done.is_set() or not queue.empty():
+                try:
+                    event = queue.get(timeout=.5)
+                except Empty:
+                    yield ': heartbeat\n\n'
+                    continue
+                if event['type'] in ('complete', 'error'):
+                    terminal = True
                 yield 'data: ' + json.dumps(event, ensure_ascii=False) + '\n\n'
-        except copilot.CopilotError as error:
-            yield 'data: ' + json.dumps({'type': 'error', 'code': str(error)}) + '\n\n'
+        finally:
+            stopped.set()
+            if not terminal:
+                # Does not depend on a cancel POST being served concurrently.
+                # A tombstone also fences a worker that has not claimed yet.
+                try:
+                    copilot.cancel(owner, ident, operation_key)
+                except (LookupError, copilot.CopilotError):
+                    pass  # Deleted session or an already-terminal operation.
     return Response(stream_with_context(events()), mimetype='text/event-stream',
                     headers={'Cache-Control': 'private, no-store', 'X-Accel-Buffering': 'no'})

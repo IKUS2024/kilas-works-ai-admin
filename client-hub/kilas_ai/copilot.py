@@ -225,6 +225,8 @@ def process(owner, ident, operation_key, raw, silent, style, target):
         if not active(owner, ident, operation_key):
             raise CopilotError('cancelled')
         yield {'type': 'status', 'text': 'Mengenali ucapan…'}
+        if not active(owner, ident, operation_key):
+            raise CopilotError('cancelled')
         # Commit dispatch intent before any network IO. A worker crash must not
         # make the standard ten-minute PENDING expiry erase this estimate.
         usage.finish(owner, op, operations, success=False, provider='openai', model=model_policy.LUNA,

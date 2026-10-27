@@ -76,7 +76,7 @@ rejects before transcription. Real audio and paid-provider tests are NOT RUN.
 
 ## Evidence
 
-- `test_kilas_copilot.py`: 19 offline tests PASS, real revocable auth/CSRF,
+- `test_kilas_copilot.py`: 20 offline tests PASS, real revocable auth/CSRF,
   SQLite ownership/preservation, quota admission, durable dispatch, cancellation,
   duplicate prevention, concurrency, context labels and history pagination.
 - `test_kilas_copilot.mjs`: WAV framing, split UTF-8/SSE, HTTP/provider errors and
@@ -87,6 +87,13 @@ rejects before transcription. Real audio and paid-provider tests are NOT RUN.
   stop, no calls before stop, no rearm, translated/nontranslated results/history,
   consent, permission failure, pending permission cancellation, in-flight cancel,
   drawer/Profile, navigation cleanup, Translator/VO controls and no overflow PASS.
+- Production startup logs identify one synchronous Gunicorn worker. Copilot now
+  uses a two-slot background provider pool and a bounded event queue, with SSE
+  heartbeats during provider waits. Browser abort fences the operation directly
+  in stream cleanup, independent of a concurrently served cancel POST. A real
+  single-thread WSGI loopback test blocks mock STT, closes the response and proves
+  that the next model is never called and no reply is stored. Global worker
+  configuration and other product engines remain unchanged.
 - Python compilation, JavaScript syntax and diff whitespace checks PASS. This is
   a Flask/Jinja/plain-JS application; package.json has no application build/lint.
 - The original Home/sidebar compatibility fixture explicitly selects the retained
