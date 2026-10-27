@@ -161,3 +161,17 @@ body.home-chat-compact .kilas-home-workspace.ai-shell :is(#work-pending-files,#a
 body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-input,#agent-message){max-height:max(44px,min(96px,calc(var(--home-viewport-height,100dvh)*.18)))!important}
 body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-input,#agent-message):placeholder-shown{white-space:pre;overflow:hidden;text-overflow:ellipsis}
 @container(min-width:180px){body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-input,#agent-message){padding-inline:2px!important}}
+
+/* An on-screen keyboard is a smaller chat viewport, not a navigation mode.
+   Flex allocates the actual header height; the transcript owns its scrolling. */
+body.kilas-light.premium-workspace.home-keyboard-inline:has(.kilas-home-workspace){display:flex;flex-direction:column}
+body.kilas-light.premium-workspace.home-keyboard-inline:has(.kilas-home-workspace)>.premium-mobile-header{flex:none}
+body.kilas-light.premium-workspace.home-keyboard-inline:has(.kilas-home-workspace)>.wrap{flex:1;min-height:0;height:auto!important}
+body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell,
+body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell .ai-main{overflow:clip!important}
+body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell .ai-empty:not([hidden]){flex:1 1 0;height:auto;min-height:0}
+body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell .home-tool-selector{flex:none;margin:8px auto!important}
+body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer){grid-template-columns:44px minmax(0,1fr) auto!important;align-items:end}
+body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell :is(#ai-input,#agent-message){grid-column:2!important;grid-row:1!important;max-height:max(44px,min(144px,calc(var(--home-viewport-height,100dvh)*.25)))!important;overflow-y:auto}
+body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell :is(.ai-attach,.work-attachment-bar){grid-column:1!important;grid-row:1!important}
+body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell .ai-composer-actions{grid-column:3!important;grid-row:1!important;display:flex!important;flex-wrap:nowrap}

@@ -37,6 +37,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python -B client-hub/tests/test_kilas_chat_recovery_browser.py
       - run: python -B client-hub/tests/test_kilas_chat_zoom_browser.py
+      - run: python -B client-hub/tests/kilas_chat_keyboard_browser.py
   postgres:
     runs-on: ubuntu-latest
     timeout-minutes: 10

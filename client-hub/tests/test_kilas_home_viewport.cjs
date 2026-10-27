@@ -50,6 +50,19 @@ test('keyboard resize preserves an older transcript reading position', () => {
   assert.equal(state.timeline.scrollTop, 200);
 });
 
+test('keyboard layout survives focus transfers and clears after viewport recovery', () => {
+  const state = layout();
+  state.document.activeElement = {matches: () => true};
+  state.window.innerHeight = state.visual.height = 350;
+  state.windowEvents.get('resize')();
+  state.document.activeElement = null;
+  state.windowEvents.get('resize')();
+  assert.equal(state.classes.get('home-keyboard-open'), true);
+  state.window.innerHeight = state.visual.height = 650;
+  state.windowEvents.get('resize')();
+  assert.equal(state.classes.get('home-keyboard-open'), false);
+});
+
 test('following the latest message stays at the end after viewport resize', () => {
   const state = layout();
   state.timeline.scrollTop = 1400; state.timeline.scrollHeight = 2100; state.timeline.clientHeight = 700;
