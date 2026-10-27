@@ -54,7 +54,9 @@ class CRMTests(runtime_fixture.RuntimeTests):
                 whatsapp.handle(self.bid,'456',{'messages':[{'id':'paid-'+str(self.n),'from':self.phone,
                     'timestamp':str(int(time.time())),'type':'text','text':{'body':text}}],
                     'contacts':[{'wa_id':self.phone,'profile':{'name':name}}]},'messages')
-        self.customer = customers.list_customers(self.bid)[0][0]
+        # A newly reconciled second contact may sort first on slower CI runs.
+        self.customer = next(row for row in customers.list_customers(self.bid)[0]
+                             if re.sub(r'\D','',row.get('phone') or '') == re.sub(r'\D','',self.phone))
         return customer_insights._stored(self.bid,self.customer['id'])['insight']
 
     def test_information_stays_lead_and_concrete_request_promotes_one_identity(self):

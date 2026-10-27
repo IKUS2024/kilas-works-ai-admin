@@ -433,6 +433,13 @@ def send(thread_id, *, script_only=False):
             from ui_i18n import translate
             return {'error':translate(str(error))},429
     image_prompt=(routing.enhance_image_prompt(routing.image_prompt(content,prior_answer),content) if tool=='IMAGE_GENERATE' else content) if tool in ('IMAGE_GENERATE','IMAGE_EDIT') else None
+    if tool in ('IMAGE_GENERATE','IMAGE_EDIT'):
+        effective_image=selected_image or os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL','').strip()
+        if effective_image in image_models.CATALOG:
+            from .image_options import resolve
+            from .tools import ToolUnavailable
+            try:resolve(effective_image,image_prompt)
+            except ToolUnavailable as error:return {'error':str(error)},400
     try:
         plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool,
             profile={'image_model':selected_image,'image_input_token_bound':512+len(image_prompt.encode('utf-8')),'image_prompt':image_prompt} if tool in ('IMAGE_GENERATE','IMAGE_EDIT') else model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF','PPTX') else None)

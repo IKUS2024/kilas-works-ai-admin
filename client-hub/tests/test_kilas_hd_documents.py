@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 from pypdf import PdfReader
 import test_kilas_selected_artifacts as f
 from kilas_ai import pdf, image_models, image_options, selected_image, tools, usage, work_artifacts, autonomous_store, unified_runtime
-from kilas_ai.agent_workers import document_worker
+from kilas_ai.agent_workers import document_worker,image_worker
 import db
 
 
@@ -85,6 +85,15 @@ class HighResolutionTests(unittest.TestCase):
 
 class OwnedDocumentTests(f.SelectedArtifactTests):
     # Explicit subclass tests only; inherited tests are intentionally retained.
+    def test_unsupported_native_options_do_not_reserve_quota_or_call_provider(self):
+        job_id=autonomous_store.create(self.owner,'Buat gambar 8K',conversation_id=self.conversation,checkpoint={'image_model':'gpt-image-2'})
+        job=dict(autonomous_store.get(self.owner,job_id))
+        with patch.object(selected_image.requests,'post',side_effect=AssertionError('No provider request')):
+            with self.assertRaises(tools.ToolUnavailable):image_worker.run(job,self.step('unsupported-native'),{'prompt':'Buat gambar 8K'})
+            response=self.submit('gpt-6.1-sol','Buat gambar 8K',agent=False,selected_image_model='gpt-image-2')
+        self.assertEqual(response.status_code,400)
+        self.assertEqual(db.query_all('SELECT * FROM kilas_ai_usage WHERE user_id=?',(self.owner,)),[])
+
     def test_generated_picture_to_brochure_http_download_integrity_and_tenant_gate(self):
         image_job=self.job('gpt-6.1-sol');raw=picture()
         with autonomous_store.transaction() as conn:
