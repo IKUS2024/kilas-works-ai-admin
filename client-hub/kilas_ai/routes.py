@@ -46,6 +46,10 @@ def require_access():
 
 @ai_bp.get("")
 def home(initial_brief=None):
+    from . import copilot
+    if initial_brief is None and copilot.visible() and request.args.get('legacy') != '1':
+        from .copilot_routes import page
+        return page(), 200, {'Cache-Control': 'private, no-store'}
     from . import model_policy, autonomous_runner
     from .home_tasks import context as home_context
     from .content_projects import draft
@@ -119,6 +123,10 @@ def new_thread():
 
 @ai_bp.get("/threads/<int:thread_id>")
 def thread_page(thread_id):
+    from . import copilot, store
+    if store.operation(session['user_id'], thread_id, copilot.SESSION_KEY):
+        from .copilot_routes import page
+        return page(thread_id), 200, {'Cache-Control': 'private, no-store'}
     from . import attachments, store, usage
     selected = store.thread(session["user_id"], thread_id)
     if not selected:

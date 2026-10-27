@@ -54,9 +54,11 @@ class FinanceOnboardingTests(unittest.TestCase):
             self.assertIn('product_forms.js', page.text)
 
     def test_sidebar_history_is_owned_and_read_only(self):
-        from kilas_ai import store
-        own = store.create_thread(self.accounts[0][0])
-        foreign = store.create_thread(self.accounts[1][0])
+        from kilas_ai import store, copilot
+        # The visible history now holds Copilot sessions; legacy Chat stays stored
+        # and hidden. Preserve the same owner/read-only/business assertions.
+        own = copilot.create(self.accounts[0][0])
+        foreign = copilot.create(self.accounts[1][0])
         for user, thread, title in ((self.accounts[0][0], own, 'Synthetic owned conversation'),
                                      (self.accounts[1][0], foreign, 'Synthetic other account secret')):
             store.rename_thread(user, thread, title)

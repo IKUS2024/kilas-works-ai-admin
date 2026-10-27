@@ -1,0 +1,7 @@
+/* Shared tool links only. Finance never includes this component. */
+.copilot-task-nav{display:flex;justify-content:center;gap:8px;width:100%;max-width:680px;margin:12px auto 28px;box-sizing:border-box}
+.copilot-task-nav a{display:flex;align-items:center;justify-content:center;flex:1;min-width:0;min-height:48px;padding:8px 12px;border:1px solid #dce0e7;border-radius:28px;background:#fff;color:#172237;text-align:center;text-decoration:none;font:600 15px/1.4 Manrope,system-ui,sans-serif;box-sizing:border-box}
+.copilot-task-nav a[aria-current=page]{background:#f16b20;border-color:#f16b20;color:#172237}
+.copilot-task-nav a:hover{border-color:#bd4700}
+.copilot-task-nav a:focus-visible{outline:2px solid #bd4700;outline-offset:3px}
+@media(max-width:480px){.copilot-task-nav{gap:6px;margin-bottom:24px}.copilot-task-nav a{font-size:13px;padding:8px 6px}}

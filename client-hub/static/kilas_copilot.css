@@ -1,0 +1,45 @@
+/* Copilot surface only; incumbent Finance/Chat/Translator engines stay untouched. */
+body:has(#copilot){--copilot-ink:#172237;--copilot-muted:#596579;--copilot-orange:#f16b20}
+body.premium-workspace:has(#copilot)>.wrap{max-width:none;width:100%;margin:0!important;padding:12px 28px 56px!important;box-sizing:border-box}
+#copilot{color:var(--copilot-ink);font-family:Manrope,system-ui,sans-serif}
+#copilot [hidden]{display:none!important}
+.copilot-main{max-width:760px;margin:0 auto}
+.copilot-main>header{text-align:center;margin:36px 0 32px}
+.copilot-main h1{margin:0 0 10px;font-size:clamp(27px,3.2vw,36px);font-weight:700;letter-spacing:-.025em;line-height:1.25;color:var(--copilot-ink)}
+.copilot-main p{line-height:1.6}
+.copilot-main>header p,.copilot-note{color:var(--copilot-muted)}
+.copilot-setup{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:16px 24px;padding:20px 0;border-bottom:1px solid #e4e7ec}
+.copilot-setup label{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600}
+#copilot select{font:inherit;color:var(--copilot-ink);background:#fff;border:1px solid #cbd0da;border-radius:8px;min-height:44px;padding:8px 12px;max-width:100%}
+.copilot-translation input{appearance:none;display:inline-block;width:44px;height:26px;min-height:26px!important;max-height:26px;flex:0 0 44px;border-radius:20px;background:#687387;position:relative;cursor:pointer;margin:0}
+.copilot-style,.copilot-translation{white-space:nowrap}
+.copilot-translation input:before{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s ease}
+.copilot-translation input:checked{background:#bd4700}
+.copilot-translation input:checked:before{transform:translateX(18px)}
+.copilot-capture{text-align:center;padding:30px 0 24px}
+#copilot-state{color:var(--copilot-muted);font-size:14px;margin:0 0 24px;min-height:24px}
+#copilot-mic{display:grid;place-items:center;width:108px;height:108px;border-radius:50%;border:1px solid #cdd4df;background:#f5f7fa;color:var(--copilot-ink);margin:auto;cursor:pointer;transition:background .15s ease}
+#copilot-mic:hover{background:#e9edf3}
+#copilot[data-state=listening] #copilot-mic{background:var(--copilot-orange);border-color:var(--copilot-orange)}
+#copilot[data-state=listening] #copilot-state{color:#a43c00}
+#copilot h2{font-size:20px;font-weight:650;margin:24px 0 10px;color:var(--copilot-ink)}
+#copilot-guidance{color:var(--copilot-muted);font-size:14px;margin:0 auto 20px;max-width:52ch}
+#copilot button:disabled{opacity:.55;cursor:wait}
+#copilot :is(button,select,input):focus-visible{outline:2px solid #bd4700;outline-offset:4px}
+#copilot :is(button,select){font-family:inherit}
+#copilot-cancel,.copilot-copy{border:1px solid #cbd0da;background:#fff;color:var(--copilot-ink);border-radius:8px;min-height:44px;padding:8px 16px;cursor:pointer}
+.copilot-consent{display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;max-width:56ch;margin:24px auto 8px;color:var(--copilot-muted);text-align:left}
+.copilot-consent input{width:20px;height:20px;accent-color:#bd4700;flex:none}
+.copilot-note{font-size:12px;max-width:64ch;margin:8px auto}
+#copilot-error{color:#b42330;font-size:14px;max-width:62ch;margin:20px auto}
+.copilot-result-tools{display:flex;justify-content:flex-end;margin-top:12px;font-size:13px}
+.copilot-turn{padding:28px 0;border-top:1px solid #e4e7ec;overflow-wrap:anywhere}
+.copilot-turn h3{font-size:13px;font-weight:650;color:var(--copilot-muted);margin:0 0 10px}
+.copilot-reply{font-size:var(--copilot-text-size,18px);line-height:1.7;white-space:pre-wrap;margin:0 0 16px;max-width:72ch}
+.copilot-source,.copilot-source-translation,.copilot-reply-translation{white-space:pre-wrap;line-height:1.7;margin:0 0 24px}
+.copilot-turn.is-partial{opacity:.7}
+.copilot-turn.is-partial .copilot-copy{display:none}
+#copilot-disclosure{font-size:12px;color:var(--copilot-muted)}
+#copilot::selection,#copilot ::selection{background:#ffdac3;color:#172237}
+@media(max-width:600px){body.premium-workspace:has(#copilot)>.wrap{padding:8px 16px 32px!important}.copilot-main>header{margin:26px 0 16px}.copilot-setup{gap:12px}.copilot-style{font-size:13px}#copilot-target-wrap{flex-basis:100%;justify-content:center}#copilot-target{max-width:200px}.copilot-capture{padding-top:24px}.copilot-consent{font-size:12px}.copilot-reply{font-size:var(--copilot-text-size,18px)}}
+@media(prefers-reduced-motion:reduce){.copilot-translation input:before,#copilot-mic{transition:none}}

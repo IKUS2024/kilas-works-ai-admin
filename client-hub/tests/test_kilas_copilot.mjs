@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {wav,readEvents} from '../static/kilas_copilot.mjs';
+const audio=wav([new Uint8Array([0,32,0,32]).buffer]);
+const view=new DataView(await audio.arrayBuffer());
+assert.equal(audio.type,'audio/wav');assert.equal(view.getUint32(24,true),16000);
+assert.equal(view.getUint32(40,true),4);assert.equal(view.getUint16(22,true),1);
+const encoder=new TextEncoder();
+function response(text){const bytes=encoder.encode(text);return new Response(new ReadableStream({start(controller){for(let i=0;i<bytes.length;i+=3)controller.enqueue(bytes.slice(i,i+3));controller.close();}}));}
+const events=[];
+await readEvents(response(': heartbeat\n\ndata: {"type":"delta","text":"你好"}\n\ndata: {"type":"complete"}\n\n'),e=>events.push(e));
+assert.equal(events[0].text,'你好');assert.equal(events.length,2);
+await assert.rejects(()=>readEvents(response('data: {"type":"delta","text":"partial"}\n\n'),()=>{}),/incomplete_stream/);
+await assert.rejects(()=>readEvents(response('data: {"type":"error","code":"silence"}\n\n'),()=>{}),/silence/);
+await assert.rejects(()=>readEvents(new Response('',{status:503}),()=>{}),/network/);
+console.log('Copilot WAV + split UTF-8/SSE + incomplete/error/HTTP contracts: PASS');
