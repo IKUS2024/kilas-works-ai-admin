@@ -225,7 +225,7 @@ def _replay_answer(answer):
         output+=_sse('done',{'cached':True,'finish_reason':metadata.get('finish_reason') or 'stop'})
     else:
         output+=_sse('incomplete',{'cached':True,'status':status,
-            'message':'Jawaban ini belum selesai. Hasil parsial tersimpan; pilih Buat ulang jawaban untuk mencoba lagi.'})
+            'message':'Pembuatan jawaban dihentikan. Hasil parsial tersimpan; permintaan tidak diulang otomatis.'})
     return Response(output,mimetype='text/event-stream',headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'})
 
 

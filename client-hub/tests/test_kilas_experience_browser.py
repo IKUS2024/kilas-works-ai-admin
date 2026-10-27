@@ -1,5 +1,6 @@
 """Real Flask/Chromium responsive tasks. Synthetic accounts/providers; zero paid IO."""
 import json,os,threading,logging
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import parse_qs,urlsplit
@@ -25,9 +26,10 @@ def main():
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
     try:
         with patch.object(chat_models,'check',side_effect=lambda m:{**chat_models.spec(m),'available':True,'images':True,'status':'verified'}),patch.object(image_models,'check',side_effect=lambda m:{**image_models.spec(m),'available':True,'status':'verified'}),patch.object(providers,'stream',side_effect=lambda *a,**k:fixture.home.fixture.answer(script)),patch.object(audio_provider,'request',side_effect=AssertionError('No audio provider')),patch.object(branded,'public_choices',return_value=[{'alias':'kilas-male','name':'Kilas Male','style':'Natural'},{'alias':'kilas-female','name':'Kilas Female','style':'Natural'}]),sync_playwright() as p:
-            browser=p.chromium.launch(headless=True)
+            browser=p.chromium.launch(headless=True,executable_path=shutil.which('chromium'))
             for width,height in ((1440,1000),(820,1000),(390,844),(320,700)):
                 cookie=case.client().get_cookie('session');context=browser.new_context(viewport={'width':width,'height':height},has_touch=width<761)
+                context.grant_permissions(['clipboard-read','clipboard-write'])
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
                 page=context.new_page();errors=[];writes=[]
                 page.on('pageerror',lambda e:errors.append(str(e)))
@@ -38,20 +40,24 @@ def main():
                 expect(page.locator('.kilas-new-chat-logo')).to_be_visible()
                 page.screenshot(path=str(output/f'home-{width}.png'),full_page=True)
                 page.locator('#ai-input').fill('Tulis naskah promosi sintetis.');page.locator('#ai-send').click()
-                expect(page.locator('.chat-voice-draft')).to_be_visible();thread_url=page.url
-                page.locator('.chat-voice-draft').click();page.wait_for_load_state('networkidle')
-                expect(page.locator('#audio-script')).to_have_value(script)
+                expect(page.locator('.ai-assistant .ai-message-text')).to_contain_text('Ini naskah promosi.')
+                expect(page.locator('.chat-voice-draft,.ai-regenerate')).to_have_count(0);thread_url=page.url
+                page.locator('.ai-copy').last.click()
+                assert page.evaluate('navigator.clipboard.readText()')==script
+                page.reload(wait_until='networkidle');expect(page.locator('.chat-voice-draft,.ai-regenerate')).to_have_count(0)
+                # Standalone Voice Over remains reachable through the task selector;
+                # only the user's explicit unsent draft is carried to its editor.
+                draft='My own unsent Voice Over draft.'
+                page.locator('#ai-input').fill(draft);page.locator('[data-home-task=voiceover]').click();page.wait_for_load_state('networkidle')
+                expect(page.locator('#audio-script')).to_have_value(draft)
                 expect(page.locator('#voice-script-duration,.voice-duration-note')).to_have_count(0)
                 assert not any('/jobs' in url for url in writes)
-                expect(page.locator('.audio-draft-return a')).to_have_attribute('href',urlsplit(thread_url).path)
                 page.screenshot(path=str(output/f'voice-draft-{width}.png'),full_page=True)
                 page.locator('#audio-script').fill('Naskah edit yang tetap aman.');page.locator('#kilas-voice-choice').select_option('kilas-female')
                 expect(page.locator('#selected-voice')).to_have_value('kilas-female')
-                page.locator('.audio-draft-return a').click();page.wait_for_load_state('networkidle');expect(page.locator('.chat-voice-draft')).to_be_visible()
-                page.go_back(wait_until='networkidle');page.go_forward(wait_until='networkidle');expect(page.locator('.chat-voice-draft')).to_be_visible()
-                # Selected visible prose transfers as selected, without auto-generating.
-                page.locator('.ai-assistant .ai-message-text p').first.evaluate('(e)=>{const r=document.createRange();r.selectNodeContents(e);const s=getSelection();s.removeAllRanges();s.addRange(r);}')
-                selected=page.evaluate('getSelection().toString()');page.locator('.chat-voice-draft').click();page.wait_for_load_state('networkidle');expect(page.locator('#audio-script')).to_have_value(selected)
+                page.locator('[data-kilas-feature=chat]').click();page.wait_for_load_state('networkidle')
+                page.goto(thread_url,wait_until='networkidle');expect(page.locator('.chat-voice-draft,.ai-regenerate')).to_have_count(0)
+                page.go_back(wait_until='networkidle');page.go_forward(wait_until='networkidle');expect(page.locator('.chat-voice-draft,.ai-regenerate')).to_have_count(0)
                 page.goto(origin+'/kilas-ai/library',wait_until='networkidle')
                 expect(page.locator('.library-asset')).to_have_count(3);assert 'Foreign secret' not in page.locator('.kilas-library').inner_text()
                 assert page.locator('.library-preview img').first.is_hidden() # Missing/broken preview fallback.
@@ -77,7 +83,7 @@ def main():
                 page.screenshot(path=str(output/f'creative-brief-{width}.png'),full_page=True)
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
                 assert not errors,(width,errors)
-                report['viewports'].append({'width':width,'home_draft_voice_handoff_exact_back_forward_library_filter_preview_credits_creative':'PASS'})
+                report['viewports'].append({'width':width,'send_copy_no_response_actions_standalone_voice_back_forward_library_credits_creative':'PASS'})
                 context.close()
             browser.close()
         (output/'verification.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))

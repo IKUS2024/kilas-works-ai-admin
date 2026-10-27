@@ -10,16 +10,26 @@
   const secondary=[root.querySelector('.home-workspace-top'),root.querySelector('.home-tool-selector'),root.querySelector('[data-ai-call-launch]')].filter(Boolean).map(element=>{
     const place=document.createComment('Chat control position');element.before(place);return {element,place};
   });
-  let compact=false;
+  let compact=false,keyboardInline=false,keyboardOpen=false;
   const fitHierarchy=(width,height,scale)=>{
-    const next=Boolean(optionsPanel&&((scale>1.01&&width<800)||height<500||width<280));
-    if(next===compact)return;compact=next;
+    const next=Boolean(optionsPanel&&(keyboardOpen||(scale>1.01&&width<800)||height<500||width<280));
+    const inline=Boolean(next&&keyboardOpen&&scale<=1.01&&width>=280);
+    if(next===compact&&inline===keyboardInline)return;compact=next;keyboardInline=inline;
     document.body.classList.toggle('home-chat-compact',compact);options.hidden=!compact;options.open=false;
-    for(const {element,place} of secondary){if(compact)optionsPanel.append(element);else place.after(element);}
+    document.body.classList.toggle('home-keyboard-inline',keyboardInline);
+    // Keep task navigation and composer actions in place while typing. Only
+    // model controls use Options; magnified/narrow views retain the full menu.
+    for(const {element,place} of secondary){
+      const collapse=compact&&(!keyboardInline||element.matches('.home-workspace-top'));
+      if(collapse){if(element.parentElement!==optionsPanel)optionsPanel.append(element);}
+      else if(element.previousSibling!==place)place.after(element);
+    }
   };
   options?.addEventListener('keydown',event=>{if(event.key==='Escape'){options.open=false;options.querySelector('summary').focus();}});
   options?.addEventListener('click',event=>{if(event.target.closest('[data-ai-call-launch],[data-home-task]'))options.open=false;});
-  document.querySelector('#ai-call-dialog')?.addEventListener('close',()=>{if(compact)options?.querySelector('summary').focus({preventScroll:true});});
+  document.querySelector('#ai-call-dialog')?.addEventListener('close',()=>{
+    if(compact)(keyboardInline?root.querySelector('[data-ai-call-launch]'):options?.querySelector('summary'))?.focus({preventScroll:true});
+  });
   root.addEventListener('focusin',event=>{if(event.target.matches('#ai-input,#agent-message')&&options)options.open=false;});
   const following=()=>timeline&&timeline.scrollHeight-timeline.scrollTop-timeline.clientHeight<48;
   const fitViewport=()=>{
@@ -29,7 +39,7 @@
     document.body.classList.toggle('home-viewport-zoomed',scale>1.01);
     // Page zoom/window reflow changes CSS width as well as height. Start a new
     // keyboard baseline there; a keyboard resize keeps the layout width.
-    if(Math.abs(window.innerWidth-layoutWidth)>1){layoutWidth=window.innerWidth;tallestHeight=window.innerHeight;}
+    if(Math.abs(window.innerWidth-layoutWidth)>1){layoutWidth=window.innerWidth;tallestHeight=window.innerHeight;keyboardOpen=false;}
     else tallestHeight=Math.max(tallestHeight,window.innerHeight);
     const editing=document.activeElement?.matches?.('#ai-input,#agent-message');
     document.documentElement.style.setProperty('--home-viewport-height',`${height}px`);
@@ -38,12 +48,15 @@
     // normalize its height before detecting a keyboard so zoom alone is not one.
     document.documentElement.style.setProperty('--home-viewport-width',`${viewport?viewport.width:window.innerWidth}px`);
     document.documentElement.style.setProperty('--home-viewport-left',`${viewport?viewport.offsetLeft:0}px`);
-    fitHierarchy(viewport?viewport.width:window.innerWidth,height,scale);
     const unscaledHeight=height*scale;
-    document.body.classList.toggle('home-keyboard-open',Boolean(unscaledHeight<window.innerHeight-100||(editing&&unscaledHeight<tallestHeight-100)));
+    const viewportShrunk=unscaledHeight<window.innerHeight-100||unscaledHeight<tallestHeight-100;
+    // Keep the keyboard layout through focus transfers until its viewport
+    // recovers, rather than hiding controls on blur or at the 500px boundary.
+    keyboardOpen=Boolean(viewportShrunk&&(editing||keyboardOpen||unscaledHeight<window.innerHeight-100));
+    document.body.classList.toggle('home-keyboard-open',keyboardOpen);
+    fitHierarchy(viewport?viewport.width:window.innerWidth,height,scale);
     document.documentElement.style.setProperty('--home-input-max-height',`${Math.max(44,Math.min(144,height-330))}px`);
     root.dispatchEvent(new Event('home:viewport'));
-    if(editing&&root.scrollHeight>root.clientHeight)root.scrollTop=root.scrollHeight;
     if(follow)timeline.scrollTop=timeline.scrollHeight;
   };
   fitViewport();window.addEventListener('resize',fitViewport);
