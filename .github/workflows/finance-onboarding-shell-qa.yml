@@ -1,0 +1,36 @@
+name: Finance Onboarding Shell QA
+on:
+  pull_request:
+    paths: ['client-hub/kilas_ai/home_tasks.py', 'client-hub/tests/test_finance_onboarding_shell.py', 'client-hub/tests/finance_onboarding_browser_qa.py', '.github/workflows/finance-onboarding-shell-qa.yml']
+  push:
+    branches: [main, fix/finance-onboarding-current-shell-20261027]
+    paths: ['client-hub/kilas_ai/home_tasks.py', 'client-hub/tests/test_finance_onboarding_shell.py', 'client-hub/tests/finance_onboarding_browser_qa.py', '.github/workflows/finance-onboarding-shell-qa.yml']
+permissions:
+  contents: read
+jobs:
+  onboarding-and-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Native onboarding, session, sidebar and standalone Finance contracts
+        run: |
+          python -B scripts/run_offline_tests.py --only test_finance_onboarding_shell.py
+          python -B scripts/run_offline_tests.py --only test_customer_auth_sessions.py
+          python -B scripts/run_offline_tests.py --only test_kilas_sidebar_products.py
+          python -B scripts/run_offline_tests.py --only test_kilas_sidebar_history.py
+          python -B scripts/run_offline_tests.py --only test_kilas_finance_baseline.py
+          python -B scripts/run_offline_tests.py --only test_finance_style_loading.py
+      - name: Chromium new-account creation, current drawer and logout/back/forward
+        env:
+          KILAS_ONBOARDING_QA_DIR: /tmp/kilas-onboarding-qa
+        run: python -B client-hub/tests/finance_onboarding_browser_qa.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: finance-onboarding-synthetic-browser
+          path: /tmp/kilas-onboarding-qa

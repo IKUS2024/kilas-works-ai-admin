@@ -35,7 +35,7 @@ def chat_sidebar_context():
     endpoint = request.endpoint or ''
     home_account = (endpoint == 'auth.account_page' and
                     (request.args.get('workspace') == 'home' or session.get('active_product') != 'finance'))
-    surface = (endpoint == 'products.product_start' or home_account or
+    surface = (endpoint in ('products.product_start', 'products.finance_entry') or home_account or
                request.blueprint in ('kilas_ai', 'kilas_audio', 'kilas_learning'))
     if request.endpoint in ('kilas_ai.shared','kilas_ai.share') or not (surface and enabled() and session.get('user_id') and session.get('role') == 'CLIENT_OWNER'):
         return {}
