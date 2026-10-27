@@ -306,4 +306,3 @@ def process(owner, ident, operation_key, raw, silent, style, target):
         elif admitted and not charged:
             # No dispatch intent was committed; close the unused reservation.
             usage.finish(owner, op, operations, success=False)
-
