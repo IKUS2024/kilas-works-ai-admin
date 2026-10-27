@@ -217,6 +217,11 @@ def product_start():
         abort(400)
     from kilas_ai.routes import enabled
     ai_available=enabled() and user['role']=='CLIENT_OWNER'
+    if ai_available:
+        from kilas_ai import copilot
+        if copilot.visible():
+            from kilas_ai.copilot_routes import page
+            return page(), 200, {'Cache-Control': 'private, no-store'}
     from kilas_ai.home_tasks import context as home_task_context
     return render_template('product_start.html',user=user,kilas_ai_enabled=enabled() and user['role']=='CLIENT_OWNER',
                            assist_customer_visible=assist_customer_visible(),home_ai=home_task_context(user['id']) if ai_available else None)

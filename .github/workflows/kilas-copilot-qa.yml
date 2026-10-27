@@ -1,0 +1,38 @@
+name: Kilas Conversation Copilot QA
+on:
+  pull_request:
+    paths: ['client-hub/kilas_ai/**', 'client-hub/static/kilas_copilot*', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/_premium_workspace.html', 'client-hub/routes_products.py', 'client-hub/app.py', 'client-hub/tests/test_kilas_copilot*', '.github/workflows/kilas-copilot-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt pytest playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Voice-only Copilot contracts, provider mocks only
+        run: |
+          python client-hub/tests/test_kilas_copilot.py
+          node client-hub/tests/test_kilas_copilot.mjs
+      - name: Existing metering, Finance entry, languages and Voice Over
+        run: |
+          python client-hub/tests/test_kilas_ai_usage.py
+          python client-hub/tests/test_finance_onboarding_shell.py
+          python -m pytest -q client-hub/tests/test_kilas_translator_languages.py
+          python -m pytest -q client-hub/tests/test_kilas_voice_edit.py
+      - name: Responsive browser, synthetic mic and provider only
+        env:
+          KILAS_QA_CHROMIUM: ''
+        run: python client-hub/tests/test_kilas_copilot_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: copilot-synthetic-browser
+          path: /tmp/kilas-copilot-browser/

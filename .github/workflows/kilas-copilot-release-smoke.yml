@@ -1,0 +1,42 @@
+name: Kilas Copilot release smoke
+on:
+  push:
+    branches: [main]
+    paths: ['client-hub/static/kilas_copilot.mjs', '.github/workflows/kilas-copilot-release-smoke.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-read-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Wait for released asset and verify public health and auth boundaries
+        shell: python
+        run: |
+          import hashlib, json, pathlib, time, urllib.request
+          origin='https://kilas-works-client-hub.onrender.com'
+          expected=pathlib.Path('client-hub/static/kilas_copilot.mjs').read_bytes()
+          for attempt in range(100):
+              try:
+                  with urllib.request.urlopen(origin+'/static/kilas_copilot.mjs',timeout=20) as response:
+                      released=response.read()
+                  if released==expected: break
+              except Exception as error:
+                  print('Waiting for release:',type(error).__name__,flush=True)
+              time.sleep(10)
+          else: raise AssertionError('Released asset does not match checked-out commit')
+          print('Released Copilot asset SHA256:',hashlib.sha256(released).hexdigest())
+          with urllib.request.urlopen(origin+'/healthz',timeout=30) as response:
+              health=json.load(response)
+              assert response.status==200 and health['status']=='ok',health
+              print('Production health:',health)
+          for path in ('/kilas-ai','/kilas-ai/copilot','/products/start'):
+              with urllib.request.urlopen(origin+path,timeout=30) as response:
+                  assert '/login' in response.url or '/sign' in response.url,(path,response.url)
+                  assert b'copilot-consent' not in response.read(),path
+                  print('Unauthenticated boundary:',path,response.status,response.url)
+          print('PASS: public read-only smoke; no authenticated session, mic or provider calls')

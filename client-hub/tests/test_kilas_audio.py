@@ -45,7 +45,9 @@ class AudioTests(unittest.TestCase):
         from auth_test_helpers import authenticate
         authenticate(self.client,f.repo.get_user_by_id(self.user),_csrf_token='audio-csrf')
         self.voices=[{'id':'actualVoice123','name':'QA Calm','style':'Female · Calm'}]
-        self.env=patch.dict(os.environ,{'ELEVENLABS_API_KEY':'synthetic-only','KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'true'});self.env.start();self.addCleanup(self.env.stop)
+        # Historical shell assertions run in the retained compatibility mode;
+        # current Copilot/Translator/VO shell coverage is in the Copilot browser suite.
+        self.env=patch.dict(os.environ,{'ELEVENLABS_API_KEY':'synthetic-only','KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'true','KILAS_COPILOT_VISIBLE':'false'});self.env.start();self.addCleanup(self.env.stop)
         self.transport=patch.object(provider.requests,'request',side_effect=provider.requests.ConnectionError('offline provider mock'))
         self.transport.start();self.addCleanup(self.transport.stop)
 

@@ -4,11 +4,11 @@ from .routes import ai_bp, automation_enabled
 
 
 def context(owner):
-    from . import agent_store, attachments, live_assist, live_qa_budget, store, usage,sidebar_history
+    from . import agent_store, attachments, live_assist, live_qa_budget, store, usage,sidebar_history,copilot
     return {
         'automation_enabled': automation_enabled(),
         'limits': attachments.limits(usage.attachment_plan(owner)),
-        'history_items': sidebar_history.recent(owner,include_conversations=automation_enabled()),
+        'history_items': sidebar_history.recent(owner,include_conversations=automation_enabled(),copilot_only=copilot.visible()),
         'threads': store.list_threads(owner, 6),
         'conversations': agent_store.recent_conversations(owner)[:6] if automation_enabled() else [],
         'live_available': live_qa_budget.enabled() and live_assist.ready(owner) and live_qa_budget.ready(owner,for_start=True),
@@ -42,13 +42,15 @@ def chat_sidebar_context():
 
     def history():
         from . import agent_store, store,sidebar_history
-        return {'history_items':sidebar_history.recent(session['user_id'],include_conversations=automation_enabled()),'threads': store.list_threads(session['user_id'], 6),
+        return {'history_items':sidebar_history.recent(session['user_id'],include_conversations=automation_enabled(),copilot_only=copilot.visible()),'threads': store.list_threads(session['user_id'], 6),
                 'conversations': agent_store.recent_conversations(session['user_id'])[:6] if automation_enabled() else [],
                 'automation_enabled': automation_enabled()}
     import security
     from . import live_translator
     user = security.current_user()
+    from . import copilot
     return {'chat_sidebar_enabled': request.blueprint not in ('kilas_audio', 'kilas_learning'),
+            'copilot_primary': copilot.visible(),
             'kilas_revision_shell': True, 'kilas_live_translator_available': live_translator.ready(session['user_id']), 'kilas_profile_email': user.get('email','') if user else '',
             'chat_sidebar_history': history}
 
@@ -97,7 +99,8 @@ def library():
 def sidebar_history():
     from flask import session
     from .sidebar_history import page
-    return page(session['user_id'],request.args.get('cursor'),include_conversations=automation_enabled()),200,{'Cache-Control':'private, no-store','Vary':'Cookie'}
+    from . import copilot
+    return page(session['user_id'],request.args.get('cursor'),include_conversations=automation_enabled(),copilot_only=copilot.visible()),200,{'Cache-Control':'private, no-store','Vary':'Cookie'}
 
 
 @ai_bp.post('/video', endpoint='video_home_handoff')
