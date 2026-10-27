@@ -1,5 +1,8 @@
 """Six-reference responsive UI evidence using disposable accounts, no paid IO."""
 import json, logging, os, threading
+# These are the retained October 24 Chat/Call reference states. Current primary
+# Copilot visuals are tested separately, without enabling this legacy mode.
+os.environ['KILAS_COPILOT_VISIBLE']='false'
 from pathlib import Path
 from unittest.mock import patch
 from playwright.sync_api import sync_playwright, expect

@@ -162,6 +162,12 @@ def main():
                     if active=='Voice Over':assert page.locator('#audio-script').count()==1
                     else:assert page.locator('#live-setup-form').count()==1
                     page.screenshot(path=str(output/f'{active.replace(" ","-")}-{width}.png'),full_page=True)
+                    if active=='Voice Over':
+                        page.locator('#audio-script').fill('Unsaved Voice Over script')
+                        page.once('dialog',lambda dialog:dialog.dismiss())
+                        page.locator('.copilot-task-nav a').filter(has_text='Copilot').click()
+                        expect(page.locator('#audio-script')).to_have_value('Unsaved Voice Over script')
+                        assert '/kilas-translator' in page.url
                 report['cases'].append({'width':width,'reply_top_off':off_y,'reply_top_on':on_y,'idle_start_stop_results_translation_history_consent_permission_cancel_profile_overflow':'PASS'})
                 context.close()
             # Network/interrupt/cancellation verification with the real request stack.

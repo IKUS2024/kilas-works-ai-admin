@@ -138,3 +138,13 @@ style controls and compact A−/A+ buttons on the reply card. Previous turns rem
 available in a collapsed history section. The primary sidebar action is solid
 orange with white text. No live transcript is fabricated: this implementation
 transcribes only after explicit stop, and the concise UI says so.
+
+The parent subsequently reviewed artifact `12757487539` from successful run
+`40557479832` on `8023b83c` and passed the substantive visual corrections,
+including mobile OFF/ON results, sidebar/Profile, desktop and shared tools.
+This is a reference comparison by the parent, not a pixel-identical claim.
+Final local browser rerun also verifies dismissal of the existing Voice Over
+leave-draft confirmation preserves its script and route. Retained legacy
+reference browser QA passes with its assertions unchanged. The toggle label
+is now “Tampilkan terjemahan”. See `docs/qa/kilas-copilot-ci-triage-20261027.md`
+for the baseline-versus-candidate classification of red historical workflows.

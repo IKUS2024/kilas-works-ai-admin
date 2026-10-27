@@ -1,7 +1,7 @@
 /* Native links and presentation URL only; never generate or persist a draft. */
 (()=>{
   const t=(message,values)=>window.KilasUI ? window.KilasUI.t(message,values) : Object.entries(values||{}).reduce((text,[key,value])=>text.replaceAll('{'+key+'}',String(value)),message);
- const nav=document.querySelector('.kilas-feature-navigation');if(!nav)return;
+ const nav=document.querySelector('.kilas-feature-navigation,.copilot-task-nav');if(!nav)return;
  const active=nav.querySelector('[aria-current=page]');if(active){const row=active.parentElement;row.scrollLeft=Math.max(0,active.getBoundingClientRect().right-row.getBoundingClientRect().right);}
  nav.addEventListener('click',event=>{
   const link=event.target.closest('[data-kilas-feature]');if(!link||event.defaultPrevented)return;

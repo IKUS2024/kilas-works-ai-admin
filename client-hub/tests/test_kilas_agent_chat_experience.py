@@ -23,6 +23,10 @@ from kilas_ai import google_connection, agent_workers, connectors
 
 class ChatTests(unittest.TestCase):
     def setUp(self):
+        # Exercise the retained hidden Chat entry/engine, not the new default
+        # Copilot UI (covered independently by test_kilas_copilot).
+        legacy = patch.dict(os.environ, {'KILAS_COPILOT_VISIBLE': 'false'})
+        legacy.start();self.addCleanup(legacy.stop)
         db.execute("UPDATE kilas_agent_jobs SET status='STOPPED',next_wake_at=NULL WHERE status NOT IN ('COMPLETED','FAILED','STOPPED')")
         self.owner = repo.create_user(self._testMethodName+'@chat.example.test', 'hash')
         self.other = repo.create_user(self._testMethodName+'@other.example.test', 'hash')
