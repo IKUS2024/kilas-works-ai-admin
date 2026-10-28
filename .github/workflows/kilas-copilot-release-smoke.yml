@@ -37,6 +37,6 @@ jobs:
           for path in ('/kilas-ai','/kilas-ai/copilot','/products/start'):
               with urllib.request.urlopen(origin+path,timeout=30) as response:
                   assert '/login' in response.url or '/sign' in response.url,(path,response.url)
-                  assert b'copilot-consent' not in response.read(),path
+                  assert b'id="copilot"' not in response.read(),path
                   print('Unauthenticated boundary:',path,response.status,response.url)
           print('PASS: public read-only smoke; no authenticated session, mic or provider calls')
