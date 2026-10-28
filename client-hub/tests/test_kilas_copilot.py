@@ -460,6 +460,18 @@ class CopilotTests(unittest.TestCase):
             if case_id == 'school-experience-id-multipart':
                 self.assertGreater(saved['reply'].count('.'), 3)  # No sentence truncation.
 
+    def test_translation_rejects_dropped_or_added_template_slots_without_rewrite(self):
+        self.premium()
+        reply = 'I studied at … (fill in yourself).'
+        for translated in ('Saya sekolah di Harvard.', 'Saya sekolah di … (isi sendiri), jurusan … (isi sendiri).'):
+            with self.subTest(translated=translated), patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe', return_value='Where did you study?'), patch.object(copilot, 'text_stream', side_effect=[answer(reply), answer(json.dumps({'source_translation': 'Sekolah di mana?', 'reply_translation': translated}))]):
+                events = list(copilot.process(self.owner, self.ident, uuid.uuid4().hex, recording(), False, 'santai', 'id'))
+            self.assertEqual(events[-1], {'type': 'error', 'code': 'incomplete_translation'})
+            self.assertEqual(copilot.turns(self.owner, self.ident), [])
+        self.assertEqual(copilot.slot_count('I studied at ... (fill in yourself).'), 1)
+        self.assertEqual(copilot.slot_count('学校は…（自分で記入）です。'), 1)
+        self.assertEqual(copilot.slot_count('An ordinary pause… with no slot.'), 0)
+
 
 if __name__ == '__main__':
     unittest.main()

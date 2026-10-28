@@ -239,9 +239,12 @@ def main():
             context = browser.new_context(viewport={'width':1280,'height':900})
             context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);context.add_init_script(FAKE_MIC)
             page = context.new_page();page.goto(origin+'/kilas-ai',wait_until='networkidle')
-            slow[0]=True;page.locator('#copilot-mic').click();page.wait_for_function('processFrames>4');page.locator('#copilot-mic').click()
+            provider_entered.clear();slow[0]=True;page.locator('#copilot-mic').click();page.wait_for_function('processFrames>4');page.locator('#copilot-mic').click()
             expect(page.locator('#copilot-state')).to_contain_text('Mengenali')
             expect(page.locator('#copilot-trigger')).to_be_disabled()
+            # Status is queued before STT enters; wait for the admitted call so
+            # its normal start cannot be miscounted as a second-tap duplicate.
+            assert provider_entered.wait(3), 'Admitted STT must enter before duplicate-call snapshot'
             before_repeat=len(provider_calls)
             page.evaluate("document.querySelector('#copilot-trigger').click();document.querySelector('#copilot-mic').click()")
             assert len(provider_calls)==before_repeat
