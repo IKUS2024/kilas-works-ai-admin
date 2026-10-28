@@ -101,7 +101,7 @@ if(root){
   start.disabled=state!=='ended'||!setupReady||!recovery?.canStart();setup.hidden=state!=='ended';active.hidden=state==='ended';orb.dataset.state=state;
   history?.busy(state!=='ready');
   const recording=session.running||['opening','listening'].includes(state);holdButton.disabled=!recording&&!['ready','opening','listening'].includes(state);holdButton.setAttribute('aria-pressed',String(recording));
-  holdButton.textContent=recording?'Stop':['preparing','starting','processing','finalizing','resuming','recovering'].includes(state)?t('Memproses'):'Start';
+  holdButton.textContent=recording?t('Stop'):['preparing','starting','processing','finalizing','resuming','recovering'].includes(state)?t('Memproses'):t('Start');
   holdButton.setAttribute('aria-label',recording?t('Stop Rekaman'):t('Mulai Rekam'));
   if(state==='ended'||state==='paused')holdControl?.reset();
   const label={ready:t('Mulai Rekam'),opening:t('Menyiapkan mikrofon'),paused:t('Sesi dijeda'),playing:t('Hasil'),replaying:t('Hasil'),listening:t('Mendengarkan')}[state]||t('Memproses');orb.setAttribute('aria-label',label);
@@ -119,7 +119,7 @@ if(root){
   const confirmedActive=Boolean(state.active)&&(state.checked||state.ending),idle=session.state==='ended';
   recoveryPanel.hidden=!idle||!confirmedActive;
   // Preserve the action label while disabled/aria-busy and status report readiness.
-  start.textContent='Start';
+  start.textContent=t('Start');
   start.setAttribute?.('aria-busy',String(state.pending));
   sessionStatus.textContent=idle&&state.pending&&!confirmedActive?t('Memeriksa sesi...'):'';
   recoveryRetry.hidden=!idle||state.pending||state.checked||confirmedActive;

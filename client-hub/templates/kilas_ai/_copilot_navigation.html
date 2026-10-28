@@ -1,5 +1,5 @@
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_copilot_navigation.css',v='compact-20261028') }}">
-<nav class="copilot-task-nav" aria-label="Pilihan alat">
+<nav class="copilot-task-nav" aria-label="{{ ui_t('Pilihan alat') }}">
   <a data-kilas-feature="copilot" href="{{ url_for('kilas_ai.home') }}" {% if selected_feature|default('copilot')=='copilot' %}aria-current="page"{% endif %}>Copilot</a>
   <a data-kilas-feature="live" href="{{ url_for('kilas_audio.live_translator_home') }}" {% if selected_feature|default('') in ('live','translate','gemini') %}aria-current="page"{% endif %}>Translator</a>
   <a data-kilas-feature="voiceover" href="{{ url_for('kilas_audio.home',mode='voiceover') }}" {% if selected_feature|default('')=='voiceover' %}aria-current="page"{% endif %}>Voice Over</a>

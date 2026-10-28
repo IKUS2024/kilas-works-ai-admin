@@ -22,7 +22,7 @@
 
 {% if not provider_ready %}<p class="audio-notice" role="status">{{ ui_t("Layanan audio sedang belum tersedia. Saldo kamu tetap aman.") }}</p>{% endif %}
 <div id="audio-result" data-status-url="{{ url_for('kilas_audio.status',ident=job.id) if job else '' }}" data-job-status="{{ job.status if job else '' }}">{% if job %}{% include 'kilas_translator/_result.html' %}{% endif %}</div>
-<div class="audio-tabs" role="tablist" aria-label="{{ ui_t('Mode audio') }}" {% if not upload_translation_visible %}hidden{% endif %}>{% if upload_translation_visible %}<button type="button" id="translate-tab" role="tab" aria-selected="{{ 'true' if active_mode=='translate' else 'false' }}" tabindex="{{ 0 if active_mode=='translate' else -1 }}" aria-controls="translate-panel">Translate</button>{% endif %}<button type="button" id="voiceover-tab" role="tab" aria-selected="{{ 'true' if active_mode=='voiceover' else 'false' }}" aria-controls="voiceover-panel" tabindex="{{ 0 if active_mode=='voiceover' else -1 }}">Voice Over</button></div>
+<div class="audio-tabs" role="tablist" aria-label="{{ ui_t('Mode audio') }}" {% if not upload_translation_visible %}hidden{% endif %}>{% if upload_translation_visible %}<button type="button" id="translate-tab" role="tab" aria-selected="{{ 'true' if active_mode=='translate' else 'false' }}" tabindex="{{ 0 if active_mode=='translate' else -1 }}" aria-controls="translate-panel">{{ ui_t('Translate') }}</button>{% endif %}<button type="button" id="voiceover-tab" role="tab" aria-selected="{{ 'true' if active_mode=='voiceover' else 'false' }}" aria-controls="voiceover-panel" tabindex="{{ 0 if active_mode=='voiceover' else -1 }}">Voice Over</button></div>
 {% if upload_translation_visible %}<section id="translate-panel" role="tabpanel" aria-labelledby="translate-tab" {{ 'hidden' if active_mode!='translate' }}>
 <form action="{{ url_for('kilas_audio.create') }}" method="post" enctype="multipart/form-data" data-audio-form>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}-t"><input type="hidden" name="mode" value="translate">
@@ -30,7 +30,7 @@
 <input type="file" id="audio-file" name="file" accept=".mp4,.mp3,.wav,.m4a" data-max-file-mb="{{ max_mb }}" data-max-audio-mb="{{ audio_max_mb }}" required aria-describedby="audio-duration"><p id="audio-duration" role="status">{{ ui_t("Durasi dibaca sebelum Translate.") }}</p>
 {% from 'kilas_translator/_language_picker.html' import language_picker with context %}
 <div class="audio-fields"><label>{{ ui_t("Bahasa sumber") }}{{ language_picker('source_language',ui_t('Bahasa sumber'),dubbing_sources,'auto',auto=true) }}</label><label>{{ ui_t("Bahasa tujuan") }}{{ language_picker('language',ui_t('Bahasa tujuan'),dubbing_languages,'en') }}</label></div>
-<button class="btn" type="submit" {{ 'disabled' if not provider_ready or (not balance.exempt and not balance.available) }}>Translate</button>
+<button class="btn" type="submit" {{ 'disabled' if not provider_ready or (not balance.exempt and not balance.available) }}>{{ ui_t('Translate') }}</button>
 </form></section>{% endif %}
 <section id="voiceover-panel" role="tabpanel" aria-labelledby="voiceover-tab" {{ 'hidden' if active_mode!='voiceover' }}>
 

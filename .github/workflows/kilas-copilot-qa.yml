@@ -1,7 +1,7 @@
 name: Kilas Conversation Copilot QA
 on:
   pull_request:
-    paths: ['client-hub/kilas_ai/**', 'client-hub/static/kilas_copilot*', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/_premium_workspace.html', 'client-hub/routes_products.py', 'client-hub/app.py', 'client-hub/tests/test_kilas_copilot*', '.github/workflows/kilas-copilot-qa.yml']
+    paths: ['client-hub/kilas_ai/**', 'client-hub/locales/**', 'client-hub/templates/kilas_translator/**', 'client-hub/static/kilas_copilot*', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/_premium_workspace.html', 'client-hub/routes_products.py', 'client-hub/app.py', 'client-hub/tests/test_kilas_copilot*', '.github/workflows/kilas-copilot-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,6 +20,9 @@ jobs:
       - name: Voice-only Copilot contracts, provider mocks only
         run: |
           python client-hub/tests/test_kilas_copilot.py
+          python client-hub/tests/test_kilas_copilot_locale.py
+          python client-hub/tests/test_ui_i18n.py
+          node client-hub/tests/test_ui_i18n.mjs
           node client-hub/tests/test_kilas_copilot.mjs
           node client-hub/tests/test_kilas_copilot_capture.mjs
           node client-hub/tests/test_kilas_ai_call_capture.mjs
@@ -32,7 +35,9 @@ jobs:
       - name: Responsive browser, synthetic mic and provider only
         env:
           KILAS_QA_CHROMIUM: ''
-        run: python client-hub/tests/test_kilas_copilot_browser.py
+        run: |
+          python client-hub/tests/test_kilas_copilot_browser.py
+          python client-hub/tests/test_kilas_copilot_locale_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -8,42 +8,42 @@
   <main class="copilot-main">
     <header>
       <h1>Conversation Copilot</h1>
-      <p class="copilot-language-badge"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/></svg>Bahasa percakapan otomatis</p>
+      <p class="copilot-language-badge"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/></svg>{{ ui_t('Bahasa percakapan otomatis') }}</p>
     </header>
     <div class="copilot-setup">
       <div class="copilot-translation-row">
-        <label class="copilot-translation"><span>Tampilkan terjemahan</span><input id="copilot-translate" type="checkbox" role="switch" aria-controls="copilot-target-wrap"></label>
-        <p class="copilot-translation-note">Hasil hanya menampilkan saran jawaban.</p>
-        <label id="copilot-target-wrap" hidden><span class="copilot-sr-only">Terjemahkan ke</span><select id="copilot-target">{% for code,name in copilot_languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='id' }}>{{ name }}</option>{% endfor %}</select></label>
+        <label class="copilot-translation"><span>{{ ui_t('Tampilkan terjemahan') }}</span><input id="copilot-translate" type="checkbox" role="switch" aria-controls="copilot-target-wrap"></label>
+        <p class="copilot-translation-note">{{ ui_t('Hasil hanya menampilkan saran jawaban.') }}</p>
+        <label id="copilot-target-wrap" hidden><span class="copilot-sr-only">{{ ui_t('Terjemahkan ke') }}</span><select id="copilot-target">{% for code,name in copilot_languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='id' }}>{{ copilot_language_names.get(code, name) }}</option>{% endfor %}</select></label>
       </div>
     </div>
-    <section class="copilot-capture" aria-label="Mikrofon">
-      <p id="copilot-state" role="status" aria-live="polite">Mikrofon mati</p>
+    <section class="copilot-capture" aria-label="{{ ui_t('Mikrofon') }}">
+      <p id="copilot-state" role="status" aria-live="polite">{{ ui_t('Mikrofon mati') }}</p>
       <div class="copilot-mic-row">
         <div class="copilot-mic-stage">
-          <button id="copilot-mic" type="button" aria-label="Mulai mendengarkan" aria-pressed="false">
+          <button id="copilot-mic" type="button" aria-label="{{ ui_t('Mulai mendengarkan') }}" aria-pressed="false">
             <svg class="copilot-mic-icon" viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3m-4 0h8"/></svg>
             <svg class="copilot-stop-icon" viewBox="0 0 24 24" width="46" height="46" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>
           </button>
         </div>
-        <h2 id="copilot-action" class="copilot-sr-only">Dengarkan</h2>
+        <h2 id="copilot-action" class="copilot-sr-only">{{ ui_t('Dengarkan') }}</h2>
       </div>
       <canvas id="copilot-wave" width="320" height="48" aria-hidden="true" hidden></canvas>
-      <div class="copilot-styles" role="group" aria-label="Gaya jawaban"><input id="copilot-style" type="hidden" value="santai"><button type="button" data-copilot-style="santai" aria-pressed="true">Santai</button><button type="button" data-copilot-style="profesional" aria-pressed="false">Profesional</button></div>
-      <p class="copilot-device-hint"><svg viewBox="0 0 28 24" width="26" height="23" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="3" width="16" height="12" rx="2"/><path d="M7 19h7m-4-4v4"/><rect x="20" y="8" width="6" height="13" rx="1.5"/><path d="M22 18h2"/></svg><span>Dengarkan suara dari perangkat lain</span></p>
-      <div class="copilot-commands"><button id="copilot-trigger" type="button" aria-label="Mulai mendengarkan" aria-pressed="false">Dengarkan</button><button id="copilot-cancel" type="button" hidden>Batalkan</button></div>
-      {% if not provider_ready %}<p role="status">Copilot belum tersedia. Konfigurasi OpenAI perlu diperiksa oleh pengelola.</p>{% endif %}
+      <div class="copilot-styles" role="group" aria-label="{{ ui_t('Gaya jawaban') }}"><input id="copilot-style" type="hidden" value="santai"><button type="button" data-copilot-style="santai" aria-pressed="true">{{ ui_t('Santai') }}</button><button type="button" data-copilot-style="profesional" aria-pressed="false">{{ ui_t('Profesional') }}</button></div>
+      <p class="copilot-device-hint"><svg viewBox="0 0 28 24" width="26" height="23" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="3" width="16" height="12" rx="2"/><path d="M7 19h7m-4-4v4"/><rect x="20" y="8" width="6" height="13" rx="1.5"/><path d="M22 18h2"/></svg><span>{{ ui_t('Dengarkan suara dari perangkat lain') }}</span></p>
+      <div class="copilot-commands"><button id="copilot-trigger" type="button" aria-label="{{ ui_t('Mulai mendengarkan') }}" aria-pressed="false">{{ ui_t('Dengarkan') }}</button><button id="copilot-cancel" type="button" hidden>{{ ui_t('Batalkan') }}</button></div>
+      {% if not provider_ready %}<p role="status">{{ ui_t('Copilot belum tersedia. Konfigurasi OpenAI perlu diperiksa oleh pengelola.') }}</p>{% endif %}
       <p id="copilot-error" role="alert" hidden></p>
     </section>
-    <section id="copilot-results" aria-label="Saran jawaban AI">
-      <div class="copilot-result-tools" {% if not turns %}hidden{% endif %}><span>Ukuran teks</span><button id="copilot-smaller" type="button" aria-label="Perkecil teks">A−</button><button id="copilot-larger" type="button" aria-label="Perbesar teks">A+</button></div>
+    <section id="copilot-results" aria-label="{{ ui_t('Saran jawaban AI') }}">
+      <div class="copilot-result-tools" {% if not turns %}hidden{% endif %}><span>{{ ui_t('Ukuran teks') }}</span><button id="copilot-smaller" type="button" aria-label="{{ ui_t('Perkecil teks') }}">A−</button><button id="copilot-larger" type="button" aria-label="{{ ui_t('Perbesar teks') }}">A+</button></div>
       <div id="copilot-turns"></div>
-      <p id="copilot-disclosure" {% if not turns %}hidden{% endif %}>Saran AI · periksa sebelum digunakan.</p>
+      <p id="copilot-disclosure" {% if not turns %}hidden{% endif %}>{{ ui_t('Saran AI · periksa sebelum digunakan.') }}</p>
     </section>
-    <footer class="copilot-footer"><span>AI hanya memberikan teks</span></footer>
+    <footer class="copilot-footer"><span>{{ ui_t('AI hanya memberikan teks') }}</span></footer>
   </main>
   <input type="hidden" id="copilot-csrf" value="{{ csrf_token() }}">
   <script type="application/json" id="copilot-initial">{{ turns|tojson }}</script>
 </section>
-<script type="module" src="{{ url_for('static',filename='kilas_copilot.mjs',v='quality-worklet-20261028') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_copilot.mjs',v='app-locale-20261028') }}"></script>
 {% endblock %}
