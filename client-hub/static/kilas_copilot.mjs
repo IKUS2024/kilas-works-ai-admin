@@ -34,7 +34,7 @@ export async function readEvents(response, receive) {
 const root=globalThis.document?.querySelector('#copilot');
 if(root){
   const $=id=>document.getElementById('copilot-'+id), mic=$('mic'),state=$('state'),action=$('action'),error=$('error');
-  const translate=$('translate'),target=$('target'),style=$('style'),consent=$('consent'),cancel=$('cancel');
+  const translate=$('translate'),target=$('target'),style=$('style'),cancel=$('cancel');
   const csrf=$('csrf').value, turns=JSON.parse($('initial').textContent);
   const resultTools=root.querySelector('.copilot-result-tools');
   const styleButtons=[...root.querySelectorAll('[data-copilot-style]')];let textSize=22;
@@ -42,7 +42,6 @@ if(root){
   const messages={
     silence:'Tidak terdengar ucapan. Dekatkan mikrofon ke speaker, lalu rekam lagi.',
     unclear_audio:'Ucapan belum jelas. Rekam ulang bagian yang ingin dijawab.',
-    consent_required:'Centang izin pemrosesan percakapan sebelum mulai.',
     permission:'Izin mikrofon ditolak. Izinkan mikrofon melalui pengaturan browser, lalu tekan lagi.',
     microphone:'Mikrofon tidak tersedia. Periksa perangkat dan izin browser, lalu coba lagi.',
     provider_unavailable:'Copilot belum tersedia. Minta pengelola memeriksa konfigurasi OpenAI.',
@@ -62,10 +61,10 @@ if(root){
     const busy=['requesting','stopping','processing','streaming'].includes(next);
     mic.disabled=busy;mic.setAttribute('aria-pressed',String(next==='listening'));
     mic.setAttribute('aria-label',next==='listening'?'Berhenti dan proses jawaban':next==='captured'?'Proses rekaman':'Mulai mendengarkan');
-    state.textContent=({idle:'Mikrofon mati',requesting:'Meminta izin mikrofon…',listening:'Mendengarkan…',stopping:'Menyiapkan rekaman…',captured:'Rekaman selesai · mikrofon mati',processing:'Memproses…',streaming:'Menyiapkan saran jawaban…'})[next];
-    action.textContent=next==='listening'?'Tekan untuk menyiapkan jawaban':next==='captured'?'Proses rekaman':busy?'Mohon tunggu…':turns.length?'Dengarkan lagi':'Tekan untuk mendengarkan';
+    state.textContent=({idle:'Mikrofon mati',requesting:'Menghubungkan mikrofon…',listening:'Mendengarkan…',stopping:'Menyiapkan rekaman…',captured:'Rekaman selesai · mikrofon mati',processing:'Memproses…',streaming:'Menyiapkan saran jawaban…'})[next];
+    action.textContent=next==='listening'?'Ketuk untuk proses':next==='captured'?'Proses rekaman':busy?'Mohon tunggu…':turns.length?'Dengarkan lagi':'Dengarkan';
     cancel.hidden=next==='idle';
-    for(const el of [translate,target,style,consent])el.disabled=next!=='idle';
+    for(const el of [translate,target,style])el.disabled=next!=='idle';
     styleButtons.forEach(button=>button.disabled=next!=='idle');$('wave').hidden=next!=='listening';
   }
   function paragraph(parent,className,label,text){
@@ -133,7 +132,6 @@ if(root){
   }
   async function begin(){
     error.hidden=true;
-    if(!consent.checked){notice('consent_required');consent.focus();return;}
     if(root.dataset.ready!=='true'){notice('provider_unavailable');return;}
     if(!navigator.mediaDevices?.getUserMedia){notice('microphone');return;}
     const mine=++epoch;setPhase('requesting');chunks=[];
@@ -155,14 +153,6 @@ if(root){
       };
       source.connect(node);node.connect(gain);gain.connect(context.destination);
       stream.getAudioTracks().forEach(track=>track.addEventListener('ended',()=>{if(mine===epoch&&phase==='listening')reset('microphone');}));
-      if(!sessionId){
-        controller=new AbortController();
-        const form=new FormData();form.set('csrf_token',csrf);
-        const response=await fetch('/kilas-ai/copilot/sessions',{method:'POST',body:form,signal:controller.signal});
-        if(!response.ok)throw Error('network');const created=await response.json();
-        if(mine!==epoch)return;
-        sessionId=String(created.id);root.dataset.sessionId=sessionId;root.dataset.threadId=sessionId;history.replaceState(null,'',created.url);controller=null;
-      }
       if(mine!==epoch)return;
       setPhase('listening');
       timer=setTimeout(()=>{
@@ -181,12 +171,23 @@ if(root){
     capture?.encoder.finish();release();
     const blob=wav(chunks);chunks=[];
     if(blob.size<3244){draw();setPhase('idle');notice('unclear_audio');return;}
-    operation=crypto.randomUUID().replaceAll('-','');controller=new AbortController();
+    controller=new AbortController();
+    // The deliberate stop/process action confirms the visible disclosure.
+    // Keep the server's explicit consent and CSRF contract; no checkbox gate.
     const form=new FormData();form.set('csrf_token',csrf);form.set('audio',blob,'recording.wav');form.set('consent','yes');
     form.set('style',style.value);form.set('translate',translate.checked?'yes':'no');if(translate.checked)form.set('target',target.value);
     setPhase('processing');
     const timeout=setTimeout(()=>reset('network'),180000);
     try{
+      if(!sessionId){
+        const sessionForm=new FormData();sessionForm.set('csrf_token',csrf);
+        const createdResponse=await fetch('/kilas-ai/copilot/sessions',{method:'POST',body:sessionForm,signal:controller.signal});
+        if(!createdResponse.ok)throw Error('network');const created=await createdResponse.json();
+        if(mine!==epoch)return;
+        sessionId=String(created.id);root.dataset.sessionId=sessionId;root.dataset.threadId=sessionId;history.replaceState(null,'',created.url);
+      }
+      if(mine!==epoch)return;
+      operation=crypto.randomUUID().replaceAll('-','');
       const response=await fetch(`/kilas-ai/copilot/sessions/${sessionId}/${operation}/process`,{method:'POST',headers:{'X-CSRF-Token':csrf},body:form,signal:controller.signal});
       if(!response.ok){const body=await response.json().catch(()=>({}));throw Error(body.code||'network');}
       await readEvents(response,event=>{

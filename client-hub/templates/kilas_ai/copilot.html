@@ -1,18 +1,17 @@
 {% extends 'base.html' %}
 {% set chat_styles_in_head=true %}
 {% block title %}Copilot · Kilas Works{% endblock %}
-{% block kilas_feature_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_copilot.css',v='20261027b') }}">{% endblock %}
+{% block kilas_feature_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_copilot.css',v='compact-20261028') }}">{% endblock %}
 {% block content %}
 <section id="copilot" data-ai-shell data-thread-id="{{ selected.id if selected else '' }}" data-session-id="{{ selected.id if selected else '' }}" data-ready="{{ 'true' if provider_ready else 'false' }}">
   {% set selected_feature='copilot' %}{% include 'kilas_ai/_copilot_navigation.html' %}
   <main class="copilot-main">
-    <header><h1>Conversation Copilot</h1></header>
+    <header><h1>Copilot</h1><details class="copilot-help"><summary>Info</summary><div class="copilot-help-panel"><p>Putar percakapan dari speaker perangkat lain. Ketuk mikrofon lagi untuk berhenti dan memproses. Maksimal 60 detik; mikrofon tidak menyala otomatis. Pastikan Anda punya izin memproses percakapan.</p><div class="copilot-styles" role="group" aria-label="Gaya jawaban"><input id="copilot-style" type="hidden" value="santai"><button type="button" data-copilot-style="santai" aria-pressed="true">Santai</button><button type="button" data-copilot-style="profesional" aria-pressed="false">Profesional</button></div></div></details></header>
     <div class="copilot-setup">
       <div class="copilot-translation-row">
       <label class="copilot-translation"><span>Tampilkan terjemahan</span><input id="copilot-translate" type="checkbox" role="switch" aria-controls="copilot-target-wrap"></label>
       <label id="copilot-target-wrap" hidden><span class="copilot-sr-only">Terjemahkan ke</span><select id="copilot-target">{% for code,name in copilot_languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='id' }}>{{ name }}</option>{% endfor %}</select></label>
       </div>
-      <div class="copilot-styles" role="group" aria-label="Gaya jawaban"><input id="copilot-style" type="hidden" value="santai"><button type="button" data-copilot-style="santai" aria-pressed="true">Santai</button><button type="button" data-copilot-style="profesional" aria-pressed="false">Profesional</button></div>
     </div>
     <section class="copilot-capture" aria-label="Mikrofon">
       <p id="copilot-state" role="status" aria-live="polite">Mikrofon mati</p>
@@ -21,13 +20,11 @@
         <svg class="copilot-mic-icon" viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3m-4 0h8"/></svg>
         <svg class="copilot-stop-icon" viewBox="0 0 24 24" width="38" height="38" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>
       </button>
-      <h2 id="copilot-action">Tekan untuk mendengarkan</h2>
+      <h2 id="copilot-action">Dengarkan</h2>
       </div>
       <canvas id="copilot-wave" width="320" height="48" aria-hidden="true" hidden></canvas>
-      <p id="copilot-guidance">Putar percakapan lewat speaker perangkat lain.<br>Tekan lagi untuk menyiapkan jawaban.</p>
       <button id="copilot-cancel" type="button" hidden>Batalkan</button>
-      <label class="copilot-consent"><input id="copilot-consent" type="checkbox">Saya punya izin memproses ucapan dengan OpenAI.</label>
-      <p class="copilot-note">Audio dikirim setelah berhenti · maks. 60 detik · memakai kapasitas akun.</p>
+      <p id="copilot-guidance">Audio diproses OpenAI setelah berhenti.</p>
       {% if not provider_ready %}<p role="status">Copilot belum tersedia. Konfigurasi OpenAI perlu diperiksa oleh pengelola.</p>{% endif %}
       <p id="copilot-error" role="alert" hidden></p>
     </section>
@@ -40,5 +37,5 @@
   <input type="hidden" id="copilot-csrf" value="{{ csrf_token() }}">
   <script type="application/json" id="copilot-initial">{{ turns|tojson }}</script>
 </section>
-<script type="module" src="{{ url_for('static',filename='kilas_copilot.mjs',v='20261027b') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_copilot.mjs',v='one-tap-20261028') }}"></script>
 {% endblock %}

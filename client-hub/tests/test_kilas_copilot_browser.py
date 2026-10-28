@@ -67,12 +67,13 @@ def main():
             executable = os.environ.get('KILAS_QA_CHROMIUM') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None)
             browser = pw.chromium.launch(**({'executable_path': executable} if executable else {}), headless=True, args=['--no-sandbox'])
             cookie = case.client.get_cookie('session')
-            for width in (360, 768, 1440):
-                context = browser.new_context(viewport={'width': width, 'height': 960})
+            for width,height in ((360,740),(393,786),(768,1024),(1440,900)):
+                context = browser.new_context(viewport={'width': width, 'height': height})
                 context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}])
                 context.add_init_script(FAKE_MIC)
                 page = context.new_page(); errors=[]
                 page.on('pageerror', lambda error: errors.append(str(error)))
+                writes=[];page.on('request',lambda request:writes.append(request.url) if request.method=='POST' else None)
                 page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(origin) else route.abort())
                 page.goto(origin+'/kilas-ai', wait_until='networkidle')
                 expect(page.locator('#copilot-state')).to_have_text('Mikrofon mati')
@@ -84,14 +85,25 @@ def main():
                 assert page.locator('.kilas-profile-menu[open]').count() == 0
                 assert page.locator('.premium-skip').evaluate('e=>e.getBoundingClientRect().bottom<0')
                 page.screenshot(path=str(output/f'idle-{width}.png'),full_page=True,animations='disabled')
-                page.locator('#copilot-mic').click()
-                expect(page.locator('#copilot-error')).to_contain_text('Centang izin')
-                assert page.evaluate('micRequests') == 0
-                page.locator('#copilot-consent').check()
+                page.locator('#copilot-translate').check()
+                page.screenshot(path=str(output/f'idle-on-{width}.png'),full_page=True,animations='disabled')
+                page.locator('#copilot-translate').uncheck()
+                assert page.locator('#copilot-consent').count()==0
+                assert page.locator('.copilot-help[open]').count()==0
+                expect(page.locator('#copilot-guidance')).to_have_text('Audio diproses OpenAI setelah berhenti.')
+                assert page.locator('#copilot-mic').bounding_box()['y']+page.locator('#copilot-mic').bounding_box()['height']<480
+                assert page.locator('.copilot-task-nav').bounding_box()['height']<=48
+                assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+                if width<600:assert float(page.locator('.copilot-main h1').evaluate('e=>parseFloat(getComputedStyle(e).fontSize)'))<=24
+                page.locator('.copilot-help>summary').click()
                 page.locator('[data-copilot-style=profesional]').click()
                 expect(page.locator('[data-copilot-style=profesional]')).to_have_attribute('aria-pressed','true')
-                page.locator('#copilot-mic').click()
+                page.locator('.copilot-help>summary').click()
+                # Two rapid taps before permission resolves admit one capture.
+                page.evaluate("document.querySelector('#copilot-mic').click();document.querySelector('#copilot-mic').click()")
                 expect(page.locator('#copilot-state')).to_have_text('Mendengarkan…')
+                assert page.evaluate('micRequests')==1
+                assert writes==[], 'Listening must not wait for or create a server session'
                 before = len(provider_calls)
                 page.wait_for_function('processFrames>4')
                 assert len(provider_calls) == before, 'No provider work before explicit second tap'
@@ -100,6 +112,7 @@ def main():
                 page.locator('#copilot-mic').click()
                 expect(page.locator('.copilot-reply')).to_have_text('Could you clarify the timeline?')
                 expect(page.locator('#copilot-state')).to_contain_text('Jawaban siap')
+                expect(page.locator('#copilot')).to_have_attribute('data-state','idle')
                 off_y=page.locator('.copilot-answer-card').first.bounding_box()['y'];assert off_y<500
                 assert fixture.copilot.turns(case.owner,int(page.locator('#copilot').get_attribute('data-session-id')))[-1]['style']=='profesional'
                 assert page.evaluate('stoppedTracks') >= 1
@@ -115,6 +128,7 @@ def main():
                 page.locator('#copilot-mic').click()
                 expect(page.locator('.copilot-reply')).to_have_count(2)
                 expect(page.locator('.copilot-reply-translation').first).to_have_text('Bisa jelaskan jadwalnya?')
+                expect(page.locator('#copilot')).to_have_attribute('data-state','idle')
                 expect(page.locator('.copilot-source').first).to_have_text('When can you start?')
                 on_y=page.locator('.copilot-answer-card').first.bounding_box()['y'];assert on_y<820
                 page.locator('#copilot-larger').click();page.locator('#copilot-larger').click()
@@ -140,11 +154,13 @@ def main():
                 page.screenshot(path=str(output/f'sidebar-{width}.png'), full_page=False, animations='disabled')
                 page.keyboard.press('Escape')
                 # Permission failure and cancellation while getUserMedia remains unresolved.
-                page.locator('#copilot-consent').check()
                 page.evaluate("micPermission='denied'")
                 page.locator('#copilot-mic').click();expect(page.locator('#copilot-error')).to_contain_text('Izin mikrofon ditolak')
                 page.evaluate("micPermission='pending'")
                 page.locator('#copilot-mic').click();expect(page.locator('#copilot-cancel')).to_be_visible()
+                expect(page.locator('#copilot-state')).to_have_text('Menghubungkan mikrofon…')
+                pending_calls=page.evaluate('micRequests');page.evaluate("document.querySelector('#copilot-mic').click()")
+                assert page.evaluate('micRequests')==pending_calls
                 page.locator('#copilot-cancel').click();page.evaluate('pendingMic()')
                 expect(page.locator('#copilot-state')).to_have_text('Mikrofon mati')
                 page.wait_for_function('stoppedTracks>=1')
@@ -168,12 +184,26 @@ def main():
                         page.locator('.copilot-task-nav a').filter(has_text='Copilot').click()
                         expect(page.locator('#audio-script')).to_have_value('Unsaved Voice Over script')
                         assert '/kilas-translator' in page.url
-                report['cases'].append({'width':width,'reply_top_off':off_y,'reply_top_on':on_y,'idle_start_stop_results_translation_history_consent_permission_cancel_profile_overflow':'PASS'})
+                report['cases'].append({'width':width,'reply_top_off':off_y,'reply_top_on':on_y,'one_tap_start_stop_results_translation_history_permission_cancel_profile_overflow':'PASS'})
                 context.close()
+            # A stalled session POST cannot delay listening; cancellation after
+            # stop aborts it before any provider processing can start.
+            delayed=browser.new_context(viewport={'width':393,'height':786})
+            delayed.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);delayed.add_init_script(FAKE_MIC)
+            stalled=delayed.new_page();stalled.goto(origin+'/kilas-ai',wait_until='networkidle')
+            stalled.evaluate('''()=>{const fetch=window.fetch;window.createAttempts=0;window.fetch=(url,options)=>String(url)==='/kilas-ai/copilot/sessions'?(window.createAttempts++,new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError'))))):fetch(url,options)}''')
+            stalled.locator('#copilot-mic').click();expect(stalled.locator('#copilot-state')).to_have_text('Mendengarkan…')
+            assert stalled.evaluate('createAttempts')==0
+            stalled.wait_for_function('processFrames>4');before_stall=len(provider_calls)
+            stalled.locator('#copilot-mic').click();stalled.wait_for_function('createAttempts===1')
+            stalled.locator('#copilot-cancel').click();expect(stalled.locator('#copilot')).to_have_attribute('data-state','idle')
+            assert stalled.evaluate('stoppedTracks')==1 and len(provider_calls)==before_stall
+            report['cases'].append({'listen_without_network_and_cancel_deferred_session':'PASS'})
+            delayed.close()
             # Network/interrupt/cancellation verification with the real request stack.
             context = browser.new_context(viewport={'width':1280,'height':900})
             context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);context.add_init_script(FAKE_MIC)
-            page = context.new_page();page.goto(origin+'/kilas-ai',wait_until='networkidle');page.locator('#copilot-consent').check()
+            page = context.new_page();page.goto(origin+'/kilas-ai',wait_until='networkidle')
             slow[0]=True;page.locator('#copilot-mic').click();page.wait_for_function('processFrames>4');page.locator('#copilot-mic').click()
             expect(page.locator('#copilot-state')).to_contain_text('Mengenali')
             page.locator('#copilot-cancel').click();expect(page.locator('#copilot-state')).to_have_text('Mikrofon mati')
@@ -185,6 +215,30 @@ def main():
             assert not page.locator('.copilot-reply').count()
             report['cases'].append({'cancellation_in_flight_and_navigation_cleanup':'PASS'})
             browser.close()
+            # Native browser MediaStream + AudioContext + PCM/WAV path. Only the
+            # hardware source is Chromium's synthetic mic; no JS capture mocks.
+            native=pw.chromium.launch(**({'executable_path':executable} if executable else {}),headless=True,args=['--no-sandbox','--use-fake-device-for-media-stream'])
+            native_context=native.new_context(viewport={'width':393,'height':786},permissions=['microphone'])
+            native_context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+            native_context.add_init_script('''
+                window.nativeMicCalls=0;window.nativeTracks=[];
+                const get=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+                navigator.mediaDevices.getUserMedia=async options=>{window.nativeMicCalls++;const stream=await get(options);window.nativeTracks=stream.getTracks();return stream;};
+            ''')
+            native_page=native_context.new_page()
+            native_page.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin) else route.abort())
+            native_page.goto(origin+'/kilas-ai',wait_until='networkidle')
+            assert native_page.evaluate('nativeMicCalls')==0
+            native_page.locator('#copilot-mic').click()
+            expect(native_page.locator('#copilot-state')).to_have_text('Mendengarkan…')
+            assert native_page.evaluate("nativeTracks.length===1&&nativeTracks[0].readyState==='live'")
+            before_native=len(provider_calls);native_page.wait_for_timeout(1600)
+            assert len(provider_calls)==before_native
+            native_page.locator('#copilot-mic').click()
+            expect(native_page.locator('.copilot-reply')).to_have_text('Could you clarify the timeline?')
+            assert native_page.evaluate("nativeMicCalls===1&&nativeTracks.every(track=>track.readyState==='ended')")
+            report['cases'].append({'native_browser_mediastream_audio_context_pcm_wav_one_tap':'PASS','hardware':'Chromium synthetic device','paid_calls':0})
+            native.close()
             # Reproduce production's single sync WSGI worker: no cancel POST can
             # be served while this response is open. Heartbeats detect abort and
             # fence the next model without changing global Gunicorn settings.
