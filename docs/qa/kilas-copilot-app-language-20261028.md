@@ -20,7 +20,7 @@ Proper product names intentionally remain: Kilas Works, Conversation Copilot, Co
 
 Existing App Language choices remain EN, ID, ES and ZH. Every explicit new Copilot JS key is registered and has all four catalog values with matching interpolation fields. Backend core-page checks cover all four; end-to-end visual/interaction QA covers EN and ID. Scoped template inventory has 201 literal UI keys and no missing EN mapping. Tool JS inventory has 257 literal UI keys; all have client registrations and EN mappings, and English-source literals have ID mappings.
 
-Added ES/ZH core tool/chrome labels where absent. Advanced/legacy tool templates still have 52 literal keys without explicit ES/ZH values in this scoped inventory; source-string fallback remains. This is not a claim that all application pages, dynamic legacy variants, or all ES/ZH helper/error copy are fully translated. Browser-native file/audio controls follow browser/OS language. No machine translator runs over page text or user content.
+Added ES/ZH core tool/chrome labels where absent. Advanced/legacy tool templates still have 50 literal keys without explicit ES/ZH values in this scoped inventory; source-string fallback remains. This is not a claim that all application pages, dynamic legacy variants, or all ES/ZH helper/error copy are fully translated. Browser-native file/audio controls follow browser/OS language. No machine translator runs over page text or user content.
 
 ## Verification
 
@@ -32,3 +32,5 @@ Added ES/ZH core tool/chrome labels where absent. Advanced/legacy tool templates
 - Read-only production smoke waits for matching Copilot/classic Translator assets, checks health/auth redirects, then reads the public login UI catalog under EN/ID preference cookies. No login submission, paid API request, microphone request or production-data mutation.
 
 Representative screenshots and locale-report.json use the existing copilot-synthetic-browser artifact. Synthetic tool accounts are deliberately unfunded and lack production audio keys/voices; unavailable-service labels in screenshots are fixture state, not production enablement changes. Physical mic/call/Safari and paid model/audio acceptance remain NOT RUN.
+
+CI identified an introduced hidden-feature regression from registering server-only Translation complete / Translate another labels in the client bundle. Those two unused client registrations were removed while preserving their server translations; the existing hidden-upload assertion remains. Audio-result Download WAV/MP3 controls and preview labels now localize too. Historical audio tests explicitly select ID (or iterate four locales), so copy expectations were updated to the actual selected locale while retaining real download-byte, permission and no-recharge assertions.

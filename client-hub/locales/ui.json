@@ -8997,5 +8997,7 @@
   "Beli Saldo": {"id": "Beli Saldo", "en": "Buy Balance", "es": "Comprar saldo", "zh": "购买额度"},
   "Tambah Saldo": {"id": "Tambah Saldo", "en": "Add Balance", "es": "Añadir saldo", "zh": "添加额度"},
   "sedang dicadangkan": {"id": "sedang dicadangkan", "en": "reserved", "es": "reservado", "zh": "预留中"},
-  " tersisa": {"id": " tersisa", "en": " remaining", "es": " restantes", "zh": " 剩余"}
+  " tersisa": {"id": " tersisa", "en": " remaining", "es": " restantes", "zh": " 剩余"},
+  "Preview audio hasil": {"id": "Pratinjau audio hasil", "en": "Preview generated audio", "es": "Vista previa del audio", "zh": "音频预览"},
+  "Preview video hasil": {"id": "Pratinjau video hasil", "en": "Preview generated video", "es": "Vista previa del vídeo", "zh": "视频预览"}
 }
