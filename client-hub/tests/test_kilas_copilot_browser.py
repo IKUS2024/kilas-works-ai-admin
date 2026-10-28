@@ -92,17 +92,26 @@ def main():
                 page.locator('#copilot-translate').uncheck()
                 assert page.locator('#copilot-consent').count()==0
                 assert page.locator('.copilot-help[open]').count()==0
-                expect(page.locator('#copilot-guidance')).to_have_text('Audio diproses OpenAI setelah berhenti.')
-                assert page.locator('#copilot-mic').bounding_box()['y']+page.locator('#copilot-mic').bounding_box()['height']<480
+                expect(page.locator('.copilot-footer')).to_be_visible()
+                expect(page.locator('.copilot-footer')).to_contain_text('AI hanya memberikan teks')
+                expect(page.locator('#copilot-guidance')).to_contain_text('Audio diproses OpenAI setelah berhenti.')
+                expect(page.locator('.copilot-language-badge')).to_have_text('Bahasa percakapan otomatis')
+                assert 'Powered by OpenAI' not in page.locator('body').inner_text()
+                assert page.locator('[data-copilot-style=santai]').is_visible()
+                assert page.locator('#copilot-trigger').bounding_box()['y']+page.locator('#copilot-trigger').bounding_box()['height']<height-20
                 assert page.locator('.copilot-task-nav').bounding_box()['height']<=48
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-                if width<600:assert float(page.locator('.copilot-main h1').evaluate('e=>parseFloat(getComputedStyle(e).fontSize)'))<=24
+                brand=page.locator('body>.premium-mobile-header>.premium-brand').bounding_box()
+                assert abs(brand['x']+brand['width']/2-width/2)<2,brand
+                assert page.locator('.copilot-main h1').bounding_box()['width']<=width-32
+                page.locator('.copilot-help>summary').click()
+                expect(page.locator('#copilot-guidance')).to_be_visible()
+                box=page.locator('.copilot-help-panel').bounding_box();assert box['x']>=0 and box['x']+box['width']<=width
                 page.locator('.copilot-help>summary').click()
                 page.locator('[data-copilot-style=profesional]').click()
                 expect(page.locator('[data-copilot-style=profesional]')).to_have_attribute('aria-pressed','true')
-                page.locator('.copilot-help>summary').click()
                 # Two rapid taps before permission resolves admit one capture.
-                page.evaluate("document.querySelector('#copilot-mic').click();document.querySelector('#copilot-mic').click()")
+                page.evaluate("document.querySelector('#copilot-mic').click();document.querySelector('#copilot-trigger').click()")
                 expect(page.locator('#copilot-state')).to_have_text('Mendengarkan…')
                 assert page.evaluate('micRequests')==1
                 assert writes==[], 'Listening must not wait for or create a server session'
@@ -110,8 +119,9 @@ def main():
                 page.wait_for_function('processFrames>4')
                 assert len(provider_calls) == before, 'No provider work before explicit second tap'
                 assert page.locator('#copilot-mic').get_attribute('aria-pressed') == 'true'
+                expect(page.locator('#copilot-trigger')).to_have_attribute('aria-pressed','true')
                 page.screenshot(path=str(output/f'listening-{width}.png'), full_page=True)
-                page.locator('#copilot-mic').click()
+                page.locator('#copilot-trigger').click()
                 expect(page.locator('.copilot-reply')).to_have_text('Could you clarify the timeline?')
                 expect(page.locator('#copilot-state')).to_contain_text('Jawaban siap')
                 expect(page.locator('#copilot')).to_have_attribute('data-state','idle')
@@ -126,7 +136,7 @@ def main():
                 page.locator('#copilot-translate').check()
                 expect(page.locator('#copilot-target-wrap')).to_be_visible()
                 assert page.locator('#copilot-target option:checked').text_content() == 'Bahasa Indonesia'
-                page.locator('#copilot-mic').click();page.wait_for_function('processFrames>10')
+                page.locator('#copilot-trigger').click();page.wait_for_function('processFrames>10')
                 page.locator('#copilot-mic').click()
                 expect(page.locator('.copilot-reply')).to_have_count(2)
                 expect(page.locator('.copilot-reply-translation').first).to_have_text('Bisa jelaskan jadwalnya?')
@@ -161,7 +171,8 @@ def main():
                 page.evaluate("micPermission='pending'")
                 page.locator('#copilot-mic').click();expect(page.locator('#copilot-cancel')).to_be_visible()
                 expect(page.locator('#copilot-state')).to_have_text('Menghubungkan mikrofon…')
-                pending_calls=page.evaluate('micRequests');page.evaluate("document.querySelector('#copilot-mic').click()")
+                pending_calls=page.evaluate('micRequests');page.evaluate("document.querySelector('#copilot-trigger').click()")
+                expect(page.locator('#copilot-trigger')).to_be_disabled()
                 assert page.evaluate('micRequests')==pending_calls
                 page.locator('#copilot-cancel').click();page.evaluate('pendingMic()')
                 expect(page.locator('#copilot-state')).to_have_text('Mikrofon mati')
@@ -208,6 +219,10 @@ def main():
             page = context.new_page();page.goto(origin+'/kilas-ai',wait_until='networkidle')
             slow[0]=True;page.locator('#copilot-mic').click();page.wait_for_function('processFrames>4');page.locator('#copilot-mic').click()
             expect(page.locator('#copilot-state')).to_contain_text('Mengenali')
+            expect(page.locator('#copilot-trigger')).to_be_disabled()
+            before_repeat=len(provider_calls)
+            page.evaluate("document.querySelector('#copilot-trigger').click();document.querySelector('#copilot-mic').click()")
+            assert len(provider_calls)==before_repeat
             page.locator('#copilot-cancel').click();expect(page.locator('#copilot-state')).to_have_text('Mikrofon mati')
             hold.set();slow[0]=False;page.wait_for_timeout(250)
             expect(page.locator('.copilot-reply')).to_have_count(0)
@@ -236,7 +251,7 @@ def main():
             assert native_page.evaluate("nativeTracks.length===1&&nativeTracks[0].readyState==='live'")
             before_native=len(provider_calls);native_page.wait_for_timeout(1600)
             assert len(provider_calls)==before_native
-            native_page.locator('#copilot-mic').click()
+            native_page.locator('#copilot-trigger').click()
             expect(native_page.locator('.copilot-reply')).to_have_text('Could you clarify the timeline?')
             assert native_page.evaluate("nativeMicCalls===1&&nativeTracks.every(track=>track.readyState==='ended')")
             report['cases'].append({'native_browser_mediastream_audio_context_pcm_wav_one_tap':'PASS','hardware':'Chromium synthetic device','paid_calls':0})
