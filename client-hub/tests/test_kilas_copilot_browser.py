@@ -218,6 +218,11 @@ def main():
             rtl_page=rtl.new_page();rtl_page.goto(origin+'/kilas-ai',wait_until='networkidle');arabic[0]=True
             rtl_page.locator('#copilot-mic').click();rtl_page.wait_for_function('processFrames>4');rtl_page.locator('#copilot-trigger').click()
             expect(rtl_page.locator('.copilot-reply')).to_have_text('على الرحب والسعة، يسعدني مساعدتك.')
+            # A complete text delta may still be in the streaming element.
+            # Inspect the final rendered result after the saved completion.
+            expect(rtl_page.locator('#copilot')).to_have_attribute('data-state','idle')
+            expect(rtl_page.locator('.copilot-reply')).to_have_attribute('dir','auto')
+            rtl_page.wait_for_function("getComputedStyle(document.querySelector('.copilot-reply')).direction==='rtl'",timeout=5000)
             assert rtl_page.locator('.copilot-reply').evaluate('e=>getComputedStyle(e).direction')=='rtl'
             rtl_page.screenshot(path=str(output/'results-ar-393.png'),full_page=True);arabic[0]=False;rtl.close()
             report['cases'].append({'arabic_auto_direction_mocked_reply':'PASS'})
