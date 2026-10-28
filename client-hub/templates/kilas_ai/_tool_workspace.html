@@ -2,7 +2,7 @@
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_tool_navigation.css',v='chat-only-sidebar-20261024') }}">
 <a class="premium-skip" href="#kw-main">{{ ui_t('Lewati navigasi') }}</a>
 <header class="premium-mobile-header kilas-reference-header kilas-tool-header">
-<a class="kilas-tool-home" href="{{ url_for('products.product_start') }}" aria-label="{{ ui_t('Kembali ke chat') }}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m14 5-7 7 7 7M7 12h14"/></svg></a>
+<a class="kilas-tool-home" href="{{ url_for('products.product_start') }}" aria-label="{{ ui_t('Kembali ke Copilot') if copilot_primary|default(false) else ui_t('Kembali ke chat') }}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m14 5-7 7 7 7M7 12h14"/></svg></a>
 <a class="premium-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a>
 {% with profile_location='kilas-header' %}{% include 'kilas_ai/_profile_menu.html' %}{% endwith %}
 </header>

@@ -1,4 +1,4 @@
-import {PcmEncoder} from './kilas_live_translator_pcm.mjs';
+import {CopilotCapture,PcmBuffer} from './kilas_copilot_capture.mjs';
 
 export function wav(chunks) {
   const size=chunks.reduce((n,b)=>n+b.byteLength,0), out=new ArrayBuffer(44+size), v=new DataView(out);
@@ -17,11 +17,12 @@ export async function readEvents(response, receive) {
     while(true){
       const {value,done}=await reader.read();pending+=decoder.decode(value||new Uint8Array(),{stream:!done});
       if(pending.length>100000)throw Error('network');
-      let end;while((end=pending.indexOf('\n\n'))>=0){
-        const frame=pending.slice(0,end);pending=pending.slice(end+2);
-        for(const line of frame.split('\n'))if(line.startsWith('data: ')){
-          const event=JSON.parse(line.slice(6));receive(event);
-          if(event.type==='complete')complete=true;
+      let separator;while((separator=/\r?\n\r?\n/.exec(pending))){
+        const frame=pending.slice(0,separator.index);pending=pending.slice(separator.index+separator[0].length);
+        const data=frame.split(/\r?\n/).filter(line=>line.startsWith('data:')).map(line=>line.slice(5).replace(/^ /,'')).join('\n');
+        if(data){
+          const event=JSON.parse(data);receive(event);
+          if(event.type==='complete'){complete=true;return;}
           if(event.type==='error')throw Error(event.code);
         }
       }
@@ -70,7 +71,7 @@ if(root){
   }
   function paragraph(parent,className,label,text){
     const h=document.createElement('h3');h.textContent=label;
-    const p=document.createElement('p');p.className=className;p.textContent=text;parent.append(h,p);return p;
+    const p=document.createElement('p');p.className=className;p.dir='auto';p.textContent=text;parent.append(h,p);return p;
   }
   function draw(){
     const container=$('turns');container.replaceChildren();
@@ -116,9 +117,7 @@ if(root){
     clearTimeout(timer);timer=null;
     if(!capture)return;
     const old=capture;capture=null;
-    old.stream?.getTracks().forEach(t=>t.stop());
-    if(old.node){old.node.onaudioprocess=null;old.node.disconnect();}
-    old.source?.disconnect();old.gain?.disconnect();old.context?.close().catch(()=>{});
+    if(old.close)old.close();else old.stream?.getTracks().forEach(t=>t.stop());
   }
   function cancelRequest(beacon=false){
     if(!sessionId||!operation)return;
@@ -141,25 +140,22 @@ if(root){
       if(mine!==epoch){stream.getTracks().forEach(t=>t.stop());return;}
       capture={stream};
       const Context=window.AudioContext||window.webkitAudioContext;
-      const context=new Context();capture.context=context;await context.resume();
-      if(mine!==epoch){stream.getTracks().forEach(t=>t.stop());await context.close();return;}
-      const source=context.createMediaStreamSource(stream), node=context.createScriptProcessor(4096,1,1), gain=context.createGain();gain.gain.value=0;
-      Object.assign(capture,{source,node,gain});
-      const encoder=new PcmEncoder(context.sampleRate,frame=>{
-        if(mine===epoch&&chunks.reduce((n,b)=>n+b.byteLength,0)+frame.bytes.byteLength<=60*32000)chunks.push(frame.bytes);
-      });capture.encoder=encoder;
-      node.onaudioprocess=e=>{
-        if(mine!==epoch||phase!=='listening')return;
-        try{const samples=e.inputBuffer.getChannelData(0);encoder.feed([samples]);waveform(samples);}catch{reset('microphone');}
-      };
-      source.connect(node);node.connect(gain);gain.connect(context.destination);
+      const context=new Context(), buffer=new PcmBuffer();chunks=buffer.chunks;
+      const recorder=new CopilotCapture(stream,context,frame=>{
+        if(mine!==epoch)return;buffer.append(frame.bytes);
+        const values=new Float32Array(40).fill(frame.rms);waveform(values);
+      });capture=recorder;
+      recorder.failed=()=>{if(mine===epoch)reset('microphone');};
+      await recorder.start();
+      if(mine!==epoch){recorder.close();return;}
       stream.getAudioTracks().forEach(track=>track.addEventListener('ended',()=>{if(mine===epoch&&phase==='listening')reset('microphone');}));
       if(mine!==epoch)return;
       setPhase('listening');
-      timer=setTimeout(()=>{
-        if(phase!=='listening')return;
-        capture.encoder.finish();release();setPhase('captured');
-        notice('limit');error.textContent='Batas 60 detik tercapai. Tekan mikrofon untuk memproses atau Batalkan untuk merekam ulang.';
+      timer=setTimeout(async()=>{
+        if(phase!=='listening')return;setPhase('stopping');
+        try{await capture.finish();if(mine!==epoch)return;release();setPhase('captured');
+          notice('limit');error.textContent='Batas 60 detik tercapai. Tekan mikrofon untuk memproses atau Batalkan untuk merekam ulang.';
+        }catch{if(mine===epoch)reset('microphone');}
       },60000);
     }catch(e){
       if(mine!==epoch)return;
@@ -169,11 +165,13 @@ if(root){
   async function process(){
     const mine=epoch;setPhase('stopping');error.hidden=true;
     $('turns').replaceChildren();resultTools.hidden=true;$('disclosure').hidden=true;
-    capture?.encoder.finish();release();
+    clearTimeout(timer);
+    try{if(capture)await capture.finish();}catch{if(mine===epoch)reset('microphone');return;}
+    if(mine!==epoch)return;release();
     const blob=wav(chunks);chunks=[];
     if(blob.size<3244){draw();setPhase('idle');notice('unclear_audio');return;}
     controller=new AbortController();
-    // The deliberate stop/process action confirms the visible disclosure.
+    // The deliberate stop/process action submits only this stopped recording.
     // Keep the server's explicit consent and CSRF contract; no checkbox gate.
     const form=new FormData();form.set('csrf_token',csrf);form.set('audio',blob,'recording.wav');form.set('consent','yes');
     form.set('style',style.value);form.set('translate',translate.checked?'yes':'no');if(translate.checked)form.set('target',target.value);

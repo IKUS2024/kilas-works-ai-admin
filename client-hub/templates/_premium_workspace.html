@@ -1,6 +1,4 @@
-{% if request.blueprint == 'kilas_audio' and copilot_primary|default(false) %}
-{% include 'kilas_ai/_revision_workspace.html' %}
-{% elif request.blueprint == 'kilas_audio' or request.endpoint in ('kilas_ai.usage_page','kilas_ai.invoice_page','kilas_ai.topup_invoice') %}
+{% if request.blueprint == 'kilas_audio' or request.endpoint in ('kilas_ai.usage_page','kilas_ai.invoice_page','kilas_ai.topup_invoice') %}
 {% include 'kilas_ai/_tool_workspace.html' %}
 {% else %}
 {% if kilas_revision_shell|default(false) or request.blueprint == 'kilas_audio' %}{% include 'kilas_ai/_revision_workspace.html' %}{% else %}

@@ -13,3 +13,9 @@ await assert.rejects(()=>readEvents(response('data: {"type":"delta","text":"part
 await assert.rejects(()=>readEvents(response('data: {"type":"error","code":"silence"}\n\n'),()=>{}),/silence/);
 await assert.rejects(()=>readEvents(new Response('',{status:503}),()=>{}),/network/);
 console.log('Copilot WAV + split UTF-8/SSE + incomplete/error/HTTP contracts: PASS');
+await readEvents(response('data:{"type":"complete"}\r\n\r\n'),()=>{});
+let cancelled=false;
+const open=new Response(new ReadableStream({start(c){c.enqueue(encoder.encode('data: {"type":"complete"}\n\n'));},cancel(){cancelled=true;}}));
+await Promise.race([readEvents(open,()=>{}),new Promise((_,reject)=>setTimeout(()=>reject(Error('complete waited for EOF')),500))]);
+assert.equal(cancelled,true);
+console.log('SSE CRLF + terminal completion on still-open connection: PASS');

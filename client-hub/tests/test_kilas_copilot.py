@@ -88,7 +88,8 @@ class CopilotTests(unittest.TestCase):
             self.assertIn('id="copilot-trigger"', page.text)
             self.assertIn('Bahasa percakapan otomatis', page.text)
             self.assertNotIn('Powered by OpenAI', page.text)
-            self.assertIn('Audio diproses OpenAI setelah berhenti.', page.text)
+            self.assertNotIn('copilot-help', page.text)
+        self.assertIn('audio dikirim ke OpenAI untuk transkripsi', self.client.get('/privacy').text)
         self.assertIn('id="ai-composer"', self.client.get('/kilas-ai?legacy=1').text)
         self.assertIn('Original historical bytes', self.client.get(f'/kilas-ai/threads/{legacy}').text)
         self.assertEqual(store.messages(self.owner, legacy), before)
@@ -293,6 +294,99 @@ class CopilotTests(unittest.TestCase):
                 response.close();release.set();finished.wait(2)
             text.assert_not_called()
         self.assertEqual(copilot.turns(self.owner, self.ident), [])
+
+    def test_quiet_and_sparse_audio_not_rejected_as_silence(self):
+        from werkzeug.datastructures import FileStorage
+        import struct
+        def clip(values):
+            output = io.BytesIO()
+            with wave.open(output, 'wb') as writer:
+                writer.setnchannels(1); writer.setsampwidth(2); writer.setframerate(16000)
+                writer.writeframes(struct.pack('<' + 'h' * len(values), *values))
+            return FileStorage(stream=io.BytesIO(output.getvalue()), filename='quiet.wav', content_type='audio/wav')
+        self.assertFalse(copilot.audio(clip([80]*16000))[1])
+        self.assertFalse(copilot.audio(clip([0]*160000+[1000]*640+[0]*160000))[1])
+        self.assertTrue(copilot.audio(clip([0]*16000))[1])
+        self.assertTrue(copilot.audio(clip([5]*16000))[1])
+
+    def test_context_utf8_budget_preserves_latest_recent_tail_and_marks_clipping(self):
+        history = [{'source': str(i)+'界'*4000, 'reply': '😀'*4000} for i in range(12)]
+        latest = 'あ'*4000
+        content = copilot.reply_context(latest, history)
+        self.assertLessEqual(len(content.encode('utf-8')), 24000)
+        parsed = json.loads(content)
+        self.assertEqual(parsed['latest_spoken_utterance'], latest)
+        self.assertTrue(parsed['previous_turns'][-1]['heard'].startswith('11'))
+        self.assertTrue(parsed['previous_turns'][-1]['heard_truncated'])
+        self.assertTrue(parsed['previous_turns'][-1]['ai_suggestion_not_user_statement_truncated'])
+        self.assertEqual(copilot.reply_context('OK', []), json.dumps({'previous_turns': [], 'latest_spoken_utterance': 'OK'}))
+
+    def test_quality_prompt_contract_and_review_fixtures_not_model_evaluation(self):
+        from pathlib import Path
+        cases = json.loads(Path(__file__).with_name('copilot_quality_cases.json').read_text())
+        self.assertGreaterEqual(len(cases), 15)
+        for case in cases:
+            self.assertNotEqual(case['good'], case['bad'])
+            self.assertTrue(case['rubric'])
+        for rule in ('Kilas Works', 'Answer the actual question directly', 'NOT confirmed',
+                     'editable placeholder in the conversation language', 'Ask one focused clarification only',
+                     'mixed language', 'short ambiguous utterance', 'OpenAI', 'Preserve legitimate mentions of ChatGPT',
+                     'plain spoken text', 'Santai means', 'profesional means'):
+            self.assertIn(rule, copilot.SYSTEM)
+        self.assertNotIn('[isi fakta Anda]', copilot.SYSTEM)
+
+    def test_multilingual_pipeline_preserves_source_and_reply_not_accuracy_evaluation(self):
+        self.premium()
+        pairs = [('Terima kasih.', 'Sama-sama.'), ('Thank you.', "You're welcome."),
+                 ('Gracias.', 'De nada.'), ('ありがとう。', 'どういたしまして。'),
+                 ('شكراً', 'على الرحب والسعة'), ('谢谢。', '不客气。'), ('धन्यवाद।', 'आपका स्वागत है।'),
+                 ('Could you jelasin?', 'Bagian mana yang ingin dijelaskan?')]
+        for source, expected in pairs:
+            with self.subTest(source=source), patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe', return_value=source), patch.object(copilot, 'text_stream', return_value=answer('  '+expected+'  ')) as text:
+                response = self.post(operation_key=uuid.uuid4().hex)
+                self.assertIn('complete', response.get_data(as_text=True))
+                content = json.loads(text.call_args.args[1])
+                self.assertEqual(content['latest_spoken_utterance'], source)
+                self.assertEqual(copilot.turns(self.owner, self.ident)[-1]['reply'], expected)
+
+    def test_punctuation_only_transcript_requests_repeat_without_reply(self):
+        self.premium()
+        with patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe', return_value='... ؟!'), patch.object(copilot, 'text_stream') as text:
+            self.assertIn('unclear_audio', self.post().get_data(as_text=True))
+            text.assert_not_called()
+
+    def test_transcription_contract_auto_language_json_and_malformed_body(self):
+        from unittest.mock import MagicMock
+        for body, expected in [(b'{"text":"Hello"}', 'Hello'), ('{"text":"شكراً"}'.encode(), 'شكراً'), (b'[]', None), (b'{"text":42}', None)]:
+            response = MagicMock()
+            response.status_code = 200
+            response.iter_content.return_value = [body]
+            response.__enter__.return_value = response
+            with patch.dict(os.environ, {'OPENAI_API_KEY': 'fixture-not-a-key'}), patch.object(copilot.requests, 'post', return_value=response) as post:
+                if expected is None:
+                    with self.assertRaisesRegex(copilot.CopilotError, 'transcription_failed'):
+                        copilot.transcribe(b'fixture')
+                else:
+                    self.assertEqual(copilot.transcribe(b'fixture'), expected)
+                self.assertEqual(post.call_args.kwargs['data'], {'model': 'gpt-4o-mini-transcribe', 'response_format': 'json'})
+                self.assertFalse(post.call_args.kwargs['allow_redirects'])
+
+    def test_sidebar_absent_only_on_audio_tools_and_history_remains(self):
+        for path in ('/kilas-translator', '/kilas-translator?mode=voiceover', '/kilas-translator/live?classic=1', '/kilas-translator/live'):
+            page = self.client.get(path)
+            if page.status_code in (302, 303):
+                page = self.client.get(page.headers['Location'])
+            self.assertEqual(page.status_code, 200, path)
+            self.assertNotIn('id="premium-sidebar"', page.text)
+            self.assertNotIn('data-premium-menu', page.text)
+            self.assertIn('kilas-tool-header', page.text)
+        voice = self.client.get('/kilas-translator?mode=voiceover').text
+        self.assertIn('id="audio-history"', voice)
+        self.assertIn('aria-controls="audio-history"', voice)
+        copilot_page = self.client.get('/kilas-ai').text
+        self.assertIn('id="premium-sidebar"', copilot_page)
+        self.assertIn('Creative Services', copilot_page)
+        self.assertIn('Finance', copilot_page)
 
 
 if __name__ == '__main__':
