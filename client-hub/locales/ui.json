@@ -826,7 +826,7 @@
     "es": "Tu nombre",
     "zh": "你的姓名"
   },
-  "Simpan Nama": {"en": "Save Name", "es": "Guardar nombre", "zh": "保存名称", "id": "Simpan Nama"},
+  "Simpan Nama": {"en": "Save Name", "es": "Guardar nombre", "zh": "保存姓名", "id": "Simpan Nama"},
   "Foto profil": {
     "en": "Profile photo",
     "es": "Foto de perfil",
@@ -1824,7 +1824,7 @@
     "es": "Tipo",
     "zh": "类型"
   },
-  "Hasil": {"en": "Result", "es": "Resultado", "zh": "结果", "id": "Hasil"},
+  "Hasil": {"en": "Results", "es": "Resultados", "zh": "结果", "id": "Hasil"},
   "Disimpan di Kilas AI": {
     "en": "Saved in Kilas AI",
     "es": "Guardado en Kilas AI",
@@ -6760,7 +6760,7 @@
     "es": "Guardar borrador y ver",
     "zh": "保存草稿并预览"
   },
-  "Siap digunakan": {"en": "Ready to use", "es": "Lista para usar", "zh": "可供使用", "id": "Siap digunakan"},
+  "Siap digunakan": {"en": "Ready to use", "es": "Listo para usar", "zh": "可使用", "id": "Siap digunakan"},
   "Belum ada data": {
     "en": "No data yet",
     "es": "Todavía no hay datos",
@@ -7021,7 +7021,7 @@
     "es": "Detalles",
     "zh": "详情"
   },
-  "Lanjutkan": {"en": "Resume", "es": "Continuar", "zh": "继续", "id": "Lanjutkan"},
+  "Lanjutkan": {"en": "Continue", "es": "Continuar", "zh": "继续", "id": "Lanjutkan"},
   "Batas eksekusi harian tercapai.": {
     "en": "Daily execution limit reached.",
     "es": "Se alcanzó el límite diario de ejecución.",
@@ -8474,7 +8474,7 @@
     "es": "Conversaciones",
     "zh": "对话"
   },
-  "Tulis apa yang ingin diucapkan...": {"en": "Write what you want to say...", "es": "Escribe lo que quieres decir...", "zh": "输入您想说的内容…", "id": "Tulis apa yang ingin diucapkan..."},
+  "Tulis apa yang ingin diucapkan...": {"en": "Write what you want to say...", "es": "Escribe lo que quieres decir...", "zh": "输入你想说的内容...", "id": "Tulis apa yang ingin diucapkan..."},
   "How can I Help you?": {"id": "Apa yang bisa saya bantu?", "en": "How can I Help you?", "es": "¿En qué puedo ayudarte?", "zh": "有什么可以帮你？"},
   "Profile": {"id": "Profil", "en": "Profile", "es": "Perfil", "zh": "个人资料"},
   "Subscription": {"id": "Langganan", "en": "Subscription", "es": "Suscripción", "zh": "订阅"},
@@ -8739,7 +8739,7 @@
   "Penyimpanan struk penuh. Transaksi belum disimpan; coba tanpa foto.": {"en": "Receipt storage is full. The transaction was not saved; try without a photo.", "es": "El almacenamiento de recibos está lleno. La transacción no se guardó; intenta sin foto.", "zh": "收据存储空间已满。交易尚未保存，请尝试不附照片。"},
   "Opsi tambahan": {"en": "Additional Options", "es": "Opciones adicionales", "zh": "其他选项"},
   "Tahan untuk bicara": {"en": "Hold to talk", "es": "Mantén pulsado para hablar", "zh": "按住说话"},
-  "Menyiapkan mikrofon": {"en": "Preparing microphone", "es": "Preparando micrófono", "zh": "正在准备麦克风", "id": "Menyiapkan mikrofon"},
+  "Menyiapkan mikrofon": {"en": "Preparing microphone", "es": "Preparando el micrófono", "zh": "正在准备麦克风", "id": "Menyiapkan mikrofon"},
   "Putar ulang audio": {"en": "Replay audio", "es": "Reproducir audio", "zh": "重播音频"},
   "Audio tersimpan sudah tidak tersedia. Audio tidak dibuat ulang.": {"en": "Stored audio is no longer available. Audio will not be regenerated.", "es": "El audio guardado ya no está disponible. No se regenerará.", "zh": "保存的音频已不可用，系统不会重新生成。"},
   "Rumah / Sewa": {"en": "Home / Rent", "es": "Hogar / Alquiler", "zh": "住房 / 租金"},
