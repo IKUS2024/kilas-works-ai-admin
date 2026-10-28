@@ -21,6 +21,8 @@ jobs:
         run: |
           python client-hub/tests/test_kilas_copilot.py
           node client-hub/tests/test_kilas_copilot.mjs
+          node client-hub/tests/test_kilas_copilot_capture.mjs
+          node client-hub/tests/test_kilas_ai_call_capture.mjs
       - name: Existing metering, Finance entry, languages and Voice Over
         run: |
           python client-hub/tests/test_kilas_ai_usage.py

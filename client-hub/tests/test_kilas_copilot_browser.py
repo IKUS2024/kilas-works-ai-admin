@@ -48,6 +48,7 @@ def main():
     output = Path('/tmp/kilas-copilot-browser'); output.mkdir(exist_ok=True)
     report = {'paid_provider_calls': 0, 'real_microphone_calls': 0, 'cases': []}
     provider_calls = []
+    arabic = [False]
     hold = threading.Event()
     slow = [False]
     provider_entered=threading.Event()
@@ -55,13 +56,13 @@ def main():
         provider_calls.append('stt')
         if slow[0]:
             provider_entered.set();hold.wait(8)
-        return 'When can you start?'
+        return 'شكراً على مساعدتك' if arabic[0] else 'When can you start?'
     def text(system, content, **options):
         provider_calls.append('text')
         if system.startswith('Translate'):
-            yield from fixture.answer(json.dumps({'source_translation': 'Kapan Anda bisa mulai?', 'reply_translation': 'Bisa jelaskan jadwalnya?'}))
+            yield from fixture.answer(json.dumps({'source_translation': 'Kapan Anda bisa mulai?', 'reply_translation': 'Saya perlu mengecek ketersediaan saya sebelum memastikan tanggal mulai.'}))
         else:
-            yield from fixture.answer('Could you clarify the timeline?')
+            yield from fixture.answer('على الرحب والسعة، يسعدني مساعدتك.' if arabic[0] else "I'd need to check my availability before confirming a start date.")
     try:
         with patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe', side_effect=stt), patch.object(copilot, 'text_stream', side_effect=text), patch.object(audio_provider, 'request', side_effect=AssertionError('Real provider forbidden')), patch.object(translator_languages, 'classic_names', return_value=translator_languages.names(translator_languages.CLASSIC)), sync_playwright() as pw:
             executable = os.environ.get('KILAS_QA_CHROMIUM') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None)
@@ -91,10 +92,9 @@ def main():
                 page.screenshot(path=str(output/f'idle-on-{width}.png'),full_page=True,animations='disabled')
                 page.locator('#copilot-translate').uncheck()
                 assert page.locator('#copilot-consent').count()==0
-                assert page.locator('.copilot-help[open]').count()==0
+                assert page.locator('.copilot-help').count()==0
                 expect(page.locator('.copilot-footer')).to_be_visible()
                 expect(page.locator('.copilot-footer')).to_contain_text('AI hanya memberikan teks')
-                expect(page.locator('#copilot-guidance')).to_contain_text('Audio diproses OpenAI setelah berhenti.')
                 expect(page.locator('.copilot-language-badge')).to_have_text('Bahasa percakapan otomatis')
                 assert 'Powered by OpenAI' not in page.locator('body').inner_text()
                 assert page.locator('[data-copilot-style=santai]').is_visible()
@@ -104,10 +104,6 @@ def main():
                 brand=page.locator('body>.premium-mobile-header>.premium-brand').bounding_box()
                 assert abs(brand['x']+brand['width']/2-width/2)<2,brand
                 assert page.locator('.copilot-main h1').bounding_box()['width']<=width-32
-                page.locator('.copilot-help>summary').click()
-                expect(page.locator('#copilot-guidance')).to_be_visible()
-                box=page.locator('.copilot-help-panel').bounding_box();assert box['x']>=0 and box['x']+box['width']<=width
-                page.locator('.copilot-help>summary').click()
                 page.locator('[data-copilot-style=profesional]').click()
                 expect(page.locator('[data-copilot-style=profesional]')).to_have_attribute('aria-pressed','true')
                 # Two rapid taps before permission resolves admit one capture.
@@ -122,7 +118,7 @@ def main():
                 expect(page.locator('#copilot-trigger')).to_have_attribute('aria-pressed','true')
                 page.screenshot(path=str(output/f'listening-{width}.png'), full_page=True)
                 page.locator('#copilot-trigger').click()
-                expect(page.locator('.copilot-reply')).to_have_text('Could you clarify the timeline?')
+                expect(page.locator('.copilot-reply')).to_have_text("I'd need to check my availability before confirming a start date.")
                 expect(page.locator('#copilot-state')).to_contain_text('Jawaban siap')
                 expect(page.locator('#copilot')).to_have_attribute('data-state','idle')
                 off_y=page.locator('.copilot-answer-card').first.bounding_box()['y'];assert off_y<500
@@ -139,7 +135,7 @@ def main():
                 page.locator('#copilot-trigger').click();page.wait_for_function('processFrames>10')
                 page.locator('#copilot-mic').click()
                 expect(page.locator('.copilot-reply')).to_have_count(2)
-                expect(page.locator('.copilot-reply-translation').first).to_have_text('Bisa jelaskan jadwalnya?')
+                expect(page.locator('.copilot-reply-translation').first).to_have_text('Saya perlu mengecek ketersediaan saya sebelum memastikan tanggal mulai.')
                 expect(page.locator('#copilot')).to_have_attribute('data-state','idle')
                 expect(page.locator('.copilot-source').first).to_have_text('When can you start?')
                 on_y=page.locator('.copilot-answer-card').first.bounding_box()['y'];assert on_y<820
@@ -182,13 +178,22 @@ def main():
                 page.locator('#copilot-cancel').click()
                 assert page.evaluate('stoppedTracks') >= 2
                 assert not errors,errors
+                page.locator('[data-premium-menu]').click()
+                expect(page.locator('body')).to_have_class(__import__('re').compile('.*premium-menu-open.*'))
                 for path,active in (('/kilas-translator/live?classic=1','Translator'),('/kilas-translator?mode=voiceover','Voice Over')):
                     page.goto(origin+path,wait_until='networkidle')
                     expect(page.locator('.copilot-task-nav a[aria-current=page]')).to_have_text(active)
-                    assert page.locator('#premium-sidebar').count()==1
+                    assert page.locator('#premium-sidebar').count()==0
+                    assert page.locator('[data-premium-menu]').count()==0
+                    assert not page.locator('body').evaluate("e=>e.classList.contains('premium-menu-open')")
+                    assert page.locator('body>.wrap').evaluate('e=>{const box=e.getBoundingClientRect();return Math.abs(box.x-(innerWidth-box.width)/2)<2}')
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(path,width)
                     assert page.evaluate('micRequests')==0
-                    if active=='Voice Over':assert page.locator('#audio-script').count()==1
+                    if active=='Voice Over':
+                        assert page.locator('#audio-script').count()==1
+                        page.locator('[aria-controls=audio-history]').click()
+                        expect(page.locator('#audio-history')).to_be_visible()
+                        page.locator('[aria-controls=audio-history]').click()
                     else:assert page.locator('#live-setup-form').count()==1
                     page.screenshot(path=str(output/f'{active.replace(" ","-")}-{width}.png'),full_page=True)
                     if active=='Voice Over':
@@ -198,7 +203,24 @@ def main():
                         expect(page.locator('#audio-script')).to_have_value('Unsaved Voice Over script')
                         assert '/kilas-translator' in page.url
                 report['cases'].append({'width':width,'reply_top_off':off_y,'reply_top_on':on_y,'one_tap_start_stop_results_translation_history_permission_cancel_profile_overflow':'PASS'})
+                page.goto(origin+'/kilas-ai',wait_until='networkidle')
+                page.go_back(wait_until='networkidle')
+                assert page.locator('#premium-sidebar').count()==0
+                page.go_forward(wait_until='networkidle')
+                assert page.locator('#premium-sidebar').count()==1
+                assert page.locator('.premium-menu-open').count()==0
                 context.close()
+            # A separate disposable owner keeps the additional language fixture
+            # inside the real per-account budget; no quota guard is mocked.
+            rtl_case=fixture.CopilotTests();rtl_case.setUp();rtl_case.premium();rtl_cookie=rtl_case.client.get_cookie('session')
+            rtl=browser.new_context(viewport={'width':393,'height':786})
+            rtl.add_cookies([{'name':rtl_cookie.key,'value':rtl_cookie.value,'url':origin}]);rtl.add_init_script(FAKE_MIC)
+            rtl_page=rtl.new_page();rtl_page.goto(origin+'/kilas-ai',wait_until='networkidle');arabic[0]=True
+            rtl_page.locator('#copilot-mic').click();rtl_page.wait_for_function('processFrames>4');rtl_page.locator('#copilot-trigger').click()
+            expect(rtl_page.locator('.copilot-reply')).to_have_text('على الرحب والسعة، يسعدني مساعدتك.')
+            assert rtl_page.locator('.copilot-reply').evaluate('e=>getComputedStyle(e).direction')=='rtl'
+            rtl_page.screenshot(path=str(output/'results-ar-393.png'),full_page=True);arabic[0]=False;rtl.close()
+            report['cases'].append({'arabic_auto_direction_mocked_reply':'PASS'})
             # A stalled session POST cannot delay listening; cancellation after
             # stop aborts it before any provider processing can start.
             delayed=browser.new_context(viewport={'width':393,'height':786})
@@ -238,7 +260,8 @@ def main():
             native_context=native.new_context(viewport={'width':393,'height':786},permissions=['microphone'])
             native_context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
             native_context.add_init_script('''
-                window.nativeMicCalls=0;window.nativeTracks=[];
+                window.nativeMicCalls=0;window.nativeTracks=[];window.workletCalls=0;
+                const Worklet=window.AudioWorkletNode;window.AudioWorkletNode=class extends Worklet{constructor(...args){super(...args);window.workletCalls++;}};
                 const get=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
                 navigator.mediaDevices.getUserMedia=async options=>{window.nativeMicCalls++;const stream=await get(options);window.nativeTracks=stream.getTracks();return stream;};
             ''')
@@ -248,11 +271,11 @@ def main():
             assert native_page.evaluate('nativeMicCalls')==0
             native_page.locator('#copilot-mic').click()
             expect(native_page.locator('#copilot-state')).to_have_text('Mendengarkan…')
-            assert native_page.evaluate("nativeTracks.length===1&&nativeTracks[0].readyState==='live'")
+            assert native_page.evaluate("nativeTracks.length===1&&nativeTracks[0].readyState==='live'&&workletCalls===1")
             before_native=len(provider_calls);native_page.wait_for_timeout(1600)
             assert len(provider_calls)==before_native
             native_page.locator('#copilot-trigger').click()
-            expect(native_page.locator('.copilot-reply')).to_have_text('Could you clarify the timeline?')
+            expect(native_page.locator('.copilot-reply')).to_have_text("I'd need to check my availability before confirming a start date.")
             assert native_page.evaluate("nativeMicCalls===1&&nativeTracks.every(track=>track.readyState==='ended')")
             report['cases'].append({'native_browser_mediastream_audio_context_pcm_wav_one_tap':'PASS','hardware':'Chromium synthetic device','paid_calls':0})
             native.close()

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% set chat_styles_in_head=true %}
 {% block title %}Copilot · Kilas Works{% endblock %}
-{% block kilas_feature_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_copilot.css',v='reference-20261028') }}">{% endblock %}
+{% block kilas_feature_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_copilot.css',v='quality-20261028') }}">{% endblock %}
 {% block content %}
 <section id="copilot" data-ai-shell data-thread-id="{{ selected.id if selected else '' }}" data-session-id="{{ selected.id if selected else '' }}" data-ready="{{ 'true' if provider_ready else 'false' }}">
   {% set selected_feature='copilot' %}{% include 'kilas_ai/_copilot_navigation.html' %}
@@ -21,7 +21,7 @@
       <p id="copilot-state" role="status" aria-live="polite">Mikrofon mati</p>
       <div class="copilot-mic-row">
         <div class="copilot-mic-stage">
-          <button id="copilot-mic" type="button" aria-label="Mulai mendengarkan" aria-pressed="false" aria-describedby="copilot-guidance">
+          <button id="copilot-mic" type="button" aria-label="Mulai mendengarkan" aria-pressed="false">
             <svg class="copilot-mic-icon" viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3m-4 0h8"/></svg>
             <svg class="copilot-stop-icon" viewBox="0 0 24 24" width="46" height="46" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>
           </button>
@@ -31,7 +31,7 @@
       <canvas id="copilot-wave" width="320" height="48" aria-hidden="true" hidden></canvas>
       <div class="copilot-styles" role="group" aria-label="Gaya jawaban"><input id="copilot-style" type="hidden" value="santai"><button type="button" data-copilot-style="santai" aria-pressed="true">Santai</button><button type="button" data-copilot-style="profesional" aria-pressed="false">Profesional</button></div>
       <p class="copilot-device-hint"><svg viewBox="0 0 28 24" width="26" height="23" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="3" width="16" height="12" rx="2"/><path d="M7 19h7m-4-4v4"/><rect x="20" y="8" width="6" height="13" rx="1.5"/><path d="M22 18h2"/></svg><span>Dengarkan suara dari perangkat lain</span></p>
-      <div class="copilot-commands"><button id="copilot-trigger" type="button" aria-label="Mulai mendengarkan" aria-pressed="false" aria-describedby="copilot-guidance">Dengarkan</button><button id="copilot-cancel" type="button" hidden>Batalkan</button></div>
+      <div class="copilot-commands"><button id="copilot-trigger" type="button" aria-label="Mulai mendengarkan" aria-pressed="false">Dengarkan</button><button id="copilot-cancel" type="button" hidden>Batalkan</button></div>
       {% if not provider_ready %}<p role="status">Copilot belum tersedia. Konfigurasi OpenAI perlu diperiksa oleh pengelola.</p>{% endif %}
       <p id="copilot-error" role="alert" hidden></p>
     </section>
@@ -40,10 +40,10 @@
       <div id="copilot-turns"></div>
       <p id="copilot-disclosure" {% if not turns %}hidden{% endif %}>Saran AI · periksa sebelum digunakan.</p>
     </section>
-    <footer class="copilot-footer"><span>AI hanya memberikan teks</span><details class="copilot-help"><summary>Info</summary><div class="copilot-help-panel"><p id="copilot-guidance">Audio diproses OpenAI setelah berhenti. Maksimal 60 detik; mikrofon tidak menyala otomatis. Pastikan Anda punya izin memproses percakapan.</p></div></details></footer>
+    <footer class="copilot-footer"><span>AI hanya memberikan teks</span></footer>
   </main>
   <input type="hidden" id="copilot-csrf" value="{{ csrf_token() }}">
   <script type="application/json" id="copilot-initial">{{ turns|tojson }}</script>
 </section>
-<script type="module" src="{{ url_for('static',filename='kilas_copilot.mjs',v='shared-trigger-20261028') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_copilot.mjs',v='quality-worklet-20261028') }}"></script>
 {% endblock %}
