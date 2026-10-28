@@ -84,6 +84,8 @@ class CopilotTests(unittest.TestCase):
             self.assertNotIn(f'href="/kilas-ai/threads/{legacy}"', page.text)
             self.assertNotIn('<details class="kilas-profile-menu" open', page.text)
             self.assertIn('Mikrofon mati', page.text)
+            self.assertNotIn('id="copilot-consent"', page.text)
+            self.assertIn('Audio diproses OpenAI setelah berhenti.', page.text)
         self.assertIn('id="ai-composer"', self.client.get('/kilas-ai?legacy=1').text)
         self.assertIn('Original historical bytes', self.client.get(f'/kilas-ai/threads/{legacy}').text)
         self.assertEqual(store.messages(self.owner, legacy), before)
