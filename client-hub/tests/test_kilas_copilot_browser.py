@@ -78,6 +78,8 @@ def main():
                 page.goto(origin+'/kilas-ai', wait_until='networkidle')
                 expect(page.locator('#copilot-state')).to_have_text('Mikrofon mati')
                 assert page.evaluate('micRequests') == 0
+                expect(page.locator('#copilot-wave')).to_be_hidden()
+                expect(page.locator('#copilot-mic')).to_have_attribute('aria-pressed','false')
                 assert not page.locator('#copilot-translate').is_checked()
                 expect(page.locator('#copilot-target-wrap')).to_be_hidden()
                 assert not page.locator('textarea').count()
