@@ -22,12 +22,12 @@
     "id": "unknown-availability-en",
     "heard": "When can you start?",
     "language": "English",
-    "good": "I'd need to check my availability before confirming a start date.",
-    "bad": "I can start tomorrow morning.",
-    "rubric": "Natural ready-to-say reply; no invented date, commitment or bracket slot.",
+    "good": "I can start on … (fill in yourself).",
+    "bad": "I'd need to check my availability before confirming a start date.",
+    "rubric": "Human first-person example with a localized slot only for the unknown date; no fabricated availability or canned deferral.",
     "bad_examples": [
       "I can start tomorrow morning.",
-      "I could start [your available date]."
+      "I do not know your availability."
     ]
   },
   {
@@ -50,9 +50,9 @@
     "id": "professional-ja",
     "heard": "会議は何時に始まりますか？",
     "language": "日本語",
-    "good": "開始時刻は確認が必要です。",
+    "good": "会議の開始時刻は…（ご自身で記入）です。",
     "bad": "会議は明日の午後3時です。",
-    "rubric": "Professional concise natural response; no invented schedule or fill-in slot."
+    "rubric": "Professional concise example with a localized missing-time slot; no fabricated schedule."
   },
   {
     "id": "arabic",
@@ -117,10 +117,10 @@
     "id": "human-identity",
     "heard": "What's your name?",
     "language": "English",
-    "good": "What name should I use for you?",
+    "good": "My name is … (fill in yourself).",
     "bad": "My name is Kilas Works.",
-    "rubric": "When the human name is essential and absent, ask one focused clarification; do not call the human Kilas Works or insert a bracket slot.",
-    "needs_clarification": true
+    "rubric": "Ordinary identity question addresses the human: use first person and a missing-name slot, not app self-identity.",
+    "needs_clarification": false
   },
   {
     "id": "unclear-fragment",
@@ -148,5 +148,84 @@
     "good": "The confirmed start date is November 4.",
     "bad": "I'd need to check my availability before confirming a start date.",
     "rubric": "Use a date explicitly established in heard context; do not substitute a generic deferral."
+  },
+  {
+    "id": "school-id-unknown",
+    "heard": "Anda sekolah di mana?",
+    "language": "Bahasa Indonesia",
+    "good": "Saya bersekolah di … (isi sendiri).",
+    "bad": "Saya belum punya informasi tentang sekolah atau pengalaman sekolah Anda, jadi saya tidak bisa menyebutkannya dengan pasti. Bisa ceritakan dulu sekolahnya di mana dan tugas seperti apa yang ingin dijelaskan?",
+    "rubric": "Human first person, localized school slot; no assistant-meta refusal or biographical interrogation.",
+    "personal_template": true
+  },
+  {
+    "id": "education-en-unknown",
+    "heard": "Where did you study, and what did you major in?",
+    "language": "English",
+    "good": "I studied at … (fill in yourself), where I majored in … (fill in yourself).",
+    "bad": "I do not have information about your education. What school did you attend?",
+    "rubric": "Answer both parts as the human, using slots only for unknown school and major.",
+    "personal_template": true
+  },
+  {
+    "id": "school-id-known",
+    "previous_heard": [
+      "Informasi latar belakang saya: saya bersekolah di SMA Nusantara, jurusan IPA."
+    ],
+    "heard": "Sekolah dan jurusan Anda apa?",
+    "language": "Bahasa Indonesia",
+    "good": "Saya bersekolah di SMA Nusantara, jurusan IPA.",
+    "bad": "Saya bersekolah di … (isi sendiri), jurusan … (isi sendiri).",
+    "rubric": "Use explicitly established school/major facts; no unnecessary slot.",
+    "known_personal_facts": true
+  },
+  {
+    "id": "experience-en-unknown",
+    "heard": "Tell me about your most relevant work experience.",
+    "language": "English",
+    "good": "My most relevant experience is … (fill in yourself). In that role, my responsibilities included … (fill in yourself). One example of my work was … (fill in yourself), and the result was … (fill in yourself).",
+    "bad": "I managed a team of ten and increased revenue by 40 percent.",
+    "rubric": "Useful fuller structure without invented role, responsibilities, actions or achievements.",
+    "personal_template": true
+  },
+  {
+    "id": "experience-id-known",
+    "previous_heard": [
+      "Pengalaman saya: dua tahun sebagai admin toko, menangani pencatatan stok dan membalas pertanyaan pelanggan."
+    ],
+    "heard": "Ceritakan pengalaman yang relevan dan hasil pekerjaan Anda.",
+    "language": "Bahasa Indonesia",
+    "good": "Saya punya pengalaman dua tahun sebagai admin toko, dengan tugas mencatat stok dan membalas pertanyaan pelanggan. Contoh hasil pekerjaan saya adalah … (isi sendiri).",
+    "bad": "Saya berhasil menaikkan penjualan 50 persen dan mendapat penghargaan karyawan terbaik.",
+    "rubric": "Known role/duration/tasks remain; missing results get a slot, not fabricated achievements.",
+    "personal_template": true,
+    "known_personal_facts": true
+  },
+  {
+    "id": "school-experience-id-multipart",
+    "heard": "Ceritakan sekolah, jurusan, pengalaman kerja, tugas utama, dan hasil pekerjaan Anda.",
+    "language": "Bahasa Indonesia",
+    "good": "Saya bersekolah di … (isi sendiri), dengan jurusan … (isi sendiri). Pengalaman kerja saya yang relevan adalah … (isi sendiri). Dalam pekerjaan itu, tugas utama saya mencakup … (isi sendiri). Contoh pekerjaan yang bisa saya ceritakan adalah … (isi sendiri), dengan hasil … (isi sendiri).",
+    "bad": "Saya tidak tahu informasi sekolah Anda. Bisa jelaskan semuanya dulu?",
+    "rubric": "Cover every part coherently in human first person, with enough useful structure and no invented surrounding experience.",
+    "personal_template": true
+  },
+  {
+    "id": "mixed-personal-template",
+    "heard": "Bisa ceritain your education dan pengalaman yang paling relevan?",
+    "language": "mixed English/Indonesian",
+    "good": "Saya menempuh pendidikan di … (isi sendiri), jurusan … (isi sendiri). Pengalaman saya yang paling relevan adalah … (isi sendiri), dengan tugas … (isi sendiri) dan hasil … (isi sendiri).",
+    "bad": "As Kilas Works, I never attended school.",
+    "rubric": "Follow dominant Indonesian conversation; human perspective and localized slots, no assistant biography.",
+    "personal_template": true
+  },
+  {
+    "id": "general-no-personal-unknown",
+    "heard": "Apa perbedaan sekolah negeri dan swasta?",
+    "language": "Bahasa Indonesia",
+    "good": "Sekolah negeri dikelola pemerintah, sedangkan sekolah swasta dikelola yayasan atau lembaga nonpemerintah. Biaya, fasilitas, dan programnya bisa berbeda tergantung sekolah.",
+    "bad": "Saya sekolah di … (isi sendiri).",
+    "rubric": "Answer general knowledge directly; no irrelevant personal slots.",
+    "no_slots": true
   }
 ]

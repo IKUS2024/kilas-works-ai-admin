@@ -328,14 +328,24 @@ class CopilotTests(unittest.TestCase):
         for case in cases:
             self.assertNotEqual(case['good'], case['bad'])
             self.assertTrue(case['rubric'])
-            self.assertNotIn('[', case['good'])
-            self.assertNotIn('［', case['good'])
+            if case.get('personal_template'):
+                self.assertTrue('isi sendiri' in case['good'] or 'fill in yourself' in case['good'])
+                self.assertRegex(case['good'], r'^(Saya|I\b|My\b)')
+                for refusal in ('Saya belum punya informasi', 'I do not have information', 'As Kilas Works'):
+                    self.assertNotIn(refusal, case['good'])
+            if case.get('no_slots'):
+                self.assertNotIn('isi sendiri', case['good'])
         for rule in ('Kilas Works', 'Answer the actual question directly', 'NOT confirmed',
-                     'Do not put bracket templates', 'Ask one focused clarification only',
+                     'HUMAN listener’s FIRST-PERSON answer', 'Ask one focused clarification only',
                      'mixed language', 'short ambiguous utterance', 'OpenAI', 'Preserve legitimate mentions of ChatGPT',
                      'plain spoken text', 'Santai means', 'profesional means'):
             self.assertIn(rule, copilot.SYSTEM)
-        self.assertNotIn('[isi fakta Anda]', copilot.SYSTEM)
+        for rule in ('No rigid sentence count', 'ONLY the unknown facts', 'isi sendiri', 'fill in yourself', 'Do not respond with assistant-meta refusals', 'not merely because a personal fact is missing'):
+            self.assertIn(rule, copilot.SYSTEM)
+        self.assertNotIn('Normally use one natural sentence', copilot.SYSTEM)
+        self.assertNotIn('Do not put bracket templates', copilot.SYSTEM)
+        import hashlib
+        self.assertEqual(Path(__file__).parents[1].joinpath('static/kilas_copilot_policy.sha256').read_text().strip(), hashlib.sha256(copilot.SYSTEM.encode()).hexdigest())
 
     def test_multilingual_pipeline_preserves_source_and_reply_not_accuracy_evaluation(self):
         self.premium()
@@ -409,6 +419,58 @@ class CopilotTests(unittest.TestCase):
             self.assertNotIn('id="premium-sidebar"', live.text)
         from kilas_ai import audio_store
         self.assertEqual(audio_store.balance(self.owner)['seconds'], 60)
+
+    def test_human_template_pipeline_translation_preserves_slots_and_context(self):
+        from pathlib import Path
+        cases = {c['id']: c for c in json.loads(Path(__file__).with_name('copilot_quality_cases.json').read_text())}
+        self.premium()
+        for case_id in ('school-id-unknown', 'education-en-unknown', 'experience-en-unknown', 'experience-id-known', 'school-experience-id-multipart', 'mixed-personal-template', 'general-no-personal-unknown', 'school-id-known'):
+            case = cases[case_id]
+            ident = copilot.create(self.owner)
+            for heard in case.get('previous_heard', []):
+                op = uuid.uuid4().hex
+                copilot.claim(self.owner, ident, op, 'synthetic-context')
+                copilot.update(self.owner, ident, op, 'complete', 'Unconfirmed AI suggestion, not a user fact.', source=heard, target=None, style='santai')
+            translations = {
+                'education-en-unknown': ('Anda belajar di mana, dan mengambil jurusan apa?', 'Saya bersekolah di … (isi sendiri), dengan jurusan … (isi sendiri).'),
+                'experience-en-unknown': ('Ceritakan pengalaman kerja Anda yang paling relevan.', 'Pengalaman saya yang paling relevan adalah … (isi sendiri). Dalam peran itu, tanggung jawab saya mencakup … (isi sendiri). Salah satu contoh pekerjaan saya adalah … (isi sendiri), dengan hasil … (isi sendiri).'),
+            }
+            source_translation, translated = translations.get(case_id, (case['heard'], case['good']))
+            streams = [answer(case['good']), answer(json.dumps({'source_translation': source_translation, 'reply_translation': translated}, ensure_ascii=False))]
+            with self.subTest(case=case_id), patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe', return_value=case['heard']), patch.object(copilot, 'text_stream', side_effect=streams) as text:
+                events = list(copilot.process(self.owner, ident, uuid.uuid4().hex, recording(), False, 'profesional', 'id'))
+            self.assertEqual(events[-1]['type'], 'complete')
+            saved = copilot.turns(self.owner, ident)[-1]
+            self.assertEqual(saved['reply'], case['good'])
+            self.assertEqual(saved['reply_translation'], translated)
+            self.assertEqual(saved['source_translation'], source_translation)
+            self.assertEqual(saved['reply'].count('isi sendiri') + saved['reply'].count('fill in yourself'), translated.count('isi sendiri'))
+            self.assertEqual(saved['style'], 'profesional')
+            prompt, content = text.call_args_list[0].args
+            self.assertIn('HUMAN listener’s FIRST-PERSON answer', prompt)
+            context = json.loads(content)
+            self.assertEqual([t['heard'] for t in context['previous_turns']], case.get('previous_heard', []))
+            self.assertEqual(context['latest_spoken_utterance'], case['heard'])
+            translation_prompt, payload = text.call_args_list[1].args
+            self.assertIn('Preserve every fill-yourself slot', translation_prompt)
+            self.assertIn('without filling, deleting or inventing', translation_prompt)
+            self.assertEqual(json.loads(payload)['reply'], case['good'])
+            if case.get('personal_template'):
+                self.assertIn('isi sendiri', translated) if case['language'] != 'English' else self.assertTrue('fill in yourself' in saved['reply'])
+            if case_id == 'school-experience-id-multipart':
+                self.assertGreater(saved['reply'].count('.'), 3)  # No sentence truncation.
+
+    def test_translation_rejects_dropped_or_added_template_slots_without_rewrite(self):
+        self.premium()
+        reply = 'I studied at … (fill in yourself).'
+        for translated in ('Saya sekolah di Harvard.', 'Saya sekolah di … (isi sendiri), jurusan … (isi sendiri).'):
+            with self.subTest(translated=translated), patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe', return_value='Where did you study?'), patch.object(copilot, 'text_stream', side_effect=[answer(reply), answer(json.dumps({'source_translation': 'Sekolah di mana?', 'reply_translation': translated}))]):
+                events = list(copilot.process(self.owner, self.ident, uuid.uuid4().hex, recording(), False, 'santai', 'id'))
+            self.assertEqual(events[-1], {'type': 'error', 'code': 'incomplete_translation'})
+            self.assertEqual(copilot.turns(self.owner, self.ident), [])
+        self.assertEqual(copilot.slot_count('I studied at ... (fill in yourself).'), 1)
+        self.assertEqual(copilot.slot_count('学校は…（自分で記入）です。'), 1)
+        self.assertEqual(copilot.slot_count('An ordinary pause… with no slot.'), 0)
 
 
 if __name__ == '__main__':

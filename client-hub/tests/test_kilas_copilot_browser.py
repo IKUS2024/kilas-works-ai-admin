@@ -56,13 +56,13 @@ def main():
         provider_calls.append('stt')
         if slow[0]:
             provider_entered.set();hold.wait(8)
-        return 'شكراً على مساعدتك' if arabic[0] else 'When can you start?'
+        return 'شكراً على مساعدتك' if arabic[0] else 'Where did you study, and what relevant work experience do you have?'
     def text(system, content, **options):
         provider_calls.append('text')
         if system.startswith('Translate'):
-            yield from fixture.answer(json.dumps({'source_translation': 'Kapan Anda bisa mulai?', 'reply_translation': 'Saya perlu mengecek ketersediaan saya sebelum memastikan tanggal mulai.'}))
+            yield from fixture.answer(json.dumps({'source_translation': 'Anda sekolah di mana, dan pengalaman kerja apa yang relevan?', 'reply_translation': 'Saya bersekolah di … (isi sendiri). Pengalaman saya yang relevan adalah … (isi sendiri). Tugas saya mencakup … (isi sendiri), dengan hasil … (isi sendiri).'}))
         else:
-            yield from fixture.answer('على الرحب والسعة، يسعدني مساعدتك.' if arabic[0] else "I'd need to check my availability before confirming a start date.")
+            yield from fixture.answer('على الرحب والسعة، يسعدني مساعدتك.' if arabic[0] else "I studied at … (fill in yourself). My relevant experience is … (fill in yourself). My role involved … (fill in yourself), and the result was … (fill in yourself).")
     try:
         with patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe', side_effect=stt), patch.object(copilot, 'text_stream', side_effect=text), patch.object(audio_provider, 'request', side_effect=AssertionError('Real provider forbidden')), patch.object(translator_languages, 'classic_names', return_value=translator_languages.names(translator_languages.CLASSIC)), sync_playwright() as pw:
             executable = os.environ.get('KILAS_QA_CHROMIUM') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None)
@@ -118,7 +118,7 @@ def main():
                 expect(page.locator('#copilot-trigger')).to_have_attribute('aria-pressed','true')
                 page.screenshot(path=str(output/f'listening-{width}.png'), full_page=True)
                 page.locator('#copilot-trigger').click()
-                expect(page.locator('.copilot-reply')).to_have_text("I'd need to check my availability before confirming a start date.")
+                expect(page.locator('.copilot-reply')).to_have_text("I studied at … (fill in yourself). My relevant experience is … (fill in yourself). My role involved … (fill in yourself), and the result was … (fill in yourself).")
                 expect(page.locator('#copilot-state')).to_contain_text('Jawaban siap')
                 expect(page.locator('#copilot')).to_have_attribute('data-state','idle')
                 off_y=page.locator('.copilot-answer-card').first.bounding_box()['y'];assert off_y<500
@@ -135,9 +135,9 @@ def main():
                 page.locator('#copilot-trigger').click();page.wait_for_function('processFrames>10')
                 page.locator('#copilot-mic').click()
                 expect(page.locator('.copilot-reply')).to_have_count(2)
-                expect(page.locator('.copilot-reply-translation').first).to_have_text('Saya perlu mengecek ketersediaan saya sebelum memastikan tanggal mulai.')
+                expect(page.locator('.copilot-reply-translation').first).to_have_text('Saya bersekolah di … (isi sendiri). Pengalaman saya yang relevan adalah … (isi sendiri). Tugas saya mencakup … (isi sendiri), dengan hasil … (isi sendiri).')
                 expect(page.locator('#copilot')).to_have_attribute('data-state','idle')
-                expect(page.locator('.copilot-source').first).to_have_text('When can you start?')
+                expect(page.locator('.copilot-source').first).to_have_text('Where did you study, and what relevant work experience do you have?')
                 on_y=page.locator('.copilot-answer-card').first.bounding_box()['y'];assert on_y<820
                 page.locator('#copilot-larger').click();page.locator('#copilot-larger').click()
                 assert page.locator('.copilot-reply').first.evaluate('e=>getComputedStyle(e).fontSize') == '26px'
@@ -218,6 +218,11 @@ def main():
             rtl_page=rtl.new_page();rtl_page.goto(origin+'/kilas-ai',wait_until='networkidle');arabic[0]=True
             rtl_page.locator('#copilot-mic').click();rtl_page.wait_for_function('processFrames>4');rtl_page.locator('#copilot-trigger').click()
             expect(rtl_page.locator('.copilot-reply')).to_have_text('على الرحب والسعة، يسعدني مساعدتك.')
+            # A complete text delta may still be in the streaming element.
+            # Inspect the final rendered result after the saved completion.
+            expect(rtl_page.locator('#copilot')).to_have_attribute('data-state','idle')
+            expect(rtl_page.locator('.copilot-reply')).to_have_attribute('dir','auto')
+            rtl_page.wait_for_function("getComputedStyle(document.querySelector('.copilot-reply')).direction==='rtl'",timeout=5000)
             assert rtl_page.locator('.copilot-reply').evaluate('e=>getComputedStyle(e).direction')=='rtl'
             rtl_page.screenshot(path=str(output/'results-ar-393.png'),full_page=True);arabic[0]=False;rtl.close()
             report['cases'].append({'arabic_auto_direction_mocked_reply':'PASS'})
@@ -239,9 +244,12 @@ def main():
             context = browser.new_context(viewport={'width':1280,'height':900})
             context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);context.add_init_script(FAKE_MIC)
             page = context.new_page();page.goto(origin+'/kilas-ai',wait_until='networkidle')
-            slow[0]=True;page.locator('#copilot-mic').click();page.wait_for_function('processFrames>4');page.locator('#copilot-mic').click()
+            provider_entered.clear();slow[0]=True;page.locator('#copilot-mic').click();page.wait_for_function('processFrames>4');page.locator('#copilot-mic').click()
             expect(page.locator('#copilot-state')).to_contain_text('Mengenali')
             expect(page.locator('#copilot-trigger')).to_be_disabled()
+            # Status is queued before STT enters; wait for the admitted call so
+            # its normal start cannot be miscounted as a second-tap duplicate.
+            assert provider_entered.wait(3), 'Admitted STT must enter before duplicate-call snapshot'
             before_repeat=len(provider_calls)
             page.evaluate("document.querySelector('#copilot-trigger').click();document.querySelector('#copilot-mic').click()")
             assert len(provider_calls)==before_repeat
@@ -275,7 +283,7 @@ def main():
             before_native=len(provider_calls);native_page.wait_for_timeout(1600)
             assert len(provider_calls)==before_native
             native_page.locator('#copilot-trigger').click()
-            expect(native_page.locator('.copilot-reply')).to_have_text("I'd need to check my availability before confirming a start date.")
+            expect(native_page.locator('.copilot-reply')).to_have_text("I studied at … (fill in yourself). My relevant experience is … (fill in yourself). My role involved … (fill in yourself), and the result was … (fill in yourself).")
             assert native_page.evaluate("nativeMicCalls===1&&nativeTracks.every(track=>track.readyState==='ended')")
             report['cases'].append({'native_browser_mediastream_audio_context_pcm_wav_one_tap':'PASS','hardware':'Chromium synthetic device','paid_calls':0})
             native.close()

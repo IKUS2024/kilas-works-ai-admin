@@ -2,7 +2,7 @@ name: Kilas Copilot release smoke
 on:
   push:
     branches: [main]
-    paths: ['client-hub/static/kilas_copilot*', 'client-hub/templates/kilas_ai/copilot.html', '.github/workflows/kilas-copilot-release-smoke.yml']
+    paths: ['client-hub/kilas_ai/copilot.py', 'client-hub/static/kilas_copilot*', 'client-hub/templates/kilas_ai/copilot.html', '.github/workflows/kilas-copilot-release-smoke.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,7 +19,7 @@ jobs:
         run: |
           import hashlib, json, pathlib, time, urllib.request
           origin='https://kilas-works-client-hub.onrender.com'
-          expected={name:pathlib.Path('client-hub/static',name).read_bytes() for name in ('kilas_copilot.mjs','kilas_copilot_capture.mjs','kilas_copilot.css')}
+          expected={name:pathlib.Path('client-hub/static',name).read_bytes() for name in ('kilas_copilot.mjs','kilas_copilot_capture.mjs','kilas_copilot.css','kilas_copilot_policy.sha256')}
           for attempt in range(100):
               try:
                   released={}
