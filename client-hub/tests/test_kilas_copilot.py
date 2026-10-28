@@ -48,6 +48,7 @@ class CopilotTests(unittest.TestCase):
 
     def client_for(self, owner):
         client = self.app.test_client()
+        client.set_cookie('kilas_language', 'id')
         authenticate(client, repo.get_user_by_id(owner), _csrf_token='copilot-csrf')
         return client
 
@@ -397,7 +398,7 @@ class CopilotTests(unittest.TestCase):
         self.assertIn('aria-controls="audio-history"', voice)
         copilot_page = self.client.get('/kilas-ai').text
         self.assertIn('id="premium-sidebar"', copilot_page)
-        self.assertIn('Creative Services', copilot_page)
+        self.assertIn('Jasa Kreatif', copilot_page)
         self.assertIn('Finance', copilot_page)
 
     def test_enabled_audio_routes_remain_enabled_without_provider_generation(self):

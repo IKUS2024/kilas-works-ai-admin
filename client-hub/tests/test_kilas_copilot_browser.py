@@ -70,7 +70,7 @@ def main():
             cookie = case.client.get_cookie('session')
             for width,height in ((360,740),(393,786),(768,1024),(1440,900)):
                 context = browser.new_context(viewport={'width': width, 'height': height})
-                context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}])
+                context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin},{'name':'kilas_language','value':'id','url':origin}])
                 context.add_init_script(FAKE_MIC)
                 page = context.new_page(); errors=[]
                 page.on('pageerror', lambda error: errors.append(str(error)))
@@ -157,7 +157,7 @@ def main():
                 expect(page.locator('#premium-sidebar .chat-products')).to_contain_text('Finance')
                 page.screenshot(path=str(output/f'sidebar-closed-{width}.png'),full_page=False,animations='disabled')
                 page.locator('#premium-sidebar .kilas-profile-menu>summary').click()
-                expect(page.locator('#premium-sidebar .kilas-profile-options')).to_contain_text('Credits & Usage')
+                expect(page.locator('#premium-sidebar .kilas-profile-options')).to_contain_text('Kredit & Penggunaan')
                 assert abs(page.locator('#premium-sidebar').bounding_box()['x'])<1
                 page.screenshot(path=str(output/f'sidebar-{width}.png'), full_page=False, animations='disabled')
                 page.keyboard.press('Escape')
@@ -214,7 +214,7 @@ def main():
             # inside the real per-account budget; no quota guard is mocked.
             rtl_case=fixture.CopilotTests();rtl_case.setUp();rtl_case.premium();rtl_cookie=rtl_case.client.get_cookie('session')
             rtl=browser.new_context(viewport={'width':393,'height':786})
-            rtl.add_cookies([{'name':rtl_cookie.key,'value':rtl_cookie.value,'url':origin}]);rtl.add_init_script(FAKE_MIC)
+            rtl.add_cookies([{'name':rtl_cookie.key,'value':rtl_cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}]);rtl.add_init_script(FAKE_MIC)
             rtl_page=rtl.new_page();rtl_page.goto(origin+'/kilas-ai',wait_until='networkidle');arabic[0]=True
             rtl_page.locator('#copilot-mic').click();rtl_page.wait_for_function('processFrames>4');rtl_page.locator('#copilot-trigger').click()
             expect(rtl_page.locator('.copilot-reply')).to_have_text('على الرحب والسعة، يسعدني مساعدتك.')
@@ -229,7 +229,7 @@ def main():
             # A stalled session POST cannot delay listening; cancellation after
             # stop aborts it before any provider processing can start.
             delayed=browser.new_context(viewport={'width':393,'height':786})
-            delayed.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);delayed.add_init_script(FAKE_MIC)
+            delayed.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}]);delayed.add_init_script(FAKE_MIC)
             stalled=delayed.new_page();stalled.goto(origin+'/kilas-ai',wait_until='networkidle')
             stalled.evaluate('''()=>{const fetch=window.fetch;window.createAttempts=0;window.fetch=(url,options)=>String(url)==='/kilas-ai/copilot/sessions'?(window.createAttempts++,new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError'))))):fetch(url,options)}''')
             stalled.locator('#copilot-mic').click();expect(stalled.locator('#copilot-state')).to_have_text('Mendengarkan…')
@@ -242,7 +242,7 @@ def main():
             delayed.close()
             # Network/interrupt/cancellation verification with the real request stack.
             context = browser.new_context(viewport={'width':1280,'height':900})
-            context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);context.add_init_script(FAKE_MIC)
+            context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}]);context.add_init_script(FAKE_MIC)
             page = context.new_page();page.goto(origin+'/kilas-ai',wait_until='networkidle')
             provider_entered.clear();slow[0]=True;page.locator('#copilot-mic').click();page.wait_for_function('processFrames>4');page.locator('#copilot-mic').click()
             expect(page.locator('#copilot-state')).to_contain_text('Mengenali')
@@ -266,7 +266,7 @@ def main():
             # hardware source is Chromium's synthetic mic; no JS capture mocks.
             native=pw.chromium.launch(**({'executable_path':executable} if executable else {}),headless=True,args=['--no-sandbox','--use-fake-device-for-media-stream'])
             native_context=native.new_context(viewport={'width':393,'height':786},permissions=['microphone'])
-            native_context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+            native_context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
             native_context.add_init_script('''
                 window.nativeMicCalls=0;window.nativeTracks=[];window.workletCalls=0;
                 const Worklet=window.AudioWorkletNode;window.AudioWorkletNode=class extends Worklet{constructor(...args){super(...args);window.workletCalls++;}};

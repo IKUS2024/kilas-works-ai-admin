@@ -5,6 +5,7 @@ from threading import BoundedSemaphore, Event, Thread
 from flask import abort, current_app, render_template, request, session, Response, stream_with_context, url_for
 from .routes import ai_bp
 from . import copilot
+from ui_i18n import translate as ui_t, translate_ui_message
 
 _slots = BoundedSemaphore(2)
 
@@ -12,9 +13,11 @@ _slots = BoundedSemaphore(2)
 def page(ident=None):
     from .home_tasks import context
     selected = copilot.owned(session['user_id'], ident) if ident else None
+    names = copilot.translator_languages.localized_names()
+    names['id'] = ui_t('Bahasa Indonesia')
     return render_template('kilas_ai/copilot.html', selected=selected, home_ai=context(session['user_id']),
                            turns=copilot.turns(session['user_id'], ident) if ident else [],
-                           copilot_languages=copilot.LANGUAGES, provider_ready=copilot.configured())
+                           copilot_languages=copilot.LANGUAGES, copilot_language_names=names, provider_ready=copilot.configured())
 
 
 @ai_bp.get('/copilot', endpoint='copilot_home')
@@ -112,6 +115,10 @@ def process(ident, operation_key):
                     continue
                 if event['type'] in ('complete', 'error'):
                     terminal = True
+                if event['type'] == 'status':
+                    # Request-scoped UI projection only. Provider deltas, source,
+                    # translations and user-derived titles stay byte-for-byte.
+                    event = {**event, 'text': translate_ui_message(event['text'])}
                 yield 'data: ' + json.dumps(event, ensure_ascii=False) + '\n\n'
         finally:
             stopped.set()

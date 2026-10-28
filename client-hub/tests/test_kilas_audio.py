@@ -347,7 +347,7 @@ class AudioTests(unittest.TestCase):
         for locale in ('id','en','es','zh'):
             self.client.set_cookie('kilas_language',locale)
             html=self.client.get(f'/kilas-translator/jobs/{ident}').text
-            self.assertIn('Download WAV',html);self.assertIn('download=1',html);self.assertIn('format=wav',html)
+            self.assertIn({'id':'Unduh','en':'Download','es':'Descargar','zh':'下载'}[locale]+' WAV',html);self.assertIn('download=1',html);self.assertIn('format=wav',html)
             for helper in ('WAV dikonversi','WAV is converted','WAV se convierte','WAV 从'):
                 self.assertNotIn(helper,html)
         f.db.execute('UPDATE kilas_audio_balances SET seconds=0 WHERE user_id=?',(self.user,))
@@ -531,7 +531,7 @@ class AudioTests(unittest.TestCase):
         self.assertIsNone(store.payload(self.user,ident)['source_content'])
         self.assertEqual(job['seconds_charged'],math.ceil(job['source_ms']/1000))
         with patch.dict(os.environ,{'KILAS_AUDIO_UPLOAD_TRANSLATION_VISIBLE':'false'}):page=self.client.get(f'/kilas-translator/jobs/{ident}')
-        self.assertIn('<video controls',page.text);self.assertIn('Download MP4',page.text)
+        self.assertIn('<video controls',page.text);self.assertIn('Unduh MP4',page.text)
         self.assertNotIn('id="audio-file"',page.text);self.assertIn('data-active-mode="voiceover"',page.text)
         self.assertNotIn('Video tetap berupa MP4',page.text);self.assertNotIn('video hanya diproses track audionya',page.text)
         downloaded=self.client.get(f'/kilas-translator/jobs/{ident}/result?download=1')
@@ -569,7 +569,7 @@ class AudioTests(unittest.TestCase):
             self.client.get(f'/kilas-translator/jobs/{ident}/status')
             poll.assert_called_once_with('dubbing123');result.assert_called_once_with('dubbing123','en');paid.assert_not_called()
         self.assertEqual(store.get(self.user,ident)['source_language'],'id')
-        self.assertIn('Translation complete',self.client.get(r.json['url']).text)
+        self.assertIn('Terjemahan selesai',self.client.get(r.json['url']).text)
         output=self.client.get(f'/kilas-translator/jobs/{ident}/result?download=1')
         self.assertEqual(output.mimetype,'audio/mpeg');self.assertIn('attachment',output.headers['Content-Disposition'])
         self.assertGreater(media.mp3_duration(output.data),0)

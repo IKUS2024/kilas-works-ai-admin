@@ -2,7 +2,7 @@ name: Kilas Copilot release smoke
 on:
   push:
     branches: [main]
-    paths: ['client-hub/kilas_ai/copilot.py', 'client-hub/static/kilas_copilot*', 'client-hub/templates/kilas_ai/copilot.html', '.github/workflows/kilas-copilot-release-smoke.yml']
+    paths: ['client-hub/kilas_ai/copilot.py', 'client-hub/kilas_ai/copilot_routes.py', 'client-hub/locales/**', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/kilas_translator/**', 'client-hub/static/kilas_live_translator.mjs', 'client-hub/static/kilas_copilot*', 'client-hub/templates/kilas_ai/copilot.html', '.github/workflows/kilas-copilot-release-smoke.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,9 +17,9 @@ jobs:
       - name: Wait for released asset and verify public health and auth boundaries
         shell: python
         run: |
-          import hashlib, json, pathlib, time, urllib.request
+          import hashlib, json, pathlib, re, time, urllib.request
           origin='https://kilas-works-client-hub.onrender.com'
-          expected={name:pathlib.Path('client-hub/static',name).read_bytes() for name in ('kilas_copilot.mjs','kilas_copilot_capture.mjs','kilas_copilot.css','kilas_copilot_policy.sha256')}
+          expected={name:pathlib.Path('client-hub/static',name).read_bytes() for name in ('kilas_copilot.mjs','kilas_copilot_capture.mjs','kilas_copilot.css','kilas_copilot_policy.sha256','kilas_live_translator.mjs')}
           for attempt in range(100):
               try:
                   released={}
@@ -42,4 +42,18 @@ jobs:
                   assert '/login' in response.url or '/sign' in response.url,(path,response.url)
                   assert b'id="copilot"' not in response.read(),path
                   print('Unauthenticated boundary:',path,response.status,response.url)
+          catalog=json.loads(pathlib.Path('client-hub/locales/ui.json').read_text())
+          english=json.loads(pathlib.Path('client-hub/locales/ui_en.json').read_text())
+          for locale in ('en','id'):
+              request=urllib.request.Request(origin+'/login',headers={'Cookie':'kilas_language='+locale})
+              with urllib.request.urlopen(request,timeout=30) as response:
+                  page=response.read().decode('utf-8')
+              assert '<html lang="'+locale+'">' in page,locale
+              found=re.search(r'<script[^>]+id="kw-ui-translations"[^>]*>(.*?)</script>',page,re.S)
+              assert found,'Missing public UI catalog'
+              messages=json.loads(found.group(1))
+              for key in ('Dengarkan','Mikrofon mati','Record Script','Tampilkan terjemahan'):
+                  expected_copy=english.get(key,catalog.get(key,{}).get('en',key)) if locale=='en' else catalog.get(key,{}).get(locale,key)
+                  assert messages.get(key,key)==expected_copy,(locale,key)
+              print('Public UI catalog:',locale,'PASS; no authentication or generation')
           print('PASS: public read-only smoke; no authenticated session, mic or provider calls')

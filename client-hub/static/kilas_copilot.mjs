@@ -1,3 +1,4 @@
+import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {CopilotCapture,PcmBuffer} from './kilas_copilot_capture.mjs';
 
 export function wav(chunks) {
@@ -41,30 +42,30 @@ if(root){
   const styleButtons=[...root.querySelectorAll('[data-copilot-style]')];let textSize=22;
   let phase='idle',epoch=0,capture=null,chunks=[],sessionId=root.dataset.sessionId,operation=null,controller=null,timer=null,partial=null;
   const messages={
-    silence:'Tidak terdengar ucapan. Dekatkan mikrofon ke speaker, lalu rekam lagi.',
-    unclear_audio:'Ucapan belum jelas. Rekam ulang bagian yang ingin dijawab.',
-    permission:'Izin mikrofon ditolak. Izinkan mikrofon melalui pengaturan browser, lalu tekan lagi.',
-    microphone:'Mikrofon tidak tersedia. Periksa perangkat dan izin browser, lalu coba lagi.',
-    provider_unavailable:'Copilot belum tersedia. Minta pengelola memeriksa konfigurasi OpenAI.',
-    capacity_unavailable:'Kapasitas akun belum tersedia atau masih ada proses aktif. Periksa Credits & Usage, lalu coba lagi.',
-    cancelled:'Proses dibatalkan. Tekan mikrofon untuk memulai rekaman baru.',
-    incomplete_stream:'Jawaban terputus dan belum disimpan. Tekan mikrofon untuk mencoba rekaman baru.',
-    incomplete_translation:'Terjemahan terputus. Hasil belum disimpan; mulai rekaman baru untuk mencoba lagi.',
-    operation_already_submitted:'Rekaman ini sudah dikirim. Buka ulang sesi untuk memeriksa hasilnya; tidak dikirim ulang otomatis.',
-    operation_busy:'Masih ada proses aktif di sesi ini. Tunggu atau batalkan proses sebelumnya.',
-    network:'Koneksi terputus. Hasil belum terkonfirmasi; buka ulang sesi sebelum mencoba rekaman baru.',
-    server_busy:'Server masih memproses permintaan lain. Tunggu sebentar, lalu mulai rekaman baru.',
+    silence:t('Tidak terdengar ucapan. Dekatkan mikrofon ke speaker, lalu rekam lagi.'),
+    unclear_audio:t('Ucapan belum jelas. Rekam ulang bagian yang ingin dijawab.'),
+    permission:t('Izin mikrofon ditolak. Izinkan mikrofon melalui pengaturan browser, lalu tekan lagi.'),
+    microphone:t('Mikrofon tidak tersedia. Periksa perangkat dan izin browser, lalu coba lagi.'),
+    provider_unavailable:t('Copilot belum tersedia. Minta pengelola memeriksa konfigurasi OpenAI.'),
+    capacity_unavailable:t('Kapasitas akun belum tersedia atau masih ada proses aktif. Periksa Credits & Usage, lalu coba lagi.'),
+    cancelled:t('Proses dibatalkan. Tekan mikrofon untuk memulai rekaman baru.'),
+    incomplete_stream:t('Jawaban terputus dan belum disimpan. Tekan mikrofon untuk mencoba rekaman baru.'),
+    incomplete_translation:t('Terjemahan terputus. Hasil belum disimpan; mulai rekaman baru untuk mencoba lagi.'),
+    operation_already_submitted:t('Rekaman ini sudah dikirim. Buka ulang sesi untuk memeriksa hasilnya; tidak dikirim ulang otomatis.'),
+    operation_busy:t('Masih ada proses aktif di sesi ini. Tunggu atau batalkan proses sebelumnya.'),
+    network:t('Koneksi terputus. Hasil belum terkonfirmasi; buka ulang sesi sebelum mencoba rekaman baru.'),
+    server_busy:t('Server masih memproses permintaan lain. Tunggu sebentar, lalu mulai rekaman baru.'),
   };
-  function notice(code){error.textContent=messages[code]||'Pemrosesan gagal. Periksa koneksi lalu mulai rekaman baru.';error.hidden=false;}
+  function notice(code){error.textContent=messages[code]||t('Pemrosesan gagal. Periksa koneksi lalu mulai rekaman baru.');error.hidden=false;}
   function setPhase(next){
     phase=next;root.dataset.state=next;
     root.dataset.view=['stopping','processing','streaming'].includes(next)||(next==='idle'&&turns.length)?'results':'capture';
     const busy=['requesting','stopping','processing','streaming'].includes(next);
-    const label=next==='requesting'?'Menghubungkan mikrofon':busy?'Memproses rekaman':next==='listening'?'Berhenti dan proses jawaban':next==='captured'?'Proses rekaman':'Mulai mendengarkan';
+    const label=next==='requesting'?t('Menghubungkan mikrofon'):busy?t('Memproses rekaman'):next==='listening'?t('Berhenti dan proses jawaban'):next==='captured'?t('Proses rekaman'):t('Mulai mendengarkan');
     for(const button of [mic,trigger]){button.disabled=busy;button.setAttribute('aria-pressed',String(next==='listening'));button.setAttribute('aria-label',label);}
-    state.textContent=({idle:'Mikrofon mati',requesting:'Menghubungkan mikrofon…',listening:'Mendengarkan…',stopping:'Menyiapkan rekaman…',captured:'Rekaman selesai · mikrofon mati',processing:'Memproses…',streaming:'Menyiapkan saran jawaban…'})[next];
-    action.textContent=next==='listening'?'Ketuk untuk proses':next==='captured'?'Proses rekaman':busy?'Mohon tunggu…':turns.length?'Dengarkan lagi':'Dengarkan';
-    trigger.textContent=next==='listening'?'Berhenti & proses':next==='captured'?'Proses rekaman':busy?'Mohon tunggu…':turns.length?'Dengarkan lagi':'Dengarkan';
+    state.textContent=({idle:t('Mikrofon mati'),requesting:t('Menghubungkan mikrofon…'),listening:t('Mendengarkan…'),stopping:t('Menyiapkan rekaman…'),captured:t('Rekaman selesai · mikrofon mati'),processing:t('Memproses…'),streaming:t('Menyiapkan saran jawaban…')})[next];
+    action.textContent=next==='listening'?t('Ketuk untuk proses'):next==='captured'?t('Proses rekaman'):busy?t('Mohon tunggu…'):turns.length?t('Dengarkan lagi'):t('Dengarkan');
+    trigger.textContent=next==='listening'?t('Berhenti & proses'):next==='captured'?t('Proses rekaman'):busy?t('Mohon tunggu…'):turns.length?t('Dengarkan lagi'):t('Dengarkan');
     cancel.hidden=next==='idle';
     for(const el of [translate,target,style])el.disabled=next!=='idle';
     styleButtons.forEach(button=>button.disabled=next!=='idle');$('wave').hidden=next!=='listening';
@@ -80,20 +81,20 @@ if(root){
       const article=document.createElement('article');article.className='copilot-turn';
       if(translate.checked){
         const source=document.createElement('section');source.className='copilot-source-card';
-        paragraph(source,'copilot-source','Ucapan yang didengar',turn.source);
-        paragraph(source,'copilot-source-translation','Terjemahan ucapan',turn.source_translation||'Terjemahan belum dibuat untuk rekaman ini.');article.append(source);
+        paragraph(source,'copilot-source',t('Ucapan yang didengar'),turn.source);
+        paragraph(source,'copilot-source-translation',t('Terjemahan ucapan'),turn.source_translation||t('Terjemahan belum dibuat untuk rekaman ini.'));article.append(source);
       }
       const answer=document.createElement('section');answer.className='copilot-answer-card';
-      paragraph(answer,'copilot-reply','Saran jawaban AI',turn.reply);
-      if(translate.checked)paragraph(answer,'copilot-reply-translation','Terjemahan · '+([...target.options].find(option=>option.value===turn.target)?.textContent||''),turn.reply_translation||'Terjemahan belum dibuat untuk rekaman ini.');
-      const copy=document.createElement('button');copy.type='button';copy.className='copilot-copy';copy.textContent='Salin jawaban';
+      paragraph(answer,'copilot-reply',t('Saran jawaban AI'),turn.reply);
+      if(translate.checked)paragraph(answer,'copilot-reply-translation',t('Terjemahan · {language}',{language:([...target.options].find(option=>option.value===turn.target)?.textContent||'')}),turn.reply_translation||t('Terjemahan belum dibuat untuk rekaman ini.'));
+      const copy=document.createElement('button');copy.type='button';copy.className='copilot-copy';copy.textContent=t('Salin jawaban');
       copy.addEventListener('click',async()=>{
-        try{await navigator.clipboard.writeText(turn.reply);copy.textContent='Tersalin';setTimeout(()=>copy.textContent='Salin jawaban',1500);}
-        catch{notice('copy_failed');error.textContent='Belum dapat menyalin. Pilih teks jawaban lalu salin secara manual.';}
+        try{await navigator.clipboard.writeText(turn.reply);copy.textContent=t('Tersalin');setTimeout(()=>copy.textContent=t('Salin jawaban'),1500);}
+        catch{notice('copy_failed');error.textContent=t('Belum dapat menyalin. Pilih teks jawaban lalu salin secara manual.');}
       });answer.append(copy);if(!index)answer.append(resultTools);article.append(answer);
       if(!index)container.append(article);
       else{
-        if(!previous){previous=document.createElement('details');previous.className='copilot-previous';const summary=document.createElement('summary');summary.textContent='Jawaban sebelumnya ('+(turns.length-1)+')';previous.append(summary);container.append(previous);}
+        if(!previous){previous=document.createElement('details');previous.className='copilot-previous';const summary=document.createElement('summary');summary.textContent=t('Jawaban sebelumnya ({count})',{count:turns.length-1});previous.append(summary);container.append(previous);}
         previous.append(article);
       }
     });
@@ -154,7 +155,7 @@ if(root){
       timer=setTimeout(async()=>{
         if(phase!=='listening')return;setPhase('stopping');
         try{await capture.finish();if(mine!==epoch)return;release();setPhase('captured');
-          notice('limit');error.textContent='Batas 60 detik tercapai. Tekan mikrofon untuk memproses atau Batalkan untuk merekam ulang.';
+          notice('limit');error.textContent=t('Batas 60 detik tercapai. Tekan mikrofon untuk memproses atau Batalkan untuk merekam ulang.');
         }catch{if(mine===epoch)reset('microphone');}
       },60000);
     }catch(e){
@@ -194,7 +195,7 @@ if(root){
         if(event.type==='status')state.textContent=event.text;
         if(event.type==='delta'){
           setPhase('streaming');
-          if(!partial){partial=document.createElement('article');partial.className='copilot-turn is-partial';partial.setAttribute('aria-label','Saran AI sedang diproses');const card=document.createElement('section');card.className='copilot-answer-card';paragraph(card,'copilot-reply','Saran jawaban AI · belum selesai','');card.append(resultTools);partial.append(card);$('turns').prepend(partial);resultTools.hidden=false;}
+          if(!partial){partial=document.createElement('article');partial.className='copilot-turn is-partial';partial.setAttribute('aria-label',t('Saran AI sedang diproses'));const card=document.createElement('section');card.className='copilot-answer-card';paragraph(card,'copilot-reply',t('Saran jawaban AI · belum selesai'),'');card.append(resultTools);partial.append(card);$('turns').prepend(partial);resultTools.hidden=false;}
           partial.querySelector('.copilot-reply').textContent+=event.text;
         }
         if(event.type==='complete'){
@@ -206,10 +207,10 @@ if(root){
             link.textContent=event.title||event.turn.source.slice(0,68);link.title=link.textContent;link.setAttribute('aria-current','page');list.prepend(link);
             list.querySelector('.ai-sidebar-empty')?.remove();
           }
-          state.textContent='Jawaban siap';
+          state.textContent=t('Jawaban siap');
         }
       });
-      if(mine===epoch){operation=null;controller=null;setPhase('idle');state.textContent='Jawaban siap';}
+      if(mine===epoch){operation=null;controller=null;setPhase('idle');state.textContent=t('Jawaban siap');}
     }catch(e){
       if(mine===epoch){cancelRequest();operation=null;partial?.remove();partial=null;draw();setPhase('idle');notice(e.message);}
     }finally{clearTimeout(timeout);}
