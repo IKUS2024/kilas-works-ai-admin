@@ -328,8 +328,10 @@ class CopilotTests(unittest.TestCase):
         for case in cases:
             self.assertNotEqual(case['good'], case['bad'])
             self.assertTrue(case['rubric'])
+            self.assertNotIn('[', case['good'])
+            self.assertNotIn('［', case['good'])
         for rule in ('Kilas Works', 'Answer the actual question directly', 'NOT confirmed',
-                     'editable placeholder in the conversation language', 'Ask one focused clarification only',
+                     'Do not put bracket templates', 'Ask one focused clarification only',
                      'mixed language', 'short ambiguous utterance', 'OpenAI', 'Preserve legitimate mentions of ChatGPT',
                      'plain spoken text', 'Santai means', 'profesional means'):
             self.assertIn(rule, copilot.SYSTEM)
@@ -387,6 +389,26 @@ class CopilotTests(unittest.TestCase):
         self.assertIn('id="premium-sidebar"', copilot_page)
         self.assertIn('Creative Services', copilot_page)
         self.assertIn('Finance', copilot_page)
+
+    def test_enabled_audio_routes_remain_enabled_without_provider_generation(self):
+        from kilas_ai import audio_provider, audio_branded_voices, live_translator, live_gemini, translator_languages
+        # Real disposable balance, unchanged route/entitlement checks. Read-only
+        # render with provider capabilities mocked; forbid generation entirely.
+        db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,?)', (self.owner, 60))
+        voices = [{'alias': 'kilas-male', 'name': 'Kilas Male', 'style': 'Natural'}]
+        with patch.object(audio_provider, 'configured', return_value=True), patch.object(audio_provider, 'request', side_effect=AssertionError('Provider generation forbidden')), patch.object(audio_branded_voices, 'public_choices', return_value=voices), patch.object(live_translator, 'ready', return_value=True), patch.object(live_gemini, 'ready', return_value=False), patch.object(translator_languages, 'classic_names', return_value={'id': 'Bahasa Indonesia', 'en': 'English'}):
+            voice = self.client.get('/kilas-translator?mode=voiceover')
+            self.assertEqual(voice.status_code, 200)
+            self.assertRegex(voice.text, r'id="voice-generate"[^>]*data-enabled="true"')
+            self.assertNotIn('class="audio-notice"', voice.text)
+            self.assertIn('id="audio-history"', voice.text)
+            live = self.client.get('/kilas-translator/live?classic=1')
+            self.assertEqual(live.status_code, 200)
+            self.assertIn('data-ready="true"', live.text)
+            self.assertIn('data-enabled="true"', live.text)
+            self.assertNotIn('id="premium-sidebar"', live.text)
+        from kilas_ai import audio_store
+        self.assertEqual(audio_store.balance(self.owner)['seconds'], 60)
 
 
 if __name__ == '__main__':
