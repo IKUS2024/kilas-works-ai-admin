@@ -33,7 +33,7 @@ export async function readEvents(response, receive) {
 
 const root=globalThis.document?.querySelector('#copilot');
 if(root){
-  const $=id=>document.getElementById('copilot-'+id), mic=$('mic'),state=$('state'),action=$('action'),error=$('error');
+  const $=id=>document.getElementById('copilot-'+id), mic=$('mic'),trigger=$('trigger'),state=$('state'),action=$('action'),error=$('error');
   const translate=$('translate'),target=$('target'),style=$('style'),cancel=$('cancel');
   const csrf=$('csrf').value, turns=JSON.parse($('initial').textContent);
   const resultTools=root.querySelector('.copilot-result-tools');
@@ -59,10 +59,11 @@ if(root){
     phase=next;root.dataset.state=next;
     root.dataset.view=['stopping','processing','streaming'].includes(next)||(next==='idle'&&turns.length)?'results':'capture';
     const busy=['requesting','stopping','processing','streaming'].includes(next);
-    mic.disabled=busy;mic.setAttribute('aria-pressed',String(next==='listening'));
-    mic.setAttribute('aria-label',next==='listening'?'Berhenti dan proses jawaban':next==='captured'?'Proses rekaman':'Mulai mendengarkan');
+    const label=next==='requesting'?'Menghubungkan mikrofon':busy?'Memproses rekaman':next==='listening'?'Berhenti dan proses jawaban':next==='captured'?'Proses rekaman':'Mulai mendengarkan';
+    for(const button of [mic,trigger]){button.disabled=busy;button.setAttribute('aria-pressed',String(next==='listening'));button.setAttribute('aria-label',label);}
     state.textContent=({idle:'Mikrofon mati',requesting:'Menghubungkan mikrofon…',listening:'Mendengarkan…',stopping:'Menyiapkan rekaman…',captured:'Rekaman selesai · mikrofon mati',processing:'Memproses…',streaming:'Menyiapkan saran jawaban…'})[next];
     action.textContent=next==='listening'?'Ketuk untuk proses':next==='captured'?'Proses rekaman':busy?'Mohon tunggu…':turns.length?'Dengarkan lagi':'Dengarkan';
+    trigger.textContent=next==='listening'?'Berhenti & proses':next==='captured'?'Proses rekaman':busy?'Mohon tunggu…':turns.length?'Dengarkan lagi':'Dengarkan';
     cancel.hidden=next==='idle';
     for(const el of [translate,target,style])el.disabled=next!=='idle';
     styleButtons.forEach(button=>button.disabled=next!=='idle');$('wave').hidden=next!=='listening';
@@ -215,7 +216,9 @@ if(root){
       if(mine===epoch){cancelRequest();operation=null;partial?.remove();partial=null;draw();setPhase('idle');notice(e.message);}
     }finally{clearTimeout(timeout);}
   }
-  mic.addEventListener('click',()=>{if(phase==='idle')begin();else if(['listening','captured'].includes(phase))process();});
+  // Both reference controls share one state guard and recording operation.
+  function captureAction(){if(phase==='idle')begin();else if(['listening','captured'].includes(phase))process();}
+  mic.addEventListener('click',captureAction);trigger.addEventListener('click',captureAction);
   cancel.addEventListener('click',()=>reset('cancelled'));
   window.addEventListener('beforeunload',()=>reset(null,true));
   window.addEventListener('pagehide',()=>reset(null,true));
