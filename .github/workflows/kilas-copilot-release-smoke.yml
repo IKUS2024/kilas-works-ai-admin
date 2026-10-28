@@ -2,7 +2,7 @@ name: Kilas Copilot release smoke
 on:
   push:
     branches: [main]
-    paths: ['client-hub/static/kilas_copilot.mjs', '.github/workflows/kilas-copilot-release-smoke.yml']
+    paths: ['client-hub/static/kilas_copilot.mjs', 'client-hub/static/kilas_copilot.css', 'client-hub/templates/kilas_ai/copilot.html', '.github/workflows/kilas-copilot-release-smoke.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,17 +19,20 @@ jobs:
         run: |
           import hashlib, json, pathlib, time, urllib.request
           origin='https://kilas-works-client-hub.onrender.com'
-          expected=pathlib.Path('client-hub/static/kilas_copilot.mjs').read_bytes()
+          expected={name:pathlib.Path('client-hub/static',name).read_bytes() for name in ('kilas_copilot.mjs','kilas_copilot.css')}
           for attempt in range(100):
               try:
-                  with urllib.request.urlopen(origin+'/static/kilas_copilot.mjs',timeout=20) as response:
-                      released=response.read()
+                  released={}
+                  for name in expected:
+                      with urllib.request.urlopen(origin+'/static/'+name,timeout=20) as response:
+                          released[name]=response.read()
                   if released==expected: break
               except Exception as error:
                   print('Waiting for release:',type(error).__name__,flush=True)
               time.sleep(10)
           else: raise AssertionError('Released asset does not match checked-out commit')
-          print('Released Copilot asset SHA256:',hashlib.sha256(released).hexdigest())
+          for name,data in released.items():
+              print('Released Copilot asset:',name,'SHA256:',hashlib.sha256(data).hexdigest())
           with urllib.request.urlopen(origin+'/healthz',timeout=30) as response:
               health=json.load(response)
               assert response.status==200 and health['status']=='ok',health

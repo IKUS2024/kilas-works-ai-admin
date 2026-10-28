@@ -4,10 +4,11 @@ body.premium-workspace:has(#copilot)>.wrap{max-width:none;width:100%;margin:0!im
 #copilot{color:var(--copilot-ink);font-family:Manrope,system-ui,sans-serif;--copilot-text-size:22px}
 #copilot [hidden]{display:none!important}
 .copilot-main{max-width:640px;margin:0 auto}
+#copilot .copilot-task-nav{max-width:640px}
 .copilot-main>header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 12px;min-height:44px}
 .copilot-main h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.025em;line-height:1.25;color:var(--copilot-ink)}
 .copilot-main p{line-height:1.6}
-.copilot-setup{max-width:580px;margin:0 auto}
+.copilot-setup{margin:0 auto}
 .copilot-translation-row{display:flex;align-items:center;gap:12px;min-height:46px;padding:0 12px;border:1px solid #e1e4e9;border-radius:10px;box-sizing:border-box;background:white}
 .copilot-translation{display:flex;align-items:center;gap:16px;flex:1;margin:0!important;font-size:14px;font-weight:600;min-height:44px;white-space:nowrap}
 .copilot-translation input{appearance:none;display:inline-block;width:44px;height:26px;min-height:26px!important;max-height:26px;flex:0 0 44px;border:0!important;border-radius:20px;background:#687387;position:relative;cursor:pointer;margin:0 0 0 auto;padding:0!important}
@@ -20,6 +21,16 @@ body.premium-workspace:has(#copilot)>.wrap{max-width:none;width:100%;margin:0!im
 .copilot-styles button{min-height:44px;padding:6px 16px;border:1px solid #e1e4e9;border-radius:9px;background:#fff;color:var(--copilot-muted);font:600 13px Manrope,system-ui,sans-serif;cursor:pointer}
 .copilot-styles button[aria-pressed=true]{border-color:#efb38b;background:#fff1e7;color:#ad420a}
 .copilot-capture{text-align:center;padding:24px 0 12px}
+/* One focused listening surface. Idle rings are static decoration, never a
+   recording indicator; only the actual capture state reveals the waveform. */
+#copilot[data-view=capture] .copilot-capture{margin:16px 0 0;padding:44px 24px 28px;min-height:352px;box-sizing:border-box;border:1px solid #f1dfd1;border-radius:16px;background:#fff8f2;box-shadow:0 10px 28px #482b1510}
+#copilot[data-view=capture] .copilot-mic-row{position:relative;padding-top:44px}
+#copilot[data-view=capture] #copilot-mic{position:relative;isolation:isolate;width:88px;height:88px;box-shadow:0 8px 18px #b3441026}
+#copilot[data-view=capture] #copilot-mic::before,#copilot[data-view=capture] #copilot-mic::after{content:'';position:absolute;pointer-events:none;border:1px solid #edcfb9;border-radius:50%;inset:-18px}
+#copilot[data-view=capture] #copilot-mic::after{inset:-36px;border-color:#f0dfd2}
+#copilot[data-view=capture] #copilot-action{margin-top:54px;font-size:19px;font-weight:650;letter-spacing:-.02em}
+#copilot[data-view=capture] #copilot-guidance{color:#775b49;margin-top:18px}
+#copilot[data-state=listening] .copilot-capture{background:#fff4eb;border-color:#edc9af}
 #copilot-state{color:var(--copilot-muted);font-size:14px;margin:0 0 12px;min-height:22px}
 #copilot-mic{display:grid;place-items:center;flex:none;width:88px;height:88px;border-radius:50%;border:0;background:var(--copilot-orange);color:white;margin:auto;cursor:pointer;box-shadow:none;transition:background .15s ease}
 #copilot-mic:hover{background:#d95511}
@@ -74,6 +85,7 @@ body.premium-workspace:has(#copilot)>.wrap{max-width:none;width:100%;margin:0!im
  #copilot-target{width:100%}
  .copilot-styles{margin:8px 0 0}
  .copilot-capture{padding-top:24px}
+ #copilot[data-view=capture] .copilot-capture{min-height:320px;padding:28px 18px 24px}
  #copilot-mic{width:80px;height:80px}
  #copilot-mic svg{width:32px;height:32px}
  .copilot-source-card,.copilot-answer-card{padding:18px}
