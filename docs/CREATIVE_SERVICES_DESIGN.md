@@ -1,30 +1,39 @@
 ---
-name: Kilas Works Creative Services studio
-description: Scoped editorial studio surface for event and social media services.
+name: Kilas Works Creative Services photo studio
+description: Scoped implemented design record for the approved image-led Creative Services surface.
 colors:
+  paper: "#faf8f2"
   ink: "#20262a"
   muted: "#596167"
   orange: "#b83d12"
+  action: "#c8460c"
+  action-hover: "#a93608"
+  dark: "#141e22"
+  surface: "#fffefa"
+  border: "#e1e2db"
   line: "#d8dddf"
-  paper: "#fafaf8"
-  action-text: "#fff"
-  action-hover: "#37444b"
-  inverse-muted: "#c6cdce"
-  inverse-accent: "#ffb591"
-  package-border: "#b4bdc0"
+  white: "#fff"
+  inverse-muted: "#c8d1d0"
+  inverse-focus: "#ffb591"
   field-border: "#bfc2c6"
   field-ink: "#202329"
   field-focus: "#bd4700"
 typography:
   display:
     fontFamily: "Manrope, system-ui, sans-serif"
-    fontSize: "clamp(48px, 6.7vw, 92px)"
-    fontWeight: 650
+    fontSize: "clamp(38px, 3.8vw, 58px)"
+    fontWeight: 750
     lineHeight: 1.08
     letterSpacing: "-0.04em"
   headline:
     fontFamily: "Manrope, system-ui, sans-serif"
-    fontSize: "clamp(34px, 4.3vw, 58px)"
+    fontSize: "clamp(30px, 3.05vw, 43px)"
+    fontWeight: 750
+    lineHeight: 1.1
+    letterSpacing: "-0.035em"
+  title:
+    fontFamily: "Manrope, system-ui, sans-serif"
+    fontSize: "25px"
     fontWeight: 750
     lineHeight: 1.15
     letterSpacing: "-0.035em"
@@ -35,105 +44,134 @@ typography:
     lineHeight: 1.65
 rounded:
   action: "6px"
-  field: "8px"
+  image: "8px"
+  mosaic: "10px"
+  card: "12px"
+  tag: "20px"
 spacing:
-  mobile-gutter: "20px"
-  compact-gutter: "28px"
+  tight: "8px"
+  card-inset: "10px"
+  compact: "12px"
+  service-gap: "18px"
+  package-gap: "20px"
+  medium: "24px"
+  hero-gap: "32px"
+  section-gap: "36px"
   desktop-gutter: "48px"
-  column-gap: "36px"
-  section: "64px"
 components:
   button-primary:
-    backgroundColor: "{colors.ink}"
-    textColor: "{colors.action-text}"
+    backgroundColor: "{colors.action}"
+    textColor: "{colors.white}"
     rounded: "{rounded.action}"
-    padding: "14px 22px"
+    padding: "12px 18px"
   button-primary-hover:
     backgroundColor: "{colors.action-hover}"
-  package-action:
+  button-outline:
+    backgroundColor: "transparent"
     textColor: "{colors.ink}"
     rounded: "{rounded.action}"
-    padding: "12px 16px"
+    padding: "12px 18px"
+  service-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.card}"
+    padding: "{spacing.card-inset}"
+  package-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.card}"
+    padding: "25px"
   field:
-    backgroundColor: "{colors.action-text}"
+    backgroundColor: "{colors.white}"
     textColor: "{colors.field-ink}"
-    rounded: "{rounded.field}"
-    padding: "11px 12px"
+    rounded: "{rounded.action}"
+    padding: "9px 10px"
 ---
 
-# Design System: Creative Services studio
+# Design System: Creative Services photo studio
 
 ## Overview
 
 **Creative North Star: "Kilas Creative Studio"**
 
-This scoped source-derived record captures Manrope display typography, quiet off-white, charcoal text and burnt-orange emphasis. It applies only to `creative-services-site/` and its generated application copy. The root `DESIGN.md` remains authoritative for the customer workspace and Finance. Home, chat, VO, Translator, Credits and Finance retain their existing systems.
+This record describes the implemented, user-approved composition: warm paper, closely tracked Manrope, orange actions, rounded photographic crops and a dark portfolio band. The generated service images are visibly disclosed illustrations. This applies only to `creative-services-site/` and its deterministic Client Hub copy; root `DESIGN.md`, `PRODUCT.md`, Assist, Finance and other application screens retain their existing authority.
 
-Sources: `creative-services-site/assets/editorial.css` and retained `assets/brief.css`. The approved composition and task-specific imagery restrictions remain in `.impeccable/surfaces/creative-services-studio.md`.
+Source authority is the cascade in `creative-services-site/index.html`: `assets/editorial.css`, then `assets/brief.css`, then `assets/studio-photo.css`. Frontmatter records reused values after those overrides. The October 31 approval supersedes the former no-new-raster rule for this surface only. See the [direction contract](../.impeccable/surfaces/creative-services-studio.md) and [release checkpoint](KILAS_CREATIVE_STUDIO_20261031.md).
 
 **Key Characteristics:**
 
-- Large, closely tracked Manrope headings.
-- Open ruled service and package comparisons.
-- Quiet paper canvas with a charcoal portfolio band.
-- Visible focus and explicit editable contact preparation.
+- Two-line headline beside a three-region image mosaic on desktop.
+- Two visual service choices and six complete package cards.
+- Warm paper, quiet borders and an inverse portfolio/footer band.
+- Bilingual content and an editable enquiry with explicit WhatsApp opening.
 
 ## Colors
 
 ### Primary
 
-Orange emphasizes the studio headline, service hover text and feature checks. Ink fills the main action with white text; action-hover supplies feedback.
+Action orange fills the consultation and prepare-message controls; its deeper hover color provides feedback. Editorial orange remains the headline accent, service hover emphasis, feature checks and general keyboard outline. These roles are distinct in the current cascade.
 
 ### Neutral
 
-Paper is the canvas; ink carries headings, muted carries explanation, and line separates sections. The portfolio band reverses paper against ink, with inverse-muted explanation and inverse-accent hover/focus. Package and field borders distinguish controls without enclosing every service in a card.
+Paper is the canvas and sticky-header background. Ink carries headings; muted carries explanation. Surface and border distinguish service/package cards; line separates quieter content. Dark grounds the portfolio and footer with surface/white text, inverse-muted explanation and inverse-focus outlines. Fields retain dedicated stroke, ink and focus colors.
 
-**The Scoped Palette Rule.** Studio colors apply only to this standalone surface and its generated copy; retain the workspace and Finance palettes.
+**The Scoped Palette Rule.** Load this palette only with Creative Services and its generated copy; preserve shared application colors.
 
 ## Typography
 
-Manrope is self-hosted with system sans fallbacks, variable weights 200-800 and `font-display: swap`. The font is copied byte-for-byte from `client-hub/static/fonts`; its original license text is retained with LF line-ending normalization. Inter is declared but is not the active body/display family.
+Manrope is self-hosted with system sans fallbacks, variable weights (200–800) and `font-display: swap`. Inter is declared but is not the active body/display family. Existing font assets and licensing remain authoritative.
 
-Display and headline roles are recorded above. Service titles use `clamp(30px, 3vw, 42px)` at 650; package titles use 23px/650. Prices use `clamp(25px, 2.6vw, 37px)` at 650 with tabular numerals. Intro copy uses 18px/1.6. General paragraph measure is 65ch, service descriptions 40ch. Metadata is 11-13px.
+The desktop display, service-introduction headline, service title and body roles are recorded above. Hero description uses (17px/1.55) with a (36ch) measure. Service-card explanation uses (13px/1.55). Package titles retain (23px/650); prices use `clamp(25px, 2.4vw, 35px)` at (650) with tabular numerals. Portfolio/contact headings use (29px/700). Package details retain (14px).
 
-At 600px and below, display becomes `clamp(36px, 9vw, 52px)` with line-height 1.12; category headings and prices become 34px, service titles 32px, and intro copy 16px. The separately loaded brief stylesheet retains 15px field text.
+At (1100px) and below the hero becomes `clamp(35px, 4.4vw, 48px)`; at (700px) it becomes `clamp(30px, 8.6vw, 42px)` with (1.1) line-height. Phone service titles become (21px), prices (34px), and form text (16px). Small disclosures and footer metadata are current implementation details, not a reusable body-text scale.
 
 ## Layout
 
-Content is centered at a maximum 1248px width with 48px gutters, reducing to 28px at 1000px and 20px at 600px. The opaque sticky header has a minimum height of 88px; phone navigation wraps with a 76px minimum. Anchor offsets account for actual header height.
+Content is centered at maximum width (1280px), with desktop gutters (48px), then (28px) at the inherited (1000px) breakpoint. Phone gutters are (20px) at (700px), then (16px) below (359px). The desktop sticky header is a four-column grid with minimum height (76px).
 
-Service rows use `1fr 1.25fr auto`, become two columns at 1000px and one at 600px. Packages and add-ons use three equal columns and become ruled single-column phone stacks. Contact uses two columns with an 80px gap, then 40px, then one column with a 32px gap. Brief fields stack at 480px. The phone footer separates its copyright line and Home link in a column with a 12px gap.
+Desktop hero columns use `.9fr 1.25fr` and a (32px) gap. The mosaic uses `1.25fr .9fr`, two rows, an (8px) gap and height (346px); its first image spans both rows. At (1100px) hero columns equalize and mosaic height becomes (320px). Phones stack copy above the mosaic, with height (214px), then (190px) below (359px).
+
+Service introduction, portfolio and consultation use `.8fr 1.7fr` columns with a (36px) gap, tightened at (1100px). Service choices form two cards; at (700px) each becomes an image/text row with a (104px) image column, then (82px) below (359px). Packages use three columns with (20px) gaps and (25px) padding; phone cards stack with (22px) padding and (16px) gaps. Influencer add-ons retain a separate ruled comparison.
+
+Consultation has three form columns above (1100px), two below, and initially collapsed message review. Opening review spans the grid. JavaScript enables mobile menu disclosure; without JavaScript navigation remains visible and the unused menu button stays hidden. The existing navigation script adjusts anchor offsets against the header.
 
 ## Elevation & Depth
 
-No card shadows are used. Rules, spacing and the inverse portfolio band establish hierarchy. The sticky header uses paper and a bottom rule without blur.
+No card shadows are used. Rounded image crops, off-white cards, fine borders, spacing and the inverse band provide depth. The header uses opaque paper and a bottom rule. Service images scale to (1.035) on hover over (.45s) with `cubic-bezier(.16,1,.3,1)`; arrows retain a short diagonal translation. Reduced motion removes transitions and image enlargement.
 
 ## Shapes
 
-Actions and the logo presentation use the action radius; fields use the field radius. Packages remain open columns. Icons are inline stroked SVGs, normally 22px, with smaller navigation/check icons and larger portfolio arrows. Return arrows use SVG rather than font glyphs.
+Cards and category images share the card radius; mosaic images use a tighter curve. Image inserts, actions and fields use smaller radii recorded above. Outlined package pills are informational. Icons/arrows are inline stroked SVG; the review chevron uses CSS borders.
 
 ## Components
 
-### Actions and service rows
+### Actions and cards
 
-The primary action has a 50px minimum height. Package actions have a 48px minimum height, outlined package-border, and invert to ink/white on hover. General keyboard focus is a 3px orange outline with 5px offset; the portfolio band uses inverse-accent. The phone hero action fills available width up to 360px.
+Primary actions are orange/white. Outline actions retain transparent paper and ink, then invert to ink/white on hover. Package choices use orange borders and deeper-orange text, filling orange on hover. Desktop primary controls have minimum height (48px); mobile hero actions use (43px). General focus is a (3px) editorial-orange outline with (5px) offset; dark sections use inverse-focus. Field focus uses a (2px) outline with (3px) offset.
 
-Service rows are whole links. Hover accents title/action text and moves the arrow 3px right and 3px up over `.2s cubic-bezier(.16,1,.3,1)`. Reduced-motion preference disables transitions. Package choices align to column bottoms.
+Each service card is a complete link combining image, title, explanation, package tags and arrow. Package cards retain full prices, outputs, feature lists and bottom-aligned choices. Hover imagery and arrow motion supplement text and visible keyboard focus.
 
-### Navigation and language
+### Illustration mosaic and portfolio
 
-Header links have a 44px minimum height. ID/EN buttons expose `aria-pressed` and underline selection; height remains 44px while phone width reduces from 44px to 40px. The skip link appears on focus. Panel navigation moves focus into the active region and restores it to the service choice on return.
+Two supplied illustrations are reused through `object-fit: cover` crops: event production and food-content filming on a phone. Responsive WebP sources cover (640/960/1536px) widths. Explicit dimensions reserve space; the main hero image is eager/high-priority, while later service/category/portfolio images are lazy. Meaningful images have ID/EN alt text; redundant crops use empty alt text.
 
-### Brief fields
+**The Illustration Evidence Rule.** Retain visible illustration disclosures and the real `https://instagram.com/kilasworks` portfolio link. Generated images do not establish completed client work. The approved composition reference remains a design input, never a shipped background or page screenshot.
 
-The form is at most 560px wide with visible labels, white fields, field-border strokes, 44px minimum control height and vertically resizable textareas. Form focus uses a 2px field-focus outline with 3px offset. The editable message and explicit WhatsApp action retain user review before sending; visually disabled contact actions use opacity `.6`.
+### Navigation and editable enquiry
+
+Keep the existing identity, skip link and Home return. ID/EN controls expose `aria-pressed` and underline selection. Menu and panel navigation retain expanded state and focus handling. Category anchors preserve direct navigation.
+
+Date, location and needs fields prepare a draft. Native details review contains an editable textarea; preparation/package choice reveals it. Only the explicit WhatsApp action opens WhatsApp, where the customer still decides to send. Disabled contact state remains differentiated. No automatic message sending is introduced.
 
 ## Do's and Don'ts
 
-- **Do** preserve the existing logo asset and identity.
-- **Do** retain readable ruled comparisons and both service categories.
-- **Do** preserve package wording, prices, ID/EN behavior and editable contact review.
-- **Do** retain SVG arrows, keyboard focus and reduced-motion behavior.
-- **Don't** apply the studio system to workspace or Finance screens.
-- **Don't** present inherited third-party gallery images as Kilas Works portfolio evidence; link to the actual `@kilasworks` Instagram.
-- **Don't** introduce synthetic photography or new raster assets into this redesign.
+- **Do** preserve the existing identity, Manrope, warm paper and orange action hierarchy on this surface.
+- **Do** retain both services, all six package facts/prices, Influencer add-ons and ID/EN wording.
+- **Do** retain illustration disclosures, meaningful bilingual alt text and responsive local assets.
+- **Do** preserve visible keyboard focus, reduced motion and editable message review.
+- **Don't** apply this scoped system to Assist, Finance or shared application templates.
+- **Don't** present generated or archived third-party images as Kilas Works client portfolio evidence.
+- **Don't** ship the supplied composition reference as a page asset or background.
+- **Don't** turn draft preparation into automatic WhatsApp sending.
+
+Not canonized: decorative numbered section marks and small metadata/disclosures remain in the composition; they are not promoted into reusable heading/body guidance. This documentation pass makes no UI repairs or accessibility certification.

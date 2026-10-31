@@ -1,6 +1,9 @@
 """Same-origin Creative Services with real app guards, disposable accounts and no paid IO."""
 import hashlib
 import json
+import re
+from html import unescape
+from html.parser import HTMLParser
 from pathlib import Path
 import unittest
 import test_kilas_home as fixture
@@ -14,6 +17,63 @@ SOURCE = ROOT / 'creative-services-site'
 class CreativeServicesTests(unittest.TestCase):
     setUp = fixture.HomeTests.setUp
     client = fixture.HomeTests.client
+
+    def test_approved_offers_remain_unchanged(self):
+        expected = json.loads(Path(__file__).with_name('creative_services_offer_facts.json').read_text())
+        html = (SOURCE / 'index.html').read_text()
+        def plain(value):
+            return re.sub(r'\s+', ' ', unescape(re.sub(r'<[^>]+>', ' ', value))).strip()
+        cards = []
+        for match in re.finditer(r'<article class="cs-card(?: cs-premium)?">(.*?)</article>', html, re.S):
+            text = match[1]
+            def grab(pattern):
+                return [plain(value) for value in re.findall(pattern, text, re.S)]
+            cards.append(dict(name=grab(r'<h2>(.*?)</h2>')[0],
+                              price=grab(r'<p class="cs-price">(.*?)</p>')[0],
+                              outputs=grab(r'<p class="cs-output">(.*?)</p>'),
+                              features=grab(r'<li>(.*?)</li>')))
+        self.assertEqual(cards, expected['cards'])
+        self.assertEqual(re.findall(r'<span class="cs-addon-price">(.*?)</span>', html), expected['addon_prices'])
+        class Links(HTMLParser):
+            def __init__(self):
+                super().__init__(); self.services = []
+            def handle_starttag(self, tag, attrs):
+                item = dict(attrs)
+                if 'data-service-id' in item:
+                    self.services.append([item['data-service-id'], item['data-service-en']])
+        links = Links(); links.feed(html)
+        self.assertEqual(links.services, expected['service_ids'])
+
+    def test_responsive_illustrations_are_local_and_not_client_work(self):
+        html = (SOURCE / 'index.html').read_text()
+        self.assertIn('Foto di halaman ini adalah ilustrasi layanan.', html)
+        self.assertNotIn('reference.webp', html)
+        self.assertFalse((ROOT / 'creative-redesign-transfer-20261031.json').exists())
+        images = sorted((SOURCE / 'assets' / 'illustrations').glob('*'))
+        self.assertEqual(len(images), 6)
+        for image in images:
+            self.assertEqual(image.suffix, '.webp')
+            self.assertLess(image.stat().st_size, 200_000)
+            data = image.read_bytes()
+            self.assertEqual(data[:4], b'RIFF')
+            self.assertEqual(data[8:12], b'WEBP')
+        class Images(HTMLParser):
+            def __init__(self):
+                super().__init__(); self.items = []
+            def handle_starttag(self, tag, attrs):
+                item = dict(attrs)
+                if tag == 'img' and 'illustrations/' in item.get('src', ''):
+                    self.items.append(item)
+        parsed = Images(); parsed.feed(html)
+        self.assertGreaterEqual(len(parsed.items), 8)
+        self.assertEqual(sum(item.get('fetchpriority') == 'high' for item in parsed.items), 1)
+        for item in parsed.items:
+            self.assertIn('alt', item)
+            self.assertEqual((item['width'], item['height']), ('1536', '1024'))
+            self.assertIn('srcset', item)
+            self.assertIn('sizes', item)
+            self.assertIn(item['loading'], ('eager', 'lazy'))
+            self.assertTrue((SOURCE / item['src']).is_file())
 
     def test_generated_bundle_has_exact_source_bytes(self):
         paths = sorted(p.relative_to(SOURCE).as_posix() for p in SOURCE.rglob('*') if p.is_file())

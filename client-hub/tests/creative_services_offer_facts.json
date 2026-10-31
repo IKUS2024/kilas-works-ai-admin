@@ -1,0 +1,132 @@
+{
+  "cards": [
+    {
+      "name": "Basic",
+      "price": "Rp1.500.000",
+      "outputs": [
+        "Maksimal 50 foto pilihan klien yang diedit"
+      ],
+      "features": [
+        "1 fotografer",
+        "Durasi hingga 5 jam",
+        "Semua file foto asli",
+        "1 kali revisi editing"
+      ]
+    },
+    {
+      "name": "Standard",
+      "price": "Rp3.000.000",
+      "outputs": [
+        "Maksimal 50 foto pilihan klien yang diedit"
+      ],
+      "features": [
+        "1 fotografer + 1 videografer",
+        "Durasi hingga 8 jam",
+        "Semua file foto & video asli",
+        "Video Highlight Acara",
+        "1 kali revisi editing"
+      ]
+    },
+    {
+      "name": "Premium",
+      "price": "Rp5.000.000",
+      "outputs": [
+        "Maksimal 100 foto pilihan klien yang diedit"
+      ],
+      "features": [
+        "2 fotografer + 1 videografer",
+        "Durasi hingga 8 jam",
+        "Semua file foto & video asli",
+        "Video Highlight Acara",
+        "Teaser Instagram Reels",
+        "2 kali revisi editing"
+      ]
+    },
+    {
+      "name": "Basic",
+      "price": "Rp4.500.000",
+      "outputs": [
+        "8 Konten Video",
+        "8 Konten Foto"
+      ],
+      "features": [
+        "Konsep Konten",
+        "Kalender Konten",
+        "Penulisan Naskah",
+        "Produksi Foto & Video",
+        "Editing",
+        "Caption",
+        "Penjadwalan Posting",
+        "Evaluasi Performa"
+      ]
+    },
+    {
+      "name": "Standard",
+      "price": "Rp6.000.000",
+      "outputs": [
+        "12 Konten Video",
+        "12 Konten Foto"
+      ],
+      "features": [
+        "Konsep Konten",
+        "Kalender Konten",
+        "Penulisan Naskah",
+        "Produksi Foto & Video",
+        "Editing",
+        "Caption",
+        "Penjadwalan Posting",
+        "Evaluasi Performa"
+      ]
+    },
+    {
+      "name": "Premium",
+      "price": "Rp9.500.000",
+      "outputs": [
+        "16 Konten Video",
+        "14 Konten Foto"
+      ],
+      "features": [
+        "Konsep Konten",
+        "Kalender Konten",
+        "Penulisan Naskah",
+        "Produksi Foto & Video",
+        "Editing",
+        "Caption",
+        "Penjadwalan Posting",
+        "Evaluasi Performa",
+        "Talent / Influencer"
+      ]
+    }
+  ],
+  "service_ids": [
+    [
+      "Foto & Video Acara — Basic",
+      "Event Photography & Videography — Basic"
+    ],
+    [
+      "Foto & Video Acara — Standard",
+      "Event Photography & Videography — Standard"
+    ],
+    [
+      "Foto & Video Acara — Premium",
+      "Event Photography & Videography — Premium"
+    ],
+    [
+      "Content Plan Media Sosial — Basic",
+      "Social Media Content Plan — Basic"
+    ],
+    [
+      "Content Plan Media Sosial — Standard",
+      "Social Media Content Plan — Standard"
+    ],
+    [
+      "Content Plan Media Sosial — Premium",
+      "Social Media Content Plan — Premium"
+    ]
+  ],
+  "addon_prices": [
+    "+Rp2.000.000",
+    "+Rp3.500.000",
+    "+Rp7.500.000"
+  ]
+}
