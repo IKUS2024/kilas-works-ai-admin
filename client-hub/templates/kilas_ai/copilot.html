@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% set chat_styles_in_head=true %}
 {% block title %}Copilot · Kilas Works{% endblock %}
-{% block kilas_feature_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_copilot.css',v='quality-20261028') }}">{% endblock %}
+{% block kilas_feature_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_copilot.css',v='dependability-20261031') }}">{% endblock %}
 {% block content %}
 <section id="copilot" data-ai-shell data-thread-id="{{ selected.id if selected else '' }}" data-session-id="{{ selected.id if selected else '' }}" data-ready="{{ 'true' if provider_ready else 'false' }}">
   {% set selected_feature='copilot' %}{% include 'kilas_ai/_copilot_navigation.html' %}
