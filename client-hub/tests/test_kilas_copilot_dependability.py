@@ -84,6 +84,8 @@ class DependabilityTests(unittest.TestCase):
         long='x'*3500+' Correction: your appointment is Monday, not Friday.'
         context=copilot.reply_context('Which day?', [{'source':long,'reply':'I can go Friday.'}])
         self.assertIn('Monday',context);self.assertIn('heard_truncated',context)
+        capped=copilot.reply_context('界'*4000,[{'source':long,'reply':'suggestion'}]*20,at_limit=True)
+        self.assertLessEqual(len(capped.encode('utf-8')),24000);self.assertTrue(json.loads(capped)['recording_quality']['duration_limit_reached'])
         for phrase in ('Their I/my/saya/aku refers to them','not the human listener','Latest explicit corrections win'):
             self.assertIn(phrase,copilot.SYSTEM)
 

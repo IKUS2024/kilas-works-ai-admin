@@ -72,9 +72,10 @@ def excerpt(value, budget):
     return raw[:half].decode('utf-8', errors='ignore') + '\n[quoted excerpt truncated]\n' + raw[-half:].decode('utf-8', errors='ignore'), True
 
 
-def reply_context(source, previous, limit=24000):
+def reply_context(source, previous, limit=24000, *, at_limit=False):
     """Recent dialogue + bounded earlier source evidence, preserving corrections at the tail."""
     payload = {'previous_turns': [], 'latest_spoken_utterance': source}
+    if at_limit:payload['recording_quality']={'duration_limit_reached':True}
     if len(json.dumps(payload, ensure_ascii=False).encode('utf-8')) > limit:
         raise CopilotError('unclear_audio', 422)
     # Reserve room for older source evidence. Never summarize suggestions as facts.
@@ -415,11 +416,9 @@ def process(owner, ident, operation_key, raw, silent, style, target, *, claimed=
         source=transcribe(raw);control.end()
         if not source or not any(c.isalnum() for c in source): raise CopilotError('unclear_audio',422)
         control.enter('reply')
-        content=reply_context(source,turns(owner,ident))
         with wave.open(io.BytesIO(raw)) as recording:
             at_limit=recording.getnframes() >= MAX_SECONDS*16000
-        if at_limit:
-            payload=json.loads(content);payload['recording_quality']={'duration_limit_reached':True};content=json.dumps(payload,ensure_ascii=False)
+        content=reply_context(source,turns(owner,ident),at_limit=at_limit)
         yield {'type':'status','text':'Menyiapkan saran jawaban…'}
         reply='';finished=False
         stream=text_stream(SYSTEM+' Use a '+('relaxed' if style=='santai' else 'professional')+' tone.',content)
