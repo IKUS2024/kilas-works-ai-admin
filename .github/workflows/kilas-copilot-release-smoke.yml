@@ -2,7 +2,7 @@ name: Kilas Copilot release smoke
 on:
   push:
     branches: [main]
-    paths: ['client-hub/kilas_ai/copilot.py', 'client-hub/kilas_ai/copilot_routes.py', 'client-hub/locales/**', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/kilas_translator/**', 'client-hub/static/kilas_live_translator.mjs', 'client-hub/static/kilas_copilot*', 'client-hub/templates/kilas_ai/copilot.html', 'client-hub/templates/login.html', '.github/workflows/kilas-copilot-release-smoke.yml']
+    paths: ['client-hub/kilas_ai/copilot.py', 'client-hub/kilas_ai/copilot_routes.py', 'client-hub/locales/**', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/kilas_translator/**', 'client-hub/static/kilas_live_translator.mjs', 'client-hub/static/kilas_interpreter*', 'client-hub/static/kilas_copilot*', 'client-hub/templates/kilas_ai/copilot.html', 'client-hub/templates/login.html', '.github/workflows/kilas-copilot-release-smoke.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,7 +19,7 @@ jobs:
         run: |
           import hashlib, json, pathlib, re, time, urllib.request
           origin='https://kilas-works-client-hub.onrender.com'
-          expected={name:pathlib.Path('client-hub/static',name).read_bytes() for name in ('kilas_copilot.mjs','kilas_copilot_capture.mjs','kilas_copilot.css','kilas_copilot_policy.sha256','kilas_live_translator.mjs')}
+          expected={name:pathlib.Path('client-hub/static',name).read_bytes() for name in ('kilas_copilot.mjs','kilas_copilot_capture.mjs','kilas_copilot.css','kilas_copilot_policy.sha256','kilas_live_translator.mjs','kilas_interpreter.mjs','kilas_interpreter.css','kilas_live_translator_api.mjs')}
           for attempt in range(100):
               try:
                   released={}
@@ -37,14 +37,14 @@ jobs:
               health=json.load(response)
               assert response.status==200 and health['status']=='ok',health
               print('Production health:',health)
-          for path in ('/kilas-ai','/kilas-ai/copilot','/products/start','/kilas-ai/copilot/sessions/1/audit_readonly_123/status'):
+          for path in ('/kilas-ai','/kilas-ai/copilot','/products/start','/kilas-ai/copilot/sessions/1/audit_readonly_123/status','/kilas-translator/interpreter','/kilas-translator/interpreter/readiness'):
               with urllib.request.urlopen(origin+path,timeout=30) as response:
                   assert '/login' in response.url or '/sign' in response.url,(path,response.url)
                   assert b'id="copilot"' not in response.read(),path
                   print('Unauthenticated boundary:',path,response.status,response.url)
           catalog=json.loads(pathlib.Path('client-hub/locales/ui.json').read_text())
           english=json.loads(pathlib.Path('client-hub/locales/ui_en.json').read_text())
-          for locale in ('en','id'):
+          for locale in ('en','id','es','zh'):
               request=urllib.request.Request(origin+'/login',headers={'Cookie':'kilas_language='+locale})
               with urllib.request.urlopen(request,timeout=30) as response:
                   page=response.read().decode('utf-8')
@@ -52,8 +52,15 @@ jobs:
               found=re.search(r'<script[^>]+id="kw-ui-translations"[^>]*>(.*?)</script>',page,re.S)
               assert found,'Missing public UI catalog'
               messages=json.loads(found.group(1))
-              for key in ('Dengarkan','Mikrofon mati','Record Script','Tampilkan terjemahan'):
+              for key in ('Dengarkan','Mikrofon mati','Record Script','Tampilkan terjemahan','Menghubungkan…','Menerjemahkan','Batas biaya Translator tercapai.','Translator sedang tidak tersedia.','Terjemahan diputar. Tunggu giliran.'):
                   expected_copy=english.get(key,catalog.get(key,{}).get('en',key)) if locale=='en' else catalog.get(key,{}).get(locale,key)
                   assert messages.get(key,key)==expected_copy,(locale,key)
               print('Public UI catalog:',locale,'PASS; no authentication or generation')
+              request=urllib.request.Request(origin+'/privacy',headers={'Cookie':'kilas_language='+locale})
+              with urllib.request.urlopen(request,timeout=30) as response:
+                  policy=response.read().decode('utf-8')
+              paragraph=re.search(r'id="translator-processing-policy">(.*?)</p>',policy,re.S)
+              assert paragraph and 'Google Gemini' in paragraph.group(1),locale
+              assert 'ElevenLabs' not in paragraph.group(1) and 'OpenAI' not in paragraph.group(1),locale
+              print('Public Translator processing disclosure:',locale,'PASS')
           print('PASS: public read-only smoke; no authenticated session, mic or provider calls')

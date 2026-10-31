@@ -7,6 +7,13 @@ function clock(){let now=0,id=0;const timers=new Map();return {timers,now:()=>no
 const failure=(code,recoverable=false)=>({status:'FAILED',code,recoverable,error:'Synthetic failure'});
 const id='a'.repeat(48),key='live-'+'b'.repeat(32),blob=new Blob(['synthetic']);
 
+for(const status of [401,403])test('HTML authentication '+status+' offers sign-in without retrying admission',async()=>{
+ let calls=0;const c=clock();
+ const fetcher=async()=>{calls++;return {ok:false,status,json:async()=>{throw new SyntaxError('HTML response');}};};
+ await assert.rejects(requestJSON('/owned-session',{method:'POST',csrf:'test',fetcher,schedule:c.schedule,clear:c.clear}),e=>e.code==='auth_required');
+ assert.equal(calls,1);assert.equal(c.timers.size,0);
+});
+
 for(const stage of ['headers','body'])test(`JSON ${stage} deadline and End settle even when transport ignores abort`,async()=>{
  const c=clock(),pending=deferred(),signal=new AbortController();let requestSignal;
  const fetcher=async(url,options)=>{requestSignal=options.signal;return stage==='headers'?pending.promise:{ok:true,json:()=>pending.promise};};

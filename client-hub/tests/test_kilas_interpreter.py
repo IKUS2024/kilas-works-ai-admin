@@ -53,6 +53,55 @@ class InterpreterTests(unittest.TestCase):
         for bad in (None,{},dict(SETTINGS,source='xx'),dict(SETTINGS,consent=False),dict(SETTINGS,target='id'),dict(SETTINGS,mode='roast')):
             with self.assertRaises(ValueError):calls.setup(settings=bad)
 
+    def test_all_supported_pairs_and_untrusted_json_types_without_provider_calls(self):
+        from kilas_ai.interpreter_settings import LANGUAGES,validate,instructions
+        for source in LANGUAGES:
+            for target in LANGUAGES:
+                settings={'source':source,'target':target,'consent':True}
+                if source==target:
+                    with self.assertRaises(ValueError):validate(settings)
+                else:self.assertEqual(validate(settings),settings)
+        for wrong in (None,[],{},1,True,'','jv','en-US'):
+            with self.subTest(value=wrong),self.enabled(),patch.object(budget,'claim') as claim,patch.object(calls.wire,'connect') as connect:
+                for key in ('source','target'):
+                    settings={**SETTINGS,key:wrong}
+                    response=self.client.post('/kilas-translator/interpreter/'+uuid4().hex,data={'settings':json.dumps(settings),'csrf_token':'audio-csrf'})
+                    self.assertEqual(response.status_code,400)
+                    self.assertEqual(response.json['code'],'call_settings_invalid')
+                claim.assert_not_called();connect.assert_not_called()
+        system=instructions(SETTINGS)
+        self.assertIn('corrections and negation',system)
+        self.assertIn('Never guess missing or unclear words',system)
+        self.assertIn('without answering',system)
+
+    def test_all_ui_locales_receive_runtime_messages_and_current_provider_disclosure(self):
+        import re
+        import ui_i18n
+        script=(Path(__file__).parents[1]/'static/kilas_interpreter.mjs').read_text()
+        messages=script.split('const messages={',1)[1].split('const showError',1)[0]
+        keys=set(re.findall(r":'([^']+)'",messages))
+        keys.update(('Menghubungkan…','Menerjemahkan','Menghubungkan kembali…','Mendengarkan','Terjemahan diputar. Tunggu giliran.','Bicara {source} ke {target}'))
+        with self.enabled():
+            for locale in ('id','en','es','zh'):
+                self.client.set_cookie('kilas_language',locale)
+                response=self.client.get('/kilas-translator/interpreter')
+                html=response.text
+                runtime=json.loads(re.search(r'id="kw-ui-translations">(.*?)</script>',html,re.S)[1])
+                for key in keys:
+                    self.assertIn(key,ui_i18n.CLIENT_MESSAGES,key)
+                    if locale!='id':self.assertIn(locale,ui_i18n.CATALOG.get(key,{}),key)
+                    with self.client.application.test_request_context(headers={'Cookie':'kilas_language='+locale}):
+                        self.assertEqual(runtime.get(key,key),ui_i18n.translate(key))
+                self.assertIn('id="interpreter-login"',html)
+                self.assertIn('id="interpreter-transcript"',html)
+                self.assertNotIn("ui_t('Translate text or speech",html)
+                privacy=self.client.get('/privacy')
+                self.assertEqual(privacy.status_code,200)
+                paragraph=re.search(r'id="translator-processing-policy">(.*?)</p>',privacy.text,re.S)[1]
+                self.assertIn('Google Gemini',paragraph)
+                self.assertNotIn('ElevenLabs',paragraph)
+                self.assertNotIn('OpenAI',paragraph)
+
     def test_owner_member_route_and_csrf_isolation(self):
         with self.enabled(),patch.object(calls.wire,'connect') as connect:
             for role in ('CLIENT_OWNER','CLIENT_STAFF'):

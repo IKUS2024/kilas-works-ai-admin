@@ -21,7 +21,10 @@ export async function requestJSON(url,{csrf,fetcher=(...args)=>fetch(...args),sc
         const response=await fetcher(url,{...rest,signal:controller.signal,credentials:'same-origin',cache:'no-store',headers:{'X-CSRF-Token':csrf}});
         if(controller.signal.aborted)return;
         if(response.redirected)throw error('auth_required',t('Sesi akun berakhir. Masuk kembali.'));
-        let body;try{body=await response.json();}catch{throw error('response_invalid',t('Layanan belum merespons dengan benar. Ucapan ini tidak diulang otomatis.'));}
+        let body;try{body=await response.json();}catch{
+          if(response.status===401||response.status===403)throw error('auth_required',t('Sesi akun berakhir. Masuk kembali.'));
+          throw error('response_invalid',t('Layanan belum merespons dengan benar. Ucapan ini tidak diulang otomatis.'));
+        }
         if(!response.ok){const failure=error(body.code||(response.status===401||response.status===403?'auth_required':'request_failed'),body.error||t('Layanan belum tersedia.'));failure.status=response.status;throw failure;}
         finish(resolve,body);
       }catch(e){finish(reject,e);}
