@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 import uuid
 import wave
@@ -36,9 +37,20 @@ def answer(text='Could you clarify the timeline?'):
     yield {'type': 'finish', 'reason': 'stop'}
 
 
+def await_operation(client, response):
+    if response.status_code != 202:return response
+    url=response.json['status_url'];deadline=time.monotonic()+8
+    while time.monotonic()<deadline:
+        result=client.get(url)
+        if result.status_code!=200 or result.json['state']!='processing':return result
+        time.sleep(.01)
+    raise AssertionError('Synthetic operation did not finish')
+
+
 class CopilotTests(unittest.TestCase):
     def setUp(self):
         self.app = app.app
+        self.app.json.compact=False
         self.app.config.update(TESTING=True, CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)
         self.owner = repo.create_user('copilot-'+uuid.uuid4().hex+'@example.test', 'hash')
         self.other = repo.create_user('copilot-other-'+uuid.uuid4().hex+'@example.test', 'hash')
@@ -59,9 +71,10 @@ class CopilotTests(unittest.TestCase):
                    (self.owner, now.isoformat(), (now+timedelta(days=30)).isoformat()))
 
     def post(self, operation_key=None, silent=False, consent='yes', **options):
-        return self.client.post(f'/kilas-ai/copilot/sessions/{self.ident}/{operation_key or self.key}/process',
+        response = self.client.post(f'/kilas-ai/copilot/sessions/{self.ident}/{operation_key or self.key}/process',
                                 data={'audio': (io.BytesIO(recording(silent)), 'recording.wav', 'audio/wav'),
                                       'csrf_token': 'copilot-csrf', 'consent': consent, **options})
+        return await_operation(self.client,response)
 
     def run_turn(self, translate=False):
         streams = [answer()]
@@ -206,13 +219,13 @@ class CopilotTests(unittest.TestCase):
         self.key = uuid.uuid4().hex
         self.assertIn('"type": "complete"', self.run_turn()[1])
 
-    def test_disconnect_finalizes_without_storing_partial(self):
+    def test_generator_close_finalizes_without_storing_partial(self):
         self.premium()
-        with patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe', return_value='hello'), patch.object(copilot, 'text_stream', side_effect=lambda *a: answer()):
-            stream = copilot.process(self.owner, self.ident, self.key, recording(), False, 'santai', None)
-            next(stream); next(stream); next(stream); stream.close()
-        self.assertEqual(copilot.turns(self.owner, self.ident), [])
-        self.assertEqual(json.loads(copilot.operation(self.owner, self.ident, self.key)['metadata_json'])['status'], 'failed')
+        with patch.object(copilot,'configured',return_value=True),patch.object(copilot,'transcribe',return_value='hello'),patch.object(copilot,'text_stream',side_effect=lambda *a:answer()):
+            stream=copilot.process(self.owner,self.ident,self.key,recording(),False,'santai',None)
+            next(stream);next(stream);next(stream);stream.close()
+        self.assertEqual(copilot.turns(self.owner,self.ident),[])
+        self.assertEqual(json.loads(copilot.operation(self.owner,self.ident,self.key)['metadata_json'])['status'],'failed')
 
     def test_invalid_and_oversized_wav_is_rejected_before_billing(self):
         from werkzeug.datastructures import FileStorage
@@ -273,28 +286,20 @@ class CopilotTests(unittest.TestCase):
         with self.assertRaisesRegex(copilot.CopilotError, 'operation_busy'):
             copilot.claim(self.owner, self.ident, self.key, 'fourth')
 
-    def test_heartbeat_disconnect_fences_blocked_provider_without_cancel_post(self):
+    def test_short_poll_and_cancel_work_while_stt_is_blocked(self):
         import threading
-        self.premium()
-        entered, release, finished = threading.Event(), threading.Event(), threading.Event()
-        def stt(_):
-            entered.set()
-            release.wait(3)
-            finished.set()
-            return 'private voice'
-        with patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe', side_effect=stt), patch.object(copilot, 'text_stream') as text:
-            response = self.post()
-            try:
-                reader = iter(response.response)
-                self.assertTrue(entered.wait(2))
-                frames = [next(reader), next(reader), next(reader)]
-                self.assertTrue(any(b'heartbeat' in frame if isinstance(frame, bytes) else 'heartbeat' in frame for frame in frames), repr(frames))
-                response.close()
-                self.assertFalse(copilot.active(self.owner, self.ident, self.key))
-            finally:
-                response.close();release.set();finished.wait(2)
+        self.premium();entered=threading.Event();release=threading.Event();finished=threading.Event()
+        def stt(_):entered.set();release.wait(4);finished.set();return 'private voice'
+        with patch.object(copilot,'configured',return_value=True),patch.object(copilot,'transcribe',side_effect=stt),patch.object(copilot,'text_stream') as text:
+            response=self.client.post(f'/kilas-ai/copilot/sessions/{self.ident}/{self.key}/process',data={'audio':(io.BytesIO(recording()),'recording.wav','audio/wav'),'csrf_token':'copilot-csrf','consent':'yes'})
+            self.assertEqual(response.status_code,202);self.assertTrue(entered.wait(2))
+            started=time.monotonic();state=self.client.get(response.json['status_url'])
+            self.assertEqual(state.json['state'],'processing');self.assertLess(time.monotonic()-started,.5)
+            stopped=self.client.post(f'/kilas-ai/copilot/sessions/{self.ident}/{self.key}/cancel',data={'csrf_token':'copilot-csrf'})
+            self.assertEqual(stopped.status_code,200);self.assertFalse(copilot.active(self.owner,self.ident,self.key))
+            release.set();self.assertTrue(finished.wait(2));await_operation(self.client,response)
             text.assert_not_called()
-        self.assertEqual(copilot.turns(self.owner, self.ident), [])
+        self.assertEqual(copilot.turns(self.owner,self.ident),[])
 
     def test_quiet_and_sparse_audio_not_rejected_as_silence(self):
         from werkzeug.datastructures import FileStorage
@@ -467,8 +472,10 @@ class CopilotTests(unittest.TestCase):
         for translated in ('Saya sekolah di Harvard.', 'Saya sekolah di … (isi sendiri), jurusan … (isi sendiri).'):
             with self.subTest(translated=translated), patch.object(copilot, 'configured', return_value=True), patch.object(copilot, 'transcribe', return_value='Where did you study?'), patch.object(copilot, 'text_stream', side_effect=[answer(reply), answer(json.dumps({'source_translation': 'Sekolah di mana?', 'reply_translation': translated}))]):
                 events = list(copilot.process(self.owner, self.ident, uuid.uuid4().hex, recording(), False, 'santai', 'id'))
-            self.assertEqual(events[-1], {'type': 'error', 'code': 'incomplete_translation'})
-            self.assertEqual(copilot.turns(self.owner, self.ident), [])
+            self.assertEqual(events[-1]['type'], 'complete')
+            self.assertEqual(events[-1]['turn']['translation_error'], 'incomplete_translation')
+            self.assertEqual(events[-1]['turn']['reply'], reply)
+            self.assertEqual(copilot.turns(self.owner, self.ident)[0]['reply'], reply)
         self.assertEqual(copilot.slot_count('I studied at ... (fill in yourself).'), 1)
         self.assertEqual(copilot.slot_count('学校は…（自分で記入）です。'), 1)
         self.assertEqual(copilot.slot_count('An ordinary pause… with no slot.'), 0)

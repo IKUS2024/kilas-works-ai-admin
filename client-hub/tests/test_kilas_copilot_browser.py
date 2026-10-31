@@ -49,6 +49,7 @@ def main():
     report = {'paid_provider_calls': 0, 'real_microphone_calls': 0, 'cases': []}
     provider_calls = []
     arabic = [False]
+    broken_translation=[False]
     hold = threading.Event()
     slow = [False]
     provider_entered=threading.Event()
@@ -60,6 +61,8 @@ def main():
     def text(system, content, **options):
         provider_calls.append('text')
         if system.startswith('Translate'):
+            if broken_translation[0]:
+                yield from fixture.answer('{bad json');return
             yield from fixture.answer(json.dumps({'source_translation': 'Anda sekolah di mana, dan pengalaman kerja apa yang relevan?', 'reply_translation': 'Saya bersekolah di … (isi sendiri). Pengalaman saya yang relevan adalah … (isi sendiri). Tugas saya mencakup … (isi sendiri), dengan hasil … (isi sendiri).'}))
         else:
             yield from fixture.answer('على الرحب والسعة، يسعدني مساعدتك.' if arabic[0] else "I studied at … (fill in yourself). My relevant experience is … (fill in yourself). My role involved … (fill in yourself), and the result was … (fill in yourself).")
@@ -261,6 +264,27 @@ def main():
             assert page.evaluate('micRequests') == 0
             assert not page.locator('.copilot-reply').count()
             report['cases'].append({'cancellation_in_flight_and_navigation_cleanup':'PASS'})
+            # Optional-stage recovery keeps one primary/history turn and never
+            # touches the microphone or STT again; controls survive reload.
+            slow[0]=False;hold.set();arabic[0]=False
+            repair_owner=fixture.CopilotTests();repair_owner.setUp();repair_owner.premium();repair_cookie=repair_owner.client.get_cookie('session')
+            repair=browser.new_context(viewport={'width':393,'height':850})
+            repair.add_cookies([{'name':repair_cookie.key,'value':repair_cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}]);repair.add_init_script(FAKE_MIC)
+            repair_page=repair.new_page();repair_page.goto(origin+'/kilas-ai',wait_until='networkidle')
+            repair_page.locator('#copilot-translate').check();repair_page.locator('[data-copilot-style=profesional]').click()
+            broken_translation[0]=True;repair_page.locator('#copilot-mic').click();repair_page.wait_for_function('processFrames>4');repair_page.locator('#copilot-trigger').click()
+            expect(repair_page.locator('#copilot')).to_have_attribute('data-state','idle');expect(repair_page.locator('.copilot-translation-retry')).to_be_visible()
+            expect(repair_page.locator('.copilot-reply')).to_contain_text('I studied at');expect(repair_page.locator('.copilot-reply-translation')).to_have_text('Terjemahan gagal. Jawaban tersimpan.')
+            repair_page.evaluate('document.activeElement?.blur();window.scrollTo(0,0)')
+            repair_page.screenshot(path=str(output/'translation-failed-393.png'),full_page=True)
+            repair_page.reload(wait_until='networkidle');assert repair_page.locator('#copilot-translate').is_checked();assert repair_page.locator('#copilot-style').input_value()=='profesional'
+            before_stt=provider_calls.count('stt');before_text=provider_calls.count('text');broken_translation[0]=False
+            repair_page.locator('.copilot-translation-retry').click();repair_page.evaluate("document.querySelector('.copilot-translation-retry')?.click()")
+            expect(repair_page.locator('#copilot')).to_have_attribute('data-state','idle');expect(repair_page.locator('.copilot-reply-translation')).to_contain_text('Saya bersekolah')
+            assert provider_calls.count('stt')==before_stt;assert provider_calls.count('text')==before_text+1;assert repair_page.locator('.copilot-reply').count()==1;assert repair_page.evaluate('micRequests')==0
+            repair_page.evaluate('document.activeElement?.blur();window.scrollTo(0,0)')
+            repair_page.screenshot(path=str(output/'translation-recovered-393.png'),full_page=True);repair.close()
+            report['cases'].append({'translation_failure_preserves_primary_explicit_translation_only_retry_no_mic_no_stt_one_history_turn':'PASS'})
             browser.close()
             # Native browser MediaStream + AudioContext + PCM/WAV path. Only the
             # hardware source is Chromium's synthetic mic; no JS capture mocks.
@@ -287,33 +311,24 @@ def main():
             assert native_page.evaluate("nativeMicCalls===1&&nativeTracks.every(track=>track.readyState==='ended')")
             report['cases'].append({'native_browser_mediastream_audio_context_pcm_wav_one_tap':'PASS','hardware':'Chromium synthetic device','paid_calls':0})
             native.close()
-            # Reproduce production's single sync WSGI worker: no cancel POST can
-            # be served while this response is open. Heartbeats detect abort and
-            # fence the next model without changing global Gunicorn settings.
+            # Existing one-sync-worker deployment: short admission/status/cancel
+            # must all work while the synthetic provider remains blocked.
             sync_server=make_server('127.0.0.1',0,application,threaded=False)
             threading.Thread(target=sync_server.serve_forever,daemon=True).start()
             hold.clear();provider_entered.clear();slow[0]=True
-            op='sync_disconnect_'+str(time.time_ns())
-            response=None
+            op='sync_background_'+str(time.time_ns());origin_sync=f'http://127.0.0.1:{sync_server.server_port}'
             try:
-                response=requests.post(f'http://127.0.0.1:{sync_server.server_port}/kilas-ai/copilot/sessions/{case.ident}/{op}/process',
-                    cookies={cookie.key:cookie.value},data={'csrf_token':'copilot-csrf','consent':'yes'},
-                    files={'audio':('recording.wav',fixture.recording(),'audio/wav')},stream=True,timeout=(3,5))
-                assert response.status_code==200
-                assert provider_entered.wait(2)
-                lines=response.iter_lines(chunk_size=1)
-                assert any(b'heartbeat' in next(lines) for _ in range(8))
-                before=provider_calls.count('text');response.close()
-                deadline=time.monotonic()+3
-                while copilot.active(case.owner,case.ident,op) and time.monotonic()<deadline:time.sleep(.05)
-                assert not copilot.active(case.owner,case.ident,op)
-                hold.set();time.sleep(.25)
-                assert provider_calls.count('text')==before
-                assert copilot.turns(case.owner,case.ident)==[]
-                report['cases'].append({'single_sync_wsgi_disconnect_fence':'PASS'})
-            finally:
-                if response:response.close()
-                hold.set();sync_server.shutdown()
+                response=requests.post(origin_sync+f'/kilas-ai/copilot/sessions/{case.ident}/{op}/process',cookies={cookie.key:cookie.value},data={'csrf_token':'copilot-csrf','consent':'yes'},files={'audio':('recording.wav',fixture.recording(),'audio/wav')},timeout=2)
+                assert response.status_code==202;assert provider_entered.wait(2)
+                started=time.monotonic();assert requests.get(origin_sync+'/healthz',timeout=1).status_code==200;assert time.monotonic()-started<1
+                snapshot=requests.get(origin_sync+response.json()['status_url'],cookies={cookie.key:cookie.value},timeout=1)
+                assert snapshot.json()['state']=='processing'
+                before=provider_calls.count('text')
+                canceled=requests.post(origin_sync+f'/kilas-ai/copilot/sessions/{case.ident}/{op}/cancel',cookies={cookie.key:cookie.value},data={'csrf_token':'copilot-csrf'},timeout=1)
+                assert canceled.status_code==200;assert not copilot.active(case.owner,case.ident,op)
+                hold.set();time.sleep(.3);assert provider_calls.count('text')==before;assert copilot.turns(case.owner,case.ident)==[]
+                report['cases'].append({'single_sync_wsgi_responsive_during_provider_wait_and_cancel':'PASS'})
+            finally:hold.set();sync_server.shutdown()
     finally:
         hold.set();server.shutdown()
     (output/'report.json').write_text(json.dumps(report,indent=2))

@@ -1349,5 +1349,10 @@
   "Bahasa Indonesia": "Indonesian",
   "Coba lagi": "Try again",
   "Translate another": "Translate another",
-  "Translation complete": "Translation complete"
+  "Translation complete": "Translation complete",
+  "Rekaman terlalu terdistorsi. Kurangi volume speaker lalu rekam lagi.": "The recording is heavily distorted. Lower the speaker volume and record again.",
+  "Batas waktu proses tercapai. Periksa riwayat sebelum merekam lagi.": "Processing timed out. Check history before recording again.",
+  "Proses terhenti. Buka ulang sesi untuk memeriksa jawaban yang tersimpan.": "Processing was interrupted. Reopen the session to check saved replies.",
+  "Terjemahan gagal. Jawaban tersimpan.": "Translation failed. Your reply is saved.",
+  "Coba terjemahan lagi": "Retry translation"
 }

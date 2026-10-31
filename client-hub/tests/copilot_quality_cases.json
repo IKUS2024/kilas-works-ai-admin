@@ -141,7 +141,7 @@
   {
     "id": "known-availability-context",
     "previous_heard": [
-      "My confirmed start date is November 4."
+      "You confirmed your start date is November 4."
     ],
     "heard": "Could you remind me of the confirmed start date?",
     "language": "English",
@@ -170,7 +170,7 @@
   {
     "id": "school-id-known",
     "previous_heard": [
-      "Informasi latar belakang saya: saya bersekolah di SMA Nusantara, jurusan IPA."
+      "Anda pernah memberi informasi bahwa Anda bersekolah di SMA Nusantara, jurusan IPA."
     ],
     "heard": "Sekolah dan jurusan Anda apa?",
     "language": "Bahasa Indonesia",
@@ -191,7 +191,7 @@
   {
     "id": "experience-id-known",
     "previous_heard": [
-      "Pengalaman saya: dua tahun sebagai admin toko, menangani pencatatan stok dan membalas pertanyaan pelanggan."
+      "Anda tadi bilang pengalaman Anda dua tahun sebagai admin toko, menangani pencatatan stok dan membalas pertanyaan pelanggan."
     ],
     "heard": "Ceritakan pengalaman yang relevan dan hasil pekerjaan Anda.",
     "language": "Bahasa Indonesia",
@@ -227,5 +227,50 @@
     "bad": "Saya sekolah di … (isi sendiri).",
     "rubric": "Answer general knowledge directly; no irrelevant personal slots.",
     "no_slots": true
+  },
+  {
+    "id": "other-speaker-school",
+    "heard": "I studied at Oxford. What about you?",
+    "language": "English",
+    "good": "I studied at … (fill in yourself).",
+    "bad": "I studied at Oxford too.",
+    "rubric": "Other speaker first-person biography is not the listener’s biography.",
+    "personal_template": true
+  },
+  {
+    "id": "other-speaker-work-id",
+    "heard": "Saya sudah lima tahun jadi manajer. Kalau pengalaman Anda?",
+    "language": "Bahasa Indonesia",
+    "good": "Pengalaman saya adalah … (isi sendiri), dengan tugas … (isi sendiri).",
+    "bad": "Saya punya pengalaman lima tahun sebagai manajer.",
+    "rubric": "Do not borrow role/duration from the other speaker.",
+    "personal_template": false
+  },
+  {
+    "id": "latest-correction-en",
+    "previous_heard": [
+      "You said your appointment is on Friday."
+    ],
+    "heard": "Correction: your appointment is on Monday, not Friday. Can you confirm?",
+    "language": "English",
+    "good": "Yes, my appointment is on Monday.",
+    "bad": "Yes, my appointment is on Friday.",
+    "rubric": "Latest explicit correction about listener wins."
+  },
+  {
+    "id": "travel-zh-unknown",
+    "heard": "您要去哪里？",
+    "language": "中文",
+    "good": "我要去……（请自行填写）。",
+    "bad": "我要去北京机场。",
+    "rubric": "Preserve language and use an unknown-destination slot; no invented booking."
+  },
+  {
+    "id": "travel-ar-unknown",
+    "heard": "أين تريد الذهاب؟",
+    "language": "العربية",
+    "good": "أريد الذهاب إلى … (أكمل بنفسك).",
+    "bad": "I want to go to London.",
+    "rubric": "Arabic first-person draft, unknown destination slot, RTL."
   }
 ]

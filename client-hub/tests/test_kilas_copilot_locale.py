@@ -62,17 +62,19 @@ class CopilotLocaleTests(unittest.TestCase):
             streams=[fixture.answer(reply),fixture.answer(json.dumps({'source_translation':'Listen','reply_translation':translated}))]
             with patch.object(copilot,'configured',return_value=True),patch.object(copilot,'transcribe',return_value=source),patch.object(copilot,'text_stream',side_effect=streams) as text:
                 response=self.client.post(f'/kilas-ai/copilot/sessions/{ident}/{uuid.uuid4().hex}/process',data={'audio':(fixture.io.BytesIO(fixture.recording()),'voice.wav','audio/wav'),'csrf_token':'copilot-csrf','consent':'yes','style':'santai','translate':'yes','target':'en'})
-                events=[json.loads(line[6:]) for line in response.get_data(as_text=True).splitlines() if line.startswith('data: ')]
-            statuses=[e['text'] for e in events if e['type']=='status']
+                response=fixture.await_operation(self.client,response)
+            snapshot=response.json
+            statuses=snapshot['statuses']
+            complete=snapshot['result']
             self.assertIn('Recognizing speech…' if code=='en' else 'Mengenali ucapan…',statuses)
             self.assertIn('Translating…' if code=='en' else 'Menerjemahkan…',statuses)
-            complete=events[-1];self.assertEqual(complete['type'],'complete')
+            self.assertEqual(complete['type'],'complete')
             self.assertEqual(complete['title'],source)
             self.assertEqual(complete['turn']['source'],source)
             self.assertEqual(complete['turn']['reply'],reply)
             self.assertEqual(complete['turn']['reply_translation'],translated)
             self.assertEqual(complete['turn']['target'],'en')
-            self.assertEqual(''.join(e['text'] for e in events if e['type']=='delta'),reply)
+            self.assertEqual(snapshot['text'],reply)
             self.assertEqual(copilot.turns(self.case.owner,ident)[-1]['reply'],reply)
             primaries.append(text.call_args_list[0].args)
             self.assertIn('to English',text.call_args_list[1].args[0])

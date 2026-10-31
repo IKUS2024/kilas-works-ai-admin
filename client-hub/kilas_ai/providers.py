@@ -32,7 +32,19 @@ def candidates(mode, messages=None):
         yield "openai", model, key
 
 
-def _events(response,*,chunk_size=None,timings=None,started=None):
+def _guarded_lines(response, guard):
+    pending = bytearray()
+    for chunk in response.iter_content(chunk_size=1):
+        guard.check()
+        pending.extend(chunk)
+        if len(pending) > 100000: raise ProviderError('bad_provider_stream')
+        if pending.endswith(b'\n'):
+            yield bytes(pending).rstrip(b'\r\n')
+            pending.clear()
+    if pending: yield bytes(pending)
+
+
+def _events(response,*,chunk_size=None,timings=None,started=None,guard=None):
     """Parse provider SSE payloads; both APIs use data lines with JSON objects."""
     parts = []
     if timings is not None and started is None:started=monotonic()
@@ -42,7 +54,7 @@ def _events(response,*,chunk_size=None,timings=None,started=None):
         if timings is not None:timings.setdefault('translation_first_sse_event_ms',(monotonic()-started)*1000)
         return event
     options={} if chunk_size is None else {'chunk_size':chunk_size}
-    for raw in response.iter_lines(decode_unicode=True,**options):
+    for raw in (_guarded_lines(response,guard) if guard else response.iter_lines(decode_unicode=True,**options)):
         if timings is not None:
             timings.setdefault('translation_first_sse_line_ms',(monotonic()-started)*1000)
         line = raw.decode("utf-8") if isinstance(raw, bytes) else (raw or "")
@@ -58,11 +70,12 @@ def _events(response,*,chunk_size=None,timings=None,started=None):
         yield parsed("\n".join(parts))
 
 
-def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=None,event_chunk_size=None,response_format=None,timings=None):
+def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=None,event_chunk_size=None,response_format=None,timings=None,stream_guard=None):
     # Private server-selected profile; public chat callers retain their routing.
     profile = model_policy.chat_profile(messages) if profile is None else profile
     started=monotonic() if timings is not None else None
     try:
+        if stream_guard:stream_guard.check(force=True)
         with requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", **({'OpenAI-Project':project} if project else {})},
@@ -70,7 +83,7 @@ def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=
                   "max_completion_tokens": profile["output_tokens"], "reasoning_effort": profile["effort"], "stream": True,
                   "stream_options": {"include_usage": True}, "store": False,
                   **({'response_format':response_format} if response_format is not None else {})},
-            stream=True, timeout=(10, 90),
+            stream=True, timeout=stream_guard.timeout(5,15) if stream_guard else (10,90),
         ) as response:
             if timings is not None:timings['translation_http_headers_ms']=(monotonic()-started)*1000
             response.raise_for_status()
@@ -78,6 +91,7 @@ def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=
             # default 512-byte fill delay. Existing Chat keeps its transport.
             if event_chunk_size is not None:response.encoding='utf-8'
             event_options={} if event_chunk_size is None else {'chunk_size':event_chunk_size}
+            if stream_guard:event_options['guard']=stream_guard
             if timings is not None:event_options.update(timings=timings,started=started)
             for event in _events(response,**event_options):
                 usage = event.get("usage") or {}

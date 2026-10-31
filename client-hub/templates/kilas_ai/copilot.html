@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% set chat_styles_in_head=true %}
 {% block title %}Copilot · Kilas Works{% endblock %}
-{% block kilas_feature_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_copilot.css',v='quality-20261028') }}">{% endblock %}
+{% block kilas_feature_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_copilot.css',v='dependability-20261031') }}">{% endblock %}
 {% block content %}
 <section id="copilot" data-ai-shell data-thread-id="{{ selected.id if selected else '' }}" data-session-id="{{ selected.id if selected else '' }}" data-ready="{{ 'true' if provider_ready else 'false' }}">
   {% set selected_feature='copilot' %}{% include 'kilas_ai/_copilot_navigation.html' %}
@@ -12,9 +12,9 @@
     </header>
     <div class="copilot-setup">
       <div class="copilot-translation-row">
-        <label class="copilot-translation"><span>{{ ui_t('Tampilkan terjemahan') }}</span><input id="copilot-translate" type="checkbox" role="switch" aria-controls="copilot-target-wrap"></label>
+        <label class="copilot-translation"><span>{{ ui_t('Tampilkan terjemahan') }}</span><input id="copilot-translate" type="checkbox" {{ 'checked' if copilot_preferences.translate }} role="switch" aria-controls="copilot-target-wrap"></label>
         <p class="copilot-translation-note">{{ ui_t('Hasil hanya menampilkan saran jawaban.') }}</p>
-        <label id="copilot-target-wrap" hidden><span class="copilot-sr-only">{{ ui_t('Terjemahkan ke') }}</span><select id="copilot-target">{% for code,name in copilot_languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='id' }}>{{ copilot_language_names.get(code, name) }}</option>{% endfor %}</select></label>
+        <label id="copilot-target-wrap" {{ 'hidden' if not copilot_preferences.translate }}><span class="copilot-sr-only">{{ ui_t('Terjemahkan ke') }}</span><select id="copilot-target">{% for code,name in copilot_languages.items() %}<option value="{{ code }}" {{ 'selected' if code==copilot_preferences.target }}>{{ copilot_language_names.get(code, name) }}</option>{% endfor %}</select></label>
       </div>
     </div>
     <section class="copilot-capture" aria-label="{{ ui_t('Mikrofon') }}">
@@ -29,7 +29,7 @@
         <h2 id="copilot-action" class="copilot-sr-only">{{ ui_t('Dengarkan') }}</h2>
       </div>
       <canvas id="copilot-wave" width="320" height="48" aria-hidden="true" hidden></canvas>
-      <div class="copilot-styles" role="group" aria-label="{{ ui_t('Gaya jawaban') }}"><input id="copilot-style" type="hidden" value="santai"><button type="button" data-copilot-style="santai" aria-pressed="true">{{ ui_t('Santai') }}</button><button type="button" data-copilot-style="profesional" aria-pressed="false">{{ ui_t('Profesional') }}</button></div>
+      <div class="copilot-styles" role="group" aria-label="{{ ui_t('Gaya jawaban') }}"><input id="copilot-style" type="hidden" value="{{ copilot_preferences.style }}"><button type="button" data-copilot-style="santai" aria-pressed="true">{{ ui_t('Santai') }}</button><button type="button" data-copilot-style="profesional" aria-pressed="false">{{ ui_t('Profesional') }}</button></div>
       <p class="copilot-device-hint"><svg viewBox="0 0 28 24" width="26" height="23" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="3" width="16" height="12" rx="2"/><path d="M7 19h7m-4-4v4"/><rect x="20" y="8" width="6" height="13" rx="1.5"/><path d="M22 18h2"/></svg><span>{{ ui_t('Dengarkan suara dari perangkat lain') }}</span></p>
       <div class="copilot-commands"><button id="copilot-trigger" type="button" aria-label="{{ ui_t('Mulai mendengarkan') }}" aria-pressed="false">{{ ui_t('Dengarkan') }}</button><button id="copilot-cancel" type="button" hidden>{{ ui_t('Batalkan') }}</button></div>
       {% if not provider_ready %}<p role="status">{{ ui_t('Copilot belum tersedia. Konfigurasi OpenAI perlu diperiksa oleh pengelola.') }}</p>{% endif %}
@@ -45,5 +45,5 @@
   <input type="hidden" id="copilot-csrf" value="{{ csrf_token() }}">
   <script type="application/json" id="copilot-initial">{{ turns|tojson }}</script>
 </section>
-<script type="module" src="{{ url_for('static',filename='kilas_copilot.mjs',v='app-locale-20261028') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_copilot.mjs',v='dependability-20261031') }}"></script>
 {% endblock %}

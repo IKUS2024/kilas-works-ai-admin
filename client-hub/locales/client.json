@@ -1031,5 +1031,10 @@
   "Mode rekaman: tekan Stop untuk memproses ucapan, lalu Start untuk giliran berikutnya.",
   "Peredam gema browser belum tersedia. Mode bergiliran digunakan.",
   "Input dan audio tertinggal. Sesi dijeda; ucapan tidak diulang otomatis.",
-  "Record Script"
+  "Record Script",
+  "Rekaman terlalu terdistorsi. Kurangi volume speaker lalu rekam lagi.",
+  "Batas waktu proses tercapai. Periksa riwayat sebelum merekam lagi.",
+  "Proses terhenti. Buka ulang sesi untuk memeriksa jawaban yang tersimpan.",
+  "Terjemahan gagal. Jawaban tersimpan.",
+  "Coba terjemahan lagi"
 ]
