@@ -8,7 +8,7 @@ def context(owner):
     return {
         'automation_enabled': automation_enabled(),
         'limits': attachments.limits(usage.attachment_plan(owner)),
-        'history_items': sidebar_history.recent(owner,include_conversations=automation_enabled(),copilot_only=copilot.visible()),
+        'history_items': sidebar_history.recent(owner,include_conversations=automation_enabled(),copilot_only=copilot.visible(),exclude_copilot=not copilot.visible()),
         'threads': store.list_threads(owner, 6),
         'conversations': agent_store.recent_conversations(owner)[:6] if automation_enabled() else [],
         'live_available': live_qa_budget.enabled() and live_assist.ready(owner) and live_qa_budget.ready(owner,for_start=True),
@@ -42,7 +42,7 @@ def chat_sidebar_context():
 
     def history():
         from . import agent_store, store,sidebar_history
-        return {'history_items':sidebar_history.recent(session['user_id'],include_conversations=automation_enabled(),copilot_only=copilot.visible()),'threads': store.list_threads(session['user_id'], 6),
+        return {'history_items':sidebar_history.recent(session['user_id'],include_conversations=automation_enabled(),copilot_only=copilot.visible(),exclude_copilot=not copilot.visible()),'threads': store.list_threads(session['user_id'], 6),
                 'conversations': agent_store.recent_conversations(session['user_id'])[:6] if automation_enabled() else [],
                 'automation_enabled': automation_enabled()}
     import security
@@ -100,7 +100,7 @@ def sidebar_history():
     from flask import session
     from .sidebar_history import page
     from . import copilot
-    return page(session['user_id'],request.args.get('cursor'),include_conversations=automation_enabled(),copilot_only=copilot.visible()),200,{'Cache-Control':'private, no-store','Vary':'Cookie'}
+    return page(session['user_id'],request.args.get('cursor'),include_conversations=automation_enabled(),copilot_only=copilot.visible(),exclude_copilot=not copilot.visible()),200,{'Cache-Control':'private, no-store','Vary':'Cookie'}
 
 
 @ai_bp.post('/video', endpoint='video_home_handoff')
