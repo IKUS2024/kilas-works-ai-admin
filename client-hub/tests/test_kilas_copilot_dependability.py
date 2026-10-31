@@ -105,7 +105,7 @@ class DependabilityTests(unittest.TestCase):
         self.assertFalse(copilot.audio(FileStorage(stream=io.BytesIO(fixture.recording()),filename='recording.wav',content_type='audio/wav'))[1])
         with patch.object(copilot.usage,'reserve') as reserve,patch.object(copilot,'transcribe') as stt:
             response=self.client.post(f'/kilas-ai/copilot/sessions/{self.ident}/{self.case.key}/process',data={'audio':(io.BytesIO(raw),'clipped.wav','audio/wav'),'consent':'yes','csrf_token':'copilot-csrf'})
-            self.assertEqual(response.status_code,400);self.assertEqual(response.json['code'],'clipped_audio');reserve.assert_not_called();stt.assert_not_called()
+            self.assertEqual(response.status_code,422);self.assertEqual(response.json['code'],'clipped_audio');reserve.assert_not_called();stt.assert_not_called()
 
     def test_one_query_status_and_throttled_checks_preserve_forced_cancellation(self):
         copilot.claim(self.owner,self.ident,self.case.key,'synthetic')
