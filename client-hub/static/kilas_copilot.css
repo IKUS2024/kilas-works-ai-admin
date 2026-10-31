@@ -118,3 +118,8 @@ body:has(#copilot)>.premium-mobile-header .kilas-profile-menu>summary>span:not(.
  #copilot[data-view=results] #copilot-trigger{font-size:13px;padding:7px 10px}
 }
 @media(prefers-reduced-motion:reduce){.copilot-translation input:before,#copilot-mic,#copilot-trigger{transition:none}}
+
+/* Small result CTA needs normal-text contrast, independent of the large idle CTA. */
+#copilot[data-view=results] #copilot-trigger{background:#bd4700}
+#copilot[data-view=results] #copilot-trigger:hover{background:#943500}
+.copilot-translation-retry{min-height:44px;padding:7px 12px;border:1px solid #d8dce3;border-radius:9px;background:#fff;color:#172237;font:600 13px Manrope,system-ui,sans-serif;cursor:pointer;margin:0 0 10px}

@@ -33,6 +33,26 @@ export async function readEvents(response, receive) {
   } finally {await reader.cancel().catch(()=>{});reader.releaseLock();}
 }
 
+export async function pollOperation(url, receive, signal) {
+  let version;
+  while(!signal?.aborted){
+    const response=await fetch(url,{signal,cache:'no-store'});
+    if(!response.ok)throw Error('network');
+    const view=await response.json().catch(()=>{throw Error('network');});
+    if(!['processing','complete','failed'].includes(view.state))throw Error('network');
+    if(view.version===undefined||view.version!==version){receive(view);version=view.version;}
+    if(view.state==='complete')return;
+    if(view.state==='failed')throw Error(view.code||'provider_failed');
+    await new Promise((resolve,reject)=>{
+      const done=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);resolve();};
+      const abort=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);reject(Error('cancelled'));};
+      const timer=setTimeout(done,view.text?200:400);signal?.addEventListener('abort',abort,{once:true});
+      if(signal?.aborted)abort();
+    });
+  }
+  throw Error('cancelled');
+}
+
 const root=globalThis.document?.querySelector('#copilot');
 if(root){
   const $=id=>document.getElementById('copilot-'+id), mic=$('mic'),trigger=$('trigger'),state=$('state'),action=$('action'),error=$('error');
@@ -42,6 +62,9 @@ if(root){
   const styleButtons=[...root.querySelectorAll('[data-copilot-style]')];let textSize=22;
   let phase='idle',epoch=0,capture=null,chunks=[],sessionId=root.dataset.sessionId,operation=null,controller=null,timer=null,partial=null;
   const messages={
+    clipped_audio:t('Rekaman terlalu terdistorsi. Kurangi volume speaker lalu rekam lagi.'),
+    processing_timeout:t('Batas waktu proses tercapai. Periksa riwayat sebelum merekam lagi.'),
+    interrupted_operation:t('Proses terhenti. Buka ulang sesi untuk memeriksa jawaban yang tersimpan.'),
     silence:t('Tidak terdengar ucapan. Dekatkan mikrofon ke speaker, lalu rekam lagi.'),
     unclear_audio:t('Ucapan belum jelas. Rekam ulang bagian yang ingin dijawab.'),
     permission:t('Izin mikrofon ditolak. Izinkan mikrofon melalui pengaturan browser, lalu tekan lagi.'),
@@ -86,7 +109,12 @@ if(root){
       }
       const answer=document.createElement('section');answer.className='copilot-answer-card';
       paragraph(answer,'copilot-reply',t('Saran jawaban AI'),turn.reply);
-      if(translate.checked)paragraph(answer,'copilot-reply-translation',t('Terjemahan · {language}',{language:([...target.options].find(option=>option.value===turn.target)?.textContent||'')}),turn.reply_translation||t('Terjemahan belum dibuat untuk rekaman ini.'));
+      if(translate.checked){
+        paragraph(answer,'copilot-reply-translation',t('Terjemahan · {language}',{language:([...target.options].find(option=>option.value===turn.target)?.textContent||'')}),turn.reply_translation||t(turn.translation_status==='pending'?'Menerjemahkan…':turn.translation_error?'Terjemahan gagal. Jawaban tersimpan.':'Terjemahan belum dibuat untuk rekaman ini.'));
+        if(turn.translation_error&&turn.operation_key){
+          const retry=document.createElement('button');retry.type='button';retry.className='copilot-translation-retry';retry.textContent=t('Coba terjemahan lagi');retry.disabled=phase!=='idle';retry.addEventListener('click',()=>retryTranslation(turn));answer.append(retry);
+        }
+      }
       const copy=document.createElement('button');copy.type='button';copy.className='copilot-copy';copy.textContent=t('Salin jawaban');
       copy.addEventListener('click',async()=>{
         try{await navigator.clipboard.writeText(turn.reply);copy.textContent=t('Tersalin');setTimeout(()=>copy.textContent=t('Salin jawaban'),1500);}
@@ -100,8 +128,16 @@ if(root){
     });
     resultTools.hidden=!turns.length;$('disclosure').hidden=!turns.length;
   }
-  translate.addEventListener('change',()=>{$('target-wrap').hidden=!translate.checked;draw();});
-  styleButtons.forEach(button=>button.addEventListener('click',()=>{style.value=button.dataset.copilotStyle;styleButtons.forEach(b=>b.setAttribute('aria-pressed',String(b===button)));}));
+  let preferenceQueue=Promise.resolve();
+  function savePreferences(){
+    if(!sessionId)return;
+    const body=new FormData();body.set('csrf_token',csrf);body.set('style',style.value);body.set('target',target.value);body.set('translate',translate.checked?'yes':'no');
+    const url=`/kilas-ai/copilot/sessions/${sessionId}/preferences`;
+    preferenceQueue=preferenceQueue.catch(()=>{}).then(()=>fetch(url,{method:'POST',body,keepalive:true})).then(response=>{if(!response.ok)throw Error('network');}).catch(()=>notice('network'));
+  }
+  translate.addEventListener('change',()=>{$('target-wrap').hidden=!translate.checked;draw();savePreferences();});
+  target.addEventListener('change',savePreferences);
+  styleButtons.forEach(button=>button.addEventListener('click',()=>{style.value=button.dataset.copilotStyle;styleButtons.forEach(b=>b.setAttribute('aria-pressed',String(b===button)));savePreferences();}));
   function size(delta){textSize=Math.max(18,Math.min(30,textSize+delta));root.style.setProperty('--copilot-text-size',textSize+'px');$('smaller').disabled=textSize===18;$('larger').disabled=textSize===30;}
   $('smaller').addEventListener('click',()=>size(-2));$('larger').addEventListener('click',()=>size(2));
   function waveform(samples){
@@ -125,7 +161,10 @@ if(root){
     const form=new FormData();form.set('csrf_token',csrf);
     const url=`/kilas-ai/copilot/sessions/${sessionId}/${operation}/cancel`;
     if(beacon)navigator.sendBeacon?.(url,form);
-    else fetch(url,{method:'POST',headers:{'X-CSRF-Token':csrf},body:form,keepalive:true}).catch(()=>{});
+    else{
+      const mine=epoch;
+      fetch(url,{method:'POST',headers:{'X-CSRF-Token':csrf},body:form,keepalive:true}).then(response=>response.ok?response.json():{}).then(result=>{if(mine===epoch&&phase==='idle'&&root.isConnected&&result.turn){mergeTurn(result.turn);draw();}}).catch(()=>{});
+    }
   }
   function reset(code,beacon=false){
     ++epoch;cancelRequest(beacon);operation=null;controller?.abort();controller=null;
@@ -175,7 +214,7 @@ if(root){
     // The deliberate stop/process action submits only this stopped recording.
     // Keep the server's explicit consent and CSRF contract; no checkbox gate.
     const form=new FormData();form.set('csrf_token',csrf);form.set('audio',blob,'recording.wav');form.set('consent','yes');
-    form.set('style',style.value);form.set('translate',translate.checked?'yes':'no');if(translate.checked)form.set('target',target.value);
+    form.set('style',style.value);form.set('translate',translate.checked?'yes':'no');form.set('target',target.value);
     setPhase('processing');
     const timeout=setTimeout(()=>reset('network'),180000);
     try{
@@ -190,30 +229,48 @@ if(root){
       operation=crypto.randomUUID().replaceAll('-','');
       const response=await fetch(`/kilas-ai/copilot/sessions/${sessionId}/${operation}/process`,{method:'POST',headers:{'X-CSRF-Token':csrf},body:form,signal:controller.signal});
       if(!response.ok){const body=await response.json().catch(()=>({}));throw Error(body.code||'network');}
-      await readEvents(response,event=>{
-        if(mine!==epoch)throw Error('cancelled');
-        if(event.type==='status')state.textContent=event.text;
-        if(event.type==='delta'){
-          setPhase('streaming');
-          if(!partial){partial=document.createElement('article');partial.className='copilot-turn is-partial';partial.setAttribute('aria-label',t('Saran AI sedang diproses'));const card=document.createElement('section');card.className='copilot-answer-card';paragraph(card,'copilot-reply',t('Saran jawaban AI · belum selesai'),'');card.append(resultTools);partial.append(card);$('turns').prepend(partial);resultTools.hidden=false;}
-          partial.querySelector('.copilot-reply').textContent+=event.text;
-        }
-        if(event.type==='complete'){
-          turns.push(event.turn);partial?.remove();partial=null;draw();
-          const list=document.querySelector('#kilas-chat-list');
-          if(list){
-            let link=list.querySelector(`a[href="/kilas-ai/threads/${sessionId}"]`);
-            if(!link){link=document.createElement('a');link.href=`/kilas-ai/threads/${sessionId}`;link.className='ai-history-item';link.dataset.chatNavigation='';}
-            link.textContent=event.title||event.turn.source.slice(0,68);link.title=link.textContent;link.setAttribute('aria-current','page');list.prepend(link);
-            list.querySelector('.ai-sidebar-empty')?.remove();
-          }
-          state.textContent=t('Jawaban siap');
-        }
-      });
-      if(mine===epoch){operation=null;controller=null;setPhase('idle');state.textContent=t('Jawaban siap');}
+      const accepted=await response.json();
+      await pollOperation(accepted.status_url,view=>applySnapshot(view,mine),controller.signal);
+      if(mine===epoch){operation=null;controller=null;setPhase('idle');draw();state.textContent=t('Jawaban siap');}
     }catch(e){
       if(mine===epoch){cancelRequest();operation=null;partial?.remove();partial=null;draw();setPhase('idle');notice(e.message);}
     }finally{clearTimeout(timeout);}
+  }
+  function mergeTurn(turn){
+    const index=turns.findIndex(previous=>previous.id===turn.id||previous.operation_key&&previous.operation_key===turn.operation_key);
+    if(index<0)turns.push(turn);else turns[index]=turn;
+  }
+  function applySnapshot(view,mine){
+    if(mine!==epoch)throw Error('cancelled');
+    if(view.primary){mergeTurn(view.primary);partial?.remove();partial=null;draw();}
+    else if(view.text){
+      setPhase('streaming');
+      if(!partial){partial=document.createElement('article');partial.className='copilot-turn is-partial';partial.setAttribute('aria-label',t('Saran AI sedang diproses'));const card=document.createElement('section');card.className='copilot-answer-card';paragraph(card,'copilot-reply',t('Saran jawaban AI · belum selesai'),'');card.append(resultTools);partial.append(card);$('turns').prepend(partial);resultTools.hidden=false;}
+      partial.querySelector('.copilot-reply').textContent=view.text;
+    }
+    if(view.status_text)state.textContent=view.status_text;
+    if(view.state==='complete'){
+      mergeTurn(view.result.turn);partial?.remove();partial=null;draw();
+      const list=document.querySelector('#kilas-chat-list');
+      if(list){
+        let link=list.querySelector(`a[href="/kilas-ai/threads/${sessionId}"]`);
+        if(!link){link=document.createElement('a');link.href=`/kilas-ai/threads/${sessionId}`;link.className='ai-history-item';link.dataset.chatNavigation='';}
+        link.textContent=view.result.title||view.result.turn.source.slice(0,68);link.title=link.textContent;link.setAttribute('aria-current','page');list.prepend(link);list.querySelector('.ai-sidebar-empty')?.remove();
+      }
+    }
+  }
+  async function retryTranslation(turn){
+    if(phase!=='idle')return;
+    const mine=++epoch;operation=crypto.randomUUID().replaceAll('-','');controller=new AbortController();error.hidden=true;setPhase('processing');draw();
+    const timeout=setTimeout(()=>reset('network'),150000);
+    try{
+      const body=new FormData();body.set('csrf_token',csrf);
+      const response=await fetch(`/kilas-ai/copilot/sessions/${sessionId}/${turn.operation_key}/translation/${operation}`,{method:'POST',body,signal:controller.signal});
+      if(!response.ok){const result=await response.json().catch(()=>({}));throw Error(result.code||'network');}
+      const accepted=await response.json();await pollOperation(accepted.status_url,view=>applySnapshot(view,mine),controller.signal);
+      if(mine===epoch){operation=null;controller=null;setPhase('idle');draw();state.textContent=t('Jawaban siap');}
+    }catch(e){if(mine===epoch)reset(e.message);}
+    finally{clearTimeout(timeout);}
   }
   // Both reference controls share one state guard and recording operation.
   function captureAction(){if(phase==='idle')begin();else if(['listening','captured'].includes(phase))process();}
@@ -223,5 +280,6 @@ if(root){
   window.addEventListener('pagehide',()=>reset(null,true));
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&phase!=='idle')reset('cancelled',true);});
   window.addEventListener('offline',()=>{if(phase!=='idle')reset('network',true);});
+  styleButtons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.copilotStyle===style.value)));
   draw();setPhase('idle');
 }

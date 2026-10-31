@@ -8999,5 +8999,10 @@
   "sedang dicadangkan": {"id": "sedang dicadangkan", "en": "reserved", "es": "reservado", "zh": "预留中"},
   " tersisa": {"id": " tersisa", "en": " remaining", "es": " restantes", "zh": " 剩余"},
   "Preview audio hasil": {"id": "Pratinjau audio hasil", "en": "Preview generated audio", "es": "Vista previa del audio", "zh": "音频预览"},
-  "Preview video hasil": {"id": "Pratinjau video hasil", "en": "Preview generated video", "es": "Vista previa del vídeo", "zh": "视频预览"}
+  "Preview video hasil": {"id": "Pratinjau video hasil", "en": "Preview generated video", "es": "Vista previa del vídeo", "zh": "视频预览"},
+  "Rekaman terlalu terdistorsi. Kurangi volume speaker lalu rekam lagi.": {"id": "Rekaman terlalu terdistorsi. Kurangi volume speaker lalu rekam lagi.", "en": "The recording is heavily distorted. Lower the speaker volume and record again.", "es": "La grabación está muy distorsionada. Baja el volumen y vuelve a grabar.", "zh": "录音失真严重。请降低扬声器音量后重新录音。"},
+  "Batas waktu proses tercapai. Periksa riwayat sebelum merekam lagi.": {"id": "Batas waktu proses tercapai. Periksa riwayat sebelum merekam lagi.", "en": "Processing timed out. Check history before recording again.", "es": "Se agotó el tiempo. Revisa el historial antes de volver a grabar.", "zh": "处理超时。再次录音前请检查历史记录。"},
+  "Proses terhenti. Buka ulang sesi untuk memeriksa jawaban yang tersimpan.": {"id": "Proses terhenti. Buka ulang sesi untuk memeriksa jawaban yang tersimpan.", "en": "Processing was interrupted. Reopen the session to check saved replies.", "es": "El proceso se interrumpió. Abre la sesión para ver las respuestas guardadas.", "zh": "处理已中断。请重新打开会话查看已保存的回答。"},
+  "Terjemahan gagal. Jawaban tersimpan.": {"id": "Terjemahan gagal. Jawaban tersimpan.", "en": "Translation failed. Your reply is saved.", "es": "La traducción falló. La respuesta está guardada.", "zh": "翻译失败，回答已保存。"},
+  "Coba terjemahan lagi": {"id": "Coba terjemahan lagi", "en": "Retry translation", "es": "Reintentar traducción", "zh": "重试翻译"}
 }

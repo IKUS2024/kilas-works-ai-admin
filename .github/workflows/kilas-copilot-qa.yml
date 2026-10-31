@@ -20,10 +20,12 @@ jobs:
       - name: Voice-only Copilot contracts, provider mocks only
         run: |
           python client-hub/tests/test_kilas_copilot.py
+          python client-hub/tests/test_kilas_copilot_dependability.py
           python client-hub/tests/test_kilas_copilot_locale.py
           python client-hub/tests/test_ui_i18n.py
           node client-hub/tests/test_ui_i18n.mjs
           node client-hub/tests/test_kilas_copilot.mjs
+          node --test client-hub/tests/test_kilas_copilot_poll.mjs
           node client-hub/tests/test_kilas_copilot_capture.mjs
           node client-hub/tests/test_kilas_ai_call_capture.mjs
       - name: Existing metering, Finance entry, languages and Voice Over

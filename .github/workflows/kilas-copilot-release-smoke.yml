@@ -37,7 +37,7 @@ jobs:
               health=json.load(response)
               assert response.status==200 and health['status']=='ok',health
               print('Production health:',health)
-          for path in ('/kilas-ai','/kilas-ai/copilot','/products/start'):
+          for path in ('/kilas-ai','/kilas-ai/copilot','/products/start','/kilas-ai/copilot/sessions/1/audit_readonly_123/status'):
               with urllib.request.urlopen(origin+path,timeout=30) as response:
                   assert '/login' in response.url or '/sign' in response.url,(path,response.url)
                   assert b'id="copilot"' not in response.read(),path
