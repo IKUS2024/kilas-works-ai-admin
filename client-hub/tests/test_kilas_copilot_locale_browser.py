@@ -102,7 +102,7 @@ def main():
                         assert page.evaluate('micRequests')==0
                         expect(page.locator('body>.premium-mobile-header .kilas-profile-menu>summary')).to_contain_text(text['profile'])
                         if name=='Translator':expect(page.locator('#live-setup-form button[type=submit]')).to_have_text(text['start'])
-                        elif name=='Native-Translator':expect(page.locator('#interpreter-start')).to_have_text(text['start'])
+                        elif name=='Native-Translator':expect(page.locator('#interpreter-start')).to_have_text('Continue' if locale=='en' else 'Lanjut')
                         else:
                             expect(page.locator('#voice-generate')).to_have_text(text['generate'])
                             expect(page.locator('.reference-history-toggle')).to_have_text(text['voicehistory'])

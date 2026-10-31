@@ -124,7 +124,15 @@ def main():
      assert page.locator('#interpreter-login').get_attribute('href')=='/login'
      expect(page.locator('#interpreter-login')).to_be_focused()
      if width==393:
-      page.evaluate("document.activeElement.blur()")
+      # Fixed off-screen skip links can enter a scrolled full-page screenshot.
+      # Keep keyboard access real; normalize scroll only for ordinary pointer QA.
+      skip=page.locator('.premium-skip')
+      rect=skip.bounding_box();assert rect['y']+rect['height']<=0
+      skip.focus();expect(skip).to_be_focused()
+      assert skip.bounding_box()['y']>=0
+      page.locator('#interpreter-login').focus()
+      rect=skip.bounding_box();assert rect['y']+rect['height']<=0
+      page.evaluate("()=>{document.activeElement.blur();window.scrollTo(0,0);}")
       page.screenshot(path=str(output/f'auth-{locale}-{width}.png'),full_page=True)
      page.locator('#interpreter-end').click()
      expect(page.locator('#interpreter-start')).to_be_disabled()
