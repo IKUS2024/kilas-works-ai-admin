@@ -2,7 +2,7 @@ name: Kilas Copilot release smoke
 on:
   push:
     branches: [main]
-    paths: ['client-hub/kilas_ai/copilot.py', 'client-hub/kilas_ai/copilot_routes.py', 'client-hub/locales/**', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/kilas_translator/**', 'client-hub/static/kilas_live_translator.mjs', 'client-hub/static/kilas_copilot*', 'client-hub/templates/kilas_ai/copilot.html', '.github/workflows/kilas-copilot-release-smoke.yml']
+    paths: ['client-hub/kilas_ai/copilot.py', 'client-hub/kilas_ai/copilot_routes.py', 'client-hub/locales/**', 'client-hub/templates/kilas_ai/**', 'client-hub/templates/kilas_translator/**', 'client-hub/static/kilas_live_translator.mjs', 'client-hub/static/kilas_copilot*', 'client-hub/templates/kilas_ai/copilot.html', 'client-hub/templates/login.html', '.github/workflows/kilas-copilot-release-smoke.yml']
   workflow_dispatch:
 permissions:
   contents: read
