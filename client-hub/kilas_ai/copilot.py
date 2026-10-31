@@ -159,7 +159,7 @@ class CopilotError(ValueError):
 
 def visible():
     # Reversible primary-navigation choice; legacy handlers and data remain intact.
-    return os.environ.get('KILAS_COPILOT_VISIBLE', 'true').lower() in ('1', 'true', 'yes', 'on')
+    return os.environ.get('KILAS_COPILOT_VISIBLE', 'false').lower() in ('1', 'true', 'yes', 'on')
 
 
 def configured():

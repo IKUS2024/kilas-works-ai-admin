@@ -2,7 +2,7 @@
 import json
 import hashlib
 from threading import BoundedSemaphore
-from flask import abort, current_app, render_template, request, session, url_for
+from flask import abort, current_app, redirect, render_template, request, session, url_for
 from .routes import ai_bp
 from . import copilot, copilot_jobs
 from ui_i18n import translate as ui_t, translate_ui_message
@@ -23,12 +23,17 @@ def page(ident=None):
 
 @ai_bp.get('/copilot', endpoint='copilot_home')
 def home():
+    if not copilot.visible():
+        return redirect(url_for('kilas_ai.home'), code=303)
     return page(), 200, {'Cache-Control': 'private, no-store'}
 
 
 @ai_bp.get('/copilot/sessions/<int:ident>', endpoint='copilot_session')
 def selected(ident):
     try:
+        if not copilot.visible():
+            copilot.owned(session['user_id'], ident)
+            return redirect(url_for('kilas_ai.home'), code=303)
         return page(ident), 200, {'Cache-Control': 'private, no-store'}
     except LookupError:
         abort(404)

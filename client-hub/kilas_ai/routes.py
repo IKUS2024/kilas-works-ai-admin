@@ -125,6 +125,8 @@ def new_thread():
 def thread_page(thread_id):
     from . import copilot, store
     if store.operation(session['user_id'], thread_id, copilot.SESSION_KEY):
+        if not copilot.visible():
+            return redirect(url_for('kilas_ai.home'), code=303)
         from .copilot_routes import page
         return page(thread_id), 200, {'Cache-Control': 'private, no-store'}
     from . import attachments, store, usage

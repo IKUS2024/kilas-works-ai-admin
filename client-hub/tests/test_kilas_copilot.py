@@ -14,6 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ['CLIENT_HUB_DB_PATH'] = tempfile.mktemp(prefix='kilas-copilot-', suffix='.sqlite')
 os.environ['SECRET_KEY'] = 'copilot-disposable-fixture'
 os.environ['KILAS_AI_ENABLED'] = 'true'
+# Copilot remains explicitly recoverable; Chat is the product default again.
+os.environ['KILAS_COPILOT_VISIBLE'] = 'true'
 os.environ.pop('DATABASE_URL', None)
 import app
 import db

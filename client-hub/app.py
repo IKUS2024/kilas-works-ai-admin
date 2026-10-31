@@ -288,6 +288,8 @@ def create_app():
         from kilas_ai import live_qa_schema
         live_qa_schema.apply()  # Independent owner-QA metadata; never customer billing.
     if kilas_ai_enabled():
+        from kilas_ai import copilot
+        print('KILAS_PRIMARY_UI primary=' + ('copilot' if copilot.visible() else 'chat') + ' history_retained=true', flush=True)
         from kilas_ai import group_schema
         group_schema.apply_release()
         print("KILAS_GROUP_CHAT_READY schema=0099 polling=true", flush=True)

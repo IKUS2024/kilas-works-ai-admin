@@ -1,0 +1,36 @@
+name: Kilas Chat restoration QA
+on:
+  pull_request:
+    paths: ['client-hub/kilas_ai/**', 'client-hub/app.py', 'client-hub/tests/test_kilas_chat_restoration*', '.github/workflows/kilas-chat-restoration-qa.yml']
+  push:
+    branches: [main]
+    paths: ['client-hub/kilas_ai/copilot.py', 'client-hub/kilas_ai/copilot_routes.py', 'client-hub/kilas_ai/home_tasks.py', 'client-hub/kilas_ai/routes.py', 'client-hub/kilas_ai/sidebar_history.py', 'client-hub/tests/test_kilas_chat_restoration*', '.github/workflows/kilas-chat-restoration-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  restored-chat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright pytest
+      - run: python -m playwright install --with-deps chromium
+      - name: Reversible routing, unchanged data, owner isolation and retained engines
+        run: |
+          python client-hub/tests/test_kilas_chat_restoration.py
+          python client-hub/tests/test_kilas_sidebar_history.py
+          python -m pytest -q client-hub/tests/test_kilas_chat_models.py
+          python client-hub/tests/test_kilas_copilot.py
+          python client-hub/tests/test_kilas_copilot_locale.py
+          python client-hub/tests/test_finance_onboarding_shell.py
+          python -m pytest -q client-hub/tests/test_kilas_translator_languages.py client-hub/tests/test_kilas_voice_edit.py client-hub/tests/test_creative_services.py
+      - name: Existing UI, saved chats, mocked answer and attachment, four locales
+        run: python client-hub/tests/test_kilas_chat_restoration_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: restored-chat-browser
+          path: /tmp/kilas-chat-restoration/
