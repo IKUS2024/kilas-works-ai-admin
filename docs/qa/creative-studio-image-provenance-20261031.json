@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-10-31",
+  "scope": "Creative Services only",
+  "parentTransferCommit": "2a999c78161a85b91cd10e62c75ac87159981c15",
+  "generationPromptAvailability": "Exact generation prompts are not available in this task evidence.",
+  "origin": "Parent-generated service illustrations supplied through the parent transport; not client-work evidence.",
+  "reference": {
+    "originLibraryId": "libfile_7ac0f257cb508191833b1e244c88da65",
+    "width": 1536,
+    "height": 1024,
+    "use": "Approved composition reference only; never a shipped production background or page asset."
+  },
+  "conversions": {
+    "1536": "Parent conversion at quality 88.",
+    "640_and_960": "Implementer responsive variants at quality 84."
+  },
+  "assets": [
+    {
+      "file": "creative-services-site/assets/illustrations/event-640.webp",
+      "originLibraryId": "libfile_30e6002e7e8c8191b53c8f795c517474",
+      "width": 640,
+      "height": 427,
+      "bytes": 24744,
+      "sha256": "af33055d6f5b74a49ce7ae4b9cea9d7c6140aa8c11c46b7adaba5c93cb4c7b6f",
+      "format": "WebP",
+      "conversionQuality": 84,
+      "conversionActor": "implementer",
+      "use": "Generated service illustration; not client work"
+    },
+    {
+      "file": "creative-services-site/assets/illustrations/event-960.webp",
+      "originLibraryId": "libfile_30e6002e7e8c8191b53c8f795c517474",
+      "width": 960,
+      "height": 640,
+      "bytes": 39086,
+      "sha256": "64519ca3b9b5c2665545d5a3638d79c536038c7419a510005d8b4197383da031",
+      "format": "WebP",
+      "conversionQuality": 84,
+      "conversionActor": "implementer",
+      "use": "Generated service illustration; not client work"
+    },
+    {
+      "file": "creative-services-site/assets/illustrations/event-1536.webp",
+      "originLibraryId": "libfile_30e6002e7e8c8191b53c8f795c517474",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 90000,
+      "sha256": "aca170e5eb3cb5c2efad143d354e9c72c23c0378391a24641242374158a61c8e",
+      "format": "WebP",
+      "conversionQuality": 88,
+      "conversionActor": "parent",
+      "use": "Generated service illustration; not client work"
+    },
+    {
+      "file": "creative-services-site/assets/illustrations/social-640.webp",
+      "originLibraryId": "libfile_01078fd1a048819184e280d0f5776b56",
+      "width": 640,
+      "height": 427,
+      "bytes": 46602,
+      "sha256": "7db10e77ba0bb38b8aa918420170ce5f873fbdde9c28903304d33c87b7579326",
+      "format": "WebP",
+      "conversionQuality": 84,
+      "conversionActor": "implementer",
+      "use": "Generated service illustration; not client work"
+    },
+    {
+      "file": "creative-services-site/assets/illustrations/social-960.webp",
+      "originLibraryId": "libfile_01078fd1a048819184e280d0f5776b56",
+      "width": 960,
+      "height": 640,
+      "bytes": 78856,
+      "sha256": "6404cced51a341ccc9bcdc4cec51b0f9408b4c4a2ff694af11019d0597a42f67",
+      "format": "WebP",
+      "conversionQuality": 84,
+      "conversionActor": "implementer",
+      "use": "Generated service illustration; not client work"
+    },
+    {
+      "file": "creative-services-site/assets/illustrations/social-1536.webp",
+      "originLibraryId": "libfile_01078fd1a048819184e280d0f5776b56",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 193136,
+      "sha256": "9c5d8e1712d4116d92976f870adfc867609d8d2e61b547a310f89f1d79e7c1c1",
+      "format": "WebP",
+      "conversionQuality": 88,
+      "conversionActor": "parent",
+      "use": "Generated service illustration; not client work"
+    }
+  ],
+  "presentation": {
+    "disclosures": "Visible bilingual illustration captions and portfolio-band note.",
+    "realPortfolio": "https://instagram.com/kilasworks",
+    "archivedThirdPartyGallery": "Unpresented."
+  },
+  "verification": "Documenter checked each listed production asset dimensions, byte length and SHA-256 against the parent inventory."
+}

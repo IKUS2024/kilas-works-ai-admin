@@ -1,0 +1,71 @@
+name: Kilas Creative Services QA
+on:
+  pull_request:
+    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/tests/creative_services_offer_facts.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
+  push:
+    branches: [main]
+    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/tests/creative_services_offer_facts.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  studio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python scripts/package_creative_services.py --check
+      - run: python -B scripts/run_offline_tests.py --only test_creative_services.py
+      - run: python -B client-hub/tests/test_creative_studio_browser.py
+        env: {KILAS_STUDIO_SCREENSHOTS: /tmp/creative-studio-qa}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: creative-services-preview, path: /tmp/creative-studio-qa}
+  released-assets:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Wait for exact released index and verify image assets and health
+        shell: python
+        run: |
+          import hashlib,json,pathlib,time,urllib.request
+          origin='https://kilas-works-client-hub.onrender.com'
+          root=pathlib.Path('creative-services-site')
+          expected=(root/'index.html').read_bytes()
+          paths=['assets/studio-photo.css']+[str(p.relative_to(root)) for p in sorted((root/'assets/illustrations').glob('*.webp'))]
+          for host,prefix in [(origin,'/creative-services/'),('https://kilasworks-creative-services.onrender.com','/')]:
+              for attempt in range(100):
+                  try:
+                      with urllib.request.urlopen(host+prefix,timeout=20) as response:
+                          actual=response.read()
+                      if actual==expected: break
+                  except Exception as error:
+                      print('Waiting for Creative Services release:',host,type(error).__name__,flush=True)
+                  time.sleep(10)
+              else: raise AssertionError('Creative Services index differs from this commit: '+host)
+              print('Released index SHA256:',host,hashlib.sha256(actual).hexdigest())
+              for name in paths:
+                  with urllib.request.urlopen(host+prefix+name,timeout=20) as response:
+                      assert response.read()==(root/name).read_bytes(),(host,name)
+                      if name.endswith('.webp'):assert response.headers.get_content_type()=='image/webp',name
+                  print('Released asset PASS:',host,name)
+          with urllib.request.urlopen(origin+'/healthz',timeout=20) as response:
+              health=json.load(response)
+              assert response.status==200 and health['status']=='ok',health
+              print('Production health:',health)
+          print('PASS exact Creative Services assets; GET only, no provider calls')
+      - run: pip install playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Public mobile and desktop consultation without external send
+        run: python -B scripts/qa/creative_services_release_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: creative-services-live-smoke, path: /tmp/creative-services-live-smoke}
