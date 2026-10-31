@@ -5,13 +5,13 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='language-symbols-20261025') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='translator-hardened-20261031') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
 <div id="interpreter-navigation">{% set selected_feature='live' %}{% include 'kilas_ai/_feature_navigation.html' %}</div>
 <section class="kilas-live-translator interpreter" id="interpreter" data-preference-key="interpreter-languages-v1-{{ session.get('user_id') }}">
-<header class="live-heading"><span class="reference-translator-icon" aria-hidden="true">{% set icon='language' %}{% include 'kilas_ai/_home_task_icon.html' %}</span><div><h1>Translator</h1><p class="interpreter-setup-description">{{ ui_t('Translate text or speech between languages quickly and accurately.') }}</p><p class="interpreter-active-description">{{ ui_t('Real-time voice translation') }}</p></div></header>
+<header class="live-heading"><span class="reference-translator-icon" aria-hidden="true">{% set icon='language' %}{% include 'kilas_ai/_home_task_icon.html' %}</span><div><h1>Translator</h1><p class="interpreter-setup-description">{{ ui_t('Terjemahkan percakapan lewat suara.') }}</p><p class="interpreter-active-description">{{ ui_t('Real-time voice translation') }}</p></div></header>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <section id="interpreter-setup">
 <div class="interpreter-language-pair">
@@ -20,20 +20,27 @@
 <label>{{ ui_t('Bahasa tujuan') }}<select id="interpreter-language-b" name="language_b">{% for code,name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }} {{ 'disabled' if code=='id' }}>{{ name }}</option>{% endfor %}</select></label>
 </div>
 <label class="live-consent"><input type="checkbox" id="interpreter-consent"><span>{{ ui_t('Saya mengizinkan pemrosesan ucapan oleh Google.') }}</span></label>
-<button type="button" class="btn" id="interpreter-start">{{ ui_t('Mulai') }}</button>
+<button type="button" class="btn" id="interpreter-start">{{ ui_t('Lanjut') }}</button>
 </section>
 <section id="interpreter-active" hidden>
 <div class="interpreter-identity" id="interpreter-orb" data-state="idle"><img src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="160" height="160" alt="Kilas" decoding="async"><span class="reference-orbit-speech" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></span><span class="reference-orbit-language" aria-hidden="true">{% set icon="language" %}{% include "kilas_ai/_home_task_icon.html" %}</span></div>
-<h2 class="interpreter-direction-heading">{{ ui_t('Pilih arah bicara') }}</h2><p class="interpreter-direction-help">{{ ui_t('Select the language flow for this conversation') }}</p>
+<h2 class="interpreter-direction-heading">{{ ui_t('Pilih arah bicara') }}</h2><p class="interpreter-direction-help">{{ ui_t('Pilih arah untuk mulai mendengarkan.') }}</p>
 <p id="interpreter-state" data-state="idle" role="status" aria-live="polite">{{ ui_t('Pilih arah bicara') }}</p>
 <div class="interpreter-directions" role="group" aria-label="{{ ui_t('Arah terjemahan') }}">
 <button type="button" class="btn secondary" id="interpreter-left" aria-pressed="false" disabled></button>
 <button type="button" class="btn secondary" id="interpreter-right" aria-pressed="false" disabled></button>
 </div>
+<details id="interpreter-transcript" class="interpreter-transcript">
+<summary>{{ ui_t('Teks percakapan') }}</summary>
+<p id="interpreter-transcript-empty">{{ ui_t('Teks muncul saat percakapan berlangsung.') }}</p>
+<div id="interpreter-original-wrap" hidden><h3>{{ ui_t('Ucapan yang didengar') }}</h3><p id="interpreter-original" dir="auto"></p></div>
+<div id="interpreter-caption-wrap" hidden><h3>{{ ui_t('Terjemahan') }}</h3><p id="interpreter-caption" dir="auto"></p></div>
+</details>
 <div class="interpreter-controls"><button type="button" class="btn secondary" id="interpreter-end">{{ ui_t('Akhiri') }}</button></div>
 </section>
 <p id="interpreter-error" role="alert" hidden></p>
+<a id="interpreter-login" class="interpreter-login" href="{{ url_for('auth.login_page') }}" hidden>{{ ui_t('Masuk kembali') }}</a>
 
 </section></div>
-<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='language-symbols-20261025') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='translator-hardened-20261031') }}"></script>
 {% endblock %}

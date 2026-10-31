@@ -10,6 +10,37 @@ on:
 permissions:
   contents: read
 jobs:
+  translator-hardening:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt pytest playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Translator contracts and preserved products without provider IO
+        env: {PYTHONDONTWRITEBYTECODE: '1'}
+        run: |
+          python -B client-hub/tests/test_kilas_interpreter.py
+          node --test client-hub/tests/test_kilas_interpreter.mjs client-hub/tests/test_kilas_ai_call_capture.mjs client-hub/tests/test_kilas_ai_call_player.mjs client-hub/tests/test_kilas_ai_call_pcm.mjs client-hub/tests/test_kilas_live_translator_api.mjs
+          python -B client-hub/tests/test_ui_i18n.py
+          node client-hub/tests/test_ui_i18n.mjs
+          python -B client-hub/tests/test_kilas_copilot.py
+          python -B client-hub/tests/test_kilas_copilot_dependability.py
+          python -B client-hub/tests/test_kilas_copilot_locale.py
+          python -B client-hub/tests/test_finance_onboarding_shell.py
+          python -m pytest -q client-hub/tests/test_kilas_translator_languages.py client-hub/tests/test_kilas_voice_edit.py
+      - name: Four UI locales, mobile tablet desktop, synthetic audio and relay
+        env: {PYTHONDONTWRITEBYTECODE: '1', KILAS_QA_CHROMIUM: ''}
+        run: python -B client-hub/tests/test_kilas_interpreter_hardened_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: translator-hardened-browser
+          path: /tmp/kilas-interpreter-hardened/
   offline:
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -32,3 +32,17 @@
 
 #interpreter-navigation[hidden]{display:none!important}
 .interpreter-language-pair option{background-image:url('/static/language-symbol.svg');background-repeat:no-repeat;background-size:20px;background-position:4px center}
+
+/* Translator-only contrast; shared brand and other product engines stay intact. */
+body.kilas-light:has(>.kilas-reference-header) #interpreter.interpreter :is(#interpreter-start,#interpreter-end){background:#bd4700;color:#fff}
+body.kilas-light:has(>.kilas-reference-header) #interpreter.interpreter :is(#interpreter-start,#interpreter-end):hover{background:#943500}
+body.kilas-light:has(>.kilas-reference-header) #interpreter.interpreter :is(.live-heading p,.interpreter-language-pair label,#interpreter-state,.interpreter-direction-help){color:#505965}
+body.kilas-light:has(>.kilas-reference-header) #interpreter.interpreter #interpreter-swap{color:#bd4700}
+.interpreter-login{display:inline-flex;align-items:center;min-height:44px;margin-top:8px;color:#bd4700;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.interpreter-login:focus-visible{outline:3px solid #bd4700;outline-offset:3px}
+.interpreter-transcript{margin-block:16px;color:#20242b;text-align:start}
+.interpreter-transcript summary{min-height:44px;display:list-item;align-content:center;cursor:pointer;color:#505965;font-size:14px}
+.interpreter-transcript summary:focus-visible{outline:3px solid #bd4700;outline-offset:3px}
+.interpreter-transcript h3{font-size:14px;font-weight:600;margin:16px 0 6px}
+.interpreter-transcript p{font-size:16px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 12px}
+.interpreter-transcript #interpreter-transcript-empty{font-size:14px;color:#505965}
