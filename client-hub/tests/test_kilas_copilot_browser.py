@@ -56,7 +56,7 @@ def main():
     def stt(raw):
         provider_calls.append('stt')
         if slow[0]:
-            provider_entered.set();hold.wait(8)
+            provider_entered.set();hold.wait(20)
         return 'شكراً على مساعدتك' if arabic[0] else 'Where did you study, and what relevant work experience do you have?'
     def text(system, content, **options):
         provider_calls.append('text')
@@ -256,7 +256,12 @@ def main():
             before_repeat=len(provider_calls)
             page.evaluate("document.querySelector('#copilot-trigger').click();document.querySelector('#copilot-mic').click()")
             assert len(provider_calls)==before_repeat
-            page.locator('#copilot-cancel').click();expect(page.locator('#copilot-state')).to_have_text('Mikrofon mati')
+            # UI feedback is immediate; the provider must stay held until the
+            # real server has acknowledged cancellation, not just until idle paints.
+            with page.expect_response(lambda response:response.request.method=='POST' and response.url.endswith('/cancel')) as cancelled:
+                page.locator('#copilot-cancel').click()
+            assert cancelled.value.status==200
+            expect(page.locator('#copilot-state')).to_have_text('Mikrofon mati')
             hold.set();slow[0]=False;page.wait_for_timeout(250)
             expect(page.locator('.copilot-reply')).to_have_count(0)
             page.locator('#copilot-mic').click();page.wait_for_function('processFrames>10')
