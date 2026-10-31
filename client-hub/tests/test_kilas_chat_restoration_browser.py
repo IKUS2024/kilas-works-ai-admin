@@ -46,7 +46,7 @@ def main():
                     assert page.locator('[data-kilas-feature=copilot],#copilot').count()==0
                     assert page.locator('html').get_attribute('lang')==locale
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-                    page.screenshot(path=str(output/f'home-{locale}-{width}.png'))
+                    page.screenshot(animations='disabled',path=str(output/f'home-{locale}-{width}.png'))
                     thread=store.create_thread(scenario.owner)
                     store.append_user_once(scenario.owner,thread,'SYNTHETIC_SAVED_CHAT','FAST','browser_saved_'+str(thread))
                     path=f'/kilas-ai/threads/{thread}'
@@ -65,7 +65,7 @@ def main():
                     rail=open_chat_sidebar(page)
                     expect(rail).not_to_contain_text('VOICE_ONLY_SYNTHETIC_HISTORY')
                     assert rail.locator(f'a[href="/kilas-ai/threads/{hidden}"]').count()==0
-                    page.screenshot(path=str(output/f'history-{locale}-{width}.png'))
+                    page.screenshot(animations='disabled',path=str(output/f'history-{locale}-{width}.png'))
                     close=rail.locator('[data-premium-close]')
                     if close.is_visible():close.click()
                     if locale=='en':
