@@ -79,12 +79,28 @@ def main():
                     expect(page.locator(f'#cs-{kind}')).to_be_visible();fits()
                     expect(page.locator(f'#cs-{kind} .cs-card')).to_have_count(3)
                     images_ready()
+                    if kind=='event':
+                        premium=page.locator('#cs-event .cs-premium')
+                        expect(premium.locator('.cs-price')).to_have_text('Rp5.000.000')
+                        expect(premium).to_contain_text('1 fotografer + 1 videografer')
+                        expect(premium).not_to_contain_text('2 fotografer')
+                        expect(premium).to_contain_text('Pengambilan video udara menggunakan drone')
+                        expect(premium.locator('.cs-drone-note')).to_have_text('Pengambilan gambar drone menyesuaikan cuaca, kondisi lokasi, dan izin penerbangan.')
+                        expect(page.locator('#cs-social .cs-drone-note')).to_have_count(0)
+                        if width in (393,1440):premium.screenshot(path=str(output/f'event-premium-id-{width}.png'),animations='disabled')
                     page.screenshot(path=str(output/f'{kind}-{width}.png'),full_page=True)
                     page.locator('[data-cs-language="en"]').click();fits()
                     expect(page.locator('html')).to_have_attribute('lang','en')
                     expect(page.locator(f'#cs-{kind} h1')).to_have_text('Event Photography & Videography' if kind=='event' else 'Social Media Content Plan')
+                    if kind=='event':
+                        expect(premium).to_contain_text('1 photographer + 1 videographer')
+                        expect(premium).not_to_contain_text('2 photographers')
+                        expect(premium).to_contain_text('Aerial video footage captured with a drone')
+                        expect(premium.locator('.cs-drone-note')).to_have_text('Drone filming is subject to weather, site conditions, and flight permissions.')
+                        if width in (393,1440):premium.screenshot(path=str(output/f'event-premium-en-{width}.png'),animations='disabled')
                     page.locator('[data-cs-language="id"]').click()
-                    page.locator(f'#cs-{kind} [data-service-id]').first.click()
+                    choice=page.locator('#cs-event .cs-premium [data-service-id]') if kind=='event' else page.locator('#cs-social [data-service-id]').first
+                    choice.click()
                     page.wait_for_url('**/#contact')
                     page.locator('#cs-brief-date').fill('2026-11-20')
                     page.locator('#cs-brief-location').fill('Jakarta')
@@ -92,7 +108,8 @@ def main():
                     page.locator('.cs-brief-prepare').click()
                     expect(page.locator('#cs-brief-review-panel')).to_have_attribute('open','')
                     message=page.locator('#cs-brief-message').input_value()
-                    assert all(s in message for s in ('Basic','2026-11-20','Jakarta','Brief sintetis'))
+                    assert all(s in message for s in ('Premium' if kind=='event' else 'Basic','2026-11-20','Jakarta','Brief sintetis'))
+                    assert '2 fotografer' not in message and '2 photographers' not in message
                     edited=message+'\nEdit saya & karakter <aman>.'
                     page.locator('#cs-brief-message').fill(edited)
                     href=page.locator('#cs-contact-whatsapp').get_attribute('href')
@@ -101,6 +118,12 @@ def main():
                     expect(page.locator('#cs-brief-message')).to_have_value(edited)
                     page.go_back();page.go_forward()
                     expect(page.locator('#cs-brief-message')).to_have_value(edited)
+                    if kind=='event':
+                        page.locator('.cs-brief-prepare').click()
+                        english=page.locator('#cs-brief-message').input_value()
+                        assert 'Event Photography & Videography — Premium' in english
+                        assert '2 photographers' not in english
+                        assert parse_qs(urlsplit(page.locator('#cs-contact-whatsapp').get_attribute('href')).query)['text']==[english]
                     page.locator('.brand').click();page.locator('.brand').click()
                     expect(page.locator('#cs-title')).to_be_visible();fits()
                     page.locator('[data-cs-language="id"]').click()

@@ -81,16 +81,25 @@ def main():
                             page.locator(f'[data-service-choice="{kind}"]').click()
                             expect(page.locator(f'#cs-{kind}')).to_be_visible()
                             expect(page.locator(f'#cs-{kind} .cs-card')).to_have_count(3)
+                            if kind == 'event':
+                                premium=page.locator('#cs-event .cs-premium')
+                                expect(premium.locator('.cs-price')).to_have_text('Rp5.000.000')
+                                expect(premium).to_contain_text('1 fotografer + 1 videografer' if locale=='id' else '1 photographer + 1 videographer')
+                                expect(premium).to_contain_text('Pengambilan video udara menggunakan drone' if locale=='id' else 'Aerial video footage captured with a drone')
+                                expect(premium.locator('.cs-drone-note')).to_have_text('Pengambilan gambar drone menyesuaikan cuaca, kondisi lokasi, dan izin penerbangan.' if locale=='id' else 'Drone filming is subject to weather, site conditions, and flight permissions.')
+                                expect(premium).not_to_contain_text('2 fotografer' if locale=='id' else '2 photographers')
+                                premium.screenshot(path=str(output/f'{host}-event-premium-{locale}-{width}.png'),animations='disabled')
                             if kind == 'social':
                                 expect(page.locator('#cs-addons-title')).to_be_visible()
-                            page.locator(f'#cs-{kind} [data-service-id]').first.click()
+                            choice=page.locator('#cs-event .cs-premium [data-service-id]') if kind=='event' else page.locator('#cs-social [data-service-id]').first
+                            choice.click()
                             page.locator('#cs-brief-date').fill('2026-11-20')
                             page.locator('#cs-brief-location').fill('UI smoke — no send')
                             page.locator('#cs-brief-needs').fill('Synthetic public-browser check. Do not send.')
                             page.locator('.cs-brief-prepare').click()
                             expect(page.locator('#cs-brief-review-panel')).to_have_attribute('open', '')
                             message = page.locator('#cs-brief-message').input_value()
-                            assert all(value in message for value in ('Basic', '2026-11-20', 'UI smoke — no send'))
+                            assert all(value in message for value in ('Premium' if kind=='event' else 'Basic', '2026-11-20', 'UI smoke — no send'))
                             edited = message+'\nManual edit & safe <text>.'
                             page.locator('#cs-brief-message').fill(edited)
                             href = page.locator('#cs-contact-whatsapp').get_attribute('href')
