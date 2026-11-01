@@ -19,7 +19,7 @@ jobs:
         run: |
           import hashlib, json, pathlib, re, time, urllib.request
           origin='https://kilas-works-client-hub.onrender.com'
-          expected={name:pathlib.Path('client-hub/static',name).read_bytes() for name in ('kilas_copilot.mjs','kilas_copilot_capture.mjs','kilas_copilot.css','kilas_copilot_policy.sha256','kilas_live_translator.mjs','kilas_interpreter.mjs','kilas_interpreter.css','kilas_live_translator_api.mjs')}
+          expected={name:pathlib.Path('client-hub/static',name).read_bytes() for name in ('kilas_copilot.mjs','kilas_copilot_capture.mjs','kilas_copilot.css','kilas_copilot_policy.sha256','kilas_live_translator.mjs','kilas_interpreter.mjs','kilas_interpreter.css','kilas_live_translator_api.mjs','kilas_ai.js','kilas_ai_agent_chat.js','kilas_chat_operation.js','kilas_reference_ui.css')}
           for attempt in range(100):
               try:
                   released={}
@@ -32,7 +32,7 @@ jobs:
               time.sleep(10)
           else: raise AssertionError('Released asset does not match checked-out commit')
           for name,data in released.items():
-              print('Released Copilot asset:',name,'SHA256:',hashlib.sha256(data).hexdigest())
+              print('Released workspace asset:',name,'SHA256:',hashlib.sha256(data).hexdigest())
           with urllib.request.urlopen(origin+'/healthz',timeout=30) as response:
               health=json.load(response)
               assert response.status==200 and health['status']=='ok',health
@@ -52,7 +52,7 @@ jobs:
               found=re.search(r'<script[^>]+id="kw-ui-translations"[^>]*>(.*?)</script>',page,re.S)
               assert found,'Missing public UI catalog'
               messages=json.loads(found.group(1))
-              for key in ('Dengarkan','Mikrofon mati','Record Script','Tampilkan terjemahan','Menghubungkan…','Menerjemahkan','Batas biaya Translator tercapai.','Translator sedang tidak tersedia.','Terjemahan diputar. Tunggu giliran.'):
+              for key in ('Periksa jawaban AI.','Masuk kembali','Total lampiran maksimal 10 MB per pesan.','Dengarkan','Mikrofon mati','Record Script','Tampilkan terjemahan','Menghubungkan…','Menerjemahkan','Batas biaya Translator tercapai.','Translator sedang tidak tersedia.','Terjemahan diputar. Tunggu giliran.'):
                   expected_copy=english.get(key,catalog.get(key,{}).get('en',key)) if locale=='en' else catalog.get(key,{}).get(locale,key)
                   assert messages.get(key,key)==expected_copy,(locale,key)
               print('Public UI catalog:',locale,'PASS; no authentication or generation')
@@ -63,4 +63,13 @@ jobs:
               assert paragraph and 'Google Gemini' in paragraph.group(1),locale
               assert 'ElevenLabs' not in paragraph.group(1) and 'OpenAI' not in paragraph.group(1),locale
               print('Public Translator processing disclosure:',locale,'PASS')
+          custom='https://app.kilasworks.id'
+          with urllib.request.urlopen(custom+'/healthz',timeout=30) as response:
+              assert response.status==200 and json.load(response)['status']=='ok'
+          for name in ('kilas_ai.js','kilas_ai_agent_chat.js','kilas_chat_operation.js','kilas_reference_ui.css'):
+              with urllib.request.urlopen(custom+'/static/'+name,timeout=30) as response:
+                  assert response.read()==expected[name],name
+          with urllib.request.urlopen(custom+'/kilas-ai',timeout=30) as response:
+              assert '/login' in response.url or '/sign' in response.url,response.url
+          print('Custom domain health, released Chat assets and private-route boundary: PASS')
           print('PASS: public read-only smoke; no authenticated session, mic or provider calls')
