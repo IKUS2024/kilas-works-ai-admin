@@ -92,6 +92,7 @@
       remove.addEventListener('click',() => { files.splice(index,1);render(); });
       row.append(remove);pending.append(row);
     });
+    if(files.length){const hint=document.createElement('small');hint.className='chat-upload-policy';hint.textContent=t('Foto 8 MiB · dokumen 2 MiB · total 10 MiB per pesan.');pending.append(hint);}
     picker.files=transfer.files;
   }
   const lockAttachments=value=>{attachmentBusy=value;if(picker)picker.disabled=value;const add=document.querySelector('[data-work-attach]');if(add)add.disabled=value;pending?.querySelectorAll('button').forEach(button=>button.disabled=value);};

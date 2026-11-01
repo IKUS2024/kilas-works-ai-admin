@@ -178,14 +178,15 @@
         }
         if (!complete || !answer?.textContent.trim()) throw new Error('interrupted');
       }
-      await refresh();
+      // A failed history refresh cannot invalidate a completed answer.
+      try { await refresh(); } catch (_) { /* Keep the rendered completed answer. */ }
       form.dispatchEvent(new Event('work:accepted'));
       startDue();
       const sources=form.querySelector('#work-source-files'); if(sources) sources.value='';
       form.elements.operation_key.value = submission.terminal();
     } catch (failure) {
       if(answer)window.KilasMarkdown.finish(answer);
-      if(draftCleared&&!input.value&&!(accepted&&selected.length)){input.value=draft;input.dispatchEvent(new Event('input'));}
+      if(draftCleared&&!input.value){input.value=draft;input.dispatchEvent(new Event('input'));}
       error.textContent = failure.publicMessage || (failure.name==='AbortError'?t('Jawaban dihentikan.'):null) || t('Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.');
       if(failure.sessionExpired)recovery.show(failure,error);
       error.hidden = false;

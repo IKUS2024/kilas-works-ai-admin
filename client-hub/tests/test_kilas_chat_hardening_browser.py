@@ -7,7 +7,7 @@ from playwright.sync_api import sync_playwright,expect
 from werkzeug.serving import make_server
 import test_kilas_chat_models as fixture
 from kilas_ai import providers,store
-import app
+import app,db,security
 
 def loopback_only(event,args):
     if event=='socket.connect' and isinstance(args[1],tuple) and args[1][0] not in ('127.0.0.1','::1','localhost'):
@@ -21,7 +21,10 @@ def main():
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
     server=make_server('127.0.0.1',0,app.app,threaded=True)
     threading.Thread(target=server.serve_forever,daemon=True).start();origin=f'http://127.0.0.1:{server.server_port}'
-    cookie=case.client().get_cookie('session');calls=[];report=[]
+    password='Synthetic-local-login-20261101'
+    db.execute('UPDATE users SET password_hash=? WHERE id=?',(security.hash_password(password),case.owner))
+    email=db.query_one('SELECT email FROM users WHERE id=?',(case.owner,))['email']
+    cookie=case.client(case.owner).get_cookie('session');calls=[];report=[]
     def answer(mode,messages,**kwargs):
         calls.append(1)
         yield from fixture.answer(mode,messages,**kwargs)
@@ -68,16 +71,46 @@ def main():
                     # Finish the anonymous HTTP response before simulating the
                     # next login response's cookie (do not race cookie writes).
                     page.wait_for_load_state('networkidle')
-                    fresh=case.client(case.owner).get_cookie('session')
-                    ctx.clear_cookies(name='session');ctx.add_cookies([{'name':'session','value':fresh.value,'url':origin}])
+                    with page.expect_popup() as popup:
+                        page.locator('#ai-notice a[href="/login"]').click()
+                    login=popup.value;login.wait_for_load_state('networkidle')
+                    login.locator('input[name="email"]').fill(email)
+                    login.locator('input[name="password"]').fill(password)
+                    login.locator('button.auth-submit').click()
+                    login.wait_for_url(lambda url:'/login' not in url,timeout=15000)
+                    login.wait_for_load_state('networkidle');login.close()
                     before=len(calls);send.click();expect(send).to_be_enabled(timeout=15000);
                     expect(field).to_have_value('');assert len(calls)==before+1
+                    # Accepted HTTP + interrupted durable SSE with an attachment:
+                    # preserve both draft and file, then replay the same operation.
+                    page.goto(origin+f'/kilas-ai/agent?conversation={case.conversation}',wait_until='networkidle')
+                    agent=page.locator('#agent-message');agent_send=page.locator('#agent-chat-form button[type=submit]')
+                    page.locator('#work-source-files').set_input_files({'name':'synthetic.png','mimeType':'image/png','buffer':image.getvalue()})
+                    expect(page.locator('#work-pending-files .chat-upload-policy')).to_contain_text('documents 2 MiB')
+                    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+                    page.screenshot(path=str(out/'upload-policy-393.png'),animations='disabled')
+                    before=len(calls)
+                    def interrupt(route):
+                        response=route.fetch()
+                        frames=[frame for frame in response.body().split(b'\n\n') if b'"type": "done"' not in frame and b'"type":"done"' not in frame]
+                        route.fulfill(response=response,body=b'\n\n'.join(frames))
+                    def disconnect(route):route.abort('failed')
+                    page.route('**/agent/chat',interrupt);page.route('**/work/streams/*',disconnect)
+                    agent.fill('Explain this attachment after interruption.');agent_send.click();expect(agent_send).to_be_enabled(timeout=20000)
+                    expect(agent).to_have_value('Explain this attachment after interruption.')
+                    assert page.locator('#work-source-files').evaluate('e=>e.files.length')==1
+                    assert len(calls)==before+1
+                    page.unroute('**/agent/chat',interrupt);page.unroute('**/work/streams/*',disconnect)
+                    agent_send.click();expect(agent_send).to_be_enabled(timeout=20000);expect(agent).to_have_value('')
+                    assert len(calls)==before+1
+                    # Return to the legacy view to check shared Chat contrast.
+                    page.goto(origin+f'/kilas-ai/threads/{case.thread}',wait_until='networkidle')
                     # Computed color checks against actual active and hint backgrounds.
                     colors=page.evaluate("""()=>['.home-task-choices [aria-pressed=true],.home-task-choices [aria-current=page]','.ai-hint'].map(s=>{const e=document.querySelector(s);return {selector:s,color:getComputedStyle(e).color}})""")
                     assert colors[0]['color']=='rgb(173, 61, 0)',colors
                     assert colors[1]['color']=='rgb(98, 106, 122)',colors
                     page.evaluate('document.documentElement.style.zoom=2');assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-                    report.append({'legacy_text_and_photo_uncertain_retry_dispatch_once':True,'expired_session_draft_and_login_recovery':True,'file_oversize_rejected_client':True,'four_locales':True,'contrast_colors':colors,'zoom200':True})
+                    report.append({'legacy_text_and_photo_uncertain_retry_dispatch_once':True,'expired_session_draft_and_login_recovery':True,'accepted_agent_stream_retains_draft_file_and_replays_once':True,'file_oversize_rejected_client':True,'four_locales':True,'contrast_colors':colors,'zoom200':True})
                 assert not errors,errors
                 report.append({'width':width,'overflow':False,'page_errors':0});ctx.close()
             browser.close()

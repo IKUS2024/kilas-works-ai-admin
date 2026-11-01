@@ -248,3 +248,5 @@ body.kilas-light:has(>.kilas-reference-header) .audio-studio #voice-generate{fon
 /* Chat audit: readable secondary text without changing other product surfaces. */
 body.kilas-light:has(.kilas-home-workspace) .kilas-home-workspace .ai-hint{color:#626a7a}
 body.kilas-light.premium-workspace:not(.finance-app):has(.kilas-home-workspace) .kilas-home-workspace .home-tool-selector.kilas-task-navigation .home-task-choices>:is([aria-current=page],[aria-pressed=true]){color:#ad3d00}
+
+.ai-shell .chat-upload-policy{display:block;flex-basis:100%;font-size:12px;line-height:1.4;color:#626a7a;margin:2px 0;overflow-wrap:anywhere}

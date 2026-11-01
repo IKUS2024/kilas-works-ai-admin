@@ -39,3 +39,9 @@ A separate read-only worktree at c1ef6534 ran the same eight failing suites unde
 Existing Autonomous PostgreSQL rehearsal excludes the conversation-creating migration but still applies dependent migrations, failing with missing `kilas_ai_conversations` on baseline too(job124573231161). The focused current Chat PostgreSQL rehearsal instead applies full compatible baseline and0111/0112 twice, then checks preserved history, checksum and concurrent payload claims; it passed on the implementation candidate. Final-head CI and deployed version remain release-time checks, not inferred from this document.
 
 HD attachment contract is updated from the impossible100MiB promise to the new8MiB/10MiB policy; separate actual HTTP and browser tests verify rejection and clear errors. Existing pixel safety and original-byte tests remain enabled.
+
+## File capacity disclosure
+
+The attachment chooser title and selected-file caption explicitly show photos8MiB, documents2MiB and aggregate10MiB in all four UI locales. Rejected picks keep previously selected files and draft text. An accepted-but-interrupted agent stream also keeps both for an idempotent retry; a failed history refresh does not turn a completed response into a new send.
+
+The2MiB document cap is the existing bounded input/parser contract, not a newly implemented large-document service. Office/ZIP validation and extracted-context limits remain enforced. Large file generation/workspace-output capabilities are separate and do not prove arbitrary large input support; real large-document ingestion/OCR acceptance is NOT RUN. Raising this limit needs a separately tested bounded ingestion design rather than just raising the HTTP cap.
