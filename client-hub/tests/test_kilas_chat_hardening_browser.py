@@ -35,7 +35,7 @@ def main():
                 ctx=browser.new_context(viewport={'width':width,'height':height},has_touch=width<900)
                 ctx.add_cookies([{'name':'session','value':cookie.value,'url':origin},{'name':'kilas_language','value':'en','url':origin}])
                 page=ctx.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-                page.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
+                ctx.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
                 page.goto(origin+'/products/start',wait_until='networkidle')
                 assert page.locator('#copilot').count()==0
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
@@ -71,9 +71,10 @@ def main():
                     # Finish the anonymous HTTP response before simulating the
                     # next login response's cookie (do not race cookie writes).
                     page.wait_for_load_state('networkidle')
-                    with page.expect_popup() as popup:
+                    with ctx.expect_page() as popup:
                         page.locator('#ai-notice a[href="/login"]').click()
                     login=popup.value;login.wait_for_load_state('networkidle')
+                    assert login.evaluate('window.opener===null')
                     login.locator('input[name="email"]').fill(email)
                     login.locator('input[name="password"]').fill(password)
                     login.locator('button.auth-submit').click()
