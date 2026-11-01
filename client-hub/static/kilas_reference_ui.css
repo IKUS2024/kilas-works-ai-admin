@@ -253,3 +253,7 @@ body.kilas-light.premium-workspace:not(.finance-app):has(.kilas-home-workspace) 
 
 /* A recovery action is one stable touch target even when the notice wraps. */
 .ai-shell :is(#ai-notice,#agent-chat-error)>a[href="/login"]{display:flex;align-items:center;width:max-content;max-width:100%;min-height:44px;margin-top:4px;padding:0 8px;white-space:nowrap;color:#ad3d00;text-decoration:underline;text-underline-offset:3px;border-radius:8px}
+
+/* Capacity remains available on the chooser. Avoid repeating that caption
+   inside the small pending-file row while the on-screen keyboard is open. */
+body.home-keyboard-inline .kilas-home-workspace.ai-shell .chat-upload-policy{display:none}

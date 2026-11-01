@@ -60,7 +60,8 @@
     // Focus transfers to links/buttons must not resize the composer under a
     // held pointer. Only real layout changes need another textarea measurement.
     const signature=[viewport?viewport.width:window.innerWidth,height,scale,keyboardOpen,compact,keyboardInline].join(':');
-    if(signature!==lastLayoutSignature){lastLayoutSignature=signature;root.dispatchEvent(new Event('home:viewport'));if(follow)timeline.scrollTop=timeline.scrollHeight;}
+    if(signature!==lastLayoutSignature){lastLayoutSignature=signature;root.dispatchEvent(new Event('home:viewport'));}
+    if(follow)timeline.scrollTop=timeline.scrollHeight;
   };
   fitViewport();window.addEventListener('resize',fitViewport);
   if(viewport){viewport.addEventListener('resize',fitViewport);viewport.addEventListener('scroll',fitViewport);}

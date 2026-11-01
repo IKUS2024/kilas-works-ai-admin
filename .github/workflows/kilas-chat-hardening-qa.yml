@@ -27,6 +27,7 @@ jobs:
           done
           python -m pytest -q client-hub/tests/test_kilas_ai_cost_quality.py::CostQualityTests::test_concurrency_and_idempotency_still_apply client-hub/tests/test_kilas_ai_cost_quality.py::CostQualityTests::test_exact_owner_qa_exemption_keeps_security
           node client-hub/tests/test_kilas_chat_operation.cjs
+          node --test client-hub/tests/test_kilas_home_viewport.cjs
       - name: Actual production worker configuration, two synthetic owners
         run: python -B client-hub/tests/test_kilas_chat_hardening_http.py
   browser:
