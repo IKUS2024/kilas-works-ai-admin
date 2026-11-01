@@ -71,6 +71,10 @@ def main():
                     # Finish the anonymous HTTP response before simulating the
                     # next login response's cookie (do not race cookie writes).
                     page.wait_for_load_state('networkidle')
+                    link=page.locator('#ai-notice a[href="/login"]')
+                    assert link.get_attribute('target')=='_blank' and 'noopener' in link.get_attribute('rel')
+                    assert link.evaluate('e=>e.getBoundingClientRect().height')>=44
+                    page.evaluate("""()=>{window.__loginClicks=[];document.addEventListener('click',event=>{const item={tag:event.target.tagName,href:event.target.closest('a')?.getAttribute('href'),trusted:event.isTrusted};window.__loginClicks.push(item);setTimeout(()=>item.prevented=event.defaultPrevented,0);},true)}""")
                     dialogs=[]
                     def dialog_seen(dialog):
                         dialogs.append({'type':dialog.type,'message':dialog.message});dialog.dismiss()
@@ -82,7 +86,7 @@ def main():
                     except Exception:
                         diagnostic={'url':page.url,'pages':[p.url for p in ctx.pages],
                             'link':page.locator('#ai-notice').inner_html(),'dialogs':dialogs,
-                            'draft_retained':field.input_value()=='Keep this draft for login.'}
+                            'draft_retained':field.input_value()=='Keep this draft for login.','clicks':page.evaluate('window.__loginClicks')}
                         (out/'login-diagnostic.json').write_text(json.dumps(diagnostic,indent=2))
                         print('LOGIN_DIAGNOSTIC',json.dumps(diagnostic),flush=True)
                         page.screenshot(path=str(out/'login-failure-393.png'))

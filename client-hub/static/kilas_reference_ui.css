@@ -250,3 +250,6 @@ body.kilas-light:has(.kilas-home-workspace) .kilas-home-workspace .ai-hint{color
 body.kilas-light.premium-workspace:not(.finance-app):has(.kilas-home-workspace) .kilas-home-workspace .home-tool-selector.kilas-task-navigation .home-task-choices>:is([aria-current=page],[aria-pressed=true]){color:#ad3d00}
 
 .ai-shell .chat-upload-policy{display:block;flex-basis:100%;font-size:12px;line-height:1.4;color:#626a7a;margin:2px 0;overflow-wrap:anywhere}
+
+/* A recovery action is one stable touch target even when the notice wraps. */
+.ai-shell :is(#ai-notice,#agent-chat-error)>a[href="/login"]{display:inline-flex;align-items:center;min-height:44px;padding:0 8px;white-space:nowrap;color:#ad3d00;text-decoration:underline;text-underline-offset:3px;border-radius:8px}
