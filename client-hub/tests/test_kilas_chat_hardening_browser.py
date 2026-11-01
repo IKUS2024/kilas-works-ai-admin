@@ -71,9 +71,25 @@ def main():
                     # Finish the anonymous HTTP response before simulating the
                     # next login response's cookie (do not race cookie writes).
                     page.wait_for_load_state('networkidle')
-                    with ctx.expect_page() as popup:
-                        page.locator('#ai-notice a[href="/login"]').click()
-                    login=popup.value;login.wait_for_load_state('networkidle')
+                    dialogs=[]
+                    def dialog_seen(dialog):
+                        dialogs.append({'type':dialog.type,'message':dialog.message});dialog.dismiss()
+                    page.on('dialog',dialog_seen)
+                    try:
+                        with ctx.expect_page(timeout=10000) as popup:
+                            page.locator('#ai-notice a[href="/login"]').click()
+                        login=popup.value
+                    except Exception:
+                        diagnostic={'url':page.url,'pages':[p.url for p in ctx.pages],
+                            'link':page.locator('#ai-notice').inner_html(),'dialogs':dialogs,
+                            'draft_retained':field.input_value()=='Keep this draft for login.'}
+                        (out/'login-diagnostic.json').write_text(json.dumps(diagnostic,indent=2))
+                        print('LOGIN_DIAGNOSTIC',json.dumps(diagnostic),flush=True)
+                        page.screenshot(path=str(out/'login-failure-393.png'))
+                        raise
+                    assert not dialogs,dialogs
+                    page.remove_listener('dialog',dialog_seen)
+                    login.wait_for_load_state('networkidle')
                     assert login.evaluate('window.opener===null')
                     login.locator('input[name="email"]').fill(email)
                     login.locator('input[name="password"]').fill(password)
