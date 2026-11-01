@@ -74,7 +74,7 @@ def main():
                     link=page.locator('#ai-notice a[href="/login"]')
                     assert link.get_attribute('target')=='_blank' and 'noopener' in link.get_attribute('rel')
                     assert link.evaluate('e=>e.getBoundingClientRect().height')>=44
-                    page.evaluate("""()=>{window.__loginClicks=[];document.addEventListener('click',event=>{const item={tag:event.target.tagName,href:event.target.closest('a')?.getAttribute('href'),trusted:event.isTrusted};window.__loginClicks.push(item);setTimeout(()=>item.prevented=event.defaultPrevented,0);},true)}""")
+                    page.evaluate("""()=>{window.__loginClicks=[];for(const name of ['pointerdown','mousedown','mouseup','click'])document.addEventListener(name,event=>{const a=document.querySelector('#ai-notice a'),r=a?.getBoundingClientRect();const item={type:name,tag:event.target.tagName,href:event.target.closest('a')?.getAttribute('href'),trusted:event.isTrusted,point:[event.clientX,event.clientY],link:r?[r.x,r.y,r.width,r.height]:null,active:document.activeElement?.id};window.__loginClicks.push(item);setTimeout(()=>item.prevented=event.defaultPrevented,0);},true)}""")
                     dialogs=[]
                     def dialog_seen(dialog):
                         dialogs.append({'type':dialog.type,'message':dialog.message});dialog.dismiss()
