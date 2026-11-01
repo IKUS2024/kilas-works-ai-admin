@@ -118,7 +118,7 @@ def _openai(model, key, messages, mode, system=SYSTEM, *, project=None, profile=
         raise ProviderError("openai_unavailable") from None
 
 
-def _anthropic(model, key, messages, mode, system=SYSTEM):
+def _anthropic(model, key, messages, mode, system=SYSTEM, *, stream_guard=None):
     try:
         converted = []
         for message in messages:
@@ -142,10 +142,10 @@ def _anthropic(model, key, messages, mode, system=SYSTEM):
             json={"model": model, "system": system, "messages": converted,
                   "max_tokens": OUTPUT_LIMITS[mode], "thinking": {"type": "adaptive"},
                   "output_config": {"effort": EFFORT[mode]}, "stream": True},
-            stream=True, timeout=(10, 90),
+            stream=True, timeout=stream_guard.timeout(5,30) if stream_guard else (10,90),
         ) as response:
             response.raise_for_status()
-            for event in _events(response):
+            for event in _events(response,guard=stream_guard):
                 kind = event.get("type")
                 if kind == "error":
                     raise ProviderError("anthropic_stream_error")
@@ -167,10 +167,15 @@ def _anthropic(model, key, messages, mode, system=SYSTEM):
 
 
 def stream(mode, messages, system=None):
+    from .chat_transport import bounded
+    yield from bounded(lambda control: _stream(mode, messages, system, control))
+
+
+def _stream(mode, messages, system=None, control=None):
     """One server-selected candidate; only the separately metered guard may repair."""
     if getattr(messages, 'selected_model', None):
         from .selected_provider import stream as exact_stream
-        yield from exact_stream(mode, messages, system)
+        yield from exact_stream(mode, messages, system, control=control)
         return
     from .capabilities import instruction
     system=(SYSTEM if system is None else system)+'\n'+instruction()+'\n'+model_policy.intelligence.playbook(model_policy.chat_profile(messages))
@@ -183,7 +188,7 @@ def stream(mode, messages, system=None):
         finished = False
         try:
             adapter = _openai if provider == "openai" else _anthropic
-            source = adapter(model, key, messages, mode, system)
+            source = adapter(model, key, messages, mode, system, stream_guard=control)
             yield {"type": "provider", "provider": provider, "model": model}
             for event in source:
                 if event["type"] == "delta":

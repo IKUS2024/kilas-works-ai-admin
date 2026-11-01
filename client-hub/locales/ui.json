@@ -313,7 +313,7 @@
   "File proyek tersimpan. Python gagal. Lihat hasil eksekusi.": {"en": "Project files saved. Python failed. View the execution result.", "es": "Archivos guardados. Python falló. Consulta el resultado.", "zh": "项目文件已保存。Python 运行失败。请查看执行结果。"},
   "Sandbox pengujian terisolasi belum tersedia.": {"en": "Isolated code execution is not configured yet.", "es": "La ejecución de código aislada aún no está configurada.", "zh": "尚未配置隔离代码执行环境。"},
   "Pengujian kode belum dijalankan.": {"en":"Runtime tests have not been run.","es":"No se han ejecutado pruebas de código.","zh":"尚未运行代码测试。"},
-  "Berpikir…": {"en": "Thinking…", "es": "Pensando…", "zh": "正在思考…"},
+  "Berpikir…": {"id": "Berpikir…", "en": "Thinking…", "es": "Pensando…", "zh": "正在思考…"},
   "Membaca lampiran…": {"en": "Reading attachments…", "es": "Leyendo archivos adjuntos…", "zh": "正在读取附件…"},
   "Membuat struktur…": {"en": "Creating structure…", "es": "Creando la estructura…", "zh": "正在创建结构…"},
   "Membuat struktur dan kode…": {"en": "Creating structure and code…", "es": "Creando estructura y código…", "zh": "正在创建结构和代码…"},
@@ -324,8 +324,8 @@
   "Pratinjau": {"en": "Preview", "es": "Vista previa", "zh": "预览"},
   "Penyimpanan file": {"en": "File retention", "es": "Conservación de archivos", "zh": "文件保留"},
   "File tetap tersimpan dalam riwayat akun. Mengarsipkan chat menyembunyikan percakapan dan tidak menghapus file. Tidak ada masa kedaluwarsa otomatis.": {"en": "Files remain in account history. Archiving a chat hides the conversation and does not delete files. No automatic expiry is configured.", "es": "Los archivos permanecen en el historial de la cuenta. Archivar un chat oculta la conversación y no elimina archivos. No hay caducidad automática.", "zh": "文件保留在账户历史中。归档聊天只会隐藏对话，不会删除文件。目前未设置自动过期。"},
-  "Jawaban terhenti. Buka riwayat; permintaan tidak diulang otomatis.": {"en": "The response was interrupted. Open history; the request is not retried automatically.", "es": "La respuesta se interrumpió. Abre el historial; la solicitud no se repite automáticamente.", "zh": "回复已中断。请打开历史记录；请求不会自动重试。"},
-  "Pembuatan jawaban dihentikan. Hasil parsial tersimpan; permintaan tidak diulang otomatis.": {"en": "Response generation stopped. Partial output is retained; the request is not retried automatically.", "es": "Se detuvo la respuesta. Se conserva el resultado parcial; la solicitud no se repite automáticamente.", "zh": "回复生成已停止。部分结果已保留；请求不会自动重试。"},
+  "Jawaban terhenti. Buka riwayat; permintaan tidak diulang otomatis.": {"id": "Jawaban terhenti. Buka riwayat; permintaan tidak diulang otomatis.", "en": "The answer stopped. Check history; the request will not be repeated automatically.", "es": "La respuesta se interrumpió. Revisa el historial; la solicitud no se repite automáticamente.", "zh": "回答已中断，请查看历史记录；请求不会自动重试。"},
+  "Pembuatan jawaban dihentikan. Hasil parsial tersimpan; permintaan tidak diulang otomatis.": {"id": "Pembuatan jawaban dihentikan. Hasil parsial tersimpan; permintaan tidak diulang otomatis.", "en": "Answer generation stopped. Partial results were saved; the request will not be repeated automatically.", "es": "Se detuvo la respuesta. Se guardaron los resultados parciales; la solicitud no se repite automáticamente.", "zh": "回答生成已停止，部分结果已保存；请求不会自动重试。"},
   "File proyek tersimpan. Pengujian kode belum dijalankan.": {"en": "Project files saved. Runtime tests have not been run.", "es": "Archivos del proyecto guardados. No se han ejecutado pruebas.", "zh": "项目文件已保存。尚未运行代码测试。"},
   "Pilih model Chat untuk membuat proyek.": {"en": "Select a Chat model to create a project.", "es": "Selecciona un modelo de Chat para crear un proyecto.", "zh": "请选择聊天模型以创建项目。"},
   "Arsip atau kode tidak dapat dibaca dengan aman. Gunakan ZIP sumber UTF-8 tanpa tautan, enkripsi, atau folder dependensi.": {"en": "The archive or code could not be read safely. Use a UTF-8 source ZIP without links, encryption or dependency folders.", "es": "No se pudo leer el archivo de forma segura. Usa un ZIP de código UTF-8 sin enlaces, cifrado ni carpetas de dependencias.", "zh": "无法安全读取压缩包或代码。请使用不含链接、加密或依赖文件夹的 UTF-8 源码 ZIP。"},
@@ -488,11 +488,7 @@
     "es": "Abrir Kilas AI",
     "zh": "打开 Kilas AI"
   },
-  "Chat": {
-    "en": "Chat",
-    "es": "Chat",
-    "zh": "对话"
-  },
+  "Chat": {"id": "Chat", "en": "Chat", "es": "Chat", "zh": "对话"},
   "See all": {"id": "Lihat semua", "en": "See all", "es": "Ver todo", "zh": "查看全部"},
   "See less": {"id": "Lihat lebih sedikit", "en": "See less", "es": "Ver menos", "zh": "收起"},
   "Muat chat berikutnya": {
@@ -500,11 +496,7 @@
     "es": "Cargar más chats",
     "zh": "加载更多对话"
   },
-  "Coba muat riwayat lagi": {
-    "en": "Try again",
-    "es": "Reintentar",
-    "zh": "重试"
-  },
+  "Coba muat riwayat lagi": {"id": "Coba muat riwayat lagi", "en": "Try loading history again", "es": "Volver a cargar el historial", "zh": "重新加载历史记录"},
   "Memuat riwayat chat…": {
     "en": "Loading chat history…",
     "es": "Cargando el historial de chats…",
@@ -835,11 +827,7 @@
     "es": "Editar perfil",
     "zh": "编辑资料"
   },
-  "Tutup": {
-    "en": "Close",
-    "es": "Cerrar",
-    "zh": "关闭"
-  },
+  "Tutup": {"id": "Tutup", "en": "Close", "es": "Cerrar", "zh": "关闭"},
   "Nama lengkap": {
     "en": "Full name",
     "es": "Nombre completo",
@@ -1532,11 +1520,7 @@
     "es": "Navegación de Kilas AI",
     "zh": "Kilas AI 导航"
   },
-  "Chat baru": {
-    "en": "New chat",
-    "es": "Nuevo chat",
-    "zh": "新对话"
-  },
+  "Chat baru": {"id": "Chat baru", "en": "New chat", "es": "Nuevo chat", "zh": "新对话"},
   "Chat terbaru": {
     "en": "Recent chats",
     "es": "Chats recientes",
@@ -1577,66 +1561,26 @@
     "es": "Guardar",
     "zh": "保存"
   },
-  "Lihat pesan sebelumnya": {
-    "en": "View older messages",
-    "es": "Ver mensajes anteriores",
-    "zh": "查看更早消息"
-  },
-  "Lampiran terkirim": {
-    "en": "Sent attachments",
-    "es": "Archivos enviados",
-    "zh": "已发送附件"
-  },
+  "Lihat pesan sebelumnya": {"id": "Lihat pesan sebelumnya", "en": "View earlier messages", "es": "Ver mensajes anteriores", "zh": "查看更早的消息"},
+  "Lampiran terkirim": {"id": "Lampiran terkirim", "en": "Sent attachments", "es": "Archivos adjuntos enviados", "zh": "已发送的附件"},
   "Dari ide hingga selesai. Tanya Kilas, cari informasi, atau mulai dari file kamu.": {
     "en": "From idea to completion. Ask Kilas, find information, or start with your files.",
     "es": "De la idea al resultado. Pregunta a Kilas, busca información o empieza con tus archivos.",
     "zh": "从创意到完成，向 Kilas 提问、查找信息，或从文件开始。"
   },
-  "Menyiapkan jawaban…": {
-    "en": "Preparing your answer…",
-    "es": "Preparando la respuesta…",
-    "zh": "正在准备回答…"
-  },
-  "Pesan untuk Kilas": {
-    "en": "Message for Kilas",
-    "es": "Mensaje para Kilas",
-    "zh": "发送给 Kilas 的消息"
-  },
-  "Tambah lampiran": {
-    "en": "Add attachment",
-    "es": "Añadir archivo",
-    "zh": "添加附件"
-  },
-  "Dokumen atau gambar": {
-    "en": "Documents or images",
-    "es": "Documentos o imágenes",
-    "zh": "文档或图片"
-  },
-  "Lokasi hanya digunakan untuk pekerjaan ini.": {
-    "en": "Your location is used only for this task.",
-    "es": "Tu ubicación se utiliza solo para esta tarea.",
-    "zh": "位置仅用于此任务。"
-  },
-  "Izinkan lokasi": {
-    "en": "Allow location",
-    "es": "Permitir ubicación",
-    "zh": "允许访问位置"
-  },
-  "Atau ketik nama daerah.": {
-    "en": "Or enter an area name.",
-    "es": "O escribe el nombre de una zona.",
-    "zh": "或输入地区名称。"
-  },
+  "Menyiapkan jawaban…": {"id": "Menyiapkan jawaban…", "en": "Preparing an answer…", "es": "Preparando una respuesta…", "zh": "正在准备回答…"},
+  "Pesan untuk Kilas": {"id": "Pesan untuk Kilas", "en": "Message for Kilas", "es": "Mensaje para Kilas", "zh": "发送给 Kilas 的消息"},
+  "Tambah lampiran": {"id": "Tambah lampiran", "en": "Add attachment", "es": "Añadir adjunto", "zh": "添加附件"},
+  "Dokumen atau gambar": {"id": "Dokumen atau gambar", "en": "Document or image", "es": "Documento o imagen", "zh": "文档或图片"},
+  "Lokasi hanya digunakan untuk pekerjaan ini.": {"id": "Lokasi hanya digunakan untuk pekerjaan ini.", "en": "Location is used only for this task.", "es": "La ubicación se usa solo para esta tarea.", "zh": "位置仅用于此任务。"},
+  "Izinkan lokasi": {"id": "Izinkan lokasi", "en": "Allow location", "es": "Permitir ubicación", "zh": "允许使用位置"},
+  "Atau ketik nama daerah.": {"id": "Atau ketik nama daerah.", "en": "Or type an area name.", "es": "O escribe el nombre de una zona.", "zh": "也可以输入地区名称。"},
   "Tulis pesan untuk Kilas AI…": {
     "en": "Write a message to Kilas AI…",
     "es": "Escribe un mensaje a Kilas AI…",
     "zh": "向 Kilas AI 发送消息…"
   },
-  "Kirim": {
-    "en": "Send",
-    "es": "Enviar",
-    "zh": "发送"
-  },
+  "Kirim": {"id": "Kirim", "en": "Send", "es": "Enviar", "zh": "发送"},
   "Stop": {"id": "Berhenti", "en": "Stop", "es": "Detener", "zh": "停止"},
   "Enter untuk kirim": {
     "en": "Enter to send",
@@ -1969,11 +1913,7 @@
     "es": "Resultados del agente ·",
     "zh": "代理结果 ·"
   },
-  "Sumber": {
-    "en": "Sources",
-    "es": "Fuentes",
-    "zh": "来源"
-  },
+  "Sumber": {"id": "Sumber", "en": "Sources", "es": "Fuentes", "zh": "来源"},
   "Lanjutkan di Chat": {
     "en": "Continue in Chat",
     "es": "Continuar en el chat",
@@ -2114,11 +2054,7 @@
     "es": "Historial del chat",
     "zh": "对话历史"
   },
-  "Chat tersimpan": {
-    "en": "Saved chats",
-    "es": "Chats guardados",
-    "zh": "已保存对话"
-  },
+  "Chat tersimpan": {"id": "Chat tersimpan", "en": "Saved chats", "es": "Chats guardados", "zh": "已保存的对话"},
   "Chats": {
     "en": "Chats",
     "es": "Chats",
@@ -2165,16 +2101,8 @@
     "es": "Haz una pregunta, busca información o comenta tus archivos.",
     "zh": "提问、查找信息，或讨论你的附件。"
   },
-  "Gambar dalam chat": {
-    "en": "Image in chat",
-    "es": "Imagen en el chat",
-    "zh": "对话中的图片"
-  },
-  "Download gambar": {
-    "en": "Download image",
-    "es": "Descargar imagen",
-    "zh": "下载图片"
-  },
+  "Gambar dalam chat": {"id": "Gambar dalam chat", "en": "Image in chat", "es": "Imagen del chat", "zh": "对话中的图片"},
+  "Download gambar": {"id": "Download gambar", "en": "Download image", "es": "Descargar imagen", "zh": "下载图片"},
   "PDF ·": {
     "en": "PDF ·",
     "es": "PDF ·",
@@ -2195,46 +2123,22 @@
     "es": "Descargar",
     "zh": "下载"
   },
-  "Salin": {
-    "en": "Copy",
-    "es": "Copiar",
-    "zh": "复制"
-  },
+  "Salin": {"id": "Salin", "en": "Copy", "es": "Copiar", "zh": "复制"},
   "Buat ulang jawaban": {
     "en": "Regenerate answer",
     "es": "Regenerar respuesta",
     "zh": "重新生成回答"
   },
-  "Tulis pesan": {
-    "en": "Write a message",
-    "es": "Escribe un mensaje",
-    "zh": "输入消息"
-  },
+  "Tulis pesan": {"id": "Tulis pesan", "en": "Write a message", "es": "Escribe un mensaje", "zh": "输入消息"},
   "Tulis pesan untuk Kilas AI...": {
     "en": "Write a message to Kilas AI…",
     "es": "Escribe un mensaje a Kilas AI…",
     "zh": "向 Kilas AI 发送消息…"
   },
-  "+ Lampiran": {
-    "en": "+ Attachment",
-    "es": "+ Archivo",
-    "zh": "+ 附件"
-  },
-  "Pilih lampiran": {
-    "en": "Choose attachments",
-    "es": "Elegir archivos",
-    "zh": "选择附件"
-  },
-  "Upload gambar terlebih dahulu untuk diedit.": {
-    "en": "Upload an image first to edit it.",
-    "es": "Sube primero una imagen para editarla.",
-    "zh": "请先上传要编辑的图片。"
-  },
-  "Jawaban AI dapat keliru. Periksa informasi penting.": {
-    "en": "AI can make mistakes. Check important information.",
-    "es": "La IA puede equivocarse. Comprueba la información importante.",
-    "zh": "AI 可能出错，请核实重要信息。"
-  },
+  "+ Lampiran": {"id": "+ Lampiran", "en": "+ Attachment", "es": "+ Adjunto", "zh": "+ 附件"},
+  "Pilih lampiran": {"id": "Pilih lampiran", "en": "Choose attachments", "es": "Elegir archivos adjuntos", "zh": "选择附件"},
+  "Upload gambar terlebih dahulu untuk diedit.": {"id": "Upload gambar terlebih dahulu untuk diedit.", "en": "Upload an image first to edit it.", "es": "Sube primero una imagen para editarla.", "zh": "请先上传要编辑的图片。"},
+  "Jawaban AI dapat keliru. Periksa informasi penting.": {"id": "Jawaban AI dapat keliru. Periksa informasi penting.", "en": "AI answers may be wrong. Check important information.", "es": "La IA puede equivocarse. Verifica la información importante.", "zh": "AI 的回答可能有误，请核实重要信息。"},
   "Tagihan": {
     "en": "Bills",
     "es": "Cuentas por pagar",
@@ -2335,11 +2239,7 @@
     "es": "Enlace compartido",
     "zh": "分享链接"
   },
-  "Kembali ke chat": {
-    "en": "Back to chat",
-    "es": "Volver al chat",
-    "zh": "返回对话"
-  },
+  "Kembali ke chat": {"id": "Kembali ke chat", "en": "Back to chat", "es": "Volver al chat", "zh": "返回对话"},
   "· Kuota Kilas": {
     "en": "· Kilas capacity",
     "es": "· Capacidad de Kilas",
@@ -6162,57 +6062,21 @@
     "es": "marca los gastos pagados",
     "zh": "标记已付款费用"
   },
-  "Hapus lampiran ": {
-    "en": "Remove attachment ",
-    "es": "Quitar archivo ",
-    "zh": "移除附件 "
-  },
-  "Beri tugas →": {
-    "en": "Assign task →",
-    "es": "Asignar tarea →",
-    "zh": "分配任务 →"
-  },
+  "Hapus lampiran ": {"id": "Hapus lampiran ", "en": "Remove attachment ", "es": "Eliminar adjunto ", "zh": "移除附件 "},
+  "Beri tugas →": {"id": "Beri tugas →", "en": "Assign task →", "es": "Asignar tarea →", "zh": "分配任务 →"},
   "Tersalin": {"id": "Tersalin", "en": "Copied", "es": "Copiado", "zh": "已复制"},
-  "Chat baru belum dapat dimulai. Coba lagi.": {
-    "en": "Could not start a new chat. Try again.",
-    "es": "No se pudo iniciar el chat. Inténtalo de nuevo.",
-    "zh": "无法开始新对话，请重试。"
-  },
-  "AI sedang tidak tersedia. Coba lagi.": {
-    "en": "AI is unavailable right now. Try again.",
-    "es": "La IA no está disponible. Inténtalo de nuevo.",
-    "zh": "AI 暂时不可用，请重试。"
-  },
-  "Hapus tugas ini? Riwayat hasilnya tetap tersimpan.": {
-    "en": "Delete this task? Its result history will be retained.",
-    "es": "¿Eliminar esta tarea? Se conservará el historial de resultados.",
-    "zh": "删除此任务？结果历史将保留。"
-  },
+  "Chat baru belum dapat dimulai. Coba lagi.": {"id": "Chat baru belum dapat dimulai. Coba lagi.", "en": "A new chat could not start. Try again.", "es": "No se pudo iniciar un chat nuevo. Inténtalo de nuevo.", "zh": "暂时无法开始新对话，请重试。"},
+  "AI sedang tidak tersedia. Coba lagi.": {"id": "AI sedang tidak tersedia. Coba lagi.", "en": "AI is unavailable right now. Try again.", "es": "La IA no está disponible. Inténtalo de nuevo.", "zh": "AI 暂时不可用，请重试。"},
+  "Hapus tugas ini? Riwayat hasilnya tetap tersimpan.": {"id": "Hapus tugas ini? Riwayat hasilnya tetap tersimpan.", "en": "Delete this task? Its result history will be kept.", "es": "¿Eliminar esta tarea? Se conservará el historial de resultados.", "zh": "删除此任务？结果历史记录将保留。"},
   "Zona waktu belum tersimpan. Coba lagi.": {
     "en": "Time zone was not saved. Try again.",
     "es": "No se guardó la zona horaria. Inténtalo de nuevo.",
     "zh": "时区未保存，请重试。"
   },
-  "Notifikasi perangkat belum tersedia. Pengingat tetap tersimpan di Kilas AI.": {
-    "en": "Device notifications are unavailable. Reminders remain saved in Kilas AI.",
-    "es": "Las notificaciones del dispositivo no están disponibles. Los recordatorios siguen guardados en Kilas AI.",
-    "zh": "设备通知暂不可用，提醒仍保存在 Kilas AI。"
-  },
-  "Izin belum diberikan. Pengingat tetap muncul di Kilas AI.": {
-    "en": "Permission was not granted. Reminders still appear in Kilas AI.",
-    "es": "No se concedió permiso. Los recordatorios siguen en Kilas AI.",
-    "zh": "未获得许可，提醒仍在 Kilas AI 中显示。"
-  },
-  "Notifikasi belum aktif. Pengingat tetap tersimpan di Kilas AI.": {
-    "en": "Notifications are not enabled. Reminders remain saved in Kilas AI.",
-    "es": "Las notificaciones no están activadas. Los recordatorios siguen guardados en Kilas AI.",
-    "zh": "通知未启用，提醒仍保存在 Kilas AI。"
-  },
-  "Lokasi tidak dibagikan. Ketik nama daerah yang ingin dicari.": {
-    "en": "Location was not shared. Enter the area you want to search.",
-    "es": "No se compartió la ubicación. Escribe la zona que quieres buscar.",
-    "zh": "未共享位置，请输入要查找的地区。"
-  },
+  "Notifikasi perangkat belum tersedia. Pengingat tetap tersimpan di Kilas AI.": {"id": "Notifikasi perangkat belum tersedia. Pengingat tetap tersimpan di Kilas AI.", "en": "Device notifications are unavailable. Reminders remain saved in Kilas AI.", "es": "Las notificaciones del dispositivo no están disponibles. Los recordatorios siguen guardados en Kilas AI.", "zh": "设备通知暂不可用，提醒仍保存在 Kilas AI 中。"},
+  "Izin belum diberikan. Pengingat tetap muncul di Kilas AI.": {"id": "Izin belum diberikan. Pengingat tetap muncul di Kilas AI.", "en": "Permission was not granted. Reminders still appear in Kilas AI.", "es": "No se concedió permiso. Los recordatorios seguirán en Kilas AI.", "zh": "未授予权限，提醒仍会显示在 Kilas AI 中。"},
+  "Notifikasi belum aktif. Pengingat tetap tersimpan di Kilas AI.": {"id": "Notifikasi belum aktif. Pengingat tetap tersimpan di Kilas AI.", "en": "Notifications are not enabled. Reminders remain saved in Kilas AI.", "es": "Las notificaciones no están activadas. Los recordatorios siguen guardados en Kilas AI.", "zh": "通知尚未启用，提醒仍保存在 Kilas AI 中。"},
+  "Lokasi tidak dibagikan. Ketik nama daerah yang ingin dicari.": {"id": "Lokasi tidak dibagikan. Ketik nama daerah yang ingin dicari.", "en": "Location was not shared. Type the area you want to search.", "es": "No se compartió la ubicación. Escribe la zona que quieres buscar.", "zh": "未分享位置，请输入要搜索的地区名称。"},
   "Hapus referensi ": {
     "en": "Remove reference ",
     "es": "Quitar referencia ",
@@ -6353,16 +6217,8 @@
     "es": "La solicitud todavía no se puede procesar.",
     "zh": "暂时无法处理请求。"
   },
-  "Kamu": {
-    "en": "You",
-    "es": "Tú",
-    "zh": "你"
-  },
-  "Kilas": {
-    "en": "Kilas",
-    "es": "Kilas",
-    "zh": "Kilas"
-  },
+  "Kamu": {"id": "Kamu", "en": "You", "es": "Tú", "zh": "你"},
+  "Kilas": {"id": "Kilas", "en": "Kilas", "es": "Kilas", "zh": "Kilas"},
   "Aktifkan untuk menerima pengingat meski tab Kilas ditutup. Izin berlaku untuk perangkat ini.": {
     "en": "Enable reminders even when the Kilas tab is closed. Permission applies to this device.",
     "es": "Recibe recordatorios incluso con la pestaña cerrada. El permiso se aplica a este dispositivo.",
@@ -6373,11 +6229,7 @@
     "es": "Las notificaciones del dispositivo no están disponibles. Los recordatorios siguen en el chat de Kilas AI.",
     "zh": "设备通知暂不可用，提醒仍在 Kilas AI 对话中显示。"
   },
-  "Kilas AI": {
-    "en": "Kilas AI",
-    "es": "Kilas AI",
-    "zh": "Kilas AI"
-  },
+  "Kilas AI": {"id": "Kilas AI", "en": "Kilas AI", "es": "Kilas AI", "zh": "Kilas AI"},
   "Nonaktif": {
     "en": "Inactive",
     "es": "Inactivo",
@@ -7627,11 +7479,7 @@
     "es": "Ocultar contraseña",
     "zh": "隐藏密码"
   },
-  "Hapus lampiran {name}": {
-    "en": "Remove attachment {name}",
-    "es": "Eliminar adjunto {name}",
-    "zh": "移除附件 {name}"
-  },
+  "Hapus lampiran {name}": {"id": "Hapus lampiran {name}", "en": "Remove attachment {name}", "es": "Eliminar adjunto {name}", "zh": "移除附件 {name}"},
   "Hapus referensi {name}": {
     "en": "Remove reference {name}",
     "es": "Quitar referencia {name}",
@@ -7642,21 +7490,9 @@
     "es": "Versión {version} · Plan activo",
     "zh": "版本 {version} · 当前方案"
   },
-  "Maksimal {count} lampiran per pesan.": {
-    "en": "Up to {count} attachments per message.",
-    "es": "Máximo {count} archivos por mensaje.",
-    "zh": "每条消息最多 {count} 个附件。"
-  },
-  "Setiap foto maksimal {size} MB.": {
-    "en": "Each image must be under {size} MB.",
-    "es": "Cada imagen debe tener menos de {size} MB.",
-    "zh": "每张图片最大 {size} MB。"
-  },
-  "Setiap dokumen maksimal {size} MB.": {
-    "en": "Each document must be under {size} MB.",
-    "es": "Cada documento debe tener menos de {size} MB.",
-    "zh": "每个文档最大 {size} MB。"
-  },
+  "Maksimal {count} lampiran per pesan.": {"id": "Maksimal {count} lampiran per pesan.", "en": "Up to {count} attachments per message.", "es": "Hasta {count} adjuntos por mensaje.", "zh": "每条消息最多 {count} 个附件。"},
+  "Setiap foto maksimal {size} MB.": {"id": "Setiap foto maksimal {size} MB.", "en": "Each photo may be up to {size} MB.", "es": "Cada foto puede tener hasta {size} MB.", "zh": "每张照片最大为 {size} MB。"},
+  "Setiap dokumen maksimal {size} MB.": {"id": "Setiap dokumen maksimal {size} MB.", "en": "Each document may be up to {size} MB.", "es": "Cada documento puede tener hasta {size} MB.", "zh": "每个文档最大为 {size} MB。"},
   "Setiap file maksimal {size} MiB.": {
     "en": "Each file must be at most {size} MiB.",
     "es": "Cada archivo debe tener como máximo {size} MiB.",
@@ -7667,16 +7503,8 @@
     "es": "El total de archivos debe ser como máximo {size} MiB por carga.",
     "zh": "每次上传的文件总大小最大为 {size} MiB。"
   },
-  "Jawaban tidak dapat dibaca. Coba lagi.": {
-    "en": "The response could not be read. Try again.",
-    "es": "No se pudo leer la respuesta. Inténtalo de nuevo.",
-    "zh": "无法读取回答，请重试。"
-  },
-  "Jawaban terputus. Coba lagi.": {
-    "en": "The answer was interrupted. Try again.",
-    "es": "La respuesta se interrumpió. Inténtalo de nuevo.",
-    "zh": "回答中断，请重试。"
-  },
+  "Jawaban tidak dapat dibaca. Coba lagi.": {"id": "Jawaban tidak dapat dibaca. Coba lagi.", "en": "The answer could not be read. Try again.", "es": "No se pudo leer la respuesta. Inténtalo de nuevo.", "zh": "无法读取回答，请重试。"},
+  "Jawaban terputus. Coba lagi.": {"id": "Jawaban terputus. Coba lagi.", "en": "The answer was interrupted. Try again.", "es": "La respuesta se interrumpió. Inténtalo de nuevo.", "zh": "回答已中断，请重试。"},
   "Rencana belum dapat disusun. Coba lagi.": {
     "en": "Could not prepare the plan. Try again.",
     "es": "No se pudo preparar el plan. Inténtalo de nuevo.",
@@ -7697,11 +7525,7 @@
     "es": "Vista previa de {name}",
     "zh": "预览 {name}"
   },
-  "Gambar buatan Kilas AI": {
-    "en": "Image generated by Kilas AI",
-    "es": "Imagen generada por Kilas AI",
-    "zh": "Kilas AI 生成的图片"
-  },
+  "Gambar buatan Kilas AI": {"id": "Gambar buatan Kilas AI", "en": "Image generated by Kilas AI", "es": "Imagen generada por Kilas AI", "zh": "Kilas AI 生成的图片"},
   "Permintaan dihentikan.": {
     "en": "Request stopped.",
     "es": "Solicitud detenida.",
@@ -7902,11 +7726,7 @@
     "es": "Buscando fuentes actuales…",
     "zh": "正在查找最新来源…"
   },
-  "Jawaban dihentikan.": {
-    "en": "Response stopped.",
-    "es": "Respuesta detenida.",
-    "zh": "回答已停止。"
-  },
+  "Jawaban dihentikan.": {"id": "Jawaban dihentikan.", "en": "Answer stopped.", "es": "Respuesta detenida.", "zh": "已停止回答。"},
   "Menyiapkan riset…": {
     "en": "Preparing research…",
     "es": "Preparando la investigación…",
@@ -7927,21 +7747,9 @@
     "es": "Elige una zona horaria IANA válida.",
     "zh": "请选择有效的 IANA 时区。"
   },
-  "Notifikasi perangkat aktif.": {
-    "en": "Device notifications enabled.",
-    "es": "Notificaciones del dispositivo activadas.",
-    "zh": "设备通知已启用。"
-  },
-  "Notifikasi belum tersimpan. Coba lagi.": {
-    "en": "Notifications could not be saved. Try again.",
-    "es": "No se pudieron guardar las notificaciones. Inténtalo de nuevo.",
-    "zh": "通知设置尚未保存，请重试。"
-  },
-  "Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.": {
-    "en": "The response could not be confirmed. Reopen the chat to check received messages before trying again.",
-    "es": "No se pudo confirmar la respuesta. Vuelve a abrir el chat para revisar los mensajes recibidos antes de intentarlo de nuevo.",
-    "zh": "暂时无法确认回答。请先重新打开聊天，查看已收到的消息，再重试。"
-  },
+  "Notifikasi perangkat aktif.": {"id": "Notifikasi perangkat aktif.", "en": "Device notifications enabled.", "es": "Notificaciones del dispositivo activadas.", "zh": "设备通知已启用。"},
+  "Notifikasi belum tersimpan. Coba lagi.": {"id": "Notifikasi belum tersimpan. Coba lagi.", "en": "Notifications could not be saved. Try again.", "es": "No se pudieron guardar las notificaciones. Inténtalo de nuevo.", "zh": "通知未能保存，请重试。"},
+  "Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.": {"id": "Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.", "en": "The answer could not be confirmed. Reopen the chat to check received messages before retrying.", "es": "No se pudo confirmar la respuesta. Vuelve a abrir el chat para revisar los mensajes recibidos antes de reintentar.", "zh": "暂时无法确认回答，请重新打开对话查看已收到的消息后再重试。"},
   "Product": {
     "en": "Product",
     "es": "Producto",
@@ -8392,11 +8200,7 @@
     "es": "Abrir el espacio de chat completo",
     "zh": "打开完整聊天工作区"
   },
-  "Terjemahan langsung / Bantu jawab": {
-    "en": "Live translation / Reply assistance",
-    "es": "Traducción en directo / Ayuda para responder",
-    "zh": "实时翻译 / 回答辅助"
-  },
+  "Terjemahan langsung / Bantu jawab": {"id": "Terjemahan langsung / Bantu jawab", "en": "Live translation / Reply assistance", "es": "Traducción en vivo / Ayuda para responder", "zh": "实时翻译 / 回复辅助"},
   "Chrome desktop · audio tab yang dipilih": {
     "en": "Desktop Chrome · selected tab audio",
     "es": "Chrome de escritorio · audio de la pestaña seleccionada",
@@ -8493,11 +8297,7 @@
     "zh": "切换任务前请完成聊天或移除附件。"
   },
   "Library saya": {"id": "Pustaka saya", "en": "My Library", "es": "Mi biblioteca", "zh": "我的资料库"},
-  "Percakapan": {
-    "en": "Conversations",
-    "es": "Conversaciones",
-    "zh": "对话"
-  },
+  "Percakapan": {"id": "Percakapan", "en": "Conversation", "es": "Conversaciones", "zh": "会话"},
   "Tulis apa yang ingin diucapkan...": {"en": "Write what you want to say...", "es": "Escribe lo que quieres decir...", "zh": "输入你想说的内容...", "id": "Tulis apa yang ingin diucapkan..."},
   "How can I Help you?": {"id": "Apa yang bisa saya bantu?", "en": "How can I Help you?", "es": "¿En qué puedo ayudarte?", "zh": "有什么可以帮你？"},
   "Profile": {"id": "Profil", "en": "Profile", "es": "Perfil", "zh": "个人资料"},
@@ -8616,7 +8416,7 @@
   "Selesaikan jawaban chat sebelum memanggil.": {"en": "Wait for the chat response to finish before calling.", "es": "Espera a que termine la respuesta del chat antes de llamar.", "zh": "请等待聊天回复完成后再通话。"},
   "Kilas berbicara": {"en": "Kilas is speaking", "es": "Kilas está hablando", "zh": "Kilas正在说话"},
   "Jasa Kreatif": {"id": "Jasa Kreatif", "en": "Creative Services", "es": "Servicios creativos", "zh": "创意服务"},
-  "Pesan": {"en": "Message", "es": "Mensaje", "zh": "消息"},
+  "Pesan": {"id": "Pesan", "en": "Message", "es": "Mensaje", "zh": "消息"},
   "Kapasitas Premium belum cukup untuk permintaan ini. Tambah kapasitas atau lanjutkan Chat biasa.": {"en": "Premium capacity is insufficient for this request. Add capacity or continue with regular Chat.", "es": "La capacidad Premium no es suficiente para esta solicitud. Añade capacidad o continúa con el Chat normal.", "zh": "高级额度不足以处理此请求。请增加额度或继续使用普通聊天。"},
   "Personal": {"en": "Personal", "es": "Personal", "zh": "个人"},
   "Grup": {"en": "Group", "es": "Grupo", "zh": "群组"},
@@ -8679,7 +8479,7 @@
   "Salin tautan yang dipilih.": {"en": "Copy the selected link.", "es": "Copia el enlace seleccionado.", "zh": "请复制选中的链接。"},
   "Kirim ulang": {"en": "Retry", "es": "Reintentar", "zh": "重试"},
   "Ubah Nama": {"en": "Rename", "es": "Cambiar nombre", "zh": "重命名", "id": "Ubah Nama"},
-  "Opsi chat": {"en": "Chat options", "es": "Opciones del chat", "zh": "对话选项"},
+  "Opsi chat": {"id": "Opsi chat", "en": "Chat options", "es": "Opciones del chat", "zh": "对话选项"},
   "Hapus chat ini?": {"en": "Delete this chat?", "es": "¿Eliminar este chat?", "zh": "删除此对话？"},
   "Tindakan ini tidak dapat dibatalkan.": {"en": "This action cannot be undone.", "es": "Esta acción no se puede deshacer.", "zh": "此操作无法撤销。"},
   "Chat akan dihapus dari riwayat. Pekerjaan dan file tetap tersimpan.": {"en": "This chat will be removed from history. Work and files remain saved.", "es": "Este chat se quitará del historial. El trabajo y los archivos se conservarán.", "zh": "此对话将从历史记录中移除。工作和文件仍会保留。"},
@@ -8730,11 +8530,7 @@
     "es": "Tengo el permiso de los hablantes y autorizo el envío de voz a ElevenLabs para transcripción y voz traducida, y de texto a OpenAI para traducción. El audio puede enviarse al hablar. Este permiso se recuerda para mi cuenta y puede revocarse en Permiso de procesamiento de voz.",
     "zh": "我已获得说话者许可，并允许将语音发送至ElevenLabs进行转写和生成翻译语音，将文本发送至OpenAI进行翻译。说话时可能会发送音频。此权限会保存在我的账户中，可在语音处理权限中撤销。"
   },
-  "Memuat model…": {
-    "en": "Loading models…",
-    "es": "Cargando modelos…",
-    "zh": "正在加载模型…"
-  },
+  "Memuat model…": {"id": "Memuat model…", "en": "Loading models…", "es": "Cargando modelos…", "zh": "正在加载模型…"},
   "Model Chat tersimpan tidak tersedia. Pilih model lain.": {
     "en": "Saved Chat model is unavailable. Choose another model.",
     "es": "El modelo de chat guardado no está disponible. Elige otro modelo.",
@@ -8825,14 +8621,14 @@
   "Kelola kategori": {"en": "Manage categories", "es": "Gestionar categorías", "zh": "管理类别"},
   "Selesai mengedit": {"en": "Done", "es": "Listo", "zh": "完成"},
   "Subkategori belum dipilih.": {"en": "No subcategory selected.", "es": "No se ha seleccionado ninguna subcategoría.", "zh": "尚未选择子分类。"},
-  "Pilih model": {"en": "Choose model", "es": "Elegir modelo", "zh": "选择模型"},
+  "Pilih model": {"id": "Pilih model", "en": "Choose model", "es": "Elegir modelo", "zh": "选择模型"},
   "Model gambar": {"en": "Image model", "es": "Modelo de imagen", "zh": "图像模型"},
   "Belum tersedia": {"en": "Not available yet", "es": "Aún no disponible", "zh": "暂不可用"},
   "Akses belum tersedia": {"en": "Access unavailable", "es": "Acceso no disponible", "zh": "暂无访问权限"},
-  "Daftar model belum dapat dimuat. Buka daftar lagi untuk mencoba.": {"en": "Unable to load models. Reopen the list to try again.", "es": "No se pudieron cargar los modelos. Vuelve a abrir la lista para intentarlo de nuevo.", "zh": "无法加载模型。请重新打开列表重试。"},
-  "Model belum dapat dipilih.": {"en": "Unable to select this model.", "es": "No se pudo seleccionar este modelo.", "zh": "无法选择此模型。"},
-  "Pilih model yang tersedia sebelum mengirim.": {"en": "Choose an available model before sending.", "es": "Elige un modelo disponible antes de enviar.", "zh": "发送前请选择可用的模型。"},
-  "Model hasil belum dilaporkan": {"en": "Response model not reported", "es": "Modelo de respuesta no indicado", "zh": "未提供回答所用模型"},
+  "Daftar model belum dapat dimuat. Buka daftar lagi untuk mencoba.": {"id": "Daftar model belum dapat dimuat. Buka daftar lagi untuk mencoba.", "en": "The model list could not load. Open it again to retry.", "es": "No se pudo cargar la lista de modelos. Ábrela de nuevo para reintentar.", "zh": "模型列表未能加载，请重新打开重试。"},
+  "Model belum dapat dipilih.": {"id": "Model belum dapat dipilih.", "en": "The model could not be selected.", "es": "No se pudo seleccionar el modelo.", "zh": "暂时无法选择该模型。"},
+  "Pilih model yang tersedia sebelum mengirim.": {"id": "Pilih model yang tersedia sebelum mengirim.", "en": "Choose an available model before sending.", "es": "Elige un modelo disponible antes de enviar.", "zh": "发送前请选择可用的模型。"},
+  "Model hasil belum dilaporkan": {"id": "Model hasil belum dilaporkan", "en": "The returned model was not reported", "es": "No se informó el modelo utilizado", "zh": "尚未报告返回的模型"},
   "Model pilihan tidak tersedia. Pilih model lain; permintaan tidak dialihkan.": {"en": "The selected model is unavailable. Choose another model; your request has not been rerouted.", "es": "El modelo seleccionado no está disponible. Elige otro modelo; tu solicitud no se ha redirigido.", "zh": "所选模型不可用。请选择其他模型；请求未被转发。"},
   "Tidak ada model tersedia. Coba buka daftar lagi.": {"en": "No models are available. Try reopening the list.", "es": "No hay modelos disponibles. Intenta abrir la lista de nuevo.", "zh": "没有可用的模型。请尝试重新打开列表。"},
   "Model tidak valid. Pilih model dari daftar.": {"en": "Invalid model. Choose a model from the list.", "es": "Modelo no válido. Elige un modelo de la lista.", "zh": "模型无效。请从列表中选择模型。"},
@@ -9028,5 +8824,13 @@
   "Batas waktu proses tercapai. Periksa riwayat sebelum merekam lagi.": {"id": "Batas waktu proses tercapai. Periksa riwayat sebelum merekam lagi.", "en": "Processing timed out. Check history before recording again.", "es": "Se agotó el tiempo. Revisa el historial antes de volver a grabar.", "zh": "处理超时。再次录音前请检查历史记录。"},
   "Proses terhenti. Buka ulang sesi untuk memeriksa jawaban yang tersimpan.": {"id": "Proses terhenti. Buka ulang sesi untuk memeriksa jawaban yang tersimpan.", "en": "Processing was interrupted. Reopen the session to check saved replies.", "es": "El proceso se interrumpió. Abre la sesión para ver las respuestas guardadas.", "zh": "处理已中断。请重新打开会话查看已保存的回答。"},
   "Terjemahan gagal. Jawaban tersimpan.": {"id": "Terjemahan gagal. Jawaban tersimpan.", "en": "Translation failed. Your reply is saved.", "es": "La traducción falló. La respuesta está guardada.", "zh": "翻译失败，回答已保存。"},
-  "Coba terjemahan lagi": {"id": "Coba terjemahan lagi", "en": "Retry translation", "es": "Reintentar traducción", "zh": "重试翻译"}
+  "Coba terjemahan lagi": {"id": "Coba terjemahan lagi", "en": "Retry translation", "es": "Reintentar traducción", "zh": "重试翻译"},
+  "Periksa jawaban AI.": {"id": "Periksa jawaban AI.", "en": "Check AI answers.", "es": "Revisa las respuestas de la IA.", "zh": "请核对 AI 的回答。"},
+  "Pesan terbaru": {"id": "Pesan terbaru", "en": "Latest messages", "es": "Mensajes recientes", "zh": "最新消息"},
+  "Total lampiran maksimal 10 MB per pesan.": {"id": "Total lampiran maksimal 10 MB per pesan.", "en": "Attachments may total up to 10 MB per message.", "es": "Los archivos adjuntos pueden sumar hasta 10 MB por mensaje.", "zh": "每条消息的附件总大小不得超过 10 MB。"},
+  "Chat belum dapat dimuat. Coba lagi.": {"id": "Chat belum dapat dimuat. Coba lagi.", "en": "Chat could not load. Try again.", "es": "No se pudo cargar el chat. Inténtalo de nuevo.", "zh": "对话未能加载，请重试。"},
+  "Contoh caption tab · sintetis": {"id": "Contoh caption tab · sintetis", "en": "Sample tab captions · synthetic", "es": "Subtítulos de ejemplo · sintéticos", "zh": "标签页字幕示例 · 模拟内容"},
+  "Tidak dapat menyalin. Pilih teks lalu salin.": {"id": "Tidak dapat menyalin. Pilih teks lalu salin.", "en": "Could not copy. Select the text and copy it manually.", "es": "No se pudo copiar. Selecciona el texto y cópialo.", "zh": "无法复制，请选中文本后复制。"},
+  "Gambar sedang diproses. Coba lagi sebentar.": {"id": "Gambar sedang diproses. Coba lagi sebentar.", "en": "An image is being processed. Try again shortly.", "es": "Se está procesando una imagen. Inténtalo de nuevo en un momento.", "zh": "图片正在处理中，请稍后重试。"},
+  "File kosong atau melebihi batas {size} MB.": {"id": "File kosong atau melebihi batas {size} MB.", "en": "The file is empty or exceeds {size} MB.", "es": "El archivo está vacío o supera los {size} MB.", "zh": "文件为空或超过 {size} MB。"}
 }

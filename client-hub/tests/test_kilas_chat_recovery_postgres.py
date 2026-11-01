@@ -29,13 +29,29 @@ def main():
     try:
         with patch.object(db,'_postgres_connect_kwargs',side_effect=options):
             # Rehearse a baseline DB, apply only this targeted additive release twice.
-            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith('0111_')]):db.init_schema()
+            with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(('0111_','0112_'))]):db.init_schema()
             before={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             schema.apply_release('0111_kilas_chat_recovery');schema.apply_release('0111_kilas_chat_recovery')
             after={r['table_name'] for r in db.query_all('SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()')}
             assert after-before=={'kilas_chat_request_payloads','kilas_chat_context_checkpoints','kilas_ai_chat_model_releases'}
             with jobs.transaction() as conn:
                 owner=usage._query(conn,"INSERT INTO users(email,password_hash,role) VALUES ('recovery@example.test','hash','CLIENT_OWNER') RETURNING id",one=True)[0]
+            from kilas_ai import store as threads, thread_context_checkpoint
+            legacy_thread=threads.create_thread(owner)
+            threads.append_user_once(owner,legacy_thread,'Ingat EARLY_THREAD dan budget 100.','FAST','old_history_00000000001')
+            schema.apply_release('0112_kilas_chat_hardening');schema.apply_release('0112_kilas_chat_hardening')
+            assert threads.messages(owner,legacy_thread)[0]['content']=='Ingat EARLY_THREAD dan budget 100.'
+            from werkzeug.datastructures import MultiDict
+            payload=MultiDict({'content':'Synthetic request'})
+            barrier=threading.Barrier(2)
+            def bind():barrier.wait();threads.bind_request(owner,legacy_thread,'native_legacy_claim_0001',payload,[],'Synthetic request')
+            with ThreadPoolExecutor(2) as pool:
+                for future in [pool.submit(bind) for _ in range(2)]:future.result()
+            assert db.query_one('SELECT COUNT(*) AS n FROM kilas_thread_request_payloads')['n']==1
+            try:threads.bind_request(owner,legacy_thread,'native_legacy_claim_0001',MultiDict({'content':'Changed'}),[],'Changed')
+            except ValueError:pass
+            else:raise AssertionError('Legacy changed payload accepted')
+            assert 'EARLY_THREAD' in thread_context_checkpoint.before(owner,legacy_thread,2**62)
             conversation=agent_store.new_conversation(owner);barrier=threading.Barrier(2)
             def claim():barrier.wait();return agent_store.claim_request(owner,conversation,'native_claim_00000000001','a'*64)
             with ThreadPoolExecutor(2) as pool:

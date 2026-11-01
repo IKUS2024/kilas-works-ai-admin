@@ -28,7 +28,7 @@ def _parts(content, google=False):
     return result
 
 
-def stream(mode, messages, system=None):
+def stream(mode, messages, system=None, *, control=None):
     model=messages.selected_model
     item=chat_models.spec(model)
     provider=item['provider']
@@ -72,10 +72,10 @@ def stream(mode, messages, system=None):
                  'generationConfig':{'maxOutputTokens':profile['output_tokens'], 'thinkingConfig':{'thinkingLevel':profile['effort'].upper()}}}
     yield {'type':'provider','provider':provider,'model':model}
     try:
-        with requests.post(url,headers=headers,json=payload,stream=True,timeout=(10,90)) as response:
+        with requests.post(url,headers=headers,json=payload,stream=True,timeout=control.timeout(5,30) if control else (10,90)) as response:
             response.raise_for_status()
             reported=None
-            for event in providers._events(response):
+            for event in providers._events(response,guard=control):
                 raw_model=event.get('model') if provider=='openai' else (event.get('message') or {}).get('model') if provider=='anthropic' else event.get('modelVersion')
                 if raw_model:
                     actual=_returned(model,raw_model)

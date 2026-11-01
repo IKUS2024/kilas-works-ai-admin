@@ -323,6 +323,7 @@ MIGRATIONS = [
     ("0109_finance_category_preferences_sqlite.sql", "0109_finance_category_preferences_postgres.sql"),
     ("0110_kilas_voice_alternate_sqlite.sql", "0110_kilas_voice_alternate_postgres.sql"),
     ("0111_kilas_chat_recovery_sqlite.sql", "0111_kilas_chat_recovery_postgres.sql"),
+    ("0112_kilas_chat_hardening_sqlite.sql", "0112_kilas_chat_hardening_postgres.sql"),
 ]
 
 

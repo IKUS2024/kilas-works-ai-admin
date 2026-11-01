@@ -97,6 +97,6 @@
   const lockAttachments=value=>{attachmentBusy=value;if(picker)picker.disabled=value;const add=document.querySelector('[data-work-attach]');if(add)add.disabled=value;pending?.querySelectorAll('button').forEach(button=>button.disabled=value);};
   document.addEventListener('kilas:request-started',()=>lockAttachments(true));
   document.addEventListener('kilas:request-finished',()=>lockAttachments(false));
-  picker?.addEventListener('change',() => {files.push(...picker.files);render();});
+  picker?.addEventListener('change',() => {const message=document.querySelector('#agent-chat-error');for(const file of picker.files){const limit=window.KilasChatAttachments.isImage(file)?8:2;if(file.size>limit*1024*1024){message.textContent=t(window.KilasChatAttachments.isImage(file)?'Setiap foto maksimal {size} MB.':'Setiap dokumen maksimal {size} MB.',{size:limit});message.hidden=false;continue;}if(files.reduce((sum,item)=>sum+item.size,0)+file.size>10*1024*1024){message.textContent=t('Total lampiran maksimal 10 MB per pesan.');message.hidden=false;continue;}files.push(file);}render();});
   composer?.addEventListener('work:accepted',() => {files=[];render();composer.elements.work_location.value='';});
 })();

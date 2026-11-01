@@ -7,6 +7,9 @@ import math
 import os
 import re
 import tempfile
+import threading
+
+_image_slots = threading.BoundedSemaphore(1)
 import zipfile
 from xml.etree import ElementTree
 
@@ -14,7 +17,8 @@ from PIL import Image, ImageOps
 
 MAX_FILES = 4
 MAX_FILE_BYTES = 2 * 1024 * 1024
-MAX_IMAGE_BYTES = 100 * 1024 * 1024
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
+MAX_TOTAL_BYTES = 10 * 1024 * 1024
 MAX_IMAGE_STORED_BYTES = 5 * 1024 * 1024
 MAX_IMAGE_PIXELS = 20_000_000
 MAX_IMAGE_SOURCE_PIXELS = 250_000_000
@@ -40,7 +44,7 @@ class AttachmentError(ValueError):
 def limits(plan):
     return {"max_files": PLAN_FILE_LIMITS.get(plan, PLAN_FILE_LIMITS["FREE"]),
             "max_file_bytes": MAX_FILE_BYTES,
-            "max_image_bytes": MAX_IMAGE_BYTES}
+            "max_image_bytes": MAX_IMAGE_BYTES, "max_total_bytes": MAX_TOTAL_BYTES}
 
 
 def _spool_upload(stream, limit):
@@ -94,6 +98,15 @@ def _encode_image(image, image_format):
 
 
 def _prepare_image(spool, total, mime):
+    if not _image_slots.acquire(blocking=False):
+        raise AttachmentError('Gambar sedang diproses. Coba lagi sebentar.')
+    try:
+        return _normalize_image(spool, total, mime)
+    finally:
+        _image_slots.release()
+
+
+def _normalize_image(spool, total, mime):
     expected = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}[mime]
     try:
         with Image.open(spool) as opened:
@@ -241,7 +254,13 @@ def prepare_many(files, plan=None):
     max_files = limits(plan)["max_files"] if plan else MAX_FILES
     if len(files) > max_files:
         raise AttachmentError(f"Maksimal {max_files} lampiran per pesan.")
-    return [prepare(upload) for upload in files]
+    return validate_total([prepare(upload) for upload in files])
+
+
+def validate_total(prepared):
+    if sum(item.get('source_byte_size', item['byte_size']) for item in prepared) > MAX_TOTAL_BYTES:
+        raise AttachmentError('Total lampiran maksimal 10 MB per pesan.')
+    return prepared
 
 
 def prompt_content(text, attachments):

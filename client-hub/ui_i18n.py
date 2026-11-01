@@ -15,12 +15,13 @@ CLIENT_MESSAGES = json.loads((Path(__file__).parent / 'locales' / 'client.json')
 # never run a general translator over arbitrary request or response values.
 _NUMERIC_MESSAGES = (
     'Durasi audio maksimal {value0} detik.',
+    'File kosong atau melebihi batas {size} MB.',
     'File maksimal {value0} MB.',
     'Saldo tidak cukup. Dibutuhkan {value0}s; saldo tersedia {value1}s.',
     'Saldo tidak cukup. Estimasi {value0}s; perlu mencadangkan hingga {value1}s. Saldo tersedia {value2}s. Sisa reservasi dikembalikan setelah durasi aktual dihitung.',
 )
 _NUMERIC_PATTERNS = [
-    (key, re.compile('^' + re.sub(r'\\\{(value\d+)\\\}',
+    (key, re.compile('^' + re.sub(r'\\\{(value\d+|size)\\\}',
         lambda match: '(?P<' + match[1] + r'>[0-9]+(?:\.[0-9]+)?)', re.escape(key)) + '$'))
     for key in _NUMERIC_MESSAGES
 ]
