@@ -18,7 +18,7 @@ Scope: seven confirmed findings on baseline c1ef653422f83b633effff4938fc2e0a3da9
 
 ## Evidence before CI
 
--94 Python tests +204 subtests passed across isolated models/recovery/quality/sent-attachments/i18n/restoration/history/new-hardening suites. Existing runner imports some files without executing unittest classes, so this release explicitly runs pytest per file.
+-100 Python tests +212 subtests passed across isolated models/recovery/quality/sent-attachments/i18n/restoration/history/new-hardening suites. Existing runner imports some files without executing unittest classes, so this release explicitly runs pytest per file.
 -Node operation-state test passed.
 -Actual shipped Gunicorn config, two synthetic owners processing1.5s each: both complete, health200 in0.003s, one gthread worker/eight threads. No external provider calls.
 -New real Chromium composer:360/393/820/1440, four UI locales, text/photo uncertain retries dispatch once, preserved draft after401 and explicit new login, oversized photo rejection, computed contrast and zoom200%, no page errors/overflow. Existing agent recovery browser suite also passed390(scale2)/1440, cancel then new message and uncertain replay.
@@ -31,3 +31,11 @@ No paid inference, actual provider/model quality benchmark, real photo OCR/visio
 Initial baseline Actions has six failing and three successful workflows; current failures must be compared at job/assertion level. Focused green tests do not make all historical CI green.
 
 Technical references: [Gunicorn workers](https://gunicorn.org/design/) and [Requests timeout semantics](https://requests.readthedocs.io/en/latest/user/quickstart/#timeouts).
+
+## Baseline comparison during review
+
+A separate read-only worktree at c1ef6534 ran the same eight failing suites under the same local environment. Candidate and baseline fail the same test identities: workspace runtime(1), Core simulator(10), WhatsApp(5), workspace/Finance labels(3), legacy Chat fixtures(5), automation(1), connectors(5), subscription lifecycle(1). Cost/quality separately matches the same pre-existing paid-offer wording failure(1); the two new concurrency errors seen in the initial candidate were fixed by preserving existing reservation policy, not by weakening those tests. Anonymous legacy Chat's CSRF-first400 assertion now sees explicit401, intentionally; authenticated invalid-CSRF remains400 and is covered by the new regression.
+
+Existing Autonomous PostgreSQL rehearsal excludes the conversation-creating migration but still applies dependent migrations, failing with missing `kilas_ai_conversations` on baseline too(job124573231161). The focused current Chat PostgreSQL rehearsal instead applies full compatible baseline and0111/0112 twice, then checks preserved history, checksum and concurrent payload claims; it passed on the implementation candidate. Final-head CI and deployed version remain release-time checks, not inferred from this document.
+
+HD attachment contract is updated from the impossible100MiB promise to the new8MiB/10MiB policy; separate actual HTTP and browser tests verify rejection and clear errors. Existing pixel safety and original-byte tests remain enabled.

@@ -22,7 +22,7 @@ jobs:
       - name: Isolated synthetic regressions, no paid provider calls
         env: {PYTHONDONTWRITEBYTECODE: '1', CLIENT_HUB_DB_PATH: /tmp/chat-hardening-bootstrap.db}
         run: |
-          for suite in test_kilas_chat_hardening.py test_kilas_chat_models.py test_kilas_chat_recovery.py test_kilas_chat_quality_v2.py test_kilas_sent_attachments.py test_ui_i18n.py test_kilas_chat_restoration.py test_kilas_history_actions.py; do
+          for suite in test_kilas_chat_hardening.py test_kilas_chat_models.py test_kilas_chat_recovery.py test_kilas_chat_quality_v2.py test_kilas_sent_attachments.py test_kilas_ai_attachments.py test_ui_i18n.py test_kilas_chat_restoration.py test_kilas_history_actions.py; do
             python -m pytest -q client-hub/tests/$suite || exit 1
           done
           python -m pytest -q client-hub/tests/test_kilas_ai_cost_quality.py::CostQualityTests::test_concurrency_and_idempotency_still_apply client-hub/tests/test_kilas_ai_cost_quality.py::CostQualityTests::test_exact_owner_qa_exemption_keeps_security

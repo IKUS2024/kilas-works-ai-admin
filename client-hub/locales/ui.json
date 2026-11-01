@@ -1510,11 +1510,7 @@
     "es": "La duración indicada es una previsión. Ajusta los clips a los modos de tu herramienta y únelos en un editor. Kilas no renderiza ni envía vídeos a otros servicios.",
     "zh": "上述时长为计划值。请根据工具模式调整片段长度，再在编辑器中拼接。Kilas 不渲染视频，也不会将视频发送至其他服务。"
   },
-  "Tutup riwayat": {
-    "en": "Close history",
-    "es": "Cerrar historial",
-    "zh": "关闭历史"
-  },
+  "Tutup riwayat": {"id": "Tutup riwayat", "en": "Close history", "es": "Cerrar historial", "zh": "关闭历史记录"},
   "Navigasi Kilas AI": {
     "en": "Kilas AI navigation",
     "es": "Navegación de Kilas AI",
@@ -8531,16 +8527,8 @@
     "zh": "我已获得说话者许可，并允许将语音发送至ElevenLabs进行转写和生成翻译语音，将文本发送至OpenAI进行翻译。说话时可能会发送音频。此权限会保存在我的账户中，可在语音处理权限中撤销。"
   },
   "Memuat model…": {"id": "Memuat model…", "en": "Loading models…", "es": "Cargando modelos…", "zh": "正在加载模型…"},
-  "Model Chat tersimpan tidak tersedia. Pilih model lain.": {
-    "en": "Saved Chat model is unavailable. Choose another model.",
-    "es": "El modelo de chat guardado no está disponible. Elige otro modelo.",
-    "zh": "保存的聊天模型不可用。请选择其他模型。"
-  },
-  "Model gambar tersimpan tidak tersedia. Pilih model lain.": {
-    "en": "Saved image model is unavailable. Choose another model.",
-    "es": "El modelo de imagen guardado no está disponible. Elige otro modelo.",
-    "zh": "保存的图像模型不可用。请选择其他模型。"
-  },
+  "Model Chat tersimpan tidak tersedia. Pilih model lain.": {"id": "Model Chat tersimpan tidak tersedia. Pilih model lain.", "en": "The saved Chat model is unavailable. Choose another model.", "es": "El modelo de chat guardado no está disponible. Elige otro.", "zh": "保存的对话模型不可用，请选择其他模型。"},
+  "Model gambar tersimpan tidak tersedia. Pilih model lain.": {"id": "Model gambar tersimpan tidak tersedia. Pilih model lain.", "en": "The saved image model is unavailable. Choose another model.", "es": "El modelo de imagen guardado no está disponible. Elige otro.", "zh": "保存的图像模型不可用，请选择其他模型。"},
   "Ekspor dokumen besar belum lolos verifikasi sandbox. File kecil tetap tersedia.": {"en": "Large document export is awaiting sandbox verification. Small files remain available.", "es": "La exportación de documentos grandes espera la verificación del sandbox. Los archivos pequeños siguen disponibles.", "zh": "大文件导出尚待沙箱验证，小文件仍可使用。"},
   "Kategori / Subkategori": {"en": "Category / Subcategory", "es": "Categoría / Subcategoría", "zh": "类别 / 子类别"},
   "Bagi kategori": {"en": "Split categories", "es": "Dividir categorías", "zh": "拆分类别"},
@@ -8622,15 +8610,15 @@
   "Selesai mengedit": {"en": "Done", "es": "Listo", "zh": "完成"},
   "Subkategori belum dipilih.": {"en": "No subcategory selected.", "es": "No se ha seleccionado ninguna subcategoría.", "zh": "尚未选择子分类。"},
   "Pilih model": {"id": "Pilih model", "en": "Choose model", "es": "Elegir modelo", "zh": "选择模型"},
-  "Model gambar": {"en": "Image model", "es": "Modelo de imagen", "zh": "图像模型"},
-  "Belum tersedia": {"en": "Not available yet", "es": "Aún no disponible", "zh": "暂不可用"},
-  "Akses belum tersedia": {"en": "Access unavailable", "es": "Acceso no disponible", "zh": "暂无访问权限"},
+  "Model gambar": {"id": "Model gambar", "en": "Image model", "es": "Modelo de imagen", "zh": "图像模型"},
+  "Belum tersedia": {"id": "Belum tersedia", "en": "Not available yet", "es": "No disponible", "zh": "暂不可用"},
+  "Akses belum tersedia": {"id": "Akses belum tersedia", "en": "Access unavailable", "es": "Acceso no disponible", "zh": "暂无访问权限"},
   "Daftar model belum dapat dimuat. Buka daftar lagi untuk mencoba.": {"id": "Daftar model belum dapat dimuat. Buka daftar lagi untuk mencoba.", "en": "The model list could not load. Open it again to retry.", "es": "No se pudo cargar la lista de modelos. Ábrela de nuevo para reintentar.", "zh": "模型列表未能加载，请重新打开重试。"},
   "Model belum dapat dipilih.": {"id": "Model belum dapat dipilih.", "en": "The model could not be selected.", "es": "No se pudo seleccionar el modelo.", "zh": "暂时无法选择该模型。"},
   "Pilih model yang tersedia sebelum mengirim.": {"id": "Pilih model yang tersedia sebelum mengirim.", "en": "Choose an available model before sending.", "es": "Elige un modelo disponible antes de enviar.", "zh": "发送前请选择可用的模型。"},
   "Model hasil belum dilaporkan": {"id": "Model hasil belum dilaporkan", "en": "The returned model was not reported", "es": "No se informó el modelo utilizado", "zh": "尚未报告返回的模型"},
-  "Model pilihan tidak tersedia. Pilih model lain; permintaan tidak dialihkan.": {"en": "The selected model is unavailable. Choose another model; your request has not been rerouted.", "es": "El modelo seleccionado no está disponible. Elige otro modelo; tu solicitud no se ha redirigido.", "zh": "所选模型不可用。请选择其他模型；请求未被转发。"},
-  "Tidak ada model tersedia. Coba buka daftar lagi.": {"en": "No models are available. Try reopening the list.", "es": "No hay modelos disponibles. Intenta abrir la lista de nuevo.", "zh": "没有可用的模型。请尝试重新打开列表。"},
+  "Model pilihan tidak tersedia. Pilih model lain; permintaan tidak dialihkan.": {"id": "Model pilihan tidak tersedia. Pilih model lain; permintaan tidak dialihkan.", "en": "The selected model is unavailable. Choose another; the request will not be rerouted.", "es": "El modelo seleccionado no está disponible. Elige otro; no se redirigirá la solicitud.", "zh": "所选模型不可用，请选择其他模型；请求不会被转发。"},
+  "Tidak ada model tersedia. Coba buka daftar lagi.": {"id": "Tidak ada model tersedia. Coba buka daftar lagi.", "en": "No models are available. Try opening the list again.", "es": "No hay modelos disponibles. Vuelve a abrir la lista.", "zh": "暂无可用模型，请重新打开列表重试。"},
   "Model tidak valid. Pilih model dari daftar.": {"en": "Invalid model. Choose a model from the list.", "es": "Modelo no válido. Elige un modelo de la lista.", "zh": "模型无效。请从列表中选择模型。"},
   "Model atau percakapan tidak valid.": {"en": "Invalid model or conversation.", "es": "Modelo o conversación no válidos.", "zh": "模型或对话无效。"},
   "Model gambar pilihan tidak tersedia. Pilih model lain; permintaan tidak dialihkan.": {"en": "The selected image model is unavailable. Choose another model; your request has not been rerouted.", "es": "El modelo de imagen seleccionado no está disponible. Elige otro modelo; tu solicitud no se ha redirigido.", "zh": "所选图像模型不可用。请选择其他模型；请求未被转发。"},

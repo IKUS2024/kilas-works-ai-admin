@@ -1438,5 +1438,12 @@
   "Tutup": "Close",
   "Chat": "Chat",
   "Chat tersimpan": "Saved chats",
-  "Coba muat riwayat lagi": "Try loading history again"
+  "Coba muat riwayat lagi": "Try loading history again",
+  "Model gambar": "Image model",
+  "Model gambar tersimpan tidak tersedia. Pilih model lain.": "The saved image model is unavailable. Choose another model.",
+  "Model Chat tersimpan tidak tersedia. Pilih model lain.": "The saved Chat model is unavailable. Choose another model.",
+  "Akses belum tersedia": "Access unavailable",
+  "Model pilihan tidak tersedia. Pilih model lain; permintaan tidak dialihkan.": "The selected model is unavailable. Choose another; the request will not be rerouted.",
+  "Tidak ada model tersedia. Coba buka daftar lagi.": "No models are available. Try opening the list again.",
+  "Tutup riwayat": "Close history"
 }

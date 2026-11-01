@@ -105,6 +105,8 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(result.status_code,401);self.assertEqual(result.json['code'],'session_expired')
         self.assertEqual(result.json['login_url'],'/login')
         self.assertEqual(client.get(f'/kilas-ai/threads/{self.thread}').status_code,302)
+        logged=self.client()
+        self.assertEqual(logged.post(f'/kilas-ai/threads/{self.thread}/send',json={},headers={'X-CSRF-Token':'invalid'}).status_code,400)
 
     def test_four_locale_chat_keys_have_real_catalog_coverage(self):
         from ui_i18n import CATALOG,LANGUAGES
