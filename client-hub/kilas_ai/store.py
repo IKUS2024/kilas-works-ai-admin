@@ -7,6 +7,31 @@ import db
 MODES = frozenset(("FAST", "SMART", "EXPERT"))
 
 
+def bind_request(user_id, thread_id, key, body, prepared, content):
+    """Bind a retry to its owner, thread and payload before any paid dispatch."""
+    from .autonomous_store import transaction
+    from . import usage
+    fields = sorted((name, body.getlist(name) if hasattr(body, 'getlist') else body[name])
+                    for name in body if name not in ('csrf_token', 'operation_key'))
+    files = [(item['filename'], item['mime_type'], hashlib.sha256(bytes(item['content'])).hexdigest())
+             for item in prepared]
+    fingerprint = hashlib.sha256(json.dumps([fields, files], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    with transaction() as conn:
+        if not usage._query(conn,'SELECT id FROM kilas_ai_threads WHERE id=? AND user_id=?',(thread_id,user_id),one=True):
+            raise ValueError('Chat tidak ditemukan.')
+        if db.BACKEND == 'postgres':
+            usage._query(conn, 'SELECT id FROM users WHERE id=? FOR UPDATE', (user_id,), one=True)
+        prior = usage._query(conn, 'SELECT thread_id,fingerprint FROM kilas_thread_request_payloads '
+                            'WHERE user_id=? AND operation_key=?', (user_id, key), one=True)
+        legacy = usage._query(conn, 'SELECT content FROM kilas_ai_messages WHERE thread_id=? AND operation_key=?',
+                             (thread_id, key), one=True)
+        if (prior and prior != (thread_id, fingerprint)) or (legacy and legacy[0] != content):
+            raise ValueError('Kunci pesan sudah dipakai untuk permintaan lain. Kirim pesan baru dengan kunci baru.')
+        if not prior:
+            usage._query(conn, 'INSERT INTO kilas_thread_request_payloads(user_id,operation_key,thread_id,fingerprint) '
+                         'VALUES (?,?,?,?)', (user_id, key, thread_id, fingerprint))
+
+
 def thread(user_id, thread_id):
     return db.query_one("SELECT * FROM kilas_ai_threads WHERE id=? AND user_id=?", (thread_id, user_id))
 
@@ -51,13 +76,14 @@ def delete_thread(user_id, thread_id):
     return True
 
 
-def messages(user_id, thread_id, limit=100):
+def messages(user_id, thread_id, limit=100, before=None):
     if not thread(user_id, thread_id):
         return None
     limit = max(1, min(int(limit), 200))
     rows = db.query_all(
         "SELECT id,role,content,mode,provider,model,operation_key,metadata_json,created_at "
-        "FROM kilas_ai_messages WHERE thread_id=? AND content<>'' ORDER BY id DESC LIMIT ?", (thread_id, limit))
+        "FROM kilas_ai_messages WHERE thread_id=? AND content<>'' " + ("AND id<? " if before else "") + "ORDER BY id DESC LIMIT ?",
+        (thread_id, before, limit) if before else (thread_id, limit))
     return list(reversed(rows))
 
 
@@ -66,24 +92,13 @@ def context(user_id, thread_id, *, selected_model=None, current_attachments=None
     level = usage.chat_level(user_id)
     recent, budget, _ = fair_use.budgets(level)
     if selected_model:recent,budget=32,64000
-    rows = messages(user_id, thread_id, 200)
+    rows = messages(user_id, thread_id, recent)
     if rows is None:
         return None
     bounded = []
     remaining = budget
-    older = rows[:-recent]
-    summary = ''
-    if older:
-        anchor = older[-1]
-        metadata = json.loads(anchor['metadata_json'] or '{}')
-        summary = metadata.get('context_summary')
-        if not isinstance(summary,str):
-            previous = next((json.loads(r['metadata_json'] or '{}').get('context_summary') for r in reversed(older[:-1]) if json.loads(r['metadata_json'] or '{}').get('context_summary')), '')
-            summary = conversation_context.summary([{'role':'user','content':line} for line in previous.splitlines()] + older)
-            metadata['context_summary'] = summary
-            db.execute('UPDATE kilas_ai_messages SET metadata_json=? WHERE id=? AND thread_id=?',
-                       (json.dumps(metadata),anchor['id'],thread_id))
-    rows = rows[-recent:]
+    from .thread_context_checkpoint import before
+    summary = before(user_id, thread_id, rows[0]['id']) if rows else ''
     remaining -= len(summary)
     latest_user_id = next((row["id"] for row in reversed(rows) if row["role"] == "user"), None)
     for row in reversed(rows):

@@ -65,7 +65,8 @@ class AttachmentTests(unittest.TestCase):
         self.assertEqual([attachments.limits(plan)["max_files"] for plan in ("FREE", "PLUS", "PRO", "MAX")],
                          [2, 3, 4, 5])
         self.assertEqual(attachments.limits("FREE")["max_file_bytes"], 2 * 1024 * 1024)
-        self.assertEqual(attachments.limits("FREE")["max_image_bytes"], 100 * 1024 * 1024)
+        self.assertEqual(attachments.limits("FREE")["max_image_bytes"], 8 * 1024 * 1024)
+        self.assertEqual(attachments.limits("FREE")["max_total_bytes"], 10 * 1024 * 1024)
         for plan, allowed in (("FREE", 2), ("PLUS", 3), ("PRO", 4), ("MAX", 5)):
             files = [upload(b"small text", f"note-{index}.txt", "text/plain") for index in range(allowed)]
             self.assertEqual(len(attachments.prepare_many(files, plan=plan)), allowed)

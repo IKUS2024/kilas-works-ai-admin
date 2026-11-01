@@ -244,3 +244,16 @@ body.kilas-light:has(>.kilas-reference-header) .audio-studio .audio-voice strong
 body.kilas-light:has(>.kilas-reference-header) .audio-studio #play-kilas-preview{font-size:14px}
 body.kilas-light:has(>.kilas-reference-header) .audio-studio #voice-generate{font-size:16px}
 @media(max-width:760px){body.kilas-light:has(>.kilas-reference-header) #interpreter .live-heading h1,body.kilas-light:has(>.kilas-reference-header) .audio-studio .audio-heading h1{font-size:24px!important}}
+
+/* Chat audit: readable secondary text without changing other product surfaces. */
+body.kilas-light:has(.kilas-home-workspace) .kilas-home-workspace .ai-hint{color:#626a7a}
+body.kilas-light.premium-workspace:not(.finance-app):has(.kilas-home-workspace) .kilas-home-workspace .home-tool-selector.kilas-task-navigation .home-task-choices>:is([aria-current=page],[aria-pressed=true]){color:#ad3d00}
+
+.ai-shell .chat-upload-policy{display:block;flex-basis:100%;font-size:12px;line-height:1.4;color:#626a7a;margin:2px 0;overflow-wrap:anywhere}
+
+/* A recovery action is one stable touch target even when the notice wraps. */
+.ai-shell :is(#ai-notice,#agent-chat-error)>a[href="/login"]{display:flex;align-items:center;width:max-content;max-width:100%;min-height:44px;margin-top:4px;padding:0 8px;white-space:nowrap;color:#ad3d00;text-decoration:underline;text-underline-offset:3px;border-radius:8px}
+
+/* Capacity remains available on the chooser. Avoid repeating that caption
+   inside the small pending-file row while the on-screen keyboard is open. */
+body.home-keyboard-inline .kilas-home-workspace.ai-shell .chat-upload-policy{display:none}

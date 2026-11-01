@@ -356,6 +356,8 @@ def create_app():
 
     @app.errorhandler(413)
     def upload_too_large(error):
+        if request.endpoint in ('kilas_ai.send','kilas_ai.agent_chat'):
+            return {'code':'attachment_request_too_large','error':'Total lampiran maksimal 10 MB per pesan.'},413
         return render_template("upload_too_large.html"), 413
 
     @app.after_request
@@ -384,6 +386,8 @@ def create_app():
         if request.endpoint in ('kilas_audio.inspect', 'kilas_audio.create', 'kilas_audio.video_script'):
             from kilas_ai.audio_media import file_limit
             request.max_content_length = file_limit() + 1024 * 1024
+        elif request.endpoint in ('kilas_ai.send','kilas_ai.agent_chat'):
+            request.max_content_length = 10 * 1024 * 1024 + 128 * 1024
         elif (request.endpoint or '').startswith('kilas_ai.transcription_'):
             from kilas_ai.transcription import MAX_BYTES
             request.max_content_length = MAX_BYTES + 64 * 1024
@@ -486,6 +490,10 @@ def create_app():
 
     @app.before_request
     def _csrf_protect():
+        # An absent Chat login cannot execute an action. Return a recoverable
+        # auth status BEFORE parsing its now-invalid session-bound CSRF token.
+        if request.endpoint in ('kilas_ai.send','kilas_ai.new_thread','kilas_ai.agent_chat') and request.method == 'POST' and not session.get('user_id'):
+            return {'code':'session_expired','error':ui_i18n.translate('Sesi akun berakhir. Masuk kembali.'),'login_url':url_for('auth.login_page')},401
         if (request.endpoint or "").startswith("public_web."):
             return None  # Public blueprint enforces exact Origin + visitor-specific WEB CSRF.
         if request.method not in ("POST", "PUT", "PATCH", "DELETE"):

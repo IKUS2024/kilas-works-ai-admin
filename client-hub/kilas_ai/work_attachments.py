@@ -85,4 +85,4 @@ def prepare_many(files, plan):
             result.append(file)
         except Exception:
             raise attachments.AttachmentError('File Office tidak dapat dibaca dengan aman. Gunakan file tanpa macro atau tautan eksternal.') from None
-    return result
+    return attachments.validate_total(result)

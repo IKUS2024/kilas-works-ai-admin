@@ -69,10 +69,12 @@
   let busy = false;
   let controller;
   let activeStream=null,lastEvent=0;
+  const recovery=window.KilasChatRecovery;
   const submission=window.KilasChatOperation.create(form.elements.operation_key.value);
   const stop=form.querySelector('[data-unified-stop]');
   stop?.addEventListener('click',async()=>{
-    if(activeStream){try{await fetch(`/kilas-ai/work/streams/${activeStream}/cancel`,{method:'POST',headers:{'X-CSRF-Token':form.elements.csrf_token.value,'Content-Type':'application/json'},body:'{}'});}catch(_){} }
+    controller?.abort();
+    if(activeStream){try{await fetch(`/kilas-ai/work/streams/${activeStream}/cancel`,{method:'POST',headers:{'X-CSRF-Token':form.elements.csrf_token.value,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(3000)});}catch(_){} }
     form.elements.operation_key.value=submission.terminal();
     controller?.abort();
   });
@@ -131,14 +133,16 @@
     chat.setAttribute('aria-busy', 'true');
     let accepted = false, draftCleared = false, answer;
     try {
+      await recovery.session(controller.signal);data.set('csrf_token',form.elements.csrf_token.value);
       const response = await fetch(form.action, {method:'POST',body:data,headers:{'X-Agent-Chat':'1','X-Workspace-Stream':'1'},signal:controller.signal});
+      recovery.check(response);
       if (!response.ok) {
         const failure=new Error('request');
         try { const payload=await response.json(); if(payload.operation_terminal===true)form.elements.operation_key.value=submission.terminal();if(typeof payload.error==='string') failure.publicMessage=payload.error; } catch (_) { /* Preserve a safe fallback. */ }
         throw failure;
       }
       accepted = true;
-      if(selected.length)form.dispatchEvent(new Event('work:accepted'));
+      // Keep pending files available for an uncertain retry until terminal success.
       if(input.value===draft){input.value='';draftCleared=true;input.dispatchEvent(new Event('input'));}
       if (response.headers.get('content-type')?.includes('text/event-stream')) {
         activeStream=response.headers.get('X-Workspace-Stream');lastEvent=0;
@@ -170,19 +174,21 @@
         if(complete)break;
         if(!activeStream||++reconnections>16)throw Error('interrupted');
         pending='';streamResponse=await fetch(`/kilas-ai/work/streams/${activeStream}?after=${lastEvent}`,{cache:'no-store',signal:controller.signal});
-        if(!streamResponse.ok)throw Error('reconnect');
+        recovery.check(streamResponse);if(!streamResponse.ok)throw Error('reconnect');
         }
         if (!complete || !answer?.textContent.trim()) throw new Error('interrupted');
       }
-      await refresh();
+      // A failed history refresh cannot invalidate a completed answer.
+      try { await refresh(); } catch (_) { /* Keep the rendered completed answer. */ }
       form.dispatchEvent(new Event('work:accepted'));
       startDue();
       const sources=form.querySelector('#work-source-files'); if(sources) sources.value='';
       form.elements.operation_key.value = submission.terminal();
     } catch (failure) {
       if(answer)window.KilasMarkdown.finish(answer);
-      if(draftCleared&&!input.value&&!(accepted&&selected.length)){input.value=draft;input.dispatchEvent(new Event('input'));}
-      error.textContent = failure.publicMessage || t('Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.');
+      if(draftCleared&&!input.value){input.value=draft;input.dispatchEvent(new Event('input'));}
+      error.textContent = failure.publicMessage || (failure.name==='AbortError'?t('Jawaban dihentikan.'):null) || t('Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.');
+      if(failure.sessionExpired)recovery.show(failure,error);
       error.hidden = false;
       // Same key is retained after an uncertain outcome: retry cannot create duplicate work.
       if(!accepted){const group=userMessage.parentElement.querySelector('.chat-user-attachments');if(group)window.KilasChatAttachments?.release(group);userMessage.closest('.agent-message').remove();}
@@ -233,7 +239,7 @@
     try {
       // Bounded, persisted owner-scoped execution; cron remains the recovery path.
       for(let pass=0;pass<3;pass++) {
-        const response=await fetch(`/kilas-ai/work/jobs/${job.dataset.jobId}/start`,{method:'POST',headers:{'X-CSRF-Token':form.elements.csrf_token.value,'Content-Type':'application/json','X-Workspace-Async':'1'},body:'{}'});
+        const response=await fetch(`/kilas-ai/work/jobs/${job.dataset.jobId}/start`,{method:'POST',headers:{'X-CSRF-Token':form.elements.csrf_token.value,'Content-Type':'application/json','X-Workspace-Async':'1'},body:'{}',signal:AbortSignal.timeout(3000)});
         if(!response.ok) break;
         const result=await response.json();if(!result.started) break;
         await refreshTasks();

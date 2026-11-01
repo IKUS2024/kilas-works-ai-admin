@@ -1,0 +1,49 @@
+name: Kilas Chat audit hardening QA
+on:
+  pull_request:
+    paths: ['client-hub/**', '.github/workflows/kilas-chat-hardening-qa.yml']
+  push:
+    branches: [main, 'fix/chat-audit-hardening-*']
+    paths: ['client-hub/**', '.github/workflows/kilas-chat-hardening-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt 'pytest>=9,<10'
+      - name: Isolated synthetic regressions, no paid provider calls
+        env: {PYTHONDONTWRITEBYTECODE: '1', CLIENT_HUB_DB_PATH: /tmp/chat-hardening-bootstrap.db}
+        run: |
+          for suite in test_kilas_chat_hardening.py test_kilas_chat_models.py test_kilas_chat_recovery.py test_kilas_chat_quality_v2.py test_kilas_sent_attachments.py test_kilas_ai_attachments.py test_ui_i18n.py test_kilas_chat_restoration.py test_kilas_history_actions.py; do
+            python -m pytest -q client-hub/tests/$suite || exit 1
+          done
+          python -m pytest -q client-hub/tests/test_kilas_ai_cost_quality.py::CostQualityTests::test_concurrency_and_idempotency_still_apply client-hub/tests/test_kilas_ai_cost_quality.py::CostQualityTests::test_exact_owner_qa_exemption_keeps_security
+          node client-hub/tests/test_kilas_chat_operation.cjs
+          node --test client-hub/tests/test_kilas_home_viewport.cjs
+      - name: Actual production worker configuration, two synthetic owners
+        run: python -B client-hub/tests/test_kilas_chat_hardening_http.py
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Mobile, tablet, desktop, four locales and uncertain retry/login
+        env: {PYTHONDONTWRITEBYTECODE: '1', KILAS_CHAT_HARDENING_ARTIFACTS: /tmp/chat-hardening-preview}
+        run: python -B client-hub/tests/test_kilas_chat_hardening_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-chat-hardening-preview
+          path: /tmp/chat-hardening-preview

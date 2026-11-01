@@ -74,25 +74,30 @@ def _run(app,ident,factory):
     pulse.start()
     with app.app_context():
         outcome='COMPLETED';buffer='';last=time.monotonic();started=last;had_error=False;count=0;first_delta=True
+        def cancelled():
+            row=db.query_one('SELECT state,cancel_requested FROM kilas_workspace_streams WHERE id=?',(ident,))
+            return not row or row['cancel_requested'] or row['state']!='RUNNING'
         try:
             emit(ident,{'type':'activity','label':'Berpikir…'})
-            for update in factory:
-                row=db.query_one('SELECT state,cancel_requested FROM kilas_workspace_streams WHERE id=?',(ident,))
-                if not row or row['cancel_requested'] or row['state']!='RUNNING':outcome='CANCELLED';break
-                count+=1
-                if count>20000 or time.monotonic()-started>240:raise ValueError('stream_limit')
-                if update['type']=='delta':
-                    buffer+=update['text']
-                    if len(buffer)<240 and time.monotonic()-last<.1 and not first_delta:continue
-                    first_delta=False
-                if buffer:emit(ident,{'type':'delta','text':buffer});buffer='';last=time.monotonic()
-                if update['type']=='delta' or update['type']=='done':continue
-                if update['type']=='error':had_error=True
-                emit(ident,update)
+            from .chat_transport import cancellation
+            with cancellation(cancelled):
+                for update in factory:
+                    row=db.query_one('SELECT state,cancel_requested FROM kilas_workspace_streams WHERE id=?',(ident,))
+                    if not row or row['cancel_requested'] or row['state']!='RUNNING':outcome='CANCELLED';break
+                    count+=1
+                    if count>20000 or time.monotonic()-started>240:raise ValueError('stream_limit')
+                    if update['type']=='delta':
+                        buffer+=update['text']
+                        if len(buffer)<240 and time.monotonic()-last<.1 and not first_delta:continue
+                        first_delta=False
+                    if buffer:emit(ident,{'type':'delta','text':buffer});buffer='';last=time.monotonic()
+                    if update['type']=='delta' or update['type']=='done':continue
+                    if update['type']=='error':had_error=True
+                    emit(ident,update)
             if buffer:emit(ident,{'type':'delta','text':buffer})
             if had_error:outcome='FAILED'
         except Exception:
-            outcome='FAILED';emit(ident,{'type':'error','message':'Jawaban terhenti. Buka riwayat; permintaan tidak diulang otomatis.'})
+            outcome='CANCELLED' if cancelled() else 'FAILED';emit(ident,{'type':'error','message':'Jawaban terhenti. Buka riwayat; permintaan tidak diulang otomatis.'})
         finally:
             try:
                 factory.close() if hasattr(factory,'close') else None

@@ -31,7 +31,11 @@ def require_access():
     if request.endpoint in ("kilas_ai.shared", "kilas_ai.group_invitation"):
         return None
     if not session.get("user_id"):
+        if request.method != 'GET' or request.headers.get('X-Chat-Request') or request.headers.get('X-Agent-Chat'):
+            return {'code':'session_expired','error':'Sesi akun berakhir. Masuk kembali.','login_url':url_for('auth.login_page')},401
         return redirect(url_for("auth.login_page"))
+    if request.endpoint in ('kilas_ai.send','kilas_ai.agent_chat') and (request.content_length or 0) > 10*1024*1024+128*1024:
+        return {'code':'attachment_request_too_large','error':'Total lampiran maksimal 10 MB per pesan.'},413
     user = security.current_user()
     if not user or session.get("role")!=user["role"]:
         abort(404)
@@ -133,7 +137,9 @@ def thread_page(thread_id):
     selected = store.thread(session["user_id"], thread_id)
     if not selected:
         abort(404)
-    rows = store.messages(session["user_id"], thread_id)
+    before=request.args.get('before',type=int)
+    rows = store.messages(session['user_id'], thread_id, before=before)
+    older=bool(rows and store.messages(session['user_id'],thread_id,1,before=rows[0]['id']))
     for row in rows:
         try:
             row["metadata"] = json.loads(row["metadata_json"] or "{}")
@@ -144,7 +150,7 @@ def thread_page(thread_id):
     from .home_tasks import context as home_context
     unread = automation_store.unread_count(session["user_id"]) if automation_enabled() else 0
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]),
-                           selected=selected, messages=rows,
+                           selected=selected, messages=rows, older=older, history_before=before,
                            attachments=store.attachment_list(session["user_id"], thread_id),
                            current_plan=current_plan, attachment_limits=attachments.limits(usage.attachment_plan(session["user_id"])),
                            automation_enabled=automation_enabled(), automation_unread=unread,
@@ -406,6 +412,10 @@ def send(thread_id, *, script_only=False):
         return {"error": "Upload gambar terlebih dahulu untuk diedit."}, 400
     if tool == "WEB" and any(item["mime_type"].startswith("image/") for item in prepared):
         return {"error": "Pencarian web belum membaca gambar yang dilampirkan. Sebutkan nama atau rincian yang ingin diperiksa."}, 400
+    try:
+        store.bind_request(user_id, thread_id, key, body, prepared, content)
+    except ValueError as error:
+        return {'code':'operation_payload_conflict','error':str(error)},409
     prior = store.operation(user_id, thread_id, key)
     if prior:
         job_id=json.loads(prior['metadata_json'] or '{}').get('workspace_job_id')

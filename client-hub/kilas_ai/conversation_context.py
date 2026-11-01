@@ -2,7 +2,7 @@
 import re
 
 
-CORRECTION = re.compile(r"\b(?:koreksi|correction|bukan itu|maksud (?:gw|gue|gua|lu|saya|aku)|yang tadi salah|ganti jadi|eh bukan|sebenarnya|actually|instead|changed my mind)\b", re.I)
+CORRECTION = re.compile(r"\b(?:koreksi|correction|bukan itu|maksud (?:gw|gue|gua|lu|saya|aku)|yang tadi salah|ganti jadi|eh bukan|sebenarnya|actually|instead|changed my mind|corrección|rectifico|en realidad|corrijo|correção|na verdade|korrektur|stattdessen|en fait|plutôt)\b|更正|纠正|改为|訂正|修正|تصحيح|بدلاً", re.I)
 CONSTRAINT = re.compile(r"\b(?:jangan|gak mau|nggak mau|tidak mau|ga mau|harus|wajib|ingat|gunakan|selalu|bukan|must|always|never|don't|do not|budget|modal|pilih|decided|prefer|keputusan)\b", re.I)
 
 
@@ -23,8 +23,22 @@ def summary(rows, limit=3000):
     candidates = [text for i, text in enumerate(facts) if last_occurrence[text] == i]
     ranked = sorted(range(len(candidates)), key=lambda i: (
         2 if CORRECTION.search(candidates[i]) else 1 if CONSTRAINT.search(candidates[i]) else 0, i), reverse=True)
+    # Reserve half for the latest original quotes BEFORE keyword scoring. This
+    # protects short corrections in languages not covered by our hints, while
+    # the other half keeps important early constraints. Never invent a summary.
     chosen, remaining = [], max(0, limit)
+    recent_budget = remaining // 2
+    for i in reversed(range(len(candidates))):
+        size = len(candidates[i]) + (1 if chosen else 0)
+        if size <= recent_budget:
+            chosen.append(i)
+            recent_budget -= size
+            remaining -= size
+        else:
+            break
     for i in ranked:
+        if i in chosen:
+            continue
         size = len(candidates[i]) + (1 if chosen else 0)
         if size <= remaining:
             chosen.append(i)

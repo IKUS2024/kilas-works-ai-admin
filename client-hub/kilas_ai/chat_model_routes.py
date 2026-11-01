@@ -14,6 +14,7 @@ def prepare_chat_models(state):
         apply_release('0105_kilas_workspace_streams')
         apply_release('0106_kilas_workspace_execution')
         apply_release('0111_kilas_chat_recovery')
+        apply_release('0112_kilas_chat_hardening')
         print('KILAS_CHAT_RECOVERY_READY schema=0111 payload_bound=true stream_heartbeat=true bounded_context=true',flush=True)
         from .workspace_execution_proof import maybe_start
         maybe_start(state.app)  # No work without separate proof-specific approval.
