@@ -239,12 +239,6 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
         if existing:
             conn.commit()
             return None, ()
-        if tool == 'CHAT' and thread_id is not None:
-            active = _query(conn, "SELECT 1 FROM kilas_ai_usage WHERE user_id=? AND operation_type='CHAT' "
-                            "AND status='PENDING' AND created_at>=? LIMIT 1",
-                            (user_id, (now-timedelta(minutes=4)).isoformat()), one=True)
-            if active:
-                raise UsageLimit('Permintaan ini sedang diproses.')
         plan, paid_start, paid_end = _plan(conn, user_id, now)
         burst = max(1, int(os.environ.get("KILAS_AI_BURST_PER_MINUTE", "30")))
         hourly = max(burst, int(os.environ.get("KILAS_AI_MAX_PER_HOUR", "300")))
