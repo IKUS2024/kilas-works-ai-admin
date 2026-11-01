@@ -32,6 +32,7 @@
   });
   root.addEventListener('focusin',event=>{if(event.target.matches('#ai-input,#agent-message')&&options)options.open=false;});
   const following=()=>timeline&&timeline.scrollHeight-timeline.scrollTop-timeline.clientHeight<48;
+  let lastLayoutSignature=null;
   const fitViewport=()=>{
     const follow=following();
     const height=viewport?viewport.height:window.innerHeight;
@@ -56,8 +57,10 @@
     document.body.classList.toggle('home-keyboard-open',keyboardOpen);
     fitHierarchy(viewport?viewport.width:window.innerWidth,height,scale);
     document.documentElement.style.setProperty('--home-input-max-height',`${Math.max(44,Math.min(144,height-330))}px`);
-    root.dispatchEvent(new Event('home:viewport'));
-    if(follow)timeline.scrollTop=timeline.scrollHeight;
+    // Focus transfers to links/buttons must not resize the composer under a
+    // held pointer. Only real layout changes need another textarea measurement.
+    const signature=[viewport?viewport.width:window.innerWidth,height,scale,keyboardOpen,compact,keyboardInline].join(':');
+    if(signature!==lastLayoutSignature){lastLayoutSignature=signature;root.dispatchEvent(new Event('home:viewport'));if(follow)timeline.scrollTop=timeline.scrollHeight;}
   };
   fitViewport();window.addEventListener('resize',fitViewport);
   if(viewport){viewport.addEventListener('resize',fitViewport);viewport.addEventListener('scroll',fitViewport);}

@@ -92,6 +92,9 @@ def main():
                         page.screenshot(path=str(out/'login-failure-393.png'))
                         raise
                     assert not dialogs,dialogs
+                    clicks=page.evaluate('window.__loginClicks')
+                    assert clicks[-1]['tag']=='A' and clicks[-1]['href']=='/login',clicks
+                    assert abs(clicks[0]['link'][1]-clicks[-1]['link'][1])<1,clicks
                     page.remove_listener('dialog',dialog_seen)
                     login.wait_for_load_state('networkidle')
                     assert login.evaluate('window.opener===null')

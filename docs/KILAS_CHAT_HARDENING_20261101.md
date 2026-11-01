@@ -45,3 +45,7 @@ HD attachment contract is updated from the impossible100MiB promise to the new8M
 The attachment chooser title and selected-file caption explicitly show photos8MiB, documents2MiB and aggregate10MiB in all four UI locales. Rejected picks keep previously selected files and draft text. An accepted-but-interrupted agent stream also keeps both for an idempotent retry; a failed history refresh does not turn a completed response into a new send.
 
 The2MiB document cap is the existing bounded input/parser contract, not a newly implemented large-document service. Office/ZIP validation and extracted-context limits remain enforced. Large file generation/workspace-output capabilities are separate and do not prove arbitrary large input support; real large-document ingestion/OCR acceptance is NOT RUN. Raising this limit needs a separately tested bounded ingestion design rather than just raising the HTTP cap.
+
+### Focus-transfer regression caught before release
+
+Real CI pointer diagnostics found the recovery link moved24pixels between mousedown and mouseup: `kilas_home.js` dispatched `home:viewport` for every focus transfer, remeasuring the textarea when dimensions had not changed. The click landed on its paragraph. Layout dispatch is now keyed to real viewport dimensions/scale/keyboard/hierarchy changes; input changes still resize directly, and viewport/keyboard/zoom changes still reflow. Recovery action is also a standalone44px touch target. The browser regression asserts both navigation and stable pointer hit target, not just an existing link.
