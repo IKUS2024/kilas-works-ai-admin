@@ -5,10 +5,10 @@ from urllib.parse import parse_qs, urlsplit
 from playwright.sync_api import sync_playwright, expect
 
 
-def check_reels(page, locale, *, activate=False, touch=False):
+def check_portfolio(page, locale, *, activate=False, touch=False):
     """Check verified source mappings; activation uses a mocked remote document."""
-    facts=json.loads(Path(__file__).with_name('creative_reel_sources.json').read_text())['reels']
-    cards=page.locator('[data-studio-reel]');expect(cards).to_have_count(3)
+    facts=json.loads(Path(__file__).with_name('creative_portfolio_sources.json').read_text())['works']
+    cards=page.locator('[data-studio-work]');expect(cards).to_have_count(6)
     allowed={row['permalink'] for row in facts}
     opened=[]
     def destination(route):
@@ -16,20 +16,24 @@ def check_reels(page, locale, *, activate=False, touch=False):
         assert route.request.method=='GET'
         opened.append(route.request.url)
         route.fulfill(status=200,content_type='text/html',body='<title>Verified Reel destination</title>')
-    if activate:page.context.route('https://www.instagram.com/reel/**',destination)
+    patterns=('https://www.instagram.com/**','https://drive.google.com/file/d/**')
+    if activate:
+        for pattern in patterns:page.context.route(pattern,destination)
     try:
         for i,row in enumerate(facts):
             card=cards.nth(i);expect(card).to_have_attribute('href',row['permalink'])
             expect(card).to_have_attribute('target','_blank')
             assert {'noopener','noreferrer'} <= set(card.get_attribute('rel').split())
-            label=('Tonton Reel' if locale=='id' else 'Watch Reel')+' '+row['title']+' '+('(tab baru)' if locale=='id' else '(new tab)')
+            action={'instagram':{'id':'Tonton Reel','en':'Watch Reel'},'drive':{'id':'Tonton video','en':'Watch video'}}[row['kind']][locale]
+            label=action+' '+row['label'][locale]+' '+('(tab baru)' if locale=='id' else '(new tab)')
             expect(card).to_have_accessible_name(label)
             image=card.locator('img');image.scroll_into_view_if_needed()
             page.wait_for_function('(e)=>e.complete&&e.naturalWidth>0',arg=image.element_handle())
             assert image.get_attribute('src') in row['assets']
             assert image.get_attribute('alt')
             geometry=image.evaluate('e=>{const r=e.getBoundingClientRect();return {ratio:r.width/r.height,fit:getComputedStyle(e).objectFit}}')
-            assert abs(geometry['ratio']-9/16)<.005 and geometry['fit']=='contain',geometry
+            expected_ratio=9/16 if row['kind']=='instagram' else 16/9
+            assert abs(geometry['ratio']-expected_ratio)<.005 and geometry['fit']=='contain',geometry
             card.focus();expect(card).to_be_focused()
             if activate:
                 with page.context.expect_page() as pending:
@@ -41,12 +45,19 @@ def check_reels(page, locale, *, activate=False, touch=False):
                 assert popup.evaluate('window.opener === null')
                 popup.close()
         if activate:assert opened==[row['permalink'] for row in facts],opened
+        boxes=cards.evaluate_all('es=>es.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,bottom:r.bottom}})')
+        assert max(box['y'] for box in boxes[:3])-min(box['y'] for box in boxes[:3])<1,boxes
+        assert max(box['y'] for box in boxes[3:])-min(box['y'] for box in boxes[3:])<1,boxes
+        assert min(box['y'] for box in boxes[3:])>=max(box['bottom'] for box in boxes[:3]),boxes
+        assert all(boxes[i]['x']<boxes[i+1]['x'] for i in (0,1,3,4)),boxes
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         assert page.locator('#portfolio .studio-illustration-note').count()==1
         expect(page.locator('#portfolio .studio-illustration-note')).to_contain_text('bagian lain' if locale=='id' else 'other sections')
         assert page.locator('#portfolio iframe,#portfolio video').count()==0
         page.evaluate('document.activeElement?.blur()')
     finally:
-        if activate:page.context.unroute('https://www.instagram.com/reel/**',destination)
+        if activate:
+            for pattern in patterns:page.context.unroute(pattern,destination)
 
 
 def check_contrast(page):
@@ -62,6 +73,13 @@ def check_contrast(page):
     }""")
     assert values and all(item['ratio']>=4.49 for item in values),[item for item in values if item['ratio']<4.49]
     return len(values)
+
+
+def check_section_markers(page):
+    """Keep the approved numbering without the removed decorative rules."""
+    markers=page.locator('.studio-section-mark')
+    assert markers.all_text_contents()==['01','02','03','04']
+    assert markers.evaluate_all("es=>es.every(e=>['none','normal'].includes(getComputedStyle(e,'::after').content))")
 
 
 def main():
@@ -97,6 +115,7 @@ def main():
                     page.evaluate('document.activeElement?.blur();scrollTo(0,0)')
                 images_ready()
                 check_contrast(page)
+                check_section_markers(page)
                 expect(page.locator('#cs-brief-review-panel')).not_to_have_attribute('open','')
                 if width<=700:
                     page.locator('[data-cs-menu]').click()
@@ -109,11 +128,11 @@ def main():
                 expect(page.locator('#cs-title')).to_contain_text('Moments into stories.')
                 expect(page.locator('.studio-hero-main')).to_have_attribute('alt','Illustration of a videographer filming an event')
                 images_ready()
-                check_reels(page,'en',activate=True,touch=width<=700)
+                check_portfolio(page,'en',activate=True,touch=width<=700)
                 if width in (393,1440):page.locator('#portfolio').screenshot(path=str(output/f'portfolio-en-{width}.png'))
                 if width in (393,1440):page.screenshot(path=str(output/f'home-en-{width}.png'),full_page=True)
                 page.locator('[data-cs-language="id"]').click()
-                check_reels(page,'id',activate=True,touch=width<=700)
+                check_portfolio(page,'id',activate=True,touch=width<=700)
                 if width in (393,1440):page.locator('#portfolio').screenshot(path=str(output/f'portfolio-id-{width}.png'))
                 def fits():assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
                 fits();expect(page.locator('#cs-title')).to_be_visible()

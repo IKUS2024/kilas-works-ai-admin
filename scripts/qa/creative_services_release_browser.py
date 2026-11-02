@@ -19,7 +19,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     sys.path.insert(0,str(root/'client-hub/tests'))
-    from test_creative_studio_browser import check_contrast, check_reels
+    from test_creative_studio_browser import check_contrast, check_portfolio, check_section_markers
     output = Path('/tmp/creative-services-live-smoke')
     output.mkdir(exist_ok=True)
     server = None
@@ -63,6 +63,7 @@ def main():
                         expect(page.locator('[data-service-choice]')).to_have_count(2)
                         expect(page.locator('footer a').last).to_have_attribute('href','https://app.kilasworks.id/products/start')
                         check_contrast(page)
+                        check_section_markers(page)
                         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (origin, width, locale)
                         for image in page.locator('img[src*="illustrations/"],img[src*="portfolio/"]').all():
                             if image.is_visible():
@@ -70,7 +71,7 @@ def main():
                                 page.wait_for_function('(e)=>e.complete&&e.naturalWidth>0', arg=image.element_handle())
                         page.mouse.move(0, 0)
                         page.evaluate('document.activeElement?.blur();scrollTo(0,0)')
-                        check_reels(page,locale,activate=True,touch=width<=700)
+                        check_portfolio(page,locale,activate=True,touch=width<=700)
                         host = urlsplit(origin).hostname
                         page.locator('#portfolio').screenshot(path=str(output/f'{host}-portfolio-{locale}-{width}.png'))
                         page.screenshot(path=str(output/f'{host}-{locale}-{width}.png'), full_page=True)
