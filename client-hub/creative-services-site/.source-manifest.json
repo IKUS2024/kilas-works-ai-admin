@@ -21,6 +21,12 @@
   "assets/portfolio/event-05.jpg": "2dccf9e238ee747a6b73725e244a6282c1340ce23eb208fc14df869cc4548589",
   "assets/portfolio/event-06.jpg": "869a7158fbfc4eb23d57fe78e2d07454324a16452a49e26a21ef955b1e0814c1",
   "assets/portfolio/event-first-drive.jpg": "d661797cfe1911200c164bd0d3a0df5c1c344fa2f7e187bd38183ebf08f7c40c",
+  "assets/portfolio/reel-2-270.webp": "87083ef085c7f84c0e6c22b6a6d0d8904d3b485a75f510c6a7f619e0e3f3dc70",
+  "assets/portfolio/reel-2-540.webp": "8987ee7a154309248cd6b832e68e6963e3e645d67be0cbf5f6bb4775cda31158",
+  "assets/portfolio/reel-4-270.webp": "3af74a22a20de35774760459102e4b05648949a9b74d6137924a7b3c7b891d83",
+  "assets/portfolio/reel-4-540.webp": "55d139e6814785f17e9a453053d9eade664128155739d3db96bc688c9f1d2483",
+  "assets/portfolio/reel-5-270.webp": "87e03371c05198494c8c12d6a37536a4135bd068c293943d73a8955ebd5b719d",
+  "assets/portfolio/reel-5-540.webp": "6fd4a3360ab9fb58f282e630b6fcb65c982ed00a5f4417139adb99942229fdc7",
   "assets/portfolio/social-01.jpg": "ed0fa471d2f55c1cbb8941f073a73988a2a8c291066f26312932542e9e3dd850",
   "assets/portfolio/social-02.jpg": "a79dd2d8f986792ea2fbb64d9db263bb5d172a3988ec31314768a5051a8cff04",
   "assets/portfolio/social-03.jpg": "64884dbff76850c7e876a70a2a8f67cbe19d4958dae6321a255add69588698d4",
@@ -28,6 +34,6 @@
   "assets/portfolio/social-05.jpg": "5b4a25a05c97017c28ea2c2bd2bff01db121bd01c4ffca5b9cf20d8a45e4f653",
   "assets/portfolio/social-06.jpg": "ced733c4f0d4d965ab7472c55465154f871ab09aed8b33880fcf2b9e123d657d",
   "assets/portfolio-player.js": "37b2ed1c0ce8a0e1baa87fa0368c0ab3a5831e9a991aa0c3225f80b7643c9b12",
-  "assets/studio-photo.css": "245509e95e3aba0d6b544d1448db74121eeec1618fe1cacbbeaad1eed6105a2b",
-  "index.html": "182738ac8cd6c400fe4bca1f0926a85d4558afbe901e48b481766a1746cd1adc"
+  "assets/studio-photo.css": "25226221125fa7bd9593bcd1c4287759c3e57d1e62421b16d9c31991b045d0e0",
+  "index.html": "70ae5cde36a17770ec586f8693b6adae702b84b08c3c3ce1bb08a40b0dbf1a13"
 }

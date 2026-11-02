@@ -46,7 +46,8 @@ class CreativeServicesTests(unittest.TestCase):
 
     def test_responsive_illustrations_are_local_and_not_client_work(self):
         html = (SOURCE / 'index.html').read_text()
-        self.assertIn('Foto di halaman ini adalah ilustrasi layanan.', html)
+        self.assertIn('Foto di bagian lain adalah ilustrasi layanan.', html)
+        self.assertNotIn('Foto di halaman ini adalah ilustrasi layanan.', html)
         self.assertNotIn('reference.webp', html)
         self.assertFalse((ROOT / 'creative-redesign-transfer-20261031.json').exists())
         images = sorted((SOURCE / 'assets' / 'illustrations').glob('*'))
@@ -65,7 +66,7 @@ class CreativeServicesTests(unittest.TestCase):
                 if tag == 'img' and 'illustrations/' in item.get('src', ''):
                     self.items.append(item)
         parsed = Images(); parsed.feed(html)
-        self.assertGreaterEqual(len(parsed.items), 8)
+        self.assertEqual(len(parsed.items), 7)
         self.assertEqual(sum(item.get('fetchpriority') == 'high' for item in parsed.items), 1)
         for item in parsed.items:
             self.assertIn('alt', item)
@@ -74,6 +75,52 @@ class CreativeServicesTests(unittest.TestCase):
             self.assertIn('sizes', item)
             self.assertIn(item['loading'], ('eager', 'lazy'))
             self.assertTrue((SOURCE / item['src']).is_file())
+
+    def test_verified_reels_use_their_own_local_covers_and_direct_links(self):
+        facts = json.loads(Path(__file__).with_name('creative_reel_sources.json').read_text())['reels']
+        html = (SOURCE / 'index.html').read_text()
+        self.assertFalse((ROOT / 'creative-reels-transfer-20261102.json').exists())
+        self.assertNotIn('cdninstagram.com', html)
+        self.assertNotIn('instagram.com/embed', html)
+        class Cards(HTMLParser):
+            def __init__(self):
+                super().__init__(); self.cards = []; self.current = None
+            def handle_starttag(self, tag, attrs):
+                item = dict(attrs)
+                if tag == 'a' and 'data-studio-reel' in item:
+                    self.current = dict(link=item, images=[])
+                elif tag == 'img' and self.current is not None:
+                    self.current['images'].append(item)
+            def handle_endtag(self, tag):
+                if tag == 'a' and self.current is not None:
+                    self.cards.append(self.current); self.current = None
+        cards = Cards(); cards.feed(html)
+        self.assertEqual(len(cards.cards), 3)
+        self.assertEqual(len({row['permalink'] for row in facts}), 3)
+        from PIL import Image
+        for card, expected in zip(cards.cards, facts):
+            with self.subTest(reel=expected['media_id']):
+                self.assertEqual(expected['owner'], 'kilasworks')
+                self.assertEqual(card['link']['href'], expected['permalink'])
+                self.assertEqual(card['link']['target'], '_blank')
+                self.assertTrue({'noopener', 'noreferrer'} <= set(card['link']['rel'].split()))
+                self.assertEqual(len(card['images']), 1)
+                image = card['images'][0]
+                self.assertEqual((image['width'], image['height']), ('540', '960'))
+                self.assertEqual(image['loading'], 'lazy')
+                self.assertTrue(image['data-cs-alt-id'] and image['data-cs-alt-en'])
+                for src in expected['assets']:
+                    data = (SOURCE / src).read_bytes()
+                    self.assertEqual(hashlib.sha256(data).hexdigest(), expected['assets'][src])
+                    self.assertLess(len(data), 120_000)
+                    with Image.open(SOURCE / src) as cover:
+                        self.assertEqual(cover.format, 'WEBP')
+                        self.assertEqual(cover.width * 16, cover.height * 9)
+                        self.assertIn(cover.width, (270, 540))
+                self.assertIn(image['src'], expected['assets'])
+                self.assertEqual(set(part.split()[0] for part in image['srcset'].split(', ')), set(expected['assets']))
+                for label in card['link']['aria-labelledby'].split():
+                    self.assertIn('id="'+label+'"', html)
 
     def test_generated_bundle_has_exact_source_bytes(self):
         paths = sorted(p.relative_to(SOURCE).as_posix() for p in SOURCE.rglob('*') if p.is_file())

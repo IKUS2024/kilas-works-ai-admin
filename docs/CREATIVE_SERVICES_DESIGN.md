@@ -151,11 +151,11 @@ Primary actions are orange/white. Outline actions retain transparent paper and i
 
 Each service card is a complete link combining image, title, explanation, package tags and arrow. Package cards retain full prices, outputs, feature lists and bottom-aligned choices. Hover imagery and arrow motion supplement text and visible keyboard focus.
 
-### Illustration mosaic and portfolio
+### Illustration mosaic and verified Reel portfolio
 
-Two supplied illustrations are reused through `object-fit: cover` crops: event production and food-content filming on a phone. Responsive WebP sources cover (640/960/1536px) widths. Explicit dimensions reserve space; the main hero image is eager/high-priority, while later service/category/portfolio images are lazy. Meaningful images have ID/EN alt text; redundant crops use empty alt text.
+Two supplied illustrations are reused through `object-fit: cover` crops: event production and food-content filming on a phone. Responsive WebP sources cover (640/960/1536px) widths. Explicit dimensions reserve space; the main hero image is eager/high-priority, while later service/category and portfolio images are lazy. Meaningful images have ID/EN alt text; redundant crops use empty alt text.
 
-**The Illustration Evidence Rule.** Retain visible illustration disclosures and the real `https://instagram.com/kilasworks` portfolio link. Generated images do not establish completed client work. The approved composition reference remains a design input, never a shipped background or page screenshot.
+**The Illustration Evidence Rule.** Hero and service photos remain explicitly illustrative. The portfolio band now uses three genuine @kilasworks Reel covers, verified against the connected Instagram media owner and permalink mapping. Full 9:16 frames are locally served as 270/540px WebP with direct accessible Reel links and no autoplay or embed feed. The illustration note refers to photos in other sections; source captions and work titles remain content rather than UI translations. Retain the separate `https://instagram.com/kilasworks` profile link. Generated images do not establish completed client work. The approved composition reference remains a design input, never a shipped background or page screenshot.
 
 ### Navigation and editable enquiry
 
