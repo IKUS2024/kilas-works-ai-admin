@@ -32,8 +32,7 @@ def check_portfolio(page, locale, *, activate=False, touch=False):
             assert image.get_attribute('src') in row['assets']
             assert image.get_attribute('alt')
             geometry=image.evaluate('e=>{const r=e.getBoundingClientRect();return {ratio:r.width/r.height,fit:getComputedStyle(e).objectFit}}')
-            expected_ratio=9/16 if row['kind']=='instagram' else 16/9
-            assert abs(geometry['ratio']-expected_ratio)<.005 and geometry['fit']=='contain',geometry
+            assert abs(geometry['ratio']-1)<.005 and geometry['fit']=='contain',geometry
             card.focus();expect(card).to_be_focused()
             if activate:
                 with page.context.expect_page() as pending:
@@ -50,9 +49,21 @@ def check_portfolio(page, locale, *, activate=False, touch=False):
         assert max(box['y'] for box in boxes[3:])-min(box['y'] for box in boxes[3:])<1,boxes
         assert min(box['y'] for box in boxes[3:])>=max(box['bottom'] for box in boxes[:3]),boxes
         assert all(boxes[i]['x']<boxes[i+1]['x'] for i in (0,1,3,4)),boxes
+        dimensions=cards.evaluate_all('''es=>es.map(e=>{
+          const card=e.getBoundingClientRect(),image=e.querySelector('img').getBoundingClientRect();
+          const cta=e.querySelector('figcaption'),label=cta.querySelector('span'),button=cta.getBoundingClientRect();
+          return {width:card.width,height:card.height,mediaWidth:image.width,mediaHeight:image.height,ctaHeight:button.height,
+            labelFits:label.scrollWidth<=label.clientWidth&&label.scrollHeight<=label.clientHeight,
+            ctaFits:cta.scrollWidth<=cta.clientWidth&&cta.scrollHeight<=cta.clientHeight};
+        })''')
+        for key in ('width','height','mediaWidth','mediaHeight','ctaHeight'):
+            assert max(d[key] for d in dimensions)-min(d[key] for d in dimensions)<1,(key,dimensions)
+        assert all(d['ctaHeight']==48 and d['labelFits'] and d['ctaFits'] for d in dimensions),dimensions
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-        assert page.locator('#portfolio .studio-illustration-note').count()==1
-        expect(page.locator('#portfolio .studio-illustration-note')).to_contain_text('bagian lain' if locale=='id' else 'other sections')
+        assert page.locator('#portfolio .studio-illustration-note').count()==0
+        expect(page.locator('#portfolio')).not_to_contain_text('Foto di bagian lain adalah ilustrasi layanan.')
+        expect(page.locator('#portfolio')).not_to_contain_text('Photos in other sections illustrate our services.')
+        assert page.locator('[data-cs-id="Visual ilustrasi"][data-cs-en="Illustrative visuals"]').count()==3
         assert page.locator('#portfolio iframe,#portfolio video').count()==0
         page.evaluate('document.activeElement?.blur()')
     finally:

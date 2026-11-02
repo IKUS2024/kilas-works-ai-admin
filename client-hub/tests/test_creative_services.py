@@ -46,7 +46,9 @@ class CreativeServicesTests(unittest.TestCase):
 
     def test_responsive_illustrations_are_local_and_not_client_work(self):
         html = (SOURCE / 'index.html').read_text()
-        self.assertIn('Foto di bagian lain adalah ilustrasi layanan.', html)
+        self.assertNotIn('Foto di bagian lain adalah ilustrasi layanan.', html)
+        self.assertNotIn('Photos in other sections illustrate our services.', html)
+        self.assertEqual(html.count('data-cs-id="Visual ilustrasi" data-cs-en="Illustrative visuals"'), 3)
         self.assertNotIn('Foto di halaman ini adalah ilustrasi layanan.', html)
         self.assertNotIn('reference.webp', html)
         self.assertFalse((ROOT / 'creative-redesign-transfer-20261031.json').exists())
