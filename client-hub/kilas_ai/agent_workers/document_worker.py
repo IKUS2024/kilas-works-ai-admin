@@ -85,6 +85,8 @@ def run(job,step,data):
     except Exception as error:
         model = getattr(error,'model',None) or model
         used.update(getattr(error,'usage',{}) or {})
+        if isinstance(error,providers.ProviderQuotaError):
+            return Result('WAITING_CAPABILITY',providers.failure_message(error),{'reason':'provider_quota_exhausted'},usage=used)
         raise
     finally:
         if ops:usage.finish(job['user_id'],key,ops,success=success,provider=author.provenance()['provider'] if author else 'openai' if model else None,model=model,usage=used)

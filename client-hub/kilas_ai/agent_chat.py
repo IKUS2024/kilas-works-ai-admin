@@ -76,6 +76,7 @@ def ordinary(user_id, conversation_id, operation_key):
         return None
 
     def generate():
+        failure='Kilas belum bisa menjawab sekarang. Coba lagi sebentar.'
         pieces, used = [], {}
         provider = model = None
         model_metadata = {}
@@ -105,10 +106,12 @@ def ordinary(user_id, conversation_id, operation_key):
                 raise providers.ProviderError('empty_response')
             success = True
             yield {'type': 'done'}
-        except providers.ProviderError:
+        except providers.ProviderError as error:
+            used.update(getattr(error,'usage',{}))
+            failure=providers.failure_message(error,'Kilas belum bisa menjawab sekarang. Coba lagi sebentar.')
             pieces.clear()
             yield {'type':'reset'}
-            yield {'type': 'error', 'message': 'Kilas belum bisa menjawab sekarang. Coba lagi sebentar.'}
+            yield {'type': 'error', 'message': failure}
         finally:
             # Settle even if persistence fails.
             try:
@@ -116,11 +119,11 @@ def ordinary(user_id, conversation_id, operation_key):
                     agent_store.append(user_id, 'assistant', ''.join(pieces), conversation_id,
                                        selected_model=getattr(messages,'selected_model',None),model_metadata=model_metadata)
                 elif not success:
-                    agent_store.append(user_id, 'assistant', 'Kilas belum bisa menjawab sekarang. Coba lagi sebentar.', conversation_id)
+                    agent_store.append(user_id, 'assistant', failure, conversation_id)
             finally:
                 if getattr(messages,'selected_model',None):
                     used['selected_model']=messages.selected_model
-                    if provider and not used.get('input_tokens') and not used.get('output_tokens'):used['billing_unknown']=True
+                    if provider and not used.get('provider_rejected') and not used.get('input_tokens') and not used.get('output_tokens'):used['billing_unknown']=True
                 if not quality.initial_finalized:
                     usage.finish(user_id, meter_key, operations, success=success,
                                  provider=provider, model=model, usage=used)

@@ -61,6 +61,9 @@ def compose(result, context):
         result.update(text=text,model_metadata=metadata)
         return result
     except providers.ProviderError as error:
+        used.update(getattr(error,'usage',{}))
+        if isinstance(error,providers.ProviderQuotaError):
+            raise tools.ToolUnavailable(providers.failure_message(error),model=selected,usage=used,code='provider_quota_exhausted') from None
         reason=str(error)
         code=reason if reason in ('selected_search_too_long','selected_search_incomplete','selected_search_unsupported_source','selected_search_conversion_changed','selected_model_mismatch','selected_provider_error') else 'selected_search_failed'
         raise tools.ToolUnavailable('selected_search_failed',model=selected,usage=used,code=code) from None

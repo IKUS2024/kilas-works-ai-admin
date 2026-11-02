@@ -73,6 +73,8 @@ def stream(mode, messages, system=None, *, control=None):
     yield {'type':'provider','provider':provider,'model':model}
     try:
         with requests.post(url,headers=headers,json=payload,stream=True,timeout=control.timeout(5,30) if control else (10,90)) as response:
+            from .provider_failures import quota_rejected
+            if quota_rejected(response):raise providers.ProviderQuotaError('provider_quota_exhausted')
             response.raise_for_status()
             reported=None
             for event in providers._events(response,guard=control):

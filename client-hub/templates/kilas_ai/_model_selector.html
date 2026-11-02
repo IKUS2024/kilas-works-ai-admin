@@ -1,4 +1,6 @@
-{% if ui_model_surface|default(false) %}
+{% if ui_model_surface|default(false) and kilas_managed_models|default(false) %}
+<div class="chat-model-controls"><strong>Kilas AI</strong></div>
+{% elif ui_model_surface|default(false) %}
 <div class="chat-model-controls">
 {% set initial_models={'chat':chat_model_preview('chat',ui_model_surface.surface,ui_model_surface.id),'image':chat_model_preview('image',ui_model_surface.surface,ui_model_surface.id)} %}
 {% for kind,heading in [('chat','Pilih model'),('image','Model gambar')] %}

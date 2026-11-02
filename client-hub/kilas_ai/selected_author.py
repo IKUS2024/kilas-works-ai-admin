@@ -27,8 +27,11 @@ class Author:
                 elif event['type']=='finish':finish=event['reason']
             if finish!='stop' or not pieces:raise providers.ProviderError('incomplete_document')
             return ''.join(pieces)
+        except providers.ProviderQuotaError as error:
+            self.used.update(error.usage)
+            raise
         finally:
-            if self.dispatched and not self.used.get('input_tokens') and not self.used.get('output_tokens'):self.used['billing_unknown']=True
+            if self.dispatched and not self.used.get('provider_rejected') and not self.used.get('input_tokens') and not self.used.get('output_tokens'):self.used['billing_unknown']=True
 
     def provenance(self):
         return {'requested_model':self.model,'returned_model':self.metadata.get('returned_model') or 'unreported',

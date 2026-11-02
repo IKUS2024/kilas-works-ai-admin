@@ -224,6 +224,10 @@ def _request(payload, timeout=90):
         response = requests.post("https://api.openai.com/v1/responses",
             headers={"Authorization": "Bearer " + _openai_key(), "Content-Type": "application/json"},
             json=payload, timeout=(10, timeout))
+        from .provider_failures import quota_rejected, QUOTA_MESSAGE
+        if quota_rejected(response):
+            raise ToolUnavailable(QUOTA_MESSAGE,code='provider_quota_exhausted',
+                                  usage={'provider_rejected':True,'billing_unknown':False})
         response.raise_for_status()
         data = response.json()
         if not isinstance(data, dict):
@@ -424,7 +428,10 @@ def finalize_scheduled_search(instruction, search_text, citations):
 
 def image(prompt, source=None, *, request_timeout=120, selected_model=None):
     from . import image_models
-    model=selected_model or os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL','').strip()
+    from . import chat_offering
+    # New managed requests supply Sunburst. Already queued, explicit work keeps
+    # its original model instead of silently changing a previously accepted job.
+    model=selected_model or (chat_offering.IMAGE_MODEL if chat_offering.managed() else os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL','').strip())
     if model not in image_models.CATALOG:
         raise ToolUnavailable('Pilih model gambar yang tersedia sebelum membuat gambar.')
     from .selected_image import generate

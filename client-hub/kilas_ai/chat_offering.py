@@ -14,6 +14,14 @@ CHAT_FREE_FLAG = 'KILAS_AI_CHAT_FREE_TEST_ENABLED'
 IMAGE_FREE_FLAG = 'KILAS_AI_IMAGE_FREE_TEST_ENABLED'
 TEXT_OPERATIONS = frozenset(('CHAT', 'WEB_SEARCH', 'PDF'))
 IMAGE_OPERATIONS = frozenset(('IMAGE_GENERATION', 'IMAGE_EDIT'))
+CHAT_ENDPOINTS = frozenset('''home usage_page capacity_state new_thread thread_page
+attachment_download rename delete share revoke regenerate send home_task library
+sidebar_history model_catalog workspace_capabilities select_model image_catalog
+select_image_model agent_new_chat agent_rename_chat agent_delete_chat agent_home
+agent_chat agent_action work_preferences work_push_register work_push_remove
+work_notifications_read work_start workspace_job_events work_service_worker
+workspace_stream workspace_stream_cancel workspace_stream_active
+chat_project_mutate chat_project_download'''.split())
 
 
 def _enabled(name):
@@ -31,6 +39,13 @@ def account_exists(user, conn=None):
         from . import usage
         return bool(usage._query(conn, 'SELECT id FROM users WHERE id=?', (user,), one=True))
     return bool(db.query_one('SELECT id FROM users WHERE id=?', (user,)))
+
+
+def states(user, conn=None):
+    """Resolve independent grants with at most one account lookup."""
+    text, image = _enabled(CHAT_FREE_FLAG), _enabled(IMAGE_FREE_FLAG)
+    exists = (text or image) and account_exists(user, conn)
+    return bool(text and exists), bool(image and exists)
 
 
 def text_free(user, conn=None):
@@ -51,3 +66,10 @@ def sponsored(user, operations, conn=None):
         allowed.update(IMAGE_OPERATIONS)
     return bool(operations and all(op in allowed for op in operations)
                 and account_exists(user, conn))
+
+
+def admits(user, endpoint):
+    """An admission grant only for owned Chat routes; their own guards still apply."""
+    return bool(endpoint and endpoint.startswith('kilas_ai.')
+                and endpoint.removeprefix('kilas_ai.') in CHAT_ENDPOINTS
+                and any(states(user)))

@@ -44,7 +44,8 @@ def require_access():
     if request.endpoint in {"kilas_ai.ai_call_page", "kilas_ai.ai_call_readiness", "kilas_ai.ai_call_session",
                             "kilas_ai.ai_call_chunk", "kilas_ai.ai_call_end"}:
         return None
-    if user["role"] != "CLIENT_OWNER" and not free_test.eligible(session["user_id"]):
+    from . import chat_offering
+    if user["role"] != "CLIENT_OWNER" and not free_test.eligible(session["user_id"]) and not chat_offering.admits(session['user_id'],request.endpoint):
         abort(404)
 
 
@@ -108,8 +109,9 @@ def new_thread():
     if not first_message or len(first_message) > 12000:
         abort(400)
     from . import chat_models
-    selected_model=body.get('selected_model')
-    selected_image=body.get('selected_image_model')
+    from . import chat_offering
+    selected_model=chat_offering.CHAT_MODEL if chat_offering.managed() else body.get('selected_model')
+    selected_image=chat_offering.IMAGE_MODEL if chat_offering.managed() else body.get('selected_image_model')
     if selected_image:
         from . import image_models
         try:
@@ -326,8 +328,9 @@ def regenerate(thread_id):
             completed = bool(pieces)
             if not completed:
                 yield _sse("error", {"message": "AI sedang tidak tersedia. Coba lagi."})
-        except providers.ProviderError:
-            yield _sse("error", {"message": "AI sedang tidak tersedia. Coba lagi."})
+        except providers.ProviderError as error:
+            usage.update(getattr(error,'usage',{}))
+            yield _sse("error", {"message": providers.failure_message(error)})
         finally:
             store.finish_regeneration(user_id, thread_id, message_id, "".join(pieces), provider, model,
                                       {"status": "complete" if completed else "interrupted" if pieces else "failed",
@@ -335,7 +338,7 @@ def regenerate(thread_id):
                                        "reasoning_tier":providers.model_policy.chat_profile(context)['tier']})
             if selected_model:
                 usage['selected_model']=selected_model
-                if provider and not usage.get('input_tokens') and not usage.get('output_tokens'):usage['billing_unknown']=True
+                if provider and not usage.get('provider_rejected') and not usage.get('input_tokens') and not usage.get('output_tokens'):usage['billing_unknown']=True
             if not quality_source or not quality_source.initial_finalized:
                 ai_usage.finish(user_id, key, operations, success=completed, provider=provider, model=model, usage=usage)
         if completed:
@@ -631,7 +634,10 @@ def send(thread_id, *, script_only=False):
                         usage.update(error.usage)
                     from .chat_web import search_failure_message
                     if tool == 'WEB': ai_tools.log_search_failure(error)
-                    message="Gambar belum dapat dibuat sekarang. Coba lagi sebentar." if tool in ("IMAGE_GENERATE", "IMAGE_EDIT") else search_failure_message(error)
+                    if getattr(error,'code',None)=='provider_quota_exhausted':
+                        from .provider_failures import QUOTA_MESSAGE
+                        message=QUOTA_MESSAGE
+                    else:message="Gambar belum dapat dibuat sekarang. Coba lagi sebentar." if tool in ("IMAGE_GENERATE", "IMAGE_EDIT") else search_failure_message(error)
                     if tool=='WEB':
                         store.append_assistant(user_id,thread_id,message,mode,provider,model,key,
                             {'status':'failed','tool':'web','failure_code':getattr(error,'code','search_unavailable'),'usage':usage,'model_metadata':model_metadata})
@@ -678,8 +684,9 @@ def send(thread_id, *, script_only=False):
                 yield _sse("done", {"finish_reason": reason or "stop"})
             else:
                 yield _sse("error", {"message": "AI sedang tidak tersedia. Coba lagi."})
-        except providers.ProviderError:
-            yield _sse("error", {"message": "AI sedang tidak tersedia. Coba lagi."})
+        except providers.ProviderError as error:
+            usage.update(getattr(error,'usage',{}))
+            yield _sse("error", {"message": providers.failure_message(error)})
         finally:
             if pieces and not persisted and tool not in ("PDF","PPTX") and routing.response_safe(content, "".join(pieces)):
                 store.append_assistant(user_id, thread_id, "".join(pieces), mode, provider, model, key,
@@ -687,7 +694,7 @@ def send(thread_id, *, script_only=False):
                                         "finish_reason": reason, "usage": usage})
             if selected_model:
                 usage['selected_model']=selected_model
-                if provider and not usage.get('input_tokens') and not usage.get('output_tokens'):usage['billing_unknown']=True
+                if provider and not usage.get('provider_rejected') and not usage.get('input_tokens') and not usage.get('output_tokens'):usage['billing_unknown']=True
             if not quality_source or not quality_source.initial_finalized:
                 ai_usage.finish(user_id, key, operations, success=finished, provider=provider, model=model, usage=usage)
 

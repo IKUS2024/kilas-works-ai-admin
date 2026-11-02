@@ -36,6 +36,8 @@ def run(job,step,data):
         return Result('SUCCEEDED','Gambar selesai dan siap digunakan.',{'title':title,'image_ready':True,**({'model_provenance':result['model_provenance']} if result.get('model_provenance') else {})},[{'binary_file':file}],result.get('usage',{}),True)
     except tools.ToolUnavailable as error:
         result = {'model':error.model,'usage':error.usage}
+        if error.code=='provider_quota_exhausted':
+            return Result('WAITING_CAPABILITY',str(error),{'reason':error.code},usage=error.usage)
         raise
     finally:
         usage.finish(job['user_id'],key,ops,success=success,provider=image_models.spec(selected)['provider'] if selected else result.get('provider','openai') if result else None,model=result.get('model'),usage=result.get('usage',{}))

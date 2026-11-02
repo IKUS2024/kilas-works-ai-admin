@@ -182,7 +182,8 @@ def product_start():
         choice=(request.form.get('product') or '').strip().lower()
         if choice=='kilas_ai':
             from kilas_ai.routes import enabled
-            if not enabled() or user['role']!='CLIENT_OWNER':
+            from kilas_ai import chat_offering
+            if not enabled() or not (user['role']=='CLIENT_OWNER' or chat_offering.text_free(user['id']) or chat_offering.image_free(user['id'])):
                 abort(404)
             session.pop('product_intent',None)
             session['active_product']='kilas_ai'
@@ -216,14 +217,15 @@ def product_start():
             return render_template('order_retired.html'),410
         abort(400)
     from kilas_ai.routes import enabled
-    ai_available=enabled() and user['role']=='CLIENT_OWNER'
+    from kilas_ai import chat_offering
+    ai_available=enabled() and (user['role']=='CLIENT_OWNER' or chat_offering.text_free(user['id']) or chat_offering.image_free(user['id']))
     if ai_available:
         from kilas_ai import copilot
         if copilot.visible():
             from kilas_ai.copilot_routes import page
             return page(), 200, {'Cache-Control': 'private, no-store'}
     from kilas_ai.home_tasks import context as home_task_context
-    return render_template('product_start.html',user=user,kilas_ai_enabled=enabled() and user['role']=='CLIENT_OWNER',
+    return render_template('product_start.html',user=user,kilas_ai_enabled=ai_available,
                            assist_customer_visible=assist_customer_visible(),home_ai=home_task_context(user['id']) if ai_available else None)
 
 
