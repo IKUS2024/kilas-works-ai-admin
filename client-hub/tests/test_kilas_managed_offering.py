@@ -397,3 +397,34 @@ class ManagedOfferingTests(unittest.TestCase):
         self.assertEqual(source['request_key'],'thread_project_origin_0001')
         project=dict(autonomous_store.get(self.owner,source['job_id']))
         self.assertIsNotNone(offering.for_job(project,'PROJECT'))
+
+    def test_staff_can_read_and_cancel_only_own_interactive_job_artifacts(self):
+        from kilas_ai import autonomous_store,work_artifacts
+        staff=repo.create_user(self.id()+'staff@example.test','hash',role='CLIENT_STAFF')
+        foreign=repo.create_user(self.id()+'foreign@example.test','hash',role='CLIENT_STAFF')
+        conversation=agent_store.new_conversation(staff)
+        client=self.client(staff)
+        result=client.post('/kilas-ai/agent/chat',data={'csrf_token':'work-csrf','message':'Create a small HTML website project ZIP with README, source only.',
+              'conversation_id':conversation,'operation_key':'staff_artifact_origin_0001'},headers={'X-Agent-Chat':'1'})
+        self.assertEqual(result.status_code,303)
+        job=autonomous_store.list_jobs(staff)[0]
+        self.assertIsNotNone(offering.for_job(job,'PROJECT'))
+        raw=b'<!doctype html><html><body><h1>Synthetic owned preview</h1></body></html>'
+        with autonomous_store.transaction() as conn:
+            step_id=usage._query(conn,"INSERT INTO kilas_agent_steps(job_id,sequence,worker,action,instruction,input_json,idempotency_key,status) VALUES (?,1,'PROJECT','create','Synthetic artifact','{}',?,'SUCCEEDED') RETURNING id",(job['id'],'staff-artifact-'+str(job['id'])),one=True)[0]
+            artifact=work_artifacts.persist(conn,job,{'id':step_id},{'filename':'synthetic.html','mime_type':'text/html','content':raw,'title':'Synthetic preview'})
+        url=f'/kilas-ai/agent/jobs/{job["id"]}'
+        self.assertEqual(client.get(url).status_code,200)
+        downloaded=client.get(url+f'/artifacts/{artifact}?download=1')
+        self.assertEqual((downloaded.status_code,downloaded.data),(200,raw))
+        preview=client.get(url+f'/artifacts/{artifact}/preview')
+        self.assertEqual((preview.status_code,preview.data),(200,raw))
+        self.assertIn('sandbox',preview.headers['Content-Security-Policy'])
+        self.assertEqual(self.client(foreign).get(url+f'/artifacts/{artifact}').status_code,404)
+        self.assertEqual(self.client(foreign).get(url).status_code,404)
+        unrelated=autonomous_store.create(staff,'Generic autonomous task',conversation_id=conversation)
+        self.assertEqual(client.get('/kilas-ai/agent/jobs/'+str(unrelated)).status_code,404)
+        self.assertEqual(client.post(url+'/approval/1',data={'csrf_token':'work-csrf','digest':'not-approved'}).status_code,404)
+        self.assertNotEqual(client.post(url+'/stop').status_code,303)
+        self.assertEqual(client.post(url+'/stop',data={'csrf_token':'work-csrf'}).status_code,303)
+        self.assertEqual(autonomous_store.get(staff,job['id'])['status'],'STOPPED')

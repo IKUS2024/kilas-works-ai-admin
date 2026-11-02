@@ -78,9 +78,23 @@ def sponsored(user, operations, conn=None, *, origin=None):
 
 def admits(user, endpoint):
     """An admission grant only for owned Chat routes; their own guards still apply."""
-    return bool(endpoint and endpoint.startswith('kilas_ai.')
-                and endpoint.removeprefix('kilas_ai.') in CHAT_ENDPOINTS
-                and any(states(user)))
+    if not endpoint or not endpoint.startswith('kilas_ai.') or not any(states(user)):
+        return False
+    name=endpoint.removeprefix('kilas_ai.')
+    if name in CHAT_ENDPOINTS:return True
+    # These are Chat result routes only for a proven immediate job, not a grant
+    # to the autonomous product, unrelated jobs or external-action approval.
+    if name not in ('autonomous_detail','autonomous_artifact','autonomous_preview','autonomous_control'):
+        return False
+    from flask import has_request_context,request
+    if not has_request_context():return False
+    args=request.view_args or {}
+    if name=='autonomous_control' and args.get('action') not in ('pause','resume','stop','read','feedback'):
+        return False
+    job=args.get('job_id')
+    if type(job) is not int or job<=0:return False
+    row=db.query_one('SELECT j.mode,j.schedule_json FROM kilas_ai_interactive_job_origins o JOIN kilas_agent_jobs j ON j.id=o.job_id AND j.user_id=o.user_id WHERE o.job_id=? AND o.user_id=?', (job,user))
+    return bool(row and row['mode']=='ONE_SHOT' and not json.loads(row['schedule_json'] or '{}'))
 
 
 @dataclass(frozen=True)
