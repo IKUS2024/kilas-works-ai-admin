@@ -67,8 +67,10 @@ def context(user_id, conversation_id, pending=None):
 def ordinary(user_id, conversation_id, operation_key):
     messages = context(user_id,conversation_id)
     meter_key = 'agent-chat-' + operation_key
+    from . import chat_offering
+    origin=chat_offering.for_request(user_id,'conversation',conversation_id,operation_key)
     try:
-        _, operations = usage.reserve(user_id, None, meter_key, 'FAST', 'CHAT', profile=model_policy.chat_profile(messages))
+        _, operations = usage.reserve(user_id, None, meter_key, 'FAST', 'CHAT', profile=model_policy.chat_profile(messages),origin=origin)
     except usage.UsageLimit as error:
         agent_store.append(user_id, 'assistant', str(error)[:1200], conversation_id)
         return None
@@ -81,7 +83,7 @@ def ordinary(user_id, conversation_id, operation_key):
         provider = model = None
         model_metadata = {}
         success = False
-        quality = chat_quality.ChatQualityStream(user_id,None,meter_key,'FAST',operations,messages)
+        quality = chat_quality.ChatQualityStream(user_id,None,meter_key,'FAST',operations,messages,origin=origin)
         yield {'type': 'activity', 'label': model_policy.chat_profile(messages)['activity']}
         try:
             for event in quality:

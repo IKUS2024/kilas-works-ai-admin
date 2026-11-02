@@ -24,6 +24,16 @@ class ManagedOfferingTests(unittest.TestCase):
         p=patch.object(image_models,'check',side_effect=lambda model:{**image_models.spec(model),'available':True,'status':'verified'})
         p.start();self.addCleanup(p.stop)
 
+    def origin(self):
+        import app
+        from flask import session
+        with app.app.test_request_context('/kilas-ai/threads/'+str(self.thread)+'/send',method='POST'):
+            session['user_id']=self.owner
+            return offering.for_request(self.owner,'thread',self.thread,'synthetic_interactive_origin')
+
+    def reserve(self,*args,**kwargs):
+        return usage.reserve(self.owner,self.thread,*args,origin=self.origin(),**kwargs)
+
     def test_models_pinned_without_rewriting_retained_preferences(self):
         with patch.dict(os.environ,{offering.MANAGED_FLAG:'false'}):
             chat_models.choose(self.owner,'thread',self.thread,'gpt-6.1-sol')
@@ -95,13 +105,13 @@ class ManagedOfferingTests(unittest.TestCase):
 
     def test_sponsored_costs_recorded_without_topup_or_customer_capacity(self):
         with patch.object(usage,'_qa_quota_exempt',return_value=False),patch('kilas_ai.topups.reserve',side_effect=AssertionError('customer debit')),patch('kilas_ai.topups.settle',side_effect=AssertionError('customer settle')):
-            plan,ops=usage.reserve(self.owner,self.thread,'sponsor_chat','FAST','CHAT')
+            plan,ops=self.reserve('sponsor_chat','FAST','CHAT')
             self.assertEqual(plan,'FREE')
             # Reservation remains exempt even if the deployment flag changes mid-flight.
             with patch.dict(os.environ,{offering.CHAT_FREE_FLAG:'false'}):
                 usage.finish(self.owner,'sponsor_chat',ops,success=True,provider='openai',model=offering.CHAT_MODEL,
                              usage={'selected_model':offering.CHAT_MODEL,'input_tokens':200,'output_tokens':100})
-            _,ops=usage.reserve(self.owner,self.thread,'sponsor_image','FAST','IMAGE_GENERATE',profile={'image_model':offering.IMAGE_MODEL})
+            _,ops=self.reserve('sponsor_image','FAST','IMAGE_GENERATE',profile={'image_model':offering.IMAGE_MODEL})
             usage.finish(self.owner,'sponsor_image',ops,success=True,provider='openai',model=offering.IMAGE_MODEL,
                          usage={'selected_image_model':offering.IMAGE_MODEL,'image_token_usage':{'input_tokens':100,'input_tokens_details':{'text_tokens':50,'image_tokens':50},'output_tokens':1000}})
         rows=db.query_all('SELECT * FROM kilas_ai_usage WHERE user_id=?',(self.owner,))
@@ -120,14 +130,14 @@ class ManagedOfferingTests(unittest.TestCase):
             finally:conn.close()
 
     def test_sponsored_idempotency_rate_concurrency_and_scope(self):
-        _,ops=usage.reserve(self.owner,self.thread,'one','FAST','CHAT')
-        self.assertEqual(usage.reserve(self.owner,self.thread,'one','FAST','CHAT'),(None,()))
-        usage.reserve(self.owner,self.thread,'two','FAST','CHAT')
-        usage.reserve(self.owner,self.thread,'three','FAST','CHAT')
-        with self.assertRaises(usage.UsageLimit):usage.reserve(self.owner,self.thread,'four','FAST','CHAT')
+        _,ops=self.reserve('one','FAST','CHAT')
+        self.assertEqual(self.reserve('one','FAST','CHAT'),(None,()))
+        self.reserve('two','FAST','CHAT')
+        self.reserve('three','FAST','CHAT')
+        with self.assertRaises(usage.UsageLimit):self.reserve('four','FAST','CHAT')
         usage.finish(self.owner,'one',ops,success=False,usage={'provider_rejected':True})
         with patch.dict(os.environ,{'KILAS_AI_BURST_PER_MINUTE':'3'}):
-            with self.assertRaises(usage.UsageLimit):usage.reserve(self.owner,self.thread,'burst','FAST','CHAT')
+            with self.assertRaises(usage.UsageLimit):self.reserve('burst','FAST','CHAT')
         with patch.object(usage,'qa_exempt',return_value=False):
             self.assertEqual(usage.attachment_plan(self.owner),'MAX')
             self.assertEqual(usage.attachment_plan(self.owner,chat=False),'FREE')
@@ -150,7 +160,7 @@ class ManagedOfferingTests(unittest.TestCase):
             self.assertFalse(caught.exception.usage['billing_unknown'])
             self.assertNotIn('private',str(caught.exception))
             self.assertEqual(post.call_count,1)
-        _,ops=usage.reserve(self.owner,self.thread,'quota_failure','FAST','CHAT')
+        _,ops=self.reserve('quota_failure','FAST','CHAT')
         usage.finish(self.owner,'quota_failure',ops,success=False,provider='openai',model=offering.CHAT_MODEL,usage=providers.ProviderQuotaError.usage)
         row=db.query_one('SELECT * FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.owner,'quota_failure'))
         self.assertEqual((row['status'],Decimal(row['estimated_cost_usd'])),('FAILED',Decimal(0)))
@@ -177,7 +187,7 @@ class ManagedOfferingTests(unittest.TestCase):
             self.assertEqual(post.call_count,2)
 
     def test_retrieval_cost_survives_later_synthesis_quota_rejection(self):
-        _,ops=usage.reserve(self.owner,self.thread,'retrieved_then_quota','FAST','WEB')
+        _,ops=self.reserve('retrieved_then_quota','FAST','WEB')
         used={'provider_rejected':True,'billing_unknown':False,'cost_components':[
             {'model':offering.CHAT_MODEL,'operation':'WEB_SEARCH','input_tokens':20,'output_tokens':10,'web_search_calls':1}]}
         usage.finish(self.owner,'retrieved_then_quota',ops,success=False,provider='openai',model=offering.CHAT_MODEL,usage=used)
@@ -225,6 +235,12 @@ class ManagedOfferingTests(unittest.TestCase):
         ident=autonomous_store.create(self.owner,'Buat laporan data sintetis dalam PDF',conversation_id=self.conversation,
                                       checkpoint={'author_model':offering.CHAT_MODEL})
         job=dict(autonomous_store.get(self.owner,ident))
+        # This unit scenario has a thread origin; match its durable job source.
+        import json
+        db.execute('UPDATE kilas_agent_jobs SET checkpoint_json=? WHERE id=?',(json.dumps({'author_model':offering.CHAT_MODEL,'origin_thread_id':self.thread}),ident))
+        origin=self.origin()
+        with autonomous_store.transaction() as conn:offering.register_job(conn,ident,origin)
+        job=dict(autonomous_store.get(self.owner,ident))
         with patch.object(providers,'stream',side_effect=providers.ProviderQuotaError('quota')) as provider:
             result=document_worker.run(job,{'idempotency_key':'managed_doc_quota','attempts':1},
                                        {'format':'pdf','request':job['instruction']})
@@ -233,3 +249,146 @@ class ManagedOfferingTests(unittest.TestCase):
         self.assertEqual(provider.call_count,1)
         row=db.query_one('SELECT * FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.owner,'managed_doc_quota-1'))
         self.assertEqual((row['status'],Decimal(row['estimated_cost_usd'])),('FAILED',Decimal(0)))
+
+    def test_no_origin_or_user_supplied_origin_never_gets_exemption(self):
+        from kilas_ai import topups
+        with patch.object(topups,'settle',wraps=topups.settle) as settle:
+            for index,origin in enumerate((None,{'source':'interactive_chat','user_id':self.owner},self.origin().__class__(self.other,'thread',self.thread,'foreign',True,True))):
+                key='not_interactive_'+str(index)
+                _,ops=usage.reserve(self.owner,self.thread,key,'FAST','CHAT',origin=origin)
+                usage.finish(self.owner,key,ops,success=True,provider='openai',model=offering.CHAT_MODEL,
+                             usage={'input_tokens':20,'output_tokens':10,'selected_model':offering.CHAT_MODEL})
+                row=db.query_one('SELECT customer_charge_exempt,customer_charge_origin FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.owner,key))
+                self.assertEqual((row['customer_charge_exempt'],row['customer_charge_origin']),(0,None))
+            self.assertEqual(settle.call_count,3)
+        # A non-Chat request context cannot mint an interactive grant.
+        import app
+        from flask import session
+        with app.app.test_request_context('/kilas-ai/automation',method='POST'):
+            session['user_id']=self.owner
+            self.assertIsNone(offering.for_request(self.owner,'thread',self.thread,'scheduled'))
+
+    def test_immediate_document_http_origin_survives_request_for_worker(self):
+        from kilas_ai import autonomous_store
+        from kilas_ai.agent_workers import document_worker
+        from test_kilas_selected_artifacts import response_stream
+        key='interactive_doc_source_0001'
+        self.submit(text='Buat laporan data sintetis dalam PDF',key=key)
+        job=autonomous_store.list_jobs(self.owner)[0]
+        source=db.query_one('SELECT * FROM kilas_ai_interactive_job_origins WHERE job_id=?',(job['id'],))
+        self.assertEqual((source['user_id'],source['surface'],source['surface_id'],source['request_key']),
+                         (self.owner,'conversation',self.conversation,key))
+        self.assertIsNotNone(offering.for_job(job,'DOCUMENT'))
+        # Cron's global free flags can stay OFF: it consumes only the persisted request grant.
+        with patch.dict(os.environ,{offering.MANAGED_FLAG:'false',offering.CHAT_FREE_FLAG:'false',offering.IMAGE_FREE_FLAG:'false'}),patch.object(providers,'stream',side_effect=response_stream),patch('kilas_ai.topups.settle',side_effect=AssertionError('interactive debit')):
+            result=document_worker.run(job,{'idempotency_key':'interactive_doc_worker','attempts':1},{'format':'pdf','request':job['instruction']})
+        self.assertEqual(result.status,'SUCCEEDED')
+        row=db.query_one('SELECT * FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.owner,'interactive_doc_worker-1'))
+        self.assertEqual(row['customer_charge_exempt'],1)
+        self.assertEqual(row['customer_charge_origin'],'interactive-job:'+str(job['id']))
+        self.assertGreater(Decimal(row['estimated_cost_usd']),0)
+        # A later scheduled conversion cannot reuse the original immediate grant.
+        db.execute("UPDATE kilas_agent_jobs SET mode='RECURRING' WHERE id=?",(job['id'],))
+        self.assertIsNone(offering.for_job(job,'DOCUMENT'))
+
+    def test_scheduled_artifact_http_has_no_grant_and_keeps_retained_models(self):
+        import json
+        from kilas_ai import autonomous_store
+        with patch.dict(os.environ,{offering.MANAGED_FLAG:'false'}):
+            chat_models.choose(self.owner,'conversation',self.conversation,'claude-sonnet-5-5')
+            image_models.choose(self.owner,'conversation',self.conversation,'gpt-image-2.5-flare')
+        self.submit(text='Buat laporan PDF besok jam 10 tentang data sintetis.',key='scheduled_doc_source_0001')
+        job=autonomous_store.list_jobs(self.owner)[0]
+        self.assertEqual(job['mode'],'SCHEDULED')
+        self.assertIsNone(db.query_one('SELECT job_id FROM kilas_ai_interactive_job_origins WHERE job_id=?',(job['id'],)))
+        checkpoint=json.loads(job['checkpoint_json'])
+        self.assertEqual(checkpoint['author_model'],'claude-sonnet-5-5')
+        self.assertEqual(checkpoint['image_model'],'gpt-image-2.5-flare')
+        self.assertIsNone(offering.for_job(job,'DOCUMENT'))
+
+    def test_scheduled_text_search_watch_do_not_inherit_interactive_grants(self):
+        import json
+        from kilas_ai import autonomous_store,topups
+        from kilas_ai.agent_workers import content_worker
+        # Real scheduled job with a conversation AND a forged checkpoint field is insufficient.
+        ident=autonomous_store.create(self.owner,'Riset publik terjadwal',mode='RECURRING',conversation_id=self.conversation,
+              checkpoint={'interactive_chat_origin':{'user_id':self.owner,'text_grant':True}})
+        job=dict(autonomous_store.get(self.owner,ident))
+        self.assertIsNone(offering.for_job(job,'AI_TEXT'))
+        step={'worker':'AI_TEXT','idempotency_key':'scheduled_text','attempts':1}
+        with patch.object(content_worker,'text',return_value=('Jawaban tugas lama.','gpt-6.1-sol',{'input_tokens':20,'output_tokens':10})),patch.object(topups,'settle',wraps=topups.settle) as settle:
+            result=content_worker.run(job,step,{'prompt':'Jelaskan data sintetis.'})
+            self.assertEqual(result.status,'SUCCEEDED')
+            self.assertEqual(settle.call_count,1)
+        row=db.query_one('SELECT * FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.owner,'scheduled_text-1'))
+        self.assertEqual((row['customer_charge_exempt'],row['customer_charge_origin'],row['model']),(0,None,'gpt-6.1-sol'))
+        self.assertGreater(Decimal(row['estimated_cost_usd']),0)
+        # SEARCH/WATCH reserve the very same WEB/CHAT categories as interactive tools.
+        # With no trusted interactive provenance, both still use ordinary billing.
+        with patch.object(topups,'settle',wraps=topups.settle) as settle:
+            for kind in ('SEARCH','WATCH'):
+                for tool in ('WEB','CHAT'):
+                    key='scheduled_'+kind+'_'+tool
+                    _,ops=usage.reserve(self.owner,None,key,'FAST',tool)
+                    usage.finish(self.owner,key,ops,success=True,provider='openai',model=offering.CHAT_MODEL,
+                                 usage={'input_tokens':10,'output_tokens':10})
+                    row=db.query_one('SELECT customer_charge_exempt,customer_charge_origin FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.owner,key))
+                    self.assertEqual((row['customer_charge_exempt'],row['customer_charge_origin']),(0,None))
+            self.assertEqual(settle.call_count,4)
+
+    def test_one_shot_autonomous_job_and_scheduled_image_keep_commercial_policy(self):
+        from kilas_ai import autonomous_store
+        # ONE_SHOT alone, owned conversation alone, or starting via /work do not mint grants.
+        ident=autonomous_store.create(self.owner,'Lakukan riset latar belakang',conversation_id=self.conversation)
+        job=dict(autonomous_store.get(self.owner,ident))
+        self.assertIsNone(offering.for_job(job,'WEB'))
+        with patch.object(usage,'_qa_quota_exempt',return_value=False):
+            # Exhaust old FREE image allowance; the new image flag must not bypass it for cron.
+            for i in range(2):
+                _,ops=usage.reserve(self.owner,None,'old_scheduled_image_'+str(i),'FAST','IMAGE_GENERATE')
+                usage.finish(self.owner,'old_scheduled_image_'+str(i),ops,success=True,model='gpt-image-2',usage={'input_tokens':10,'output_tokens':10})
+            with self.assertRaises(usage.UsageLimit):usage.reserve(self.owner,None,'scheduled_image_limit','FAST','IMAGE_GENERATE')
+        self.assertFalse(db.query_one('SELECT 1 FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.owner,'scheduled_image_limit')))
+
+    def test_interactive_image_worker_uses_persisted_grant_with_cron_flags_off(self):
+        from PIL import Image
+        from kilas_ai import autonomous_store
+        from kilas_ai.agent_workers import image_worker
+        key='interactive_image_source_0001'
+        self.submit(text='Buat gambar poster oranye dengan tulisan KILAS.',key=key)
+        job=autonomous_store.list_jobs(self.owner)[0]
+        self.assertIsNotNone(offering.for_job(job,'IMAGE'))
+        raw=io.BytesIO();Image.new('RGB',(320,320),'orange').save(raw,'PNG')
+        result={'raw':raw.getvalue(),'mime':'image/png','model':offering.IMAGE_MODEL,'provider':'openai',
+                'usage':{'selected_image_model':offering.IMAGE_MODEL,'image_token_usage':{'input_tokens':100,'input_tokens_details':{'text_tokens':50,'image_tokens':50},'output_tokens':1000}}}
+        with patch.dict(os.environ,{offering.MANAGED_FLAG:'false',offering.CHAT_FREE_FLAG:'false',offering.IMAGE_FREE_FLAG:'false'}),patch.object(tools,'image',return_value=result) as provider,patch('kilas_ai.topups.settle',side_effect=AssertionError('interactive image debit')):
+            generated=image_worker.run(job,{'idempotency_key':'interactive_image_worker','attempts':1,'action':'generate'},{'prompt':job['instruction']})
+        self.assertEqual(generated.status,'SUCCEEDED')
+        self.assertEqual(provider.call_args.kwargs['selected_model'],offering.IMAGE_MODEL)
+        row=db.query_one('SELECT * FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.owner,'interactive_image_worker-1'))
+        self.assertEqual((row['customer_charge_exempt'],row['customer_charge_origin']),(1,'interactive-job:'+str(job['id'])))
+        self.assertGreater(Decimal(row['estimated_cost_usd']),0)
+
+    def test_sqlite_provenance_release_is_repeatable_without_data_reset(self):
+        db.init_schema()
+        db.init_schema()
+        self.assertIsNotNone(db.query_one('SELECT id FROM users WHERE id=?',(self.owner,)))
+        _,ops=self.reserve('after_repeated_schema','FAST','CHAT')
+        usage.finish(self.owner,'after_repeated_schema',ops,success=True,model=offering.CHAT_MODEL,usage={'input_tokens':10,'output_tokens':10})
+        row=db.query_one('SELECT customer_charge_origin FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.owner,'after_repeated_schema'))
+        self.assertTrue(row['customer_charge_origin'].startswith('interactive-thread:'))
+
+    def test_document_clarification_and_thread_project_keep_interactive_provenance(self):
+        from kilas_ai import autonomous_store
+        self.submit(text='Buat PDF',key='clarify_document_origin_001')
+        self.assertEqual(autonomous_store.list_jobs(self.owner),[])
+        self.submit(text='Tentang layanan restoran, gunakan data sintetis.',key='clarify_document_origin_002')
+        job=autonomous_store.list_jobs(self.owner)[0]
+        self.assertIsNotNone(offering.for_job(job,'DOCUMENT'))
+        result=self.submit(agent=False,text='Create a small HTML website project ZIP with a README, source only.',key='thread_project_origin_0001')
+        self.assertEqual(result.status_code,200)
+        source=db.query_one("SELECT * FROM kilas_ai_interactive_job_origins WHERE user_id=? AND surface='thread' AND surface_id=?",(self.owner,self.thread))
+        self.assertIsNotNone(source)
+        self.assertEqual(source['request_key'],'thread_project_origin_0001')
+        project=dict(autonomous_store.get(self.owner,source['job_id']))
+        self.assertIsNotNone(offering.for_job(project,'PROJECT'))

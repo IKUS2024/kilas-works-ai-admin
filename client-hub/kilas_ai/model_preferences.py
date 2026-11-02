@@ -9,9 +9,9 @@ import db
 TABLES={'chat':'kilas_ai_chat_model_selections','image':'kilas_ai_image_model_selections'}
 
 
-def get(owner,kind):
+def get(owner,kind,*,apply_managed=True):
     from . import chat_offering
-    if chat_offering.managed():return {'chat':chat_offering.CHAT_MODEL,'image':chat_offering.IMAGE_MODEL}[kind]
+    if apply_managed and chat_offering.managed():return {'chat':chat_offering.CHAT_MODEL,'image':chat_offering.IMAGE_MODEL}[kind]
     row=db.query_one('SELECT model FROM '+TABLES[kind]+" WHERE user_id=? AND surface='thread' AND conversation_id=0",(owner,))
     return row['model'] if row else None
 

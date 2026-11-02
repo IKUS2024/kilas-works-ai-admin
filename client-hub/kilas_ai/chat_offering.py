@@ -5,6 +5,8 @@ inferred from the date. Provider billing must be verified before activation;
 these flags neither configure billing nor promise a real-time balance cutoff.
 """
 import os
+import json
+from dataclasses import dataclass
 import db
 
 CHAT_MODEL = 'gpt-6-luna'
@@ -56,7 +58,7 @@ def image_free(user, conn=None):
     return _enabled(IMAGE_FREE_FLAG) and account_exists(user, conn)
 
 
-def sponsored(user, operations, conn=None):
+def sponsored(user, operations, conn=None, *, origin=None):
     """Only Chat-related operations; no audio, VM, video or external action grant."""
     operations = tuple(operations)
     allowed = set()
@@ -64,7 +66,13 @@ def sponsored(user, operations, conn=None):
         allowed.update(TEXT_OPERATIONS)
     if _enabled(IMAGE_FREE_FLAG):
         allowed.update(IMAGE_OPERATIONS)
-    return bool(operations and all(op in allowed for op in operations)
+    if not isinstance(origin, _InteractiveOrigin) or origin.user_id != user:
+        return False
+    granted=(TEXT_OPERATIONS if origin.text_grant else frozenset()) | (IMAGE_OPERATIONS if origin.image_grant else frozenset())
+    # A persisted grant belongs to the already accepted interactive operation.
+    # Workers need no global free flag, and rollback never charges that customer.
+    if origin.job_id is not None:allowed=granted
+    return bool(operations and all(op in allowed and op in granted for op in operations)
                 and account_exists(user, conn))
 
 
@@ -73,3 +81,56 @@ def admits(user, endpoint):
     return bool(endpoint and endpoint.startswith('kilas_ai.')
                 and endpoint.removeprefix('kilas_ai.') in CHAT_ENDPOINTS
                 and any(states(user)))
+
+
+@dataclass(frozen=True)
+class _InteractiveOrigin:
+    """Trusted server value, never constructed from a request JSON grant."""
+    user_id: int
+    surface: str
+    surface_id: int
+    request_key: str
+    text_grant: bool
+    image_grant: bool
+    job_id: int | None = None
+
+    @property
+    def label(self):
+        return ('interactive-job:'+str(self.job_id) if self.job_id else
+                'interactive-'+self.surface+':'+str(self.surface_id)+':'+self.request_key)
+
+
+def for_request(user, surface, ident, key):
+    """Explicit Chat handler origin; work/start, Automation and cron cannot infer it."""
+    from flask import has_request_context, request, session
+    if not has_request_context() or request.endpoint not in ('kilas_ai.send','kilas_ai.regenerate','kilas_ai.agent_chat') or session.get('user_id') != user:
+        return None
+    text,image=states(user)
+    if not (text or image):return None
+    from . import chat_models
+    chat_models.owned(user,surface,ident)
+    if not isinstance(key,str) or not 1<=len(key)<=180:return None
+    return _InteractiveOrigin(user,surface,ident,key,text,image)
+
+
+def register_job(conn, job_id, origin):
+    """Persist grant only at trusted, immediate Chat-artifact creation."""
+    if not isinstance(origin,_InteractiveOrigin) or origin.job_id is not None:return
+    from . import usage
+    row=usage._query(conn,'SELECT mode,schedule_json,origin_conversation_id,checkpoint_json FROM kilas_agent_jobs WHERE id=? AND user_id=?',
+                     (job_id,origin.user_id),one=True)
+    if not row or row[0]!='ONE_SHOT' or json.loads(row[1] or '{}'):return
+    if origin.surface=='conversation' and row[2]!=origin.surface_id:return
+    if origin.surface=='thread' and json.loads(row[3] or '{}').get('origin_thread_id')!=origin.surface_id:return
+    usage._query(conn,'INSERT INTO kilas_ai_interactive_job_origins(job_id,user_id,surface,surface_id,request_key,text_grant,image_grant) VALUES (?,?,?,?,?,?,?) ON CONFLICT(job_id) DO NOTHING',
+                 (job_id,origin.user_id,origin.surface,origin.surface_id,origin.request_key,int(origin.text_grant),int(origin.image_grant)))
+
+
+def for_job(job, worker):
+    """Read persisted provenance; origin conversation alone never grants funding."""
+    if worker not in ('DOCUMENT','PROJECT','IMAGE','AI_TEXT','WEB'):return None
+    if job.get('mode')!='ONE_SHOT':return None
+    row=db.query_one('SELECT o.*,j.mode,j.schedule_json FROM kilas_ai_interactive_job_origins o JOIN kilas_agent_jobs j ON j.id=o.job_id AND j.user_id=o.user_id WHERE o.job_id=? AND o.user_id=?',
+                     (job['id'],job['user_id']))
+    if not row or row['mode']!='ONE_SHOT' or json.loads(row['schedule_json'] or '{}'):return None
+    return _InteractiveOrigin(row['user_id'],row['surface'],row['surface_id'],row['request_key'],bool(row['text_grant']),bool(row['image_grant']),row['job_id'])

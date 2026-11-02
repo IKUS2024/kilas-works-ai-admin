@@ -99,11 +99,11 @@ def warmup():
  threading.Thread(target=run,name='kilas-image-access',daemon=True).start()
 
 
-def preference(owner,surface,ident):
+def preference(owner,surface,ident,*,apply_managed=True):
  import db
  chat_models.owned(owner,surface,ident)
  from . import chat_offering
- if chat_offering.managed():return chat_offering.IMAGE_MODEL
+ if apply_managed and chat_offering.managed():return chat_offering.IMAGE_MODEL
  row=db.query_one('SELECT model FROM kilas_ai_image_model_selections WHERE user_id=? AND surface=? AND conversation_id=?',(owner,surface,ident))
  return row['model'] if row else None
 

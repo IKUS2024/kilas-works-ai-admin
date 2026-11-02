@@ -27,7 +27,7 @@ def main():
             chat_models_schema.apply_release('0113_kilas_chat_sponsorship');chat_models_schema.apply_release('0113_kilas_chat_sponsorship')
             assert db.query_one("SELECT customer_charge_exempt,estimated_cost_usd FROM kilas_ai_usage WHERE operation_key='legacy'")['customer_charge_exempt']==0
             with patch.dict(os.environ,{offering.CHAT_FREE_FLAG:'true',offering.IMAGE_FREE_FLAG:'true'}),patch('kilas_ai.topups.settle',side_effect=AssertionError('customer debit')):
-                def claim(_):return usage.reserve(owner,None,'same_operation','FAST','CHAT')
+                def claim(_):return usage.reserve(owner,None,'same_operation','FAST','CHAT',origin=offering._InteractiveOrigin(owner,'thread',1,'postgres_interactive',True,True))
                 with ThreadPoolExecutor(4) as pool:results=list(pool.map(claim,range(4)))
                 assert sum(bool(ops) for _,ops in results)==1,results
                 assert db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE operation_key='same_operation'")['n']==1
@@ -35,7 +35,13 @@ def main():
                 row=db.query_one("SELECT customer_charge_exempt,estimated_cost_usd FROM kilas_ai_usage WHERE operation_key='same_operation'")
                 assert row['customer_charge_exempt']==1 and Decimal(row['estimated_cost_usd'])>0
                 assert usage.snapshot(owner)['usage']['Chat']['used']==1 # only the legacy billed row
-            print('PASS: additive migration twice, legacy cost preserved, 4 concurrent claims one reservation, sponsored cost/no customer settlement')
+            # The same categories without a trusted origin remain ordinarily billed.
+            with patch.dict(os.environ,{offering.CHAT_FREE_FLAG:'true',offering.IMAGE_FREE_FLAG:'true'}):
+                _,ops=usage.reserve(owner,None,'scheduled_chat','FAST','CHAT')
+                usage.finish(owner,'scheduled_chat',ops,success=True,provider='openai',model=offering.CHAT_MODEL,usage={'input_tokens':20,'output_tokens':10})
+                row=db.query_one("SELECT customer_charge_exempt,customer_charge_origin FROM kilas_ai_usage WHERE operation_key='scheduled_chat'")
+                assert row['customer_charge_exempt']==0 and row['customer_charge_origin'] is None
+            print('PASS: additive migration twice, legacy cost preserved, 4 concurrent interactive claims one reservation, sponsored cost/no customer settlement, scheduled category not sponsored')
     finally:
         with control.cursor() as cur:cur.execute('DROP SCHEMA '+name+' CASCADE')
         control.close()

@@ -224,7 +224,7 @@ def chat_level(user_id):
 
 
 
-def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
+def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
     """Atomically check and reserve all requested units before any provider call."""
     now = _now()
     conn = _connect()
@@ -254,7 +254,7 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
         operations = _operations(mode, tool)
         from . import chat_offering
         sponsored = (tool in ('CHAT','WEB','PDF','PPTX','IMAGE_GENERATE','IMAGE_EDIT')
-                     and chat_offering.sponsored(user_id,operations,conn))
+                     and chat_offering.sponsored(user_id,operations,conn,origin=origin))
         qa_exempt = sponsored or _qa_quota_exempt(conn, user_id, now)
         paid_chat = plan != 'FREE' and fair_use.normal_chat(thread_id,key,tool)
         from . import capacity
@@ -311,9 +311,9 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
             except topups.TopupError:
                 raise UsageLimit('Kapasitas Premium belum cukup untuk permintaan ini. Tambah kapasitas atau lanjutkan Chat biasa.') from None
         for operation in operations:
-            _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,model,created_at,customer_charge_exempt) "
-                   "VALUES (?,?,?,?,?,'PENDING',?,?,?,?,?)", (user_id, thread_id, key, operation, mode,
-                       'TOPUP' if needs_topup else 'BASE', str(predicted), profile.get('selected_model') if profile and operation==operations[0] else None, now.isoformat(),int(sponsored)))
+            _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,model,created_at,customer_charge_exempt,customer_charge_origin) "
+                   "VALUES (?,?,?,?,?,'PENDING',?,?,?,?,?,?)", (user_id, thread_id, key, operation, mode,
+                       'TOPUP' if needs_topup else 'BASE', str(predicted), profile.get('selected_model') if profile and operation==operations[0] else None, now.isoformat(),int(sponsored),origin.label if sponsored else None))
         conn.commit()
         return plan, operations
     except Exception:

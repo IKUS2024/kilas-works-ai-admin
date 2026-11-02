@@ -275,8 +275,10 @@ def regenerate(thread_id):
             chat_models.bind(context,selected_model)
             chat_models.validate_messages(selected_model,context)
     except chat_models.SelectionError as error:return {'error':str(error)},400
+    from . import chat_offering
+    origin=chat_offering.for_request(user_id,'thread',thread_id,key)
     try:
-        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, "CHAT", profile=model_policy.chat_profile(context))
+        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, "CHAT", profile=model_policy.chat_profile(context),origin=origin)
     except ai_usage.UsageLimit as error:
         return {"error": str(error)}, 429
     if plan is None:
@@ -304,7 +306,7 @@ def regenerate(thread_id):
         quality_source = None
         try:
             yield _sse("activity", {"label": providers.model_policy.chat_profile(context)["activity"]})
-            quality_source = chat_quality.ChatQualityStream(user_id, thread_id, key, mode, operations, context)
+            quality_source = chat_quality.ChatQualityStream(user_id, thread_id, key, mode, operations, context,origin=origin)
             for event in quality_source:
                 if event["type"] == "provider":
                     provider, model = event["provider"], event["model"]
@@ -463,8 +465,10 @@ def send(thread_id, *, script_only=False):
             from .tools import ToolUnavailable
             try:resolve(effective_image,image_prompt)
             except ToolUnavailable as error:return {'error':str(error)},400
+    from . import chat_offering
+    origin=chat_offering.for_request(user_id,'thread',thread_id,key)
     try:
-        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool,
+        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool,origin=origin,
             profile={'image_model':selected_image,'image_input_token_bound':512+len(image_prompt.encode('utf-8')),'image_prompt':image_prompt} if tool in ('IMAGE_GENERATE','IMAGE_EDIT') else model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF','PPTX') else None)
     except ai_usage.UsageLimit as error:
         from .chat_web import UNVERIFIED
@@ -647,7 +651,7 @@ def send(thread_id, *, script_only=False):
             yield _sse("activity", {"label": "Menganalisis gambar…" if any(item["mime_type"].startswith("image/") for item in prepared)
                           else "Membaca dokumen…" if any(item["extracted_text"] for item in prepared)
                           else providers.model_policy.chat_profile(context)["activity"]})
-            quality_source = chat_quality.ChatQualityStream(user_id, thread_id, key, mode, operations, context)
+            quality_source = chat_quality.ChatQualityStream(user_id, thread_id, key, mode, operations, context,origin=origin)
             for event in quality_source:
                 if event["type"] == "provider":
                     provider, model = event["provider"], event["model"]

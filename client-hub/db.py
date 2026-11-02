@@ -388,7 +388,7 @@ def init_schema():
                     conn.rollback()
                     raise
                 continue
-            if sqlite_name == "0079_kilas_agent_conversations_sqlite.sql":
+            if sqlite_name in ("0079_kilas_agent_conversations_sqlite.sql", "0113_kilas_chat_sponsorship_sqlite.sql"):
                 # Repeated local boots must continue after each already-added column,
                 # without reassociating messages belonging to an existing chat.
                 with conn:

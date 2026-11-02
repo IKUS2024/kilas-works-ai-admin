@@ -1,5 +1,6 @@
 """Bounded native-tool project authoring, real files/ZIPs and honest test status."""
 import json
+from . import chat_offering
 import re
 import logging
 import db
@@ -89,7 +90,7 @@ def run(job,step,data):
         author.profile['output_tokens']=min(16384,max(8192,author.profile['output_tokens']))
         if author.profile['depth']=='QUICK':author.profile.update(depth='STANDARD',tier='NORMAL')
         key=step['idempotency_key']+'-tools-'+str(iteration)
-        _,ops=usage.reserve(job['user_id'],None,key,'FAST','CHAT',profile=author.profile)
+        _,ops=usage.reserve(job['user_id'],None,key,'FAST','CHAT',origin=chat_offering.for_job(job,'PROJECT'),profile=author.profile)
         if not ops:raise ValueError('duplicate_tool_dispatch')
         used={'selected_model':model,'billing_unknown':True};success=False;response=None
         progress(job,'STRUCTURE' if iteration==0 else 'WRITING_CODE','Membuat struktur dan kode…')

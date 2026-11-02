@@ -20,11 +20,11 @@ class OfferingPolicyTests(unittest.TestCase):
 
     def test_text_and_image_sponsorship_are_independent(self):
         with patch.dict(os.environ,{offering.CHAT_FREE_FLAG:'true'}):
-            self.assertTrue(offering.sponsored(1,('CHAT','WEB_SEARCH','PDF')))
+            self.assertTrue(offering.sponsored(1,('CHAT','WEB_SEARCH','PDF'),origin=offering._InteractiveOrigin(1,'thread',1,'policy',True,True)))
             self.assertTrue(offering.text_free(2))
             self.assertFalse(offering.sponsored(1,('IMAGE_GENERATION',)))
         with patch.dict(os.environ,{offering.IMAGE_FREE_FLAG:'true'}):
-            self.assertTrue(offering.sponsored(2,('IMAGE_GENERATION','IMAGE_EDIT')))
+            self.assertTrue(offering.sponsored(2,('IMAGE_GENERATION','IMAGE_EDIT'),origin=offering._InteractiveOrigin(2,'thread',1,'policy',True,True)))
             self.assertFalse(offering.sponsored(1,('CHAT',)))
 
     def test_only_existing_authenticated_account_identifiers(self):

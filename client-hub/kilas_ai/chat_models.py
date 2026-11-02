@@ -153,11 +153,11 @@ def owned(user_id, surface, ident):
         raise SelectionError('Percakapan tidak ditemukan.')
 
 
-def preference(user_id, surface, ident):
+def preference(user_id, surface, ident, *, apply_managed=True):
     import db
     owned(user_id,surface,ident)
     from . import chat_offering
-    if chat_offering.managed():return chat_offering.CHAT_MODEL
+    if apply_managed and chat_offering.managed():return chat_offering.CHAT_MODEL
     row = db.query_one('SELECT model FROM kilas_ai_chat_model_selections WHERE user_id=? AND surface=? AND conversation_id=?',
                        (user_id,surface,ident))
     return row['model'] if row else None

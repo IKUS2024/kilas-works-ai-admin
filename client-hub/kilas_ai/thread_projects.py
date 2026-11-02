@@ -49,6 +49,8 @@ def enqueue(owner,thread_id,text,key,mode,model,prepared):
                 'thread_context':json.dumps(context,ensure_ascii=False)[-12000:],
                 'generate_outputs':needs_run(text),'thread_operation_key':key}
     if qa_key:checkpoint['qa_budget_key']=qa_key
+    from . import chat_offering,work_schedule
+    origin=chat_offering.for_request(owner,'thread',thread_id,key) if not work_schedule.future_requested(text) else None
     with jobs.transaction() as conn:
         suffix=' FOR UPDATE' if db.BACKEND=='postgres' else ''
         if not usage._query(conn,'SELECT id FROM kilas_ai_threads WHERE id=? AND user_id=?'+suffix,(thread_id,owner),one=True):abort(404)
@@ -63,6 +65,7 @@ def enqueue(owner,thread_id,text,key,mode,model,prepared):
         message=usage._query(conn,"INSERT INTO kilas_ai_messages(thread_id,role,content,mode,operation_key) VALUES (?,'user',?,?,?) RETURNING id",(thread_id,text,mode,key),one=True)[0]
         checkpoint['origin_thread_message_id']=message
         ident=usage._query(conn,"INSERT INTO kilas_agent_jobs(user_id,title,instruction,mode,status,constraints_json,next_wake_at,checkpoint_json,max_steps,max_attempts) VALUES (?,?,?,'ONE_SHOT','RUNNING','[]',?,?,1,1) RETURNING id",(owner,' '.join(text.split())[:90],text[:1200],jobs.stamp(),jobs.encode(checkpoint)),one=True)[0]
+        chat_offering.register_job(conn,ident,origin)
         qa.audit_rearm(conn,ident,qa_key)
         payload=jobs.encode({'request':text})
         usage._query(conn,"INSERT INTO kilas_agent_steps(job_id,sequence,worker,action,instruction,input_json,idempotency_key,status) VALUES (?,1,'PROJECT','create','Membuat struktur dan kode…',?,?,'PENDING')",(ident,payload,qa_key or secrets.token_hex(24)))

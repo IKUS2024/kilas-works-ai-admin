@@ -89,7 +89,7 @@ def steps(job_id):
     return [dict(row) for row in db.query_all('SELECT * FROM kilas_agent_steps WHERE job_id=? ORDER BY sequence', (job_id,))]
 
 
-def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=None, interval=3600, expires_at=None, conversation_id=None, schedule=None, checkpoint=None, image_input=None, origin_message_id=None):
+def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=None, interval=3600, expires_at=None, conversation_id=None, schedule=None, checkpoint=None, image_input=None, origin_message_id=None, interactive_origin=None):
     from .agent_results import task_title
     from .autonomous_planner import MODES
     if mode not in MODES or not isinstance(instruction, str) or not 1 <= len(instruction.strip()) <= 1200:
@@ -102,6 +102,11 @@ def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=N
     if conversation_id is not None and has_request_context():
         selected=getattr(request,'chat_selected_model',None)
         image_selected=getattr(request,'chat_selected_image_model',None)
+        from . import chat_offering,chat_models,image_models,model_preferences
+        immediate=isinstance(interactive_origin,chat_offering._InteractiveOrigin) and mode=='ONE_SHOT' and not schedule and not wake_at
+        if chat_offering.managed() and not immediate:
+            if selected:selected=chat_models.preference(user_id,'conversation',conversation_id,apply_managed=False) or model_preferences.get(user_id,'chat',apply_managed=False)
+            if image_selected:image_selected=image_models.preference(user_id,'conversation',conversation_id,apply_managed=False) or model_preferences.get(user_id,'image',apply_managed=False)
         if selected:
             from . import chat_models
             chat_models.spec(selected)
@@ -140,6 +145,8 @@ def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=N
         if conversation_id is not None or schedule or checkpoint:
             usage._query(conn, 'UPDATE kilas_agent_jobs SET origin_conversation_id=?,schedule_json=?,checkpoint_json=? WHERE id=?',
                          (conversation_id, encode(schedule or {}), encode(checkpoint or {}), job_id))
+        from . import chat_offering
+        chat_offering.register_job(conn,job_id,interactive_origin)
     return job_id
 
 
