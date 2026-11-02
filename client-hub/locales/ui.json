@@ -1,4 +1,6 @@
 {
+  "Kilas AI sedang tidak tersedia. Coba lagi nanti.": {"id": "Kilas AI sedang tidak tersedia. Coba lagi nanti.", "en": "Kilas AI is unavailable. Try again later.", "es": "Kilas AI no está disponible. Inténtalo más tarde.", "zh": "Kilas AI 暂时不可用，请稍后重试。"},
+  "Pembuatan gambar sedang tidak tersedia. Coba lagi nanti.": {"id": "Pembuatan gambar sedang tidak tersedia. Coba lagi nanti.", "en": "Image generation is unavailable. Try again later.", "es": "La generación de imágenes no está disponible. Inténtalo más tarde.", "zh": "图像生成功能暂时不可用，请稍后重试。"},
   "Model dikelola oleh Kilas AI. Muat ulang halaman.": {"id": "Model dikelola oleh Kilas AI. Muat ulang halaman.", "en": "Kilas AI manages the model. Reload this page.", "es": "Kilas AI gestiona el modelo. Recarga esta página.", "zh": "模型由 Kilas AI 管理，请重新加载页面。"},
   "Saldo layanan AI tidak tersedia. Coba lagi setelah pengelola memeriksa saldo.": {"id": "Saldo layanan AI tidak tersedia. Coba lagi setelah pengelola memeriksa saldo.", "en": "AI service credit is unavailable. Try again after the administrator checks the balance.", "es": "El saldo del servicio de IA no está disponible. Inténtalo de nuevo cuando el administrador lo revise.", "zh": "AI 服务余额不可用，请待管理员检查余额后重试。"},
   "Sesi berakhir.": {"id": "Sesi berakhir.", "en": "Session ended.", "es": "La sesión ha finalizado.", "zh": "会话已结束。"},
