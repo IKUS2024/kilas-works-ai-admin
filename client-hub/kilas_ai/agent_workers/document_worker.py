@@ -4,7 +4,7 @@ import io
 import json
 import re
 from . import Result,content_worker
-from .. import usage,work_documents,work_artifacts,pdf
+from .. import usage,work_documents,work_artifacts,pdf,providers
 
 
 def run(job,step,data):

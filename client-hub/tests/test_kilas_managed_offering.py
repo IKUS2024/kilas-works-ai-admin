@@ -218,3 +218,18 @@ class ManagedOfferingTests(unittest.TestCase):
         self.assertEqual(provider.call_args.args[1].selected_model,offering.CHAT_MODEL)
         self.assertIn('175 million',str(provider.call_args.args[1]))
         self.assertEqual(db.query_one('SELECT customer_charge_exempt FROM kilas_ai_usage WHERE user_id=?',(staff,))['customer_charge_exempt'],1)
+
+    def test_document_quota_waits_without_retry_and_records_rejection(self):
+        from kilas_ai import autonomous_store
+        from kilas_ai.agent_workers import document_worker
+        ident=autonomous_store.create(self.owner,'Buat laporan data sintetis dalam PDF',conversation_id=self.conversation,
+                                      checkpoint={'author_model':offering.CHAT_MODEL})
+        job=dict(autonomous_store.get(self.owner,ident))
+        with patch.object(providers,'stream',side_effect=providers.ProviderQuotaError('quota')) as provider:
+            result=document_worker.run(job,{'idempotency_key':'managed_doc_quota','attempts':1},
+                                       {'format':'pdf','request':job['instruction']})
+        self.assertEqual(result.status,'WAITING_CAPABILITY')
+        self.assertEqual(result.output['reason'],'provider_quota_exhausted')
+        self.assertEqual(provider.call_count,1)
+        row=db.query_one('SELECT * FROM kilas_ai_usage WHERE user_id=? AND operation_key=?',(self.owner,'managed_doc_quota-1'))
+        self.assertEqual((row['status'],Decimal(row['estimated_cost_usd'])),('FAILED',Decimal(0)))
