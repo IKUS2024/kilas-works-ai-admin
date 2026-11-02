@@ -23,6 +23,9 @@ def premium(operation, mode, thread_id, key, model=None):
 
 def forecast(operation, mode, profile=None):
     from . import usage
+    from . import chat_offering
+    if operation in ('IMAGE_GENERATION','IMAGE_EDIT') and chat_offering.managed() and not (profile or {}).get('image_model'):
+        profile={**(profile or {}),'image_model':chat_offering.IMAGE_MODEL}
     if operation in ('IMAGE_GENERATION','IMAGE_EDIT'):
         from . import image_models
         if not profile or not profile.get('image_model'):
@@ -62,7 +65,7 @@ def spent(conn, user_id, start, now):
     from . import usage
     rows = usage._rows(conn, "SELECT operation_type,mode,thread_id,operation_key,model,"
         "estimated_cost_usd,status FROM kilas_ai_usage WHERE user_id=? AND quota_source='BASE' "
-        "AND created_at>=? AND (status IN ('COMPLETE','FAILED') OR "
+        "AND customer_charge_exempt=0 AND created_at>=? AND (status IN ('COMPLETE','FAILED') OR "
         "(status='PENDING' AND (operation_type='CODE_EXECUTION' OR created_at>=?)))",
         (user_id, start.isoformat(), (now-timedelta(minutes=10)).isoformat()))
     total = Decimal(0)
@@ -86,7 +89,10 @@ def summary(user_id):
     try:
         now = usage._now()
         plan, start, end = usage._plan(conn, user_id, now)
-        exempt = usage._qa_quota_exempt(conn, user_id, now)
+        from . import chat_offering
+        text_test,image_test=chat_offering.states(user_id,conn)
+        sponsored=text_test or image_test
+        exempt = sponsored or usage._qa_quota_exempt(conn, user_id, now)
         remaining = Decimal(0)
         if plan != 'FREE':
             cycle = usage._period(plan, start, end, 'CHAT', now)[0]
@@ -102,7 +108,7 @@ def summary(user_id):
             label = 'Menipis'
         else:
             label = 'Habis'
-        return {'state': label, 'available': label != 'Habis', 'active': plan != 'FREE',
+        return {'state': label, 'available': label != 'Habis', 'active': plan != 'FREE' or sponsored,
                 'has_topup': bool(extra)}
     finally:
         conn.close()

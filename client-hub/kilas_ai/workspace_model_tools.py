@@ -69,7 +69,11 @@ def turn(model,history,instruction,output_tokens=8192,effort='medium'):
     from .workspace_qa_once import before_send
     before_send(model,payload)  # One-job guard; no-op for ordinary requests.
     try:
-        response=requests.post(url,headers=headers,json=payload,timeout=(5,55));response.raise_for_status();phase='response_json';data=response.json()
+        response=requests.post(url,headers=headers,json=payload,timeout=(5,55))
+        from .provider_failures import quota_rejected
+        if provider=='openai' and quota_rejected(response):
+            raise NativeFailure('provider_quota_exhausted',{'provider_rejected':True,'billing_unknown':False},phase='provider_rejected')
+        response.raise_for_status();phase='response_json';data=response.json()
         if not isinstance(data,dict):raise ValueError('invalid_response_root')
         used=_usage(provider,data);phase='model_identity'
         actual=data.get('model') if provider=='openai' else data.get('model') if provider=='anthropic' else data.get('modelVersion')

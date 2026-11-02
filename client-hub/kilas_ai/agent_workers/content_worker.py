@@ -1,5 +1,6 @@
 """Metered text/source-backed research, quiet watches, non-destructive file artifacts."""
 import json
+from .. import chat_offering
 import os
 import re
 import requests
@@ -52,7 +53,7 @@ def run(job, step, data):
     key = step['idempotency_key'] + '-' + str(step['attempts'])
     success, used, model = False, {}, None
     try:
-        _, operations = usage.reserve(job['user_id'], None, key, 'FAST', 'CHAT' if worker == 'AI_TEXT' else 'WEB')
+        _, operations = usage.reserve(job['user_id'], None, key, 'FAST', 'CHAT' if worker == 'AI_TEXT' else 'WEB',origin=chat_offering.for_job(job,worker))
         if not operations:
             raise ValueError('duplicate_reservation')
         if worker == 'AI_TEXT':
@@ -90,7 +91,7 @@ def run(job, step, data):
             return Result('SUCCEEDED', 'Riset selesai dengan sumber.', output, usage=used, verified=True)
         # Extraction is metered separately; search answer is explicitly untrusted.
         extract_key = key + '-extract'
-        _, extract_ops = usage.reserve(job['user_id'], None, extract_key, 'FAST', 'CHAT')
+        _, extract_ops = usage.reserve(job['user_id'], None, extract_key, 'FAST', 'CHAT',origin=chat_offering.for_job(job,worker))
         extracted, extract_model, extract_used = '', None, {}
         try:
             if not extract_ops:

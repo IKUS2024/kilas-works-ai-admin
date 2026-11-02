@@ -13,6 +13,9 @@ NO_SEARCH = ('Saya tidak melakukan pencarian web sesuai permintaanmu. '
 
 def search_failure_message(error):
     code = getattr(error, 'code', 'search_internal_error')
+    if code == 'provider_quota_exhausted':
+        from .provider_failures import QUOTA_MESSAGE
+        return QUOTA_MESSAGE
     if code == 'provider_timeout':
         detail = 'Pencarian melewati batas waktu. Coba lagi sebentar.'
     elif code == 'provider_rate_limited':

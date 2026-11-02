@@ -160,7 +160,7 @@ def _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now
         period_start = _period(plan, paid_start, paid_end, "PDF", now)[0]
         hard = Decimal(PLANS[plan]["price"]) / Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000")) * Decimal(os.environ.get("KILAS_AI_COST_HARD_RATIO", "0.35"))
     rows = _rows(conn, "SELECT operation_type,mode,estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? "
-                 "AND created_at>=? AND status IN ('COMPLETE','PENDING')", (user_id, period_start.isoformat()))
+                 "AND customer_charge_exempt=0 AND created_at>=? AND status IN ('COMPLETE','PENDING')", (user_id, period_start.isoformat()))
     spent = Decimal(0)
     for operation, recorded_mode, cost in rows:
         try:
@@ -178,7 +178,8 @@ def _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now
 
 def web_call_budget(user_id, plan):
     """Technical research ceiling, independent of commercial usage/depth."""
-    return 5 if plan != 'FREE' or qa_exempt(user_id) else 1
+    from . import chat_offering
+    return 5 if plan != 'FREE' or qa_exempt(user_id) or chat_offering.text_free(user_id) else 1
 
 
 def qa_exempt(user_id):
@@ -189,15 +190,16 @@ def qa_exempt(user_id):
         conn.close()
 
 
-def attachment_plan(user_id):
+def attachment_plan(user_id, *, chat=True):
     # QA bypasses commercial pack differences; technical upload bounds still apply.
-    return 'MAX' if qa_exempt(user_id) else effective_plan(user_id)['plan']
+    from . import chat_offering
+    return 'MAX' if (chat and any(chat_offering.states(user_id))) or qa_exempt(user_id) else effective_plan(user_id)['plan']
 
 
 
 def chat_cost(conn, user_id, start, now):
     rows = _rows(conn, "SELECT estimated_cost_usd,status FROM kilas_ai_usage u WHERE user_id=? "
-        "AND operation_type='CHAT' AND (thread_id IS NOT NULL OR operation_key LIKE 'agent-chat-%') "
+        "AND customer_charge_exempt=0 AND operation_type='CHAT' AND (thread_id IS NOT NULL OR operation_key LIKE 'agent-chat-%') "
         "AND created_at>=? AND (status IN ('COMPLETE','FAILED') OR (status='PENDING' AND created_at>=?))" + _chat_only_sql(),
         (user_id,start.isoformat(),(now-timedelta(minutes=10)).isoformat()))
     spent = Decimal(0)
@@ -222,7 +224,7 @@ def chat_level(user_id):
 
 
 
-def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
+def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
     """Atomically check and reserve all requested units before any provider call."""
     now = _now()
     conn = _connect()
@@ -250,7 +252,10 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
             if count >= ceiling:
                 raise UsageLimit("Terlalu banyak permintaan dalam waktu singkat. Coba lagi sebentar.")
         operations = _operations(mode, tool)
-        qa_exempt = _qa_quota_exempt(conn, user_id, now)
+        from . import chat_offering
+        sponsored = (tool in ('CHAT','WEB','PDF','PPTX','IMAGE_GENERATE','IMAGE_EDIT')
+                     and chat_offering.sponsored(user_id,operations,conn,origin=origin))
+        qa_exempt = sponsored or _qa_quota_exempt(conn, user_id, now)
         paid_chat = plan != 'FREE' and fair_use.normal_chat(thread_id,key,tool)
         from . import capacity
         if tool == 'CHAT' and profile and profile['model'].endswith('-sol'):
@@ -269,7 +274,7 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
             type_filter = ("u.operation_type IN ('IMAGE_GENERATION','IMAGE_EDIT')" if operation in ("IMAGE_GENERATION", "IMAGE_EDIT")
                            else "u.operation_type=?")
             count = _query(conn, "SELECT COUNT(*) FROM kilas_ai_usage AS u WHERE u.user_id=? AND " + type_filter + " "
-                "AND u.quota_source='BASE' AND u.created_at>=? AND u.created_at<? "
+                "AND u.quota_source='BASE' AND u.customer_charge_exempt=0 AND u.created_at>=? AND u.created_at<? "
                 "AND (u.status='COMPLETE' OR (u.status='PENDING' AND u.created_at>=?))"
                 + (_chat_only_sql() if operation == "CHAT" else ""),
                 ((user_id,) if operation in ("IMAGE_GENERATION", "IMAGE_EDIT") else (user_id, operation))
@@ -279,7 +284,7 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
             if plan == "FREE" and operation == "CHAT":
                 day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
                 daily = _query(conn, "SELECT COUNT(*) FROM kilas_ai_usage AS u WHERE u.user_id=? AND u.operation_type='CHAT' "
-                    "AND u.quota_source='BASE' AND u.created_at>=? AND u.created_at<? AND (u.status='COMPLETE' OR "
+                    "AND u.quota_source='BASE' AND u.customer_charge_exempt=0 AND u.created_at>=? AND u.created_at<? AND (u.status='COMPLETE' OR "
                     "(u.status='PENDING' AND u.created_at>=?))" + _chat_only_sql(),
                     (user_id, day_start.isoformat(), (day_start + timedelta(days=1)).isoformat(),
                      (now - timedelta(minutes=10)).isoformat()), one=True)[0]
@@ -306,9 +311,9 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None):
             except topups.TopupError:
                 raise UsageLimit('Kapasitas Premium belum cukup untuk permintaan ini. Tambah kapasitas atau lanjutkan Chat biasa.') from None
         for operation in operations:
-            _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,model,created_at) "
-                   "VALUES (?,?,?,?,?,'PENDING',?,?,?,?)", (user_id, thread_id, key, operation, mode,
-                       'TOPUP' if needs_topup else 'BASE', str(predicted), profile.get('selected_model') if profile and operation==operations[0] else None, now.isoformat()))
+            _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,model,created_at,customer_charge_exempt,customer_charge_origin) "
+                   "VALUES (?,?,?,?,?,'PENDING',?,?,?,?,?,?)", (user_id, thread_id, key, operation, mode,
+                       'TOPUP' if needs_topup else 'BASE', str(predicted), profile.get('selected_model') if profile and operation==operations[0] else None, now.isoformat(),int(sponsored),origin.label if sponsored else None))
         conn.commit()
         return plan, operations
     except Exception:
@@ -385,7 +390,9 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
                     selected_pricing=c.get('selected_pricing',False), cache_write_input_tokens=c.get('cache_write_input_tokens',0),
                     pricing_at=pricing_at) for c in usage['cost_components'][:12 if usage.get('selected_model') else 6]]
                 cost = str(sum((Decimal(c) for c in components),Decimal(0))) if all(c is not None for c in components) else None
-            if usage.get('billing_unknown') or (cost is None and model and (input_tokens or output_tokens or success)):
+            if usage.get('provider_rejected') and not input_tokens and not output_tokens and not usage.get('cost_components'):
+                cost='0.000000'
+            elif usage.get('billing_unknown') or (cost is None and model and (input_tokens or output_tokens or success)):
                 pending_cost = _query(conn, "SELECT estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? AND operation_key=? AND operation_type=?", (user_id,key,operation), one=True)
                 cost = pending_cost[0] if pending_cost else None
             if billable:
@@ -396,13 +403,13 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
                     model if billable else None, input_tokens if billable else 0,
                     output_tokens if billable else 0, cost, user_id, key, operation))
         from . import topups
-        pending = (_query(conn, "SELECT mode FROM kilas_ai_usage WHERE user_id=? AND operation_key=? "
+        pending = (_query(conn, "SELECT mode,customer_charge_exempt FROM kilas_ai_usage WHERE user_id=? AND operation_key=? "
                           "AND operation_type=? LIMIT 1", (user_id, key, operations[0]), one=True)
                    if operations else None)
         fallback_key = (pending[0] if pending and operations[0] == "CHAT" else operations[0]) if operations else None
         fallback = 1000 if fallback_key == "PDF" else topups.FORECAST_MICRO.get(fallback_key, 80000)
         actual_micro = int(Decimal(first_cost) * Decimal(1000000)) if first_cost is not None else (fallback if success else 0)
-        topups.settle(conn, user_id, key, success, actual_micro)
+        if not pending or not pending[1]:topups.settle(conn, user_id, key, success, actual_micro)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -414,29 +421,31 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
 def snapshot(user_id):
     state = effective_plan(user_id)
     now = _now()
+    from . import chat_offering
+    text_test,image_test=chat_offering.states(user_id)
     summary = {}
     for operation, label in (("CHAT", "Chat"), ("WEB_SEARCH", "Search"),
                              ("IMAGE_GENERATION", "Gambar"), ("PDF", "PDF")):
         start, end = _period(state["plan"], state["period_start"], state["period_end"], operation, now)
         if operation == "IMAGE_GENERATION":
-            sql = "SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE user_id=? AND operation_type IN ('IMAGE_GENERATION','IMAGE_EDIT') AND quota_source='BASE' AND status='COMPLETE' AND created_at>=? AND created_at<?"
+            sql = "SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE user_id=? AND operation_type IN ('IMAGE_GENERATION','IMAGE_EDIT') AND quota_source='BASE' AND customer_charge_exempt=0 AND status='COMPLETE' AND created_at>=? AND created_at<?"
             params = (user_id, start.isoformat(), end.isoformat())
         else:
-            sql = "SELECT COUNT(*) AS n FROM kilas_ai_usage AS u WHERE u.user_id=? AND u.operation_type=? AND u.quota_source='BASE' AND u.status='COMPLETE' AND u.created_at>=? AND u.created_at<?"
+            sql = "SELECT COUNT(*) AS n FROM kilas_ai_usage AS u WHERE u.user_id=? AND u.operation_type=? AND u.quota_source='BASE' AND u.customer_charge_exempt=0 AND u.status='COMPLETE' AND u.created_at>=? AND u.created_at<?"
             params = (user_id, operation, start.isoformat(), end.isoformat())
             if operation == "CHAT":
                 sql += _chat_only_sql()
         used = db.query_one(sql, params)["n"]
         key = operation if operation in ("CHAT", "WEB_SEARCH", "PDF") else "IMAGES"
-        summary[label] = {"used": used, "limit": _limit(state["plan"], "FAST", operation)}
+        summary[label] = {"used": used, "limit": None if (image_test if operation=="IMAGE_GENERATION" else text_test) else _limit(state["plan"], "FAST", operation)}
     state["reset_at"] = _period(state["plan"], state["period_start"], state["period_end"], "CHAT", now)[1]
     if state["plan"] == "FREE":
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         state["chat_today"] = db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage AS u WHERE u.user_id=? "
-            "AND u.operation_type='CHAT' AND u.quota_source='BASE' AND u.status='COMPLETE' AND u.created_at>=? AND u.created_at<?" + _chat_only_sql(),
+            "AND u.operation_type='CHAT' AND u.quota_source='BASE' AND u.customer_charge_exempt=0 AND u.status='COMPLETE' AND u.created_at>=? AND u.created_at<?" + _chat_only_sql(),
             (user_id, day_start.isoformat(), (day_start + timedelta(days=1)).isoformat()))["n"]
     state["usage"] = summary
-    state["creative_high"] = any(summary[name]["used"] >= summary[name]["limit"] for name in ("Gambar", "PDF"))
+    state["creative_high"] = any(summary[name]["limit"] is not None and summary[name]["used"] >= summary[name]["limit"] for name in ("Gambar", "PDF"))
     from . import topups
     state["topup"] = topups.balance(user_id)
     return state

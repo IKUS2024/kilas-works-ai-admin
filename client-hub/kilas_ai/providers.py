@@ -12,6 +12,15 @@ class ProviderError(Exception):
     """Safe sentinel; never expose provider response bodies to the browser."""
 
 
+class ProviderQuotaError(ProviderError):
+    usage={'provider_rejected':True,'billing_unknown':False}
+
+
+def failure_message(error, default='AI sedang tidak tersedia. Coba lagi.'):
+    from .provider_failures import QUOTA_MESSAGE
+    return QUOTA_MESSAGE if isinstance(error,ProviderQuotaError) else default
+
+
 SYSTEM = response_style.CHAT_SYSTEM
 PROVIDERS = ("openai", "anthropic")
 MODEL_TIERS = {mode: {"openai": model_policy.LUNA} for mode in ("FAST","SMART","EXPERT")}

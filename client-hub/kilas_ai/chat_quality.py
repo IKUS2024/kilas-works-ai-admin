@@ -113,9 +113,10 @@ class ChatQualityStream:
     Attempt one is finalized before repair reservation so the actual billed cost is
     visible to the existing atomic fair-use checks. The route skips finalizing it twice.
     """
-    def __init__(self, user_id, thread_id, key, mode, operations, messages):
+    def __init__(self, user_id, thread_id, key, mode, operations, messages, *, origin=None):
         self.user_id, self.thread_id, self.key = user_id, thread_id, key
         self.mode, self.operations, self.messages = mode, operations, messages
+        self.origin=origin
         self.initial_finalized = False
         self.retried = False
 
@@ -138,7 +139,7 @@ class ChatQualityStream:
                     messages.selected_model = self.messages.selected_model
                 messages.quality_retry = True
                 try:
-                    plan, repair_ops = usage.reserve(self.user_id, self.thread_id, repair_key, self.mode, 'CHAT', profile=model_policy.chat_profile(messages))
+                    plan, repair_ops = usage.reserve(self.user_id, self.thread_id, repair_key, self.mode, 'CHAT', profile=model_policy.chat_profile(messages),origin=self.origin)
                 except usage.UsageLimit:
                     raise providers.ProviderError('quality_retry_limited') from None
                 if plan is None:

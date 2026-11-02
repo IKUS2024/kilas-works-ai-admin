@@ -324,6 +324,7 @@ MIGRATIONS = [
     ("0110_kilas_voice_alternate_sqlite.sql", "0110_kilas_voice_alternate_postgres.sql"),
     ("0111_kilas_chat_recovery_sqlite.sql", "0111_kilas_chat_recovery_postgres.sql"),
     ("0112_kilas_chat_hardening_sqlite.sql", "0112_kilas_chat_hardening_postgres.sql"),
+    ("0113_kilas_chat_sponsorship_sqlite.sql", "0113_kilas_chat_sponsorship_postgres.sql"),
 ]
 
 
@@ -387,7 +388,7 @@ def init_schema():
                     conn.rollback()
                     raise
                 continue
-            if sqlite_name == "0079_kilas_agent_conversations_sqlite.sql":
+            if sqlite_name in ("0079_kilas_agent_conversations_sqlite.sql", "0113_kilas_chat_sponsorship_sqlite.sql"):
                 # Repeated local boots must continue after each already-added column,
                 # without reassociating messages belonging to an existing chat.
                 with conn:

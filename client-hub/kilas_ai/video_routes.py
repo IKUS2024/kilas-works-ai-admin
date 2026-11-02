@@ -87,7 +87,7 @@ def generate():
         else:
             uploads=[f for f in request.files.getlist('references') if f.filename]
             if any(f.filename.rsplit('.',1)[-1].lower() not in ('jpg','jpeg','png','webp') for f in uploads):raise attachments.AttachmentError('Gunakan referensi JPG, PNG, atau WebP.')
-            images=attachments.prepare_many(uploads,usage.attachment_plan(owner()))
+            images=attachments.prepare_many(uploads,usage.attachment_plan(owner(),chat=False))
             controls=director.resolve(text,controls)
             project=store.create(owner(),text,controls,key,images)
             row=owned(project)

@@ -1,0 +1,59 @@
+name: Kilas AI managed offering QA
+on:
+  pull_request:
+    paths: ['client-hub/**', '.github/workflows/kilas-managed-offering-qa.yml']
+  push:
+    branches: [main, 'feature/kilas-ai-managed-free-test-*']
+    paths: ['client-hub/**', '.github/workflows/kilas-managed-offering-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  policy-and-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt 'pytest>=9,<10'
+      - name: Isolated accounts, ledger and native adapters; no paid calls
+        env: {PYTHONDONTWRITEBYTECODE: '1', PYTHONPATH: 'client-hub:client-hub/tests', CLIENT_HUB_DB_PATH: /tmp/managed-bootstrap.db}
+        run: |
+          for suite in test_kilas_chat_offering.py test_kilas_managed_offering.py test_kilas_chat_models.py test_kilas_chat_restoration.py test_kilas_ai_unified.py test_kilas_chat_recovery.py test_kilas_chat_hardening.py test_kilas_ai_usage.py test_kilas_work_documents.py test_kilas_selected_artifacts.py test_kilas_hd_documents.py test_kilas_image_followup.py test_ui_i18n.py; do
+            python -m pytest -q client-hub/tests/$suite || exit 1
+          done
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Mobile/tablet/desktop, EN/ID, uploads and saved draft; mocked inference
+        env: {PYTHONDONTWRITEBYTECODE: '1', PYTHONPATH: 'client-hub:client-hub/tests', KILAS_MANAGED_QA_ARTIFACTS: /tmp/kilas-managed-offering-browser}
+        run: python -B client-hub/tests/kilas_managed_offering_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: kilas-managed-offering-preview, path: /tmp/kilas-managed-offering-browser}
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: disposable, POSTGRES_DB: kilas_qa}
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - name: Additive migration and simultaneous account reservations
+        env:
+          DATABASE_URL: postgresql://postgres:disposable@127.0.0.1:5432/kilas_qa
+          KILAS_MANAGED_POSTGRES_QA: '1'
+        run: python -B client-hub/tests/kilas_managed_offering_postgres.py

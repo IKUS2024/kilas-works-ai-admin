@@ -37,7 +37,11 @@ def chat_sidebar_context():
                     (request.args.get('workspace') == 'home' or session.get('active_product') != 'finance'))
     surface = (endpoint in ('products.product_start', 'products.finance_entry') or home_account or
                request.blueprint in ('kilas_ai', 'kilas_audio', 'kilas_learning'))
-    if request.endpoint in ('kilas_ai.shared','kilas_ai.share') or not (surface and enabled() and session.get('user_id') and session.get('role') == 'CLIENT_OWNER'):
+    from . import chat_offering
+    owned_chat_user = (session.get('role') == 'CLIENT_OWNER' or
+                      chat_offering.admits(session.get('user_id'),endpoint) or
+                      (endpoint=='products.product_start' and (chat_offering.text_free(session.get('user_id')) or chat_offering.image_free(session.get('user_id')))))
+    if request.endpoint in ('kilas_ai.shared','kilas_ai.share') or not (surface and enabled() and session.get('user_id') and owned_chat_user):
         return {}
 
     def history():

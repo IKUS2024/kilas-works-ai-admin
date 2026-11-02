@@ -119,6 +119,12 @@ def cached_metadata(model):
 
 
 def catalog(*,cache_only=False):
+    from . import chat_offering
+    if chat_offering.managed():
+        item=cached_metadata(chat_offering.CHAT_MODEL) if cache_only else check(chat_offering.CHAT_MODEL)
+        if item is None:return None
+        return {'models':[item], 'default':item['id'] if item['available'] else None,
+                'pricing_verified_on':VERIFIED_ON,'notice':'Kilas AI'}
     if cache_only:
         items=[cached_metadata(model) for model in CATALOG]
         if any(item is None for item in items):return None
@@ -147,9 +153,11 @@ def owned(user_id, surface, ident):
         raise SelectionError('Percakapan tidak ditemukan.')
 
 
-def preference(user_id, surface, ident):
+def preference(user_id, surface, ident, *, apply_managed=True):
     import db
     owned(user_id,surface,ident)
+    from . import chat_offering
+    if apply_managed and chat_offering.managed():return chat_offering.CHAT_MODEL
     row = db.query_one('SELECT model FROM kilas_ai_chat_model_selections WHERE user_id=? AND surface=? AND conversation_id=?',
                        (user_id,surface,ident))
     return row['model'] if row else None
@@ -158,6 +166,11 @@ def preference(user_id, surface, ident):
 def choose(user_id, surface, ident, model=None):
     import db
     owned(user_id,surface,ident)
+    from . import chat_offering
+    if chat_offering.managed():
+        if not check(chat_offering.CHAT_MODEL)['available']:
+            raise SelectionError('Kilas AI sedang tidak tersedia. Coba lagi nanti.')
+        return chat_offering.CHAT_MODEL
     model = model or preference(user_id,surface,ident) or catalog()['default']
     if not model or not check(model)['available']:
         raise SelectionError('Model ini belum tersedia untuk akun layanan. Pilih model lain yang tersedia.')
@@ -196,5 +209,6 @@ def estimate(model, input_tokens, output_tokens, cached_tokens=0, write_tokens=0
 
 def request_model(user_id, surface, ident, value=None):
     # Old clients without a selection keep their established route. New UI always sends its explicit choice.
-    model=value or preference(user_id,surface,ident)
+    from . import chat_offering
+    model=chat_offering.CHAT_MODEL if chat_offering.managed() else value or preference(user_id,surface,ident)
     return choose(user_id,surface,ident,model) if model else None

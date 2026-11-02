@@ -15,6 +15,7 @@ def prepare_chat_models(state):
         apply_release('0106_kilas_workspace_execution')
         apply_release('0111_kilas_chat_recovery')
         apply_release('0112_kilas_chat_hardening')
+        apply_release('0113_kilas_chat_sponsorship')
         print('KILAS_CHAT_RECOVERY_READY schema=0111 payload_bound=true stream_heartbeat=true bounded_context=true',flush=True)
         from .workspace_execution_proof import maybe_start
         maybe_start(state.app)  # No work without separate proof-specific approval.
@@ -55,6 +56,8 @@ def workspace_capabilities():
 
 @ai_bp.post('/chat/model')
 def select_model():
+    from . import chat_offering
+    if chat_offering.managed():return {'code':'models_managed','error':'Model dikelola oleh Kilas AI. Muat ulang halaman.'},409
     body=request.get_json(silent=True) or {}
     surface=body.get('surface');ident=body.get('conversation_id')
     if not isinstance(body.get('model'),str) or body['model'] not in chat_models.CATALOG:
@@ -75,6 +78,8 @@ def select_model():
 @ai_bp.app_context_processor
 def selector_context():
     def name(model):
+        from . import chat_offering
+        if chat_offering.managed() and model:return 'Kilas AI'
         from . import image_models
         return (chat_models.CATALOG.get(model) or image_models.CATALOG.get(model) or ('',model or ''))[1]
     def preview(kind,surface,ident):
@@ -87,7 +92,11 @@ def selector_context():
             except chat_models.SelectionError:return None
         cached=module.catalog(cache_only=True)
         return next((item for item in cached['models'] if item['id']==cached['default']),None) if cached else None
-    common={'chat_model_name':name,'chat_model_preview':preview}
+    from . import chat_offering
+    relevant=(request.endpoint or '').startswith('kilas_ai.') or request.endpoint in ('products.product_start','auth.account_page')
+    text_test,image_test=chat_offering.states(session.get('user_id')) if relevant else (False,False)
+    common={'chat_model_name':name,'chat_model_preview':preview,'kilas_managed_models':chat_offering.managed(),
+            'kilas_chat_test_active':text_test,'kilas_image_test_active':image_test}
     if request.endpoint == 'kilas_ai.agent_home' and request.args.get('view','chat')=='chat':
         return {**common,'ui_model_surface':{'surface':'conversation','id':session.get('agent_conversation_id')}}
     if request.endpoint in ('kilas_ai.home','kilas_ai.thread_page','products.product_start') or (request.endpoint=='auth.account_page' and (request.args.get('workspace')=='home' or session.get('active_product')!='finance')):
@@ -106,6 +115,8 @@ def image_catalog():
 
 @ai_bp.post('/chat/image-model')
 def select_image_model():
+    from . import chat_offering
+    if chat_offering.managed():return {'code':'models_managed','error':'Model dikelola oleh Kilas AI. Muat ulang halaman.'},409
     from . import image_models
     body=request.get_json(silent=True) or {};surface=body.get('surface');ident=body.get('conversation_id')
     try:

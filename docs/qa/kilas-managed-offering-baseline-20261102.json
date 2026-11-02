@@ -1,0 +1,21 @@
+{
+  "baseline": "61e0a4985a5a4e0fa6c00c184bd3aa342e607e3d",
+  "suites": {
+    "test_kilas_ai_topups.py": {
+      "same_failed_tests": true,
+      "failures": [
+        "client-hub/tests/test_kilas_ai_topups.py::TopupTests::test_payment_gate_idempotency_owner_isolation_and_rejection"
+      ]
+    },
+    "test_kilas_intelligence_capacity.py": {
+      "same_failed_tests": true,
+      "failures": [
+        "client-hub/tests/test_kilas_intelligence_capacity.py::CapacityTests::test_billed_invalid_image_is_metered_by_worker",
+        "client-hub/tests/test_kilas_intelligence_capacity.py::CapacityTests::test_expired_pro_preserves_topup_without_consuming_it",
+        "client-hub/tests/test_kilas_intelligence_capacity.py::FreeFinanceTests::test_all_paid_finance_routes_archived_and_flags_cannot_enable",
+        "client-hub/tests/test_kilas_intelligence_capacity.py::FreeFinanceTests::test_free_finance_without_any_subscription",
+        "client-hub/tests/test_kilas_intelligence_capacity.py::FreeFinanceTests::test_no_new_finance_subscription_charge"
+      ]
+    }
+  }
+}

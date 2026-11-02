@@ -211,6 +211,7 @@ def agent_chat():
         (owner, conversation_id))
     request.work_origin_message_id = agent_store.append(owner, 'user', text, conversation_id,
                                                      attachments=getattr(request, 'work_attachments', ()))
+    request.chat_operation_key=key
     from .unified_runtime import dispatch
     return dispatch(owner,text,key,conversation_id)
 

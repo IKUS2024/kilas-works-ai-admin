@@ -28,6 +28,10 @@ def generate(model,prompt,source=None,request_timeout=120):
    else:
     files={'image':(sources[0]['filename'],bytes(sources[0]['content']),sources[0]['mime_type'])} if len(sources)==1 else [('image[]',(s['filename'],bytes(s['content']),s['mime_type'])) for s in sources]
     response=requests.post('https://api.openai.com/v1/images/edits',headers=headers,data={**payload,'n':'1'},files=files,timeout=(10,request_timeout))
+   from .provider_failures import quota_rejected,QUOTA_MESSAGE
+   if quota_rejected(response):
+    used.update(provider_rejected=True,billing_unknown=False,input_tokens=0,output_tokens=0)
+    raise tools.ToolUnavailable(QUOTA_MESSAGE,model=model,usage=used,code='provider_quota_exhausted')
    response.raise_for_status();data=response.json();raw_usage=data.get('usage') or {}
    used.update(input_tokens=raw_usage.get('input_tokens',0),output_tokens=raw_usage.get('output_tokens',0),image_token_usage=raw_usage)
    encoded=data['data'][0]['b64_json']

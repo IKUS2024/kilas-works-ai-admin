@@ -121,10 +121,15 @@ def chat(user_id, text):
         if document_format and image_previous and re.search(r'(?i)\b(?:gambar|foto|image|photo|visual)\b.{0,35}\b(?:tadi|sebelum|previous|above|terakhir|last)\w*|\b(?:previous|last)\s+image',text):checkpoint['document_image_ids']=[image_previous['id']]
         sources=getattr(request,'work_source_materials',None)
         if sources:checkpoint['source_materials']=sources
+        from . import chat_offering,work_schedule
+        origin=(chat_offering.for_request(user_id,'conversation',conversation_id,getattr(request,'chat_operation_key',''))
+                if (document_format or project_requested(text) or work_documents.image_request(text) or editing_image)
+                and spec['mode']=='ONE_SHOT' and not spec['wake_at'] and not spec['schedule']
+                and not work_schedule.future_requested(text) else None)
         job_id=store.create(user_id,agent_intents.research_instruction(text)[:1200],mode=spec['mode'],constraints=[text[:1200]],
             wake_at=spec['wake_at'],interval=spec['interval'],conversation_id=conversation_id,schedule=spec['schedule'],
             checkpoint=checkpoint,image_input=image_inputs if editing_image and image_inputs else None,
-            origin_message_id=getattr(request,'work_origin_message_id',None))
+            origin_message_id=getattr(request,'work_origin_message_id',None),interactive_origin=origin)
         if market_request(text) and market_worker.provider is None:
             message = 'Pekerjaan pemantauan tersimpan. Data market real-time belum tersedia; Kilas belum memantau harga atau menghasilkan sinyal.'
         elif spec['wake_at']:

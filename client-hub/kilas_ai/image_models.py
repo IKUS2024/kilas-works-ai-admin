@@ -74,6 +74,12 @@ def cached_metadata(model):
 
 
 def catalog(*,cache_only=False):
+ from . import chat_offering
+ if chat_offering.managed():
+  item=cached_metadata(chat_offering.IMAGE_MODEL) if cache_only else check(chat_offering.IMAGE_MODEL)
+  if item is None:return None
+  return {'models':[item] if item['available'] else [],'default':item['id'] if item['available'] else None,
+          'pricing_checked_on':item['pricing_checked_on'],'estimate_settings':item['estimate_settings']}
  if cache_only:
   checked=[cached_metadata(model) for model in CATALOG]
   if any(item is None for item in checked):return None
@@ -93,9 +99,11 @@ def warmup():
  threading.Thread(target=run,name='kilas-image-access',daemon=True).start()
 
 
-def preference(owner,surface,ident):
+def preference(owner,surface,ident,*,apply_managed=True):
  import db
  chat_models.owned(owner,surface,ident)
+ from . import chat_offering
+ if apply_managed and chat_offering.managed():return chat_offering.IMAGE_MODEL
  row=db.query_one('SELECT model FROM kilas_ai_image_model_selections WHERE user_id=? AND surface=? AND conversation_id=?',(owner,surface,ident))
  return row['model'] if row else None
 
@@ -103,12 +111,21 @@ def preference(owner,surface,ident):
 def choose(owner,surface,ident,model):
  import db
  chat_models.owned(owner,surface,ident)
+ from . import chat_offering
+ if chat_offering.managed():
+  if not check(chat_offering.IMAGE_MODEL)['available']:raise SelectionError('Pembuatan gambar sedang tidak tersedia. Coba lagi nanti.')
+  return chat_offering.IMAGE_MODEL
  if not check(model)['available']:raise SelectionError('Model gambar pilihan belum tersedia. Permintaan tidak dialihkan.')
  db.execute('INSERT INTO kilas_ai_image_model_selections(user_id,surface,conversation_id,model) VALUES (?,?,?,?) ON CONFLICT(user_id,surface,conversation_id) DO UPDATE SET model=excluded.model',(owner,surface,ident,model))
  return model
 
 
 def requested(owner,surface,ident,value=None,*,required=False):
+ from . import chat_offering
+ if chat_offering.managed():
+  chat_models.owned(owner,surface,ident)
+  if required and not check(chat_offering.IMAGE_MODEL)['available']:raise SelectionError('Pembuatan gambar sedang tidak tersedia. Coba lagi nanti.')
+  return chat_offering.IMAGE_MODEL
  model=value or preference(owner,surface,ident)
  if model:spec(model)
  if required:

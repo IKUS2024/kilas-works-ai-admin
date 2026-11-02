@@ -1,6 +1,7 @@
 """Reuse the existing validated image provider with bounded Work execution and metering."""
 import os
 import json
+from .. import chat_offering
 import re
 from . import Result
 from .. import tools,usage,work_artifacts,routing,image_models
@@ -18,7 +19,7 @@ def run(job,step,data):
         from ..image_options import resolve
         resolve(effective,prompt)  # Reject unsupported settings before reserving quota.
     key=step['idempotency_key']+'-'+str(step['attempts'])
-    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',profile={'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8')),'image_prompt':prompt})
+    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',origin=chat_offering.for_job(job,'IMAGE'),profile={'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8')),'image_prompt':prompt})
     if not ops:raise ValueError('duplicate_reservation')
     success=False;result={}
     try:
@@ -36,6 +37,8 @@ def run(job,step,data):
         return Result('SUCCEEDED','Gambar selesai dan siap digunakan.',{'title':title,'image_ready':True,**({'model_provenance':result['model_provenance']} if result.get('model_provenance') else {})},[{'binary_file':file}],result.get('usage',{}),True)
     except tools.ToolUnavailable as error:
         result = {'model':error.model,'usage':error.usage}
+        if error.code=='provider_quota_exhausted':
+            return Result('WAITING_CAPABILITY',str(error),{'reason':error.code},usage=error.usage)
         raise
     finally:
         usage.finish(job['user_id'],key,ops,success=success,provider=image_models.spec(selected)['provider'] if selected else result.get('provider','openai') if result else None,model=result.get('model'),usage=result.get('usage',{}))

@@ -2,9 +2,10 @@
 import csv
 import io
 import json
+from .. import chat_offering
 import re
 from . import Result,content_worker
-from .. import usage,work_documents,work_artifacts,pdf
+from .. import usage,work_documents,work_artifacts,pdf,providers
 
 
 def run(job,step,data):
@@ -50,7 +51,7 @@ def run(job,step,data):
             try:author=selected_author.Author(selected,prompt,style,prepared)
             except chat_models.SelectionError:
                 return Result('WAITING_CAPABILITY','Model penulis pilihan tidak tersedia; pekerjaan tidak dialihkan.',{'reason':'selected_author_unavailable'})
-        _,ops=usage.reserve(job['user_id'],None,key,'FAST','CHAT',profile=author.profile if author else None)
+        _,ops=usage.reserve(job['user_id'],None,key,'FAST','CHAT',origin=chat_offering.for_job(job,'DOCUMENT'),profile=author.profile if author else None)
         if not ops:raise ValueError('duplicate_reservation')
         if author:
             model=selected;used=author.used;source=author.write()
@@ -85,6 +86,8 @@ def run(job,step,data):
     except Exception as error:
         model = getattr(error,'model',None) or model
         used.update(getattr(error,'usage',{}) or {})
+        if isinstance(error,providers.ProviderQuotaError):
+            return Result('WAITING_CAPABILITY',providers.failure_message(error),{'reason':'provider_quota_exhausted'},usage=used)
         raise
     finally:
         if ops:usage.finish(job['user_id'],key,ops,success=success,provider=author.provenance()['provider'] if author else 'openai' if model else None,model=model,usage=used)

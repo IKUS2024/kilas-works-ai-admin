@@ -104,8 +104,10 @@ def search(owner,key,conversation):
     from .chat_web import UNVERIFIED
     context=agent_chat.context(owner,conversation)
     meter='agent-web-'+key
+    from . import chat_offering
+    origin=chat_offering.for_request(owner,'conversation',conversation,key)
     mode=routing.mode_for(model_policy.request_text(context[-1]['content']))
-    try:plan,operations=usage.reserve(owner,None,meter,mode,'WEB',profile=model_policy.chat_profile(context) if getattr(context,'selected_model',None) else None)
+    try:plan,operations=usage.reserve(owner,None,meter,mode,'WEB',origin=origin,profile=model_policy.chat_profile(context) if getattr(context,'selected_model',None) else None)
     except usage.UsageLimit as error:return work_runtime.reply(owner,str(error)+' '+UNVERIFIED,conversation)
     if not operations:return work_runtime.reply(owner,'Permintaan ini sudah diterima.',conversation)
     def generate():
