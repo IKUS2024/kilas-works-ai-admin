@@ -90,7 +90,7 @@ def main():
                 page.evaluate("qa.permission='deny'");page.get_by_role('button',name='Start',exact=True).click();expect(page.locator('#live-error')).to_be_visible();expect(page.get_by_role('button',name='Lanjutkan',exact=True)).to_be_visible();expect(page.locator('#live-state')).to_have_text('Sesi dijeda');assert page.evaluate('qa.mics')==0
                 page.get_by_role('button',name='Akhiri sesi',exact=True).click();expect(page.get_by_role('button',name='Start',exact=True)).to_be_enabled()
                 with patch.object(live,'ready',return_value=False):page.reload(wait_until='networkidle')
-                expect(page.get_by_role('button',name='Start',exact=True)).to_be_disabled();expect(page.locator('.kilas-translator-pending')).to_be_visible();assert page.evaluate('qa.starts')==0
+                expect(page.get_by_role('button',name='Start',exact=True)).to_be_disabled();expect(page.locator('.home-task-choices a[href="/kilas-translator/live"]')).to_have_attribute('aria-current','page');assert page.evaluate('qa.starts')==0
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth');assert not errors,errors
                 page.screenshot(path=str(output/f'disabled-{width}.png'),full_page=True);report['viewports'].append({'width':width,'silence_min_ms':state['sent_at'],'session_pair_voice_resume_feedback_End_permission_gates':'PASS'});c.close()
             browser.close()
