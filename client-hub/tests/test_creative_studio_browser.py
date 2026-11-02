@@ -60,8 +60,10 @@ def check_portfolio(page, locale, *, activate=False, touch=False):
             assert max(d[key] for d in dimensions)-min(d[key] for d in dimensions)<1,(key,dimensions)
         assert all(d['ctaHeight']==48 and d['labelFits'] and d['ctaFits'] for d in dimensions),dimensions
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-        assert page.locator('#portfolio .studio-illustration-note').count()==1
-        expect(page.locator('#portfolio .studio-illustration-note')).to_contain_text('bagian lain' if locale=='id' else 'other sections')
+        assert page.locator('#portfolio .studio-illustration-note').count()==0
+        expect(page.locator('#portfolio')).not_to_contain_text('Foto di bagian lain adalah ilustrasi layanan.')
+        expect(page.locator('#portfolio')).not_to_contain_text('Photos in other sections illustrate our services.')
+        assert page.locator('[data-cs-id="Visual ilustrasi"][data-cs-en="Illustrative visuals"]').count()==3
         assert page.locator('#portfolio iframe,#portfolio video').count()==0
         page.evaluate('document.activeElement?.blur()')
     finally:
