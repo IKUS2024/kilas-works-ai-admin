@@ -46,7 +46,7 @@ def main():
                 assert logo.evaluate('e=>e.complete&&e.naturalWidth===1254&&e.naturalHeight===1254')
                 page.screenshot(path=str(output/f'new-chat-{width}.png'),full_page=True)
                 assert page.locator('[data-home-task]').count()==2
-                expect(page.locator('.kilas-translator-pending')).to_have_attribute('aria-disabled','true')
+                expect(page.locator('.home-task-choices a[href="/kilas-translator/live"]')).to_be_visible()
                 expect(page.locator('#ai-input')).to_be_visible()
                 page.locator('#ai-input').fill('Pesan pertama untuk revisi '+str(width));page.locator('#ai-send').click()
                 expect(page.locator('.ai-assistant')).to_contain_text('Jawaban tersimpan untuk QA sintetis.')

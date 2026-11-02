@@ -125,7 +125,7 @@ def main():
                 expect(page.locator('#ai-input')).to_be_visible()
                 page.go_back(wait_until='networkidle');expect(page.locator('#audio-script')).to_have_value('Naskah dibawa melalui navigasi')
                 page.go_forward(wait_until='networkidle')
-                expect(page.locator('.kilas-translator-pending')).to_have_attribute('aria-disabled','true')
+                expect(page.locator('.home-task-choices a[href="/kilas-translator/live"]')).to_be_visible()
                 page.locator('#ai-input').fill('Naskah suara sintetis.');choose_task(page,'voiceover');expect(page.locator('#voiceover-panel')).to_be_visible()
                 expect(page.locator('#audio-script')).to_have_value('Naskah suara sintetis.')
                 page.get_by_role('link',name='Kembali ke Kilas AI Home',exact=True).click();page.wait_for_load_state('networkidle')

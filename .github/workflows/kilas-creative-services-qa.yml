@@ -1,10 +1,10 @@
 name: Kilas Creative Services QA
 on:
   pull_request:
-    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/tests/creative_services_offer_facts.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
+    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/tests/test_kilas_translator_navigation*', 'client-hub/tests/creative_services_offer_facts.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
   push:
     branches: [main]
-    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/tests/creative_services_offer_facts.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
+    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/tests/test_kilas_translator_navigation*', 'client-hub/tests/creative_services_offer_facts.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,6 +25,23 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: creative-services-preview, path: /tmp/creative-studio-qa}
+  translator-navigation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt pytest playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Guarded navigation and retained Chat history, no provider calls
+        run: python -m pytest -q client-hub/tests/test_kilas_translator_navigation.py client-hub/tests/test_kilas_chat_restoration.py
+        env: {PYTHONDONTWRITEBYTECODE: '1'}
+      - name: Mobile taps, desktop click, back, refresh and Voice Over
+        run: python -B client-hub/tests/test_kilas_translator_navigation_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: translator-navigation-preview, path: /tmp/kilas-translator-navigation-20261102}
   released-assets:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest

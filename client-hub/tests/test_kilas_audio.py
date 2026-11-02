@@ -184,7 +184,8 @@ class AudioTests(unittest.TestCase):
             html=self.client.get('/kilas-translator?mode='+mode).get_data(as_text=True)
             self.assertIn('data-active-mode="'+mode+'"',html)
             self.assertIn('data-kilas-feature="voiceover"',html)
-            self.assertIn('class="kilas-translator-pending" aria-disabled="true" title="Belum tersedia"',html)
+            self.assertIn('href="/kilas-translator/live"',html)
+            self.assertNotIn('kilas-translator-pending',html)
         self.assertIn('data-active-mode="translate"',self.client.get('/kilas-translator?mode=invalid').get_data(as_text=True))
 
     def test_auth_csrf_and_role(self):
