@@ -55,8 +55,9 @@ figure{margin:0}
 .studio-portfolio .studio-illustration-note{font-size:10px;max-width:35ch;margin-top:8px;color:#c8d1d0}
 .studio-portfolio-visuals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .studio-portfolio-visuals figure{position:relative;height:auto;margin:0;border-radius:9px;overflow:hidden;background:#364344}
-.studio-portfolio-visuals img{display:block;width:100%;height:auto;aspect-ratio:9/16;object-fit:contain}
-.studio-portfolio-visuals figcaption{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:38px;padding:8px;color:#fff;font-size:12px;line-height:1.4}
+.studio-portfolio-visuals img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:contain;background:#202d30}
+.studio-portfolio-visuals figcaption{display:flex;align-items:center;justify-content:space-between;gap:6px;height:48px;min-height:48px;padding:8px;color:#fff;font-size:12px;line-height:1.35}
+.studio-portfolio-visuals figcaption .cs-icon{flex-shrink:0}
 .contact{padding:28px 0 32px}
 .contact-grid{grid-template-columns:.8fr 1.7fr;gap:36px}
 .contact .studio-section-mark{margin-bottom:12px}
@@ -115,7 +116,6 @@ figure{margin:0}
 
 /* Real covers keep their complete frames; each card opens its original video. */
 .studio-portfolio-visuals .studio-reel{display:block;width:100%;max-width:240px;justify-self:center;min-height:0;margin:0;padding:0;border:0;border-radius:9px;color:#fff;text-decoration:none}
-.studio-portfolio-visuals .studio-video--landscape img{aspect-ratio:16/9;object-fit:contain}
-.studio-reel:hover figcaption>span{text-decoration:underline;text-underline-offset:3px}
+@media(hover:hover){.studio-reel:hover figcaption>span{text-decoration:underline;text-underline-offset:3px}}
 .studio-reel:focus-visible{outline:3px solid var(--studio-inverse-focus,#ffb591);outline-offset:4px}
 .studio-reel-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
