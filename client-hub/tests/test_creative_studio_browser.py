@@ -5,6 +5,50 @@ from urllib.parse import parse_qs, urlsplit
 from playwright.sync_api import sync_playwright, expect
 
 
+def check_reels(page, locale, *, activate=False, touch=False):
+    """Check verified source mappings; activation uses a mocked remote document."""
+    facts=json.loads(Path(__file__).with_name('creative_reel_sources.json').read_text())['reels']
+    cards=page.locator('[data-studio-reel]');expect(cards).to_have_count(3)
+    allowed={row['permalink'] for row in facts}
+    opened=[]
+    def destination(route):
+        assert route.request.url in allowed,route.request.url
+        assert route.request.method=='GET'
+        opened.append(route.request.url)
+        route.fulfill(status=200,content_type='text/html',body='<title>Verified Reel destination</title>')
+    if activate:page.context.route('https://www.instagram.com/reel/**',destination)
+    try:
+        for i,row in enumerate(facts):
+            card=cards.nth(i);expect(card).to_have_attribute('href',row['permalink'])
+            expect(card).to_have_attribute('target','_blank')
+            assert {'noopener','noreferrer'} <= set(card.get_attribute('rel').split())
+            label=('Tonton Reel' if locale=='id' else 'Watch Reel')+' '+row['title']+' '+('(tab baru)' if locale=='id' else '(new tab)')
+            expect(card).to_have_accessible_name(label)
+            image=card.locator('img');image.scroll_into_view_if_needed()
+            page.wait_for_function('(e)=>e.complete&&e.naturalWidth>0',arg=image.element_handle())
+            assert image.get_attribute('src') in row['assets']
+            assert image.get_attribute('alt')
+            geometry=image.evaluate('e=>{const r=e.getBoundingClientRect();return {ratio:r.width/r.height,fit:getComputedStyle(e).objectFit}}')
+            assert abs(geometry['ratio']-9/16)<.005 and geometry['fit']=='contain',geometry
+            card.focus();expect(card).to_be_focused()
+            if activate:
+                with page.context.expect_page() as pending:
+                    if touch:card.tap()
+                    else:card.press('Enter')
+                popup=pending.value;popup.wait_for_load_state()
+                assert popup.url==row['permalink'],popup.url
+                expect(popup).to_have_title('Verified Reel destination')
+                assert popup.evaluate('window.opener === null')
+                popup.close()
+        if activate:assert opened==[row['permalink'] for row in facts],opened
+        assert page.locator('#portfolio .studio-illustration-note').count()==1
+        expect(page.locator('#portfolio .studio-illustration-note')).to_contain_text('bagian lain' if locale=='id' else 'other sections')
+        assert page.locator('#portfolio iframe,#portfolio video').count()==0
+        page.evaluate('document.activeElement?.blur()')
+    finally:
+        if activate:page.context.unroute('https://www.instagram.com/reel/**',destination)
+
+
 def check_contrast(page):
     values=page.evaluate(r"""()=>{
       const selectors=['body','.studio-hero h1','.studio-accent','.studio-hero-description','.studio-hero-actions .button','.cs-service-choice h2','.cs-service-choice p','.studio-package-tags>span','.studio-portfolio h2','.studio-portfolio p','.studio-portfolio a','.contact h2','.contact-grid>div>p','.cs-brief label','.cs-brief-prepare','.cs-brief-review summary','.contact-notice','.footer>span'];
@@ -34,7 +78,7 @@ def main():
         with sync_playwright() as p:
             browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None)
             for width in (1440,1024,820,393,360,320):
-                context=browser.new_context(viewport={'width':width,'height':900},reduced_motion='reduce')
+                context=browser.new_context(viewport={'width':width,'height':900},reduced_motion='reduce',has_touch=width<=700)
                 page=context.new_page();errors=[];external=[];writes=[]
                 page.on('pageerror',lambda e:errors.append(str(e)))
                 page.on('request',lambda r:writes.append(r.url) if r.method!='GET' else None)
@@ -45,7 +89,7 @@ def main():
                 page.goto(origin+'/creative-services-site/',wait_until='networkidle')
                 page.evaluate('document.fonts.ready')
                 def images_ready():
-                    for image in page.locator('img[src*="illustrations/"]').all():
+                    for image in page.locator('img[src*="illustrations/"],img[src*="portfolio/"]').all():
                         if image.is_visible():
                             image.scroll_into_view_if_needed()
                             page.wait_for_function('(e)=>e.complete&&e.naturalWidth>0',arg=image.element_handle())
@@ -65,8 +109,12 @@ def main():
                 expect(page.locator('#cs-title')).to_contain_text('Moments into stories.')
                 expect(page.locator('.studio-hero-main')).to_have_attribute('alt','Illustration of a videographer filming an event')
                 images_ready()
+                check_reels(page,'en',activate=True,touch=width<=700)
+                if width in (393,1440):page.locator('#portfolio').screenshot(path=str(output/f'portfolio-en-{width}.png'))
                 if width in (393,1440):page.screenshot(path=str(output/f'home-en-{width}.png'),full_page=True)
                 page.locator('[data-cs-language="id"]').click()
+                check_reels(page,'id',activate=True,touch=width<=700)
+                if width in (393,1440):page.locator('#portfolio').screenshot(path=str(output/f'portfolio-id-{width}.png'))
                 def fits():assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
                 fits();expect(page.locator('#cs-title')).to_be_visible()
                 expect(page.locator('[data-service-choice]')).to_have_count(2)
@@ -146,7 +194,7 @@ def main():
                 for kind in ('event','social'):
                     page.goto(origin+'/creative-services-site/#cs-'+kind,wait_until='networkidle')
                     page.evaluate('document.fonts.ready')
-                    for image in page.locator('img[src*="illustrations/"]').all():
+                    for image in page.locator('img[src*="illustrations/"],img[src*="portfolio/"]').all():
                         if image.is_visible():
                             image.scroll_into_view_if_needed()
                             page.wait_for_function('(e)=>e.complete&&e.naturalWidth>0',arg=image.element_handle())

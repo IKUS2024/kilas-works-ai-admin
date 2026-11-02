@@ -19,7 +19,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     sys.path.insert(0,str(root/'client-hub/tests'))
-    from test_creative_studio_browser import check_contrast
+    from test_creative_studio_browser import check_contrast, check_reels
     output = Path('/tmp/creative-services-live-smoke')
     output.mkdir(exist_ok=True)
     server = None
@@ -42,7 +42,7 @@ def main():
             for origin, path in origins:
                 for width in (393, 1440):
                     for locale in ('id', 'en'):
-                        context = browser.new_context(viewport={'width': width, 'height': 852}, reduced_motion='reduce')
+                        context = browser.new_context(viewport={'width': width, 'height': 852}, reduced_motion='reduce', has_touch=width<=700)
                         context.add_cookies([{'name': 'kilas_language', 'value': locale, 'url': origin}])
                         external, writes, errors = [], [], []
                         def route(r):
@@ -64,13 +64,15 @@ def main():
                         expect(page.locator('footer a').last).to_have_attribute('href','https://app.kilasworks.id/products/start')
                         check_contrast(page)
                         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (origin, width, locale)
-                        for image in page.locator('img[src*="illustrations/"]').all():
+                        for image in page.locator('img[src*="illustrations/"],img[src*="portfolio/"]').all():
                             if image.is_visible():
                                 image.scroll_into_view_if_needed()
                                 page.wait_for_function('(e)=>e.complete&&e.naturalWidth>0', arg=image.element_handle())
                         page.mouse.move(0, 0)
                         page.evaluate('document.activeElement?.blur();scrollTo(0,0)')
+                        check_reels(page,locale,activate=True,touch=width<=700)
                         host = urlsplit(origin).hostname
+                        page.locator('#portfolio').screenshot(path=str(output/f'{host}-portfolio-{locale}-{width}.png'))
                         page.screenshot(path=str(output/f'{host}-{locale}-{width}.png'), full_page=True)
                         if width == 393:
                             page.locator('[data-cs-menu]').click()
