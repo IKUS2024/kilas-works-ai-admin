@@ -342,6 +342,11 @@ class ManagedOfferingTests(unittest.TestCase):
         ident=autonomous_store.create(self.owner,'Lakukan riset latar belakang',conversation_id=self.conversation)
         job=dict(autonomous_store.get(self.owner,ident))
         self.assertIsNone(offering.for_job(job,'WEB'))
+        # Even an internally supplied prior origin cannot sponsor a future wake.
+        from datetime import timedelta
+        future=autonomous_store.create(self.owner,'Buat PDF nanti',wake_at=usage._now()+timedelta(days=1),
+            checkpoint={'origin_thread_id':self.thread},interactive_origin=self.origin())
+        self.assertIsNone(offering.for_job(dict(autonomous_store.get(self.owner,future)),'DOCUMENT'))
         with patch.object(usage,'_qa_quota_exempt',return_value=False):
             # Exhaust old FREE image allowance; the new image flag must not bypass it for cron.
             for i in range(2):

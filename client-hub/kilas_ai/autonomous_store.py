@@ -146,7 +146,8 @@ def create(user_id, instruction, *, mode='ONE_SHOT', constraints=None, wake_at=N
             usage._query(conn, 'UPDATE kilas_agent_jobs SET origin_conversation_id=?,schedule_json=?,checkpoint_json=? WHERE id=?',
                          (conversation_id, encode(schedule or {}), encode(checkpoint or {}), job_id))
         from . import chat_offering
-        chat_offering.register_job(conn,job_id,interactive_origin)
+        if mode=='ONE_SHOT' and not schedule and wake_at is None:
+            chat_offering.register_job(conn,job_id,interactive_origin)
     return job_id
 
 
