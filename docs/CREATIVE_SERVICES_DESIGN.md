@@ -151,11 +151,15 @@ Primary actions are orange/white. Outline actions retain transparent paper and i
 
 Each service card is a complete link combining image, title, explanation, package tags and arrow. Package cards retain full prices, outputs, feature lists and bottom-aligned choices. Hover imagery and arrow motion supplement text and visible keyboard focus.
 
-### Illustration mosaic and verified Reel portfolio
+### Illustration mosaic and six-video portfolio
 
 Two supplied illustrations are reused through `object-fit: cover` crops: event production and food-content filming on a phone. Responsive WebP sources cover (640/960/1536px) widths. Explicit dimensions reserve space; the main hero image is eager/high-priority, while later service/category and portfolio images are lazy. Meaningful images have ID/EN alt text; redundant crops use empty alt text.
 
-**The Illustration Evidence Rule.** Hero and service photos remain explicitly illustrative. The portfolio band now uses three genuine @kilasworks Reel covers, verified against the connected Instagram media owner and permalink mapping. Full 9:16 frames are locally served as 270/540px WebP with direct accessible Reel links and no autoplay or embed feed. The illustration note refers to photos in other sections; source captions and work titles remain content rather than UI translations. Retain the separate `https://instagram.com/kilasworks` profile link. Generated images do not establish completed client work. The approved composition reference remains a design input, never a shipped background or page screenshot.
+**The Illustration Evidence Rule.** Hero and service photos remain explicitly illustrative. The portfolio has three columns and two rows at every supported viewport. The first row uses the three latest entries verified in the public @kilasworks grid: pool, conversation and billiards scenes, dated October 19, September 18 and September 9, 2026. These are public-grid collaborations linked to their original `onemoretake.id` Reel permalinks; do not infer exclusive ownership or claim an exhaustive live feed. The second row uses frames from the three exact owner-selected Drive videos: company profile, CT Advance Technology and a birthday event. Accessible work labels are neutral descriptions, not invented official titles. All six thumbnails were hash-verified and visually inspected after transport commit `c944d2e256310994f9a4822c7baa9bd9088cd71c`.
+
+Portrait covers use 180/360px local WebP variants; landscape frames use 240/480px variants. Full frames use `object-fit: contain`, without cropping faces or logos, upsampling or autoplay. Each link opens its original Reel/video in a new tab with an accessible ID/EN action and `noopener noreferrer`. The separate `https://instagram.com/kilasworks` profile link remains. Drive sharing permissions are unchanged by explicit owner instruction. The illustration note refers only to photos in other sections. Generated images do not establish completed client work. The approved composition reference remains a design input, never a shipped background or page screenshot.
+
+The four numbered section markers remain, with their decorative horizontal lines removed at the owner's request. Functional navigation underlines and dividers retain their existing behavior.
 
 ### Navigation and editable enquiry
 

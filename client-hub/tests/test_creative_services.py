@@ -76,10 +76,11 @@ class CreativeServicesTests(unittest.TestCase):
             self.assertIn(item['loading'], ('eager', 'lazy'))
             self.assertTrue((SOURCE / item['src']).is_file())
 
-    def test_verified_reels_use_their_own_local_covers_and_direct_links(self):
-        facts = json.loads(Path(__file__).with_name('creative_reel_sources.json').read_text())['reels']
+    def test_verified_portfolio_uses_exact_local_covers_and_direct_links(self):
+        facts = json.loads(Path(__file__).with_name('creative_portfolio_sources.json').read_text())['works']
         html = (SOURCE / 'index.html').read_text()
         self.assertFalse((ROOT / 'creative-reels-transfer-20261102.json').exists())
+        self.assertFalse((ROOT / 'creative-six-assets-transfer-20261102.json').exists())
         self.assertNotIn('cdninstagram.com', html)
         self.assertNotIn('instagram.com/embed', html)
         class Cards(HTMLParser):
@@ -87,7 +88,7 @@ class CreativeServicesTests(unittest.TestCase):
                 super().__init__(); self.cards = []; self.current = None
             def handle_starttag(self, tag, attrs):
                 item = dict(attrs)
-                if tag == 'a' and 'data-studio-reel' in item:
+                if tag == 'a' and 'data-studio-work' in item:
                     self.current = dict(link=item, images=[])
                 elif tag == 'img' and self.current is not None:
                     self.current['images'].append(item)
@@ -95,18 +96,18 @@ class CreativeServicesTests(unittest.TestCase):
                 if tag == 'a' and self.current is not None:
                     self.cards.append(self.current); self.current = None
         cards = Cards(); cards.feed(html)
-        self.assertEqual(len(cards.cards), 3)
-        self.assertEqual(len({row['permalink'] for row in facts}), 3)
+        self.assertEqual(len(cards.cards), 6)
+        self.assertEqual(len({row['permalink'] for row in facts}), 6)
+        self.assertEqual([row['kind'] for row in facts], ['instagram'] * 3 + ['drive'] * 3)
         from PIL import Image
         for card, expected in zip(cards.cards, facts):
-            with self.subTest(reel=expected['media_id']):
-                self.assertEqual(expected['owner'], 'kilasworks')
+            with self.subTest(work=expected['id']):
                 self.assertEqual(card['link']['href'], expected['permalink'])
                 self.assertEqual(card['link']['target'], '_blank')
                 self.assertTrue({'noopener', 'noreferrer'} <= set(card['link']['rel'].split()))
                 self.assertEqual(len(card['images']), 1)
                 image = card['images'][0]
-                self.assertEqual((image['width'], image['height']), ('540', '960'))
+                self.assertEqual((int(image['width']), int(image['height'])), tuple(expected['source_dimensions']))
                 self.assertEqual(image['loading'], 'lazy')
                 self.assertTrue(image['data-cs-alt-id'] and image['data-cs-alt-en'])
                 for src in expected['assets']:
@@ -115,8 +116,9 @@ class CreativeServicesTests(unittest.TestCase):
                     self.assertLess(len(data), 120_000)
                     with Image.open(SOURCE / src) as cover:
                         self.assertEqual(cover.format, 'WEBP')
-                        self.assertEqual(cover.width * 16, cover.height * 9)
-                        self.assertIn(cover.width, (270, 540))
+                        ratio = 9 / 16 if expected['kind'] == 'instagram' else 16 / 9
+                        self.assertAlmostEqual(cover.width / cover.height, ratio, delta=.01)
+                        self.assertLessEqual(cover.width, expected['source_dimensions'][0])
                 self.assertIn(image['src'], expected['assets'])
                 self.assertEqual(set(part.split()[0] for part in image['srcset'].split(', ')), set(expected['assets']))
                 for label in card['link']['aria-labelledby'].split():
@@ -143,7 +145,7 @@ class CreativeServicesTests(unittest.TestCase):
         self.assertNotIn('<iframe', response.text)
         self.assertIn('manrope-variable.ttf', response.text)
         self.assertIn('https://instagram.com/kilasworks', response.text)
-        self.assertNotIn('onemoretake.id', response.text)
+        self.assertEqual(response.text.count('https://www.instagram.com/onemoretake.id/reel/'), 3)
         self.assertNotIn('data-video-id=', response.text)
         self.assertNotIn('instrument-serif', response.text)
         for name in json.loads((BUNDLE / '.source-manifest.json').read_text()):

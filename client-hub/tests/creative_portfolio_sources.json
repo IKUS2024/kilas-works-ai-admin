@@ -1,0 +1,137 @@
+{
+  "source": "Parent-verified public Kilas Works Instagram grid and owner-selected Drive files; transported in c944d2e256310994f9a4822c7baa9bd9088cd71c, all source hashes and pixels verified locally.",
+  "works": [
+    {
+      "id": "DerLk6VvQR3",
+      "kind": "instagram",
+      "permalink": "https://www.instagram.com/onemoretake.id/reel/DerLk6VvQR3/",
+      "label": {
+        "id": "Reel kolam renang",
+        "en": "Pool Reel"
+      },
+      "label_source": "Neutral description, not an asserted official work title",
+      "source_sha256": "c6f34af23800a37cbc62e28ec7ba48ec147572aa3714044bd6c6c701771a9a4c",
+      "source_dimensions": [
+        361,
+        640
+      ],
+      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
+      "public_grid_date": "2026-10-19",
+      "source_timestamp_seconds": null,
+      "assets": {
+        "assets/portfolio/DerLk6VvQR3-180.webp": "eb714e1c3d4d7bc427c5992cd2d56b5db7022a46189a35a5d593dad567ad7513",
+        "assets/portfolio/DerLk6VvQR3-360.webp": "214dee3d47fdcad21c929e0bcb0a6a7fa4e2d26acba8d619549f674d28da9a48"
+      }
+    },
+    {
+      "id": "DdbecPevVai",
+      "kind": "instagram",
+      "permalink": "https://www.instagram.com/onemoretake.id/reel/DdbecPevVai/",
+      "label": {
+        "id": "Reel percakapan",
+        "en": "Conversation Reel"
+      },
+      "label_source": "Neutral description, not an asserted official work title",
+      "source_sha256": "455890707785ea60b736eea0f6dda4482b535feeffb4479811abf3942d748a24",
+      "source_dimensions": [
+        360,
+        640
+      ],
+      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
+      "public_grid_date": "2026-09-18",
+      "source_timestamp_seconds": null,
+      "assets": {
+        "assets/portfolio/DdbecPevVai-180.webp": "46bd3e42b56b93e285f7b51206694916ad183dea9ad4b88217eb44795d11edd9",
+        "assets/portfolio/DdbecPevVai-360.webp": "dbf23b8852c3025bf9a6509fbe9a01408135b8dddc312b24b08243c7fb98c653"
+      }
+    },
+    {
+      "id": "DdESSzkp1to",
+      "kind": "instagram",
+      "permalink": "https://www.instagram.com/onemoretake.id/reel/DdESSzkp1to/",
+      "label": {
+        "id": "Reel biliar",
+        "en": "Billiards Reel"
+      },
+      "label_source": "Neutral description, not an asserted official work title",
+      "source_sha256": "d8b686f48a54ae6dbfd7e0c4f3906cb53f344aa9ca8ab2b54b36adfd6d42ae61",
+      "source_dimensions": [
+        360,
+        640
+      ],
+      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
+      "public_grid_date": "2026-09-09",
+      "source_timestamp_seconds": null,
+      "assets": {
+        "assets/portfolio/DdESSzkp1to-180.webp": "b867120e2cf72b72f09bdf874e126c7679a66a8912eb1ff8fa204b72f66c0448",
+        "assets/portfolio/DdESSzkp1to-360.webp": "454fc4f5c3ca7f64a218ef19f92d73277373d4d989bc14cb7329e9d078c050c8"
+      }
+    },
+    {
+      "id": "company-profile",
+      "kind": "drive",
+      "permalink": "https://drive.google.com/file/d/1_RhxZwkV-XnmrJ4ygHAtJ3rZRMqwJOA3/view",
+      "label": {
+        "id": "Profil perusahaan",
+        "en": "Company profile"
+      },
+      "label_source": "Neutral description, not an asserted official work title",
+      "source_sha256": "6896f5f7ad72df89e43445cba6fd2e0322dcc81d38cd0c60e57fa3a3c724bea5",
+      "source_dimensions": [
+        1920,
+        1080
+      ],
+      "provenance": "Original compro.mov downloaded via Drive connector; ffmpeg frame extraction",
+      "public_grid_date": null,
+      "source_timestamp_seconds": 13,
+      "assets": {
+        "assets/portfolio/company-profile-240.webp": "3dd691c53b210c6cdf91fd71375e03394a5b621c441149e53f8414bbc63dedb3",
+        "assets/portfolio/company-profile-480.webp": "4d5de6d944124f091c053ad96f50a0ce5a2b69683876f3703d887cb3cbc58ebb"
+      }
+    },
+    {
+      "id": "ct-advance-technology",
+      "kind": "drive",
+      "permalink": "https://drive.google.com/file/d/1bg2K7KDQ4wRrEB3i_iGc6fEOlJoQOVxd/view",
+      "label": {
+        "id": "CT Advance Technology",
+        "en": "CT Advance Technology"
+      },
+      "label_source": "Neutral description, not an asserted official work title",
+      "source_sha256": "bf4e0933ac4951ac6e8f885f6ea4a98845a8f8f3f288bf27ba683fd2873e96ee",
+      "source_dimensions": [
+        1920,
+        1080
+      ],
+      "provenance": "Original selected MOV downloaded via Drive browser Download UI; ffmpeg frame extraction",
+      "public_grid_date": null,
+      "source_timestamp_seconds": 187,
+      "assets": {
+        "assets/portfolio/ct-advance-technology-240.webp": "60bc6a6dc99ddce4764a6679ecdd929c111ec3afe60f57c909ea0b4aef34a636",
+        "assets/portfolio/ct-advance-technology-480.webp": "592c1be585c2c45a1bc6df6ed0a60f451b938270a63ee56b117f4ba9651be666"
+      }
+    },
+    {
+      "id": "birthday-event",
+      "kind": "drive",
+      "permalink": "https://drive.google.com/file/d/1qivQm_m-E2O7joIJV_MaiMFKaaJQaPx4/view",
+      "label": {
+        "id": "Acara ulang tahun",
+        "en": "Birthday event"
+      },
+      "label_source": "Neutral description, not an asserted official work title",
+      "source_sha256": "889f098a652698086dcd5ab2a8c5d7fcc74cf8b0051e3821cef0af360c8a5055",
+      "source_dimensions": [
+        969,
+        545
+      ],
+      "provenance": "Drive video preview paused18:22; clean video-only screenshot crop; no player controls or cursor",
+      "public_grid_date": null,
+      "source_timestamp_seconds": 1102,
+      "assets": {
+        "assets/portfolio/birthday-event-240.webp": "ff67f8acb1fb830c110893d981e0afc6c6b88efc3e8edfd34d7469d8781257ee",
+        "assets/portfolio/birthday-event-480.webp": "d2dcca0d3f0ec2bf98ee38a48bd68052b87aefb5ca1cb6e85c25a8b80fa92b2c"
+      }
+    }
+  ]
+}
