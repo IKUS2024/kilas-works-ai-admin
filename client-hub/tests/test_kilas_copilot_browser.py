@@ -157,7 +157,7 @@ def main():
                 page.locator('[data-premium-menu]').click()
                 expect(page.locator('#premium-sidebar')).to_be_visible()
                 page.wait_for_function("Math.abs(document.querySelector('#premium-sidebar').getBoundingClientRect().x)<1")
-                expect(page.locator('#premium-sidebar .chat-products')).to_contain_text('Finance')
+                expect(page.locator('#premium-sidebar [data-products-catalog]')).to_be_visible()
                 page.screenshot(path=str(output/f'sidebar-closed-{width}.png'),full_page=False,animations='disabled')
                 page.locator('#premium-sidebar .kilas-profile-menu>summary').click()
                 expect(page.locator('#premium-sidebar .kilas-profile-options')).to_contain_text('Kredit & Penggunaan')

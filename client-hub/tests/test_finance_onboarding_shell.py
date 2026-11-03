@@ -43,7 +43,7 @@ class FinanceOnboardingTests(unittest.TestCase):
             self.assertIn('kilas-reference-header', page.text)
             sidebar = page.text.split('<aside', 1)[1].split('</aside>', 1)[0]
             self.assertIn('data-chat-sidebar', sidebar)
-            self.assertIn('name="product" value="finance"', sidebar)
+            self.assertIn('data-products-catalog', sidebar)
             self.assertIn('href="/kilas-ai/library"', sidebar)
             self.assertIn('kilas-profile-menu', sidebar)
             self.assertNotIn('premium-sidebar-account', sidebar)

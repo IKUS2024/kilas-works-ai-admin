@@ -52,14 +52,14 @@ class HomeTests(unittest.TestCase):
         self.assertNotIn('home-project-options',html)
         self.assertNotIn('premium-home-secondary',html)
         self.assertNotIn('<span>Percakapan</span>',html)
-        self.assertEqual(html.count('name="product" value="finance"'),1)
+        self.assertNotIn('name="product" value="finance"',html)
         self.assertIn('data-chat-history-toggle',html)
         self.assertIn('aria-expanded="true" aria-controls="kilas-chat-history"',html)
         self.assertNotIn('home-recent',html)
         self.assertIn('data-chat-sidebar',html)
         self.assertNotIn('home-history-panel',html)
         self.assertNotIn('Belum tersedia untuk akun ini',__import__('re').sub(r'<script\b[^>]*>.*?</script>','',html,flags=__import__('re').S))
-        self.assertIn('name="product" value="finance"',html)
+        self.assertIn('data-products-catalog',html)
 
     def test_landing_logo_is_available_without_javascript_and_prioritized_in_both_chat_surfaces(self):
         from html.parser import HTMLParser

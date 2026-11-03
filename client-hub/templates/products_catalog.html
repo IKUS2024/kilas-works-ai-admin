@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="{{ ui_language() }}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ ui_t('Products') }} · Kilas Works</title><link rel="stylesheet" href="{{ url_for('static',filename='products_catalog.css',v='20261103') }}"></head>
+<body>
+{% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
+<header class="catalog-header"><a class="catalog-back" href="{{ return_path }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12"/></svg>{{ ui_t('Back') }}</a><a class="catalog-brand" href="{{ url_for('products.product_start') }}" aria-label="Kilas Works">Kilas<span>Works</span></a></header>
+<main class="catalog-main">
+<div class="catalog-intro"><h1>{{ ui_t('Products') }}</h1><p>{{ ui_t('Tools for your work and creativity.') }}</p></div>
+<div class="catalog-grid">
+<article class="catalog-card"><div class="catalog-icon">{{ drawer_icon('finance') }}</div><h2>Finance</h2><p>{{ ui_t('Manage your income and expenses') }}</p><form method="post" action="{{ url_for('products.product_start') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance"><button class="catalog-action" type="submit">{{ ui_t('Open Finance') }}</button></form></article>
+<article class="catalog-card"><div class="catalog-icon">{{ drawer_icon('video') }}</div><h2>{{ ui_t('Jasa Kreatif') }}</h2><p>{{ ui_t('Photo, video and content services') }}</p><a class="catalog-action catalog-services" href="{{ url_for('client.creative_services') }}">{{ ui_t('Explore services') }}</a></article>
+<article class="catalog-card"><div class="catalog-icon">{{ drawer_icon('video') }}</div><h2>Shotcut</h2><p>{{ ui_t('Free desktop video editor') }}</p><p class="catalog-platforms">Windows · macOS · Linux</p><a class="catalog-action" href="https://shotcut.org/download/" target="_blank" rel="noopener noreferrer" aria-describedby="shotcut-source">{{ ui_t('Download') }}{{ drawer_icon('external') }}</a><small id="shotcut-source">{{ ui_t('Official Shotcut site · Opens in a new tab') }}</small></article>
+</div>
+<p class="catalog-coming"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>{{ ui_t('More products · Coming soon') }}</p>
+</main>
+</body></html>
