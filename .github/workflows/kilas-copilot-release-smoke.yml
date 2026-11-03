@@ -19,7 +19,7 @@ jobs:
         run: |
           import hashlib, json, pathlib, re, time, urllib.request
           origin='https://kilas-works-client-hub.onrender.com'
-          expected={name:pathlib.Path('client-hub/static',name).read_bytes() for name in ('kilas_copilot.mjs','kilas_copilot_capture.mjs','kilas_copilot.css','kilas_copilot_policy.sha256','kilas_live_translator.mjs','kilas_interpreter.mjs','kilas_interpreter.css','kilas_live_translator_api.mjs','kilas_ai.js','kilas_home.js','kilas_ai_agent_chat.js','kilas_chat_operation.js','kilas_reference_ui.css')}
+          expected={name:pathlib.Path('client-hub/static',name).read_bytes() for name in ('kilas_copilot.mjs','kilas_copilot_capture.mjs','kilas_copilot.css','kilas_copilot_policy.sha256','kilas_live_translator.mjs','kilas_interpreter.mjs','kilas_interpreter.css','kilas_live_translator_api.mjs','kilas_ai_markdown.js','kilas_ai.js','kilas_home.js','kilas_ai_agent_chat.js','kilas_chat_operation.js','kilas_reference_ui.css')}
           for attempt in range(100):
               try:
                   released={}
@@ -66,7 +66,7 @@ jobs:
           custom='https://app.kilasworks.id'
           with urllib.request.urlopen(custom+'/healthz',timeout=30) as response:
               assert response.status==200 and json.load(response)['status']=='ok'
-          for name in ('kilas_ai.js','kilas_home.js','kilas_ai_agent_chat.js','kilas_chat_operation.js','kilas_reference_ui.css'):
+          for name in ('kilas_ai_markdown.js','kilas_ai.js','kilas_home.js','kilas_ai_agent_chat.js','kilas_chat_operation.js','kilas_reference_ui.css'):
               with urllib.request.urlopen(custom+'/static/'+name,timeout=30) as response:
                   assert response.read()==expected[name],name
           with urllib.request.urlopen(custom+'/kilas-ai',timeout=30) as response:
