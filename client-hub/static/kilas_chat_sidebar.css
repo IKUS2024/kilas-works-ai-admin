@@ -32,6 +32,8 @@
 .kilas-chat-sidebar .chat-products:not([open])>.chat-product-entry{display:none}
 .kilas-chat-sidebar .chat-product-entry button,.kilas-chat-sidebar a.chat-product-entry{display:flex;align-items:center;gap:12px;box-sizing:border-box;width:100%;min-height:44px;padding:10px 12px 10px 24px;border:0;border-radius:7px;background:transparent;color:var(--text);font:500 14px/1.5 Manrope,system-ui,sans-serif;text-align:left;cursor:pointer}
 .kilas-chat-sidebar a.chat-product-entry{text-decoration:none}
+.kilas-chat-sidebar .chat-shotcut-entry>span{min-width:0;overflow-wrap:anywhere}
+.kilas-chat-sidebar .chat-shotcut-entry small{display:block;font-size:11px;font-weight:400;line-height:1.5}
 .kilas-chat-sidebar .chat-product-entry svg{flex:none}
 .kilas-chat-sidebar .chat-product-entry button:hover,.kilas-chat-sidebar a.chat-product-entry:hover{background:var(--neutral-hover,#ececeb)}
 .kilas-chat-sidebar .chat-products>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
