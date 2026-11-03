@@ -27,7 +27,8 @@ class RevisionTests(unittest.TestCase):
         html=self.client.get('/products/start').text
         self.assertIn('Old conversation retained',html);self.assertNotIn('Foreign conversation',html)
         self.assertIn('New Chat',html);self.assertIn('My Library',html);self.assertIn('How can I Help you?',html)
-        self.assertEqual(html.count('name="product" value="finance"'),1)
+        self.assertIn('data-products-catalog',html)
+        self.assertNotIn('name="product" value="finance"',html)
         choices=html.split('class="home-task-choices"',1)[1].split('</div>',1)[0]
         self.assertLess(choices.index('AI Chat'),choices.index('Translator'))
         self.assertLess(choices.index('Translator'),choices.index('Voice Over'))

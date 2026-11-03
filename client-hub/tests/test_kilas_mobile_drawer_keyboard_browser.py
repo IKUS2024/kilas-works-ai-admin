@@ -48,10 +48,10 @@ def main():
                     rail = page.locator('#premium-sidebar')
                     first = rail.locator('.ai-history>a').first
                     expect(first).to_be_visible()
-                    bounds = rail.evaluate('''e=>{const r=s=>e.querySelector(s).getBoundingClientRect(), h=r('.ai-history'), f=r('.kilas-sidebar-profile'), b=r('.chat-product-entry button');return {height:h.height,historyBottom:h.bottom,profileTop:f.top,financeDisplay:getComputedStyle(e.querySelector('.chat-product-entry button')).display,financeBorder:getComputedStyle(e.querySelector('.chat-product-entry button')).borderTopWidth,financeHeight:b.height,firstTop:r('.ai-history>a').top,firstBottom:r('.ai-history>a').bottom}}''')
+                    bounds = rail.evaluate('''e=>{const r=s=>e.querySelector(s).getBoundingClientRect(), h=r('.ai-history'), f=r('.kilas-sidebar-profile'), b=r('[data-products-catalog]');return {height:h.height,historyBottom:h.bottom,profileTop:f.top,productsDisplay:getComputedStyle(e.querySelector('[data-products-catalog]')).display,productsBorder:getComputedStyle(e.querySelector('[data-products-catalog]')).borderTopWidth,productsHeight:b.height,firstTop:r('.ai-history>a').top,firstBottom:r('.ai-history>a').bottom}}''')
                     assert bounds['height'] >= 64 and bounds['historyBottom'] <= bounds['profileTop'] + 1, (name, width, bounds)
                     assert bounds['firstTop'] >= 0 and bounds['firstBottom'] <= height, (name, width, bounds)
-                    assert bounds['financeDisplay'] == 'flex' and bounds['financeBorder'] == '0px', (name, width, bounds)
+                    assert bounds['productsDisplay'] == 'flex' and bounds['productsBorder'] == '0px', (name, width, bounds)
                     page.screenshot(path=str(output / f'{name}-drawer-{width}.png'))
                     # On very short viewports the outer drawer also scrolls to its account footer.
                     rail.locator('.kilas-sidebar-profile').evaluate('e=>e.scrollIntoView({block:"end"})')

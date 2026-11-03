@@ -405,8 +405,10 @@ class CopilotTests(unittest.TestCase):
         self.assertIn('aria-controls="audio-history"', voice)
         copilot_page = self.client.get('/kilas-ai').text
         self.assertIn('id="premium-sidebar"', copilot_page)
-        self.assertIn('Jasa Kreatif', copilot_page)
-        self.assertIn('Finance', copilot_page)
+        self.assertIn('data-products-catalog', copilot_page)
+        catalog = self.client.get('/products/catalog').text
+        self.assertIn('Jasa Kreatif', catalog)
+        self.assertIn('Finance', catalog)
 
     def test_enabled_audio_routes_remain_enabled_without_provider_generation(self):
         from kilas_ai import audio_provider, audio_branded_voices, live_translator, live_gemini, translator_languages

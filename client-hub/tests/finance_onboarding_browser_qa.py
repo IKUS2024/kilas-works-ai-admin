@@ -60,7 +60,9 @@ def main():
                 login(emails[0])
                 page.locator('[data-premium-menu]').click()
                 with page.expect_navigation():
-                    page.locator('.chat-product-entry button').filter(has_text='Finance').click()
+                    page.locator('[data-products-catalog]').click()
+                with page.expect_navigation():
+                    page.locator('.catalog-card form button').click()
                 assert page.url == origin + '/products/finance?step=business'
                 field = page.locator('input[name="business_name"]')
                 expect(field).to_be_visible()
@@ -77,7 +79,7 @@ def main():
                 bounds = drawer.bounding_box()
                 assert bounds and abs(bounds['x']) < 1 and bounds['width'] <= width
                 expect(drawer.locator('.chat-library-entry').first).to_be_visible()
-                expect(drawer.locator('.chat-product-entry').filter(has_text='Finance')).to_be_visible()
+                expect(drawer.locator('[data-products-catalog]')).to_be_visible()
                 page.screenshot(path=str(output / f'finance-drawer-{width}.png'), animations='disabled')
                 page.keyboard.press('Escape')
                 expect(trigger).to_have_attribute('aria-expanded', 'false')

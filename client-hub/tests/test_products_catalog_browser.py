@@ -6,15 +6,24 @@ import re
 import shutil
 import threading
 from pathlib import Path
+from unittest.mock import patch
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 import test_kilas_home as fixture
+from kilas_ai import chat_models, providers
 from kilas_chat_sidebar_browser_helpers import open_chat_sidebar
 
 
 def main():
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
     case=fixture.HomeTests('test_old_routes_still_render');case.id=lambda:'products-catalog-browser';case.setUp()
+    access=patch.object(chat_models,'check',side_effect=lambda model:{**chat_models.spec(model),'available':model=='gpt-6-luna','status':'verified','images':True});access.start();case.addCleanup(access.stop)
+    def answer(*args,**kwargs):
+        yield {'type':'provider','provider':'openai','model':'gpt-6-luna'}
+        yield {'type':'delta','text':'Synthetic catalog send confirmed'}
+        yield {'type':'usage','input_tokens':10,'output_tokens':10}
+        yield {'type':'finish','reason':'stop'}
+    provider=patch.object(providers,'stream',side_effect=answer);provider.start();case.addCleanup(provider.stop)
     app=fixture.fixture.base.f.fixture.app.app
     server=make_server('127.0.0.1',0,app,threaded=True)
     worker=threading.Thread(target=server.serve_forever,daemon=True);worker.start()
@@ -62,7 +71,14 @@ def main():
                         page.go_back(wait_until='networkidle');expect(page.locator(field)).to_have_value('Keep this unsent draft')
                         page.once('dialog',lambda d:d.accept());page.go_forward(wait_until='networkidle');expect(page.locator('.catalog-card')).to_have_count(3)
                         page.go_back(wait_until='networkidle');expect(page.locator(field)).to_have_value('Keep this unsent draft')
-                        page.locator(field).fill('')
+                        # Send the restored draft through the actual composer with the real route and a mocked provider.
+                        page.locator('#agent-chat-form button[type=submit]' if field=='#agent-message' else '#ai-send').click()
+                        expect(page.locator(field)).to_have_value('')
+                        expect(page.locator('#agent-chat-form button[type=submit]' if field=='#agent-message' else '#ai-send')).to_be_enabled()
+                        expect(page.locator('#agent-conversation' if field=='#agent-message' else '#ai-messages')).to_contain_text('Synthetic catalog send confirmed')
+                        open_chat_sidebar(page).locator('[data-products-catalog]').click();page.wait_for_load_state('networkidle')
+                        page.locator('.catalog-back').click();page.wait_for_load_state('networkidle');expect(page.locator(field)).to_have_value('')
+                        page.reload(wait_until='networkidle');expect(page.locator(field)).to_have_value('')
                         results.append({'width':width,'language':language,'path':path,'result':'PASS'})
                     page.goto(origin+'/products/catalog?return_to=https://evil.example',wait_until='networkidle')
                     page.locator('.catalog-services').click();page.wait_for_load_state('networkidle')
