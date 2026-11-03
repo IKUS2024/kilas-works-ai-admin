@@ -174,6 +174,33 @@ def unavailable(error):
     return render_template('product_error.html'),503
 
 
+def _catalog_return_path(value):
+    """Only known chat destinations may be used as a catalog return link."""
+    from urllib.parse import urlsplit, parse_qs
+    try:
+        parsed=urlsplit(value or '')
+        if parsed.scheme or parsed.netloc or parsed.fragment or '\\' in value:
+            return url_for('products.product_start')
+        if parsed.path=='/kilas-ai/agent':
+            conversation=parse_qs(parsed.query).get('conversation',[''])[0]
+            if conversation.isascii() and conversation.isdigit():
+                return '/kilas-ai/agent?conversation='+conversation
+        if parsed.path.startswith('/kilas-ai/threads/'):
+            ident=parsed.path.removeprefix('/kilas-ai/threads/')
+            if ident.isascii() and ident.isdigit():
+                return parsed.path
+    except (ValueError, TypeError):
+        pass
+    return url_for('products.product_start')
+
+
+@products_bp.get('/products/catalog')
+@security.login_required
+def catalog():
+    return render_template('products_catalog.html',
+                           return_path=_catalog_return_path(request.args.get('return_to','')))
+
+
 @products_bp.route('/products/start',methods=['GET','POST'])
 @security.login_required
 def product_start():

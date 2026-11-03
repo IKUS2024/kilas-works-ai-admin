@@ -115,7 +115,36 @@
   function dirty(){
     return chatDirty()||Boolean(document.querySelector('#audio-script')?.value.trim());
   }
+  const catalogDraftKey='kilas:catalog-draft:'+rail.dataset.draftOwner+':'+location.pathname+location.search;
+  function restoreCatalogDraft(){
+    try{
+      const raw=sessionStorage.getItem(catalogDraftKey);if(!raw)return;
+      const saved=JSON.parse(raw),input=document.querySelector('#ai-input,#agent-message');
+      if(input&&!input.value&&Date.now()-saved.at<1800000){input.value=saved.text;input.dispatchEvent(new Event('input',{bubbles:true}));}
+    }catch(_){}
+  }
+  document.addEventListener('input',event=>{
+    if(!event.target.matches('#ai-input,#agent-message'))return;
+    try{if(sessionStorage.getItem(catalogDraftKey)){
+      if(event.target.value)sessionStorage.setItem(catalogDraftKey,JSON.stringify({text:event.target.value,at:Date.now()}));
+      else sessionStorage.removeItem(catalogDraftKey);
+    }}catch(_){}
+  });
+  document.addEventListener('submit',event=>{
+    if(event.target.querySelector('#ai-input,#agent-message'))try{sessionStorage.removeItem(catalogDraftKey);}catch(_){}
+  },true);
+  window.addEventListener('pageshow',restoreCatalogDraft);
+  restoreCatalogDraft();
   function allow(event){
+    if(event.target.closest('[data-products-catalog]')){
+      const input=document.querySelector('#ai-input,#agent-message');
+      const pending=document.querySelector('#ai-pending,#work-pending-files')?.children.length;
+      const running=document.querySelector('#ai-stop,[data-unified-stop]')?.hidden===false;
+      if(!pending&&!running&&!document.querySelector('#audio-script')?.value.trim()){
+        try{sessionStorage.setItem(catalogDraftKey,JSON.stringify({text:input?.value||'',at:Date.now()}));leaving=true;return;}catch(_){}
+      }
+    }
+
     if(dirty()&&!window.confirm(t('Draf atau lampiran belum dikirim. Tinggalkan halaman ini?'))){event.preventDefault();event.stopImmediatePropagation();return;}
     leaving=true;
   }

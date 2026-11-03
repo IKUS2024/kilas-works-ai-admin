@@ -1,3 +1,4 @@
+import re
 """EN/ID App Language end-to-end; synthetic mic/provider, no paid calls."""
 import json
 import logging
@@ -89,8 +90,8 @@ def main():
                     expect(page.locator('#premium-sidebar .ai-new')).to_have_text(text['new'])
                     expect(page.locator('#premium-sidebar .chat-history-toggle')).to_contain_text(text['history'])
                     expect(page.locator('#premium-sidebar .chat-library-entry').first).to_contain_text(text['library'])
-                    expect(page.locator('#premium-sidebar .chat-products>summary')).to_contain_text(text['products'])
-                    expect(page.locator('#premium-sidebar .chat-products')).to_contain_text(text['creative'])
+                    expect(page.locator('#premium-sidebar [data-products-catalog]')).to_contain_text(text['products'])
+                    expect(page.locator('#premium-sidebar [data-products-catalog]')).to_have_attribute('href',re.compile(r'^/products/catalog\?'))
                     page.locator('#premium-sidebar .kilas-profile-menu>summary').click()
                     expect(page.locator('#premium-sidebar .kilas-profile-menu')).to_contain_text(text['credits'])
                     expect(page.locator('#premium-sidebar .kilas-profile-language>summary')).to_contain_text(text['language'])

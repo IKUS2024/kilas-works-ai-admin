@@ -16,23 +16,18 @@ class SidebarProductsTests(unittest.TestCase):
 
     def test_products_below_library_and_finance_absent_from_peer_tools_in_all_locales(self):
         pages={};client=self.client()
-        creative_labels={'en':'Creative Services','id':'Jasa Kreatif','es':'Servicios creativos','zh':'创意服务'}
-        self.assertEqual(set(creative_labels),set(LANGUAGES))
+        self.assertEqual({'en','id','es','zh'},set(LANGUAGES))
         for locale,label in (('en','Products'),('id','Produk'),('es','Productos'),('zh','产品')):
             client.set_cookie('kilas_language',locale)
             for name,path in (('home','/products/start'),('agent','/kilas-ai/agent?conversation='+str(self.conversation)),('library','/kilas-ai/library')):
                 response=client.get(path);self.assertEqual(response.status_code,200,path)
                 html=response.text;self.assertIn('<html lang="'+locale+'">',html)
-                self.assertLess(html.index('chat-library-entry'),html.index('class="chat-products"'))
-                self.assertLess(html.index('class="chat-products"'),html.index('data-chat-history-toggle'))
+                self.assertLess(html.index('chat-library-entry'),html.index('data-products-catalog'))
+                self.assertLess(html.index('data-products-catalog'),html.index('data-chat-history-toggle'))
                 self.assertIn('<span>'+label+'</span>',html)
-                self.assertEqual(html.count('name="product" value="finance"'),1)
+                self.assertNotIn('name="product" value="finance"',html)
                 self.assertNotIn('class="kilas-finance-entry"',html)
-                creative='<a class="chat-product-entry" href="/creative-services/" data-chat-navigation>'
-                self.assertEqual(html.count(creative),1)
-                self.assertLess(html.index('name="product" value="finance"'),html.index(creative))
-                self.assertLess(html.index(creative),html.index('</details>',html.index('class="chat-products"')))
-                self.assertIn('<span>'+creative_labels[locale]+'</span></a>',html)
+                self.assertNotIn('href="/creative-services/"',html)
                 pages[name+'_'+locale]=html
             audio=client.get('/kilas-translator?mode=voiceover')
             self.assertEqual(audio.status_code,200);self.assertNotIn('class="kilas-finance-entry"',audio.text)
@@ -84,7 +79,7 @@ class SidebarProductsTests(unittest.TestCase):
 
     def test_sidebar_get_does_not_create_or_change_finance_data_and_anonymous_stays_gated(self):
         own,other=self.finance_fixture();client=self.client();before=self.snapshot(own,other)
-        for path in ('/products/start','/kilas-ai/library','/kilas-ai/agent?conversation='+str(self.conversation)):
+        for path in ('/products/start','/products/catalog','/kilas-ai/library','/kilas-ai/agent?conversation='+str(self.conversation)):
             self.assertEqual(client.get(path).status_code,200)
         self.assertEqual(before,self.snapshot(own,other))
         with client.session_transaction() as state:state.clear()
