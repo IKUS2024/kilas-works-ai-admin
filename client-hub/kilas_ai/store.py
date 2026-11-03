@@ -113,7 +113,7 @@ def context(user_id, thread_id, *, selected_model=None, current_attachments=None
             if not any(item['mime_type'].startswith('image/') or item.get('vision_pages') or item['mime_type']=='application/pdf' for item in attachments):
                 if conversation_context.visual_followup(content):
                     attachments+=latest_visual_attachments(user_id,thread_id,row['id'])
-                elif conversation_context.visual_followup(content,prior_visual=True):
+                elif not attachments and conversation_context.visual_followup(content,prior_visual=True):
                     prior_rows=[r for r in rows if r['role']=='user' and r['id']<row['id']][-8:]
                     metadata=attachment_metadata(user_id,thread_id,[r['id'] for r in prior_rows])
                     source_id=conversation_context.active_visual_turn(content,prior_rows,metadata)

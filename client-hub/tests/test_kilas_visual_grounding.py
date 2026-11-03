@@ -183,6 +183,25 @@ class VisualGroundingTests(unittest.TestCase):
         self.assertIsNone(conversation_context.active_visual_turn('What color is that?',
             [{'id': i, 'content': 'Which part is on the right?'} for i in range(2, 11)], {1: [{'mime_type': 'image/png'}]}))
 
+    def test_fresh_nonvisual_upload_blocks_implicit_replay_on_both_surfaces(self):
+        old = image('blue')
+        document = {'filename': 'synthetic.txt', 'mime_type': 'text/plain', 'content': b'Synthetic document content.',
+                    'byte_size': 27, 'extracted_text': 'Synthetic document content.'}
+        agent_store.append(self.owner, 'user', 'What is this?', self.conversation, attachments=[old])
+        context = self.agent_context('What is this?', [document])
+        self.assertEqual(image_bytes(context[-1]['content']), [])
+        self.assertIn(document['extracted_text'], context[-1]['content'])
+        ident, _ = store.append_user_once(self.owner, self.thread, 'What is this?', 'SMART', 'fresh_doc_old_image')
+        store.save_attachments(self.owner, self.thread, ident, [old])
+        store.append_user_once(self.owner, self.thread, 'What is this?', 'SMART', 'fresh_doc_current')
+        context = store.context(self.owner, self.thread, selected_model=chat_offering.CHAT_MODEL, current_attachments=[document])
+        self.assertTrue(image_bytes(context[-1]['content']) == [])
+        self.assertIn(document['extracted_text'], context[-1]['content'])
+        # A deliberate reference still uses the existing explicit visual path.
+        store.append_user_once(self.owner, self.thread, 'Compare this document with the previous image.', 'SMART', 'fresh_doc_explicit')
+        context = store.context(self.owner, self.thread, selected_model=chat_offering.CHAT_MODEL, current_attachments=[document])
+        self.assertEqual(image_bytes(context[-1]['content']), [old['content']])
+
 
 if __name__ == '__main__':
     unittest.main()
