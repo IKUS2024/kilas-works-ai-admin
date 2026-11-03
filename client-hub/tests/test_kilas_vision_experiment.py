@@ -1,5 +1,9 @@
 """Owned diagnostic scope and exact transport invariants; synthetic/mocked only."""
 import copy
+from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor
+import uuid
+from pathlib import Path
 import io
 import json
 import os
@@ -21,20 +25,36 @@ class ExperimentTests(unittest.TestCase):
         fixture.ManagedOfferingTests.setUp(self)
         p = patch.dict(os.environ, {experiment.FLAG: ''});p.start();self.addCleanup(p.stop)
         self.sample = image('navy')
-        self.first, _ = store.append_user_once(self.owner, self.thread, 'Synthetic object question.', 'SMART', 'eval_first_synthetic')
-        store.save_attachments(self.owner, self.thread, self.first, [self.sample])
+        now = datetime.now(timezone.utc)
+        self.config = {'owner_id':self.owner, 'batch':uuid.uuid4().hex, 'question':'Synthetic object question.',
+            'starts_at':(now-timedelta(seconds=20)).isoformat().replace('+00:00','Z'),
+            'expires_at':(now+timedelta(minutes=20)).isoformat().replace('+00:00','Z')}
+        self.first = self.add_first(self.thread)
+
+    def add_first(self, thread, question=None):
+        ident, _ = store.append_user_once(self.owner, thread, question or self.config['question'], 'SMART', 'eval_'+uuid.uuid4().hex)
+        store.save_attachments(self.owner, thread, ident, [self.sample])
+        return ident
+
+    def new_case(self, question=None):
+        thread = store.create_thread(self.owner)
+        self.add_first(thread, question)
+        return thread
 
     def context(self, model=experiment.MODEL, samples=None):
-        blocks = attachments.prompt_content('Synthetic object question.', samples or [self.sample])
+        blocks = attachments.prompt_content(self.config['question'], samples or [self.sample])
         return chat_models.bind(model_policy.ChatContext([{'role': 'user', 'content': blocks}]), model)
 
-    def bind(self, context, arm='auto', user=None, path=None):
+    def bind(self, context, arm=None, user=None, path=None, thread=None):
+        import db
         user = self.owner if user is None else user
-        path = path or f'/kilas-ai/threads/{self.thread}/send'
-        config = json.dumps({str(self.thread): arm})
-        with patch.dict(os.environ, {experiment.FLAG: config}), self.client().application.test_request_context(path, method='POST'):
+        thread = self.thread if thread is None else thread
+        if arm == 'high' and not db.query_one('SELECT sequence FROM kilas_ai_vision_eval_claims WHERE user_id=?', (self.owner,)):
+            self.bind(self.context(), thread=self.new_case())  # A real first claim precedes the high arm.
+        path = path or f'/kilas-ai/threads/{thread}/send'
+        with patch.dict(os.environ, {experiment.FLAG:json.dumps(self.config)}), self.client().application.test_request_context(path, method='POST'):
             session['user_id'] = user
-            experiment.bind(context, user, self.thread)
+            experiment.bind(context, user, thread)
         return context
 
     def payload(self, context):
@@ -44,21 +64,30 @@ class ExperimentTests(unittest.TestCase):
 
     def test_default_off_has_no_scope_queries_or_payload_changes(self):
         context = self.context();payload = self.payload(context)
-        with patch.object(store, 'thread', side_effect=AssertionError('No extra query when OFF')), \
+        with patch('kilas_ai.usage._connect', side_effect=AssertionError('No extra query when OFF')), \
              patch.object(experiment, '_emit') as emit:
             experiment.bind(context, self.owner, self.thread)
             result, diag = experiment.begin(context, payload)
         self.assertIs(result, payload);self.assertIsNone(diag);emit.assert_not_called()
 
     def test_malformed_configuration_is_completely_inactive(self):
-        for raw in ('', '{}', '[]', 'null', 'true', '{', '{"1":"high","1":"auto"}',
-                    '{"01":"high"}', '{"-1":"high"}', '{"1":true}', '{"1":{}}',
-                    '{"9223372036854775808":"high"}', '{"1":"original"}',
-                    json.dumps({str(i): 'high' for i in range(1, 10)}), ' '*2049):
-            with self.subTest(raw=raw[:40]), patch.dict(os.environ, {experiment.FLAG: raw}):
+        bad = ['', '{}', '[]', 'null', 'true', '{', ' '*2049, '{"owner_id":1,"owner_id":2}']
+        for key, value in (('owner_id', True), ('owner_id', 0), ('owner_id', '1'), ('owner_id', 2**63),
+                ('batch','invalid'), ('question',''), ('question',' x '), ('question','x\ny'),
+                ('starts_at','invalid'), ('expires_at',self.config['starts_at'])):
+            bad.append(json.dumps({**self.config,key:value}))
+        bad.append(json.dumps({**self.config,'unknown':'high'}))
+        now = datetime.now(timezone.utc)
+        for start, end in ((now-timedelta(hours=1), now+timedelta(minutes=1)),
+                           (now+timedelta(minutes=1),now+timedelta(minutes=2)),
+                           (now-timedelta(minutes=2),now-timedelta(minutes=1))):
+            bad.append(json.dumps({**self.config,'starts_at':start.isoformat().replace('+00:00','Z'),
+                'expires_at':end.isoformat().replace('+00:00','Z')}))
+        for raw in bad:
+            with self.subTest(raw=raw[:40]), patch.dict(os.environ, {experiment.FLAG:raw}):
                 self.assertEqual(experiment.configured(), {})
-        with patch.dict(os.environ, {experiment.FLAG: '{"1":"auto","2":"high"}'}):
-            self.assertEqual(experiment.configured(), {'1': 'auto', '2': 'high'})
+        with patch.dict(os.environ, {experiment.FLAG:json.dumps(self.config)}):
+            self.assertEqual(experiment.configured()['owner_id'], self.owner)
 
     def test_foreign_owner_wrong_route_session_or_model_cannot_bind(self):
         for user, path, model in ((self.other, None, experiment.MODEL),
@@ -69,7 +98,7 @@ class ExperimentTests(unittest.TestCase):
                 context = self.bind(self.context(model), user=user, path=path)
                 self.assertFalse(hasattr(context, '_vision_experiment'))
         context = self.context()
-        with patch.dict(os.environ, {experiment.FLAG: json.dumps({str(self.thread): 'high'})}), \
+        with patch.dict(os.environ, {experiment.FLAG: json.dumps(self.config)}), \
              self.client().application.test_request_context(f'/kilas-ai/threads/{self.thread}/send', method='POST'):
             experiment.bind(context, self.owner, self.thread)  # No authenticated session.
         self.assertFalse(hasattr(context, '_vision_experiment'))
@@ -80,7 +109,7 @@ class ExperimentTests(unittest.TestCase):
 
     def test_configured_scope_is_not_bound_outside_http_or_in_another_thread(self):
         context = self.context()
-        with patch.dict(os.environ, {experiment.FLAG:json.dumps({str(self.thread):'high'})}):
+        with patch.dict(os.environ, {experiment.FLAG:json.dumps(self.config)}):
             experiment.bind(context, self.owner, self.thread)
         self.assertFalse(hasattr(context, '_vision_experiment'))
         context = self.bind(self.context(), 'high', path=f'/kilas-ai/threads/{self.thread+1}/send')
@@ -90,7 +119,7 @@ class ExperimentTests(unittest.TestCase):
         url = f'/kilas-ai/threads/{self.thread}/send'
         data = {'content':'Synthetic question.', 'operation_key':'eval_unauthorized_synthetic',
                 'csrf_token':'work-csrf', 'vision_detail':'high'}
-        with patch.dict(os.environ, {experiment.FLAG:json.dumps({str(self.thread):'high'})}), \
+        with patch.dict(os.environ, {experiment.FLAG:json.dumps(self.config)}), \
              patch.object(selected_provider.requests, 'post', side_effect=AssertionError('Unauthorized inference')) as post, \
              patch.object(experiment, '_emit') as emit:
             self.assertEqual(self.client(self.other).post(url, data=data).status_code, 404)
@@ -106,6 +135,7 @@ class ExperimentTests(unittest.TestCase):
     def test_auto_is_identical_and_high_changes_only_detail_not_source_context_or_budget(self):
         for arm in ('auto', 'high'):
             with self.subTest(arm=arm), patch.object(experiment, '_emit') as emit:
+                if arm == 'high':self.thread = self.new_case()
                 context = self.bind(self.context(), arm)
                 payload = self.payload(context);original = copy.deepcopy(payload)
                 result, diag = experiment.begin(context, payload)
@@ -152,8 +182,8 @@ class ExperimentTests(unittest.TestCase):
             diag.delta();diag.finish('stop');diag.end()
         records = [json.loads(line.split('kilas_vision_eval ', 1)[1]) for line in captured.output]
         self.assertEqual(len(records), 2)
-        self.assertEqual(set(records[0]), {'event','run','arm','requested_model','image_count','images','reasoning_effort','max_completion_tokens'})
-        self.assertEqual(set(records[1]), {'event','run','arm','requested_model','returned_model','provider_request_id',
+        self.assertEqual(set(records[0]), {'event','run','arm','sequence','requested_model','image_count','images','reasoning_effort','max_completion_tokens'})
+        self.assertEqual(set(records[1]), {'event','run','arm','sequence','requested_model','returned_model','provider_request_id',
             'http_status','finish_reason','status','duration_ms','ttft_ms','usage'})
         self.assertEqual(records[0]['run'], records[1]['run'])
         self.assertEqual(records[1]['usage'], {'input_tokens':123,'output_tokens':45,'cached_input_tokens':10,'cache_write_input_tokens':5})
@@ -176,29 +206,49 @@ class ExperimentTests(unittest.TestCase):
         import db
         db.execute('DELETE FROM kilas_ai_attachments WHERE thread_id=?', (self.thread,))
         db.execute('DELETE FROM kilas_ai_messages WHERE thread_id=?', (self.thread,))
+        self.config['question'] = 'Identify this object.'
         reply = MagicMock(status_code=200, headers={'x-request-id':'req_mocked_123'})
         reply.__enter__.return_value = reply
         events = [{'model':experiment.MODEL,'choices':[{'delta':{'content':'Synthetic private answer.'},'finish_reason':'stop'}],
                    'usage':{'prompt_tokens':100,'completion_tokens':30}}]
-        with patch.dict(os.environ, {experiment.FLAG:json.dumps({str(self.thread):'high'}), 'OPENAI_API_KEY':'synthetic-only'}), \
+        with patch.dict(os.environ, {experiment.FLAG:json.dumps(self.config), 'OPENAI_API_KEY':'synthetic-only'}), \
              patch.object(selected_provider.requests, 'post', return_value=reply) as post, \
-             patch.object(providers, '_events', side_effect=lambda r:iter(events)), \
+             patch.object(providers, '_events', side_effect=lambda r, **kwargs:iter(events)), \
              self.assertLogs('kilas_ai.vision_experiment', level='INFO') as logs:
-            result = self.submit(agent=False, text='Identify this object.', vision_detail='original',
+            result = self.submit(agent=False, text='Identify this object.', vision_detail='original',key='eval_http_retry_synthetic',
                 attachments=[(io.BytesIO(self.sample['content']),self.sample['filename'])])
         self.assertEqual(result.status_code, 200);self.assertEqual(post.call_count, 1)
+        self.assertIn('event: done',result.get_data(as_text=True))
         payload = post.call_args.kwargs['json']
         self.assertEqual(payload['model'], experiment.MODEL)
         self.assertEqual(payload['reasoning_effort'], 'medium')
         self.assertEqual(payload['max_completion_tokens'], 8192)
-        self.assertEqual(payload['messages'][-1]['content'][1]['image_url']['detail'], 'high')
+        self.assertNotIn('detail', payload['messages'][-1]['content'][1]['image_url'])
         self.assertEqual(image_bytes(payload['messages'][-1]['content']), [self.sample['content']])
         self.assertEqual(len(logs.output), 2)
         self.assertNotIn('Synthetic private answer.', '\n'.join(logs.output))
+        with patch.dict(os.environ, {experiment.FLAG:json.dumps(self.config)}), \
+             patch.object(selected_provider.requests,'post',side_effect=AssertionError('No duplicate inference')) as duplicate, \
+             patch.object(experiment,'_emit') as emit:
+            retried=self.submit(agent=False,text='Identify this object.',vision_detail='original',key='eval_http_retry_synthetic',
+                attachments=[(io.BytesIO(self.sample['content']),self.sample['filename'])])
+        self.assertEqual(retried.status_code,200,retried.get_json(silent=True));duplicate.assert_not_called();emit.assert_not_called()
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kilas_ai_vision_eval_claims WHERE user_id=? AND batch=?',
+                                     (self.owner,self.config['batch']))['n'],1)
+        self.thread = store.create_thread(self.owner)
+        with patch.dict(os.environ, {experiment.FLAG:json.dumps(self.config), 'OPENAI_API_KEY':'synthetic-only'}), \
+             patch.object(selected_provider.requests, 'post', return_value=reply) as second, \
+             patch.object(providers, '_events', side_effect=lambda r, **kwargs:iter(events)), patch.object(experiment, '_emit'):
+            result = self.submit(agent=False, text=self.config['question'],
+                attachments=[(io.BytesIO(self.sample['content']),self.sample['filename'])])
+        self.assertEqual(result.status_code, 200);self.assertEqual(second.call_count, 1)
+        high_payload = copy.deepcopy(second.call_args.kwargs['json'])
+        self.assertEqual(high_payload['messages'][-1]['content'][1]['image_url'].pop('detail'), 'high')
+        self.assertEqual(high_payload, payload)
         # Scope is not inherited by later turns or by arbitrary posted knobs.
-        with patch.dict(os.environ, {experiment.FLAG:json.dumps({str(self.thread):'high'}), 'OPENAI_API_KEY':'synthetic-only'}), \
+        with patch.dict(os.environ, {experiment.FLAG:json.dumps(self.config), 'OPENAI_API_KEY':'synthetic-only'}), \
              patch.object(selected_provider.requests, 'post', return_value=reply) as post, \
-             patch.object(providers, '_events', side_effect=lambda r:iter(events)), patch.object(experiment, '_emit') as emit:
+             patch.object(providers, '_events', side_effect=lambda r, **kwargs:iter(events)), patch.object(experiment, '_emit') as emit:
             result = self.submit(agent=False, text='Identify another object.', vision_detail='high',
                 attachments=[(io.BytesIO(self.sample['content']),self.sample['filename'])])
         self.assertEqual(result.status_code, 200);self.assertEqual(post.call_count, 1)
@@ -229,6 +279,75 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual(store.messages(self.owner, ident), [])
         self.assertIsNone(store.thread(self.other, ident))
         post.assert_not_called()
+
+    def test_eight_slots_are_atomic_idempotent_and_not_replenished_by_chat_deletion(self):
+        import db
+        threads = [self.thread]+[self.new_case() for _ in range(11)]
+        contexts = [self.context() for _ in threads]
+        with ThreadPoolExecutor(6) as pool:
+            list(pool.map(lambda pair:self.bind(pair[1],thread=pair[0]), zip(threads,contexts)))
+        grants = [getattr(context, '_vision_experiment', None) for context in contexts]
+        accepted = [grant for grant in grants if grant]
+        self.assertEqual(sorted(g.sequence for g in accepted), list(range(1,9)))
+        self.assertEqual([g.arm for g in sorted(accepted,key=lambda g:g.sequence)], ['auto','high']*4)
+        rows = db.query_all('SELECT thread_id,sequence FROM kilas_ai_vision_eval_claims WHERE user_id=?', (self.owner,))
+        chosen = rows[0]
+        again = self.bind(self.context(),thread=chosen['thread_id'])
+        self.assertEqual(again._vision_experiment.sequence,chosen['sequence'])
+        self.assertEqual(len(db.query_all('SELECT sequence FROM kilas_ai_vision_eval_claims WHERE user_id=?',(self.owner,))),8)
+        store.delete_thread(self.owner, chosen['thread_id'])
+        self.assertFalse(hasattr(self.bind(self.context(),thread=self.new_case()), '_vision_experiment'))
+        self.assertEqual(len(db.query_all('SELECT sequence FROM kilas_ai_vision_eval_claims WHERE user_id=?',(self.owner,))),8)
+
+    def test_wrong_question_old_thread_and_changed_batch_configuration_are_inactive(self):
+        import db
+        context = self.context();context[0]['content'][0]['text']='Unrelated ordinary activity.'
+        self.assertFalse(hasattr(self.bind(context), '_vision_experiment'))
+        db.execute('UPDATE kilas_ai_threads SET created_at=? WHERE id=?',('2001-01-01 00:00:00',self.thread))
+        self.assertFalse(hasattr(self.bind(self.context()), '_vision_experiment'))
+        self.thread = self.new_case()
+        first = self.bind(self.context())
+        self.assertEqual(first._vision_experiment.sequence,1)
+        self.config['question']='Different synthetic question.'
+        self.thread = self.new_case()
+        self.assertFalse(hasattr(self.bind(self.context()), '_vision_experiment'))
+
+    def test_expiry_and_disabled_configuration_cannot_admit_new_claims(self):
+        context = self.context()
+        end = datetime.fromisoformat(self.config['expires_at'])
+        with patch.object(experiment, '_now', return_value=end):
+            self.assertFalse(hasattr(self.bind(context), '_vision_experiment'))
+        first = self.bind(self.context())
+        with patch.object(experiment, '_emit'), patch.object(experiment, '_now',return_value=end):
+            # An already admitted in-flight attempt retains its accepted variant.
+            self.assertIsNotNone(experiment.begin(first,self.payload(first))[1])
+        self.assertFalse(hasattr(self.context(), '_vision_experiment'))
+
+    def test_a_batch_identity_cannot_be_reassigned_to_a_different_owner(self):
+        self.assertEqual(self.bind(self.context())._vision_experiment.sequence,1)
+        self.config['owner_id'] = self.other
+        foreign = store.create_thread(self.other)
+        store.append_user_once(self.other,foreign,self.config['question'],'SMART','different_owner_'+uuid.uuid4().hex)
+        context = self.bind(self.context(),user=self.other,thread=foreign)
+        self.assertFalse(hasattr(context, '_vision_experiment'))
+
+    def test_storage_failure_does_not_enable_override_or_leak_exception(self):
+        with patch.object(experiment, '_claim', side_effect=RuntimeError('PRIVATE-FAILURE-CONTENT')), \
+             self.assertLogs('kilas_ai.vision_experiment',level='WARNING') as logs:
+            context = self.bind(self.context())
+        self.assertFalse(hasattr(context, '_vision_experiment'))
+        self.assertIn('kilas_vision_eval_scope_storage_unavailable','\n'.join(logs.output))
+        self.assertNotIn('PRIVATE-FAILURE-CONTENT','\n'.join(logs.output))
+
+    def test_sqlite_migration_repeats_without_changing_existing_data(self):
+        import db
+        before = [dict(row) for row in store.messages(self.owner,self.thread)]
+        script = (Path(__file__).resolve().parents[1]/'migrations/0114_kilas_vision_eval_sqlite.sql').read_text()
+        with db.get_connection() as conn:
+            conn.executescript(script);conn.executescript(script)
+            columns = [row[1] for row in conn.execute('PRAGMA table_info(kilas_ai_vision_eval_claims)')]
+        self.assertEqual(columns,['user_id','batch','sequence','thread_id','message_id','config_fingerprint'])
+        self.assertEqual([dict(row) for row in store.messages(self.owner,self.thread)],before)
 
 
 if __name__ == '__main__':

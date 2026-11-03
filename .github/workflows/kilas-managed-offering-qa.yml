@@ -38,6 +38,9 @@ jobs:
       - name: Same-site image preview, keyboard, ownership and original downloads
         env: {PYTHONDONTWRITEBYTECODE: '1', PYTHONPATH: 'client-hub:client-hub/tests', KILAS_IMAGE_VIEWER_ARTIFACTS: /tmp/kilas-managed-offering-browser/image-viewer}
         run: python -B client-hub/tests/kilas_image_viewer_browser.py
+      - name: Normal UI creates fresh vision pairs without preallocated IDs
+        env: {PYTHONDONTWRITEBYTECODE: '1', PYTHONPATH: 'client-hub:client-hub/tests', KILAS_VISION_BROWSER_ARTIFACTS: /tmp/kilas-managed-offering-browser/vision-experiment}
+        run: python -B client-hub/tests/kilas_vision_experiment_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: kilas-managed-offering-preview, path: /tmp/kilas-managed-offering-browser}
@@ -60,3 +63,8 @@ jobs:
           DATABASE_URL: postgresql://postgres:disposable@127.0.0.1:5432/kilas_qa
           KILAS_MANAGED_POSTGRES_QA: '1'
         run: python -B client-hub/tests/kilas_managed_offering_postgres.py
+      - name: Scoped vision batch migration and twelve simultaneous claims; no paid calls
+        env:
+          DATABASE_URL: postgresql://postgres:disposable@127.0.0.1:5432/kilas_qa
+          KILAS_VISION_POSTGRES_QA: '1'
+        run: python -B client-hub/tests/kilas_vision_experiment_postgres.py
