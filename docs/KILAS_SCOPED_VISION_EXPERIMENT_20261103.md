@@ -1,0 +1,82 @@
+# Scoped Luna image-detail experiment
+
+This is diagnostic infrastructure, not an established image-identification improvement. PR194's transport/provenance tests passed, but parent reports that real-photo semantic acceptance still failed. Preserve Luna, the current grounding instruction, source bytes, effort, output budget, safety and billing. No real photograph, prompt, reply, private URL or secret belongs in this repository or the diagnostic logs.
+
+## Behavior and scope
+
+`KILAS_AI_VISION_EVAL_THREADS` is absent/empty by default. When OFF there are no extra scope queries, image decoding, payload edits or diagnostic logs. The server-only value is a JSON object mapping at most eight positive thread IDs to `auto` or `high`; example using invented IDs:
+
+```json
+{"900001":"auto","900002":"high"}
+```
+
+Unknown values, duplicate keys, oversized/invalid JSON, malformed IDs or more than eight entries disable the entire mapping. No request parameter can set scope, model, detail, effort or configuration. The eight-thread bound limits diagnostic scope, not normal Chat usage.
+
+Only the existing authenticated legacy Chat send route may bind an internal grant, after normal admission and an independent ownership/session/route check. The thread must contain exactly its first user turn. The final selected OpenAI payload must be Luna with a single user turn and exactly one validated raster image whose detail is omitted. Existing histories, follow-ups, Agent Chat, Voice Over scripts, other tools/models and scheduled jobs do not receive the experiment. The grant belongs to that exact in-memory context and is not inherited by copied contexts.
+
+Auto preserves the payload exactly, including omitted detail. High copies only the image block dictionaries to add `image_url.detail="high"`. Bytes, source context and shared message objects remain unchanged. It does not modify temperature, effort, token caps, prompts, endpoint, streaming/store options, ledger, retry or moderation behavior. There is no new endpoint, UI selector, debug/admin surface, migration, access grant or credential.
+
+## Obtain fresh thread IDs without contaminating context
+
+The existing UI creates a thread before its first send using `POST /kilas-ai/threads`. This endpoint requires `first_message` to select a mode, but does not append it to conversation messages or invoke inference. The regression verifies an owned empty thread and zero provider POSTs. No new endpoint is needed.
+
+The normal New Chat UI opens an empty composer without allocating a persistent legacy thread ID. Its first Send automatically creates the thread and then calls inference. There is no separate existing normal UI control that reserves an empty legacy thread. Do not send a dummy message to discover an ID: that contaminates the context.
+
+The existing POST is a technical capability, not independent permission to issue background browser requests. The parent browser worker must first check its own supported-tool/skill restrictions. ONLY IF those permit the authenticated application request, the following setup can create eight empty QA threads. It keeps the current CSRF token in place and never prints/exports it. Do not copy cookies/session/CSRF to a shell or another environment. If this request method is unsupported, stop setup and report the specific browser-tool limitation; parent must choose a supported same-runtime setup or separately review an equally narrow server-only control before testing. This candidate has not added an alternative access/debug route.
+
+Conditional setup for an authorized browser operator (not an executor command):
+
+```javascript
+const token = document.querySelector('meta[name="csrf-token"]')?.content;
+if (!token) throw new Error('Open the authenticated Kilas Chat page first.');
+const created = [];
+for (const pair of ['original', 'control-1', 'control-2', 'control-3']) {
+  for (const arm of ['auto', 'high']) {
+    const response = await fetch('/kilas-ai/threads', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': token},
+      body: JSON.stringify({first_message: 'Visual QA setup'})
+    });
+    if (!response.ok) throw new Error('Thread creation stopped: '+response.status);
+    const item = await response.json();
+    created.push({pair, arm, thread_id: item.thread_id, url: item.url});
+  }
+}
+created;
+```
+
+If interrupted, preserve already returned IDs and inspect existing history before rerunning; do not blindly create duplicates. Do not send a greeting/dummy message to discover IDs. Do not use an existing conversation with previous answers. Parent may confirm zero message counts via authorized read-only SQL before testing. An expired session/CSRF or product-availability error must be resolved through the existing flow; do not bypass it.
+
+## Coordinated candidate rollout and test
+
+1. Parent reviews the draft and final tests, then coordinates normal release of its exact commit. This executor does not merge/deploy. Leave the flag absent during deployment; the suspended legacy service is untouched. No provider payment, model, credential, hosting or permission changes.
+2. Build the server mapping from the actual empty QA IDs above. Activate only on the existing Hub using the normal authorized configuration workflow. Runner/scheduled execution requires no flag and remains unaffected. Verify the exact active commit/configuration; do not publish the IDs or account details in PR artifacts.
+3. Through the authenticated UI, submit the same original image and exact same neutral question to the original pair, with identical app locale and no prior messages/search/tools. First run exactly one request per arm, without retries or duplicate executor calls. Inspect matching request/response diagnostics to prove actual payload detail and requested/returned Luna. Confirm same source byte count/dimensions, image count, effort and output cap across arms. Transmitted dimensions are not evidence of provider-internal resized dimensions.
+4. Parent privately scores identity, visible physical evidence, unsupported claims and proportionate uncertainty. Do not give the model an expected object name or prior incorrect answer. Record scores in nonsensitive summaries; keep original photographs/replies private. A single result per arm is screening, not reliable statistical evidence.
+5. If appropriate, evaluate the three preselected ordinary-object controls in the other fresh pairs: e.g. a printed mug, a lidded food container and a handled kettle. Select nonsensitive consented photos independently of results, preserve the entire object, and use the same question within each pair. No generated answers or synthetic pixel transport assertions count as actual semantic evaluation.
+6. If high alone fails, the next isolated variable is medium-to-high reasoning with auto detail and everything else as A. That effort override is deliberately not implemented here. Do not combine higher effort, image crops, altered prompts or a different model into this experiment. Further experiments need separate coordinated scope.
+7. Clear/remove the mapping after the bounded evaluation. New requests immediately return to normal behavior; an already bound request finishes with its accepted variant. Do not delete conversations or source images. No database rollback is needed. Retain the existing release rollback path.
+
+Changing only detail may improve, worsen or leave the result unchanged. Do not roll out high globally from one passing object. There is no guarantee of correct recognition.
+
+## Content-free diagnostic contract
+
+Only the configured QA request emits `kilas_vision_eval` JSON events to module logging. A random run token correlates two events without account/thread identifiers.
+
+- Request: arm, requested Luna, image MIME/width/height/byte count, image count, effective detail plus whether explicit, exact reasoning effort/output cap.
+- Response: validated returned model (or `unreported`), sanitized provider request ID, HTTP status, finish reason/status, provider-stream duration/TTFT, numeric input/output/cached/cache-write usage. Missing usage is unknown/null, not fabricated zero.
+
+No prompt, answer, filename, private URL, base64/pixels, full EXIF, key, header dump, full provider body, account ID or thread ID is logged. Error/cancel/incomplete streams remain observable without raw exception text. No extra provider attempt is added. The metadata parser validates existing in-memory data only; it never changes/resizes/compresses the image. It is optional and no extra stored image is created.
+
+## Validation and known gaps
+
+Local scoped gate:21 targets,252 tests +397 subtests passed. The final experiment suite was also rerun after enabling production CSRF validation explicitly in the new auth test:13 tests +21 subtests passed. Fixtures are synthetic, native provider calls mocked and general network transport forbidden by the existing harness. Tests cover exact A/B payload difference, scope/auth/ownership/first-turn boundaries, malformed configuration, bytes/dimensions, logging allowlists, no raw error echo, no retries and empty-thread setup. Existing image/moderation/usage/recovery/quality suites remain included in the managed gate. No UI redesign.
+
+Zero paid calls or image uploads by this executor. No actual high-detail semantic result is claimed. Historical direct read-only database evidence established returned Luna and identical original/QA stored bytes; final payload detail/effort/image count were not historically persisted. This feature supplies future request-boundary evidence, not retrospective proof.
+
+## Official API references
+
+- [GPT6Luna](https://developers.openai.com/api/docs/models/gpt-6-luna): image input, supported reasoning efforts, current model rates.
+- [Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create): image_url.detail schema.
+- [Vision guide](https://developers.openai.com/api/docs/guides/images-vision?api-mode=chat): omission defaults to auto. Current sizing table has no explicit GPT6Luna row; do not assume auto=low or borrow another model's patch multiplier. High does not necessarily retain more resolution than auto.
+- [Pricing](https://developers.openai.com/api/docs/pricing): record actual usage/cache writes and processing tier; image byte size is not a billable-token estimate. The Sep25 encoding fix in the [changelog](https://developers.openai.com/api/docs/changelog) predates the reported failure and is not proof of its cause.

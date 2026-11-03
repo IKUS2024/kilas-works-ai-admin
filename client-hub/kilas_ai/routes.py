@@ -487,6 +487,9 @@ def send(thread_id, *, script_only=False):
     store.save_attachments(user_id, thread_id, message_id, prepared)
     context = store.context(user_id, thread_id,selected_model=selected_model,current_attachments=prepared)
     if selected_model:chat_models.bind(context,selected_model)
+    if tool == 'CHAT' and not script_only:
+        from . import vision_experiment
+        vision_experiment.bind(context, user_id, thread_id)
 
     def generate():
         pieces = []
