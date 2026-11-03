@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
+from contextlib import ExitStack
 import io
 import json
 import os
@@ -348,6 +350,26 @@ class ExperimentTests(unittest.TestCase):
             columns = [row[1] for row in conn.execute('PRAGMA table_info(kilas_ai_vision_eval_claims)')]
         self.assertEqual(columns,['user_id','batch','sequence','thread_id','message_id','config_fingerprint'])
         self.assertEqual([dict(row) for row in store.messages(self.owner,self.thread)],before)
+
+    def test_normal_blueprint_startup_applies_narrow_schema_without_broad_migrations(self):
+        from kilas_ai.routes import ai_bp
+        prepare_chat_models = next(callback for callback in ai_bp.deferred_functions if callback.__name__=='prepare_chat_models')
+        with ExitStack() as stack:
+            stack.enter_context(patch('db.init_schema',side_effect=AssertionError('No broad boot migration')))
+            release=stack.enter_context(patch('kilas_ai.chat_models_schema.apply_release'))
+            for target in ('kilas_ai.workspace_execution_proof.maybe_start','kilas_ai.workspace_execution_access.log_readiness',
+                           'kilas_ai.workspace_large_proof.maybe_start','kilas_ai.workspace_document_runtime.maybe_start'):
+                stack.enter_context(patch(target))
+            with patch.dict(os.environ,{'KILAS_AI_ENABLED':'true',experiment.FLAG:'','RUN_MIGRATIONS_ON_BOOT':'false'}):
+                prepare_chat_models(SimpleNamespace(first_registration=True,app=SimpleNamespace(testing=True)))
+            names=[args.args[0] if args.args else '0102_kilas_chat_models' for args in release.call_args_list]
+            self.assertEqual(names,['0102_kilas_chat_models','0103_kilas_image_models','0105_kilas_workspace_streams',
+                '0106_kilas_workspace_execution','0111_kilas_chat_recovery','0112_kilas_chat_hardening',
+                '0113_kilas_chat_sponsorship','0114_kilas_vision_eval'])
+            release.reset_mock()
+            with patch.dict(os.environ,{'KILAS_AI_ENABLED':'false'}):
+                prepare_chat_models(SimpleNamespace(first_registration=True,app=SimpleNamespace(testing=True)))
+            release.assert_not_called()
 
 
 if __name__ == '__main__':
