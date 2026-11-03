@@ -465,6 +465,7 @@ def create_app():
                                     "core_operations.", "core_finance_bridge.", "owner_web."))
             or endpoint in {
                 "products.product_start",
+                "products.catalog",  # Product discovery remains reachable after Finance selection.
                 "products.services",
                 "products.finance_entry",
                 "products.finance_setup",

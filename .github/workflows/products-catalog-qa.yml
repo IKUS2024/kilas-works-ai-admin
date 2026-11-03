@@ -1,7 +1,7 @@
 name: Products Catalog QA
 on:
   pull_request:
-    paths: ['client-hub/routes_products.py', 'client-hub/templates/products_catalog.html', 'client-hub/templates/kilas_ai/_chat_sidebar.html', 'client-hub/static/products_catalog.css', 'client-hub/static/kilas_chat_sidebar.js', 'client-hub/locales/ui.json', 'client-hub/tests/test_products_catalog*', 'client-hub/tests/test_kilas_sidebar_products.py', '.github/workflows/products-catalog-qa.yml']
+    paths: ['client-hub/app.py', 'client-hub/tests/products_finance_return_browser_qa.py', 'client-hub/routes_products.py', 'client-hub/templates/products_catalog.html', 'client-hub/templates/kilas_ai/_chat_sidebar.html', 'client-hub/static/products_catalog.css', 'client-hub/static/kilas_chat_sidebar.js', 'client-hub/locales/ui.json', 'client-hub/tests/test_products_catalog*', 'client-hub/tests/test_kilas_sidebar_products.py', '.github/workflows/products-catalog-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,6 +17,11 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python -B -m pytest -q client-hub/tests/test_products_catalog.py client-hub/tests/test_kilas_sidebar_products.py
       - run: python -B client-hub/tests/test_products_catalog_browser.py
+      - run: python -B client-hub/tests/products_finance_return_browser_qa.py
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: products-catalog-preview, path: /tmp/products-catalog-qa}
+        with:
+          name: products-catalog-preview
+          path: |
+            /tmp/products-catalog-qa
+            /tmp/products-finance-return-qa

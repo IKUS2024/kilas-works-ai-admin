@@ -77,6 +77,32 @@ class SidebarProductsTests(unittest.TestCase):
         self.assertIn(client.get('/business/'+str(other)+'/finance').status_code,(403,404))
         self.assertEqual(before,self.snapshot(own,other))
 
+    def test_existing_finance_session_can_return_to_catalog_without_relaxing_guards(self):
+        own,other=self.finance_fixture();client=self.client();before=self.snapshot(own,other)
+        response=client.post('/products/start',data={'product':'finance','csrf_token':'work-csrf'})
+        self.assertEqual(response.status_code,303)
+        self.assertEqual(client.get(response.location,follow_redirects=True).status_code,200)
+        with client.session_transaction() as state:
+            self.assertEqual(state['active_product'],'finance')
+            self.assertEqual(state['role'],'CLIENT_OWNER')
+        for attempt in range(2):
+            self.assertEqual(client.get('/products/finance').status_code,200)
+            for return_to in ('/products/start','/products/finance'):
+                page=client.get('/products/catalog',query_string={'return_to':return_to})
+                self.assertEqual(page.status_code,200)
+                self.assertIn('class="catalog-back" href="/products/start"',page.text)
+                self.assertIn('href="/creative-services/"',page.text)
+                self.assertIn('href="https://shotcut.org/download/" target="_blank" rel="noopener noreferrer"',page.text)
+            self.assertEqual(client.get('/creative-services/').status_code,200)
+            self.assertEqual(client.get('/products/start').status_code,200)
+        with client.session_transaction() as state:self.assertEqual(state['active_product'],'finance')
+        self.assertEqual(client.post('/products/start',data={'product':'finance'}).status_code,400)
+        self.assertIn(client.get('/business/'+str(other)+'/finance').status_code,(403,404))
+        # Unrelated endpoints remain subject to the selected-Finance gate.
+        blocked=client.get('/products/assist')
+        self.assertEqual((blocked.status_code,blocked.location),(303,'/products/finance'))
+        self.assertEqual(before,self.snapshot(own,other))
+
     def test_sidebar_get_does_not_create_or_change_finance_data_and_anonymous_stays_gated(self):
         own,other=self.finance_fixture();client=self.client();before=self.snapshot(own,other)
         for path in ('/products/start','/products/catalog','/kilas-ai/library','/kilas-ai/agent?conversation='+str(self.conversation)):
