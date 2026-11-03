@@ -37,6 +37,7 @@ def main():
        assert not result['rootScroll'],(name,result)
        assert page.locator('#ai-input,#agent-message').evaluate('''e=>{let s=getComputedStyle(e);return s.whiteSpace==='pre'&&s.textOverflow==='ellipsis'&&parseFloat(s.lineHeight)+parseFloat(s.paddingTop)+parseFloat(s.paddingBottom)<=e.clientHeight+1}'''),('placeholder must not wrap into a clipped second line',name,result)
        assert page.locator('.home-chat-options').count()==0
+       if result['scale']>1:assert page.locator('.home-task-choices').evaluate("e=>getComputedStyle(e).display==='flex'&&[...e.children].every(c=>c.getBoundingClientRect().width>=99)"),(name,route,page.locator('.home-task-choices').evaluate("e=>({display:getComputedStyle(e).display,widths:[...e.children].map(c=>c.getBoundingClientRect().width),classes:document.body.className,root:document.querySelector('.kilas-home-workspace').className})"))
        if page.locator('.agent-message').count():
         assert page.locator('#agent-conversation').evaluate('(e)=>e.scrollHeight>e.clientHeight'),'history must retain its own scroll'
       if not page.locator('body').evaluate('(e)=>e.classList.contains("home-chat-compact")'):

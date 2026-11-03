@@ -18,7 +18,7 @@ def main():
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
     try:
         with patch.object(chat_models,'check',side_effect=lambda m:{**chat_models.spec(m),'available':True,'images':True,'status':'verified'}),patch.object(image_models,'check',side_effect=lambda m:{**image_models.spec(m),'available':True,'status':'verified'}),sync_playwright() as p:
-            browser=p.chromium.launch(headless=True)
+            browser=p.chromium.launch(headless=True,executable_path=os.environ.get("KILAS_CHROMIUM"))
             for width,height in ((1440,1000),(820,1000),(412,915),(390,844),(320,700)):
                 cookie=case.client().get_cookie('session');context=browser.new_context(viewport={'width':width,'height':height},has_touch=width<761)
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'en','url':origin}])
@@ -87,7 +87,8 @@ def main():
                     for _ in range(2):
                         keyboard_page.locator('#ai-input').focus();keyboard_page.evaluate('qaViewport(380,48)')
                         expect(keyboard_page.locator('body')).to_have_class(__import__('re').compile('home-keyboard-open'))
-                        expect(keyboard_page.locator('.home-chat-options')).to_be_visible()
+                        expect(keyboard_page.locator('.home-chat-options')).to_have_count(0)
+                        expect(keyboard_page.locator('.ai-composer-actions [data-ai-call-launch]')).to_be_visible()
                         bounds=keyboard_page.evaluate("()=>{const e=document.querySelector('.ai-empty'),r=document.querySelector('#ai-composer').getBoundingClientRect();e.scrollTop=e.scrollHeight;return {bottom:r.bottom,top:r.top,scrollable:e.scrollHeight>e.clientHeight,scrolled:e.scrollTop>0}}")
                         assert bounds['bottom']<=428 and bounds['top']>=48 ,(width,bounds)
                         expect(keyboard_page.locator('#ai-input')).to_have_value('Synthetic retained keyboard draft')
