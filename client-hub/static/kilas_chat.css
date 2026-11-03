@@ -140,7 +140,7 @@ body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-ch
 body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer) :is(.ai-attach,.work-attachment-bar){grid-column:1!important;grid-row:2!important;min-height:44px;padding:0}
 body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer) .ai-composer-actions{display:flex!important;grid-column:2!important;grid-row:2!important;justify-content:flex-start;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:4px;min-width:0}
 body.home-chat-compact .kilas-home-workspace.ai-shell :is(.ai-send,.ai-stop){min-width:44px;min-height:44px}
-@container(min-width:260px){
+@container(min-width:180px){
  body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer){grid-template-columns:44px minmax(60px,1fr) 44px}
  body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer)>textarea{grid-column:2!important;grid-row:1!important}
  body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer) :is(.ai-attach,.work-attachment-bar){grid-column:1!important;grid-row:1!important}
