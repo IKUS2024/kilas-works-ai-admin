@@ -32,8 +32,23 @@ def main():
                     page.goto(origin+'/products/start',wait_until='networkidle')
                     assert page.locator('[data-chat-model-selector],#chat-model-dialog,#image-model-dialog,#copilot').count()==0
                     assert page.get_by_text('Kilas AI',exact=True).count()>0
+                    assert page.locator('.home-chat-options').count()==0
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                     page.screenshot(path=str(out/f'home-{locale}-{width}.png'),animations='disabled')
+                    # A keyboard is a smaller viewport, not another options menu.
+                    draft='Retained keyboard draft'
+                    page.locator('#ai-input').fill(draft)
+                    page.locator('#ai-input').focus()
+                    page.evaluate('''()=>{Object.defineProperty(visualViewport,'height',{configurable:true,value:380});visualViewport.dispatchEvent(new Event('resize'))}''')
+                    expect(page.locator('.home-chat-options')).to_have_count(0)
+                    expect(page.locator('.ai-composer-actions [data-ai-call-launch]')).to_be_visible()
+                    expect(page.locator('.home-tool-selector')).to_be_visible()
+                    assert page.locator('#ai-composer').evaluate('(e)=>e.getBoundingClientRect().bottom<=visualViewport.height+1')
+                    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+                    page.screenshot(path=str(out/f'keyboard-{locale}-{width}.png'),animations='disabled')
+                    page.evaluate("delete visualViewport.height;visualViewport.dispatchEvent(new Event('resize'))")
+                    expect(page.locator('#ai-input')).to_have_value(draft)
+                    expect(page.locator('.home-chat-options')).to_have_count(0)
                     thread=store.create_thread(case.owner)
                     path=origin+f'/kilas-ai/threads/{thread}'
                     page.goto(path,wait_until='networkidle')
@@ -52,7 +67,7 @@ def main():
                     page.goto(origin+'/products/start',wait_until='networkidle');page.go_back(wait_until='networkidle')
                     expect(page.locator('#ai-input')).to_have_value('Saved draft only')
                     assert not errors,errors
-                    report.append({'width':width,'locale':locale,'picker_absent':True,'mocked_luna_stream':True,'file_upload':True,'history':True,'draft':True,'overflow':False,'js_errors':0})
+                    report.append({'width':width,'locale':locale,'picker_absent':True,'options_absent':True,'keyboard_inline_controls':True,'mocked_luna_stream':True,'file_upload':True,'history':True,'draft':True,'overflow':False,'js_errors':0})
                     ctx.close()
             browser.close()
         assert set(calls)=={'gpt-6-luna'},calls
