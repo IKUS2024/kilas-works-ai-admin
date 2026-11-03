@@ -66,3 +66,23 @@ def visual_followup(text, previous=(), *, prior_visual=False):
     if re.search(r'(?i)\b(?:gambar|foto|image|photo|picture|pdf|scan|halaman|page)\b',text):return True
     return (len(text)<180 and bool(re.search(r'(?i)\b(?:angka|kanan|kiri|warna|tulisan|yang|yg|ini|itu|lanjut|number|right|left|that|this)\b',text))
             and (prior_visual or any(re.search(r'(?i)\b(?:gambar|foto|image|photo|picture|pdf|scan|halaman|page)\b',value) for value in previous)))
+
+
+def visual_attachment(item):
+    return item.get('mime_type', '').startswith('image/') or (
+        item.get('mime_type') == 'application/pdf' and any(
+            marker in (item.get('extracted_text') or '') for marker in ('PDF scan:', 'PDF visual pages:')))
+
+
+def active_visual_turn(text, previous_users, attachment_metadata):
+    """Follow a bounded uninterrupted visual chain, never arbitrary older history."""
+    if not visual_followup(text, prior_visual=True):
+        return None
+    for row in reversed(previous_users[-8:]):
+        items = attachment_metadata.get(row['id'], [])
+        if any(visual_attachment(item) for item in items):
+            return row['id']
+        # A fresh nonvisual upload or unrelated user turn changes the active topic.
+        if items or not visual_followup(row.get('content') or '', prior_visual=True):
+            break
+    return None

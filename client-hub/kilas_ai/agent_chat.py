@@ -48,18 +48,19 @@ def context(user_id, conversation_id, pending=None):
                 prepared=[{'filename':scan['filename'],'mime_type':'application/pdf','vision_pages':render(bytes(scan['content']))}]
             except Exception:
                 context[-1]['content']+='\nScan PDF sebelumnya tidak dapat dirender ulang sekarang; jangan menebak isinya. Gunakan hanya fakta terverifikasi dalam riwayat.'
-    if not prepared and context and (re.search(r'(?i)\b(?:gambar|foto|image|photo|picture)\b',latest) or (referential and re.search(r'(?i)\b(?:gambar|foto|image|photo|picture)\b',prior))):
+    if not prepared and context and re.search(r'(?i)\b(?:gambar|foto|image|photo|picture)\b',latest):
         from .capabilities import current
         if current()['uploaded_image_understanding']:
             prepared=agent_attachments.latest_images(user_id,conversation_id)
     elif not prepared and context and referential:
-        # An image turn may be captioned only "ini apa?". Use actual attachment
-        # provenance on the nearest prior user turn, never a stale textual guess.
-        previous_user=next((row for row in reversed(rows[:-1]) if row['role']=='user' and row.get('id')),None)
-        if previous_user:
+        previous_users=[row for row in rows[:-1] if row['role']=='user' and row.get('id')][-8:]
+        if previous_users:
             from .capabilities import current
             if current()['uploaded_image_understanding']:
-                prepared=agent_attachments.latest_images(user_id,conversation_id,message_id=previous_user['id'])
+                metadata=agent_attachments.listing(user_id,conversation_id,[row['id'] for row in previous_users])
+                source_id=conversation_context.active_visual_turn(latest,previous_users,metadata)
+                if source_id:
+                    prepared=agent_attachments.latest_images(user_id,conversation_id,message_id=source_id)
     if prepared and context:
         from .attachments import prompt_content
         context[-1]['content']=prompt_content(context[-1]['content'],prepared)

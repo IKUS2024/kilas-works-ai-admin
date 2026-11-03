@@ -111,14 +111,15 @@ def context(user_id, thread_id, *, selected_model=None, current_attachments=None
         if row['id']==latest_user_id:
             if current_attachments is not None:attachments=list(current_attachments)
             if not any(item['mime_type'].startswith('image/') or item.get('vision_pages') or item['mime_type']=='application/pdf' for item in attachments):
-                prior_rows=[r for r in rows if r['role']=='user' and r['id']<row['id']][-4:]
-                prior=[r['content'] for r in prior_rows]
-                followup=conversation_context.visual_followup(content,prior)
-                if not followup and prior_rows and conversation_context.visual_followup(content,prior_visual=True):
-                    metadata=attachment_context(user_id,thread_id,prior_rows[-1]['id'])
-                    followup=any(item['mime_type'].startswith('image/') for item in metadata)
-                if followup:
+                if conversation_context.visual_followup(content):
                     attachments+=latest_visual_attachments(user_id,thread_id,row['id'])
+                elif conversation_context.visual_followup(content,prior_visual=True):
+                    prior_rows=[r for r in rows if r['role']=='user' and r['id']<row['id']][-8:]
+                    metadata=attachment_metadata(user_id,thread_id,[r['id'] for r in prior_rows])
+                    source_id=conversation_context.active_visual_turn(content,prior_rows,metadata)
+                    if source_id:
+                        attachments+=[item for item in attachment_context(user_id,thread_id,source_id,True)
+                                      if conversation_context.visual_attachment(item)]
             attachments=restore_visuals(attachments)
         prompt = prompt_content(content, attachments if row["id"] == latest_user_id else
                                 [item for item in attachments if item["extracted_text"]])
@@ -164,6 +165,19 @@ def attachment_context(user_id, thread_id, message_id, include_content=False):
     return db.query_all("SELECT filename,mime_type," + content_column + ",extracted_text FROM kilas_ai_attachments "
                         "WHERE user_id=? AND thread_id=? AND message_id=? ORDER BY id LIMIT 5",
                         (user_id, thread_id, message_id))
+
+
+def attachment_metadata(user_id, thread_id, message_ids):
+    if not message_ids:
+        return {}
+    marks=','.join('?' for _ in message_ids)
+    rows=db.query_all('SELECT message_id,mime_type,extracted_text FROM kilas_ai_attachments '
+                      f'WHERE user_id=? AND thread_id=? AND message_id IN ({marks}) ORDER BY id LIMIT 40',
+                      (user_id,thread_id,*message_ids))
+    result={}
+    for row in rows:
+        result.setdefault(row['message_id'],[]).append(dict(row))
+    return result
 
 
 def latest_visual_attachments(user_id,thread_id,before):

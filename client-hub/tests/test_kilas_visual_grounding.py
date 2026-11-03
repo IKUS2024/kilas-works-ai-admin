@@ -31,7 +31,7 @@ class VisualGroundingTests(unittest.TestCase):
     submit = fixture.ManagedOfferingTests.submit
 
     def agent_context(self, text, prepared=None):
-        agent_store.append(self.owner, 'user', text, self.conversation)
+        agent_store.append(self.owner, 'user', text, self.conversation, attachments=prepared)
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'synthetic-only'}), self.client().application.test_request_context():
             from flask import request
             request.chat_selected_model = chat_offering.CHAT_MODEL
@@ -141,6 +141,47 @@ class VisualGroundingTests(unittest.TestCase):
         store.append_user_once(self.owner, self.thread, 'The budget is 500 units.', 'SMART', 'visual_intervening_turn')
         store.append_user_once(self.owner, self.thread, 'What about that?', 'SMART', 'visual_last_turn')
         self.assertEqual(image_bytes(store.context(self.owner, self.thread, selected_model=chat_offering.CHAT_MODEL)[-1]['content']), [])
+
+    def test_agent_continuous_referential_chain_keeps_active_pixels_and_stops_at_text(self):
+        old, fresh = image('blue'), image('green')
+        agent_store.append(self.owner, 'user', 'What is this?', self.conversation, attachments=[old])
+        for text in ('Which part is on the right?', 'What color is that?', 'And the left side?'):
+            context = self.agent_context(text)
+            self.assertTrue(image_bytes(context[-1]['content']) == [old['content']], text)
+        self.assertEqual(image_bytes(self.agent_context('Identify this object.', [fresh])[-1]['content']), [fresh['content']])
+        self.assertEqual(image_bytes(self.agent_context('What color is that?')[-1]['content']), [fresh['content']])
+        self.assertEqual(image_bytes(self.agent_context('And the left side?')[-1]['content']), [fresh['content']])
+        agent_store.append(self.owner, 'user', 'The budget is 500 units.', self.conversation)
+        self.assertEqual(image_bytes(self.agent_context('What color is that?')[-1]['content']), [])
+
+    def test_thread_continuous_referential_chain_keeps_active_pixels_and_stops_at_text(self):
+        sample = image('blue')
+        ident, _ = store.append_user_once(self.owner, self.thread, 'What is this?', 'SMART', 'chain_source')
+        store.save_attachments(self.owner, self.thread, ident, [sample])
+        for i, text in enumerate(('Which part is on the right?', 'What color is that?', 'And the left side?')):
+            store.append_user_once(self.owner, self.thread, text, 'SMART', 'chain_followup_'+str(i))
+            context = store.context(self.owner, self.thread, selected_model=chat_offering.CHAT_MODEL)
+            self.assertTrue(image_bytes(context[-1]['content']) == [sample['content']], text)
+        fresh = image('green')
+        ident, _ = store.append_user_once(self.owner, self.thread, 'What is this?', 'SMART', 'chain_new_upload')
+        store.save_attachments(self.owner, self.thread, ident, [fresh])
+        store.append_user_once(self.owner, self.thread, 'What color is that?', 'SMART', 'chain_after_upload')
+        self.assertEqual(image_bytes(store.context(self.owner, self.thread, selected_model=chat_offering.CHAT_MODEL)[-1]['content']), [fresh['content']])
+        store.append_user_once(self.owner, self.thread, 'The budget is 500 units.', 'SMART', 'chain_budget')
+        store.append_user_once(self.owner, self.thread, 'What color is that?', 'SMART', 'chain_after_budget')
+        self.assertEqual(image_bytes(store.context(self.owner, self.thread, selected_model=chat_offering.CHAT_MODEL)[-1]['content']), [])
+
+    def test_old_visual_caption_does_not_override_unrelated_text_or_nonvisual_upload(self):
+        sample = image('blue')
+        agent_store.append(self.owner, 'user', 'Describe this image.', self.conversation, attachments=[sample])
+        agent_store.append(self.owner, 'user', 'The budget is 500 units.', self.conversation)
+        self.assertEqual(image_bytes(self.agent_context('What color is that?')[-1]['content']), [])
+        rows = [{'id': 1, 'content': 'What is this?'}, {'id': 2, 'content': 'Which part is on the right?'},
+                {'id': 3, 'content': 'What is this?'}]
+        metadata = {1: [{'mime_type': 'image/png'}], 3: [{'mime_type': 'text/plain'}]}
+        self.assertIsNone(conversation_context.active_visual_turn('What color is that?', rows, metadata))
+        self.assertIsNone(conversation_context.active_visual_turn('What color is that?',
+            [{'id': i, 'content': 'Which part is on the right?'} for i in range(2, 11)], {1: [{'mime_type': 'image/png'}]}))
 
 
 if __name__ == '__main__':
