@@ -641,6 +641,9 @@ def send(thread_id, *, script_only=False):
                     if getattr(error,'code',None)=='provider_quota_exhausted':
                         from .provider_failures import QUOTA_MESSAGE
                         message=QUOTA_MESSAGE
+                    elif tool in ('IMAGE_GENERATE','IMAGE_EDIT') and error.code=='image_provider_content_rejected':
+                        from .provider_failures import IMAGE_REJECTION_MESSAGE
+                        message=IMAGE_REJECTION_MESSAGE
                     else:message="Gambar belum dapat dibuat sekarang. Coba lagi sebentar." if tool in ("IMAGE_GENERATE", "IMAGE_EDIT") else search_failure_message(error)
                     if tool=='WEB':
                         store.append_assistant(user_id,thread_id,message,mode,provider,model,key,

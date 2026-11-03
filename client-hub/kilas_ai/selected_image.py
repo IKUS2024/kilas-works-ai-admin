@@ -34,6 +34,12 @@ def generate(model,prompt,source=None,request_timeout=120):
     record(model,None,response)
     used.update(provider_rejected=True,billing_unknown=False,input_tokens=0,output_tokens=0)
     raise tools.ToolUnavailable(QUOTA_MESSAGE,model=model,usage=used,code='provider_quota_exhausted')
+   from .provider_failures import image_content_rejected,IMAGE_REJECTION_MESSAGE,IMAGE_REJECTION_CODE
+   if image_content_rejected(response):
+    from .image_diagnostics import record
+    record(model,None,response)
+    # Preserve unknown provider cost; a content rejection is not evidence of zero billing.
+    raise tools.ToolUnavailable(IMAGE_REJECTION_MESSAGE,model=model,usage=used,code=IMAGE_REJECTION_CODE)
    response.raise_for_status();stage='response';data=response.json();raw_usage=data.get('usage') or {}
    used.update(input_tokens=raw_usage.get('input_tokens',0),output_tokens=raw_usage.get('output_tokens',0),image_token_usage=raw_usage)
    encoded=data['data'][0]['b64_json']
