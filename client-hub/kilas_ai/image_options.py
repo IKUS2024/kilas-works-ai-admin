@@ -20,7 +20,14 @@ def resolve(model, prompt):
     if resolution and resolution not in ('1','2','4'):unavailable('Resolusi ini tidak didukung. Gunakan 1K, 2K atau 4K sesuai model pilihan.')
     quality_match=re.search(r'(?i)\b(?:quality|kualitas|calidad)\s*[:=]?\s*(low|medium|high|xhigh|max|auto|tinggi|sedang|rendah)\b',prompt)
     quality={'tinggi':'high','sedang':'medium','rendah':'low'}.get(quality_match[1].lower(),quality_match[1].lower()) if quality_match else 'high'
-    transparent=bool(re.search(r'(?i)\b(?:transparent|transparan|transparente)\b|透明',prompt))
+    # Apply the last explicit transparency preference, including negations.
+    # Matching 'transparent' alone used to invert 'jangan transparan'.
+    transparency = list(re.finditer(
+        r"(?i)(?P<negative>\b(?:jangan|tidak|bukan|tanpa|no|not|non|without|do not|don't)"
+        r'[ -]+(?:(?:buat|dibuat|make|it|a|the|background|latar|belakang)\s+)*'
+        r'(?:transparent|transparan|transparente)\b|\b(?:opaque|solid)\s+background\b)'
+        r'|\b(?:transparent|transparan|transparente)\b|透明', prompt))
+    transparent = bool(transparency and not transparency[-1].group('negative'))
     if transparent and not image_models.transparency(model):unavailable('Model pilihan belum mendukung transparansi. Pilih model gambar yang mendukung PNG transparan.')
     if provider=='google':
         tier=(resolution+'K') if resolution else ('2K' if model=='gemini-3-pro-image' else '1K')

@@ -42,6 +42,12 @@ print(literal)
 |---|---|
 | $|x|$ | `a|b` |
 
+Perbandingan hasil:
+Metode | Nilai
+:--- | ---:
+Eksak | `1/60`
+Numerik | 0.016667
+
 A price is $10 or $20. <img src=x onerror="window.qaInjected=1">
 '''
 
@@ -99,7 +105,9 @@ def main():
      expect(body.locator('.ai-list-block > ul > li > ol > li')).to_have_count(2)
      expect(body.locator('ol > li > ul > li')).to_have_text('Pertahankan anggaran.')
      expect(body.locator('h5')).to_have_text('Langkah berikutnya')
-     assert body.locator('.ai-table-scroll[tabindex="0"] thead th[scope="col"]').count()==2
+     assert body.locator('.ai-table-scroll[tabindex="0"] thead th[scope="col"]').count()==4
+     expect(body.locator('table').last.locator('tbody tr')).to_have_count(2)
+     expect(body.locator('table').last.locator('th').last).to_have_css('text-align','right')
      styles=body.evaluate('e=>({font:getComputedStyle(e).fontFamily,em:getComputedStyle(e.querySelector("em")).fontStyle,line:parseFloat(getComputedStyle(e.querySelector("p")).lineHeight),size:parseFloat(getComputedStyle(e).fontSize)})')
      assert 'sans' in styles['font'] and styles['em']=='normal' and styles['line']>=styles['size']*1.6,styles
      assert page.evaluate('window.qaInjected===undefined') and body.locator('img,script,iframe').count()==0
