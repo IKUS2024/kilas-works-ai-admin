@@ -1,0 +1,11 @@
+# Image generation incident: safe diagnostics
+
+Production request started 2026-11-03 12:50:29 UTC / 19:50:29 WIB and failed on managed Sunburst. The generic response does not establish exhausted API balance. The ledger contains no returned tokens and preserves an estimated reservation when actual cost is unknown; that estimate is neither a confirmed charge nor an API balance. Customer credit debit was exempt. The exact provider response was not retained.
+
+The native image adapter now records `KILAS_IMAGE_FAILURE` for failed provider requests or returned-image validation, including recognized quota rejections. Fields are limited to the configured catalog model, stage, HTTP status, fixed category, allowlisted parameter name, and validated opaque `req_` request identifier. It never logs a prompt, response body, provider error message, image, user identity, URL or credential. Unknown codes stay generic. It does not change model, image quality, deadline, retries, admission, billing, ledger or user data.
+
+Synthetic tests cover invalid parameters, quota, safety, rate limits, timeouts, corrupt image data, malicious diagnostic fields and secret/prompt redaction; one request only. Existing managed and image-follow-up regressions must remain green. No inference is made that an unobserved production failure has been repaired merely by adding telemetry.
+
+Next verification: after deployment, submit one benign generation through the existing authenticated Chat session, for example a blue ceramic cup on a plain white background. Do not create a key, session bypass or retry loop. If successful, verify original image bytes, same-site viewer and download. If failed, inspect the safe event and provider request dashboard using existing authorized account access. Report the actual HTTP/category/request ID privately, correlate UTC/WIB and stop on quota/access errors. This executor currently has no provider credential or authenticated production browser session, so actual provider acceptance remains NOT RUN until that access is available. No paid call was made for this patch.
+
+Provider contract reviewed: https://developers.openai.com/api/docs/guides/image-generation . Existing native Sunburst endpoint and supported high-quality output were retained; no speculative provider swap.
