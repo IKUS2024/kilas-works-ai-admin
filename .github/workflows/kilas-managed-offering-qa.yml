@@ -20,7 +20,7 @@ jobs:
       - name: Isolated accounts, ledger and native adapters; no paid calls
         env: {PYTHONDONTWRITEBYTECODE: '1', PYTHONPATH: 'client-hub:client-hub/tests', CLIENT_HUB_DB_PATH: /tmp/managed-bootstrap.db}
         run: |
-          for suite in test_kilas_vision_experiment.py test_kilas_visual_grounding.py test_kilas_image_moderation.py test_kilas_image_diagnostics.py test_kilas_image_viewer.py test_kilas_chat_math_image_quality.py test_kilas_chat_offering.py test_kilas_managed_offering.py test_kilas_chat_models.py test_kilas_chat_restoration.py test_kilas_ai_unified.py test_kilas_chat_recovery.py test_kilas_chat_hardening.py test_kilas_ai_usage.py test_kilas_work_documents.py test_kilas_selected_artifacts.py test_kilas_hd_documents.py test_kilas_image_followup.py test_ui_i18n.py; do
+          for suite in test_kilas_vision_log_sink.py test_kilas_vision_experiment.py test_kilas_visual_grounding.py test_kilas_image_moderation.py test_kilas_image_diagnostics.py test_kilas_image_viewer.py test_kilas_chat_math_image_quality.py test_kilas_chat_offering.py test_kilas_managed_offering.py test_kilas_chat_models.py test_kilas_chat_restoration.py test_kilas_ai_unified.py test_kilas_chat_recovery.py test_kilas_chat_hardening.py test_kilas_ai_usage.py test_kilas_work_documents.py test_kilas_selected_artifacts.py test_kilas_hd_documents.py test_kilas_image_followup.py test_ui_i18n.py; do
             python -m pytest -q client-hub/tests/$suite || exit 1
           done
   browser:

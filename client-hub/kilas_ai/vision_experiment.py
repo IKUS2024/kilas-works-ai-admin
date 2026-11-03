@@ -135,7 +135,7 @@ def bind(context, user_id, thread_id):
 def _emit(record):
     # Never accept arbitrary provider/request dictionaries here.
     try:
-        _log.info('kilas_vision_eval %s', json.dumps(record, sort_keys=True, separators=(',', ':')))
+        print('kilas_vision_eval ' + json.dumps(record, sort_keys=True, separators=(',', ':')), flush=True)
     except Exception:
         pass  # Optional diagnostics must not interrupt Chat or its metering.
 

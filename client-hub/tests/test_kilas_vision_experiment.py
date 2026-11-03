@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
-from contextlib import ExitStack
+from contextlib import ExitStack, redirect_stdout
 import io
 import json
 import os
@@ -175,14 +175,15 @@ class ExperimentTests(unittest.TestCase):
 
     def test_logs_are_allowlisted_and_malicious_metadata_is_not_echoed(self):
         context = self.bind(self.context(), 'high')
-        with self.assertLogs('kilas_ai.vision_experiment', level='INFO') as captured:
+        captured = io.StringIO()
+        with redirect_stdout(captured):
             _, diag = experiment.begin(context, self.payload(context))
             response = MagicMock(status_code=200, headers={'x-request-id': 'req_synthetic_123'})
             diag.response(response);diag.model('gpt-6-luna-2026-10-01')
             diag.tokens({'prompt_tokens': 123, 'completion_tokens': 45,
                          'prompt_tokens_details': {'cached_tokens': 10, 'cache_write_tokens': 5}, 'private': 'FORBIDDEN'})
             diag.delta();diag.finish('stop');diag.end()
-        records = [json.loads(line.split('kilas_vision_eval ', 1)[1]) for line in captured.output]
+        records = [json.loads(line.split('kilas_vision_eval ', 1)[1]) for line in captured.getvalue().splitlines()]
         self.assertEqual(len(records), 2)
         self.assertEqual(set(records[0]), {'event','run','arm','sequence','requested_model','image_count','images','reasoning_effort','max_completion_tokens'})
         self.assertEqual(set(records[1]), {'event','run','arm','sequence','requested_model','returned_model','provider_request_id',
@@ -190,7 +191,7 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual(records[0]['run'], records[1]['run'])
         self.assertEqual(records[1]['usage'], {'input_tokens':123,'output_tokens':45,'cached_input_tokens':10,'cache_write_input_tokens':5})
         self.assertGreaterEqual(records[1]['duration_ms'], records[1]['ttft_ms'])
-        text = '\n'.join(captured.output)
+        text = captured.getvalue()
         for forbidden in ('Synthetic object question.', 'Synthetic system.', self.sample['filename'],
                           'data:image', 'base64', 'FORBIDDEN', 'Authorization', 'user_id', 'thread_id', 'http://'):
             self.assertNotIn(forbidden, text)
@@ -213,10 +214,11 @@ class ExperimentTests(unittest.TestCase):
         reply.__enter__.return_value = reply
         events = [{'model':experiment.MODEL,'choices':[{'delta':{'content':'Synthetic private answer.'},'finish_reason':'stop'}],
                    'usage':{'prompt_tokens':100,'completion_tokens':30}}]
+        logs = io.StringIO()
         with patch.dict(os.environ, {experiment.FLAG:json.dumps(self.config), 'OPENAI_API_KEY':'synthetic-only'}), \
              patch.object(selected_provider.requests, 'post', return_value=reply) as post, \
              patch.object(providers, '_events', side_effect=lambda r, **kwargs:iter(events)), \
-             self.assertLogs('kilas_ai.vision_experiment', level='INFO') as logs:
+             redirect_stdout(logs):
             result = self.submit(agent=False, text='Identify this object.', vision_detail='original',key='eval_http_retry_synthetic',
                 attachments=[(io.BytesIO(self.sample['content']),self.sample['filename'])])
         self.assertEqual(result.status_code, 200);self.assertEqual(post.call_count, 1)
@@ -227,8 +229,8 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual(payload['max_completion_tokens'], 8192)
         self.assertNotIn('detail', payload['messages'][-1]['content'][1]['image_url'])
         self.assertEqual(image_bytes(payload['messages'][-1]['content']), [self.sample['content']])
-        self.assertEqual(len(logs.output), 2)
-        self.assertNotIn('Synthetic private answer.', '\n'.join(logs.output))
+        self.assertEqual(len([line for line in logs.getvalue().splitlines() if line.startswith('kilas_vision_eval ')]), 2)
+        self.assertNotIn('Synthetic private answer.', logs.getvalue())
         with patch.dict(os.environ, {experiment.FLAG:json.dumps(self.config)}), \
              patch.object(selected_provider.requests,'post',side_effect=AssertionError('No duplicate inference')) as duplicate, \
              patch.object(experiment,'_emit') as emit:
@@ -263,13 +265,23 @@ class ExperimentTests(unittest.TestCase):
         response.__enter__.return_value = response
         import requests
         response.raise_for_status.side_effect = requests.HTTPError('FORBIDDEN PRIVATE BODY')
+        logs = io.StringIO()
         with patch.dict(os.environ, {'OPENAI_API_KEY':'synthetic-only'}), \
              patch.object(selected_provider.requests, 'post', return_value=response) as post, \
-             self.assertLogs('kilas_ai.vision_experiment', level='INFO') as logs:
+             redirect_stdout(logs):
             with self.assertRaises(providers.ProviderError):list(selected_provider.stream('SMART', context))
         self.assertEqual(post.call_count, 1)
-        self.assertNotIn('FORBIDDEN', '\n'.join(logs.output))
-        self.assertIn('"status":"incomplete"', '\n'.join(logs.output))
+        self.assertNotIn('FORBIDDEN', logs.getvalue())
+        self.assertIn('"status":"incomplete"', logs.getvalue())
+
+    def test_emitter_flushes_metadata_and_a_broken_sink_does_not_interrupt_chat(self):
+        record={'event':'request','image_count':1}
+        with patch('builtins.print') as emit:
+            experiment._emit(record)
+        self.assertEqual(emit.call_args.kwargs,{'flush':True})
+        self.assertEqual(json.loads(emit.call_args.args[0].split(' ',1)[1]),record)
+        with patch('builtins.print',side_effect=BrokenPipeError('synthetic broken output')):
+            experiment._emit(record)
 
     def test_existing_create_endpoint_returns_an_empty_owned_thread_without_inference(self):
         with patch.object(selected_provider.requests, 'post', side_effect=AssertionError('No inference for creation')) as post:
