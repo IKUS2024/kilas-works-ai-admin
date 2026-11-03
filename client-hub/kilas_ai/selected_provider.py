@@ -73,8 +73,11 @@ def stream(mode, messages, system=None, *, control=None):
         payload={'systemInstruction':{'parts':[{'text':system}]},'contents':contents,
                  'generationConfig':{'maxOutputTokens':profile['output_tokens'], 'thinkingConfig':{'thinkingLevel':profile['effort'].upper()}}}
     yield {'type':'provider','provider':provider,'model':model}
+    from . import vision_experiment
+    payload, diagnostic = vision_experiment.begin(messages, payload) if provider == 'openai' else (payload, None)
     try:
         with requests.post(url,headers=headers,json=payload,stream=True,timeout=control.timeout(5,30) if control else (10,90)) as response:
+            if diagnostic:diagnostic.response(response)
             from .provider_failures import quota_rejected
             if quota_rejected(response):raise providers.ProviderQuotaError('provider_quota_exhausted')
             response.raise_for_status()
@@ -83,11 +86,13 @@ def stream(mode, messages, system=None, *, control=None):
                 raw_model=event.get('model') if provider=='openai' else (event.get('message') or {}).get('model') if provider=='anthropic' else event.get('modelVersion')
                 if raw_model:
                     actual=_returned(model,raw_model)
+                    if diagnostic:diagnostic.model(actual)
                     if actual!=reported:
                         reported=actual
                         yield {'type':'model_metadata','requested_model':model,'returned_model':actual,'provider':provider}
                 if provider=='openai':
                     used=event.get('usage') or {}
+                    if diagnostic and used:diagnostic.tokens(used)
                     if used:yield {'type':'usage','input_tokens':used.get('prompt_tokens',0),'output_tokens':used.get('completion_tokens',0),
                         'cached_input_tokens':(used.get('prompt_tokens_details') or {}).get('cached_tokens',0),
                         'cache_write_input_tokens':(used.get('prompt_tokens_details') or {}).get('cache_write_tokens',0)}
@@ -116,14 +121,19 @@ def stream(mode, messages, system=None, *, control=None):
                     text=''.join(p.get('text','') for p in candidate.get('content',{}).get('parts',[]) if not p.get('thought'))
                     finish=candidate.get('finishReason')
                     if event.get('promptFeedback',{}).get('blockReason'):raise providers.ProviderError('selected_provider_filtered')
-                if isinstance(text,str) and text:yield {'type':'delta','text':text}
+                if isinstance(text,str) and text:
+                    if diagnostic:diagnostic.delta()
+                    yield {'type':'delta','text':text}
                 if finish:
                     reason={'end_turn':'stop','stop_sequence':'stop','STOP':'stop','MAX_TOKENS':'length',
                             'max_tokens':'length','SAFETY':'refusal','RECITATION':'refusal',
                             'PROHIBITED_CONTENT':'refusal'}.get(finish,finish)
                     if reason not in ('stop','length','refusal','content_filter'):
                         raise providers.ProviderError('selected_provider_incomplete')
+                    if diagnostic:diagnostic.finish(reason)
                     yield {'type':'finish','reason':reason}
             if reported is None:yield {'type':'model_metadata','requested_model':model,'returned_model':None,'provider':provider}
     except (requests.RequestException, ValueError, TypeError, KeyError, AttributeError):
         raise providers.ProviderError('selected_provider_unavailable') from None
+    finally:
+        if diagnostic:diagnostic.end()

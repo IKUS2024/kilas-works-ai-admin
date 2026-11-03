@@ -16,6 +16,8 @@ def prepare_chat_models(state):
         apply_release('0111_kilas_chat_recovery')
         apply_release('0112_kilas_chat_hardening')
         apply_release('0113_kilas_chat_sponsorship')
+        apply_release('0114_kilas_vision_eval')  # Narrow checksum-guarded startup, even while the QA batch is OFF.
+        print('KILAS_VISION_EVAL_SCHEMA_READY schema=0114',flush=True)
         print('KILAS_CHAT_RECOVERY_READY schema=0111 payload_bound=true stream_heartbeat=true bounded_context=true',flush=True)
         from .workspace_execution_proof import maybe_start
         maybe_start(state.app)  # No work without separate proof-specific approval.
