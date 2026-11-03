@@ -188,6 +188,8 @@ def _stream(mode, messages, system=None, control=None):
         return
     from .capabilities import instruction
     system=(SYSTEM if system is None else system)+'\n'+instruction()+'\n'+model_policy.intelligence.playbook(model_policy.chat_profile(messages))
+    from .visual_grounding import instruction as visual_instruction
+    system+='\n'+visual_instruction(messages)
     from .chat_video_planning import instruction as video_instruction
     system+='\n'+video_instruction(messages)
     attempted = False

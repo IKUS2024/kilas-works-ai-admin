@@ -45,6 +45,8 @@ def stream(mode, messages, system=None, *, control=None):
     system+='When explicitly asked which model/provider is being used or whether you are Gemini/Claude/GPT, name this selected underlying model and provider plainly. Kilas AI is the application name, not a replacement model identity. These current routing facts override model identities mentioned in earlier conversation and the general instruction to avoid internal terminology. Do not pretend to be the consumer ChatGPT, Claude or Gemini app. '
     system+='Use only actual tool evidence; never claim to execute code or actions in this answer. Requested documents, images, source projects and isolated Python runs use separate registered workspace tools and appear as real artifact cards. Whether execution is configured is stated in the runtime capabilities above; a capability is never evidence that any program ran. '
     system+=model_policy.intelligence.playbook(profile)
+    from .visual_grounding import instruction as visual_instruction
+    system+='\n'+visual_instruction(messages)
     headers={'Content-Type':'application/json'}
     if provider=='openai':
         url='https://api.openai.com/v1/chat/completions'

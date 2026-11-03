@@ -52,6 +52,14 @@ def context(user_id, conversation_id, pending=None):
         from .capabilities import current
         if current()['uploaded_image_understanding']:
             prepared=agent_attachments.latest_images(user_id,conversation_id)
+    elif not prepared and context and referential:
+        # An image turn may be captioned only "ini apa?". Use actual attachment
+        # provenance on the nearest prior user turn, never a stale textual guess.
+        previous_user=next((row for row in reversed(rows[:-1]) if row['role']=='user' and row.get('id')),None)
+        if previous_user:
+            from .capabilities import current
+            if current()['uploaded_image_understanding']:
+                prepared=agent_attachments.latest_images(user_id,conversation_id,message_id=previous_user['id'])
     if prepared and context:
         from .attachments import prompt_content
         context[-1]['content']=prompt_content(context[-1]['content'],prepared)
