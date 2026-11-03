@@ -6,31 +6,17 @@
   let tallestHeight=window.innerHeight;
   let layoutWidth=window.innerWidth;
   const timeline=root.querySelector('#ai-messages,#agent-conversation');
-  const options=root.querySelector('.home-chat-options'),optionsPanel=options?.querySelector('.home-chat-options-panel');
-  const secondary=[root.querySelector('.home-workspace-top'),root.querySelector('.home-tool-selector'),root.querySelector('[data-ai-call-launch]')].filter(Boolean).map(element=>{
-    const place=document.createComment('Chat control position');element.before(place);return {element,place};
-  });
   let compact=false,keyboardInline=false,keyboardOpen=false;
   const fitHierarchy=(width,height,scale)=>{
-    const next=Boolean(optionsPanel&&(keyboardOpen||(scale>1.01&&width<800)||height<500||width<280));
+    const next=Boolean(keyboardOpen||(scale>1.01&&width<800)||height<500||width<280);
     const inline=Boolean(next&&keyboardOpen&&scale<=1.01&&width>=280);
     if(next===compact&&inline===keyboardInline)return;compact=next;keyboardInline=inline;
-    document.body.classList.toggle('home-chat-compact',compact);options.hidden=!compact;options.open=false;
+    document.body.classList.toggle('home-chat-compact',compact);
     document.body.classList.toggle('home-keyboard-inline',keyboardInline);
-    // Keep task navigation and composer actions in place while typing. Only
-    // model controls use Options; magnified/narrow views retain the full menu.
-    for(const {element,place} of secondary){
-      const collapse=compact&&(!keyboardInline||element.matches('.home-workspace-top'));
-      if(collapse){if(element.parentElement!==optionsPanel)optionsPanel.append(element);}
-      else if(element.previousSibling!==place)place.after(element);
-    }
   };
-  options?.addEventListener('keydown',event=>{if(event.key==='Escape'){options.open=false;options.querySelector('summary').focus();}});
-  options?.addEventListener('click',event=>{if(event.target.closest('[data-ai-call-launch],[data-home-task]'))options.open=false;});
   document.querySelector('#ai-call-dialog')?.addEventListener('close',()=>{
-    if(compact)(keyboardInline?root.querySelector('[data-ai-call-launch]'):options?.querySelector('summary'))?.focus({preventScroll:true});
+    root.querySelector('[data-ai-call-launch]')?.focus({preventScroll:true});
   });
-  root.addEventListener('focusin',event=>{if(event.target.matches('#ai-input,#agent-message')&&options)options.open=false;});
   const following=()=>timeline&&timeline.scrollHeight-timeline.scrollTop-timeline.clientHeight<48;
   let lastLayoutSignature=null;
   const fitViewport=()=>{

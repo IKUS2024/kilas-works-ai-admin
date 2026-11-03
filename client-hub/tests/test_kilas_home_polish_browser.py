@@ -46,7 +46,7 @@ def main():
                     field.focus();page.set_viewport_size({'width':width,'height':460})
                     expect(page.locator('body')).to_have_class(__import__('re').compile('home-keyboard-open'))
                     focused_identity=page.evaluate("()=>({font:getComputedStyle(document.querySelector('.ai-empty h1')).fontSize,logo:getComputedStyle(document.querySelector('.kilas-new-chat-logo')).display,tabs:[...document.querySelectorAll('.home-task-choices>*')].map(e=>e.getBoundingClientRect().width)})")
-                    expect(page.locator('.home-chat-options')).to_be_visible()
+                    expect(page.locator('.home-chat-options')).to_have_count(0)
                     expect(page.locator('body')).to_have_class(__import__('re').compile('home-chat-compact'))
                     assert page.locator('#ai-composer').evaluate('e=>e.getBoundingClientRect().bottom<=innerHeight'),width
                     assert page.locator('#ai-composer').evaluate('e=>innerHeight-e.getBoundingClientRect().bottom<60'),width

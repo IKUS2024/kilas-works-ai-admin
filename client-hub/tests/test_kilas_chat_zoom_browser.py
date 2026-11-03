@@ -36,12 +36,11 @@ def main():
       if page.locator('body').evaluate('(e)=>e.classList.contains("home-chat-compact")'):
        assert not result['rootScroll'],(name,result)
        assert page.locator('#ai-input,#agent-message').evaluate('''e=>{let s=getComputedStyle(e);return s.whiteSpace==='pre'&&s.textOverflow==='ellipsis'&&parseFloat(s.lineHeight)+parseFloat(s.paddingTop)+parseFloat(s.paddingBottom)<=e.clientHeight+1}'''),('placeholder must not wrap into a clipped second line',name,result)
-       assert page.locator('.home-chat-options>summary').is_visible()
-       assert page.locator('.home-chat-options-panel').get_attribute('role')=='group'
+       assert page.locator('.home-chat-options').count()==0
        if page.locator('.agent-message').count():
         assert page.locator('#agent-conversation').evaluate('(e)=>e.scrollHeight>e.clientHeight'),'history must retain its own scroll'
       if not page.locator('body').evaluate('(e)=>e.classList.contains("home-chat-compact")'):
-       assert page.locator('.home-chat-options').get_attribute('hidden') is not None
+       assert page.locator('.home-chat-options').count()==0
        assert page.locator('.ai-composer-actions [data-ai-call-launch]').count()==1
       assert not errors,errors
       if os.environ.get('KILAS_CHAT_ZOOM_SCREENSHOTS') and width==390 and name in ('normal','pinch-2','pinch-3'):
@@ -55,12 +54,11 @@ def main():
        cdp.send('Emulation.setPageScaleFactor',{'pageScaleFactor':scale});check('pinch-'+str(scale))
       if width==390:
        cdp.send('Emulation.setPageScaleFactor',{'pageScaleFactor':2})
-       page.locator('.home-chat-options>summary').click()
        for trigger in page.locator('.chat-model-trigger').all():
-        trigger.click();dialog=page.locator('dialog[open]');dialog.wait_for()
+        trigger.scroll_into_view_if_needed();trigger.click();dialog=page.locator('dialog[open]');dialog.wait_for()
         assert dialog.evaluate('(e)=>{const r=e.getBoundingClientRect(),v=visualViewport;return r.left>=v.offsetLeft && r.right<=v.offsetLeft+v.width && r.top>=v.offsetTop && r.bottom<=v.offsetTop+v.height}'),'model dialog outside pinch viewport'
         dialog.locator('[data-model-close]').click()
-       call=page.locator('.home-chat-options-panel [data-ai-call-launch]')
+       call=page.locator('.ai-composer-actions [data-ai-call-launch]')
        assert call.count()==1
        call.scroll_into_view_if_needed()
        sent=[]
@@ -72,11 +70,11 @@ def main():
        assert page.evaluate('window.__micRequests')==0 and not sent,'busy Chat must not start a call'
        page.locator('#ai-call-dialog').evaluate('(e)=>e.close()')
        page.wait_for_timeout(30)
-       assert page.locator('.home-chat-options>summary').evaluate('(e)=>document.activeElement===e'),'call returns focus to visible options'
+       assert call.evaluate('(e)=>document.activeElement===e'),'call returns focus to its inline trigger'
        page.locator('#ai-send,#agent-chat-form button[type=submit]').evaluate('(e)=>e.disabled=false')
-       assert page.locator('.home-chat-options-panel [data-home-task=voiceover]').count()==1
+       assert page.locator('.home-tool-selector [data-home-task=voiceover]').count()==1
        page.keyboard.press('Escape')
-       assert not page.locator('.home-chat-options').evaluate('(e)=>e.open')
+       assert page.locator('.home-chat-options').count()==0
       cdp.send('Emulation.setPageScaleFactor',{'pageScaleFactor':1})
       # Native visual viewport APIs cannot open a physical OS keyboard in
       # headless Chromium. Feed its documented geometry, including zoom/pan.
