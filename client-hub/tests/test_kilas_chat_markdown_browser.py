@@ -126,10 +126,11 @@ def main():
      data=page.evaluate(r'''async()=>{const e=document.createElement('div');e.className='ai-message-text';document.querySelector('main').append(e);
       KilasMarkdown.render(e,'\\[broken');const bounded=e.textContent.includes('broken')&&!e.querySelector('[data-math-incomplete]');
       KilasMarkdown.render(e,'\\(\\href{javascript:alert(1)}{bad}\\) <script>window.qaInjected=2</script>');const safe=!e.querySelector('a,script,img,iframe');
+      KilasMarkdown.render(e,'| Result |\n| :-: |\n| 42 |');const singleColumn=e.querySelectorAll('table tbody td').length===1&&e.querySelector('th').style.textAlign==='center';
       let renders=0;e.addEventListener('kilas:rendered',()=>renders++);KilasMarkdown.render(e,'');renders=0;
       for(let i=0;i<200;i++)KilasMarkdown.stream(e,'word ');await new Promise(requestAnimationFrame);const coalesced=renders===1;
       const stable=e.firstChild;KilasMarkdown.finish(e);const finalStable=e.firstChild===stable;
-      e.remove();return {bounded,safe,coalesced,finalStable};}''')
+      e.remove();return {bounded,safe,coalesced,finalStable,singleColumn};}''')
      assert all(data.values()),data
      results.append({'width':width,'shell':'agent' if agent else 'legacy','formatted_before_done':True,'math_code_table_safe':True,'final_dom_consistent':True,'source_preserved':True,**data});context.close()
    # A failed local math asset cannot leave the answer pending indefinitely.

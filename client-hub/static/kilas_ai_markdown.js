@@ -72,7 +72,7 @@
   function tableSpec(lines,index){
     if(index+1>=lines.length)return null;
     const header=cells(lines[index].trim()),separator=cells(lines[index+1].trim());
-    if(header.length<2||separator.length!==header.length||!separator.every(cell=>/^:?-{3,}:?$/.test(cell.trim())))return null;
+    if(!lines[index].includes('|')||separator.length!==header.length||!separator.every(cell=>/^:?-+:?$/.test(cell.trim())))return null;
     return separator.map(cell=>{const value=cell.trim();return value.startsWith(':')&&value.endsWith(':')?'center':value.endsWith(':')?'right':'left';});
   }
   function state(element){let value=states.get(element);if(!value){value={text:'',frame:null,blocks:[],complete:true};states.set(element,value);}return value;}
@@ -128,7 +128,7 @@
       if(alignment){
         const rows=[cells(line)];index+=2;
         while(index<lines.length&&lines[index].trim()){
-          const row=cells(lines[index].trim());if(row.length<2)break;rows.push(row);index++;
+          const row=cells(lines[index].trim());if(row.length<2&&!lines[index].trim().startsWith('|'))break;rows.push(row);index++;
         }
         add('table|'+JSON.stringify([rows,alignment])+'|'+phase(rows.flat().join(' ')),()=>{const scroller=document.createElement('div');scroller.className='ai-table-scroll';scroller.tabIndex=0;scroller.setAttribute('role','region');scroller.setAttribute('aria-label',document.documentElement.lang.startsWith('id')?'Tabel jawaban':'Answer table');const table=document.createElement('table'),head=document.createElement('thead'),body=document.createElement('tbody');table.append(head,body);rows.forEach((row,i)=>{const tr=document.createElement('tr');alignment.forEach((align,column)=>{const node=document.createElement(i===0?'th':'td');if(i===0)node.scope='col';node.style.textAlign=align;write(node,(row[column]||'').trim().replace(/\\\|/g,'|'));tr.append(node);});(i===0?head:body).append(tr);});scroller.append(table);return scroller;});continue;
       }
