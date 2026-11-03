@@ -1450,5 +1450,7 @@
   "Model pilihan tidak tersedia. Pilih model lain; permintaan tidak dialihkan.": "The selected model is unavailable. Choose another; the request will not be rerouted.",
   "Tidak ada model tersedia. Coba buka daftar lagi.": "No models are available. Try opening the list again.",
   "Tutup riwayat": "Close history",
-  "Foto 8 MiB · dokumen 2 MiB · total 10 MiB per pesan.": "Photos 8 MiB · documents 2 MiB · total 10 MiB per message."
+  "Foto 8 MiB · dokumen 2 MiB · total 10 MiB per pesan.": "Photos 8 MiB · documents 2 MiB · total 10 MiB per message.",
+  "Memuat…": "Loading…",
+  "Gambar tidak dapat dibuka. Tutup dan coba lagi.": "The image could not be opened. Close and try again."
 }

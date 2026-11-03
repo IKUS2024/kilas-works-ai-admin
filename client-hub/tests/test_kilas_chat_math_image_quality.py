@@ -68,6 +68,22 @@ class ChatMathQualityTests(unittest.TestCase):
         self.assertEqual(b,1048577)
         self.assertEqual(b,1+2**20)
 
+    def test_heldout_overlap_keys_and_consistent_guidance_not_model_grading(self):
+        # Verify all recurrence equations against independent exact state keys.
+        for target,values in [('THT',[10,8,6]),('HTHT',[20,18,16,10]),('HHH',[14,12,8])]:
+            n=len(target);expected=list(map(Fraction,values))+[Fraction(0)]
+            for state in range(n):
+                successors=[]
+                for toss in 'HT':
+                    word=target[:state]+toss
+                    successors.append(max(i for i in range(n+1) if word.endswith(target[:i])))
+                self.assertEqual(expected[state],1+sum(expected[i] for i in successors)/2)
+            profile=selected(f'Hitung ekspektasi lemparan koin adil sampai pola {target} pertama muncul. Definisikan state dan peluang transisinya.')
+            self.assertEqual((profile['domain'],profile['model']),('math',model_policy.LUNA))
+        guidance=intelligence.PLAYBOOKS['math']
+        for requirement in ('event names','including overlap','necessary from sufficient','every hypothesis','dependent steps'):
+            self.assertIn(requirement,guidance)
+
     def test_brief_math_preserves_reasoning_not_forced_visible_verbosity(self):
         self.assertEqual(selected('What is the integral of x^2 from 0 to 1?')['effort'],'high')
         profile=selected(CASES[2][0]+' Jawab singkat.')

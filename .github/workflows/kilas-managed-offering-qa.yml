@@ -20,7 +20,7 @@ jobs:
       - name: Isolated accounts, ledger and native adapters; no paid calls
         env: {PYTHONDONTWRITEBYTECODE: '1', PYTHONPATH: 'client-hub:client-hub/tests', CLIENT_HUB_DB_PATH: /tmp/managed-bootstrap.db}
         run: |
-          for suite in test_kilas_chat_math_image_quality.py test_kilas_chat_offering.py test_kilas_managed_offering.py test_kilas_chat_models.py test_kilas_chat_restoration.py test_kilas_ai_unified.py test_kilas_chat_recovery.py test_kilas_chat_hardening.py test_kilas_ai_usage.py test_kilas_work_documents.py test_kilas_selected_artifacts.py test_kilas_hd_documents.py test_kilas_image_followup.py test_ui_i18n.py; do
+          for suite in test_kilas_image_viewer.py test_kilas_chat_math_image_quality.py test_kilas_chat_offering.py test_kilas_managed_offering.py test_kilas_chat_models.py test_kilas_chat_restoration.py test_kilas_ai_unified.py test_kilas_chat_recovery.py test_kilas_chat_hardening.py test_kilas_ai_usage.py test_kilas_work_documents.py test_kilas_selected_artifacts.py test_kilas_hd_documents.py test_kilas_image_followup.py test_ui_i18n.py; do
             python -m pytest -q client-hub/tests/$suite || exit 1
           done
   browser:
@@ -35,6 +35,9 @@ jobs:
       - name: Mobile/tablet/desktop, EN/ID, uploads and saved draft; mocked inference
         env: {PYTHONDONTWRITEBYTECODE: '1', PYTHONPATH: 'client-hub:client-hub/tests', KILAS_MANAGED_QA_ARTIFACTS: /tmp/kilas-managed-offering-browser}
         run: python -B client-hub/tests/kilas_managed_offering_browser.py
+      - name: Same-site image preview, keyboard, ownership and original downloads
+        env: {PYTHONDONTWRITEBYTECODE: '1', PYTHONPATH: 'client-hub:client-hub/tests', KILAS_IMAGE_VIEWER_ARTIFACTS: /tmp/kilas-managed-offering-browser/image-viewer}
+        run: python -B client-hub/tests/kilas_image_viewer_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: kilas-managed-offering-preview, path: /tmp/kilas-managed-offering-browser}

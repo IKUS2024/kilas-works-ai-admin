@@ -108,6 +108,7 @@ def selected_math_profile(messages, profile):
         r'probabilitas|probability|kombinatorik|combinatorics|eigenvalue|eigenvalues|'
         r'determinan|determinant|kongruensi|congruence|teorema|theorem)\b|[∫∑∏]|\\(?:int|sum|prod)\b'
         r'|\b(?:buktikan|pembuktian|prove|proof|limit|lim)\b.{0,160}(?:[=²³^→]|\b(?:bilangan|integer|prima|prime|real|rational|matrix|matriks|x|n)\b)'
+        r'|\b(?:ekspektasi|expected (?:waiting time|number))\b.{0,160}\b(?:koin|coin|lemparan|tosses|rolls|dadu)\b'
         r'|\bpeluang\b.{0,160}\b(?:bola|dadu|koin|kartu|tanpa pengembalian|acak)\b', current))
     if not math and len(current) < 220 and re.match(
             r'^(?:lanjut|terus|kenapa|knp|yang|yg|kalau|koreksi|bukan|maksud|actually|continue|what about|why)\b', current):
@@ -128,7 +129,12 @@ PLAYBOOKS['math'] = (
     'show the essential equations and justified derivation, then the result. This is a concise '
     'public solution, not private internal deliberation. Check by substitution, boundary cases '
     'or an independent method where practical; check units and distinguish exact values from '
-    'approximations. For proofs, justify each implication and check excluded or extraneous '
+    'approximations. Keep symbols, event names and target quantities consistent from the '
+    'problem statement through equations and conclusion. Define probability states precisely, '
+    'including overlap. For proofs, distinguish necessary from sufficient conditions; verify '
+    'that a counterexample satisfies every hypothesis and actually violates the conclusion. '
+    'When correcting an answer, recheck dependent steps and the final result. '
+    'For proofs, justify each implication and check excluded or extraneous '
     'solutions. If the premise is false, give a counterexample rather than inventing a proof. '
     'Respect a requested brief final answer while still checking it internally. Never claim '
     'code execution or guaranteed correctness. Use LaTeX delimiters for mathematical notation.'
