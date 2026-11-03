@@ -1,3 +1,4 @@
+{% include 'kilas_ai/_image_viewer_assets.html' %}
 {% from 'kilas_ai/_chat_icons.html' import chat_icon %}
 {% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
 {% if not chat_styles_in_head|default(false) %}{% include 'kilas_ai/_attachment_assets.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat.css',v='keyboard-attachment-20261027') }}"><link rel="stylesheet" href="{{ url_for('static',filename='kilas_artifacts.css',v='result-cards-20261019') }}"><script src="{{ url_for('static',filename='kilas_artifacts.js',v='result-cards-20261019') }}" defer></script>{% endif %}
@@ -28,7 +29,7 @@
 
 </section>
 {% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_markdown.css',v='answer-layout-20261020') }}">{% endif %}
-<script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='answer-layout-20261020') }}" defer></script><script src="{{ url_for('static',filename='kilas_home.js',v='chat-hardening-20261101') }}" defer></script><script src="{{ url_for('static',filename='kilas_thread_projects.js',v='result-cards-20261019') }}" defer></script><script src="{{ url_for('static',filename='kilas_ai.js',v='chat-hardening-20261101') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='chat-quality-20261103') }}" defer></script><script src="{{ url_for('static',filename='kilas_home.js',v='chat-hardening-20261101') }}" defer></script><script src="{{ url_for('static',filename='kilas_thread_projects.js',v='result-cards-20261019') }}" defer></script><script src="{{ url_for('static',filename='kilas_ai.js',v='image-viewer-20261103') }}" defer></script>
 
 {% include 'kilas_ai/_ai_call_surface.html' %}
 {% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_starters.css',v='20261022') }}">{% endif %}

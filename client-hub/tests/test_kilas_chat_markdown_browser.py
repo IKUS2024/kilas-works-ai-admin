@@ -42,6 +42,12 @@ print(literal)
 |---|---|
 | $|x|$ | `a|b` |
 
+Perbandingan hasil:
+Metode | Nilai
+:--- | ---:
+Eksak | `1/60`
+Numerik | 0.016667
+
 A price is $10 or $20. <img src=x onerror="window.qaInjected=1">
 '''
 
@@ -99,7 +105,9 @@ def main():
      expect(body.locator('.ai-list-block > ul > li > ol > li')).to_have_count(2)
      expect(body.locator('ol > li > ul > li')).to_have_text('Pertahankan anggaran.')
      expect(body.locator('h5')).to_have_text('Langkah berikutnya')
-     assert body.locator('.ai-table-scroll[tabindex="0"] thead th[scope="col"]').count()==2
+     assert body.locator('.ai-table-scroll[tabindex="0"] thead th[scope="col"]').count()==4
+     expect(body.locator('table').last.locator('tbody tr')).to_have_count(2)
+     expect(body.locator('table').last.locator('th').last).to_have_css('text-align','right')
      styles=body.evaluate('e=>({font:getComputedStyle(e).fontFamily,em:getComputedStyle(e.querySelector("em")).fontStyle,line:parseFloat(getComputedStyle(e.querySelector("p")).lineHeight),size:parseFloat(getComputedStyle(e).fontSize)})')
      assert 'sans' in styles['font'] and styles['em']=='normal' and styles['line']>=styles['size']*1.6,styles
      assert page.evaluate('window.qaInjected===undefined') and body.locator('img,script,iframe').count()==0
@@ -118,10 +126,11 @@ def main():
      data=page.evaluate(r'''async()=>{const e=document.createElement('div');e.className='ai-message-text';document.querySelector('main').append(e);
       KilasMarkdown.render(e,'\\[broken');const bounded=e.textContent.includes('broken')&&!e.querySelector('[data-math-incomplete]');
       KilasMarkdown.render(e,'\\(\\href{javascript:alert(1)}{bad}\\) <script>window.qaInjected=2</script>');const safe=!e.querySelector('a,script,img,iframe');
+      KilasMarkdown.render(e,'| Result |\n| :-: |\n| 42 |');const singleColumn=e.querySelectorAll('table tbody td').length===1&&e.querySelector('th').style.textAlign==='center';
       let renders=0;e.addEventListener('kilas:rendered',()=>renders++);KilasMarkdown.render(e,'');renders=0;
       for(let i=0;i<200;i++)KilasMarkdown.stream(e,'word ');await new Promise(requestAnimationFrame);const coalesced=renders===1;
       const stable=e.firstChild;KilasMarkdown.finish(e);const finalStable=e.firstChild===stable;
-      e.remove();return {bounded,safe,coalesced,finalStable};}''')
+      e.remove();return {bounded,safe,coalesced,finalStable,singleColumn};}''')
      assert all(data.values()),data
      results.append({'width':width,'shell':'agent' if agent else 'legacy','formatted_before_done':True,'math_code_table_safe':True,'final_dom_consistent':True,'source_preserved':True,**data});context.close()
    # A failed local math asset cannot leave the answer pending indefinitely.

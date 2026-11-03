@@ -86,3 +86,56 @@ PLAYBOOKS={
 
 
 def playbook(profile):return PLAYBOOKS.get(profile['domain'],PLAYBOOKS['general'])
+
+
+def selected_math_profile(messages, profile):
+    """Increase selected Chat reasoning for mathematical tasks, never switch models.
+
+    Keep autonomous planning and legacy model routing unchanged. Source text and
+    quoted transformations are evidence, not a request to solve their contents.
+    """
+    users = [m for m in messages if m.get('role') == 'user']
+    if not users:
+        return profile
+    current = text(users[-1].get('content', '')).lower()
+    if re.match(r'^(?:tolong )?(?:translate|terjemah(?:kan)?|rewrite)\b', current):
+        return profile
+    if re.match(r'^(?:apa itu|what is|define)\b', current) and not re.search(r'[0-9=²³^∫∑∏]|\\(?:int|sum|prod)\b', current):
+        return profile
+    math = bool(re.search(
+        r'\b(?:integral|integrate|integrasikan|turunan|derivative|'
+        r'persamaan|equation|ketaksamaan|inequality|rekurensi|recurrence|'
+        r'probabilitas|probability|kombinatorik|combinatorics|eigenvalue|eigenvalues|'
+        r'determinan|determinant|kongruensi|congruence|teorema|theorem)\b|[∫∑∏]|\\(?:int|sum|prod)\b'
+        r'|\b(?:buktikan|pembuktian|prove|proof|limit|lim)\b.{0,160}(?:[=²³^→]|\b(?:bilangan|integer|prima|prime|real|rational|matrix|matriks|x|n)\b)'
+        r'|\b(?:ekspektasi|expected (?:waiting time|number))\b.{0,160}\b(?:koin|coin|lemparan|tosses|rolls|dadu)\b'
+        r'|\bpeluang\b.{0,160}\b(?:bola|dadu|koin|kartu|tanpa pengembalian|acak)\b', current))
+    if not math and len(current) < 220 and re.match(
+            r'^(?:lanjut|terus|kenapa|knp|yang|yg|kalau|koreksi|bukan|maksud|actually|continue|what about|why)\b', current):
+        prior = selected_math_profile(users[:-1], profile) if len(users) > 1 else profile
+        math = prior.get('domain') == 'math'
+    if not math:
+        return profile
+    profile = dict(profile)
+    profile.update(domain='math', difficulty='EXPERT' if profile['difficulty']=='EXPERT' else 'HARD')
+    if profile['depth'] not in ('QUICK', 'EXPERT'):
+        profile['depth'] = 'DEEP'
+    profile['signals'] = [*profile['signals'], 'mathematical_reasoning']
+    return profile
+
+
+PLAYBOOKS['math'] = (
+    'For mathematical problems, give a checkable solution: state the domain and assumptions, '
+    'show the essential equations and justified derivation, then the result. This is a concise '
+    'public solution, not private internal deliberation. Check by substitution, boundary cases '
+    'or an independent method where practical; check units and distinguish exact values from '
+    'approximations. Keep symbols, event names and target quantities consistent from the '
+    'problem statement through equations and conclusion. Define probability states precisely, '
+    'including overlap. For proofs, distinguish necessary from sufficient conditions; verify '
+    'that a counterexample satisfies every hypothesis and actually violates the conclusion. '
+    'When correcting an answer, recheck dependent steps and the final result. '
+    'For proofs, justify each implication and check excluded or extraneous '
+    'solutions. If the premise is false, give a counterexample rather than inventing a proof. '
+    'Respect a requested brief final answer while still checking it internally. Never claim '
+    'code execution or guaranteed correctness. Use LaTeX delimiters for mathematical notation.'
+)
