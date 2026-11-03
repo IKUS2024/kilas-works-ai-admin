@@ -1452,5 +1452,6 @@
   "Tutup riwayat": "Close history",
   "Foto 8 MiB · dokumen 2 MiB · total 10 MiB per pesan.": "Photos 8 MiB · documents 2 MiB · total 10 MiB per message.",
   "Memuat…": "Loading…",
-  "Gambar tidak dapat dibuka. Tutup dan coba lagi.": "The image could not be opened. Close and try again."
+  "Gambar tidak dapat dibuka. Tutup dan coba lagi.": "The image could not be opened. Close and try again.",
+  "Penyedia gambar menolak permintaan ini berdasarkan kebijakan kontennya. Coba permintaan lain yang sesuai kebijakan.": "The image provider rejected this request under its content policy. Try another request that follows the policy."
 }

@@ -39,6 +39,10 @@ def run(job,step,data):
         result = {'model':error.model,'usage':error.usage}
         if error.code=='provider_quota_exhausted':
             return Result('WAITING_CAPABILITY',str(error),{'reason':error.code},usage=error.usage)
+        if error.code=='image_provider_content_rejected':
+            # IMAGE failure is terminal in the runner: no implicit retries/replanning.
+            from ..provider_failures import IMAGE_REJECTION_MESSAGE
+            return Result('FAILED',IMAGE_REJECTION_MESSAGE,{'reason':error.code},usage=error.usage)
         raise
     finally:
         usage.finish(job['user_id'],key,ops,success=success,provider=image_models.spec(selected)['provider'] if selected else result.get('provider','openai') if result else None,model=result.get('model'),usage=result.get('usage',{}))
