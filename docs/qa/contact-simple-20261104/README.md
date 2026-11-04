@@ -1,0 +1,5 @@
+# Simplified public business contact — 2026-11-04
+
+Owner requested removal of the extra Client Hub/billing entry and descriptive copy, keeping address and phone. Removed the entire added AI billing block (including its Credit & Usage link, preview/payment explanation and sign-in/booking copy). The business row now shows CV Kilas Teknologi Kreatif, the confirmed office address, a telephone link and the existing WhatsApp destination. Desktop uses one aligned editorial row; mobile stacks the details. Existing service copy, prices, enquiry form and no-auto-send help remain intact. No billing or Finance implementation changed.
+
+Validation: Creative Services offline regression suite passes. Source/bundle check passes for 49 files; whitespace check passes. Contact browser checks pass at 1440/390/320 in Indonesian and English, verifying no extra billing block/paragraphs, exact address, tel destination, visible keyboard focus, 44px touch targets, no overflow, no external requests or page errors. Screenshots here are local, not production captures. Full existing Creative Studio browser suite is run before release; final outcome is reported with deployment evidence.
