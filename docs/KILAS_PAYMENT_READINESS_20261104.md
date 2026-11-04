@@ -31,3 +31,23 @@ The actual Xendit onboarding requirements and account/channel activation status 
 4. Authenticate provider callbacks using the selected API's documented mechanism. Match amount, currency, order and tenant; handle duplicate, delayed and out-of-order callbacks idempotently in a transaction. Redirect/success pages must never grant credits or subscription access.
 5. Test expiry, failure, cancellation, provider outages, reconciliation and exactly-once entitlement changes, plus access isolation and forged callbacks. Reuse the existing billing authority rather than bypassing it.
 6. Separately authorize company settlement setup, provider verification submission, live channel activation and any live transaction. None has happened in this change. The business-information release is authorized.
+
+## UI and local verification
+
+Business details form a responsive editorial row below the existing enquiry form, using the current Manrope typography, warm paper background, restrained dividers and orange focus/hover color. Office and WhatsApp use semantic address/description markup; the AI billing handoff is visually separate. Credit & Usage separates its manual billing action from the preview explanation and makes payment-unavailable help readable below the disabled control. No shared Finance styles are touched.
+
+- Final Creative Services offline regression suite passes, including original offer facts, bundle/routes and access behavior. Kilas AI billing suite passes.
+- Existing Creative Studio interaction suite passes at six widths (1440, 1024, 820, 393, 360, 320) before the final contact layout refinement; final contact-specific browser checks pass at 1440/390/320 in ID and EN with no horizontal overflow, visible keyboard focus, 44px link targets, no page errors or external requests.
+- Final Credit & Usage browser suite: 10 responsive/localization cases pass, including disabled payment, input validation, tabs, navigation and no network writes.
+- Source/bundle validation: 49 files match byte for byte. Diff whitespace check passes.
+- Known baseline failure: `test_kilas_ai_topups.py` has 4 passes and 1 failure at line 66 (foreign invoice request returns 303 instead of expected 404). Reproduced identically on unchanged main `1a6119025f1bf7e6bb3d0b4116bad1171403e78a`; no billing/access implementation is changed here.
+- Impeccable engine unavailable in this environment; existing PRODUCT.md, release context and skill references were read directly. Browser validation above is separate from that unavailable engine.
+
+Local screenshots (synthetic preview, not authenticated production evidence):
+
+- [Business contact desktop](qa/business-payment-20261104/contact-id-1440.png)
+- [Business contact mobile](qa/business-payment-20261104/contact-id-390.png)
+- [Credits desktop](qa/business-payment-20261104/credits-id-desktop.png)
+- [Credits mobile](qa/business-payment-20261104/credits-id-mobile.png)
+
+Basic accessibility checks cover semantic headings/address, link names, focus visibility, touch size and responsive reflow. This is not a full accessibility audit or certification.

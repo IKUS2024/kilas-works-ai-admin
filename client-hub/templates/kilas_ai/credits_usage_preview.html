@@ -20,7 +20,7 @@
     <div class="credits-topbar"><a href="{{ url_for('products.product_start') }}">{{ drawer_icon('home') }}<span>{{ ui_t('Workspace') }}</span></a><span class="credits-topbar-divider" aria-hidden="true">/</span><span>{{ ui_t('Credits & Usage') }}</span><span class="credits-preview-badge">{{ ui_t('Design preview') }}</span></div>
     <main id="kw-main" class="credits-page">
       <header class="credits-heading"><div><h1>{{ ui_t('Credits & Usage') }}</h1><p>{{ ui_t('Pratinjau desain. Saldo dan aktivitas kredit belum terhubung.') }}</p></div><a class="credits-help-link" href="#credits-how">{{ ui_t('How credits work') }}<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m7 17 10-10M7 7h10v10"/></svg></a></header>
-      <div class="credits-preview-note"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg><p>{{ ui_t('Preview only. This wallet is not connected. Existing billing and access are unchanged.') }} <a href="{{ url_for('kilas_ai.usage_page',view='legacy') }}">{{ ui_t('View existing manual billing') }}</a></p></div>
+      <div class="credits-preview-note"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg><p>{{ ui_t('Preview only. This wallet is not connected. Existing billing and access are unchanged.') }}</p><a href="{{ url_for('kilas_ai.usage_page',view='legacy') }}">{{ ui_t('View existing manual billing') }}</a></div>
 
       <div class="credits-overview">
         <div class="credits-overview-main">
