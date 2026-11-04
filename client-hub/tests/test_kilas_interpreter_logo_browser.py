@@ -45,7 +45,10 @@ def main():
                 cookie=case.client.get_cookie('session')
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'en','url':origin}])
                 context.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
-                context.add_init_script(MIC);page=context.new_page();errors=[]
+                context.add_init_script(MIC)
+                context.add_init_script("window.audioContexts=0;const Audio=window.AudioContext;window.AudioContext=new Proxy(Audio,{construct(target,args){window.audioContexts++;return Reflect.construct(target,args);}});")
+                page=context.new_page();errors=[];requests=[]
+                page.on('request',lambda request:requests.append(request.url) if '/interpreter/' in request.url else None)
                 page.set_default_timeout(10000);page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(origin+'/kilas-translator/interpreter',wait_until='networkidle')
                 page.locator('#interpreter-consent').check();page.locator('#interpreter-start').click()
@@ -56,6 +59,18 @@ def main():
                 assert logo.evaluate('e=>e.tagName')=='BUTTON'
                 box=logo.bounding_box();assert box['width']>=44 and box['height']>=44
                 assert page.evaluate('micRequests')==0
+                # Selection, including repeated mobile taps and keyboard activation,
+                # must not even ask readiness or construct an audio context.
+                baseline=len(requests)
+                for selector,key in [('#interpreter-right',None),('#interpreter-left','Space'),('#interpreter-right','Enter'),('#interpreter-left',None)]:
+                    card=page.locator(selector)
+                    if key:card.press(key)
+                    elif mobile:card.tap()
+                    else:card.click()
+                    expect(card).to_have_attribute('aria-pressed','true')
+                page.wait_for_timeout(100)
+                assert len(requests)==baseline
+                assert page.evaluate('micRequests')==0 and page.evaluate('audioContexts')==0
                 def hit_k():
                     # Hit the actual visible K pixels, never the language cards.
                     if mobile:image.tap()
@@ -63,7 +78,11 @@ def main():
                 for cycle in range(3):
                     before=len(wires)
                     if cycle==0:hit_k()
-                    elif cycle==1:page.locator('#interpreter-right').click()
+                    elif cycle==1:
+                        mic_count=page.evaluate('micRequests');page.locator('#interpreter-right').press('Enter')
+                        expect(page.locator('#interpreter-right')).to_have_attribute('aria-pressed','true')
+                        assert page.evaluate('micRequests')==mic_count and len(wires)==before
+                        hit_k()
                     else:
                         logo.focus();assert logo.evaluate("e=>getComputedStyle(e).outlineWidth")=='3px'
                         logo.press('Space')
@@ -73,6 +92,10 @@ def main():
                     expect(logo).to_have_attribute('aria-pressed','true')
                     expect(logo).to_have_attribute('aria-label','Stop and translate')
                     expect(logo).to_be_enabled()
+                    for selector in ['#interpreter-left','#interpreter-right']:
+                        expect(page.locator(selector)).to_be_disabled()
+                        page.locator(selector).evaluate('e=>{for(let i=0;i<5;i++)e.click()}')
+                    expect(page.locator('#interpreter-current-direction')).to_have_text(source+' → '+target)
                     assert logo.evaluate('e=>getComputedStyle(e).borderColor')=='rgb(189, 71, 0)'
                     assert len(wires)==before+1
                     stops=page.evaluate('micStops')
@@ -81,7 +104,7 @@ def main():
                     assert page.evaluate('micStops')==stops+1
                     expect(logo).to_have_attribute('aria-pressed','false')
                     expect(logo).to_have_attribute('aria-busy','true');expect(logo).to_be_disabled()
-                    page.evaluate("()=>{for(let i=0;i<10;i++)document.querySelector('#interpreter-orb').click();}")
+                    page.evaluate("()=>{for(let i=0;i<10;i++)for(const id of ['orb','left','right'])document.querySelector('#interpreter-'+id).click();}")
                     ended(page)
                     expect(logo).to_be_enabled();expect(logo).to_have_attribute('aria-busy','false')
                     expect(logo).to_have_attribute('aria-label',f'Start listening: {source} to {target}')
@@ -99,6 +122,9 @@ def main():
                     before=len(wires)
                     page.evaluate("()=>{window.savedMic=navigator.mediaDevices.getUserMedia;navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>window.finishPermission=resolve);}")
                     hit_k();page.wait_for_function("typeof window.finishPermission==='function'")
+                    expect(page.locator('#interpreter-left')).to_be_disabled()
+                    page.locator('#interpreter-left').evaluate('e=>e.click()')
+                    expect(page.locator('#interpreter-current-direction')).to_have_text('English → Indonesian')
                     hit_k();ended(page)
                     page.evaluate("async()=>{const stream=await savedMic();finishPermission(stream);navigator.mediaDevices.getUserMedia=savedMic;}")
                     expect(logo).to_have_attribute('aria-pressed','false');assert len(wires)==before
@@ -113,8 +139,16 @@ def main():
                     hit_k();listening(page);hit_k();ended(page)
                     expect(page.locator('#interpreter-caption')).to_have_text('Selamat pagi.')
                     # End and a direction change also fence input started from K.
-                    hit_k();listening(page);page.locator('#interpreter-left').click();listening(page)
-                    expect(page.locator('#interpreter-current-direction')).to_have_text('Indonesian → English')
+                    hit_k();listening(page)
+                    expect(page.locator('#interpreter-left')).to_be_disabled()
+                    page.locator('#interpreter-left').evaluate('e=>e.click()')
+                    expect(page.locator('#interpreter-current-direction')).to_have_text('English → Indonesian')
+                    stops=page.evaluate('micStops');before=len(wires)
+                    page.evaluate("()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));}")
+                    assert page.evaluate('micStops')==stops+1 and len(wires)==before
+                    expect(page.locator('#interpreter-state')).to_contain_text('Session ended.')
+                    expect(page.locator('#interpreter-right')).to_have_attribute('aria-pressed','true')
+                    expect(logo).to_be_enabled()
                     page.locator('#interpreter-end').click();expect(page.locator('#interpreter-setup')).to_be_visible()
                 else:page.locator('#interpreter-end').click()
                 if width==768:

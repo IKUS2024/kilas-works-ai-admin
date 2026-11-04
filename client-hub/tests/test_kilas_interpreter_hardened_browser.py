@@ -92,7 +92,7 @@ def main():
      expect(page.locator('.interpreter-direction-help')).to_have_text(copy('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.'))
      assert page.evaluate('micRequests')==0 and not starts
      assert not page.locator('#interpreter-transcript').get_attribute('open')
-     page.locator('#interpreter-left').click()
+     page.locator('#interpreter-orb img').click()
      page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
      expect(page.locator('#interpreter-state')).to_have_text(copy('Mendengarkan. Ketuk lagi untuk menerjemahkan.'))
      assert not finished
@@ -101,7 +101,7 @@ def main():
      page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='speaking'")
      expect(page.locator('#interpreter-state')).to_have_text(copy('Terjemahan diputar. Tunggu giliran.'))
      assert len(starts)==1 and page.evaluate('micRequests')==1
-     expect(page.locator('#interpreter-left')).to_be_disabled();assert len(starts)==1
+     expect(page.locator('#interpreter-left')).to_be_disabled();expect(page.locator('#interpreter-right')).to_be_disabled();assert len(starts)==1
      expect(page.locator('#interpreter-caption')).to_have_text(REPLY)
      assert not page.locator('#interpreter-caption').is_visible()
      page.locator('#interpreter-transcript > summary').click()
@@ -122,13 +122,13 @@ def main():
       second_source='لا، خمسة عشر وليس خمسين.'
       latest_reply='No, fifteen, not fifty.'
       frames=[{'index':0,'type':'original','text':second_source},{'index':1,'type':'text','text':latest_reply},{'index':2,'type':'turn_complete'}]
-      page.locator('#interpreter-left').click()
+      page.locator('#interpreter-orb img').click()
       page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
-      page.locator('#interpreter-left').click()
+      page.locator('#interpreter-orb img').click()
       expect(page.locator('#interpreter-original')).to_have_text(second_source)
       expect(page.locator('#interpreter-caption')).to_have_text(latest_reply)
      page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='ended'")
-     mode[0]='auth';page.locator('#interpreter-left').click()
+     mode[0]='auth';page.locator('#interpreter-orb img').click()
      expect(page.locator('#interpreter-login')).to_be_visible()
      expect(page.locator('#interpreter-state')).to_have_text(copy('Sesi akun berakhir. Masuk kembali.'))
      expect(page.locator('#interpreter-left')).to_be_disabled()
@@ -158,7 +158,7 @@ def main():
        if failure=='permission':page.evaluate("window.mockPermission='denied'")
        if failure=='missing':page.evaluate("window.mockPermission='missing'")
        if failure=='audio':page.evaluate("()=>{AudioContext.prototype.resume=async()=>{throw new Error('synthetic audio failure')};}")
-       page.locator('#interpreter-left').click()
+       page.locator('#interpreter-orb img').click()
        expect(page.locator('#interpreter-state')).to_have_text(copy(key))
        assert len(starts)==before
        expect(page.locator('#interpreter-left')).to_be_enabled()
