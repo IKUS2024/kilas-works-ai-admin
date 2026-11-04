@@ -13,9 +13,9 @@ class BridgeRoutesTests(unittest.TestCase):
     seed_bridge=fixture.BridgeTests.seed_bridge
 
     def login(self,actor=None):
-        with self.client.session_transaction() as session:
-            session['user_id']=actor or self.actor
-            session['active_product']='brain'
+        from auth_test_helpers import authenticate
+        authenticate(self.client, repo.get_user_by_id(actor or self.actor), active_product='brain')
+        self.client.set_cookie('kilas_language', 'id')
         self.base=f'/business/{self.source}/finance-bridge'
         fixture.fixture.app.config['CLIENT_HUB_FORCE_CSRF_IN_TESTS']=True
 
@@ -62,16 +62,16 @@ class BridgeRoutesTests(unittest.TestCase):
         self.target=repo.create_business(standalone_actor,'Finance only',package='NONE')
         f.ensure_finance_defaults(self.target,actor_user_id=standalone_actor)
         self.actor=standalone_actor
-        with self.client.session_transaction() as session:
-            session['user_id']=standalone_actor
-            session['active_product']='finance'
+        from auth_test_helpers import authenticate
+        authenticate(self.client, repo.get_user_by_id(standalone_actor), active_product='finance')
         self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM business_memberships WHERE user_id=?',(standalone_actor,))['n'],1)
         self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kw_core_finance_connections')['n'],0)
         self.assertEqual(db.query_one('SELECT package FROM businesses WHERE id=?',(self.target,))['package'],'NONE')
         with patch.dict(os.environ,{'KILAS_FINANCE_BRIDGE_ENABLED':'false','KILAS_CORE_V2_ENABLED':'false'}):
-            for tail in ('','?view=accounts','?view=transactions','/receivables?section=invoices','/operations','/reports','/invoices/settings','/assistant'):
+            for tail in ('','?view=accounts','?view=transactions','/receivables?section=invoices','/operations','/reports','/invoices/settings'):
                 response=self.client.get(f'/business/{self.target}/finance'+tail,follow_redirects=True)
                 self.assertEqual(response.status_code,200,(tail,response.status_code))
+            self.assertEqual(self.client.get(f'/business/{self.target}/finance/assistant').status_code,404)
             customer=f.create_customer(self.target,'Independent',actor_user_id=self.actor)
             invoice=f.create_finance_invoice(self.target,customer,actor_user_id=self.actor,**self.invoice)
             f.issue_finance_invoice(self.target,invoice,actor_user_id=self.actor)
@@ -92,6 +92,17 @@ class BridgeRoutesTests(unittest.TestCase):
         self.assertNotIn('Buat Invoice',page.text)
         self.assertNotIn(result['invoice']['invoice_number'],page.text)
         self.assertEqual(self.client.get(self.base+'/jobs/'+self.jid).status_code,404)
+
+    def test_raw_session_actor_swap_is_rejected_before_bridge_data_or_mutation(self):
+        self.login()
+        fixture.BridgeTests.connect(self);fixture.BridgeTests.customer(self)
+        invoice=fixture.BridgeTests.draft(self)['invoice']
+        with self.client.session_transaction() as session:
+            session['user_id']=self.foreign_actor
+        response=self.client.get(self.base+'/jobs/'+self.jid)
+        self.assertIn(response.status_code,(302,303,401))
+        self.assertNotIn(invoice['invoice_number'],response.text)
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM finance_transactions')['n'],0)
 
     def test_deal_full_editor_draft_issue_failure_payment_and_replay(self):
         from kilas_core import jobs
