@@ -3009,5 +3009,30 @@
         "failures": []
       }
     ]
+  },
+  "bridge_browser_followup": {
+    "original_base": "FAIL same standalone URL assertion at line 34; actual /login",
+    "updated_base": "PASS",
+    "updated_candidate": "PASS",
+    "browser": "Chromium 151.0.7922.173",
+    "production_code_changes": false,
+    "results": {
+      "passed": true,
+      "viewport": "390x844",
+      "checks": [
+        "standalone zero bridge",
+        "Finance-only pages",
+        "explicit mapping",
+        "explicit customer",
+        "owner reviewed draft",
+        "Finance detail",
+        "authoritative partial payment",
+        "foreign tenant",
+        "emergency read",
+        "emergency write blocked",
+        "no horizontal overflow",
+        "no JS errors"
+      ]
+    }
   }
 }

@@ -7,7 +7,7 @@ if os.environ.get('KILAS_PHASE7_BROWSER_QA') != '1':
 from test_kilas_finance_bridge import BridgeTests
 from test_finance_phase2a import app
 from flask import jsonify,session,redirect,abort
-import db,repo,finance_service as f,finance_branches as branches
+import db,repo,security,finance_service as f,finance_branches as branches
 from kilas_core import finance_bridge as bridge
 case=BridgeTests();case.setUp()
 standalone_actor=repo.create_user('financeonlylongemailaddresswithoutspaces@example.test','unused')
@@ -30,17 +30,17 @@ def health():
 
 @app.get('/dev/owner')
 def owner():
-    session.clear();session['user_id']=case.actor;session['active_product']='brain'
+    security.login_user(repo.get_user_by_id(case.actor));session['active_product']='brain'
     return redirect(f'/business/{case.source}/jobs/{case.jid}')
 
 @app.get('/dev/standalone')
 def standalone():
-    session.clear();session['user_id']=standalone_actor;session['active_product']='finance'
+    security.login_user(repo.get_user_by_id(standalone_actor));session['active_product']='finance'
     return redirect(f'/business/{standalone_business}/finance')
 
 @app.get('/dev/foreign')
 def foreign():
-    session.clear();session['user_id']=case.foreign_actor;session['active_product']='brain'
+    security.login_user(repo.get_user_by_id(case.foreign_actor));session['active_product']='brain'
     return jsonify(synthetic=True)
 
 @app.post('/dev/payment')
@@ -56,10 +56,10 @@ def payment():
                                  actor_user_id=case.actor,idempotency_key='synthetic-browser-payment')
     return jsonify(ok=True)
 
-@app.post('/dev/expire')
-def expire():
+@app.post('/dev/emergency-disable')
+def emergency_disable():
     if session.get('user_id')!=case.actor:abort(404)
-    os.environ.update(KILAS_FINANCE_ACCESS_MODE='self_service',KILAS_FINANCE_UNLIMITED_TRIAL='false')
+    os.environ['KILAS_FINANCE_EMERGENCY_DISABLE']='true'
     return jsonify(ok=True)
 
 if __name__=='__main__':app.run(host='127.0.0.1',port=8768,use_reloader=False)
