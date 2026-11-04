@@ -5,7 +5,7 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='translator-logo-20261104') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='translator-direction-20261104') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
@@ -43,5 +43,5 @@
 <a id="interpreter-login" class="interpreter-login" href="{{ url_for('auth.login_page') }}" hidden>{{ ui_t('Masuk kembali') }}</a>
 
 </section></div>
-<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='translator-logo-20261104') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='translator-direction-20261104') }}"></script>
 {% endblock %}

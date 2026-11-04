@@ -70,21 +70,21 @@ def main():
                 page.locator('#interpreter-consent').check();page.locator('#interpreter-start').click()
                 for direction,source,reply in (('left','Selamat pagi.','Good morning.'),('right','Good morning.','Selamat pagi.')):
                     button=page.locator('#interpreter-'+direction);before=len(wires)
-                    button.click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
+                    button.click();page.locator('#interpreter-orb img').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
                     assert len(wires)==before+1
                     wire=wires[-1]
                     assert wire.messages[0]['setup']['realtimeInputConfig']['automaticActivityDetection']=={'disabled':True}
                     assert wire.messages[1]=={'realtimeInput':{'activityStart':{}}}
                     assert not any('activityEnd' in m.get('realtimeInput',{}) for m in wire.messages)
-                    expect(button).to_have_attribute('aria-label','Stop and translate')
+                    expect(page.locator('#interpreter-orb')).to_have_attribute('aria-label','Stop and translate')
                     # One synchronous burst exercises duplicate activation while Finish is pending.
-                    page.evaluate("id=>{const b=document.getElementById(id);for(let i=0;i<10;i++)b.click();}",'interpreter-'+direction)
+                    page.evaluate("id=>{const b=document.getElementById(id);for(let i=0;i<10;i++)b.click();}",'interpreter-orb')
                     page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='ended'")
                     assert page.evaluate('micStops')>=1
                     page.locator('#interpreter-transcript').evaluate('e=>e.open=true')
                     expect(page.locator('#interpreter-original')).to_have_text(source)
                     expect(page.locator('#interpreter-caption')).to_have_text(reply)
-                    expect(button).to_be_enabled();expect(button).to_have_attribute('aria-pressed','false')
+                    expect(button).to_be_enabled();expect(button).to_have_attribute('aria-pressed','true')
                     stream=[m['realtimeInput'] for m in wire.messages if 'realtimeInput' in m]
                     assert stream[0]=={'activityStart':{}} and stream[-1]=={'activityEnd':{}}
                     assert sum('activityEnd' in m for m in stream)==1
@@ -92,18 +92,19 @@ def main():
                     assert len(wires)==before+1
                 if width==393:
                     # Denied permission must be recoverable with no provider admission.
-                    before=len(wires);page.evaluate("mockPermission='denied'");page.locator('#interpreter-left').click()
+                    before=len(wires);page.evaluate("mockPermission='denied'");page.locator('#interpreter-orb img').click()
                     expect(page.locator('#interpreter-state')).to_have_text('Allow microphone access in your browser.')
                     assert len(wires)==before
                     page.evaluate("mockPermission='granted'");fail[0]=True
-                    page.locator('#interpreter-left').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
-                    page.locator('#interpreter-left').click()
+                    page.locator('#interpreter-orb img').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
+                    page.locator('#interpreter-orb img').click()
                     expect(page.locator('#interpreter-state')).to_have_text('Gemini ended the session.')
                     fail[0]=False
-                    page.locator('#interpreter-right').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
-                    # Direction change closes old input before a new one; no stale translation.
-                    page.locator('#interpreter-left').click();page.wait_for_function("document.querySelector('#interpreter-left').getAttribute('aria-pressed')==='true' && document.querySelector('#interpreter-state').dataset.state==='listening'")
-                    page.locator('#interpreter-left').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='ended'")
+                    page.locator('#interpreter-left').click();page.locator('#interpreter-orb img').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
+                    # Direction selection is locked until output finishes.
+                    expect(page.locator('#interpreter-right')).to_be_disabled()
+                    page.locator('#interpreter-right').evaluate('e=>e.click()')
+                    page.locator('#interpreter-orb img').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='ended'")
                     expect(page.locator('#interpreter-caption')).to_have_text('Good morning.')
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
                 page.screenshot(path=str(output/f'translated-{width}.png'),full_page=True)

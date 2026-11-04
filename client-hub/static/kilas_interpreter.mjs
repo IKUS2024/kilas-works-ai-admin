@@ -18,6 +18,7 @@ if(root){
  }catch{}
  const savePair=()=>{try{localStorage.setItem(root.dataset.preferenceKey,JSON.stringify([a.value,b.value]));}catch{}};
  const updatePair=(changed,notify=true)=>{
+  if(active){a.value=pair.a;b.value=pair.b;return;}
   if(a.value===b.value){
    const select=changed==='language-a'?a:b,other=select===a?b:a;
    const candidates=[previousPair[select===a?0:1],'en','id',...Array.from(select.options,option=>option.value)];
@@ -32,7 +33,7 @@ if(root){
  const request=(url,options={})=>requestJSON(url,{csrf:root.querySelector('[name=csrf_token]').value,...options});
  let active=false,pair=null,context=null,side=null,selectedSource=null,switching=false,generation=0,recoveryTimer=null,authExpired=false,lastState='ended',newTranscript=true;
  const sync=()=>{
-  navigation.hidden=active;field('start').disabled=authExpired;end.disabled=false;
+  navigation.hidden=active;for(const control of [a,b,field('swap')])control.disabled=active;field('start').disabled=authExpired;end.disabled=false;
   const names=code=>code===pair?.a?a.selectedOptions[0].text:b.selectedOptions[0].text;
   const recording=side!==null&&session.state!=='ended'&&!session.finishRequested;
   const processing=session.state!=='ended'&&(session.finishRequested||session.speaking);
@@ -42,12 +43,10 @@ if(root){
   orb.setAttribute('aria-label',processing?t(session.speaking?'Terjemahan diputar. Tunggu giliran.':'Menerjemahkan'):recording?t('Hentikan dan terjemahkan'):t('Mulai mendengarkan {source} ke {target}',{source:names(selectedSource||pair?.a),target:names(selectedSource===pair?.b?pair?.a:pair?.b)}));
   if(pair)field('current-direction').textContent=names(selectedSource)+' → '+names(selectedSource===pair.a?pair.b:pair.a);
   for(const [button,source,target] of [[left,pair?.a,pair?.b],[right,pair?.b,pair?.a]]){
-   const selected=side===source&&side!==null;
-   const recording=selected&&session.state!=='ended'&&!session.finishRequested;
-   button.disabled=!active||switching||authExpired||(selected&&['processing','speaking'].includes(session.state));
-   button.setAttribute('aria-pressed',String(recording));
+   button.disabled=!active||switching||authExpired||session.state!=='ended';
+   button.setAttribute('aria-pressed',String(source===selectedSource&&selectedSource!==null));
    button.dataset.selected=String(source===selectedSource&&selectedSource!==null);
-   if(pair)button.setAttribute('aria-label',recording?t('Hentikan dan terjemahkan'):t('Bicara {source} ke {target}',{source:names(source),target:names(target)}));
+   if(pair)button.setAttribute('aria-label',t('Pilih arah bicara')+': '+names(source)+' → '+names(target));
   }
  };
  const directionLabel=(button,source,target)=>{const from=document.createElement('span'),arrow=document.createElement('span'),to=document.createElement('span');from.textContent=source;arrow.textContent=' → ';arrow.className='interpreter-arrow';to.textContent=target;button.replaceChildren(from,arrow,to);button.setAttribute('aria-label',t('Bicara {source} ke {target}',{source,target}));};
@@ -111,7 +110,12 @@ if(root){
    field('orb').dataset.state=state==='speaking'?'playing':['connecting','reconnecting','processing'].includes(state)?'processing':state==='ended'?'idle':'listening';
    if(state==='ended')side=null;lastState=state;sync();
   },onText:text=>caption('caption',text),onOriginal:text=>caption('original',text),onError:showError});
- async function select(source){
+ function chooseDirection(source){
+  if(!active||switching||authExpired||session.state!=='ended')return;
+  selectedSource=source;sync();
+ }
+ async function toggleRecording(){
+  const source=selectedSource||pair?.a;
   if(!active||switching||authExpired||!consent.checked)return;
   if(side===source&&session.state!=='ended'){session.finish();sync();return;}
   selectedSource=source;
@@ -125,9 +129,9 @@ if(root){
    side=source;switching=false;sync();void session.start({source,target,consent:true,turn_mode:'tap'});
   }catch(error){if(ticket===generation){switching=false;session.end();showError(error.code||'call_network');sync();}}
  }
- orb.addEventListener('click',()=>select(side||selectedSource||pair?.a));
- left.addEventListener('click',()=>select(pair.a));right.addEventListener('click',()=>select(pair.b));consent.addEventListener('change',sync);field('start').addEventListener('click',enter);for(const name of ['language-a','language-b'])field(name).addEventListener('change',()=>updatePair(name));field('swap').addEventListener('click',()=>{const a=field('language-a'),b=field('language-b');[a.value,b.value]=[b.value,a.value];updatePair('language-b');});
+ orb.addEventListener('click',toggleRecording);
+ left.addEventListener('click',()=>chooseDirection(pair.a));right.addEventListener('click',()=>chooseDirection(pair.b));consent.addEventListener('change',sync);field('start').addEventListener('click',enter);for(const name of ['language-a','language-b'])field(name).addEventListener('change',()=>updatePair(name));field('swap').addEventListener('click',()=>{const a=field('language-a'),b=field('language-b');[a.value,b.value]=[b.value,a.value];updatePair('language-b');});
  // Backgrounding stops capture immediately, but only explicit End leaves this screen.
- const suspend=()=>{++generation;switching=false;session.end();sync();};
+ const suspend=()=>{const interrupted=switching||session.state!=='ended';++generation;switching=false;session.end();sync();if(active&&interrupted)field('state').textContent=t('Sesi berakhir.')+' '+t('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.');};
  const close=()=>{suspend();active=false;clearTranscript();field('transcript').open=false;field('error').hidden=true;field('setup').hidden=false;field('active').hidden=true;sync();if(authExpired)showError('auth_required');else field('start').focus();};end.addEventListener('click',close);window.addEventListener('pagehide',suspend);document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend();});updatePair('language-b',restoredEqual);
 }
