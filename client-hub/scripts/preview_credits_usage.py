@@ -25,7 +25,8 @@ def create_preview():
         return render_template('kilas_ai/credits_usage_preview.html',
                                home_ai={'history_items': []}, view='settings',
                                kilas_profile_email='Preview account', credits_design_preview=True,
-                               ui_messages={})
+                               ui_messages={}, current_billing={"subscription_amount_idr": 99000,
+                                   "capacity_amounts_idr": (25000, 50000, 100000)})
 
     app.add_url_rule('/kilas-ai/usage', 'kilas_ai.usage_page', page)
 

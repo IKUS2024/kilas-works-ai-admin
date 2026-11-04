@@ -45,6 +45,23 @@ class SinglePlanConsoleTests(unittest.TestCase):
         client.set_cookie('kilas_language', 'id')
         return client
 
+    def test_preview_product_summary_uses_authoritative_prices_without_orders(self):
+        client = self.client_for(self.other)
+        before = topups.owner_orders(self.other)
+        from kilas_ai import billing
+        invoices = billing.owner_invoices(self.other)
+        with patch.dict(usage.PLANS['PLUS'], price=123456), patch.dict(topups.PACKS, MINI=34567):
+            body = client.get('/kilas-ai/usage').get_data(as_text=True)
+        self.assertIn('Rp123.456', body)
+        self.assertIn('Rp34.567', body)
+        self.assertIn('transfer manual', body)
+        self.assertIn('90 hari', body)
+        self.assertNotIn('action="/kilas-ai/checkout"', body)
+        self.assertNotIn('action="/kilas-ai/topups"', body)
+        self.assertNotIn('Irvan Karnawi', body)
+        self.assertEqual(topups.owner_orders(self.other), before)
+        self.assertEqual(billing.owner_invoices(self.other), invoices)
+
     def test_customer_offer_and_amount_validation(self):
         client = self.client_for(self.owner)
         preview = client.get("/kilas-ai/usage").get_data(as_text=True)
