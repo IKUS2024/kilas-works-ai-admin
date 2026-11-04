@@ -288,8 +288,9 @@ def _money_decimal(value, signed=False):
         text='0'+text
 
     # A repeated single separator with groups of exactly three digits is a
-    # thousands-grouped integer. Otherwise a single separator is decimal.
-    grouped_integer = bool(re.fullmatch(r'[0-9]{1,3}(?:[.,][0-9]{3})+',text))
+    # thousands-grouped integer only with a nonzero first group. Leading-zero
+    # inputs such as 0.125 (including normalized .125) are decimal fractions.
+    grouped_integer = bool(re.fullmatch(r'[1-9][0-9]{0,2}([.,])[0-9]{3}(?:\1[0-9]{3})*',text))
     normalized=None
     if grouped_integer:
         normalized=re.sub(r'[.,]','',text)
@@ -297,7 +298,7 @@ def _money_decimal(value, signed=False):
         decimal_sep='.' if text.rfind('.')>text.rfind(',') else ','
         group_sep=',' if decimal_sep=='.' else '.'
         integer_part,fraction=text.rsplit(decimal_sep,1)
-        if not re.fullmatch(r'[0-9]{1,3}(?:'+re.escape(group_sep)+r'[0-9]{3})*|[0-9]+',integer_part):
+        if not re.fullmatch(r'[1-9][0-9]{0,2}(?:'+re.escape(group_sep)+r'[0-9]{3})+|[0-9]+',integer_part):
             raise finance.FinanceError('invalid_money_minor')
         if not re.fullmatch(r'[0-9]{1,6}',fraction):
             raise finance.FinanceError('invalid_money_minor')
@@ -308,6 +309,8 @@ def _money_decimal(value, signed=False):
             raise finance.FinanceError('invalid_money_minor')
         integer_part,fraction=text.split(sep,1)
         if not integer_part.isdigit() or not re.fullmatch(r'[0-9]{1,6}',fraction):
+            raise finance.FinanceError('invalid_money_minor')
+        if len(fraction)==3 and len(integer_part)>1 and integer_part.startswith('0') and int(integer_part)!=0:
             raise finance.FinanceError('invalid_money_minor')
         normalized=integer_part+'.'+fraction
     elif text.isdigit():
