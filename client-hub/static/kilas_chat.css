@@ -195,3 +195,21 @@ body.home-chat-compact .kilas-home-workspace.ai-shell .home-tool-selector{margin
 body.home-chat-compact .kilas-home-workspace.ai-shell .home-task-choices{height:44px!important;max-height:44px!important}
 body.home-chat-compact .kilas-home-workspace.ai-shell .ai-main{gap:4px!important}
 body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer){padding:4px!important}
+
+/* Keyboard/zoom reflow: tabs keep their label width rather than sharing the
+   remaining space with the model-control item. Only this row scrolls. */
+body.home-chat-compact .kilas-home-workspace.ai-shell[data-chat-reflow] .home-tool-selector{display:block!important;min-width:0;max-width:100%;overflow:visible}
+body.home-chat-compact .kilas-home-workspace.ai-shell[data-chat-reflow] .home-tool-selector .home-task-choices{width:100%;max-width:100%;box-sizing:border-box;align-items:center;overflow-x:auto!important;overflow-y:hidden!important;overscroll-behavior-x:contain;scrollbar-width:thin}
+body.home-chat-compact .kilas-home-workspace.ai-shell[data-chat-reflow] .home-tool-selector .home-task-choices>:is(button,a,.kilas-translator-pending){flex:0 0 auto!important;width:max-content!important;min-width:max-content!important;max-width:none!important;flex-direction:row!important;white-space:nowrap!important;gap:6px!important;font-size:13px!important;padding:8px 12px!important;min-height:44px!important;height:44px!important}
+body.home-chat-compact .kilas-home-workspace.ai-shell[data-chat-reflow] .home-tool-selector .home-task-choices>:is(button,a,.kilas-translator-pending)>span{flex:none;white-space:nowrap!important}
+body.home-chat-compact .kilas-home-workspace.ai-shell[data-chat-reflow]>.home-workspace-top:not(.has-model-selector){flex:none;min-height:24px!important;height:28px!important;max-height:28px;padding:0!important;font-size:14px}
+body.home-chat-compact .kilas-home-workspace.ai-shell[data-chat-reflow]>.home-workspace-top:not(.has-model-selector) .chat-model-controls{align-items:center;min-height:24px;line-height:1.4}
+/* Long translations also need their intrinsic width after the keyboard closes. */
+body.kilas-light .kilas-home-workspace.ai-shell[data-chat-reflow] .home-tool-selector .home-task-choices{display:flex!important;flex-wrap:nowrap!important;width:100%;max-width:100%;overflow-x:auto!important;overflow-y:hidden;overscroll-behavior-x:contain}
+body.kilas-light .kilas-home-workspace.ai-shell[data-chat-reflow] .home-tool-selector .home-task-choices>:is(button,a,.kilas-translator-pending){flex:1 0 auto!important;width:auto!important;min-width:max-content!important;max-width:none!important;white-space:nowrap!important}
+/* Win over the older reference-theme pill sizes in compact mode only. */
+body.kilas-light.premium-workspace.home-chat-compact .kilas-home-workspace.ai-shell[data-chat-reflow] .home-tool-selector.kilas-task-navigation .home-task-choices>:is(button,a,.kilas-translator-pending){min-height:44px!important;max-height:44px!important;height:44px!important;padding:8px 12px!important;font-size:13px!important;flex-direction:row!important;flex:0 0 auto!important;width:max-content!important;min-width:max-content!important}
+
+/* Under magnification with a very short viewport, the managed brand can join
+   the scroller at its own text width without stealing tab or composer space. */
+body.home-chat-compact .kilas-home-workspace.ai-shell[data-chat-reflow] .home-task-choices>.home-workspace-top:not(.has-model-selector){width:max-content!important;min-width:max-content;max-width:none;flex:0 0 auto!important;padding-inline:10px!important}
