@@ -39,6 +39,7 @@ jobs:
           test_finance_fx_precision test_finance_invoice_editor test_finance_direction_filters
           test_finance_ui_integrity test_finance_workspace_corrections
           test_finance_final_package test_finance_receipt_preview test_kilas_finance_baseline
+          test_kilas_finance_bridge test_kilas_finance_bridge_routes
       - name: Native PostgreSQL arithmetic, scopes and atomic payment edits
         env:
           DATABASE_URL: postgresql://postgres:synthetic-finance-audit@127.0.0.1:5432/kilas_finance_qa

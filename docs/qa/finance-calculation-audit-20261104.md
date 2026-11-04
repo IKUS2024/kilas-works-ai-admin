@@ -20,7 +20,7 @@ No templates, styles, browser layout, receipt implementation, credentials, store
 - **131 tests passed**, zero failures/errors/skips, across 13 current suites: calculation audit, approved revisions, edit package, expense entries, purchase plans, FX precision, invoice editor, direction filters, UI accounting integrity, workspace corrections, current final package, receipt preview and standalone Finance boundary.
 - **7 native PostgreSQL 18 tests passed**: two new allocation/overflow parity cases and five existing atomic invoice/bill edit, concurrency, rollback and scope cases. Used a newly created disposable Docker database `kilas_finance_qa` bound to loopback, not production.
 - The new calculation suite contains **11 tests**. Running the identical suite against a pristine archive of the base commit is red; candidate is green. Some source-group tests additionally exercise the new optional parent-grouping API.
-- Complete isolated baseline: **57 files / 1,183 tests**, including the 11 new tests. All **56 pre-existing suite results are identical** between pristine base and candidate. The only changed suite is the new calculation suite, now passing. Original tracked baseline has 1,172 tests.
+- Originally selected isolated baseline: **57 files / 1,183 tests**, including the 11 new tests. All **56 pre-existing suite results are identical** between pristine base and candidate. This selection omitted the two Finance Bridge files; it must not be described as full Bridge coverage. See the expanded follow-up below. The only changed suite in this original selection is the new calculation suite, now passing. Original tracked selection has 1,172 tests.
 - The complete baseline is **not green**: candidate has 109 assertion-failure events, 653 error events and 10 skipped PostgreSQL cleanup cases. Subtests can produce multiple events per test. Do not describe those scenarios as tested successfully.
 - `git diff --check` passed. Added a dedicated SQLite/PostgreSQL workflow; existing broad workflows remain responsible for reporting their failures.
 
@@ -50,9 +50,36 @@ python client-hub/tests/run_finance_regressions.py \
   test_finance_edit_package test_finance_expense_entries test_finance_purchase_plans \
   test_finance_fx_precision test_finance_invoice_editor test_finance_direction_filters \
   test_finance_ui_integrity test_finance_workspace_corrections \
-  test_finance_final_package test_finance_receipt_preview test_kilas_finance_baseline
+  test_finance_final_package test_finance_receipt_preview test_kilas_finance_baseline \
+  test_kilas_finance_bridge test_kilas_finance_bridge_routes
 ```
 
 Native scripts require an explicit `FINANCE_LOCAL_PG_QA=1` and loopback `DATABASE_URL` with database name exactly `kilas_finance_qa`; they refuse production/non-loopback targets. See the added workflow for the synthetic setup. Run `finance_calculation_postgres_qa.py` and `finance_edit_postgres_qa.py` against that disposable database.
 
 No migration, secret, model, or environment change is required for deployment. Parent must coordinate review/CI disposition and integration, then deploy the integrated SHA to Client Hub and verify it live. This worker did not approve, merge or deploy the PR. Ordinary application rollback to the previous SHA is sufficient because these repairs alter read aggregation only.
+
+## Reviewer follow-up: Bridge scope and exact-head CI
+
+The dedicated calculation workflow on `875030e4e8b9ef8e7e91b1f68536acde31f148f9` [completed successfully](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/41870616838), including offline and native PostgreSQL steps. No production implementation changes were made during the following coverage repair.
+
+The reviewer correctly identified that `test_kilas_finance_bridge.py` and `test_kilas_finance_bridge_routes.py` were outside the original filename selection. Both exact original suites were executed on pristine `bf57edc` and candidate `875030e4`: **26 tests, the same 3 service + 6 route failures on both**. These were investigated individually:
+
+| Original failing case | Verified cause and current check |
+| --- | --- |
+| expired/emergency/disabled AI | Expected expired paid-only Finance, but current deterministic Finance is FREE. Free mapping succeeds; emergency disable and suspended source still reject writes. |
+| personal branch/unavailable product | Personal branch rejection already passes; the historical beta flag does not disable FREE Finance. A genuinely unavailable product is explicitly tested and rejected. |
+| verified Assist includes owned Finance | Expected inactive → PAID_ACTIVE; current state remains FREE. Foreign target ownership and suspended source are still explicitly rejected, with no cash posting. |
+| owner forms | Raw `user_id` switched to a different actor while retaining the old revocable-session token; auth redirected to login before the route ran. Modern authenticated owner flow passes. |
+| CSRF/foreign forms | Same invalid-session fixture. Real authenticated CSRF, oversized payload and foreign-owner assertions now execute and pass. |
+| job editor/payment | Same invalid-session fixture. Draft/issue, rollback, full payment and replay now execute and pass. |
+| platform admin auto connection | Same invalid-session fixture. Real admin session and emergency-disable/automatic connection checks now execute and pass. |
+| revoked Finance access route | Same invalid-session fixture: the 303 was login, not leaked Finance access. With a valid source-owner session, Core job stays 200 without invoice details and the Bridge route rejects access with 404. |
+| standalone Finance | Raw actor swap followed redirects to the login page, giving misleading 200s. Real standalone sessions now verify Finance pages, explicit 404 for archived assistant, and zero Bridge writes. |
+
+Updated tests use the existing real-session authentication helper; no auth middleware, entitlement policy or Bridge implementation was weakened. Added direct service coverage for revoked destination membership (read, payment options and mapping writes reject without changing records), and a route regression proving forged raw-session actor swaps still reject without disclosing invoice data.
+
+**All 28 updated Bridge tests pass on both pristine base production code and candidate production code.** This verifies current behavior independently of the calculation changes and demonstrates that the observed nine failures were stale fixture/contract expectations, not a current permission bypass. Baseline discovery now includes all `test_kilas_finance_*.py`; the dedicated regression workflow includes both Bridge suites.
+
+Other final-head CI failures were independently reproduced on pristine base: four Home UI assertions; the known Finance catalog/style assertions; WhatsApp auth fixtures (3 failures/2 errors); three workspace navigation assertions; the subscription dashboard status assertion at line 602; Assist forced-language dict-versus-None; and six Node viewport fixture errors (`root.dataset` missing for `chatReflow`). These remain failures, not successful coverage. The exact-base reproductions used isolated offline fixtures; broad workflows are not being marked green or bypassed.
+
+Expanded candidate baseline completed: **59 files / 1,211 tests**, including both updated Bridge suites. All original 57 suite results are unchanged; both added suites pass (28 tests). The selected current suites therefore total **159 passing tests**, plus the previously verified 7 native PostgreSQL tests. The expanded historical baseline remains non-green for the documented existing failures. Full expanded per-file results are included in the JSON artifact.

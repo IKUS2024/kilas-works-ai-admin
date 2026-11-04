@@ -22,7 +22,7 @@ def main():
     logs = args.logs or Path(tempfile.mkdtemp(prefix='kilas-finance-baseline-'))
     logs.mkdir(parents=True, exist_ok=True)
     tests = root / 'client-hub' / 'tests'
-    files = sorted(tests.glob('test_finance_*.py')) + [tests / 'test_kilas_finance_baseline.py']
+    files = sorted(set(tests.glob('test_finance_*.py')) | set(tests.glob('test_kilas_finance_*.py')))
     env = dict(os.environ)
     env['PYTHONPATH'] = os.pathsep.join([
         str(root / 'scripts' / 'offline_tests'), str(root / 'client-hub'),
