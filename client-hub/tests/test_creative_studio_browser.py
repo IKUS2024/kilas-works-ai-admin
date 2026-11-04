@@ -32,7 +32,7 @@ def check_portfolio(page, locale, *, activate=False, touch=False):
             assert image.get_attribute('src') in row['assets']
             assert image.get_attribute('alt')
             geometry=image.evaluate('e=>{const r=e.getBoundingClientRect();return {ratio:r.width/r.height,fit:getComputedStyle(e).objectFit}}')
-            assert abs(geometry['ratio']-2.18)<.005 and geometry['fit']=='contain',geometry
+            assert abs(geometry['ratio']-2.18)<.005 and geometry['fit']==('contain' if row['id']=='DdESSzkp1to' else 'cover'),geometry
             card.focus();expect(card).to_be_focused()
             if activate:
                 with page.context.expect_page() as pending:
@@ -54,7 +54,7 @@ def check_portfolio(page, locale, *, activate=False, touch=False):
         dimensions=cards.evaluate_all('''es=>es.map(e=>{
           const card=e.getBoundingClientRect(),image=e.querySelector('img').getBoundingClientRect();
           const cta=e.querySelector('figcaption'),label=cta.querySelector('span'),button=cta.getBoundingClientRect();
-          return {width:card.width,height:card.height,mediaWidth:image.width,mediaHeight:image.height,ctaHeight:button.height,
+          return {width:card.width,height:card.height,mediaWidth:e.querySelector('img').offsetWidth,mediaHeight:e.querySelector('img').offsetHeight,ctaHeight:button.height,
             labelFits:label.scrollWidth<=label.clientWidth&&label.scrollHeight<=label.clientHeight,
             ctaFits:cta.scrollWidth<=cta.clientWidth&&cta.scrollHeight<=cta.clientHeight};
         })''')

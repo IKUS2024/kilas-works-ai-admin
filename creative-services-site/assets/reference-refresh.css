@@ -14,7 +14,7 @@ h1,h2,h3{font-family:var(--font);font-weight:650;letter-spacing:-.04em}
 .studio-portfolio-visuals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;width:100%}
 .studio-portfolio-visuals .studio-reel{width:100%;max-width:none;border-radius:14px;overflow:hidden;background:#0c151d;box-shadow:none}
 .studio-portfolio-visuals .studio-reel figure{aspect-ratio:auto;display:flex;flex-direction:column;background:#0c151d;border-radius:0}
-.studio-portfolio-visuals .studio-reel img{width:100%;height:auto;aspect-ratio:16/10;object-fit:contain;background:#172a36}
+.studio-portfolio-visuals .studio-reel img{width:100%;height:auto;aspect-ratio:16/10;object-fit:cover;background:#172a36}
 .studio-portfolio-visuals .studio-reel figcaption{position:static;display:flex;justify-content:space-between;align-items:center;gap:12px;height:68px;padding:12px 20px;background:#0c151d;color:#fff;font-size:16px;line-height:1.4}
 .studio-portfolio-visuals .studio-reel figcaption .cs-icon{flex:none;width:36px;height:36px;border-radius:50%;padding:10px;background:#dd541d;color:#fff;fill:currentColor;stroke-width:1}
 .studio-reel:focus-visible{outline:3px solid #ffb591;outline-offset:5px}
@@ -61,3 +61,30 @@ h1,h2,h3{font-family:var(--font);font-weight:650;letter-spacing:-.04em}
 .studio-footer .footer>a:last-child{margin:0;font-size:14px}
 @media(max-width:1100px){.studio-portfolio .wrap,.contact>.wrap,.studio-footer .wrap{width:calc(100% - 96px)}.header-inner{display:grid;grid-template-columns:1fr auto;gap:0 20px;padding-block:18px 10px}.brand{grid-column:1;grid-row:1}.js .studio-menu{display:flex!important;grid-column:2;grid-row:1;align-items:center;justify-content:center;width:44px;height:44px;border:0;background:transparent;color:var(--ink)}.cs-back-home{grid-column:1;grid-row:2;min-height:44px}.cs-language{grid-column:2;grid-row:2;border:0;padding:0;justify-content:flex-end}.focused-header-links{grid-column:1/3;grid-row:3;margin:8px 0 0;padding-top:8px;border-top:1px solid var(--line)}.js .header:not(.studio-menu-open) .focused-header-links{display:none}.studio-portfolio-copy h2{font-size:54px}.studio-portfolio-copy{display:block}.studio-portfolio-copy p{margin-top:14px}.studio-portfolio-copy>a{margin-top:28px}.contact .cs-business-info h2{font-size:46px}}
 @media(max-width:700px){.studio-portfolio .wrap,.contact>.wrap,.studio-footer .wrap{width:calc(100% - 40px)}.header-inner{padding-block:10px 6px}.studio-portfolio-copy h2{font-size:38px}.studio-portfolio-visuals{gap:14px}.studio-portfolio-visuals .studio-reel{border-radius:12px}.studio-portfolio-visuals .studio-reel figcaption .cs-icon{padding:6px}.contact .cs-business-info h2{font-size:32px;max-width:20ch}.cs-business-info dl>div{grid-template-columns:56px minmax(0,1fr);gap:6px 16px}.cs-contact-icon{width:56px;height:56px;border-radius:12px}.cs-contact-icon svg{width:28px;height:28px}.cs-business-info .cs-business-whatsapp{font-size:14px;gap:16px}.studio-footer .footer>a:last-child{width:auto}}
+
+/* Parent visual review: bright accents, readable contact and subject-aware crops. */
+.studio-portfolio-copy h2::after,.studio-portfolio-visuals .studio-reel figcaption .cs-icon{color:#ff7100;border-color:#ff7100}
+.contact .cs-business-info h2::after{background:#ff7100}
+.cs-contact-icon{color:#ff7100;background:#ffeadb}
+.studio-reel[data-studio-work="1"] img{object-position:50% 55%}
+.studio-reel[data-studio-work="2"] img{object-position:50% 42%}
+/* A landscape crop would lose either the billiard player's face or her cue.
+   Preserve that complete frame over a soft backdrop from the same actual asset. */
+.studio-reel[data-studio-work="3"] figure{position:relative;isolation:isolate}
+.studio-reel[data-studio-work="3"] figure::before{content:'';position:absolute;inset:0 0 68px;background:linear-gradient(#121e2655,#121e2655),url('portfolio/DdESSzkp1to-360.webp') center/cover;filter:blur(10px);z-index:-1}
+.studio-portfolio-visuals .studio-reel[data-studio-work="3"] img{object-fit:contain;background:transparent}
+.cs-business-info dl{max-width:100%;gap:40px}
+.cs-business-info dt{font-size:clamp(18px,1.6vw,22px);line-height:1.5;margin-bottom:10px}
+.cs-business-info dd{font-size:clamp(24px,2.4vw,32px);line-height:1.6}
+.cs-business-info address{max-width:42ch}
+.cs-business-info .cs-business-whatsapp{display:flex;width:340px;max-width:100%;min-height:72px;margin-top:40px;padding:16px 24px;border:1px solid #9ba0a0;border-radius:10px;font-size:22px;gap:18px;color:#20262a}
+.cs-business-info .cs-business-whatsapp .cs-whatsapp-mark{width:30px;height:30px;color:#ff7100;flex:none}
+.cs-business-info .cs-business-whatsapp>svg:last-child{width:26px;height:26px;color:#ff7100;margin-left:auto;flex:none}
+.cs-business-info .cs-business-whatsapp:hover{border-color:#c65400;background:#ffeadb;color:#20262a}
+@media(max-width:700px){.cs-business-info dt{font-size:18px;margin-bottom:6px}.cs-business-info dd{font-size:clamp(18px,5.2vw,22px);line-height:1.65}.cs-business-info dl{gap:28px}.cs-business-info .cs-business-whatsapp{width:100%;max-width:360px;min-height:64px;padding:14px 22px;margin-top:30px;font-size:20px}.studio-reel[data-studio-work="3"] figure::before{bottom:56px}}
+@media(min-width:701px){.cs-business-info dl>div{grid-template-columns:104px minmax(0,1fr);column-gap:28px}.cs-contact-icon{width:104px;height:104px;border-radius:20px}.cs-contact-icon svg{width:42px;height:42px}}
+.contact .cs-brief-prepare{background:#ff7100;border-color:#ff7100;color:#121e26}
+.contact .cs-brief-prepare:hover{background:#ff8a2b;border-color:#ff8a2b;color:#121e26}
+.contact .cs-business-info a:focus-visible{outline-color:#121e26}
+/* Enlarge the intact billiards subject while retaining both face and cue. */
+.studio-portfolio-visuals .studio-reel[data-studio-work="3"] img{transform:scale(1.5);clip-path:inset(16.667% 0);transform-origin:center}
