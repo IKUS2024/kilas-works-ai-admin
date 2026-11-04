@@ -15,7 +15,7 @@ navigator.mediaDevices.getUserMedia=async()=>{
  if(window.mockPermission==='denied')throw new DOMException('denied','NotAllowedError');
  const ctx=new AudioContext(),osc=ctx.createOscillator(),out=ctx.createMediaStreamDestination();
  osc.frequency.value=220;osc.connect(out);osc.start();
- for(const track of out.stream.getTracks()){const stop=track.stop.bind(track);track.stop=()=>{window.micStops++;stop();osc.stop();ctx.close();};}
+ for(const track of out.stream.getTracks()){const stop=track.stop.bind(track);let stopped=false;track.stop=()=>{if(stopped)return;stopped=true;window.micStops++;stop();osc.stop();ctx.close();};}
  return out.stream;
 };"""
 def contrast(a,b):
@@ -44,7 +44,7 @@ def main():
      context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':locale,'url':origin}])
      context.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
      context.add_init_script(MIC);page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-     mode=['normal'];starts=[];ends=[]
+     mode=['normal'];starts=[];ends=[];finished=set()
      audio=b''.join(struct.pack('<h',int(8000*math.sin(i/12))) for i in range(24000))
      frames=[{'index':0,'type':'original','text':SOURCE},{'index':1,'type':'text','text':REPLY}]
      for at in range(0,len(audio),9600):frames.append({'index':len(frames),'type':'audio','pcm':base64.b64encode(audio[at:at+9600]).decode()})
@@ -52,6 +52,7 @@ def main():
      def relay(route):
       request=route.request;path=request.url.split('?')[0]
       if path.endswith('/end'):ends.append(path);return route.fulfill(json={'state':'CLOSED'})
+      if path.endswith('/finish'):finished.add(path.rsplit('/',1)[0]);return route.fulfill(json={'input_finished':True})
       if mode[0]=='auth':return route.fulfill(status=401,content_type='text/html',body='<h1>Authentication required</h1>')
       if path.endswith('/readiness'):
        if mode[0]=='network':return route.abort('failed')
@@ -61,7 +62,7 @@ def main():
        starts.append(request.post_data);return route.fulfill(status=202,json={'call_id':path.rsplit('/',1)[1],'state':'CONNECTING'})
       from urllib.parse import parse_qs,urlsplit
       after=int(parse_qs(urlsplit(request.url).query).get('after',['0'])[0])
-      items=frames[after:]
+      items=frames[after:] if path in finished else []
       return route.fulfill(json={'state':'LISTENING','frames':items,'next_index':after+len(items),'total_frames':len(frames)})
      page.route('**/kilas-translator/interpreter/**',relay)
      page.goto(origin+'/kilas-translator/interpreter',wait_until='networkidle')
@@ -89,10 +90,14 @@ def main():
      assert page.evaluate('micRequests')==0 and not starts
      assert not page.locator('#interpreter-transcript').get_attribute('open')
      page.locator('#interpreter-left').click()
+     page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
+     expect(page.locator('#interpreter-state')).to_have_text(copy('Mendengarkan. Ketuk lagi untuk menerjemahkan.'))
+     assert not finished
+     page.locator('#interpreter-left').click()
      page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='speaking'")
      expect(page.locator('#interpreter-state')).to_have_text(copy('Terjemahan diputar. Tunggu giliran.'))
      assert len(starts)==1 and page.evaluate('micRequests')==1
-     page.locator('#interpreter-left').click();assert len(starts)==1
+     expect(page.locator('#interpreter-left')).to_be_disabled();assert len(starts)==1
      expect(page.locator('#interpreter-caption')).to_have_text(REPLY)
      assert not page.locator('#interpreter-caption').is_visible()
      page.locator('#interpreter-transcript > summary').click()
@@ -104,23 +109,27 @@ def main():
      assert page.locator('#interpreter-original').evaluate("e=>getComputedStyle(e).direction")=='rtl'
      assert page.locator('#interpreter-caption').get_attribute('lang')=='en'
      assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-     page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
-     expect(page.locator('#interpreter-state')).to_have_text(copy('Mendengarkan'))
+     page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='ended'")
+     expect(page.locator('#interpreter-state')).to_have_text(copy('Pilih arah bicara'))
      if width in (393,1440):page.screenshot(path=str(output/f'transcript-{locale}-{width}.png'),full_page=True)
      assert not page.evaluate("(s)=>Object.values(localStorage).some(v=>v.includes(s))",REPLY)
      latest_reply=REPLY
      if width==393:
       second_source='لا، خمسة عشر وليس خمسين.'
       latest_reply='No, fifteen, not fifty.'
-      frames.extend([{'index':len(frames),'type':'original','text':second_source},{'index':len(frames)+1,'type':'text','text':latest_reply}])
+      frames=[{'index':0,'type':'original','text':second_source},{'index':1,'type':'text','text':latest_reply},{'index':2,'type':'turn_complete'}]
+      page.locator('#interpreter-left').click()
+      page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
+      page.locator('#interpreter-left').click()
       expect(page.locator('#interpreter-original')).to_have_text(second_source)
       expect(page.locator('#interpreter-caption')).to_have_text(latest_reply)
-     mode[0]='auth'
+     page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='ended'")
+     mode[0]='auth';page.locator('#interpreter-left').click()
      expect(page.locator('#interpreter-login')).to_be_visible()
      expect(page.locator('#interpreter-state')).to_have_text(copy('Sesi akun berakhir. Masuk kembali.'))
      expect(page.locator('#interpreter-left')).to_be_disabled()
-     assert page.evaluate('micStops')>=1 and len(starts)==1
-     expect(page.locator('#interpreter-caption')).to_have_text(latest_reply)
+     assert page.evaluate('micStops')>=1 and len(starts)==(2 if width==393 else 1)
+     # Starting a new turn clears prior captions; errors within a turn retain them.
      assert page.locator('#interpreter-login').get_attribute('href')=='/login'
      expect(page.locator('#interpreter-login')).to_be_focused()
      if width==393:

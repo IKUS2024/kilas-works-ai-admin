@@ -77,3 +77,17 @@ def interpreter_end(ident):
         calls.end(session['user_id'],ident,request.form.get('reason','call_ended'))
         return {'state':'CLOSED'},200,HEADERS
     except (calls.CallError,budget.ledger.BudgetError) as error:return failure(error)
+
+
+@ai_bp.post('/interpreter/<ident>/finish')
+def interpreter_finish(ident):
+    csrf()
+    if request.content_length and request.content_length>4096:abort(400)
+    try:
+        call=calls.get(session['user_id'],ident)
+        if call is None:raise calls.CallError('call_ended',409)
+        raw=request.form.get('next_index','')
+        if not re.fullmatch(r'[0-9]{1,9}',raw):raise calls.CallError('call_input_invalid',400)
+        call.finish_input(int(raw))
+        return {'input_finished':True},200,HEADERS
+    except (calls.CallError,budget.ledger.BudgetError) as error:return failure(error)

@@ -57,7 +57,7 @@ def ready(owner):
 
 def setup(handle=None,settings=None):
     selected=preferences.validate(settings)
-    return {'setup':{'model':'models/'+budget.MODEL,
+    result={'setup':{'model':'models/'+budget.MODEL,
         'systemInstruction':{'parts':[{'text':preferences.instructions(selected)}]},
         'generationConfig':{'responseModalities':['AUDIO'],'maxOutputTokens':1024,
             'speechConfig':{'voiceConfig':{'prebuiltVoiceConfig':{'voiceName':'Kore'}}}},
@@ -67,6 +67,9 @@ def setup(handle=None,settings=None):
         'inputAudioTranscription':{},'outputAudioTranscription':{},
         'contextWindowCompression':{'triggerTokens':6000,'slidingWindow':{'targetTokens':3000}},
         'sessionResumption':{'handle':handle} if handle else {}}}
+    if selected.get('turn_mode')=='tap':
+        result['setup']['realtimeInputConfig']['automaticActivityDetection']={'disabled':True}
+    return result
 
 
 class Call:
@@ -85,6 +88,7 @@ class Call:
         self.provider_started=self.started
         self.input_energy=0;self.input_samples=0;self.input_peak=0;self.input_transcript_chars=0
         self.sent_bytes=0;self.sent_chunks=0;self.provider_messages=0
+        self.input_finished=False
         self.original_caption = ""
         self.turn_timing = TurnTiming()
         # Claim has just authorized this capability. The provider worker also
@@ -166,6 +170,7 @@ class Call:
             digest=hashlib.sha256(raw).digest()
             if index==self.expected-1 and digest==self.last_chunk_digest:
                 self.last_seen=monotonic();return  # Lost HTTP ACK: never queue/meter PCM twice.
+            if self.input_finished:raise CallError('call_input_invalid',409)
             if index!=self.expected:raise CallError('call_input_invalid',409)
             if self.input_bytes-self.funded_input+len(raw)>INPUT_BYTES:self.fund()
             if self.queued+len(raw)>QUEUE_BYTES:raise CallError('call_backlog',409)
@@ -177,6 +182,22 @@ class Call:
             self.input_peak=max(self.input_peak,max(abs(value) for value in samples))
             self.last_chunk_digest=digest
             self.expected+=1;self.input_bytes+=len(raw);self.queued+=len(raw)
+            self.last_seen=monotonic()
+
+    def finish_input(self,index):
+        """One ordered activityEnd after every acknowledged PCM packet.
+
+        Duplicate Finish is metadata-only and never enqueues a second marker.
+        End remains cancellation; Finish retains the provider output stream.
+        """
+        self.transport_check()
+        with self.lock:
+            if self.settings.get('turn_mode')!='tap' or type(index) is not int or index!=self.expected:
+                raise CallError('call_input_invalid',409)
+            if not self.input_finished:
+                try:self.queue.put_nowait(None)
+                except Full:raise CallError('call_backlog',409) from None
+                self.input_finished=True
             self.last_seen=monotonic()
 
     def publish(self,value):
@@ -196,6 +217,7 @@ class Call:
             if self.closed.is_set():return
             self.provider_messages+=1
             if 'goAway' in value:
+                if self.settings.get('turn_mode')=='tap':raise CallError('call_provider_disconnected')
                 if not isinstance(value['goAway'],dict) or monotonic()-self.provider_started<30:
                     raise CallError('call_provider')
                 # Pause unsent PCM. Only a NEW resumable checkpoint after the
@@ -266,7 +288,8 @@ class Call:
                 try:raw=self.queue.get(timeout=.1)
                 except Empty:continue
                 self.transport_check()
-                with self.lock:self.queued-=len(raw)
+                if raw is not None:
+                    with self.lock:self.queued-=len(raw)
                 while not self.closed.is_set():
                     if self.renewing.is_set():
                         if self.closed.wait(.05):return
@@ -275,10 +298,12 @@ class Call:
                         if self.closed.is_set():return
                         if self.renewing.is_set():continue
                         try:
-                            self.ws.send(json.dumps({'realtimeInput':{'audio':{
-                                'mimeType':'audio/pcm;rate=16000','data':base64.b64encode(raw).decode('ascii')}}}))
+                            value={'activityEnd':{}} if raw is None else {'audio':{
+                                'mimeType':'audio/pcm;rate=16000','data':base64.b64encode(raw).decode('ascii')}}
+                            self.ws.send(json.dumps({'realtimeInput':value}))
                         except (OSError,wire_connection_error()):
                             self.recover_transport();break  # Delivery uncertain: never replay this PCM.
+                        if raw is None:return
                         with self.lock:self.sent_bytes+=len(raw);self.sent_chunks+=1
                         break
         except Exception as error:self.stop(getattr(error,'code','call_transport'))
@@ -299,6 +324,8 @@ class Call:
             if 'error' in hello:raise provider_error(hello['error'])
             if not isinstance(hello.get('setupComplete'),dict) or any(k in hello for k in ('error','toolCall','goAway')):raise CallError('call_provider')
             self.check();self.ws.settimeout(.5)
+            if self.settings.get('turn_mode')=='tap':
+                self.ws.send(json.dumps({'realtimeInput':{'activityStart':{}}}))
             with self.lock:self.state='LISTENING'
             Thread(target=self.send,name='kilas-interpreter-input',daemon=True).start()
             Thread(target=self.watch,name='kilas-interpreter-fence',daemon=True).start()
@@ -335,6 +362,9 @@ class Call:
         """Resume only an existing provider checkpoint, never new admission/replay."""
         with self.lock:
             if self.closed.is_set():raise CallError('call_ended',409)
+            # A lost manual activity boundary cannot safely be reconstructed or
+            # replayed. Report it, preserving continuous-mode recovery below.
+            if self.settings.get('turn_mode')=='tap':raise CallError('call_provider_disconnected')
             if self.resume_pending:return
             now=monotonic()
             self.recovery_times=[t for t in self.recovery_times if now-t<60]
