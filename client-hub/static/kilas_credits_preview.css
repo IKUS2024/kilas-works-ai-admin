@@ -87,12 +87,3 @@
 .credits-design-preview .credits-preview-note a{display:inline-flex;align-items:center;min-height:44px;margin-left:0;font-size:12px;line-height:1.5;text-underline-offset:4px}
 .credits-design-preview .credits-payment-help{font-size:12px;line-height:1.7;text-align:left}
 @media(max-width:1100px){.credits-design-preview .credits-preview-note{grid-template-columns:18px minmax(0,1fr);align-items:start}.credits-design-preview .credits-preview-note a{grid-column:2;justify-self:start}.credits-design-preview .credits-preview-note svg{margin-top:3px}}
-
-.credits-design-preview .credits-current-billing{margin:0 0 28px;padding:0 0 24px;border-bottom:1px solid var(--credits-line)}
-.credits-design-preview .credits-current-billing>p{margin-top:8px;font-size:12px;line-height:1.7;color:var(--credits-muted);max-width:80ch}
-.credits-design-preview .credits-current-billing dl{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:20px 0 14px}
-.credits-design-preview .credits-current-billing dt{font-size:13px;font-weight:600;margin-bottom:6px}
-.credits-design-preview .credits-current-billing dd{margin:0;font-size:14px;line-height:1.7}
-.credits-design-preview .credits-current-billing dd span{font-size:12px;color:var(--credits-muted)}
-.credits-design-preview .credits-current-billing .credits-product-detail{font-size:12px;line-height:1.7;color:var(--credits-muted);margin-top:6px;max-width:54ch}
-@media(max-width:760px){.credits-design-preview .credits-current-billing dl{grid-template-columns:1fr;gap:18px}.credits-design-preview .credits-current-billing h2{font-size:17px}}

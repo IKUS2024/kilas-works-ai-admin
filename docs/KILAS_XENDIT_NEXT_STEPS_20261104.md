@@ -1,8 +1,10 @@
 # Checkout implementation findings — 2026-11-04
 
-## Implemented now
+## Product direction correction
 
-The authenticated Credit & Usage preview now includes a read-only existing-product summary. Amounts come from `usage.PLANS['PLUS']['price']` and `topups.PACKS` in the real route, not duplicated UI prices. The local screenshot app uses synthetic fixture values and never imports the application or queries accounts. The summary identifies manual transfer/review, 30-day subscription billing and 90-day fixed capacity packs. It does not offer a new purchase action, replace the custom-amount preview, expose bank details or define numeric wallet credits. Existing invoice links and payment handlers are unchanged.
+The owner clarified the earlier instruction: "ini yg skrg kan hanya luna bro yg lain ga ush karena kan gw bikin gratis yg bayar nnti hanya generate gambar". Chat is intended to be free with Luna, with image generation intended to become paid. Subsequent voice-over monetization may also be considered; this does not establish permanent free access to every non-image service.
+
+The newly added Pro/fixed-pack summary has therefore been removed from the new wallet preview. It risked presenting historical billing constants as the new pricing strategy. The extra route price context, fixture values and section styles were removed too. Legacy billing remains reachable and its handlers/prices/entitlements are unchanged. The disabled checkout explicitly states image-generation and voice-over credit rates are not set. No statement here establishes active runtime flags or enables free usage.
 
 ## Source facts, not new offers
 
@@ -22,7 +24,7 @@ Existing terms and privacy templates already contain business contact `kilaswork
 
 ## Smallest practical automated checkout
 
-Recommendation for a first integration: use the already defined products, if the owner confirms that is the initial automated-payment scope. Alternatively, retain the requested custom-amount wallet as the first target, but decide its actual entitlement semantics first. A hosted checkout alone does not define what a payment buys.
+Follow the confirmed free-chat / future paid-image direction. Do not build automated checkout for historical Pro/fixed-pack offers by inference. Define the custom wallet’s image entitlement and any separately approved voice-over policy first. A hosted checkout alone does not define what a payment buys.
 
 Xendit's current [session overview](https://docs.xendit.co/docs/payment-sessions-overview) and [one-time flow](https://docs.xendit.co/v1/docs/payment-1) support server-side `POST /sessions`, `session_type=PAY`, `mode=PAYMENT_LINK`, IDR/ID, followed by redirect to the returned `payment_link_url`. Use automatic capture and disable saved payment methods; do not turn a 30-day manually renewed product into automatic recurring billing. [Create-session API](https://docs.xendit.co/apidocs/create-session).
 
@@ -37,13 +39,17 @@ Implementation still required:
 
 ## Exact outstanding decisions and access
 
-- **Product decision (pending):** automate existing Pro/fixed capacity first, or implement the new custom-amount wallet first? The latter needs a customer-facing credit definition, conversion/rates, IDR min/max and increments, expiry/refund rules, fees/tax and usage debit semantics. Do not infer these from internal budgets or old custom orders.
+- **Product decisions (pending):** the intended custom-amount wallet for image generation, and any separately approved voice-over paid usage, need a customer-facing credit definition, conversion/rates, IDR min/max and increments, expiry/refund rules, fees/tax and usage debit semantics. Do not infer these from internal budgets or old custom orders.
 - **Account/channels (unknown, not proven inactive):** owner-side Xendit account verification and availability of the chosen QRIS/VA channels have not been inspected. [Xendit's checklist](https://docs.xendit.co/docs/payments-integration-setup) requires activated live channels and separate test/live credentials; inactive channels fail. Approved amounts must also meet each selected channel's limits, which have not been confirmed for this account.
 - **Secrets/access (not configured by this work):** no Xendit adapter or referenced Xendit configuration exists in inspected application code. Existing secret availability is unknown; no secret values were requested or inspected. An authorized operator must later securely supply the permitted API credential, callback verification token and merchant/business identity, and configure the callback endpoint. Creating credentials/persistent access is outside the current permission.
 - **Business/legal (pending confirmation):** confirm legal entity spelling against registration and company bank-holder records; confirm the full office address is appropriate for verification; confirm existing support email/contact and supply the approved wallet/checkout-specific policies. Company Bank Mega settlement setup remains a separate owner-side action. Public contact publication does not configure settlement.
 
 No provider API call, payment, credential creation, bank replacement, Xendit submission or agreement acceptance was performed. Backend integration remains real engineering work; mock-only scaffolding without agreed entitlement semantics would not make checkout ready.
 
-## Validation of this read-only addition
+## Historical validation of the removed summary
 
 Single-plan/console suite passes (6 tests), including existing ledger-preservation and authentication checks and a new regression that varies authoritative prices and verifies rendered values without creating invoices/orders. Manual billing suite passes (2 tests). Credit & Usage browser suite passes 10 size/language cases, retaining custom input validation, disabled payment, keyboard tabs and zero network writes. Updated desktop/mobile screenshots and report are under `docs/qa/business-payment-20261104/`. No provider integration is exercised or claimed by these local checks.
+
+## Correction validation
+
+The six-test console suite includes a regression that rejects Pro/fixed-pack prices in the new preview while confirming the unchanged legacy checkout remains reachable. Billing suite (2 tests) and responsive browser checks (10 size/language cases, disabled checkout, custom-input validation, tabs and no network writes) pass for this correction. Screenshots in `docs/qa/business-payment-20261104` are updated to the corrected UI.

@@ -45,22 +45,19 @@ class SinglePlanConsoleTests(unittest.TestCase):
         client.set_cookie('kilas_language', 'id')
         return client
 
-    def test_preview_product_summary_uses_authoritative_prices_without_orders(self):
+    def test_wallet_preview_does_not_advertise_legacy_pricing(self):
         client = self.client_for(self.other)
-        before = topups.owner_orders(self.other)
-        from kilas_ai import billing
-        invoices = billing.owner_invoices(self.other)
-        with patch.dict(usage.PLANS['PLUS'], price=123456), patch.dict(topups.PACKS, MINI=34567):
-            body = client.get('/kilas-ai/usage').get_data(as_text=True)
-        self.assertIn('Rp123.456', body)
-        self.assertIn('Rp34.567', body)
-        self.assertIn('transfer manual', body)
-        self.assertIn('90 hari', body)
+        body = client.get('/kilas-ai/usage').get_data(as_text=True)
+        for old_offer in ('credits-current-billing', 'Rp99.000', 'Rp25.000', 'Rp50.000', 'Rp100.000'):
+            self.assertNotIn(old_offer, body)
+        self.assertIn('Tarif kredit untuk pembuatan gambar dan voice over belum ditetapkan.', body)
+        self.assertIn('href="/kilas-ai/usage?view=legacy"', body)
+        self.assertIn('type="button" disabled', body)
         self.assertNotIn('action="/kilas-ai/checkout"', body)
         self.assertNotIn('action="/kilas-ai/topups"', body)
-        self.assertNotIn('Irvan Karnawi', body)
-        self.assertEqual(topups.owner_orders(self.other), before)
-        self.assertEqual(billing.owner_invoices(self.other), invoices)
+        legacy = client.get('/kilas-ai/usage?view=legacy').get_data(as_text=True)
+        self.assertIn('Rp99.000', legacy)
+        self.assertIn('action="/kilas-ai/checkout"', legacy)
 
     def test_customer_offer_and_amount_validation(self):
         client = self.client_for(self.owner)

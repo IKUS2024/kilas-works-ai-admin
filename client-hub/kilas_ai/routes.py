@@ -89,8 +89,6 @@ def usage_page():
     return render_template(template, subscription=usage.effective_plan(session["user_id"]), subscription_expired=expired,
                            capacity=capacity.summary(session["user_id"]), view='settings',
                            audio_balance=audio_store.balance(session["user_id"]), audio_packs=audio_store.PACKS,
-                           current_billing={"subscription_amount_idr": usage.PLANS["PLUS"]["price"],
-                                            "capacity_amounts_idr": tuple(topups.PACKS.values())},
                            invoices=billing.owner_invoices(session["user_id"]),
                            topup_orders=topups.owner_orders(session["user_id"]))
 
