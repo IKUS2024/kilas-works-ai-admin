@@ -1,5 +1,5 @@
 """Synthetic responsive checkout/payment geometry; no external requests or paid transitions."""
-import json,logging,os,sys,threading
+import json,logging,os,shutil,sys,threading
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from playwright.sync_api import sync_playwright
@@ -12,7 +12,7 @@ output=Path(os.environ.get('KILAS_CHECKOUT_LAYOUT_OUTPUT','/tmp/checkout-card-la
 try:
  invoices={service:case.create('creative_'+service+'_basic')[0] for service in ('event','social')}
  with sync_playwright() as pw:
-  browser=pw.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+  browser=pw.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
   ctx=browser.new_context();cookie=case.client.get_cookie('session');ctx.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);ctx.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort());page=ctx.new_page()
   for width in (320,360,390,393,412,430,1024,1440):
    page.set_viewport_size({'width':width,'height':900})
