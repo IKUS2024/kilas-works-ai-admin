@@ -115,12 +115,17 @@ class CreativeServicesTests(unittest.TestCase):
                 for src in expected['assets']:
                     data = (SOURCE / src).read_bytes()
                     self.assertEqual(hashlib.sha256(data).hexdigest(), expected['assets'][src])
-                    self.assertLess(len(data), 120_000)
+                    self.assertLess(len(data), 400_000 if expected.get('ai_expanded') else 120_000)
                     with Image.open(SOURCE / src) as cover:
                         self.assertEqual(cover.format, 'WEBP')
-                        ratio = 9 / 16 if expected['kind'] == 'instagram' else 16 / 9
+                        ratio = 2.18 if expected.get('ai_expanded') else 16 / 9
                         self.assertAlmostEqual(cover.width / cover.height, ratio, delta=.01)
                         self.assertLessEqual(cover.width, expected['source_dimensions'][0])
+                if expected.get('ai_expanded'):
+                    self.assertIn('data-ai-expanded', card['link'])
+                    self.assertIn('AI', image['alt'])
+                    for original, digest in expected['original_assets'].items():
+                        self.assertEqual(hashlib.sha256((SOURCE / original).read_bytes()).hexdigest(), digest)
                 self.assertIn(image['src'], expected['assets'])
                 self.assertEqual(set(part.split()[0] for part in image['srcset'].split(', ')), set(expected['assets']))
                 for label in card['link']['aria-labelledby'].split():

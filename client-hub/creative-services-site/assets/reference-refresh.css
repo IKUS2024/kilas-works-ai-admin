@@ -66,9 +66,6 @@ h1,h2,h3{font-family:var(--font);font-weight:650;letter-spacing:-.04em}
 .studio-portfolio-copy h2::after,.studio-portfolio-visuals .studio-reel figcaption .cs-icon{color:#ff7100;border-color:#ff7100}
 .contact .cs-business-info h2::after{background:#ff7100}
 .cs-contact-icon{color:#ff7100;background:#ffeadb}
-.studio-reel[data-studio-work="1"] img{object-position:50% 55%}
-.studio-reel[data-studio-work="2"] img{object-position:50% 42%}
-.studio-reel[data-studio-work="3"] img{object-position:50% 26%}
 .cs-business-info dl{max-width:100%;gap:40px}
 .cs-business-info dt{font-size:clamp(18px,1.6vw,22px);line-height:1.5;margin-bottom:10px}
 .cs-business-info dd{font-size:clamp(24px,2.4vw,32px);line-height:1.6}
@@ -82,3 +79,6 @@ h1,h2,h3{font-family:var(--font);font-weight:650;letter-spacing:-.04em}
 .contact .cs-brief-prepare{background:#ff7100;border-color:#ff7100;color:#121e26}
 .contact .cs-brief-prepare:hover{background:#ff8a2b;border-color:#ff8a2b;color:#121e26}
 .contact .cs-business-info a:focus-visible{outline-color:#121e26}
+
+/* Expanded landscapes share the card ratio: render the complete image, no crop. */
+.studio-portfolio-visuals .studio-reel[data-ai-expanded] img{object-fit:contain;object-position:center;transform:none;clip-path:none}
