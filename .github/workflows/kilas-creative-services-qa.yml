@@ -22,6 +22,7 @@ jobs:
       - run: python -B scripts/run_offline_tests.py --only test_creative_services.py
       - run: python -B -m unittest discover -s client-hub/tests -p test_creative_checkout.py -v
       - run: python -B client-hub/tests/creative_checkout_browser.py
+      - run: python -B client-hub/tests/test_creative_checkout_layout_browser.py
       - run: python -B client-hub/tests/test_creative_studio_browser.py
         env: {KILAS_STUDIO_SCREENSHOTS: /tmp/creative-studio-qa}
       - uses: actions/upload-artifact@v4
