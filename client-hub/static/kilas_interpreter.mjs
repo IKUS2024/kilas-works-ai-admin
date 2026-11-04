@@ -2,7 +2,7 @@ import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=translator-auth-20261031';
 import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-reliable-20261023';
 import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-reliable-20261023';
-import {CallSession} from './kilas_interpreter_engine.mjs?v=translator-tap-20261104';
+import {CallSession} from './kilas_interpreter_engine.mjs?v=translator-microphone-20261104';
 const root=document.querySelector('#interpreter');
 if(root){
  const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),end=field('end'),consent=field('consent'),navigation=document.querySelector('#interpreter-navigation');

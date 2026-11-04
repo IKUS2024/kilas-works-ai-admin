@@ -1,0 +1,15 @@
+Translator browser microphone error follow-up — 4 November 2026
+
+Baseline: live 489f13b2c63c062b131c0486e79e764283a69bc5 / PR199.
+
+Postrelease browser evidence from the parent: both direction cards reached the generic Session stopped message, without microphone prompt, captions or translation. The expected tap module was served; language swap/persistence, 99 options and consent reset worked. Browser organization policy disallowed deeper DevTools inspection, so it was stopped. Physical microphone/provider acceptance is not claimed.
+
+Safe Render evidence: worker startup at 03:53:15 UTC reported KILAS_INTERPRETER_READY with owner and nonowner available=true, reason=null, authenticated audience and 99 languages. The existing model/funding configuration was preserved. No KILAS_TRANSLATOR_INTERPRETER session-closure entries appeared for the parent attempts around 03:55 UTC. These signals support a failure before provider admission; they do not identify the browser's actual microphone devices or prove live provider behavior.
+
+Confirmed application defect: native DOMException.code is numeric. CallSession.fail preferred it over the error-name classification. In particular new DOMException(..., NotFoundError).code is 8, which reached the UI's generic fallback rather than microphone_unavailable. The targeted Node regression failed before the fix with actual [8], expected [microphone_unavailable].
+
+Correction: accept only string application error codes, then classify device exceptions by name. Missing/unreadable/unsupported microphone constraints receive the existing localized Check the connected microphone recovery; other numeric browser errors receive the existing actionable transport fallback. Module versions change so cached clients receive the correction. No new permissions, provider calls, funding/configuration, schema or unrelated product changes.
+
+Validation: targeted before/after regression and full interpreter/capture/player/PCM/API Node suite (87 tests). Hardened Chromium now injects a real NotFoundError DOMException for all four locales at mobile width and verifies the device-specific message with zero provider admission; the existing 16-case locale/viewport matrix remains. Existing actual-Flask tap tests retain both directions and normal synthetic output.
+
+The cloud browser lacking a usable microphone is a plausible cause of the observed symptom, not a confirmed device diagnosis. The corrected production message can distinguish that case through the supported UI without bypassing the browser inspection policy. Real device speech/translation remains unverified.
