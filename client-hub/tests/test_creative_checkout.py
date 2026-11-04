@@ -117,6 +117,31 @@ class CreativeCheckoutTests(auth_fixture.CustomerAuthTests):
             self.assertNotIn('data-proof-form',self.client.get(f'/creative-services/payment/{invoice}').text)
             self.assertEqual(self.upload(invoice).status_code,422)
 
+    def test_service_illustrations_replace_legacy_snapshot_images_without_mutation(self):
+        for key,spec in orders.CATALOG['packages'].items():
+            image='event-wedding-camera.webp' if spec['service']=='event' else 'social-product-phone.webp'
+            expected='/creative-services/assets/checkout/'+image
+            page=self.client.get(self.base_url+key,follow_redirects=True)
+            self.assertIn(expected,page.text)
+            self.assertNotIn('/assets/portfolio/',page.text)
+            self.assertIn('Ilustrasi',page.text)
+            asset=self.client.get(expected)
+            self.assertEqual(asset.status_code,200)
+            self.assertEqual(asset.mimetype,'image/webp')
+            self.assertEqual(Image.open(io.BytesIO(asset.data)).size,(1859,846))
+            invoice,_=self.create(key)
+            before_invoice=payment_service.get_invoice(invoice)
+            before_project=projects_repo.get_project(before_invoice['project_id'])
+            before_payment=payment_service.get_payment_for_invoice(invoice)
+            # Existing persisted snapshots still refer to the original portfolio image.
+            self.assertTrue(before_project['requirements']['image'].startswith('portfolio/'))
+            page=self.client.get(f'/creative-services/payment/{invoice}')
+            self.assertIn(expected,page.text)
+            self.assertNotIn('/assets/portfolio/',page.text)
+            self.assertEqual(payment_service.get_invoice(invoice),before_invoice)
+            self.assertEqual(projects_repo.get_project(before_invoice['project_id']),before_project)
+            self.assertEqual(payment_service.get_payment_for_invoice(invoice),before_payment)
+
     def test_all_prices_options_and_frozen_snapshot(self):
         facts=json.loads(Path(__file__).with_name('creative_services_offer_facts.json').read_text())
         self.assertEqual([orders.money(v['amount']) for v in orders.CATALOG['packages'].values()],[x['price'] for x in facts['cards']])

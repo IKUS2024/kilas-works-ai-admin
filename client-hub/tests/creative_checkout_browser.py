@@ -9,6 +9,18 @@ import creative_orders as orders
 import payment_service
 
 
+def verify_service_image(page, service):
+    photo=page.locator('.selected-service img')
+    filename='event-wedding-camera.webp' if service=='event' else 'social-product-phone.webp'
+    expect(photo).to_have_attribute('src','/creative-services/assets/checkout/'+filename)
+    expect(photo).to_have_attribute('alt',__import__('re').compile('^Ilustrasi '))
+    photo.evaluate('(image)=>image.decode()')
+    geometry=photo.evaluate('(image)=>({w:image.getBoundingClientRect().width,h:image.getBoundingClientRect().height,nw:image.naturalWidth,nh:image.naturalHeight,fit:getComputedStyle(image).objectFit})')
+    assert (geometry['nw'],geometry['nh'])==(1859,846),geometry
+    assert abs(geometry['w']/geometry['h']-1859/846)<0.02,geometry
+    assert geometry['fit']=='contain',geometry
+
+
 def main():
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
     case=CreativeCheckoutTests('test_repeated_submit_and_persistence');case.id=lambda:'creative-browser-fixture';case.setUp()
@@ -42,6 +54,7 @@ def main():
                         page.wait_for_url('**/checkout/'+key+'*')
                         expect(page.locator('.selected-service h2')).to_have_text(spec['name'])
                         expect(page.locator('.price')).to_contain_text(orders.money(spec['amount']))
+                        verify_service_image(page,service)
                         page.locator('#name').fill('Synthetic Browser QA');page.locator('#whatsapp').fill('081234567890')
                         if service=='event':
                             page.locator('#event_date').fill('2099-12-01');page.locator('#location').fill('Synthetic venue')
@@ -52,6 +65,7 @@ def main():
                         page.locator('.primary').click();page.wait_for_url('**/creative-services/payment/*')
                         invoice=int(page.url.rsplit('/',1)[1]);expected=orders.offer(key,addon)['total']
                         assert payment_service.get_invoice(invoice)['amount']==expected
+                        verify_service_image(page,service)
                         expect(page.locator('#account-number')).to_have_text('010180016000684')
                         page.locator('.copy').click();assert page.evaluate('navigator.clipboard.readText()')=='010180016000684'
                         expect(page.locator('body')).not_to_contain_text('Pembayaran diperiksa secara manual')
