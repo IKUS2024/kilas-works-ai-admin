@@ -72,7 +72,7 @@ def main():
                 page.locator('[data-audio-history]').first.click()
                 expect(page.locator('#audio-result audio')).to_be_visible()
                 expect(page.locator('#audio-result a').filter(has_text='MP3')).to_have_count(1)
-                page.goto(origin+'/kilas-ai/usage',wait_until='networkidle');expect(page.locator('.credits-pay-button')).to_be_disabled();expect(page.locator('.credits-preview-note')).to_be_visible()
+                page.goto(origin+'/kilas-ai/usage',wait_until='networkidle');expect(page.locator('.subscription-submit')).to_be_disabled();expect(page.locator('.subscription-notice')).to_be_visible()
                 page.screenshot(path=str(output/f'credits-{width}.png'),full_page=True)
                 page.goto(origin+'/creative-services/#cs-event',wait_until='networkidle');page.locator('[data-service-id]').first.click();page.wait_for_url('**/#contact')
                 page.locator('#cs-brief-date').fill('2026-11-20');page.locator('#cs-brief-location').fill('Jakarta');page.locator('#cs-brief-needs').fill('Dokumentasi acara komunitas.');page.locator('.cs-brief-prepare').click()

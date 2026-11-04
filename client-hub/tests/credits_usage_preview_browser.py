@@ -1,14 +1,12 @@
-"""Responsive screenshot and interaction verification, using the data-free preview app."""
+"""Subscription preview responsive navigation and absence of payment side effects."""
 import argparse
 import json
 import logging
 from pathlib import Path
 import sys
 import threading
-
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from preview_credits_usage import create_preview
@@ -16,7 +14,7 @@ from preview_credits_usage import create_preview
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--output', default='/tmp/kilas-credits-review')
+    parser.add_argument('--output', default='/tmp/kilas-subscription-review')
     parser.add_argument('--browser', default='/usr/bin/chromium')
     args = parser.parse_args()
     output = Path(args.output)
@@ -27,69 +25,59 @@ def main():
     origin = f'http://127.0.0.1:{server.server_port}'
     report = []
     try:
-        with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(executable_path=args.browser)
+        with sync_playwright() as p:
+            browser = p.chromium.launch(executable_path=args.browser)
             for language in ('en', 'id'):
-                for device, width, height in (('desktop', 1440, 1080), ('tablet', 834, 1112), ('mobile', 390, 844), ('narrow', 320, 800), ('laptop', 1024, 900)):
-                    context = browser.new_context(viewport={'width': width, 'height': height}, has_touch=width < 900)
+                for width in (320, 360, 393, 834, 1440):
+                    context = browser.new_context(viewport={'width': width, 'height': 900})
                     context.add_cookies([{'name': 'kilas_language', 'value': language, 'url': origin}])
                     page = context.new_page()
-                    errors, unexpected, writes = [], [], []
-                    page.on('pageerror', lambda error: errors.append(str(error)))
-                    page.on('request', lambda req: unexpected.append(req.url) if not req.url.startswith(origin) else None)
-                    page.on('request', lambda req: writes.append(req.url) if req.method not in ('GET', 'HEAD') else None)
+                    errors, writes = [], []
+                    page.on('pageerror', lambda e: errors.append(str(e)))
+                    page.on('request', lambda r: writes.append(r.url) if r.method not in ('GET', 'HEAD') or not r.url.startswith(origin) else None)
                     page.goto(origin + '/kilas-ai/usage', wait_until='networkidle')
-                    page.evaluate('document.fonts.ready')
-                    expect(page.locator('h1')).to_have_text('Credits & Usage' if language == 'en' else 'Kredit & Penggunaan')
-                    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (language, width, 'overflow')
-                    expect(page.locator('.credits-pay-button')).to_be_disabled()
-                    assert page.locator('.credits-topup form').count() == 0
-                    assert page.locator('.credits-estimate strong').inner_text() == '—'
-                    assert page.locator('.credits-balance-value>span').first.inner_text() == '—'
-                    assert page.locator('.credits-preview-note a').get_attribute('href').endswith('?view=legacy')
-                    if device in ('desktop', 'tablet', 'mobile'):
-                        page.screenshot(path=str(output / f'credits-{language}-{device}.png'), full_page=True)
-                    # Arbitrary amount entry stays presentation-only and never produces a rate.
-                    page.locator('#credits-amount').fill('123.45')
-                    page.locator('#credits-amount').blur()
-                    expect(page.locator('#credits-amount-error')).not_to_be_visible()
-                    page.locator('#credits-currency').select_option('IDR')
-                    expect(page.locator('[data-credits-currency-symbol]')).to_have_text('Rp')
-                    expect(page.locator('#credits-amount')).to_have_value('')
-                    page.locator('#credits-amount').fill('-1')
-                    page.locator('#credits-amount').blur()
-                    expect(page.locator('#credits-amount-error')).to_be_visible()
-                    page.locator('#credits-amount').fill('50000')
-                    page.locator('#credits-amount').blur()
-                    expect(page.locator('#credits-amount-error')).not_to_be_visible()
-                    expect(page.locator('.credits-pay-button')).to_be_disabled()
-                    # WAI tab keyboard behavior and distinct empty states.
-                    page.locator('#credits-usage-tab').focus()
-                    page.keyboard.press('ArrowRight')
-                    expect(page.locator('#credits-payments-panel')).to_be_visible()
-                    expect(page.locator('#credits-payments-tab')).to_be_focused()
-                    expect(page.locator('#credits-usage-panel')).not_to_be_visible()
-                    if device == 'desktop':
-                        page.screenshot(path=str(output / f'credits-{language}-payments.png'), full_page=True)
-                    page.keyboard.press('Home')
-                    expect(page.locator('#credits-usage-panel')).to_be_visible()
-                    expect(page.locator('[data-premium-menu], #premium-sidebar, .premium-backdrop')).to_have_count(0)
-                    expect(page.locator('.kilas-tool-home')).to_be_visible()
                     profile = page.locator('.kilas-profile-menu')
                     profile.locator('>summary').click()
-                    expect(profile.locator('a').first).to_have_text('Credits & Usage' if language == 'en' else 'Kredit & Penggunaan')
-                    profile.locator('>summary').click()
+                    profile.get_by_role('link', name='Subscription', exact=True).click()
+                    expect(page.locator('#subscription-title')).to_be_visible()
+                    assert page.locator('.subscription-features li').count() == 10
+                    assert page.locator('main form, main input[type=file]').count() == 0
+                    assert 'Kuota dapat berubah' not in page.locator('main').inner_text()
+                    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                    page.screenshot(path=str(output / f'plans-{language}-{width}.png'), full_page=True)
+                    for action in ('close', 'escape', 'back'):
+                        page.locator('#subscription-open-payment').click()
+                        expect(page.locator('#payment-title')).to_be_visible()
+                        expect(page.locator('#payment-title')).to_be_focused()
+                        expect(page.locator('#subscription-plans')).not_to_be_visible()
+                        for button in page.locator('#payment-preview button').all():
+                            expect(button).to_be_disabled()
+                        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                        if action == 'close':
+                            page.screenshot(path=str(output / f'payment-{language}-{width}.png'), full_page=True)
+                            page.locator('#subscription-close-payment').click()
+                        elif action == 'escape': page.keyboard.press('Escape')
+                        else: page.go_back()
+                        expect(page.locator('#subscription-title')).to_be_visible()
+                        expect(page.locator('#subscription-open-payment')).to_be_focused()
+                    page.go_forward()
+                    expect(page.locator('#payment-title')).to_be_visible()
+                    page.reload()
+                    expect(page.locator('#payment-title')).to_be_visible()
+                    page.keyboard.press('Escape')
+                    expect(page.locator('#subscription-title')).to_be_visible()
+                    legacy = page.locator('.subscription-existing a')
+                    assert legacy.get_attribute('href') == '/kilas-ai/usage?view=legacy'
+                    legacy.click()
+                    assert page.url.endswith('?view=legacy')
+                    # Harness stubs legacy; actual billing forms are checked in route tests.
                     assert not errors, errors
-                    assert not unexpected, unexpected
                     assert not writes, writes
-                    report.append({'language': language, 'width': width, 'height': height, 'overflow': False, 'console_errors': errors, 'external_requests': unexpected, 'write_requests': writes})
+                    report.append({'language': language, 'width': width, 'overflow': False, 'errors': errors, 'writes': writes})
                     context.close()
             browser.close()
-    finally:
-        server.shutdown()
+    finally: server.shutdown()
     (output / 'browser-report.json').write_text(json.dumps(report, indent=2))
-    print(f'PASS: {len(report)} responsive/localization cases; tabs, input, disabled payment, navigation and no network writes. Screenshots: {output}')
+    print(f'PASS: {len(report)} viewport/language cases; profile navigation, inert payment, repeated open/close, Escape, Back/Forward, reload and legacy link.')
 
-
-if __name__ == '__main__':
-    main()
+if __name__ == '__main__': main()

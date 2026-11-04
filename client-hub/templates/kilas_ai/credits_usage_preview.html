@@ -5,75 +5,53 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ ui_t('Credits & Usage') }} · Kilas Works</title>
+  <title>Subscription · Kilas Works</title>
   <link rel="preload" href="{{ url_for('static',filename='fonts/manrope-variable.ttf') }}" as="font" type="font/ttf" crossorigin>
   {% include '_ui_i18n_head.html' %}
   {% include '_premium_styles.html' %}
   <link rel="stylesheet" href="{{ url_for('static',filename='kilas_revision_shell.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static',filename='kilas_credits_preview.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static',filename='kilas_subscription_preview.css') }}">
 </head>
-<body class="premium-workspace kilas-light credits-design-preview">
-  {% set revision_styles_in_head=true %}
-  {% set kilas_revision_shell=true %}
+{% macro check() %}<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 10 4 4 8-8"/></svg>{% endmacro %}
+<body class="premium-workspace kilas-light subscription-design-preview">
+  {% set revision_styles_in_head=true %}{% set kilas_revision_shell=true %}
   {% include '_premium_workspace.html' %}
-  <div class="credits-frame">
-    <div class="credits-topbar"><a href="{{ url_for('products.product_start') }}">{{ drawer_icon('home') }}<span>{{ ui_t('Workspace') }}</span></a><span class="credits-topbar-divider" aria-hidden="true">/</span><span>{{ ui_t('Credits & Usage') }}</span><span class="credits-preview-badge">{{ ui_t('Design preview') }}</span></div>
-    <main id="kw-main" class="credits-page">
-      <header class="credits-heading"><div><h1>{{ ui_t('Credits & Usage') }}</h1><p>{{ ui_t('Pratinjau desain. Saldo dan aktivitas kredit belum terhubung.') }}</p></div><a class="credits-help-link" href="#credits-how">{{ ui_t('How credits work') }}<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m7 17 10-10M7 7h10v10"/></svg></a></header>
-      <div class="credits-preview-note"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg><p>{{ ui_t('Preview only. This wallet is not connected. Existing billing and access are unchanged.') }}</p><a href="{{ url_for('kilas_ai.usage_page',view='legacy') }}">{{ ui_t('View existing manual billing') }}</a></div>
-
-      <div class="credits-overview">
-        <div class="credits-overview-main">
-          <section class="credits-balance" aria-labelledby="credits-balance-title">
-            <div class="credits-section-heading"><h2 id="credits-balance-title">{{ ui_t('Your credits') }}</h2><span class="credits-status">{{ ui_t('Not connected') }}</span></div>
-            <p class="credits-balance-value"><span aria-label="{{ ui_t('Balance unavailable') }}">—</span><span>{{ ui_t('credits') }}</span></p>
-            <p class="credits-balance-copy">{{ ui_t('Your available balance will appear here when the wallet is connected.') }}</p>
-            <dl class="credits-summary"><div><dt>{{ ui_t('Credits used') }}</dt><dd>—</dd></div><div><dt>{{ ui_t('Total topped up') }}</dt><dd>—</dd></div></dl>
-          </section>
-
-          <section class="credits-coverage" id="credits-how" aria-labelledby="credits-how-title">
-            <h2 id="credits-how-title">{{ ui_t('One balance. Your AI workspace.') }}</h2>
-            <p>{{ ui_t('Konsep dompet terpadu ini belum aktif. Penggunaan layanan saat ini mengikuti aturan yang sudah berlaku.') }}</p>
-            <ul class="credits-features"><li>{{ drawer_icon('chat') }}{{ ui_t('Chat & search') }}</li><li><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg>{{ ui_t('Images') }}</li><li>{{ drawer_icon('mic') }}{{ ui_t('Voice & translation') }}</li><li>{{ drawer_icon('library') }}{{ ui_t('Files & Work') }}</li></ul>
-            <p class="credits-coverage-note">{{ ui_t('Feature rates and wallet terms are still being finalized.') }}</p>
-          </section>
-        </div>
-
-        <section class="credits-topup" aria-labelledby="credits-topup-title">
-          <div class="credits-topup-heading"><span class="credits-wallet-icon" aria-hidden="true">{{ drawer_icon('finance') }}</span><h2 id="credits-topup-title">{{ ui_t('Add credits') }}</h2></div>
-          <p>{{ ui_t('Simulasi tampilan saja. Tidak membuat transaksi atau menambah saldo.') }}</p>
-          <div class="credits-topup-fields">
-            <label for="credits-currency">{{ ui_t('Currency') }}<span>{{ ui_t('Provisional') }}</span></label>
-            <select id="credits-currency" aria-describedby="credits-currency-help"><option value="USD">USD · {{ ui_t('US dollar') }}</option><option value="IDR">IDR · {{ ui_t('Indonesian rupiah') }}</option></select>
-            <p class="credits-field-hint" id="credits-currency-help">{{ ui_t('Currency options are for preview. Checkout currency is not final.') }}</p>
-            <label for="credits-amount">{{ ui_t('Top-up amount') }}</label>
-            <div class="credits-amount-control"><span data-credits-currency-symbol aria-hidden="true">$</span><input id="credits-amount" type="text" inputmode="decimal" autocomplete="off" maxlength="18" placeholder="{{ ui_t('Enter an amount') }}" aria-describedby="credits-amount-help credits-amount-error" data-invalid-copy="{{ ui_t('Enter a positive amount using digits and a decimal point.') }}"></div>
-            <p class="credits-field-hint" id="credits-amount-help">{{ ui_t('A custom amount, without choosing a package.') }}</p>
-            <p class="credits-field-error" id="credits-amount-error" hidden></p>
-          </div>
-          <div class="credits-topup-review">
-          <div class="credits-estimate"><div><span>{{ ui_t('Estimated credits') }}</span><strong aria-label="{{ ui_t('Estimate unavailable') }}">—</strong></div><p>{{ ui_t('The credit conversion rate is not set yet.') }}</p></div>
-          <button class="credits-pay-button" type="button" disabled aria-describedby="credits-payment-help">{{ ui_t('Pembayaran belum tersedia') }}<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></button>
-          <p class="credits-payment-help" id="credits-payment-help">{{ ui_t('Automated QRIS and virtual account payments are not available yet. This preview cannot accept payment.') }} {{ ui_t('Credit rates for image generation and voice-over have not been set.') }}</p>
-          </div>
-        </section>
+  <main id="kw-main" class="subscription-page">
+    <nav class="subscription-topbar" aria-label="Navigasi halaman"><a href="{{ url_for('products.product_start') }}">{{ drawer_icon('home') }} Workspace</a><span class="subscription-badge">Rancangan paket</span></nav>
+    <section id="subscription-plans" aria-labelledby="subscription-title">
+      <header class="subscription-heading"><h1 id="subscription-title">Subscription</h1><p>Pilihan paket untuk kebutuhan harianmu bersama Kilas.</p></header>
+      <div class="subscription-notice"><strong>Langganan belum tersedia.</strong> Ini rancangan paket, bukan kuota aktif akunmu.</div>
+      <div class="subscription-plans">
+      {% for pro in [false, true] %}
+      <article class="subscription-plan{% if pro %} subscription-plan-pro{% endif %}" aria-labelledby="plan-{{ 'pro' if pro else 'free' }}">
+        <div class="subscription-plan-heading"><h2 id="plan-{{ 'pro' if pro else 'free' }}">Kilas {{ 'Pro' if pro else 'Free' }}</h2><span class="subscription-badge">{{ 'Lebih banyak ruang' if pro else 'Mulai sederhana' }}</span></div>
+        <p class="subscription-price">{{ 'Rp99.000' if pro else 'Rp0' }}{% if pro %}<span> / bulan</span>{% endif %}</p>
+        <p class="subscription-plan-intro">{{ 'Untuk ide dan pekerjaan yang lebih rutin.' if pro else 'Untuk mencoba berbagai kebutuhan dengan AI.' }}</p>
+        <ul class="subscription-features">
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>AI Chat</h3><p class="subscription-quota">{{ '300 / hari · 8.000 / bulan' if pro else '70 / hari · 500 / bulan' }}</p><p>Tanya jawab, kembangkan ide, dan bantu susun tulisan.</p></div></li>
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>Gambar AI {% if pro %}<small>Usulan</small>{% endif %}</h3><p class="subscription-quota">{{ '5 / hari · 50 / bulan' if pro else '1 kali coba / akun' }}</p><p>Buat gambar dari deskripsi yang kamu tulis.</p></div></li>
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>Translator <small>Usulan</small></h3><p class="subscription-quota">{{ '3 / hari · 10 / bulan' if pro else '1 / hari · 3 / bulan' }}</p><p>Terjemahkan percakapan dengan hasil teks dan suara. Detail durasi paket belum ditetapkan.</p></div></li>
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>Voice Over <small>Usulan</small></h3><p class="subscription-quota">{{ '1 / hari · 5 / bulan' if pro else '1 / hari · 2 / bulan' }}</p><p>Ubah naskah menjadi audio narasi yang bisa diputar dan diunduh. Detail durasi paket belum ditetapkan.</p></div></li>
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>Scan struk <small>Usulan</small></h3><p class="subscription-quota">{{ '10 / hari · 100 / bulan' if pro else '2 / hari · 10 / bulan' }}</p><p>Baca foto struk untuk menyiapkan catatan Finance. Periksa hasil sebelum menyimpan transaksi.</p></div></li>
+        </ul>
+        <footer class="subscription-plan-action">{% if pro %}<a class="subscription-button" id="subscription-open-payment" href="#payment-preview">Lihat rancangan pembayaran {{ drawer_icon('chevron') }}</a>{% else %}<button class="subscription-button subscription-neutral" disabled>Rancangan paket Free</button>{% endif %}</footer>
+      </article>
+      {% endfor %}
       </div>
-
-      <section class="credits-activity" aria-labelledby="credits-activity-title">
-        <div class="credits-activity-heading"><div><h2 id="credits-activity-title">{{ ui_t('Activity') }}</h2><p>{{ ui_t('Usage and top-ups, together in one place.') }}</p></div><span class="credits-activity-state">{{ ui_t('Awaiting connection') }}</span></div>
-        <div class="credits-tabs" role="tablist" aria-label="{{ ui_t('Activity type') }}"><button type="button" role="tab" id="credits-usage-tab" aria-controls="credits-usage-panel" aria-selected="true" data-credits-tab="usage">{{ ui_t('Usage history') }}</button><button type="button" role="tab" id="credits-payments-tab" aria-controls="credits-payments-panel" aria-selected="false" tabindex="-1" data-credits-tab="payments">{{ ui_t('Payment history') }}</button></div>
-        <div class="credits-history-panel" role="tabpanel" id="credits-usage-panel" aria-labelledby="credits-usage-tab" tabindex="0">
-          <div class="credits-history-columns" aria-hidden="true"><span>{{ ui_t('Activity') }}</span><span>{{ ui_t('Feature') }}</span><span>{{ ui_t('Credits') }}</span><span>{{ ui_t('Date') }}</span></div>
-          <div class="credits-empty"><svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 4h16v24l-4-2-4 2-4-2-4 2Z"/><path d="M12 11h8m-8 5h8m-8 5h4"/></svg><h3>{{ ui_t('Your activity will appear here') }}</h3><p>{{ ui_t('Once usage tracking is connected, see what you used and the credits it cost.') }}</p></div>
-        </div>
-        <div class="credits-history-panel" role="tabpanel" id="credits-payments-panel" aria-labelledby="credits-payments-tab" tabindex="0" hidden>
-          <div class="credits-history-columns" aria-hidden="true"><span>{{ ui_t('Payment') }}</span><span>{{ ui_t('Amount') }}</span><span>{{ ui_t('Status') }}</span><span>{{ ui_t('Date') }}</span></div>
-          <div class="credits-empty">{{ drawer_icon('finance') }}<h3>{{ ui_t('Your top-ups will appear here') }}</h3><p>{{ ui_t('Payment history will be available when checkout is connected. No payment has been created by this preview.') }}</p></div>
-        </div>
-      </section>
-      <footer class="credits-footer"><span>Kilas Works</span><span>{{ ui_t('Design proposal · No account changes') }}</span></footer>
-    </main>
-  </div>
-  <script src="{{ url_for('static',filename='kilas_credits_preview.js') }}" defer></script>
+      <aside class="subscription-existing"><div><h2>Akses & tagihan saat ini</h2><p>Akses, saldo, dan tagihan yang sudah ada tetap mengikuti layanan saat ini. Angka paket di atas tidak menggantikan saldo akunmu.</p></div><a href="{{ url_for('kilas_ai.usage_page',view='legacy') }}">Lihat saldo, top-up & riwayat tagihan {{ drawer_icon('chevron') }}</a></aside>
+    </section>
+    <section id="payment-preview" class="subscription-payment" aria-labelledby="payment-title" hidden>
+      <a href="#subscription-plans" class="subscription-back" id="subscription-close-payment"><span aria-hidden="true">←</span> Kembali ke paket</a>
+      <header class="subscription-heading"><h1 id="payment-title" tabindex="-1">Pembayaran</h1><p>Preview pembayaran · Belum menerima pembayaran</p></header>
+      <div class="subscription-payment-summary"><div><strong>Kilas Pro</strong><p>Rp99.000 <span>/ bulan</span></p></div><span class="subscription-crown" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 7 5 4 4-7 4 7 5-4-2 12H5L3 7Z"/></svg></span></div>
+      <h2>Transfer Bank Mega</h2>
+      <div class="subscription-bank"><strong class="subscription-bank-name">BANK <span>MEGA</span></strong><dl><dt>Nomor rekening</dt><dd>Contoh nomor rekening</dd><dt>Atas nama perusahaan</dt><dd>Kilas Works <small>· Contoh tampilan</small></dd></dl><button type="button" class="subscription-button subscription-neutral" disabled>Salin rekening · Belum tersedia</button></div>
+      <div class="subscription-upload"><svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 18H5a4 4 0 0 1-1-8 8 8 0 0 1 15-1 4.5 4.5 0 0 1 0 9h-2M12 21V11m-4 4 4-4 4 4"/></svg><strong>Unggah bukti transfer</strong><p>Contoh tampilan · Belum tersedia</p></div>
+      <button class="subscription-button subscription-submit" disabled>Kirim bukti · Belum tersedia</button>
+      <p class="subscription-payment-status"><strong>Belum tersedia</strong><br>Rancangan ini tidak menerima transfer atau bukti pembayaran.</p>
+    </section>
+    <footer class="subscription-footer">Kilas Works <span>Preview Subscription</span></footer>
+  </main>
+  <script src="{{ url_for('static',filename='kilas_subscription_preview.js') }}" defer></script>
 </body>
 </html>

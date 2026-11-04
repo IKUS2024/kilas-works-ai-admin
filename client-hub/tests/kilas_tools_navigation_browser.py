@@ -30,7 +30,7 @@ def main():
                     page.on('pageerror',lambda e:errors.append(str(e)))
                     page.on('request',lambda r:writes.append(r.url) if r.method=='POST' else None)
                     page.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
-                    for name,path in (('credits','/kilas-ai/usage'),('billing','/kilas-ai/usage?view=legacy'),('voiceover','/kilas-translator?mode=voiceover'),('translator','/kilas-translator?mode=translate'),('interpreter','/kilas-translator/interpreter'),('live','/kilas-translator/live')):
+                    for name,path in (('subscription','/kilas-ai/usage'),('billing','/kilas-ai/usage?view=legacy'),('voiceover','/kilas-translator?mode=voiceover'),('translator','/kilas-translator?mode=translate'),('interpreter','/kilas-translator/interpreter'),('live','/kilas-translator/live')):
                         response=page.goto(origin+path,wait_until='networkidle');assert response.status==200,(path,response.status)
                         expect(page.locator('.kilas-tool-header')).to_have_count(1)
                         for selector in ('#premium-sidebar','[data-premium-menu]','.premium-backdrop','[data-chat-sidebar]','script[src*="kilas_premium.js"]','script[src*="kilas_chat_sidebar.js"]','link[href*="kilas_chat_sidebar.css"]'):
@@ -38,8 +38,8 @@ def main():
                         assert page.locator('html').get_attribute('lang')==locale
                         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),(name,width)
                         assert page.locator('.kilas-tool-header').evaluate('e=>e.getBoundingClientRect().left>=0')
-                        if name=='credits':
-                            assert page.locator('.credits-frame').evaluate('e=>getComputedStyle(e).marginLeft')=='0px'
+                        if name=='subscription':
+                            assert page.locator('.subscription-page').evaluate('e=>{const r=e.getBoundingClientRect();return Math.abs(r.left-(innerWidth-r.right))<1}')
                             page.screenshot(path=str(output/f'{name}-{locale}-{width}.png'))
                         page.locator('.kilas-tool-home').click();page.wait_for_load_state('networkidle')
                         expect(page.locator('#premium-sidebar')).to_have_count(1)
