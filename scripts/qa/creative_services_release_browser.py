@@ -95,14 +95,15 @@ def main():
                             if kind == 'social':
                                 expect(page.locator('#cs-addons-title')).to_be_visible()
                             choice=page.locator('#cs-event .cs-premium [data-service-id]') if kind=='event' else page.locator('#cs-social [data-service-id]').first
-                            choice.click()
+                            assert '/creative-services/checkout/creative_' + kind + '_' in choice.get_attribute('href')
+                            page.locator('#studio-navigation a[href="#contact"]').evaluate('(e)=>e.click()')
                             page.locator('#cs-brief-date').fill('2026-11-20')
                             page.locator('#cs-brief-location').fill('UI smoke — no send')
                             page.locator('#cs-brief-needs').fill('Synthetic public-browser check. Do not send.')
                             page.locator('.cs-brief-prepare').click()
                             expect(page.locator('#cs-brief-review-panel')).to_have_attribute('open', '')
                             message = page.locator('#cs-brief-message').input_value()
-                            assert all(value in message for value in ('Premium' if kind=='event' else 'Basic', '2026-11-20', 'UI smoke — no send'))
+                            assert all(value in message for value in ('Creative Services', '2026-11-20', 'UI smoke — no send'))
                             edited = message+'\nManual edit & safe <text>.'
                             page.locator('#cs-brief-message').fill(edited)
                             href = page.locator('#cs-contact-whatsapp').get_attribute('href')

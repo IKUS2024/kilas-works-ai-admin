@@ -180,7 +180,8 @@ def main():
                         if width in (393,1440):premium.screenshot(path=str(output/f'event-premium-en-{width}.png'),animations='disabled')
                     page.locator('[data-cs-language="id"]').click()
                     choice=page.locator('#cs-event .cs-premium [data-service-id]') if kind=='event' else page.locator('#cs-social [data-service-id]').first
-                    choice.click()
+                    assert '/creative-services/checkout/creative_' + kind + '_' in choice.get_attribute('href')
+                    page.locator('#studio-navigation a[href="#contact"]').evaluate('(e)=>e.click()')
                     page.wait_for_url('**/#contact')
                     page.locator('#cs-brief-date').fill('2026-11-20')
                     page.locator('#cs-brief-location').fill('Jakarta')
@@ -188,7 +189,7 @@ def main():
                     page.locator('.cs-brief-prepare').click()
                     expect(page.locator('#cs-brief-review-panel')).to_have_attribute('open','')
                     message=page.locator('#cs-brief-message').input_value()
-                    assert all(s in message for s in ('Premium' if kind=='event' else 'Basic','2026-11-20','Jakarta','Brief sintetis'))
+                    assert all(s in message for s in ('Creative Services','2026-11-20','Jakarta','Brief sintetis'))
                     assert '2 fotografer' not in message and '2 photographers' not in message
                     edited=message+'\nEdit saya & karakter <aman>.'
                     page.locator('#cs-brief-message').fill(edited)
@@ -201,7 +202,7 @@ def main():
                     if kind=='event':
                         page.locator('.cs-brief-prepare').click()
                         english=page.locator('#cs-brief-message').input_value()
-                        assert 'Event Photography & Videography — Premium' in english
+                        assert 'Creative Services' in english
                         assert '2 photographers' not in english
                         assert parse_qs(urlsplit(page.locator('#cs-contact-whatsapp').get_attribute('href')).query)['text']==[english]
                     page.locator('.brand').click();page.locator('.brand').click()

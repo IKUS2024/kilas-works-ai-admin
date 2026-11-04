@@ -1,0 +1,132 @@
+{
+  "packages": {
+    "creative_event_basic": {
+      "service": "event",
+      "tier": "Basic",
+      "name": "Foto & Video Acara — Basic",
+      "amount": 1500000,
+      "unit": "acara",
+      "features": [
+        "Maksimal 50 foto pilihan klien yang diedit",
+        "1 fotografer",
+        "Durasi hingga 5 jam",
+        "Semua file foto asli",
+        "1 kali revisi editing"
+      ],
+      "image": "portfolio/event-01.jpg"
+    },
+    "creative_event_standard": {
+      "service": "event",
+      "tier": "Standard",
+      "name": "Foto & Video Acara — Standard",
+      "amount": 3000000,
+      "unit": "acara",
+      "features": [
+        "Maksimal 50 foto pilihan klien yang diedit",
+        "1 fotografer + 1 videografer",
+        "Durasi hingga 8 jam",
+        "Semua file foto & video asli",
+        "Video Highlight Acara",
+        "1 kali revisi editing"
+      ],
+      "image": "portfolio/event-01.jpg"
+    },
+    "creative_event_premium": {
+      "service": "event",
+      "tier": "Premium",
+      "name": "Foto & Video Acara — Premium",
+      "amount": 5000000,
+      "unit": "acara",
+      "features": [
+        "Maksimal 100 foto pilihan klien yang diedit",
+        "1 fotografer + 1 videografer",
+        "Durasi hingga 8 jam",
+        "Semua file foto & video asli",
+        "Video Highlight Acara",
+        "Teaser Instagram Reels",
+        "2 kali revisi editing",
+        "Pengambilan video udara menggunakan drone"
+      ],
+      "image": "portfolio/event-01.jpg"
+    },
+    "creative_social_basic": {
+      "service": "social",
+      "tier": "Basic",
+      "name": "Content Plan Media Sosial — Basic",
+      "amount": 4500000,
+      "unit": "bulan",
+      "features": [
+        "8 Konten Video",
+        "8 Konten Foto",
+        "Konsep Konten",
+        "Kalender Konten",
+        "Penulisan Naskah",
+        "Produksi Foto & Video",
+        "Editing",
+        "Caption",
+        "Penjadwalan Posting",
+        "Evaluasi Performa"
+      ],
+      "image": "portfolio/social-01.jpg"
+    },
+    "creative_social_standard": {
+      "service": "social",
+      "tier": "Standard",
+      "name": "Content Plan Media Sosial — Standard",
+      "amount": 6000000,
+      "unit": "bulan",
+      "features": [
+        "12 Konten Video",
+        "12 Konten Foto",
+        "Konsep Konten",
+        "Kalender Konten",
+        "Penulisan Naskah",
+        "Produksi Foto & Video",
+        "Editing",
+        "Caption",
+        "Penjadwalan Posting",
+        "Evaluasi Performa"
+      ],
+      "image": "portfolio/social-01.jpg"
+    },
+    "creative_social_premium": {
+      "service": "social",
+      "tier": "Premium",
+      "name": "Content Plan Media Sosial — Premium",
+      "amount": 9500000,
+      "unit": "bulan",
+      "features": [
+        "16 Konten Video",
+        "14 Konten Foto",
+        "Konsep Konten",
+        "Kalender Konten",
+        "Penulisan Naskah",
+        "Produksi Foto & Video",
+        "Editing",
+        "Caption",
+        "Penjadwalan Posting",
+        "Evaluasi Performa",
+        "Talent / Influencer"
+      ],
+      "image": "portfolio/social-01.jpg"
+    }
+  },
+  "addons": {
+    "none": {
+      "name": "Tanpa add-on",
+      "amount": 0
+    },
+    "micro": {
+      "name": "Influencer Micro",
+      "amount": 2000000
+    },
+    "macro": {
+      "name": "Influencer Macro",
+      "amount": 3500000
+    },
+    "mega": {
+      "name": "Influencer Mega",
+      "amount": 7500000
+    }
+  }
+}

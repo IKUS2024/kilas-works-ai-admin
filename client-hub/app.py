@@ -346,6 +346,8 @@ def create_app():
     app.register_blueprint(wa_checkout_bp)
     app.register_blueprint(quotations_bp)
     app.register_blueprint(payments_bp)
+    from routes_creative_checkout import creative_checkout_bp
+    app.register_blueprint(creative_checkout_bp)
     display_labels.register_jinja_filters(app)
     app.register_blueprint(talent_bp)
     app.register_blueprint(whatsapp_bp)
