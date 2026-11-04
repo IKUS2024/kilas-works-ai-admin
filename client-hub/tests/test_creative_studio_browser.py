@@ -32,7 +32,7 @@ def check_portfolio(page, locale, *, activate=False, touch=False):
             assert image.get_attribute('src') in row['assets']
             assert image.get_attribute('alt')
             geometry=image.evaluate('e=>{const r=e.getBoundingClientRect();return {ratio:r.width/r.height,fit:getComputedStyle(e).objectFit}}')
-            assert abs(geometry['ratio']-2.18)<.005 and geometry['fit']==('contain' if row['id']=='DdESSzkp1to' else 'cover'),geometry
+            assert abs(geometry['ratio']-2.18)<.005 and geometry['fit']=='cover',geometry
             card.focus();expect(card).to_be_focused()
             if activate:
                 with page.context.expect_page() as pending:
