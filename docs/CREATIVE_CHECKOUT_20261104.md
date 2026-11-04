@@ -26,3 +26,11 @@ The login tagline alone now reads “Create, work, and grow with Kilas.” / “
 Local internal evidence (not uploaded): `/tmp/creative-checkout-browser/{event-checkout,social-checkout,payment}-{390,1024}.png` and `results.json`; `/tmp/creative-checkout-tests.log`, `/tmp/creative-postgres.log`, `/tmp/creative-payment-regression.log`, `/tmp/creative-pending-regression.log`.
 
 Reference PNGs could not be materialized with the current Library helper (download failed). Implementation follows the parent's direct pixel inspection and authorized handoff; parent retains the actual references for independent comparison. Production deployment and authenticated production writes are not claimed by these local results. Synthetic proof images are plain test images; none were marked paid.
+
+## Independent review fixes
+
+Creative checkout endpoints are explicitly allowed through the Finance session routing guard; route-level session, CSRF and owner/admin checks remain enforced. Invalidated customer sessions preserve only validated catalog package/add-on selection in the existing signed, bounded cookie before redirecting to login. Arbitrary return URLs are ignored.
+
+Proof submission and admin verification now share the cancellation owner lock and PostgreSQL payment/invoice/project row-lock order. Closed projects/invoices reject proof and cannot be revived by verification. Customer history/payment and admin detail show the closed state without transfer/upload/approve actions. Regression coverage includes active Finance sessions, revoked login recovery, cancellation, historical inconsistent review state and native PostgreSQL concurrent cancellation/upload/verification (zero paid transitions).
+
+Repository-wide CI has unrelated pre-existing failures: core simulator, WhatsApp, subscription dashboard, Assist continuous training, home markup, Finance dashboard and viewport mock. These were reproduced on both baseline a718e304 and checkout head; relevant checkout/studio/native PostgreSQL checks passed. Full suite is not claimed green.

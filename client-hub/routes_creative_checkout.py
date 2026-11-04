@@ -42,6 +42,18 @@ def private_response(response):
     return response
 
 
+def preserve_selection(response):
+    # Called after invalid identity is cleared. This cookie grants no identity/access.
+    if request.method == 'GET' and request.endpoint in ('creative_checkout.checkout', 'creative_checkout.begin_login'):
+        try:
+            selected = orders.offer(request.view_args['key'], request.args.get('addon', 'none'))
+        except (ValueError, KeyError, TypeError):
+            return response
+        response.set_cookie('creative_selection', orders.signer().dumps({'key': selected['key'], 'addon': selected['addon']}),
+                            max_age=1800, httponly=True, secure=request.is_secure, samesite='Lax', path='/')
+    return response
+
+
 def render(page, **kwargs):
     return render_template('creative_checkout.html', page=page, money=orders.money, **kwargs)
 
@@ -130,7 +142,9 @@ def payment(invoice_id):
             error = str(exc)
     payment = payment_service.get_payment_for_invoice(invoice_id)
     return render('payment', selected=snapshot, bank=snapshot['bank'], invoice=invoice,
-                  payment=payment, error=error, user=user), 422 if error else 200
+                  payment=payment, error=error, user=user,
+                  closed=not orders.payment_open(project, invoice),
+                  cancelled=project["status"] in ("CANCELLED", "REJECTED") or invoice["status"] == "CANCELLED"), 422 if error else 200
 
 
 @creative_checkout_bp.route('/payment/<int:invoice_id>/proof')
@@ -151,5 +165,5 @@ def proof(invoice_id):
 @creative_checkout_bp.route('/orders')
 @security.login_required
 def history():
-    rows = db.query_all("SELECT i.id, i.invoice_number, i.amount, p.title, pay.status FROM invoices i JOIN projects p ON p.id=i.project_id JOIN payments pay ON pay.invoice_id=i.id WHERE p.created_by_user_id=? AND p.catalog_key LIKE 'creative_%' ORDER BY i.id DESC LIMIT 100", (security.current_user()['id'],))
+    rows = db.query_all("SELECT i.id, i.invoice_number, i.amount, p.title, pay.status, p.status AS project_status, i.status AS invoice_status FROM invoices i JOIN projects p ON p.id=i.project_id JOIN payments pay ON pay.invoice_id=i.id WHERE p.created_by_user_id=? AND p.catalog_key LIKE 'creative_%' ORDER BY i.id DESC LIMIT 100", (security.current_user()['id'],))
     return render('orders', rows=rows, error=None)

@@ -43,6 +43,80 @@ class CreativeCheckoutTests(auth_fixture.CustomerAuthTests):
         return client.post(f'/creative-services/payment/{invoice}',data={'csrf_token':self.csrf(client,f'/creative-services/payment/{invoice}'),
             'proof':(io.BytesIO(self.photo() if data is None else data),filename,mime)})
 
+    def test_revoked_session_preserves_validated_package_and_addon(self):
+        import customer_auth
+        customer_auth.revoke_all(self.owner)
+        path=self.base_url+'creative_social_premium'
+        response=self.client.get(path+'?addon=mega&next=https://example.test/evil')
+        self.assertEqual(response.status_code,303)
+        self.assertEqual(response.location,'/login')
+        with self.client.session_transaction() as session:
+            self.assertNotIn('user_id',session)
+        token=self.csrf(self.client)
+        self.client.post('/login',data={'email':self.email,'password':self.password,'csrf_token':token})
+        self.assertEqual(self.client.get('/products/start').location,path+'?addon=mega')
+        html=self.client.get(path+'?addon=mega',follow_redirects=True).text
+        self.assertIn('Rp17.000.000',html)
+        customer_auth.revoke_all(self.owner)
+        self.client.delete_cookie('creative_selection')
+        response=self.client.get(path+'?addon=forged')
+        self.assertEqual(response.status_code,303)
+        self.assertFalse(any('creative_selection=' in h for h in response.headers.getlist('Set-Cookie')))
+
+    def test_finance_session_checkout_payment_private_proof_and_history(self):
+        with self.client.session_transaction() as session:
+            session['active_product'] = 'finance'
+        for key in orders.CATALOG['packages']:
+            invoice,_ = self.create(key)
+            self.assertEqual(self.client.get(f'/creative-services/payment/{invoice}').status_code,200)
+        self.assertEqual(self.upload(invoice).status_code,303)
+        self.assertEqual(self.client.get(f'/creative-services/payment/{invoice}/proof').status_code,200)
+        self.assertEqual(self.client.get('/creative-services/orders').status_code,200)
+        other=self.base.client(self.other)
+        with other.session_transaction() as session:
+            session['active_product']='finance'
+        self.assertEqual(other.get(f'/creative-services/payment/{invoice}').status_code,404)
+        self.assertEqual(other.get(f'/creative-services/payment/{invoice}/proof').status_code,404)
+        with self.client.session_transaction() as session:
+            self.assertEqual(session['active_product'],'finance')
+
+    def test_cancelled_order_cannot_upload_or_be_verified(self):
+        invoice,_=self.create()
+        project=payment_service.get_invoice(invoice)['project_id']
+        result=self.client.post(f'/projects/{project}/cancel',data={'csrf_token':self.csrf(self.client)})
+        self.assertEqual(result.status_code,302)
+        self.assertEqual(projects_repo.get_project(project)['status'],'CANCELLED')
+        page=self.client.get(f'/creative-services/payment/{invoice}')
+        self.assertIn('Pesanan dibatalkan',page.text)
+        self.assertNotIn('Transfer ke rekening berikut.',page.text)
+        self.assertNotIn('data-proof-form',page.text)
+        self.assertIn('Dibatalkan',self.client.get('/creative-services/orders').text)
+        self.assertEqual(self.upload(invoice).status_code,422)
+        self.assertEqual(self.db.query_one('SELECT COUNT(*) n FROM project_files')['n'],0)
+        payment=payment_service.get_payment_for_invoice(invoice)
+        # Historical inconsistent state must fail closed even for an authorized admin.
+        self.db.execute("UPDATE payments SET status='UNDER_REVIEW' WHERE id=?",(payment['id'],))
+        admin_id=self.repo.create_user('closed-admin@example.test',security.hash_password('synthetic-password'),role='KILAS_ADMIN')
+        admin=self.base.client(admin_id)
+        detail=admin.get(f'/admin/payments/{payment["id"]}')
+        self.assertEqual(detail.status_code,200)
+        self.assertIn('Pesanan ditutup',detail.text)
+        self.assertNotIn('>Approve<',detail.text)
+        result=admin.post(f'/admin/payments/{payment["id"]}/verify',data={'csrf_token':self.csrf(admin)})
+        self.assertEqual(result.status_code,302)
+        self.assertEqual(payment_service.get_invoice(invoice)['status'],'ISSUED')
+        self.assertEqual(projects_repo.get_project(project)['status'],'CANCELLED')
+        self.assertEqual(payment_service.get_payment(payment['id'])['status'],'UNDER_REVIEW')
+
+    def test_terminal_invoice_and_project_refuse_proof(self):
+        for project_status,invoice_status in [('COMPLETED','ISSUED'),('PAYMENT_PENDING','CANCELLED'),('PAYMENT_PENDING','PAID')]:
+            invoice,_=self.create()
+            project=payment_service.get_invoice(invoice)['project_id']
+            self.db.execute('UPDATE projects SET status=? WHERE id=?',(project_status,project))
+            self.db.execute('UPDATE invoices SET status=? WHERE id=?',(invoice_status,invoice))
+            self.assertNotIn('data-proof-form',self.client.get(f'/creative-services/payment/{invoice}').text)
+            self.assertEqual(self.upload(invoice).status_code,422)
+
     def test_all_prices_options_and_frozen_snapshot(self):
         facts=json.loads(Path(__file__).with_name('creative_services_offer_facts.json').read_text())
         self.assertEqual([orders.money(v['amount']) for v in orders.CATALOG['packages'].values()],[x['price'] for x in facts['cards']])

@@ -146,13 +146,28 @@ def sanitize_proof(upload):
     return content
 
 
+def payment_open(project, invoice):
+    return project['status'] == 'PAYMENT_PENDING' and invoice['status'] == 'ISSUED'
+
+
+def lock_payment(invoice_id):
+    # Same row order as customer cancellation, including callers already in a transaction.
+    if db.BACKEND == 'postgres':
+        db.query_all('SELECT id FROM payments WHERE invoice_id=? ORDER BY id FOR UPDATE', (invoice_id,))
+        db.query_one('SELECT id FROM invoices WHERE id=? FOR UPDATE', (invoice_id,))
+        db.query_one('SELECT p.id FROM projects p JOIN invoices i ON i.project_id=p.id WHERE i.id=? FOR UPDATE OF p', (invoice_id,))
+
+
 def submit_proof(invoice_id, user_id, upload):
     content = sanitize_proof(upload)
     with db.app_purchase_transaction(None, user_id):
+        lock_payment(invoice_id)
         invoice = payment_service.get_invoice(invoice_id)
         project = projects_repo.get_project(invoice['project_id']) if invoice else None
         if not project or project['created_by_user_id'] != user_id or not project.get('requirements', {}).get('creative_order'):
             raise ValueError('Pesanan tidak tersedia.')
+        if not payment_open(project, invoice):
+            raise ValueError('Pesanan sudah ditutup dan tidak menerima bukti transfer.')
         payment = payment_service.get_payment_for_invoice(invoice_id)
         if payment['status'] not in ('PAYMENT_PENDING', 'REJECTED'):
             return  # repeated submit cannot create files or change review/verified state
