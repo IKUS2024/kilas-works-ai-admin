@@ -23,18 +23,34 @@ class MoneyInputAuditTests(unittest.TestCase):
         for text in ('1,234,567','1.234.567'):
             self.assertEqual(currency_amount(text,'IDR'),123456700)
 
+    def test_leading_decimal_and_zero_are_fractions(self):
+        cases=[('.500',50),(',500',50),('.123',12),(',123',12),('0.123',12),
+               ('0,123',12),('0.005',1),(',005',1),('0.000001',0),('00.500',50)]
+        for text,expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(currency_amount(text,'IDR',signed=True),expected)
+                self.assertEqual(currency_amount('-'+text,'USD',signed=True),-expected)
+                if expected==0:
+                    with self.assertRaises(f.FinanceError):currency_amount(text,'IDR')
+                else:self.assertEqual(currency_amount(text,'IDR'),expected)
+
+    def test_ambiguous_zero_grouping_rejected(self):
+        for text in ('0.123.456','0,123,456','0,123.456','0.123,456','01.234','01,234'):
+            with self.subTest(text=text),self.assertRaises(f.FinanceError):
+                currency_amount(text,'IDR')
+
     def test_malformed_mixed_grouping_rejected(self):
         for text in ('1,234.567,890','1.234,567.890','12,34.567','12.34,567','1,234.1234567'):
             with self.subTest(text=text),self.assertRaises(f.FinanceError):
                 currency_amount(text,'IDR')
 
     def test_transaction_route_preserves_fractional_input(self):
-        for text in ('1,234.567','1.234,567'):
+        for text,expected in [('1,234.567',123457),('1.234,567',123457),('.500',50),('0.123',12)]:
             response=self.client.post(self.url+'/transactions',data=dict(branch_id=self.branch,
                 direction='INCOME',amount=text,account_id=self.a,occurred_on='2026-09-10',description=text))
             self.assertEqual(response.status_code,303)
             row=db.query_one('SELECT * FROM finance_transactions WHERE description=?',(text,))
-            self.assertEqual(row['amount_minor'],123457)
+            self.assertEqual(row['amount_minor'],expected)
 
     def test_transfer_route_conserves_exact_parsed_amount(self):
         response=self.client.post(self.url+'/internal-transfers',data=dict(branch_id=self.branch,

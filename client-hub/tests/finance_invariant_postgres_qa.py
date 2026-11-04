@@ -13,7 +13,8 @@ class NativeInvariantTests(unittest.TestCase):
     def snapshot(self):
         return {t:db.query_all('SELECT * FROM '+t+' WHERE business_id=? ORDER BY id',(self.bid,))
                 for t in ('finance_accounts','finance_transactions','finance_transaction_revisions',
-                          'finance_internal_transfers','finance_recurring_expenses','finance_installment_plans')}
+                          'finance_internal_transfers','finance_recurring_expenses','finance_installment_plans',
+                          'finance_workspace_corrections','audit_log')}
 
     def test_installment_currency_lock_and_same_currency_edit(self):
         with branches.scope(self.bid,self.branch,self.uid):
@@ -53,6 +54,17 @@ class NativeInvariantTests(unittest.TestCase):
                            lambda:f.update_transaction(self.bid,ident,account_id=self.target,actor_user_id=self.uid)):
                 with self.assertRaisesRegex(f.FinanceError,'account_unavailable'):action()
                 self.assertEqual(self.snapshot(),before)
+
+    def test_workspace_move_rejects_inactive_original_account_before_mapping(self):
+        target=branches.ensure_personal(self.bid,self.uid)
+        with branches.scope(self.bid,self.branch,self.uid):
+            f.update_account_opening_balance(self.bid,self.a,10000,actor_user_id=self.uid)
+            ident=f.create_transaction(self.bid,'EXPENSE',10000,self.a,self.exp,'2026-09-10',actor_user_id=self.uid)
+            branches.update_record(self.bid,'account',self.a,deactivate=True,actor_user_id=self.uid)
+            before=self.snapshot()
+            with self.assertRaisesRegex(f.FinanceError,'account_unavailable'):
+                f.move_transaction_workspace(self.bid,ident,target,actor_user_id=self.uid)
+            self.assertEqual(self.snapshot(),before)
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

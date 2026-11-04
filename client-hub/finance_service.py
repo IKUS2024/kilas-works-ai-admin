@@ -1494,7 +1494,7 @@ def move_transaction_workspace(business_id, transaction_id, target_branch_id,
         _workspace_transaction_safe(business_id, transaction)
 
         source_account = get_account(
-            business_id, transaction['account_id'], actor_user_id=actor_user_id)
+            business_id, transaction['account_id'], actor_user_id=actor_user_id, active=True)
         source_category = _workspace_move_source_category(
             business_id, transaction['category_id'], actor_user_id)
 

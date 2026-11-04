@@ -58,3 +58,34 @@ class ReversalAccountTests(unittest.TestCase):
                            lambda:f.update_currency_exchange(self.b,ident,5000,100,actor_user_id=self.uid)):
                 with self.assertRaisesRegex(f.FinanceError,'account_unavailable'):action()
                 self.assertEqual(list(db.get_connection().iterdump()),before)
+
+    def inactive_expense(self):
+        with branches.scope(self.b,self.branch,self.uid):
+            f.update_account_opening_balance(self.b,self.a,10000,actor_user_id=self.uid)
+            category=f.list_categories(self.b,'EXPENSE')[0]['id']
+            ident=f.create_transaction(self.b,'EXPENSE',10000,self.a,category,'2026-09-10',actor_user_id=self.uid)
+            branches.update_record(self.b,'account',self.a,deactivate=True,actor_user_id=self.uid)
+            return ident
+
+    def test_workspace_move_rejects_inactive_source_before_any_mapping(self):
+        ident=self.inactive_expense()
+        before=list(db.get_connection().iterdump())
+        with branches.scope(self.b,self.branch,self.uid):
+            with self.assertRaisesRegex(f.FinanceError,'account_unavailable'):
+                f.move_transaction_workspace(self.b,ident,self.personal,actor_user_id=self.uid)
+        self.assertEqual(list(db.get_connection().iterdump()),before)
+
+    def test_workspace_move_http_rejects_inactive_source_atomically_then_allows_reactivation(self):
+        ident=self.inactive_expense()
+        before=list(db.get_connection().iterdump())
+        url=self.url+f'/transactions/{ident}/move-workspace'
+        response=self.client.post(url,data=dict(branch_id=self.branch))
+        self.assertEqual(response.status_code,303)
+        self.assertEqual(list(db.get_connection().iterdump()),before)
+        with branches.scope(self.b,self.branch,self.uid):
+            self.assertEqual(f.create_account(self.b,'Kas','CASH',actor_user_id=self.uid),self.a)
+        self.assertEqual(self.client.post(url,data=dict(branch_id=self.branch)).status_code,303)
+        moved=db.query_one('SELECT * FROM finance_transactions WHERE id=?',(ident,))
+        self.assertEqual(moved['branch_id'],self.personal)
+        self.assertTrue(db.query_one('SELECT is_active FROM finance_accounts WHERE id=?',(moved['account_id'],))['is_active'])
+        self.assertEqual(db.query_one('SELECT COUNT(*) n FROM finance_workspace_corrections WHERE transaction_id=?',(ident,))['n'],1)
