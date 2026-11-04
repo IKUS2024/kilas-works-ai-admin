@@ -24,6 +24,15 @@ def checkout_page(project_id):
     project = projects_repo.get_project(project_id)
     if project is None:
         abort(404)
+    if project.get('requirements', {}).get('creative_order') == 1:
+        security.require_project_access(project['id'], user)
+        if request.method != 'GET':
+            abort(409)
+        creative_invoice = payment_service.get_latest_invoice_for_project(project['id'])
+        if not creative_invoice:
+            abort(404)
+        return redirect(url_for('creative_checkout.payment', invoice_id=creative_invoice['id']))
+
     business = security.require_business_access(project["business_id"], user) if project["business_id"] else None
     if business is None:
         security.require_project_access(project_id, user)
@@ -76,6 +85,15 @@ def invoice_page(invoice_id):
     project = projects_repo.get_project(invoice["project_id"])
     if project is None:
         abort(404)
+    if project.get('requirements', {}).get('creative_order') == 1:
+        security.require_project_access(project['id'], user)
+        if request.method != 'GET':
+            abort(409)
+        creative_invoice = payment_service.get_latest_invoice_for_project(project['id'])
+        if not creative_invoice:
+            abort(404)
+        return redirect(url_for('creative_checkout.payment', invoice_id=creative_invoice['id']))
+
     business = security.require_business_access(invoice["business_id"], user) if invoice["business_id"] else None
     if business is None:
         security.require_project_access(project["id"], user)
@@ -153,6 +171,9 @@ def invoice_proof_view(invoice_id):
     else:
         project = projects_repo.get_project(invoice["project_id"])
         security.require_project_access(project["id"], user) if project else abort(404)
+    project = projects_repo.get_project(invoice['project_id'])
+    if project and project.get('requirements', {}).get('creative_order'):
+        return redirect(url_for('creative_checkout.proof', invoice_id=invoice_id))
     payment = payment_service.get_payment_for_invoice(invoice_id)
     if payment is None or not payment.get("proof_file_id"):
         abort(404)

@@ -346,6 +346,8 @@ def create_app():
     app.register_blueprint(wa_checkout_bp)
     app.register_blueprint(quotations_bp)
     app.register_blueprint(payments_bp)
+    from routes_creative_checkout import creative_checkout_bp
+    app.register_blueprint(creative_checkout_bp)
     display_labels.register_jinja_filters(app)
     app.register_blueprint(talent_bp)
     app.register_blueprint(whatsapp_bp)
@@ -414,7 +416,8 @@ def create_app():
         session.clear()
         if request.path.startswith("/api/") or request.is_json:
             abort(401)
-        return redirect(url_for("auth.login_page"), code=303)
+        from routes_creative_checkout import preserve_selection
+        return preserve_selection(redirect(url_for("auth.login_page"), code=303))
 
     def _finance_session_destination():
         user = security.current_user()
@@ -454,6 +457,7 @@ def create_app():
         allowed = (
             endpoint == "static"
             or endpoint.startswith("finance.")
+            or endpoint.startswith("creative_checkout.")
             or endpoint.startswith("workspace.")
             or endpoint.startswith("kilas_ai.")
             or endpoint.startswith("kilas_audio.")

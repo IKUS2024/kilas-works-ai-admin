@@ -201,11 +201,29 @@ def upload_payment_proof(payment_id, business_id, proof_file_id, actor_user_id, 
 
 def verify_payment(payment_id, business_id, actor_user_id, admin_notes=None):
     if not db._transaction_active():
-        with db.app_purchase_transaction(business_id, actor_user_id):
+        candidate = get_payment(payment_id)
+        candidate_invoice = get_invoice(candidate['invoice_id']) if candidate else None
+        candidate_project = projects_repo.get_project(candidate_invoice['project_id']) if candidate_invoice else None
+        lock_owner = actor_user_id
+        if candidate_project and candidate_project.get('requirements', {}).get('creative_order'):
+            lock_owner = candidate_project['created_by_user_id']
+        with db.app_purchase_transaction(business_id, lock_owner):
             return verify_payment(payment_id, business_id, actor_user_id, admin_notes)
     payment = get_payment(payment_id)
     if payment is None or payment["business_id"] != business_id:
         raise ValueError("payment_not_found")
+    invoice = get_invoice(payment['invoice_id'])
+    project = projects_repo.get_project(invoice['project_id'])
+    if project and project.get('requirements', {}).get('creative_order'):
+        import creative_orders
+        creative_orders.lock_payment(invoice['id'])
+        invoice = get_invoice(invoice['id'])
+        project = projects_repo.get_project(invoice['project_id'])
+        payment = get_payment(payment_id)
+        if project['status'] in ('CANCELLED', 'REJECTED') or invoice['status'] == 'CANCELLED':
+            raise ValueError('creative_order_closed')
+        if payment['status'] != 'VERIFIED' and not creative_orders.payment_open(project, invoice):
+            raise ValueError('creative_order_not_payable')
     import assist_billing
     if payment['status'] == 'VERIFIED':
         if assist_billing.apply_verified(payment, actor_user_id):

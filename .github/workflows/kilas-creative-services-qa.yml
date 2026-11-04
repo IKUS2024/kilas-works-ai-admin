@@ -1,10 +1,10 @@
 name: Kilas Creative Services QA
 on:
   pull_request:
-    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/tests/test_kilas_translator_navigation*', 'client-hub/tests/creative_services_offer_facts.json', 'client-hub/tests/creative_portfolio_sources.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
+    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/tests/creative_checkout_browser.py', 'client-hub/tests/creative_checkout_postgres.py', 'client-hub/creative_orders.py', 'client-hub/creative_catalog.json', 'client-hub/routes_creative_checkout.py', 'client-hub/static/creative_checkout.*', 'client-hub/templates/creative_checkout.html', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/tests/test_kilas_translator_navigation*', 'client-hub/tests/creative_services_offer_facts.json', 'client-hub/tests/creative_portfolio_sources.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
   push:
     branches: [main]
-    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/tests/test_kilas_translator_navigation*', 'client-hub/tests/creative_services_offer_facts.json', 'client-hub/tests/creative_portfolio_sources.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
+    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/tests/creative_checkout_browser.py', 'client-hub/tests/creative_checkout_postgres.py', 'client-hub/creative_orders.py', 'client-hub/creative_catalog.json', 'client-hub/routes_creative_checkout.py', 'client-hub/static/creative_checkout.*', 'client-hub/templates/creative_checkout.html', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/tests/test_kilas_translator_navigation*', 'client-hub/tests/creative_services_offer_facts.json', 'client-hub/tests/creative_portfolio_sources.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,11 +20,35 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python scripts/package_creative_services.py --check
       - run: python -B scripts/run_offline_tests.py --only test_creative_services.py
+      - run: python -B -m unittest discover -s client-hub/tests -p test_creative_checkout.py -v
+      - run: python -B client-hub/tests/creative_checkout_browser.py
       - run: python -B client-hub/tests/test_creative_studio_browser.py
         env: {KILAS_STUDIO_SCREENSHOTS: /tmp/creative-studio-qa}
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: creative-services-preview, path: /tmp/creative-studio-qa}
+  checkout-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: checkoutqa
+          POSTGRES_PASSWORD: synthetic-local-only
+          POSTGRES_DB: creative_checkout_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U checkoutqa -d creative_checkout_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python -B client-hub/tests/creative_checkout_postgres.py
+        env:
+          DATABASE_URL: postgresql://checkoutqa:synthetic-local-only@127.0.0.1:5432/creative_checkout_qa
   translator-navigation:
     runs-on: ubuntu-latest
     timeout-minutes: 12

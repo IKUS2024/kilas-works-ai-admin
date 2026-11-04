@@ -1339,7 +1339,13 @@ def payment_proof_view(payment_id):
     row = db.query_one("SELECT * FROM project_files WHERE id = ?", (payment["proof_file_id"],))
     if row is None:
         abort(404)
-    return send_file(io.BytesIO(row["content"]), mimetype=row["mime_type"] or "application/octet-stream")
+    response = send_file(io.BytesIO(row["content"]), mimetype=row["mime_type"] or "application/octet-stream")
+    invoice = payment_service.get_invoice(payment['invoice_id'])
+    project = projects_repo.get_project(invoice['project_id']) if invoice else None
+    if project and project.get('requirements', {}).get('creative_order'):
+        response.headers['Cache-Control'] = 'private, no-store'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @admin_bp.route("/payments/<int:payment_id>/reject", methods=["POST"])

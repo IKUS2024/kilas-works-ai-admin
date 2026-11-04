@@ -2,6 +2,7 @@
 {% block title %}Payment #{{ payment.id }} — Admin{% endblock %}
 {% block content %}
 {% include "_admin_compact_style.html" %}
+{% set creative_closed = project and project.requirements and project.requirements.creative_order and (project.status != 'PAYMENT_PENDING' or invoice.status != 'ISSUED') %}
 <div class="admin-page">
   <a href="{{ url_for('admin.payments_admin') }}" class="muted">← Review Pembayaran</a>
   <header class="admin-head" style="margin-top:10px;">
@@ -18,7 +19,17 @@
     {% if project %}<p class="admin-note">Project: {{ project.title }} · {{ project.project_type }}</p>{% endif %}
   </section>
 
-  {% if payment.status in ('UNDER_REVIEW','PROOF_UPLOADED') %}
+  {% if project and project.requirements and project.requirements.creative_order %}
+  <section class="card"><h2>Pesanan Creative Services</h2>
+    {% if creative_closed %}<p>Pesanan ditutup · {{ project.status }} · Invoice {{ invoice.status }}. Verifikasi pembayaran tidak tersedia.</p>{% endif %}
+    <p>Rekening tujuan: {{ project.requirements.bank.bank_name }} · {{ project.requirements.bank.account_number }} · {{ project.requirements.bank.account_holder }}</p>
+    {% if project.requirements.addon != 'none' %}<p>{{ project.requirements.addon_name }}</p>{% endif %}
+    <dl>{% for label, value in project.requirements.customer.items() %}<dt><strong>{{ label }}</strong></dt><dd>{{ value or '—' }}</dd>{% endfor %}</dl>
+    <ul>{% for feature in project.requirements.features %}<li>{{ feature }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if not creative_closed and payment.status in ('UNDER_REVIEW','PROOF_UPLOADED') %}
   <section class="card">
     <h2>Aksi Review</h2>
     <div class="admin-actions">
