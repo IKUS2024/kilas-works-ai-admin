@@ -1,4 +1,6 @@
 {
+  "Mulai mendengarkan {source} ke {target}": {"id": "Mulai mendengarkan {source} ke {target}", "en": "Start listening: {source} to {target}", "es": "Empezar a escuchar: de {source} a {target}", "zh": "开始聆听：{source}到{target}"},
+  "Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.": {"id": "Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.", "en": "Tap the K logo to listen. Tap it again to stop and translate.", "es": "Toca el logo K para escuchar. Tócalo de nuevo para detener y traducir.", "zh": "轻点 K 标志开始聆听，再点一次停止并翻译。"},
   "Ketuk arah untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.": {"en": "Tap a direction to listen. Tap it again to stop and translate.", "es": "Toca una dirección para escuchar. Tócala de nuevo para detener y traducir.", "zh": "轻点方向开始聆听，再点一次停止并翻译。", "id": "Ketuk arah untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan."},
   "Mendengarkan. Ketuk lagi untuk menerjemahkan.": {"en": "Listening. Tap again to translate.", "es": "Escuchando. Toca de nuevo para traducir.", "zh": "正在聆听。再点一次即可翻译。", "id": "Mendengarkan. Ketuk lagi untuk menerjemahkan."},
   "Hentikan dan terjemahkan": {"en": "Stop and translate", "es": "Detener y traducir", "zh": "停止并翻译", "id": "Hentikan dan terjemahkan"},

@@ -88,13 +88,16 @@ def main():
      assert contrast(rgb(styles['#interpreter-start']['color']),rgb(styles['#interpreter-start']['background']))>=4.5,styles
      assert contrast(rgb(styles['.interpreter-setup-description']['color']),(255,255,255))>=4.5,styles
      page.locator('#interpreter-consent').check();page.locator('#interpreter-start').dblclick()
+     expect(page.locator('#interpreter-orb')).to_have_role('button')
+     expect(page.locator('.interpreter-direction-help')).to_have_text(copy('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.'))
      assert page.evaluate('micRequests')==0 and not starts
      assert not page.locator('#interpreter-transcript').get_attribute('open')
      page.locator('#interpreter-left').click()
      page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
      expect(page.locator('#interpreter-state')).to_have_text(copy('Mendengarkan. Ketuk lagi untuk menerjemahkan.'))
      assert not finished
-     page.locator('#interpreter-left').click()
+     expect(page.locator('#interpreter-orb')).to_have_attribute('aria-label',copy('Hentikan dan terjemahkan'))
+     page.locator('#interpreter-orb img').click()
      page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='speaking'")
      expect(page.locator('#interpreter-state')).to_have_text(copy('Terjemahan diputar. Tunggu giliran.'))
      assert len(starts)==1 and page.evaluate('micRequests')==1
