@@ -173,7 +173,7 @@ export class CallSession {
    await this.pause(ticket,250);
   }
  }
- fail(error,ticket=this.version){if(!this.current(ticket))return;const code=error.code||(['NotFoundError','NotReadableError','OverconstrainedError'].includes(error.name)?'microphone_unavailable':transient(error)?'call_network':'call_transport');this.end(code);this.onError(code);}
+ fail(error,ticket=this.version){if(!this.current(ticket))return;const code=typeof error.code==='string'?error.code:(['NotFoundError','NotReadableError','OverconstrainedError'].includes(error.name)?'microphone_unavailable':transient(error)?'call_network':'call_transport');this.end(code);this.onError(code);}
  end(reason='call_ended'){
   const path=this.path,admitted=this.admitted;this.admitted=false;this.ident=null;this.path=null;++this.version;
   this.controller?.abort();this.clear(this.timer);this.clear(this.echoTimer);this.clear(this.pollTimer);this.pollResolve?.();this.pollResolve=null;

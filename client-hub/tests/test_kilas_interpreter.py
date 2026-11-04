@@ -80,7 +80,7 @@ class InterpreterTests(unittest.TestCase):
         script=(Path(__file__).parents[1]/'static/kilas_interpreter.mjs').read_text()
         messages=script.split('const messages={',1)[1].split('const showError',1)[0]
         keys=set(re.findall(r":'([^']+)'",messages))
-        keys.update(('Menghubungkan…','Menerjemahkan','Menghubungkan kembali…','Mendengarkan','Terjemahan diputar. Tunggu giliran.','Bicara {source} ke {target}','Mendengarkan. Ketuk lagi untuk menerjemahkan.','Hentikan dan terjemahkan'))
+        keys.update(('Menghubungkan…','Menerjemahkan','Menghubungkan kembali…','Mendengarkan','Terjemahan diputar. Tunggu giliran.','Bicara {source} ke {target}','Mendengarkan. Ketuk lagi untuk menerjemahkan.','Hentikan dan terjemahkan','Mulai mendengarkan {source} ke {target}'))
         with self.enabled():
             for locale in ('id','en','es','zh'):
                 self.client.set_cookie('kilas_language',locale)

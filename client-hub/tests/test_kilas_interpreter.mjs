@@ -305,6 +305,17 @@ test('Upload auth or validation failure is terminal without retries',async()=>{
 });
 
 const tap={source:'id',target:'en',consent:true,turn_mode:'tap'};
+test('Browser DOMException numeric codes never mask missing microphone recovery',async()=>{
+ for(const name of ['NotFoundError','NotReadableError','OverconstrainedError']){
+  let admissions=0;
+  const f=fixture({capture:{start:async()=>{throw new DOMException('Synthetic missing microphone',name);},cancel(){}},request:async(path,args={})=>{
+   if(args.method==='POST')admissions++;return {available:true};
+  }});
+  await f.session.start(tap);
+  assert.deepEqual(f.errors,['microphone_unavailable'],name);
+  assert.equal(f.session.state,'ended');assert.equal(admissions,0);
+ }
+});
 test('Tap stop flushes final PCM, waits for upload ACK, then finishes exactly once and drains output',async()=>{
  const ack=deferred(),requests=[],drain=deferred();let f;
  f=fixture({player:{checkpoint:()=>drain.promise},request:async(path,args={})=>{

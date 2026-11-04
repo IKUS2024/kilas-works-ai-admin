@@ -13,6 +13,7 @@ MIC="""window.micRequests=0;window.micStops=0;window.mockPermission='granted';
 navigator.mediaDevices.getUserMedia=async()=>{
  window.micRequests++;
  if(window.mockPermission==='denied')throw new DOMException('denied','NotAllowedError');
+ if(window.mockPermission==='missing')throw new DOMException('No capture device','NotFoundError');
  const ctx=new AudioContext(),osc=ctx.createOscillator(),out=ctx.createMediaStreamDestination();
  osc.frequency.value=220;osc.connect(out);osc.start();
  for(const track of out.stream.getTracks()){const stop=track.stop.bind(track);let stopped=false;track.stop=()=>{if(stopped)return;stopped=true;window.micStops++;stop();osc.stop();ctx.close();};}
@@ -87,13 +88,16 @@ def main():
      assert contrast(rgb(styles['#interpreter-start']['color']),rgb(styles['#interpreter-start']['background']))>=4.5,styles
      assert contrast(rgb(styles['.interpreter-setup-description']['color']),(255,255,255))>=4.5,styles
      page.locator('#interpreter-consent').check();page.locator('#interpreter-start').dblclick()
+     expect(page.locator('#interpreter-orb')).to_have_role('button')
+     expect(page.locator('.interpreter-direction-help')).to_have_text(copy('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.'))
      assert page.evaluate('micRequests')==0 and not starts
      assert not page.locator('#interpreter-transcript').get_attribute('open')
      page.locator('#interpreter-left').click()
      page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
      expect(page.locator('#interpreter-state')).to_have_text(copy('Mendengarkan. Ketuk lagi untuk menerjemahkan.'))
      assert not finished
-     page.locator('#interpreter-left').click()
+     expect(page.locator('#interpreter-orb')).to_have_attribute('aria-label',copy('Hentikan dan terjemahkan'))
+     page.locator('#interpreter-orb img').click()
      page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='speaking'")
      expect(page.locator('#interpreter-state')).to_have_text(copy('Terjemahan diputar. Tunggu giliran.'))
      assert len(starts)==1 and page.evaluate('micRequests')==1
@@ -147,11 +151,12 @@ def main():
      expect(page.locator('#interpreter-start')).to_be_disabled()
      assert page.locator('#interpreter-original').text_content()=='' and page.locator('#interpreter-caption').text_content()==''
      if width==393:
-      for failure,key in (('unavailable','Translator sedang tidak tersedia.'),('network','Koneksi terputus. Pilih arah untuk mulai lagi.'),('permission','Izinkan mikrofon di browser.'),('audio','Audio belum siap. Izinkan audio browser, lalu pilih arah lagi.')):
+      for failure,key in (('unavailable','Translator sedang tidak tersedia.'),('network','Koneksi terputus. Pilih arah untuk mulai lagi.'),('permission','Izinkan mikrofon di browser.'),('missing','Periksa mikrofon yang terhubung, lalu pilih arah lagi.'),('audio','Audio belum siap. Izinkan audio browser, lalu pilih arah lagi.')):
        mode[0]=failure;before=len(starts);page.reload(wait_until='networkidle')
        assert not page.locator('#interpreter-consent').is_checked() and page.evaluate('micRequests')==0
        page.locator('#interpreter-consent').check();page.locator('#interpreter-start').click()
        if failure=='permission':page.evaluate("window.mockPermission='denied'")
+       if failure=='missing':page.evaluate("window.mockPermission='missing'")
        if failure=='audio':page.evaluate("()=>{AudioContext.prototype.resume=async()=>{throw new Error('synthetic audio failure')};}")
        page.locator('#interpreter-left').click()
        expect(page.locator('#interpreter-state')).to_have_text(copy(key))
