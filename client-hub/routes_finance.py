@@ -289,7 +289,7 @@ def _money_decimal(value, signed=False):
 
     # A repeated single separator with groups of exactly three digits is a
     # thousands-grouped integer. Otherwise a single separator is decimal.
-    grouped_integer = bool(re.fullmatch(r'[0-9]{1,3}(?:[.,][0-9]{3})+',text))
+    grouped_integer = bool(re.fullmatch(r'[0-9]{1,3}([.,])[0-9]{3}(?:\1[0-9]{3})*',text))
     normalized=None
     if grouped_integer:
         normalized=re.sub(r'[.,]','',text)

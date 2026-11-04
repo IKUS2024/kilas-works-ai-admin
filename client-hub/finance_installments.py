@@ -96,6 +96,16 @@ def apply_payment(business_id,rule_id,transaction_id,actor):
     db.execute('UPDATE finance_transactions SET notes=? WHERE id=?',(row['notes'],transaction_id))
 
 
-def require_rule_amount(rule_id,amount,category_id=None,due_on=None,cadence=None,end_on=None):
-    row=db.query_one('SELECT amount_minor,due_on,allocations_json FROM finance_installment_items WHERE recurring_id=?',(rule_id,))
-    if row and (row['amount_minor']!=amount or due_on is not None and row['due_on']!=due_on or category_id is not None and category_id!=json.loads(row['allocations_json'])[0]['category_id'] or cadence is not None and (cadence!='MONTHLY' or end_on!=row['due_on'])):raise finance.FinanceError('installment_payment_locked')
+def require_rule_amount(rule_id,amount,category_id=None,due_on=None,cadence=None,end_on=None,currency=None):
+    row=db.query_one(
+        'SELECT i.amount_minor,i.due_on,i.allocations_json,p.currency '
+        'FROM finance_installment_items i JOIN finance_installment_plans p ON p.id=i.plan_id '
+        'WHERE i.recurring_id=?',(rule_id,))
+    if row and (
+        currency is not None and currency!=row['currency']
+        or row['amount_minor']!=amount
+        or due_on is not None and row['due_on']!=due_on
+        or category_id is not None and category_id!=json.loads(row['allocations_json'])[0]['category_id']
+        or cadence is not None and (cadence!='MONTHLY' or end_on!=row['due_on'])
+    ):
+        raise finance.FinanceError('installment_payment_locked')

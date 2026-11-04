@@ -40,6 +40,8 @@ jobs:
           test_finance_ui_integrity test_finance_workspace_corrections
           test_finance_final_package test_finance_receipt_preview test_kilas_finance_baseline
           test_kilas_finance_bridge test_kilas_finance_bridge_routes
+          test_finance_money_input_audit test_finance_installment_currency_audit
+          test_finance_reversal_account_audit
       - name: Native PostgreSQL arithmetic, scopes and atomic payment edits
         env:
           DATABASE_URL: postgresql://postgres:synthetic-finance-audit@127.0.0.1:5432/kilas_finance_qa
@@ -49,3 +51,4 @@ jobs:
         run: |
           python client-hub/tests/finance_calculation_postgres_qa.py
           python client-hub/tests/finance_edit_postgres_qa.py
+          python client-hub/tests/finance_invariant_postgres_qa.py

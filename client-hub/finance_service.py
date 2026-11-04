@@ -1197,6 +1197,8 @@ def _save_transaction_revision(business_id, current, data, actor_user_id):
         raise FinanceError('business_unavailable')
     original = {key: current[key] for key in FIELDS}
     if any(data[key] != original[key] for key in FIELDS):
+        # Reassigning an old debit can restore cash to its original account.
+        get_account(business_id,current['account_id'],actor_user_id=actor_user_id,active=True)
         db.execute('INSERT INTO finance_transaction_revisions '
             '(business_id,transaction_id,before_json,after_json,actor_user_id,created_at) VALUES (?,?,?,?,?,?)',
             (business_id,current['id'],json.dumps(dict(original,branch_id=current['branch_id']),sort_keys=True),
@@ -1682,6 +1684,7 @@ def void_transaction(business_id, transaction_id, actor_user_id=None):
         if current['source_type'] == 'FINANCE_INVOICE_PAYMENT':
             raise FinanceError('invoice_ledger_managed')
         if current['status'] != 'VOID':
+            get_account(business_id,current['account_id'],actor_user_id=actor_user_id,active=True)
             now = repo._now()
             db.execute("UPDATE finance_transactions SET status='VOID',voided_at=?,voided_by_user_id=?,updated_at=? "
                        "WHERE business_id=? AND id=? AND status='POSTED'", (now, actor_user_id, now, business_id, transaction_id))
@@ -2473,13 +2476,14 @@ def update_recurring_expense(business_id, recurring_id, name, amount_minor, acco
         if not existing or not existing['is_active']:
             raise FinanceError('recurring_unavailable')
         from finance_installments import require_rule_amount
-        require_rule_amount(existing['id'],amount_minor,category_id=category_id,due_on=next_due_on,cadence=cadence,end_on=end_on)
         account = get_account(
             business_id, _id(account_id), actor_user_id=actor_user_id, active=True)
         if not account:
             raise FinanceError('account_unavailable')
         if expected_currency is not None and account['currency'] != _currency(expected_currency):
             raise FinanceError('account_currency_mismatch')
+        require_rule_amount(existing['id'],amount_minor,category_id=category_id,due_on=next_due_on,
+                            cadence=cadence,end_on=end_on,currency=account['currency'])
         rule = dict(
             branch_id=existing['branch_id'], name=name, amount_minor=amount_minor,
             currency=account['currency'], account_id=account_id,
@@ -2957,8 +2961,8 @@ def update_currency_exchange(business_id,exchange_id,from_amount_minor,to_amount
     with _write(business_id,actor_user_id):
         row=get_currency_exchange(business_id,exchange_id,actor_user_id)
         if row['status']!='POSTED':raise FinanceError('fx_exchange_unavailable')
-        source=get_account(business_id,row['from_account_id'],actor_user_id=actor_user_id)
-        target=get_account(business_id,row['to_account_id'],actor_user_id=actor_user_id)
+        source=get_account(business_id,row['from_account_id'],actor_user_id=actor_user_id,active=True)
+        target=get_account(business_id,row['to_account_id'],actor_user_id=actor_user_id,active=True)
         import finance_fx
         actual=finance_fx.major(to_amount_minor,target['currency'])/finance_fx.major(
             from_amount_minor,source['currency'])
@@ -2996,10 +3000,12 @@ def record_currency_exchange(business_id,from_account_id,to_account_id,from_amou
 
 def void_currency_exchange(business_id,exchange_id,actor_user_id=None):
     with _write(business_id,actor_user_id):
-        row=db.query_one(('SELECT id,status FROM finance_fx_exchanges WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
+        row=db.query_one(('SELECT id,status,from_account_id,to_account_id FROM finance_fx_exchanges WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
                          (business_id,_id(exchange_id)))
         if not row:raise FinanceError('fx_exchange_unavailable')
         if row['status']=='POSTED':
+            get_account(business_id,row['from_account_id'],actor_user_id=actor_user_id,active=True)
+            get_account(business_id,row['to_account_id'],actor_user_id=actor_user_id,active=True)
             now=repo._now();db.execute("UPDATE finance_fx_exchanges SET status='VOID',voided_at=?,voided_by_user_id=?,updated_at=? WHERE business_id=? AND id=?",
                        (now,actor_user_id,now,business_id,exchange_id));_audit(business_id,actor_user_id,'FINANCE_FX_EXCHANGE_VOIDED',exchange_id)
         return exchange_id
@@ -3354,6 +3360,8 @@ def void_internal_transfer(business_id, transfer_id, *, actor_user_id):
         if not row:
             raise FinanceError('transfer_unavailable')
         if row['status'] == 'POSTED':
+            get_account(business_id,row['from_account_id'],actor_user_id=actor_user_id,active=True)
+            get_account(business_id,row['to_account_id'],actor_user_id=actor_user_id,active=True)
             db.execute("UPDATE finance_internal_transfers SET status='VOID',voided_at=?,voided_by_user_id=? "
                        'WHERE business_id=? AND id=?', (repo._now(), actor_user_id, business_id, transfer_id))
             _audit(business_id, actor_user_id, 'FINANCE_INTERNAL_TRANSFER_VOIDED', transfer_id)
