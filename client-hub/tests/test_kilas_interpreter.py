@@ -260,6 +260,20 @@ class InterpreterTests(unittest.TestCase):
             with self.assertRaises(calls.CallError):call.accept(2,PCM)
             with self.assertRaisesRegex(calls.CallError,'call_provider_disconnected'):call.recover_transport()
 
+    def test_finish_rechecks_closed_state_inside_lock_when_end_wins_race(self):
+        call=calls.Call(1,'e'*32,object(),settings=dict(SETTINGS,turn_mode='tap'))
+        call.ws=Mock()
+        # End can close/shutdown the call after the initial transport check
+        # returns but before Finish acquires the audio-state lock.
+        call.transport_check=Mock(side_effect=call.stop)
+        with self.assertRaisesRegex(calls.CallError,'call_ended') as caught:
+            call.finish_input(0)
+        self.assertEqual(caught.exception.status,409)
+        self.assertTrue(call.closed.is_set())
+        self.assertFalse(call.input_finished)
+        self.assertTrue(call.queue.empty())
+        call.ws.send.assert_not_called()
+
     def test_finish_route_csrf_ownership_bounds_and_idempotence(self):
         with self.enabled(),patch.object(calls.Thread,'start'),patch.object(calls.wire,'connect') as connect:
             ident=uuid4().hex;path='/kilas-translator/interpreter/'+ident

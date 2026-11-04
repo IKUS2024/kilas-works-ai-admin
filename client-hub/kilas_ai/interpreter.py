@@ -192,6 +192,7 @@ class Call:
         """
         self.transport_check()
         with self.lock:
+            if self.closed.is_set():raise CallError('call_ended',409)
             if self.settings.get('turn_mode')!='tap' or type(index) is not int or index!=self.expected:
                 raise CallError('call_input_invalid',409)
             if not self.input_finished:
