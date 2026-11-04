@@ -155,7 +155,7 @@ class CollectionsTests(unittest.TestCase):
         self.assertIn(client.post(self.path()+'/share').status_code,(302,401))
 
     def test_finance_beta_gate(self):
-        with patch.dict(os.environ,{'KILAS_FINANCE_BETA':'off'}):
+        with patch.dict(os.environ,{'KILAS_FINANCE_BETA':'off'}), patch('finance_entitlements.self_service',return_value=False):
             self.assertEqual(self.client.get(self.url+'/collections').status_code,404)
             self.assertEqual(self.client.post(self.path()+'/share').status_code,404)
 

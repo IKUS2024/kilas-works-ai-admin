@@ -190,9 +190,12 @@ class ReportsTests(unittest.TestCase):
             self.assertEqual(app.test_client().get(self.url+path).status_code,302)
             self.assertEqual(self.client.get(f'/business/{self.other}/finance'+path).status_code,404)
         os.environ['KILAS_FINANCE_BETA']='off'
+        unavailable=patch('finance_entitlements.self_service',return_value=False)
+        unavailable.start();self.addCleanup(unavailable.stop)
         for path in paths:self.assertEqual(self.client.get(self.url+path).status_code,404)
         admin=repo.create_user('reports-admin@example.test','unused',role='KILAS_ADMIN')
-        with self.client.session_transaction() as session:session['user_id']=admin
+        from auth_test_helpers import authenticate
+        authenticate(self.client,repo.get_user_by_id(admin))
         self.assertEqual(self.client.get(self.url+'/reports').status_code,200)
         result=self.client.get(self.url+'/reports/export/transactions.csv'+self.query+'&filename=evil')
         self.assertNotIn('evil',result.headers['Content-Disposition'])

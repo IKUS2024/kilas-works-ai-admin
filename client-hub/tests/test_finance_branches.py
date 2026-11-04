@@ -29,7 +29,8 @@ app = prior.app
 
 class BranchTests(unittest.TestCase):
     def setUp(self):
-        prior.ReceiptTests.setUp(self)
+        from finance_manual_test_support import set_up_manual_finance
+        set_up_manual_finance(self)
         self.ba = branches.list_branches(self.b)[0]['id']
         self.bb = branches.create_branch(self.b, 'Serpong', self.uid)
         self.ab = next(a['id'] for a in f.list_accounts(self.b) if a['branch_id'] == self.bb)
@@ -203,7 +204,7 @@ class BranchTests(unittest.TestCase):
         before = '\n'.join(db.get_connection().iterdump())
         for suffix in ('transactions','accounts','categories','branches','recurring/process','receipts/analyze','operator/draft','bank-imports/analyze','invoices/new'):
             response = self.client.post(self.url + '/' + suffix + '?branch_id=all', data={})
-            self.assertEqual(response.status_code, 403, suffix)
+            self.assertEqual(response.status_code, 404 if suffix in ('operator/draft','bank-imports/analyze') else 403, suffix)
         self.assertEqual(before, '\n'.join(db.get_connection().iterdump()))
         page, context = self.page(None)
         self.assertEqual(page.status_code, 200)
@@ -226,7 +227,9 @@ class BranchTests(unittest.TestCase):
         # Retired catch-all categories are no longer valid entry choices.
         with self.assertRaisesRegex(f.FinanceError,'category_retired'):
             f.create_category(self.b,'EXPENSE','Pengeluaran Lain')
-        category = next(c for c in f.list_categories(self.b, 'EXPENSE') if c['name']=='Biaya Tak Terduga')
+        category_id=f.create_category(self.b,'EXPENSE','Synthetic machine repairs',actor_user_id=self.uid)
+        category = {'id':category_id}
+        category_count=len(f.list_categories(self.b))
         fields = dict(direction='EXPENSE',amount='75',occurred_on='2026-09-17',account_id=self.a,
                       category_id=category['id'],description='Servis mesin kopi\nSelesai')
         response = self.client.post(self.url+'/transactions?branch_id='+str(self.ba), data=fields)
@@ -236,7 +239,7 @@ class BranchTests(unittest.TestCase):
         edit_page = self.client.get(self.url+f'/transactions/{tx["id"]}/edit?branch_id={self.ba}')
         self.assertEqual(edit_page.status_code,200)
         self.assertIn('Servis mesin kopi',edit_page.text)
-        self.assertEqual(len(f.list_categories(self.b)), 9)
+        self.assertEqual(len(f.list_categories(self.b)), category_count)
         fields.update(amount='80',description='Servis ulang')
         response = self.client.post(self.url+f'/transactions/{tx["id"]}/edit?branch_id={self.ba}', data=fields)
         self.assertEqual(response.status_code,303)
@@ -350,16 +353,16 @@ class BranchTests(unittest.TestCase):
             self.assertEqual(receipts.confirm(self.b,self.uid,review['token'],fields),first)
         self.assertEqual(f.get_transaction(self.b,first)['branch_id'],self.ba)
 
-    def test_operator_signed_branch_identity_and_replay(self):
+    def test_archived_operator_cannot_write_in_either_branch(self):
         payload=dict(action='create_income',request='Coffee 100',date='2026-09-17',account_id=self.a,category_id=self.cat,invoice_id=None)
-        with app.app_context(),patch.dict(os.environ, KILAS_FINANCE_OPERATOR_BUSINESS_IDS=str(self.b)),patch.object(operator,'interpret',return_value=dict(amount_minor=100,description='Coffee')):
-            with self.scope(self.ba):
-                draft=operator.prepare(self.b,self.uid,payload)
-                self.assertEqual(operator.signer().loads(draft['token'])['branch_id'],self.ba)
-            with self.scope(self.bb),self.assertRaises(f.FinanceError):operator.confirm(self.b,self.uid,draft['token'])
-            with self.scope(self.ba):
-                result=operator.confirm(self.b,self.uid,draft['token'])
-                self.assertEqual(operator.confirm(self.b,self.uid,draft['token'])['record_id'],result['record_id'])
+        before=list(db.get_connection().iterdump())
+        for branch in (self.ba,self.bb):
+            with app.app_context(),self.scope(branch),patch.object(operator,'interpret') as provider:
+                with self.assertRaisesRegex(f.FinanceError,'finance_ai_unavailable'):
+                    operator.prepare(self.b,self.uid,payload)
+                provider.assert_not_called()
+            self.assertEqual(self.client.post(self.url+f'/operator/draft?branch_id={branch}',json=payload).status_code,404)
+        self.assertEqual(list(db.get_connection().iterdump()),before)
 
     def test_reports_export_branch_labels_period_and_pdf(self):
         self.tx(self.ba,11);self.tx(self.bb,22);self.tx(self.ba,99,day='2025-09-17')
@@ -436,7 +439,7 @@ class BranchTests(unittest.TestCase):
             branches.update_record(self.b,'branch',self.bb,deactivate=True,actor_user_id=self.uid)
         for suffix in ('/assistant','/reports','/receivables','/operations'):
             response=self.client.get(self.url+suffix+f'?branch_id={self.bb}')
-            self.assertEqual(response.status_code,200,suffix)
+            self.assertEqual(response.status_code,404 if suffix=='/assistant' else 200,suffix)
             self.assertNotIn('Serpong (Nonaktif)',response.text)
             self.assertNotIn('Semua Cabang',response.text)
 
@@ -523,17 +526,15 @@ class BranchTests(unittest.TestCase):
         with self.scope(self.ba),self.assertRaisesRegex(f.FinanceError,'branch_last_active'):
             branches.update_record(self.b,'branch',self.ba,deactivate=True)
 
-    def test_one_subscription_for_all_branches_expiry_blocks_each(self):
+    def test_free_finance_emergency_disable_blocks_each_branch(self):
         import finance_entitlements as entitlement
-        with patch.dict(os.environ,KILAS_FINANCE_ACCESS_MODE='self_service'):
-            entitlement.start_trial(self.b,self.uid)
-            with self.scope(self.ba):branches.create_branch(self.b,'BSD',self.uid)
-            self.assertEqual(len(db.query_all('SELECT * FROM finance_entitlements WHERE business_id=?',(self.b,))),1)
-            self.assertEqual(len(db.query_all('SELECT id FROM businesses')),2)
-            db.execute("UPDATE finance_entitlements SET trial_until='2020-01-01T00:00:00+00:00' WHERE business_id=?",(self.b,))
+        self.assertEqual(entitlement.state(self.b)['status'],'FREE')
+        before=list(db.get_connection().iterdump())
+        with patch.dict(os.environ,KILAS_FINANCE_EMERGENCY_DISABLE='true'):
             for branch in (self.ba,self.bb):
                 with self.scope(branch),self.assertRaisesRegex(f.FinanceError,'finance_read_only'):
                     f.create_account(self.b,'Denied')
+        self.assertEqual(list(db.get_connection().iterdump()),before)
 
     def test_snapshot_and_edit_roll_back_on_audit_failure(self):
         tx=self.tx(self.ba,100)
@@ -587,8 +588,11 @@ class BranchTests(unittest.TestCase):
             self.assertEqual(f.get_finance_summary(
                 self.b, '2026-09-01', '2026-09-30')['total_income_minor'], 400)
 
+        import finance_reset
+        with self.scope(self.ba):
+            key=finance_reset.prepare(self.b,self.ba,actor_user_id=self.uid)
         response = self.client.post(
-            self.url + f'/reset?branch_id={self.ba}', data={'confirmation': 'RESET'})
+            self.url + f'/reset?branch_id={self.ba}', data={'confirmation': 'RESET','acknowledged':'yes','request_key':key})
         self.assertEqual(response.status_code, 303)
         with self.scope(self.ba):
             summary = f.get_finance_summary(self.b, '2026-09-01', '2026-09-30')

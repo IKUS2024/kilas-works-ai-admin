@@ -280,7 +280,7 @@ class BankTests(unittest.TestCase):
         for extra in ({'amount_minor':1},{'direction':'INCOME'},{'account_id':999}):
             with self.assertRaises(ValueError):b.decide(self.b,i,rid,'post',self.uid,fields=dict(self.fields(),**extra))
         response=self.client.post(f'{self.base}/{i}/rows/{rid}/post',data={'confirmed':'yes','amount':'1'})
-        self.assertEqual(response.status_code,400);self.assertEqual(self.ledger(),[])
+        self.assertEqual(response.status_code,404);self.assertEqual(self.ledger(),[])
     def test_post_reviewable_fields(self):
         i=self.create();tx=self.post(i,occurred_on='2026-09-16',description='Manual',counterparty_name='Reviewed')
         row=f.get_transaction(self.b,tx);self.assertEqual(row['occurred_on'],'2026-09-16');self.assertEqual(row['counterparty_name'],'Reviewed')
@@ -324,7 +324,8 @@ class BankTests(unittest.TestCase):
         i=self.create();tx=self.post(i);f.void_transaction(self.b,tx)
         with self.assertRaises(ValueError):self.post(i)
         self.assertEqual(self.rows(i)[0]['created_transaction_id'],tx);self.assertTrue(self.rows(i)[0]['needs_attention'])
-        self.assertIn(b'VOID',self.client.get(f'{self.base}/{i}').data);self.assertEqual(len(self.ledger()),1)
+        self.assertEqual(f.get_transaction(self.b,tx)['status'],'VOID')
+        self.assertEqual(self.client.get(f'{self.base}/{i}').status_code,404);self.assertEqual(len(self.ledger()),1)
     def test_managed_origin_spoofing_immutable(self):
         with self.assertRaises(ValueError):self.tx(source_type='FINANCE_BANK_IMPORT',source_ref='a'*64)
         i=self.create();tx=self.post(i)

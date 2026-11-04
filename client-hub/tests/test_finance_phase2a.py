@@ -31,6 +31,7 @@ class ReceivablesTests(unittest.TestCase):
         self.client=app.test_client()
         from auth_test_helpers import authenticate
         authenticate(self.client,repo.get_user_by_id(self.uid))
+        self.client.set_cookie('kilas_language','id')
         self.url=f'/business/{self.b}/finance'
         app.config['CLIENT_HUB_FORCE_CSRF_IN_TESTS']=False
         self.addCleanup(lambda: app.config.update(CLIENT_HUB_FORCE_CSRF_IN_TESTS=False))
@@ -227,7 +228,8 @@ class ReceivablesTests(unittest.TestCase):
         os.environ['KILAS_FINANCE_BETA']='off'
         self.assertEqual(self.client.get(self.url+'/receivables').status_code,200)
         admin=repo.create_user('admin@example.test','unused',role='KILAS_ADMIN')
-        with self.client.session_transaction() as session:session['user_id']=admin
+        from auth_test_helpers import authenticate
+        authenticate(self.client,repo.get_user_by_id(admin))
         self.assertEqual(self.client.get(self.url+'/receivables').status_code,200)
 
     def test_ui_create_issue_pay_double_submit_and_print(self):

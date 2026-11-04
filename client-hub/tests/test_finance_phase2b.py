@@ -245,9 +245,12 @@ class RecurringTests(unittest.TestCase):
         self.assertIn('name="customer_id"',html)
         self.assertEqual(self.client.get(f'/business/{self.other}/finance/operations').status_code,404)
         os.environ['KILAS_FINANCE_BETA']='off'
+        unavailable=patch('finance_entitlements.self_service',return_value=False)
+        unavailable.start();self.addCleanup(unavailable.stop)
         self.assertEqual(self.client.get(self.url+'/operations').status_code,404)
         admin=repo.create_user('admin-recurring@example.test','unused',role='KILAS_ADMIN')
-        with self.client.session_transaction() as session:session['user_id']=admin
+        from auth_test_helpers import authenticate
+        authenticate(self.client,repo.get_user_by_id(admin))
         self.assertEqual(self.client.get(self.url+'/operations').status_code,200)
 
     def test_ui_posts_csrf_gate_and_scoped_deactivate(self):
@@ -259,6 +262,8 @@ class RecurringTests(unittest.TestCase):
         foreign=self.rule(business_id=self.other,account_id=f.list_accounts(self.other)[0]['id'],category_id=f.list_categories(self.other,'EXPENSE')[0]['id'],project_id=self.op,actor_user_id=self.other_uid)
         self.assertEqual(self.client.post(self.url+f'/recurring/{foreign}/deactivate').status_code,404)
         os.environ['KILAS_FINANCE_BETA']='off'
+        unavailable=patch('finance_entitlements.self_service',return_value=False)
+        unavailable.start();self.addCleanup(unavailable.stop)
         for p in paths:self.assertEqual(self.client.post(self.url+p).status_code,404)
 
     def test_ui_create_process_deactivate_and_anchor_not_trusted(self):

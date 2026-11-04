@@ -1017,7 +1017,7 @@ def dashboard(business_id, user, business):
     invoice_paid_count = sum(row['status'] == 'PAID' for row in invoice_rows)
     invoice_draft_count = sum(row['status'] == 'DRAFT' for row in invoice_rows)
     return render_template('finance_dashboard.html', user=user, business=business, expense_submission_key=uuid.uuid4().hex,
-        internal_transfers=finance.list_internal_transfers(business_id, actor_user_id=user['id']),
+        internal_transfers=finance.list_internal_transfers(business_id, actor_user_id=user['id']) if g.finance_branch_id is not None else [],
         transfer_key=uuid.uuid4().hex,
         dashboard_view=dashboard_view,
         period_start=start, period_end=end, period_mode=period_mode, period_label=period_label,
