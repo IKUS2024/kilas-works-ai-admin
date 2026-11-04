@@ -1,6 +1,7 @@
 /* Presentation only. Chat retains its existing transport; other tasks open their own forms. */
 (()=>{
   const root=document.querySelector('.kilas-home-workspace');if(!root)return;
+  root.dataset.chatReflow='true';
   // Layout only: visualViewport shrinks when a mobile on-screen keyboard opens.
   const viewport=window.visualViewport;
   let tallestHeight=window.innerHeight;
@@ -14,11 +15,12 @@
     keyboardInline=Boolean(compact&&keyboardOpen&&scale<=1.01&&width>=280);
     document.body.classList.toggle('home-chat-compact',compact);
     document.body.classList.toggle('home-keyboard-inline',keyboardInline);
-    // Compact screens use one horizontally scrollable task/control row, without
-    // adding a dropdown or removing access to model controls.
+    // Interactive model controls share the compact scroller. Keep the managed
+    // brand above it, except when magnification leaves very little height.
     if(modelRow&&taskChoices){
-      if(compact&&modelRow.parentElement!==taskChoices)taskChoices.append(modelRow);
-      else if(!compact&&modelRow.previousSibling!==modelPlace)modelPlace.after(modelRow);
+      const move=compact&&(Boolean(modelRow.querySelector('.chat-model-selector'))||(scale>1.01&&height<280));
+      if(move&&modelRow.parentElement!==taskChoices)taskChoices.append(modelRow);
+      else if(!move&&modelRow.previousSibling!==modelPlace)modelPlace.after(modelRow);
     }
   };
   const following=()=>timeline&&timeline.scrollHeight-timeline.scrollTop-timeline.clientHeight<48;
