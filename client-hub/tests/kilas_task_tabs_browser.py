@@ -63,7 +63,7 @@ def main():
                         assert metrics['scroll'] <= metrics['client'] + 1, metrics
                         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, active)
                         widths = [t['box']['w'] for t in metrics['tabs']]
-                        assert max(widths) - min(widths) < 1
+                        assert max(widths) - min(widths) < 1, (width, active, widths)
                         assert len({t['font'] for t in metrics['tabs']}) == 1
                         assert len({t['box']['y'] for t in metrics['tabs']}) == 1
                         for t in metrics['tabs']:

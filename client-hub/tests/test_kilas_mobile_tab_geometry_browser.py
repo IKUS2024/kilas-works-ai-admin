@@ -29,6 +29,10 @@ def main():
                     def check(name):
                         result=geometry(page);assert not result['overflow'],(name,result)
                         assert len(result['tabs'])==3,(name,result)
+                        if name=='normal':
+                            widths=[t['box']['width'] for t in result['tabs']]
+                            assert max(widths)-min(widths)<1,(name,widths)
+                            assert page.locator('.home-task-choices').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
                         for t in result['tabs']:
                             assert t['box']['height']>=44,(name,result)
                             assert t['label']['x']>=t['box']['x'] and t['label']['right']<=t['box']['right']+1,(name,result)
