@@ -1,0 +1,63 @@
+/* Approved studio direction: clean sans typography, navy work gallery, cream contact. */
+:root{--font:Inter,system-ui,sans-serif;--paper:#faf7f0;--studio-dark:#121e26;--studio-border:#deded6;--studio-action:#c34410}
+body{font-family:var(--font);letter-spacing:-.015em}
+h1,h2,h3{font-family:var(--font);font-weight:650;letter-spacing:-.04em}
+.studio-hero h1{font-weight:650}.studio-service-intro h2,.cs-service-choice h2{font-weight:600}
+.studio-portfolio{background:#121e26;padding:72px 0 80px;color:#fffaf2}
+.studio-portfolio-inner{display:block}
+.studio-portfolio-copy{display:grid;grid-template-columns:1fr auto;gap:16px 32px;align-items:end;margin-bottom:40px}
+.studio-portfolio-copy h2{font-size:clamp(38px,5.3vw,68px);line-height:1.08;font-weight:600;max-width:none}
+.studio-portfolio-copy p{grid-column:1;font-size:16px;color:#c3cbd0;margin:0}
+.studio-portfolio-copy>a{grid-column:2;grid-row:1/3;display:inline-flex;align-items:center;justify-content:center;gap:20px;min-height:56px;border:1px solid #a1acb2;border-radius:8px;font-size:17px;letter-spacing:-.02em;padding:12px 24px;margin:0;color:#fffaf2}
+.studio-portfolio-copy>a:hover{background:#21343f;color:#fff;border-color:#fff}
+.studio-portfolio-copy>a .cs-icon{width:21px;height:21px}
+.studio-portfolio-visuals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;width:100%}
+.studio-portfolio-visuals .studio-reel{width:100%;max-width:none;border-radius:14px;overflow:hidden;background:#0c151d;box-shadow:none}
+.studio-portfolio-visuals .studio-reel figure{aspect-ratio:auto;display:flex;flex-direction:column;background:#0c151d;border-radius:0}
+.studio-portfolio-visuals .studio-reel img{width:100%;height:auto;aspect-ratio:16/10;object-fit:contain;background:#172a36}
+.studio-portfolio-visuals .studio-reel figcaption{position:static;display:flex;justify-content:space-between;align-items:center;gap:12px;height:68px;padding:12px 20px;background:#0c151d;color:#fff;font-size:16px;line-height:1.4}
+.studio-portfolio-visuals .studio-reel figcaption .cs-icon{flex:none;width:36px;height:36px;border-radius:50%;padding:10px;background:#dd541d;color:#fff;fill:currentColor;stroke-width:1}
+.studio-reel:focus-visible{outline:3px solid #ffb591;outline-offset:5px}
+.contact{background:#faf7f0;padding:72px 0 64px}
+.contact .cs-business-strip{border:0;margin:0 0 56px;padding:0}
+.contact .cs-business-info{display:block}
+.contact .cs-business-info h2{font-size:clamp(32px,4.7vw,60px);line-height:1.12;font-weight:600;max-width:100%;margin:0 0 36px;padding:0 0 28px;border-bottom:2px solid #c34410}
+.cs-business-info dl{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:48px;margin:0}
+.cs-business-info dl>div{display:grid;grid-template-columns:64px minmax(0,1fr);column-gap:20px;align-content:start}
+.cs-contact-icon{grid-row:1/3;width:64px;height:64px;border-radius:12px;background:#f7e4d5;color:#be400c;display:grid;place-items:center}
+.cs-contact-icon svg{width:30px;height:30px}
+.cs-business-info dt{grid-column:2;font-size:14px;color:#596167;margin:0 0 6px;line-height:1.5}
+.cs-business-info dd{grid-column:2;font-size:17px;line-height:1.7;color:#20262a;margin:0}
+.cs-business-info address{max-width:41ch}
+.cs-business-info a{min-height:44px}
+.cs-business-info .cs-business-whatsapp{display:inline-flex;font-size:14px;font-weight:600;color:#20262a;min-height:48px;padding:8px 20px;border:1px solid #a8a8a1;border-radius:7px;margin-top:16px;text-decoration:none;gap:20px}
+.cs-business-info .cs-business-whatsapp:hover{background:#f7e4d5;border-color:#be400c;color:#9f3308}
+.contact-grid{border-top:1px solid #deded6;padding-top:40px}
+.contact-grid h2{font-size:28px}
+.studio-footer{background:#121e26;color:#d1d8db}
+.studio-footer .footer{border:0;padding-block:32px;font-size:12px}
+.studio-footer .footer-brand{color:#fff;font-size:24px}
+.studio-footer a:hover{color:#ffb591}
+.studio-footer a:focus-visible{outline-color:#ffb591}
+@media(max-width:1100px){.studio-portfolio-visuals{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.cs-business-info dl{gap:32px}}
+@media(max-width:700px){.studio-portfolio{padding:40px 0}.studio-portfolio-copy{display:block;margin-bottom:28px}.studio-portfolio-copy h2{font-size:40px}.studio-portfolio-copy p{font-size:14px;margin-top:12px}.studio-portfolio-copy>a{font-size:14px;min-height:48px;margin-top:22px;padding:10px 18px;gap:18px}.studio-portfolio-visuals{gap:14px}.studio-portfolio-visuals .studio-reel{border-radius:10px}.studio-portfolio-visuals .studio-reel figcaption{height:56px;font-size:12px;padding:10px;gap:8px}.studio-portfolio-visuals .studio-reel figcaption .cs-icon{width:28px;height:28px;padding:8px}.contact{padding:40px 0}.contact .cs-business-strip{margin-bottom:36px}.contact .cs-business-info h2{font-size:34px;line-height:1.18;padding-bottom:24px;margin-bottom:28px;max-width:16ch}.cs-business-info dl{grid-template-columns:1fr;gap:28px}.cs-business-info dl>div{grid-template-columns:52px minmax(0,1fr);gap:4px 16px}.cs-contact-icon{width:52px;height:52px;border-radius:10px}.cs-contact-icon svg{width:25px;height:25px}.cs-business-info dt{font-size:12px;margin:0}.cs-business-info dd{font-size:15px;line-height:1.7}.contact-grid{padding-top:28px}.studio-footer .footer{padding-block:28px;gap:16px}.studio-footer .footer>span{font-size:11px;line-height:1.6}.studio-footer .footer>a:last-child{font-size:12px}}
+@media(max-width:359px){.studio-portfolio-copy h2{font-size:34px}.studio-portfolio-visuals{gap:10px}.studio-portfolio-visuals .studio-reel figcaption{font-size:11px;padding:8px}.studio-portfolio-visuals .studio-reel figcaption .cs-icon{width:24px;height:24px;padding:7px}}
+/* Dimensions refined from the parent's direct inspection of both approved PNGs. */
+.studio-portfolio-visuals{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}
+.studio-portfolio-visuals .studio-reel{border-radius:22px}
+.studio-portfolio-visuals .studio-reel img{aspect-ratio:2.18}
+.studio-portfolio-visuals .studio-reel figcaption{background:#1b2b36;font-weight:600}
+.studio-portfolio-visuals .studio-reel figcaption .cs-icon{background:transparent;border:2px solid #e86628;color:#f17739;padding:9px}
+.studio-portfolio-copy h2::after{content:'.';color:#e66323}
+.contact .cs-business-info h2{border:0;padding-bottom:0;max-width:none;font-weight:650}
+.contact .cs-business-info h2::after{content:'';display:block;width:72px;height:3px;background:#c34410;margin-top:28px}
+.cs-business-info dl{grid-template-columns:1fr;gap:32px;max-width:760px}
+.cs-business-info dl>div{grid-template-columns:80px minmax(0,1fr);column-gap:28px}
+.cs-contact-icon{width:80px;height:80px;border-radius:16px}
+.cs-contact-icon svg{width:36px;height:36px}
+.cs-business-info .cs-business-whatsapp{margin-top:20px;min-height:52px;font-size:16px}
+.studio-footer .footer{flex-direction:column;align-items:flex-start;gap:20px}
+.studio-footer .footer>span{align-self:flex-start}
+.studio-footer .footer>a:last-child{margin:0;font-size:14px}
+@media(max-width:1100px){.studio-portfolio .wrap,.contact>.wrap,.studio-footer .wrap{width:calc(100% - 96px)}.header-inner{display:grid;grid-template-columns:1fr auto;gap:0 20px;padding-block:18px 10px}.brand{grid-column:1;grid-row:1}.js .studio-menu{display:flex!important;grid-column:2;grid-row:1;align-items:center;justify-content:center;width:44px;height:44px;border:0;background:transparent;color:var(--ink)}.cs-back-home{grid-column:1;grid-row:2;min-height:44px}.cs-language{grid-column:2;grid-row:2;border:0;padding:0;justify-content:flex-end}.focused-header-links{grid-column:1/3;grid-row:3;margin:8px 0 0;padding-top:8px;border-top:1px solid var(--line)}.js .header:not(.studio-menu-open) .focused-header-links{display:none}.studio-portfolio-copy h2{font-size:54px}.studio-portfolio-copy{display:block}.studio-portfolio-copy p{margin-top:14px}.studio-portfolio-copy>a{margin-top:28px}.contact .cs-business-info h2{font-size:46px}}
+@media(max-width:700px){.studio-portfolio .wrap,.contact>.wrap,.studio-footer .wrap{width:calc(100% - 40px)}.header-inner{padding-block:10px 6px}.studio-portfolio-copy h2{font-size:38px}.studio-portfolio-visuals{gap:14px}.studio-portfolio-visuals .studio-reel{border-radius:12px}.studio-portfolio-visuals .studio-reel figcaption .cs-icon{padding:6px}.contact .cs-business-info h2{font-size:32px;max-width:20ch}.cs-business-info dl>div{grid-template-columns:56px minmax(0,1fr);gap:6px 16px}.cs-contact-icon{width:56px;height:56px;border-radius:12px}.cs-contact-icon svg{width:28px;height:28px}.cs-business-info .cs-business-whatsapp{font-size:14px;gap:16px}.studio-footer .footer>a:last-child{width:auto}}

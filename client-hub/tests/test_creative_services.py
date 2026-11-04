@@ -100,7 +100,7 @@ class CreativeServicesTests(unittest.TestCase):
         cards = Cards(); cards.feed(html)
         self.assertEqual(len(cards.cards), 6)
         self.assertEqual(len({row['permalink'] for row in facts}), 6)
-        self.assertEqual([row['kind'] for row in facts], ['instagram'] * 3 + ['drive'] * 3)
+        self.assertEqual([row['kind'] for row in facts], ['drive'] * 3 + ['instagram'] * 3)
         from PIL import Image
         for card, expected in zip(cards.cards, facts):
             with self.subTest(work=expected['id']):

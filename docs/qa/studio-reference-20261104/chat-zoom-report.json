@@ -1,0 +1,458 @@
+[
+  {
+    "route": "/products/start",
+    "width": 320,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/products/start",
+    "width": 320,
+    "height": 844,
+    "case": "text-200-percent",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/products/start",
+    "width": 390,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/products/start",
+    "width": 390,
+    "height": 844,
+    "case": "pinch-2",
+    "keyboard": false,
+    "scale": 2
+  },
+  {
+    "route": "/products/start",
+    "width": 390,
+    "height": 844,
+    "case": "pinch-3",
+    "keyboard": false,
+    "scale": 3
+  },
+  {
+    "route": "/products/start",
+    "width": 390,
+    "height": 844,
+    "case": "keyboard-1",
+    "keyboard": true,
+    "scale": 1
+  },
+  {
+    "route": "/products/start",
+    "width": 390,
+    "height": 844,
+    "case": "keyboard-2",
+    "keyboard": true,
+    "scale": 2
+  },
+  {
+    "route": "/products/start",
+    "width": 390,
+    "height": 704,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/products/start",
+    "width": 390,
+    "height": 704,
+    "case": "pinch-2",
+    "keyboard": false,
+    "scale": 2
+  },
+  {
+    "route": "/products/start",
+    "width": 390,
+    "height": 704,
+    "case": "pinch-3",
+    "keyboard": false,
+    "scale": 3
+  },
+  {
+    "route": "/products/start",
+    "width": 390,
+    "height": 704,
+    "case": "keyboard-1",
+    "keyboard": true,
+    "scale": 1
+  },
+  {
+    "route": "/products/start",
+    "width": 390,
+    "height": 704,
+    "case": "keyboard-2",
+    "keyboard": true,
+    "scale": 2
+  },
+  {
+    "route": "/products/start",
+    "width": 768,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/products/start",
+    "width": 768,
+    "height": 844,
+    "case": "text-200-percent",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/products/start",
+    "width": 1440,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/products/start",
+    "width": 1440,
+    "height": 844,
+    "case": "pinch-2",
+    "keyboard": false,
+    "scale": 2
+  },
+  {
+    "route": "/products/start",
+    "width": 1440,
+    "height": 844,
+    "case": "pinch-3",
+    "keyboard": false,
+    "scale": 3
+  },
+  {
+    "route": "/products/start",
+    "width": 1440,
+    "height": 844,
+    "case": "focused-desktop-reflow-200-percent",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/products/start",
+    "width": 1440,
+    "height": 844,
+    "case": "focused-desktop-reflow-reset",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 320,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 320,
+    "height": 844,
+    "case": "text-200-percent",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 390,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 390,
+    "height": 844,
+    "case": "pinch-2",
+    "keyboard": false,
+    "scale": 2
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 390,
+    "height": 844,
+    "case": "pinch-3",
+    "keyboard": false,
+    "scale": 3
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 390,
+    "height": 844,
+    "case": "keyboard-1",
+    "keyboard": true,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 390,
+    "height": 844,
+    "case": "keyboard-2",
+    "keyboard": true,
+    "scale": 2
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 390,
+    "height": 704,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 390,
+    "height": 704,
+    "case": "pinch-2",
+    "keyboard": false,
+    "scale": 2
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 390,
+    "height": 704,
+    "case": "pinch-3",
+    "keyboard": false,
+    "scale": 3
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 390,
+    "height": 704,
+    "case": "keyboard-1",
+    "keyboard": true,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 390,
+    "height": 704,
+    "case": "keyboard-2",
+    "keyboard": true,
+    "scale": 2
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 768,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 768,
+    "height": 844,
+    "case": "text-200-percent",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 1440,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 1440,
+    "height": 844,
+    "case": "pinch-2",
+    "keyboard": false,
+    "scale": 2
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 1440,
+    "height": 844,
+    "case": "pinch-3",
+    "keyboard": false,
+    "scale": 3
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 1440,
+    "height": 844,
+    "case": "focused-desktop-reflow-200-percent",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=1",
+    "width": 1440,
+    "height": 844,
+    "case": "focused-desktop-reflow-reset",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 320,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 320,
+    "height": 844,
+    "case": "text-200-percent",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 390,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 390,
+    "height": 844,
+    "case": "pinch-2",
+    "keyboard": false,
+    "scale": 2
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 390,
+    "height": 844,
+    "case": "pinch-3",
+    "keyboard": false,
+    "scale": 3
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 390,
+    "height": 844,
+    "case": "keyboard-1",
+    "keyboard": true,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 390,
+    "height": 844,
+    "case": "keyboard-2",
+    "keyboard": true,
+    "scale": 2
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 390,
+    "height": 704,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 390,
+    "height": 704,
+    "case": "pinch-2",
+    "keyboard": false,
+    "scale": 2
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 390,
+    "height": 704,
+    "case": "pinch-3",
+    "keyboard": false,
+    "scale": 3
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 390,
+    "height": 704,
+    "case": "keyboard-1",
+    "keyboard": true,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 390,
+    "height": 704,
+    "case": "keyboard-2",
+    "keyboard": true,
+    "scale": 2
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 768,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 768,
+    "height": 844,
+    "case": "text-200-percent",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 1440,
+    "height": 844,
+    "case": "normal",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 1440,
+    "height": 844,
+    "case": "pinch-2",
+    "keyboard": false,
+    "scale": 2
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 1440,
+    "height": 844,
+    "case": "pinch-3",
+    "keyboard": false,
+    "scale": 3
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 1440,
+    "height": 844,
+    "case": "focused-desktop-reflow-200-percent",
+    "keyboard": false,
+    "scale": 1
+  },
+  {
+    "route": "/kilas-ai/agent?conversation=2",
+    "width": 1440,
+    "height": 844,
+    "case": "focused-desktop-reflow-reset",
+    "keyboard": false,
+    "scale": 1
+  }
+]

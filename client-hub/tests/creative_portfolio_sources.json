@@ -2,72 +2,6 @@
   "source": "Parent-verified public Kilas Works Instagram grid and owner-selected Drive files; transported in c944d2e256310994f9a4822c7baa9bd9088cd71c, all source hashes and pixels verified locally.",
   "works": [
     {
-      "id": "DerLk6VvQR3",
-      "kind": "instagram",
-      "permalink": "https://www.instagram.com/onemoretake.id/reel/DerLk6VvQR3/",
-      "label": {
-        "id": "Reel kolam renang",
-        "en": "Pool Reel"
-      },
-      "label_source": "Neutral description, not an asserted official work title",
-      "source_sha256": "c6f34af23800a37cbc62e28ec7ba48ec147572aa3714044bd6c6c701771a9a4c",
-      "source_dimensions": [
-        361,
-        640
-      ],
-      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
-      "public_grid_date": "2026-10-19",
-      "source_timestamp_seconds": null,
-      "assets": {
-        "assets/portfolio/DerLk6VvQR3-180.webp": "eb714e1c3d4d7bc427c5992cd2d56b5db7022a46189a35a5d593dad567ad7513",
-        "assets/portfolio/DerLk6VvQR3-360.webp": "214dee3d47fdcad21c929e0bcb0a6a7fa4e2d26acba8d619549f674d28da9a48"
-      }
-    },
-    {
-      "id": "DdbecPevVai",
-      "kind": "instagram",
-      "permalink": "https://www.instagram.com/onemoretake.id/reel/DdbecPevVai/",
-      "label": {
-        "id": "Reel percakapan",
-        "en": "Conversation Reel"
-      },
-      "label_source": "Neutral description, not an asserted official work title",
-      "source_sha256": "455890707785ea60b736eea0f6dda4482b535feeffb4479811abf3942d748a24",
-      "source_dimensions": [
-        360,
-        640
-      ],
-      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
-      "public_grid_date": "2026-09-18",
-      "source_timestamp_seconds": null,
-      "assets": {
-        "assets/portfolio/DdbecPevVai-180.webp": "46bd3e42b56b93e285f7b51206694916ad183dea9ad4b88217eb44795d11edd9",
-        "assets/portfolio/DdbecPevVai-360.webp": "dbf23b8852c3025bf9a6509fbe9a01408135b8dddc312b24b08243c7fb98c653"
-      }
-    },
-    {
-      "id": "DdESSzkp1to",
-      "kind": "instagram",
-      "permalink": "https://www.instagram.com/onemoretake.id/reel/DdESSzkp1to/",
-      "label": {
-        "id": "Reel biliar",
-        "en": "Billiards Reel"
-      },
-      "label_source": "Neutral description, not an asserted official work title",
-      "source_sha256": "d8b686f48a54ae6dbfd7e0c4f3906cb53f344aa9ca8ab2b54b36adfd6d42ae61",
-      "source_dimensions": [
-        360,
-        640
-      ],
-      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
-      "public_grid_date": "2026-09-09",
-      "source_timestamp_seconds": null,
-      "assets": {
-        "assets/portfolio/DdESSzkp1to-180.webp": "b867120e2cf72b72f09bdf874e126c7679a66a8912eb1ff8fa204b72f66c0448",
-        "assets/portfolio/DdESSzkp1to-360.webp": "454fc4f5c3ca7f64a218ef19f92d73277373d4d989bc14cb7329e9d078c050c8"
-      }
-    },
-    {
       "id": "company-profile",
       "kind": "drive",
       "permalink": "https://drive.google.com/file/d/1_RhxZwkV-XnmrJ4ygHAtJ3rZRMqwJOA3/view",
@@ -131,6 +65,72 @@
       "assets": {
         "assets/portfolio/birthday-event-240.webp": "ff67f8acb1fb830c110893d981e0afc6c6b88efc3e8edfd34d7469d8781257ee",
         "assets/portfolio/birthday-event-480.webp": "d2dcca0d3f0ec2bf98ee38a48bd68052b87aefb5ca1cb6e85c25a8b80fa92b2c"
+      }
+    },
+    {
+      "id": "DerLk6VvQR3",
+      "kind": "instagram",
+      "permalink": "https://www.instagram.com/onemoretake.id/reel/DerLk6VvQR3/",
+      "label": {
+        "id": "Reel kolam renang",
+        "en": "Pool Reel"
+      },
+      "label_source": "Neutral description, not an asserted official work title",
+      "source_sha256": "c6f34af23800a37cbc62e28ec7ba48ec147572aa3714044bd6c6c701771a9a4c",
+      "source_dimensions": [
+        361,
+        640
+      ],
+      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
+      "public_grid_date": "2026-10-19",
+      "source_timestamp_seconds": null,
+      "assets": {
+        "assets/portfolio/DerLk6VvQR3-180.webp": "eb714e1c3d4d7bc427c5992cd2d56b5db7022a46189a35a5d593dad567ad7513",
+        "assets/portfolio/DerLk6VvQR3-360.webp": "214dee3d47fdcad21c929e0bcb0a6a7fa4e2d26acba8d619549f674d28da9a48"
+      }
+    },
+    {
+      "id": "DdbecPevVai",
+      "kind": "instagram",
+      "permalink": "https://www.instagram.com/onemoretake.id/reel/DdbecPevVai/",
+      "label": {
+        "id": "Reel percakapan",
+        "en": "Conversation Reel"
+      },
+      "label_source": "Neutral description, not an asserted official work title",
+      "source_sha256": "455890707785ea60b736eea0f6dda4482b535feeffb4479811abf3942d748a24",
+      "source_dimensions": [
+        360,
+        640
+      ],
+      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
+      "public_grid_date": "2026-09-18",
+      "source_timestamp_seconds": null,
+      "assets": {
+        "assets/portfolio/DdbecPevVai-180.webp": "46bd3e42b56b93e285f7b51206694916ad183dea9ad4b88217eb44795d11edd9",
+        "assets/portfolio/DdbecPevVai-360.webp": "dbf23b8852c3025bf9a6509fbe9a01408135b8dddc312b24b08243c7fb98c653"
+      }
+    },
+    {
+      "id": "DdESSzkp1to",
+      "kind": "instagram",
+      "permalink": "https://www.instagram.com/onemoretake.id/reel/DdESSzkp1to/",
+      "label": {
+        "id": "Reel biliar",
+        "en": "Billiards Reel"
+      },
+      "label_source": "Neutral description, not an asserted official work title",
+      "source_sha256": "d8b686f48a54ae6dbfd7e0c4f3906cb53f344aa9ca8ab2b54b36adfd6d42ae61",
+      "source_dimensions": [
+        360,
+        640
+      ],
+      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
+      "public_grid_date": "2026-09-09",
+      "source_timestamp_seconds": null,
+      "assets": {
+        "assets/portfolio/DdESSzkp1to-180.webp": "b867120e2cf72b72f09bdf874e126c7679a66a8912eb1ff8fa204b72f66c0448",
+        "assets/portfolio/DdESSzkp1to-360.webp": "454fc4f5c3ca7f64a218ef19f92d73277373d4d989bc14cb7329e9d078c050c8"
       }
     }
   ]

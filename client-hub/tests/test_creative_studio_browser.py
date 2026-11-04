@@ -32,7 +32,7 @@ def check_portfolio(page, locale, *, activate=False, touch=False):
             assert image.get_attribute('src') in row['assets']
             assert image.get_attribute('alt')
             geometry=image.evaluate('e=>{const r=e.getBoundingClientRect();return {ratio:r.width/r.height,fit:getComputedStyle(e).objectFit}}')
-            assert abs(geometry['ratio']-1)<.005 and geometry['fit']=='contain',geometry
+            assert abs(geometry['ratio']-2.18)<.005 and geometry['fit']=='contain',geometry
             card.focus();expect(card).to_be_focused()
             if activate:
                 with page.context.expect_page() as pending:
@@ -45,10 +45,12 @@ def check_portfolio(page, locale, *, activate=False, touch=False):
                 popup.close()
         if activate:assert opened==[row['permalink'] for row in facts],opened
         boxes=cards.evaluate_all('es=>es.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,bottom:r.bottom}})')
-        assert max(box['y'] for box in boxes[:3])-min(box['y'] for box in boxes[:3])<1,boxes
-        assert max(box['y'] for box in boxes[3:])-min(box['y'] for box in boxes[3:])<1,boxes
-        assert min(box['y'] for box in boxes[3:])>=max(box['bottom'] for box in boxes[:3]),boxes
-        assert all(boxes[i]['x']<boxes[i+1]['x'] for i in (0,1,3,4)),boxes
+        columns=2
+        for start in range(0,6,columns):
+            row=boxes[start:start+columns]
+            assert max(box['y'] for box in row)-min(box['y'] for box in row)<1,boxes
+            assert all(row[i]['x']<row[i+1]['x'] for i in range(len(row)-1)),boxes
+            if start:assert min(box['y'] for box in row)>=max(box['bottom'] for box in boxes[start-columns:start]),boxes
         dimensions=cards.evaluate_all('''es=>es.map(e=>{
           const card=e.getBoundingClientRect(),image=e.querySelector('img').getBoundingClientRect();
           const cta=e.querySelector('figcaption'),label=cta.querySelector('span'),button=cta.getBoundingClientRect();
@@ -58,7 +60,7 @@ def check_portfolio(page, locale, *, activate=False, touch=False):
         })''')
         for key in ('width','height','mediaWidth','mediaHeight','ctaHeight'):
             assert max(d[key] for d in dimensions)-min(d[key] for d in dimensions)<1,(key,dimensions)
-        assert all(d['ctaHeight']==48 and d['labelFits'] and d['ctaFits'] for d in dimensions),dimensions
+        assert all(d['ctaHeight']==(68 if page.viewport_size['width']>700 else 56) and d['labelFits'] and d['ctaFits'] for d in dimensions),dimensions
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         assert page.locator('#portfolio .studio-illustration-note').count()==0
         expect(page.locator('#portfolio')).not_to_contain_text('Foto di bagian lain adalah ilustrasi layanan.')
@@ -87,9 +89,9 @@ def check_contrast(page):
 
 
 def check_section_markers(page):
-    """Keep the approved numbering without the removed decorative rules."""
+    """The owner requested removal of all section numbers."""
     markers=page.locator('.studio-section-mark')
-    assert markers.all_text_contents()==['01','02','03','04']
+    assert markers.count()==0
     assert markers.evaluate_all("es=>es.every(e=>['none','normal'].includes(getComputedStyle(e,'::after').content))")
 
 

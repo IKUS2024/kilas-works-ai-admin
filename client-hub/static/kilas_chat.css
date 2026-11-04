@@ -179,3 +179,19 @@ body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell .ai-c
 body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell .ai-composer-area{flex:0 1 auto;min-height:0;display:flex;flex-direction:column}
 body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer){flex:1;min-height:0;grid-template-rows:minmax(44px,1fr)}
 body.home-chat-compact.home-keyboard-inline .kilas-home-workspace.ai-shell :is(#ai-input,#agent-message){height:100%!important;max-height:100%!important}
+
+/* Compact chat keeps native task navigation without a Chat options dropdown. */
+body.home-chat-compact .kilas-home-workspace .home-tool-selector{display:flex!important;flex:none;min-width:0;max-width:100%;overflow-x:auto;flex-wrap:nowrap;gap:4px}
+body.home-chat-compact .kilas-home-workspace .home-tool-selector button{flex:none}
+body.home-chat-compact .kilas-home-workspace.ai-shell .home-workspace-top{display:flex!important;flex:none;min-height:44px!important;max-height:52px;padding:0!important;overflow:auto}
+body.home-chat-compact .kilas-home-workspace.ai-shell .chat-model-controls{display:flex!important;flex-wrap:nowrap!important;min-width:0;gap:4px}
+body.home-chat-compact .kilas-home-workspace.ai-shell .chat-model-selector{min-width:90px;flex:1}
+body.home-chat-compact .kilas-home-workspace.ai-shell .chat-model-trigger{min-height:44px!important;max-height:44px;padding:6px!important;font-size:11px;overflow:hidden}
+body.home-chat-compact .kilas-home-workspace.ai-shell .home-task-choices{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;overflow-x:auto!important;min-height:44px;margin:0!important;padding:0!important;gap:4px}
+body.home-chat-compact .kilas-home-workspace.ai-shell .home-task-choices>:is(button,a){flex:none;min-height:44px!important;padding:6px 8px!important;font-size:11px!important}
+
+body.home-chat-compact .kilas-home-workspace.ai-shell .home-task-choices .home-workspace-top{flex:none!important;width:240px;max-width:none;min-height:44px!important;height:44px!important;margin:0!important}
+body.home-chat-compact .kilas-home-workspace.ai-shell .home-tool-selector{margin-block:0 4px!important}
+body.home-chat-compact .kilas-home-workspace.ai-shell .home-task-choices{height:44px!important;max-height:44px!important}
+body.home-chat-compact .kilas-home-workspace.ai-shell .ai-main{gap:4px!important}
+body.home-chat-compact .kilas-home-workspace.ai-shell :is(#ai-composer,#agent-chat-form .ai-composer){padding:4px!important}
