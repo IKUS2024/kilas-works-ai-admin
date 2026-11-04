@@ -1108,13 +1108,13 @@ def _transaction_category_ids(category_ids):
     return tuple(dict.fromkeys(_id(value) for value in category_ids))
 
 
-def _transaction_search(search):
+def _transaction_search(search, alias=''):
     """One parameterized literal-text filter shared by the list and its count."""
     term = str(search or '').strip()[:160].lower()
     if not term:
         return '', []
     term = '%' + term.replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
-    columns = ('description', 'counterparty_name')
+    columns = tuple((alias + '.' if alias else '') + key for key in ('description', 'counterparty_name'))
     return ' AND (' + ' OR '.join("LOWER(COALESCE(" + column + ", '')) LIKE ? ESCAPE '!'" for column in columns) + ')', [term] * len(columns)
 
 
@@ -1936,17 +1936,21 @@ def get_cash_totals(business_id, start_date=None, end_date=None, *, actor_user_i
     must not truncate totals. Opening balances and FX are separate records.
     """
     _scope(business_id,actor_user_id)
+    category_amounts = category_id is not None or group_by == 'category'
+    amount_column = 'v.amount_minor' if category_amounts else 't.amount_minor'
+    category_column = 'v.category_id' if category_amounts else 't.category_id'
     where='t.business_id=?'+branches.predicate('t')+" AND t.status='POSTED'"
     params=[business_id]
     if start_date is not None and end_date is not None:_period(start_date,end_date)
     for value,clause in ((start_date,'t.occurred_on>=?'),(end_date,'t.occurred_on<=?')):
         if value is not None:where+=' AND '+clause;params.append(_date(value))
-    for key,value in (('account_id',account_id),('customer_id',customer_id),('project_id',project_id),('category_id',category_id)):
+    for key,value in (('account_id',account_id),('customer_id',customer_id),('project_id',project_id)):
         if value is not None:where+=' AND t.'+key+'=?';params.append(_id(value))
+    if category_id is not None:where+=' AND '+category_column+'=?';params.append(_id(category_id))
     if currency:where+=' AND t.currency=?';params.append(_currency(currency))
     if direction:where+=' AND t.direction=?';params.append(_enum(direction,DIRECTIONS))
     dimensions={
-        'account':('t.account_id','a.name'), 'category':('t.category_id','c.name'),
+        'account':('t.account_id','a.name'), 'category':(category_column,'c.name'),
         'customer':('t.customer_id','u.name'), 'project':('t.project_id','p.title'),
         'branch':('t.branch_id','b.name')}
     if group_by is not None and group_by not in dimensions:raise FinanceError('invalid_enum')
@@ -1954,12 +1958,14 @@ def get_cash_totals(business_id, start_date=None, end_date=None, *, actor_user_i
     if group_by:
         ident,label=dimensions[group_by];extra=f', {ident} AS entity_id, {label} AS name';group+=f', {ident}, {label}'
     money_sum=_money_sum()
-    sql='''SELECT t.currency,
-        COALESCE(SUM(CASE WHEN t.direction='INCOME' THEN t.amount_minor ELSE 0 END),0) AS total_income_minor,
-        COALESCE(SUM(CASE WHEN t.direction='EXPENSE' THEN t.amount_minor ELSE 0 END),0) AS total_expense_minor,
-        COUNT(*) AS transaction_count'''+extra+''' FROM finance_transactions t
+    allocation_join = ' JOIN finance_category_amounts v ON v.business_id=t.business_id AND v.id=t.id ' if category_amounts else ''
+    sql=f'''SELECT t.currency,
+        COALESCE(SUM(CASE WHEN t.direction='INCOME' THEN {amount_column} ELSE 0 END),0) AS total_income_minor,
+        COALESCE(SUM(CASE WHEN t.direction='EXPENSE' THEN {amount_column} ELSE 0 END),0) AS total_expense_minor,
+        COUNT(DISTINCT t.id) AS transaction_count'''+extra+''' FROM finance_transactions t
+        '''+allocation_join+f'''
         LEFT JOIN finance_accounts a ON a.business_id=t.business_id AND a.id=t.account_id
-        LEFT JOIN finance_categories c ON c.business_id=t.business_id AND c.id=t.category_id
+        LEFT JOIN finance_categories c ON c.business_id=t.business_id AND c.id={category_column}
         LEFT JOIN finance_customers u ON u.business_id=t.business_id AND u.id=t.customer_id
         LEFT JOIN projects p ON p.business_id=t.business_id AND p.id=t.project_id
         LEFT JOIN finance_branches b ON b.business_id=t.business_id AND b.id=t.branch_id
@@ -3266,25 +3272,19 @@ def get_category_totals(business_id, start_date, end_date, direction, *, account
     direction = _enum(direction, DIRECTIONS)
     params = [business_id, direction, start_date, end_date]
     sql = (
-        'SELECT category_id,currency,SUM(amount_minor) AS amount_minor,COUNT(*) AS transaction_count '
+        'SELECT category_id,currency,' + _money_sum() + '(amount_minor) AS amount_minor,COUNT(*) AS transaction_count '
         'FROM finance_category_amounts WHERE business_id=?' + branches.predicate('') +
         " AND status='POSTED' AND direction=? AND occurred_on>=? AND occurred_on<=? ")
     if account_id is not None:
         sql += ' AND account_id=?'
         params.append(_id(account_id))
     sql += ' GROUP BY category_id,currency ORDER BY category_id,currency'
-    return db.query_all(sql, params)
+    return [dict(row, amount_minor=int(row['amount_minor'])) for row in db.query_all(sql, params)]
 
 
 def get_expense_category_totals(business_id, start_date, end_date, *, actor_user_id=None):
-    _scope(business_id, actor_user_id)
-    start_date, end_date = _period(start_date, end_date)
-    return db.query_all(
-        ('SELECT category_id,currency,SUM(amount_minor) AS amount_minor,COUNT(*) AS transaction_count '
-         'FROM finance_category_amounts WHERE business_id=?' + branches.predicate('') +
-         " AND status='POSTED' AND direction='EXPENSE' AND occurred_on>=? AND occurred_on<=? "
-         'GROUP BY category_id,currency ORDER BY category_id,currency'),
-        (business_id, start_date, end_date))
+    return get_category_totals(business_id, start_date, end_date, 'EXPENSE',
+                               actor_user_id=actor_user_id)
 
 
 def _internal_transfer_scope(business_id, actor_user_id):
@@ -3384,24 +3384,34 @@ def personal_income_category(business_id, *, actor_user_id):
 
 
 def get_entry_summary(business_id, start_date, end_date, direction, *, account_id=None,
-                      category_ids=None, search=None, sources=False, actor_user_id):
-    """Unpaginated SQL aggregate using the same filters as transaction history."""
+                      category_ids=None, search=None, sources=False, group_parents=False, actor_user_id):
+    """Unpaginated category allocations with the ledger's scope/date/search filters.
+
+    Parent summaries count each split transaction once, even if two allocations
+    belong to children of that parent. Source grouping remains income metadata.
+    """
     _scope(business_id, actor_user_id)
     start_date, end_date = _period(start_date, end_date)
     direction = _enum(direction, DIRECTIONS)
-    group = "COALESCE(NULLIF(TRIM(description),''),'Pemasukan')" if sources else 'category_id'
-    sql = ('SELECT ' + group + ' AS summary_key,currency,' + _money_sum() + '(amount_minor) AS amount_minor,'
-           'COUNT(*) AS transaction_count FROM finance_transactions WHERE business_id=?' +
-           branches.predicate('') + " AND status='POSTED' AND direction=? AND occurred_on>=? AND occurred_on<=?")
+    group = "COALESCE(NULLIF(TRIM(t.description),''),'Pemasukan')" if sources else 'v.category_id'
+    if group_parents and not sources:
+        group = 'COALESCE(h.parent_category_id,v.category_id)'
+    sql = ('SELECT ' + group + ' AS summary_key,v.currency,' + _money_sum() + '(v.amount_minor) AS amount_minor,'
+           'COUNT(DISTINCT v.id) AS transaction_count FROM finance_category_amounts v '
+           'JOIN finance_transactions t ON t.business_id=v.business_id AND t.id=v.id '
+           'LEFT JOIN finance_category_hierarchy h ON h.business_id=v.business_id AND h.child_category_id=v.category_id '
+           'WHERE v.business_id=?' + branches.predicate('t') +
+           " AND v.status='POSTED' AND v.direction=? AND v.occurred_on>=? AND v.occurred_on<=?")
     params = [business_id, direction, start_date, end_date]
     if account_id is not None:
-        sql += ' AND account_id=?'
+        sql += ' AND v.account_id=?'
         params.append(_id(account_id))
     ids = _transaction_category_ids(category_ids)
     if ids is not None:
         if not ids:
             return []
-        sql += ' AND category_id IN (' + ','.join('?' for _ in ids) + ')'
+        sql += ' AND v.category_id IN (' + ','.join('?' for _ in ids) + ')'
         params.extend(ids)
-    clause, values = _transaction_search(search)
-    return db.query_all(sql + clause + ' GROUP BY ' + group + ',currency', params + values)
+    clause, values = _transaction_search(search, 't')
+    rows = db.query_all(sql + clause + ' GROUP BY ' + group + ',v.currency', params + values)
+    return [dict(row, amount_minor=int(row['amount_minor'])) for row in rows]

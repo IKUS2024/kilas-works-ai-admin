@@ -924,7 +924,7 @@ def dashboard(business_id, user, business):
         summary_rows = finance.get_entry_summary(
             business_id, start, end, direction, account_id=transaction_account_id,
             category_ids=selected_category_ids, search=transaction_search,
-            sources=personal_sources, **actor)
+            sources=personal_sources, group_parents=True, **actor)
         for row in summary_rows:
             key = row['summary_key']
             category = category_lookup.get(key, {})
@@ -1296,7 +1296,6 @@ def budget(business_id, user, business):
             'Anggaran disimpan.',
             destination)
 
-    fx = finance_fx.snapshot(display_options)
     categories = finance.list_categories(
         business_id, 'EXPENSE', actor_user_id=user['id'])
     all_expense_categories = finance.list_categories(
@@ -1311,14 +1310,20 @@ def budget(business_id, user, business):
         actual_rows = finance.get_expense_category_totals(
             business_id, start, min(end, today_value.isoformat()),
             actor_user_id=user['id'])
+    # Historical expenses can use currencies of accounts since deactivated.
+    fx = finance_fx.snapshot(sorted(set(display_options) | {row['currency'] for row in actual_rows}))
     by_category = {}
     for row in actual_rows:
         by_category.setdefault(row['category_id'], []).append(row)
     budget_map = {row['category_id']: row for row in existing}
 
     rows = []
-    total_budget_rows = []
-    total_spent_rows = []
+    # Retired categories are hidden from editing, not removed from accounting.
+    # Summary totals include all scoped monthly budgets and posted allocations.
+    total_budget_rows = [dict(currency=row['currency'], balance_minor=int(row['amount_minor']))
+                         for row in existing]
+    total_spent_rows = [dict(currency=row['currency'], balance_minor=int(row['amount_minor']))
+                        for row in actual_rows]
     for category in categories:
         budget_row = budget_map.get(category['id'])
         child_categories = children_by_parent.get(category['id'], [])
@@ -1350,16 +1355,10 @@ def budget(business_id, user, business):
             input_amount = f"{finance_fx.major(
                 int(budget_row['amount_minor']), budget_row['currency']):.2f}"
             input_currency = budget_row['currency']
-            total_budget_rows.append(
-                {'currency':budget_row['currency'],
-                 'balance_minor':int(budget_row['amount_minor'])})
         else:
             budget_display_minor = 0
             input_amount = ''
             input_currency = display_currency
-        total_spent_rows.extend(
-            {'currency':row['currency'],'balance_minor':int(row['amount_minor'])}
-            for row in spend_rows)
         remaining = (None if budget_display_minor is None or spent_minor is None
                      else budget_display_minor - spent_minor)
         percent_used = (0 if not budget_display_minor or spent_minor is None else

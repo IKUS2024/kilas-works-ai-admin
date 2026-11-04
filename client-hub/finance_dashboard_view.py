@@ -41,17 +41,21 @@ def build(business_id, user_id, month, today, currency, fx, bill_projection,
     for key in sorted({r['month'] for r in native}):
         rows = [r for r in native if r['month'] == key]
         income, expense = converted(rows, 'income_minor'), converted(rows, 'expense_minor')
-        net = None if income is None or expense is None else income - expense
+        net = converted(rows, 'net_cashflow_minor')
         trend.append(dict(month=key, currency=currency, income_minor=income, expense_minor=expense,
                           net_minor=net, income_display=money(income), expense_display=money(expense),
                           net_display=money(net)))
-    chart_valid = all(r['net_minor'] is not None for r in trend)
-    maximum = max([1] + [max(r['income_minor'], r['expense_minor']) for r in trend if r['net_minor'] is not None])
+    chart_valid = all(all(r[field] is not None for field in ('income_minor', 'expense_minor', 'net_minor')) for r in trend)
+    maximum = max([1] + [value for r in trend for value in (r['income_minor'], r['expense_minor']) if value is not None])
     for row in trend:
         row['income_percent'] = 0 if row['income_minor'] is None else round(row['income_minor'] * 100 / maximum, 2)
         row['expense_percent'] = 0 if row['expense_minor'] is None else round(row['expense_minor'] * 100 / maximum, 2)
-    income = sum(r['income_minor'] for r in trend) if chart_valid else None
-    expense = sum(r['expense_minor'] for r in trend) if chart_valid else None
+    # Month bars are rounded for display independently. Range totals and net
+    # convert native amounts once, like the ledger summary, without accumulating
+    # monthly rounding or subtracting already-rounded income and expenses.
+    income = converted(native, 'income_minor')
+    expense = converted(native, 'expense_minor')
+    net = converted(native, 'net_cashflow_minor')
     # Compare matching month-to-date windows; a zero previous base is not a percentage.
     prev = month_at(index - 1)
     prev_end = date(int(prev[:4]), int(prev[5:]), calendar.monthrange(int(prev[:4]), int(prev[5:]))[1] if end == last.isoformat() else min(int(end[-2:]), calendar.monthrange(int(prev[:4]), int(prev[5:]))[1]))
@@ -74,7 +78,7 @@ def build(business_id, user_id, month, today, currency, fx, bill_projection,
     previous_codes = {r['currency'] for r in previous_range}
     comparison_fx = finance_fx.snapshot(sorted(codes | previous_codes)) if previous_codes.difference(fx.get('rates', {})) else fx
     previous_net = finance_fx.convert_total(previous_range, currency, comparison_fx, field='net_cashflow_minor') if previous_range else 0
-    net_change = round(((income-expense)-previous_net)*100/abs(previous_net), 1) if chart_valid and previous_net else None
+    net_change = round((net-previous_net)*100/abs(previous_net), 1) if net is not None and previous_net else None
     for row in upcoming:
         row['amount_display'] = finance_fx.format_money(row['amount_minor'], row['currency'])
     search = []
@@ -90,8 +94,7 @@ def build(business_id, user_id, month, today, currency, fx, bill_projection,
                 chart_valid=chart_valid, chart_empty=chart_valid and not income and not expense,
                 chart_divisor=int(finance_fx.minor_scale(currency)), net_change=net_change,
                 income_display=money(income), expense_display=money(expense),
-                net_display=money(None if income is None or expense is None else income-expense),
-                net_minor=None if income is None or expense is None else income-expense,
+                net_display=money(net), net_minor=net,
                 changes=changes, upcoming=upcoming, rules=rules,
                 bills_display=money(converted([r for r in bills if r['status'] not in ('paid','void')], 'amount_minor')),
                 payments_display=money(converted([r for r in bills if r['status']=='paid'], 'amount_minor')),
