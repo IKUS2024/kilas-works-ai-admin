@@ -32,7 +32,11 @@ def check_portfolio(page, locale, *, activate=False, touch=False):
             assert image.get_attribute('src') in row['assets']
             assert image.get_attribute('alt')
             geometry=image.evaluate('e=>{const r=e.getBoundingClientRect();return {ratio:r.width/r.height,fit:getComputedStyle(e).objectFit}}')
-            assert abs(geometry['ratio']-2.18)<.005 and geometry['fit']=='cover',geometry
+            assert abs(geometry['ratio']-2.18)<.005 and geometry['fit']==('contain' if row.get('ai_expanded') else 'cover'),geometry
+            if row.get('ai_expanded'):
+                assert image.evaluate('e=>getComputedStyle(e).transform')=='none'
+                assert image.evaluate('e=>getComputedStyle(e).objectPosition')=='50% 50%'
+                assert image.evaluate('e=>Math.abs(e.naturalWidth-2.18*e.naturalHeight)<=4'), image.evaluate('e=>({width:e.naturalWidth,height:e.naturalHeight,src:e.currentSrc})')
             card.focus();expect(card).to_be_focused()
             if activate:
                 with page.context.expect_page() as pending:

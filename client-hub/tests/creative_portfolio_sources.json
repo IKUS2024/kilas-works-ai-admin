@@ -1,5 +1,5 @@
 {
-  "source": "Parent-verified public Kilas Works Instagram grid and owner-selected Drive files; transported in c944d2e256310994f9a4822c7baa9bd9088cd71c, all source hashes and pixels verified locally.",
+  "source": "Original video links and photographic-source provenance retained; the three Reel images are parent-approved AI landscape expansions, with original portrait assets archived below.",
   "works": [
     {
       "id": "company-profile",
@@ -76,18 +76,30 @@
         "en": "Pool Reel"
       },
       "label_source": "Neutral description, not an asserted official work title",
-      "source_sha256": "c6f34af23800a37cbc62e28ec7ba48ec147572aa3714044bd6c6c701771a9a4c",
+      "source_sha256": "1b3bdf18441e36c5d8483abf9c3be50f309027342640161551f1be714dac2d5b",
       "source_dimensions": [
-        361,
-        640
+        1852,
+        849
       ],
-      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
+      "provenance": "Parent-approved AI landscape expansion of the original photographic Reel cover; expanded surroundings are generated, not original video pixels. Original portrait files retained.",
       "public_grid_date": "2026-10-19",
       "source_timestamp_seconds": null,
       "assets": {
+        "assets/portfolio/pool-landscape-ai-expanded-480.webp": "ad555465844cc1530635909850d53458bdcfa33799d2809b3c7d5b54aa50f357",
+        "assets/portfolio/pool-landscape-ai-expanded-960.webp": "7084abb3986c789ba6cc00e5a5fd51e6623b06cd331db0eff0068ab23cac06af",
+        "assets/portfolio/pool-landscape-ai-expanded.webp": "1b3bdf18441e36c5d8483abf9c3be50f309027342640161551f1be714dac2d5b"
+      },
+      "original_source_dimensions": [
+        361,
+        640
+      ],
+      "original_source_sha256": "c6f34af23800a37cbc62e28ec7ba48ec147572aa3714044bd6c6c701771a9a4c",
+      "original_assets": {
         "assets/portfolio/DerLk6VvQR3-180.webp": "eb714e1c3d4d7bc427c5992cd2d56b5db7022a46189a35a5d593dad567ad7513",
         "assets/portfolio/DerLk6VvQR3-360.webp": "214dee3d47fdcad21c929e0bcb0a6a7fa4e2d26acba8d619549f674d28da9a48"
-      }
+      },
+      "ai_expanded": true,
+      "ai_expanded_library_file_id": "libfile_ada506e667788191867e5dc7dd345277"
     },
     {
       "id": "DdbecPevVai",
@@ -98,18 +110,30 @@
         "en": "Conversation Reel"
       },
       "label_source": "Neutral description, not an asserted official work title",
-      "source_sha256": "455890707785ea60b736eea0f6dda4482b535feeffb4479811abf3942d748a24",
+      "source_sha256": "35d94e4a96b06733bb2c9740c8141714b5226d612308121a34a8832a1602cf25",
       "source_dimensions": [
-        360,
-        640
+        1853,
+        849
       ],
-      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
+      "provenance": "Parent-approved AI landscape expansion of the original photographic Reel cover; expanded surroundings are generated, not original video pixels. Original portrait files retained.",
       "public_grid_date": "2026-09-18",
       "source_timestamp_seconds": null,
       "assets": {
+        "assets/portfolio/conversation-landscape-ai-expanded-480.webp": "9a655039d78a6f555fe2345cd864192b7d05e14f70a6a213b21e7a0a32f36d4b",
+        "assets/portfolio/conversation-landscape-ai-expanded-960.webp": "65efd3bd81902158ba1a44527361e20d1d5a314bba2da3c2d8905c2e7c966d22",
+        "assets/portfolio/conversation-landscape-ai-expanded.webp": "35d94e4a96b06733bb2c9740c8141714b5226d612308121a34a8832a1602cf25"
+      },
+      "original_source_dimensions": [
+        360,
+        640
+      ],
+      "original_source_sha256": "455890707785ea60b736eea0f6dda4482b535feeffb4479811abf3942d748a24",
+      "original_assets": {
         "assets/portfolio/DdbecPevVai-180.webp": "46bd3e42b56b93e285f7b51206694916ad183dea9ad4b88217eb44795d11edd9",
         "assets/portfolio/DdbecPevVai-360.webp": "dbf23b8852c3025bf9a6509fbe9a01408135b8dddc312b24b08243c7fb98c653"
-      }
+      },
+      "ai_expanded": true,
+      "ai_expanded_library_file_id": "libfile_72a29c5499bc81919881f388e3b0430a"
     },
     {
       "id": "DdESSzkp1to",
@@ -120,18 +144,30 @@
         "en": "Billiards Reel"
       },
       "label_source": "Neutral description, not an asserted official work title",
-      "source_sha256": "d8b686f48a54ae6dbfd7e0c4f3906cb53f344aa9ca8ab2b54b36adfd6d42ae61",
+      "source_sha256": "f8ba42343654d385e3f308a184ad137c0e66df73b92e2f9fc62f8824b531f382",
       "source_dimensions": [
-        360,
-        640
+        1851,
+        849
       ],
-      "provenance": "Actual cover downloaded from publicly visible Kilas Works grid",
+      "provenance": "Parent-approved AI landscape expansion of the original photographic Reel cover; expanded surroundings are generated, not original video pixels. Original portrait files retained.",
       "public_grid_date": "2026-09-09",
       "source_timestamp_seconds": null,
       "assets": {
+        "assets/portfolio/billiards-landscape-ai-expanded-480.webp": "13a1dda147581e25bb03307fde471474bf1bc846cf6fdb21f392be5cfb6036aa",
+        "assets/portfolio/billiards-landscape-ai-expanded-960.webp": "e04c3f65716734adc48585d4d9e275d302279871dedb78d888f25c09559b5a7c",
+        "assets/portfolio/billiards-landscape-ai-expanded.webp": "f8ba42343654d385e3f308a184ad137c0e66df73b92e2f9fc62f8824b531f382"
+      },
+      "original_source_dimensions": [
+        360,
+        640
+      ],
+      "original_source_sha256": "d8b686f48a54ae6dbfd7e0c4f3906cb53f344aa9ca8ab2b54b36adfd6d42ae61",
+      "original_assets": {
         "assets/portfolio/DdESSzkp1to-180.webp": "b867120e2cf72b72f09bdf874e126c7679a66a8912eb1ff8fa204b72f66c0448",
         "assets/portfolio/DdESSzkp1to-360.webp": "454fc4f5c3ca7f64a218ef19f92d73277373d4d989bc14cb7329e9d078c050c8"
-      }
+      },
+      "ai_expanded": true,
+      "ai_expanded_library_file_id": "libfile_f8afbaba7b6c8191a12c6e83291f2239"
     }
   ]
 }
