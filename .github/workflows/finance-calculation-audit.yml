@@ -41,7 +41,10 @@ jobs:
           test_finance_final_package test_finance_receipt_preview test_kilas_finance_baseline
           test_kilas_finance_bridge test_kilas_finance_bridge_routes
           test_finance_money_input_audit test_finance_installment_currency_audit
-          test_finance_reversal_account_audit
+          test_finance_reversal_account_audit test_finance_empty_workspace_audit
+          test_finance_branches test_finance_branch_delete_recovery test_finance_bank_manual_audit
+          test_finance_phase2a test_finance_phase2b test_finance_phase3
+          test_finance_phase5ab test_finance_phase5c test_finance_personal_reset
       - name: Native PostgreSQL arithmetic, scopes and atomic payment edits
         env:
           DATABASE_URL: postgresql://postgres:synthetic-finance-audit@127.0.0.1:5432/kilas_finance_qa

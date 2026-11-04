@@ -1,0 +1,347 @@
+{
+  "base_sha": "eebd4add756dad8836273f0021ee2c87747d9c11",
+  "base_legacy": [
+    {
+      "suite": "test_finance_branches",
+      "tests": 39,
+      "failures": 0,
+      "errors": 38,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_branch_delete_recovery",
+      "tests": 4,
+      "failures": 0,
+      "errors": 4,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase2a",
+      "tests": 25,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase2b",
+      "tests": 25,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase3",
+      "tests": 20,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase5ab",
+      "tests": 24,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase5c",
+      "tests": 33,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_personal_reset",
+      "tests": 27,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    }
+  ],
+  "candidate": [
+    {
+      "suite": "test_finance_calculation_audit",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_approved_revisions",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_edit_package",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_expense_entries",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_purchase_plans",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_fx_precision",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_invoice_editor",
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_direction_filters",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_ui_integrity",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_workspace_corrections",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_final_package",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_receipt_preview",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_kilas_finance_baseline",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_kilas_finance_bridge",
+      "tests": 20,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_kilas_finance_bridge_routes",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_money_input_audit",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_installment_currency_audit",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_reversal_account_audit",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_empty_workspace_audit",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_branches",
+      "tests": 39,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_branch_delete_recovery",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_bank_manual_audit",
+      "tests": 42,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase2a",
+      "tests": 25,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase2b",
+      "tests": 25,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase3",
+      "tests": 20,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase5ab",
+      "tests": 24,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_phase5c",
+      "tests": 33,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    },
+    {
+      "suite": "test_finance_personal_reset",
+      "tests": 27,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "script_checks": 0,
+      "empty_modules": 0
+    }
+  ],
+  "native_postgresql": {
+    "workspace": 4,
+    "invariants": 4,
+    "calculations": 2,
+    "edits": 5
+  },
+  "new_regression_base": {
+    "tests": 4,
+    "failures": 1,
+    "errors": 0
+  },
+  "new_regression_candidate": {
+    "tests": 4,
+    "failures": 0,
+    "errors": 0
+  }
+}
