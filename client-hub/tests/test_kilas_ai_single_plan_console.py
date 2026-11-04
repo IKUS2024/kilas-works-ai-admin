@@ -45,16 +45,14 @@ class SinglePlanConsoleTests(unittest.TestCase):
         client.set_cookie('kilas_language', 'id')
         return client
 
-    def test_wallet_preview_does_not_advertise_legacy_pricing(self):
+    def test_subscription_preview_is_explicitly_inert(self):
         client = self.client_for(self.other)
         body = client.get('/kilas-ai/usage').get_data(as_text=True)
-        for old_offer in ('credits-current-billing', 'Rp99.000', 'Rp25.000', 'Rp50.000', 'Rp100.000'):
-            self.assertNotIn(old_offer, body)
-        self.assertIn('Tarif kredit untuk pembuatan gambar dan voice over belum ditetapkan.', body)
+        for text in ('Langganan belum tersedia', 'Rancangan paket', 'Usulan', 'Contoh nomor rekening', 'Belum menerima pembayaran', 'Translator', 'Voice Over', 'Scan struk'):
+            self.assertIn(text, body)
+        for forbidden in ('Kuota dapat berubah', '<form', 'type="file"', 'action="/kilas-ai/checkout"', 'action="/kilas-ai/topups"'):
+            self.assertNotIn(forbidden, body.split('<main', 1)[1].split('</main>', 1)[0])
         self.assertIn('href="/kilas-ai/usage?view=legacy"', body)
-        self.assertIn('type="button" disabled', body)
-        self.assertNotIn('action="/kilas-ai/checkout"', body)
-        self.assertNotIn('action="/kilas-ai/topups"', body)
         legacy = client.get('/kilas-ai/usage?view=legacy').get_data(as_text=True)
         self.assertIn('Rp99.000', legacy)
         self.assertIn('action="/kilas-ai/checkout"', legacy)
@@ -62,9 +60,9 @@ class SinglePlanConsoleTests(unittest.TestCase):
     def test_customer_offer_and_amount_validation(self):
         client = self.client_for(self.owner)
         preview = client.get("/kilas-ai/usage").get_data(as_text=True)
-        self.assertIn("Kredit &amp; Penggunaan", preview)
+        self.assertIn("Subscription", preview)
         self.assertIn('view=legacy', preview)
-        self.assertIn('type="button" disabled', preview)
+        self.assertIn('disabled>Kirim bukti', preview)
         self.assertNotIn('action="/kilas-ai/checkout"', preview)
         body = client.get("/kilas-ai/usage?view=legacy").get_data(as_text=True)
         self.assertIn("Rp99.000", body)
@@ -106,7 +104,7 @@ class SinglePlanConsoleTests(unittest.TestCase):
                   'kilas_ai_topup_debits', 'kilas_audio_balances', 'kilas_ai_usage')
         before = {table: db.query_all('SELECT * FROM ' + table) for table in tables}
         client = self.client_for(self.owner)
-        for language, heading in (('en', 'Credits &amp; Usage'), ('id', 'Kredit &amp; Penggunaan')):
+        for language, heading in (('en', 'Subscription'), ('id', 'Subscription')):
             client.set_cookie('kilas_language', language)
             response = client.get('/kilas-ai/usage')
             self.assertEqual(response.status_code, 200)
