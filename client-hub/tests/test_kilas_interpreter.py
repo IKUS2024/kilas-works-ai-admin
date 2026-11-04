@@ -80,7 +80,7 @@ class InterpreterTests(unittest.TestCase):
         script=(Path(__file__).parents[1]/'static/kilas_interpreter.mjs').read_text()
         messages=script.split('const messages={',1)[1].split('const showError',1)[0]
         keys=set(re.findall(r":'([^']+)'",messages))
-        keys.update(('Menghubungkan…','Menerjemahkan','Menghubungkan kembali…','Mendengarkan','Terjemahan diputar. Tunggu giliran.','Bicara {source} ke {target}'))
+        keys.update(('Menghubungkan…','Menerjemahkan','Menghubungkan kembali…','Mendengarkan','Terjemahan diputar. Tunggu giliran.','Bicara {source} ke {target}','Mendengarkan. Ketuk lagi untuk menerjemahkan.','Hentikan dan terjemahkan'))
         with self.enabled():
             for locale in ('id','en','es','zh'):
                 self.client.set_cookie('kilas_language',locale)
@@ -237,5 +237,65 @@ class InterpreterTests(unittest.TestCase):
         setup=json.loads(sock.send.call_args.args[0])['setup'];self.assertEqual(setup['sessionResumption'],{'handle':'checkpoint'})
         self.assertIn('from Indonesian into English',setup['systemInstruction']['parts'][0]['text'])
         call.stop();self.assertIsNone(call.resume_handle)
+
+    def test_tap_setup_strict_settings_and_ordered_finish_without_provider_io(self):
+        from kilas_ai.interpreter_settings import validate
+        tap=dict(SETTINGS,turn_mode='tap')
+        self.assertTrue(calls.setup(settings=tap)['setup']['realtimeInputConfig']['automaticActivityDetection']['disabled'])
+        self.assertFalse(calls.setup(settings=SETTINGS)['setup']['realtimeInputConfig']['automaticActivityDetection']['disabled'])
+        for wrong in (None,True,[],{},'automatic','hold'):
+            with self.assertRaises(ValueError):validate(dict(SETTINGS,turn_mode=wrong))
+        for source,target in (('id','en'),('en','id')):
+            call=calls.Call(1,'d'*32,object(),settings=dict(tap,source=source,target=target))
+            call.transport_check=Mock();call.ws=Mock()
+            call.accept(0,PCM)
+            with self.assertRaises(calls.CallError):call.finish_input(2)
+            self.assertFalse(call.input_finished)
+            call.accept(1,PCM[:100]);call.finish_input(2);call.finish_input(2)
+            self.assertEqual(call.queue.qsize(),3)
+            call.send()
+            sent=[json.loads(args.args[0])['realtimeInput'] for args in call.ws.send.call_args_list]
+            self.assertEqual(base64.b64decode(sent[0]['audio']['data'])+base64.b64decode(sent[1]['audio']['data']),PCM+PCM[:100])
+            self.assertEqual(sent[2],{'activityEnd':{}})
+            with self.assertRaises(calls.CallError):call.accept(2,PCM)
+            with self.assertRaisesRegex(calls.CallError,'call_provider_disconnected'):call.recover_transport()
+
+    def test_finish_rechecks_closed_state_inside_lock_when_end_wins_race(self):
+        call=calls.Call(1,'e'*32,object(),settings=dict(SETTINGS,turn_mode='tap'))
+        call.ws=Mock()
+        # End can close/shutdown the call after the initial transport check
+        # returns but before Finish acquires the audio-state lock.
+        call.transport_check=Mock(side_effect=call.stop)
+        with self.assertRaisesRegex(calls.CallError,'call_ended') as caught:
+            call.finish_input(0)
+        self.assertEqual(caught.exception.status,409)
+        self.assertTrue(call.closed.is_set())
+        self.assertFalse(call.input_finished)
+        self.assertTrue(call.queue.empty())
+        call.ws.send.assert_not_called()
+
+    def test_finish_route_csrf_ownership_bounds_and_idempotence(self):
+        with self.enabled(),patch.object(calls.Thread,'start'),patch.object(calls.wire,'connect') as connect:
+            ident=uuid4().hex;path='/kilas-translator/interpreter/'+ident
+            headers={'X-CSRF-Token':'audio-csrf'}
+            self.assertEqual(self.client.post(path,headers=headers,data={'settings':json.dumps(dict(SETTINGS,turn_mode='tap'))}).status_code,202)
+            call=calls.get(self.user,ident)
+            self.addCleanup(lambda:calls._calls.pop((self.user,ident),None));self.addCleanup(lambda:calls.end(self.user,ident))
+            self.assertEqual(self.client.post(path+'/chunks/0',headers=headers,data=PCM,content_type='application/octet-stream').status_code,200)
+            self.assertIn(self.client.post(path+'/finish',data={'next_index':'1'}).status_code,(400,403))
+            for invalid in ('','-1','1.0','x','9999999999'):
+                self.assertEqual(self.client.post(path+'/finish',headers=headers,data={'next_index':invalid}).status_code,400)
+            self.assertEqual(self.client.post(path+'/finish',headers=headers,data={'next_index':'2'}).status_code,409)
+            for _ in range(2):
+                self.assertEqual(self.client.post(path+'/finish',headers=headers,data={'next_index':'1'}).json,{'input_finished':True})
+            self.assertEqual(call.queue.qsize(),2);self.assertFalse(call.closed.is_set())
+            self.login_other('CLIENT_MEMBER')
+            self.assertEqual(self.client.post(path+'/finish',headers=headers,data={'next_index':'1'}).status_code,404)
+            self.assertFalse(call.closed.is_set());connect.assert_not_called()
+            self.login_other('CLIENT_STAFF')
+            staff_id=uuid4().hex;staff_path='/kilas-translator/interpreter/'+staff_id
+            self.assertEqual(self.client.post(staff_path,headers=headers,data={'settings':json.dumps(dict(SETTINGS,source='en',target='id',turn_mode='tap'))}).status_code,202)
+            self.addCleanup(lambda:calls._calls.pop((self.other,staff_id),None));self.addCleanup(lambda:calls.end(self.other,staff_id))
+            self.assertEqual(self.client.post(staff_path+'/finish',headers=headers,data={'next_index':'0'}).status_code,200)
 
 if __name__=='__main__':unittest.main()

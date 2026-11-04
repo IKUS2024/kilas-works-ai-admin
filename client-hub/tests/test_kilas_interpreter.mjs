@@ -44,9 +44,9 @@ function fixture(options={}){
   get capture(){return captureOptions;},get stops(){return stops;},get plays(){return plays;},get audioStops(){return audioStops;}};
  const player={push(){plays++;},checkpoint:async()=>{},cancel(){},...options.player};
  const session=new CallSession({key:()=> 'a'.repeat(32),prepare:async()=>{},
-  capture:{start:async callbacks=>{captureOptions=callbacks;callbacks.pcm(pcm());},cancel(){stops++;}},stopAudio(){audioStops++;},
+  capture:{start:async callbacks=>{captureOptions=callbacks;callbacks.pcm(pcm());},finalize(){captureOptions.pcm(pcm());captureOptions.blob(null);},cancel(){stops++;}},stopAudio(){audioStops++;},
   request:async(path,args={})=>{
-   if(args.method==='POST'){posts.push(path);if(path.endsWith('/end'))return {};if(path.includes('/chunks/')){bodies.push(args.body);return {accepted_index:Number(path.split('/').at(-1))};}return {call_id:'a'.repeat(32)};}
+   if(args.method==='POST'){posts.push(path);if(path.endsWith('/end'))return {};if(path.endsWith('/finish'))return {input_finished:true};if(path.includes('/chunks/')){bodies.push(args.body);return {accepted_index:Number(path.split('/').at(-1))};}return {call_id:'a'.repeat(32)};}
    if(path.endsWith('/readiness'))return {available:true};
    return hold.promise;
   },onState:value=>states.push(value),onText:text=>captions.push(text),onError:code=>errors.push(code),
@@ -301,5 +301,62 @@ test('Upload auth or validation failure is terminal without retries',async()=>{
  for(const status of [400,401,403,409,429]){
   let requests=0;const input=new CallInput({signal:new AbortController().signal,path:'/call',request:async()=>{requests++;throw Object.assign(Error('denied'),{status});}});
   input.push(pcm());input.open();await input.chain.catch(()=>{});assert.equal(requests,1);
+ }
+});
+
+const tap={source:'id',target:'en',consent:true,turn_mode:'tap'};
+test('Tap stop flushes final PCM, waits for upload ACK, then finishes exactly once and drains output',async()=>{
+ const ack=deferred(),requests=[],drain=deferred();let f;
+ f=fixture({player:{checkpoint:()=>drain.promise},request:async(path,args={})=>{
+  requests.push({path,args});
+  if(path.endsWith('/readiness'))return {available:true};
+  if(path.endsWith('/finish'))return {input_finished:true};
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/')){const index=Number(path.split('/').at(-1));return index===0?ack.promise:{accepted_index:index};}
+  if(args.method==='POST')return {call_id:'a'.repeat(32)};
+  return f.hold.promise;
+ }});
+ const started=f.session.start(tap);await tick();
+ f.session.finish();f.session.finish();await tick();
+ assert.equal(f.session.state,'processing');assert.equal(requests.filter(x=>x.path.endsWith('/finish')).length,0);
+ ack.resolve({accepted_index:0});await tick();
+ const sent=requests.filter(x=>x.path.endsWith('/finish'));assert.equal(sent.length,1);assert.equal(sent[0].args.body.get('next_index'),'2');
+ assert.deepEqual(requests.filter(x=>x.path.includes('/chunks/')).map(x=>[...x.args.body]),[[1,0,2,0],[1,0,2,0]]);
+ f.hold.resolve({state:'LISTENING',frames:[{index:0,type:'text',text:'Hello'},{index:1,type:'audio',pcm:Buffer.from(pcm()).toString('base64')},{index:2,type:'turn_complete'}],next_index:3,total_frames:3});await tick();
+ assert.equal(f.session.state,'speaking');assert.equal(f.stops,0);assert.equal(f.captions.at(-1),'Hello');
+ drain.resolve();await tick();await started;
+ assert.equal(f.session.state,'ended');assert.equal(requests.filter(x=>x.path.endsWith('/end')).length,1);assert.equal(f.timers.size,0);
+});
+test('Second tap during permission cancels before admission; late permission cannot restart it',async()=>{
+ const permission=deferred();let callbacks,admissions=0;
+ const f=fixture({capture:{start:async value=>{callbacks=value;await permission.promise;},cancel(){}},request:async(path,args={})=>{if(args.method==='POST')admissions++;return {available:true};}});
+ const started=f.session.start(tap);await tick();f.session.finish();
+ assert.equal(f.session.state,'ended');callbacks.pcm(pcm());permission.resolve();await started;assert.equal(admissions,0);
+});
+test('Tap finish failure is terminal once, retains received text, and a new direction can recover',async()=>{
+ let finishes=0;const f=fixture({request:async(path,args={})=>{
+  if(path.endsWith('/readiness'))return {available:true};if(path.endsWith('/end'))return {};
+  if(path.endsWith('/finish')){finishes++;throw new TypeError('offline');}
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST')return {call_id:'a'.repeat(32)};return f.hold.promise;
+ }});
+ const started=f.session.start(tap);await tick();f.session.finish();await tick();
+ assert.equal(finishes,1);assert.equal(f.session.state,'ended');assert.deepEqual(f.errors,['call_network']);
+ const again=f.session.start({...tap,source:'en',target:'id'});await tick();assert.equal(f.session.settings.source,'en');
+ f.session.end();f.hold.resolve({state:'LISTENING',frames:[],next_index:0,total_frames:0});await Promise.all([started,again]);
+});
+test('Stop has a bounded wait for provider output, and End fences a pending Finish ACK',async()=>{
+ for(const mode of ['timeout','end']){
+  const ack=deferred();const f=fixture({request:async(path,args={})=>{
+   if(path.endsWith('/readiness'))return {available:true};if(path.endsWith('/end'))return {};
+   if(path.endsWith('/finish'))return ack.promise;
+   if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+   if(args.method==='POST')return {call_id:'a'.repeat(32)};return f.hold.promise;
+  }});
+  const started=f.session.start(tap);await tick();f.session.finish();await tick();
+  if(mode==='timeout'){const timer=[...f.timers].find(([,v])=>v.ms===30000);assert.ok(timer);timer[1].fn();assert.deepEqual(f.errors,['request_timeout']);}
+  else f.session.end();
+  ack.resolve({input_finished:true});f.hold.resolve({state:'LISTENING',frames:[],next_index:0,total_frames:0});await started;
+  assert.equal(f.session.state,'ended');assert.equal(f.timers.size,0);
  }
 });

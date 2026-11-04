@@ -55,8 +55,9 @@ export class CallSession {
   if(this.state!=='ended')return;
   const ticket=++this.version;this.controller=new AbortController();const signal=this.controller.signal;
   this.ident=this.key();this.path='/kilas-translator/interpreter/'+this.ident;this.admitted=false;this.lastServerState='CONNECTING';this.uploadRecovering=false;this.speaking=false;this.turnSealed=false;this.cursor=0;this.playVersion=0;
+  this.manual=settings.turn_mode==='tap';this.captureReady=false;this.finishRequested=false;this.finishSent=false;
   this.stateTo('connecting');this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;this.captionAwaitingAudio=false;
-  this.input=new CallInput({request:this.request,path:this.path,signal,onRecovery:active=>{if(this.current(ticket)){this.uploadRecovering=active;this.stateTo(active?'reconnecting':this.lastServerState==='CONNECTING'?'connecting':this.lastServerState==='RECONNECTING'?'reconnecting':this.speaking?'speaking':'listening');}},onError:error=>this.fail(error,ticket)});
+  this.input=new CallInput({request:this.request,path:this.path,signal,onRecovery:active=>{if(this.current(ticket)){this.uploadRecovering=active;this.stateTo(active?'reconnecting':this.lastServerState==='CONNECTING'?'connecting':this.lastServerState==='RECONNECTING'?'reconnecting':this.speaking?'speaking':this.finishRequested?'processing':'listening');}},onError:error=>this.fail(error,ticket)});
   try{
    // Called synchronously from the click to preserve the audio user gesture.
    const prepared=Promise.resolve(this.prepare(signal));prepared.catch(()=>{});
@@ -64,7 +65,7 @@ export class CallSession {
    if(!this.current(ticket))return;
    if(!eligibility.available)throw failure(eligibility.reason||'call_unavailable');
    await prepared;if(!this.current(ticket))return;
-   await this.capture.start({ready:()=>{},level:()=>{},blob:()=>{},
+   await this.capture.start({ready:()=>{},level:()=>{},blob:()=>this.finishInput(ticket),
     pcm:raw=>{if(this.current(ticket)){try{
      // Keep the provider's VAD clock running during playback, without sending
      // speaker echo back as another question. Never reuse microphone PCM here.
@@ -72,6 +73,7 @@ export class CallSession {
     }catch(error){this.fail(error,ticket);}}},
     error:error=>this.fail(error,ticket)});
    if(!this.current(ticket))return;
+   this.captureReady=true;
    this.admitted=true;
    this.settings={...settings};
    const body=new FormData();body.append('settings',JSON.stringify(this.settings));
@@ -80,6 +82,26 @@ export class CallSession {
    if(result.call_id!==this.ident)throw failure('call_protocol');
    this.input.open();
    await this.poll(ticket);
+  }catch(error){if(this.current(ticket))this.fail(error,ticket);}
+ }
+ finish(){
+  if(!this.manual||this.state==='ended'||this.finishRequested||this.speaking)return;
+  // A second tap during permission/readiness cancels immediately, before any
+  // paid admission. Once PCM exists, flush its tail and finish that utterance.
+  if(!this.captureReady){this.end();return;}
+  this.finishRequested=true;this.stateTo('processing');
+  this.timer=this.schedule(()=>this.fail(failure('request_timeout')),30000);
+  try{this.capture.finalize();}catch(error){this.fail(error);}
+ }
+ async finishInput(ticket){
+  if(!this.current(ticket)||!this.manual||!this.finishRequested||this.finishSent)return;
+  this.finishSent=true;
+  try{
+   this.input.flush();await this.input.chain;
+   if(!this.current(ticket))return;
+   const body=new FormData();body.append('next_index',String(this.input.index));
+   const result=await this.request(this.path+'/finish',{method:'POST',body,signal:this.controller.signal,timeoutMs:8000});
+   if(this.current(ticket)&&result.input_finished!==true)throw failure('call_protocol');
   }catch(error){if(this.current(ticket))this.fail(error,ticket);}
  }
  async pause(ticket,ms){
@@ -105,6 +127,10 @@ export class CallSession {
    for(const frame of value.frames){
     if(!this.current(ticket))return;
     if(frame.index!==this.cursor++)throw failure('call_protocol');
+    if(this.manual&&this.finishRequested){
+     this.clear(this.timer);
+     this.timer=frame.type==='turn_complete'?null:this.schedule(()=>this.fail(failure('request_timeout'),ticket),30000);
+    }
     if(frame.type==='audio'){
      if(typeof frame.pcm!=='string'||frame.pcm.length>12800)throw failure('call_protocol');
      // Reply arrival must not erase the question's captured/upload-pending
@@ -128,6 +154,7 @@ export class CallSession {
      this.turnSealed=true;this.captionAwaitingAudio=false;const generation=this.playVersion;
      this.player.checkpoint().then(()=>{
       if(this.current(ticket)&&generation===this.playVersion){
+       if(this.manual){this.end();return;}
        // Discard the final worklet frame containing room/speaker decay before
        // showing Listening. End and a newer answer fence this callback too.
        this.clear(this.echoTimer);this.echoTimer=this.schedule(()=>{
@@ -142,11 +169,11 @@ export class CallSession {
     if(this.current(ticket))this.fail(failure(value.code||'call_ended'),ticket);return;
    }
    if(value.state==='RECONNECTING'||this.uploadRecovering)this.stateTo('reconnecting');
-   else if(value.state==='LISTENING'&&!this.speaking)this.stateTo('listening');
+   else if(value.state==='LISTENING'&&!this.speaking)this.stateTo(this.finishRequested?'processing':'listening');
    await this.pause(ticket,250);
   }
  }
- fail(error,ticket=this.version){if(!this.current(ticket))return;const code=error.code||(transient(error)?'call_network':'call_transport');this.end(code);this.onError(code);}
+ fail(error,ticket=this.version){if(!this.current(ticket))return;const code=error.code||(['NotFoundError','NotReadableError','OverconstrainedError'].includes(error.name)?'microphone_unavailable':transient(error)?'call_network':'call_transport');this.end(code);this.onError(code);}
  end(reason='call_ended'){
   const path=this.path,admitted=this.admitted;this.admitted=false;this.ident=null;this.path=null;++this.version;
   this.controller?.abort();this.clear(this.timer);this.clear(this.echoTimer);this.clear(this.pollTimer);this.pollResolve?.();this.pollResolve=null;

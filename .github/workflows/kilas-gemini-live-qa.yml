@@ -35,12 +35,16 @@ jobs:
           python -m pytest -q client-hub/tests/test_kilas_translator_languages.py client-hub/tests/test_kilas_voice_edit.py
       - name: Four UI locales, mobile tablet desktop, synthetic audio and relay
         env: {PYTHONDONTWRITEBYTECODE: '1', KILAS_QA_CHROMIUM: ''}
-        run: python -B client-hub/tests/test_kilas_interpreter_hardened_browser.py
+        run: |
+          python -B client-hub/tests/test_kilas_interpreter_hardened_browser.py
+          python -B client-hub/tests/test_kilas_interpreter_tap_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: translator-hardened-browser
-          path: /tmp/kilas-interpreter-hardened/
+          path: |
+            /tmp/kilas-interpreter-hardened/
+            /tmp/kilas-interpreter-tap/
   offline:
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -1,4 +1,9 @@
 {
+  "Ketuk arah untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.": "Tap a direction to listen. Tap it again to stop and translate.",
+  "Mendengarkan. Ketuk lagi untuk menerjemahkan.": "Listening. Tap again to translate.",
+  "Hentikan dan terjemahkan": "Stop and translate",
+  "Audio belum selesai dikirim. Periksa koneksi, lalu pilih arah lagi.": "Audio upload did not finish. Check your connection, then choose a direction again.",
+  "Koneksi suara terputus. Periksa mikrofon dan jaringan, lalu pilih arah lagi.": "Voice connection interrupted. Check your microphone and network, then choose a direction again.",
   "Kilas AI sedang tidak tersedia. Coba lagi nanti.": "Kilas AI is unavailable. Try again later.",
   "Pembuatan gambar sedang tidak tersedia. Coba lagi nanti.": "Image generation is unavailable. Try again later.",
   "Model dikelola oleh Kilas AI. Muat ulang halaman.": "Kilas AI manages the model. Reload this page.",
