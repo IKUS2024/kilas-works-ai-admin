@@ -7,7 +7,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ t('Subscription') }} · Kilas Works</title>
+  <title>{{ t('Credit & Usage') }} · Kilas Works</title>
   <link rel="preload" href="{{ url_for('static',filename='fonts/manrope-variable.ttf') }}" as="font" type="font/ttf" crossorigin>
   {% include '_ui_i18n_head.html' %}
   {% include '_premium_styles.html' %}
@@ -21,21 +21,29 @@
   <main id="kw-main" class="subscription-page">
     <nav class="subscription-topbar" aria-label="{{ t('Navigasi halaman') }}"><a href="{{ url_for('products.product_start') }}">{{ drawer_icon('home') }} {{ t('Workspace') }}</a></nav>
     <section id="subscription-plans" aria-labelledby="subscription-title">
-      <header class="subscription-heading"><h1 id="subscription-title">{{ t('Subscription') }}</h1></header>
+      <header class="subscription-heading"><h1 id="subscription-title">{{ t('Credit & Usage') }}</h1></header>
       <div class="subscription-current" data-current-plan="{{ current_plan }}"><strong>{{ t('Paket saat ini') }}: Kilas {{ t('Free') if current_plan == 'FREE' else current_plan|title }}</strong></div>
       <div class="subscription-notice">{{ t('Kuota rancangan belum aktif') }}</div>
       <div class="subscription-plans">
       {% for pro in [false, true] %}
       <article class="subscription-plan{% if pro %} subscription-plan-pro{% endif %}" aria-labelledby="plan-{{ 'pro' if pro else 'free' }}">
-        <div class="subscription-plan-heading"><h2 id="plan-{{ 'pro' if pro else 'free' }}">{{ t('Kredit sesuai pemakaian') if pro else 'Kilas ' ~ t('Free') }}</h2></div>
-        {% if pro %}<p class="subscription-pending">{{ t('Penawaran mendatang · Detail menyusul') }}</p>{% else %}<p class="subscription-price">Rp0</p>{% endif %}
+        <div class="subscription-plan-heading"><h2 id="plan-{{ 'pro' if pro else 'free' }}">{{ t('Paket kredit') if pro else 'Kilas ' ~ t('Free') }}</h2></div>
+        {% if pro %}<p class="subscription-price">Rp99.000 <span>{{ t('Sekali bayar') }}</span></p><p class="subscription-credit-amount">{{ t('2000 kredit') }}</p><p class="subscription-pending">{{ t('Tanpa kedaluwarsa') }}</p>{% else %}<p class="subscription-price">Rp0</p>{% endif %}
+        {% if pro %}
+        <div class="subscription-estimates"><h3>{{ t('Estimasi pemakaian') }}</h3><ul class="subscription-features">
+          {% for name,detail,description in [('Gambar AI','Gambar estimasi',''),('Voice Over','VO estimasi','Naskah jadi suara'),('Translator','Translator estimasi','Teks dan audio'),('Scan struk','Struk estimasi','Baca struk')] %}
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t(name) }}</h3><p class="subscription-estimate">{{ t(detail) }}</p>{% if description %}<p>{{ t(description) }}</p>{% endif %}</div></li>
+          {% endfor %}
+        </ul><p class="subscription-estimate-note">{{ t('Estimasi rancangan') }}</p></div>
+        {% else %}
         <ul class="subscription-features">
-          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('AI Chat') }}</h3>{% if not pro %}<p class="subscription-quota">70 {{ t('pesan') }} / {{ t('hari') }} · 500 {{ t('pesan') }} / {{ t('bulan') }}</p>{% endif %}</div></li>
-          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Gambar AI') }}</h3>{% if not pro %}<p class="subscription-quota">{{ t('1 kali coba / akun') }}</p>{% endif %}</div></li>
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('AI Chat') }}</h3><p class="subscription-quota">70 {{ t('pesan') }} / {{ t('hari') }} · 500 {{ t('pesan') }} / {{ t('bulan') }}</p></div></li>
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Gambar AI') }}</h3><p class="subscription-quota">{{ t('1 kali coba / akun') }}</p></div></li>
           <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Translator') }}</h3></div></li>
           <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Voice Over') }}</h3></div></li>
           <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Scan struk') }}</h3></div></li>
         </ul>
+        {% endif %}
         <footer class="subscription-plan-action">{% if pro %}<a class="subscription-button" id="subscription-open-payment" href="#payment-preview">{{ t('Lihat rancangan pembayaran') }} {{ drawer_icon('chevron') }}</a>{% else %}<button class="subscription-button subscription-neutral" disabled>{{ t('Paket saat ini') if current_plan == 'FREE' else t('Rancangan paket Free') }}</button>{% endif %}</footer>
       </article>
       {% endfor %}
@@ -45,7 +53,7 @@
     <section id="payment-preview" class="subscription-payment" aria-labelledby="payment-title" hidden>
       <a href="#subscription-plans" class="subscription-back" id="subscription-close-payment"><span aria-hidden="true">←</span> {{ t('Kembali ke paket') }}</a>
       <header class="subscription-heading"><h1 id="payment-title" tabindex="-1">{{ t('Pembayaran') }}</h1><p>{{ t('Preview pembayaran · Belum menerima pembayaran') }}</p></header>
-      <div class="subscription-payment-summary"><div><strong>{{ t('Kredit sesuai pemakaian') }}</strong><p>{{ t('Detail menyusul') }}</p></div><span class="subscription-crown" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 7 5 4 4-7 4 7 5-4-2 12H5L3 7Z"/></svg></span></div>
+      <div class="subscription-payment-summary"><div><strong>{{ t('Paket kredit') }}</strong><p>Rp99.000 <span>· {{ t('2000 kredit') }}</span></p><small>{{ t('Sekali bayar') }}</small></div><span class="subscription-crown" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 7 5 4 4-7 4 7 5-4-2 12H5L3 7Z"/></svg></span></div>
       <h2>{{ t('Transfer Bank Mega') }}</h2>
       <div class="subscription-bank"><strong class="subscription-bank-name">BANK <span>MEGA</span></strong><dl><dt>{{ t('Nomor rekening') }}</dt><dd translate="no">10180016000684</dd><dt>{{ t('Atas nama perusahaan') }}</dt><dd><span translate="no">KILAS TEKNOLOGI KREATIF</span></dd></dl><button type="button" class="subscription-button subscription-neutral" disabled>{{ t('Salin rekening · Belum tersedia') }}</button></div>
       <div class="subscription-upload"><svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 18H5a4 4 0 0 1-1-8 8 8 0 0 1 15-1 4.5 4.5 0 0 1 0 9h-2M12 21V11m-4 4 4-4 4 4"/></svg><strong>{{ t('Unggah bukti transfer') }}</strong><p>{{ t('Contoh tampilan · Belum tersedia') }}</p></div>

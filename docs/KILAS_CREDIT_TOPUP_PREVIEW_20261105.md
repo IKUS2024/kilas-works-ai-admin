@@ -1,0 +1,9 @@
+# Credit & Usage design preview
+
+Base: `8592e5fc082036f69fffae73221762e410e0838f`. The existing `/kilas-ai/usage` endpoint and legacy billing link remain compatible.
+
+The preview proposes a one-time Rp99.000 pack of 2,000 non-expiring credits, used after the free allowance runs out. Free retains proposed 70 messages/day, 500/month and one image trial/account. All quotas, purchase and credit deductions are explicitly inactive. The estimated-usage section shows image Medium 2K 40 / High 2K 125 credits, Voice Over 80 credits/1,000 characters, Translator about 87 credits/minute and receipt scan about 1 credit/receipt. Short descriptions reflect existing Translator text/audio, Voice Over narration and receipt-photo Finance preparation; these are design estimates, not active rates or new capability guarantees.
+
+Scoped copy supports en/id/es/zh and uses the existing selected language. Page/profile/tool navigation labels become Credit & Usage (localized) without shared locale edits. Existing actual FREE/PLUS/PRO/MAX plan context and legacy billing/credit records remain authoritative. Bank Mega, KILAS TEKNOLOGI KREATIF and 10180016000684 remain inside an inert payment preview with a do-not-transfer warning. No backend, Finance, entitlement, balance, deduction, payment, configuration or database changes.
+
+Validation: seven focused route/billing tests passed, including read-only preview GET checks against existing subscriptions and credits. Browser artifacts are at `/tmp/credit-pack-review`, covering 20 language/viewport cases (320/360/393/834/1440), local profile navigation, translated copy, estimates, no overflow, disabled payment controls, repeated close/Escape/history/reload and legacy billing. Additional existing navigation browser suites and final-head CI are checked separately before release. Source review and release coordination remain required; only Client Hub is in scope.

@@ -1,3 +1,4 @@
+{% from 'kilas_ai/_subscription_copy.html' import t as credit_t with context %}
 <!doctype html>
 <html lang="{{ ui_language() }}">
 <head>{% include '_ui_i18n_head.html' %}{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='chat-layout-20261005') }}">{% include '_premium_styles.html' %}{% include 'kilas_ai/_attachment_assets.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_drawer.css',v='chat-layout-20261005') }}"></head>
@@ -65,7 +66,7 @@
       <header class="agent-section-head"><h2>{{ ui_t('Pengaturan Kilas AI') }}</h2></header>
       <p data-work-timezone-auto>{{ ui_t('Zona waktu mengikuti perangkat secara otomatis.') }}</p>
       <section class="autonomous-section"><h3>{{ ui_t('Notifikasi perangkat') }}</h3><p>{{ ui_t('Aktifkan untuk menerima pengingat meski tab Kilas ditutup. Izin berlaku untuk perangkat ini.') if push_available else ui_t('Notifikasi perangkat belum tersedia. Pengingat tetap muncul di percakapan Kilas AI.') }}</p>{% if push_available %}<button type="button" data-enable-push>{{ ui_t('Aktifkan notifikasi') }}</button>{% endif %}<p role="status" data-push-status></p></section>
-      <a href="{{ url_for('kilas_ai.usage_page') }}">{{ ui_t('Langganan & Pembayaran') }}</a>
+      <a href="{{ url_for('kilas_ai.usage_page') }}">{{ credit_t('Credit & Usage') }}</a>
       <p><a href="{{ url_for('kilas_ai.automation_home') }}">{{ ui_t('Pengingat') }} &amp; {{ ui_t('jadwal') }}</a></p>
     {% endif %}
     </section>
