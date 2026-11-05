@@ -415,3 +415,47 @@ test('Late Finish failure from the previous turn cannot end a newly started turn
  await f.session.start();finish.reject(new TypeError('lost old finish ACK'));await tick();
  assert.equal(f.session.state,'listening');assert.deepEqual(f.errors,[]);f.session.end();await started;
 });
+
+for(const window of ['idle','preparing'])test('Late failed Finish is ignored after completion: '+window,async()=>{
+ const ack=deferred(),prepared=deferred();let preparing=false;
+ const f=fixture({prepare:()=>preparing?prepared.promise:Promise.resolve(),request:async(path,args={})=>{
+  if(path.endsWith('/readiness'))return {available:true};
+  if(path.endsWith('/finish'))return ack.promise;
+  if(path.endsWith('/turn'))return {turn_index:1};
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST')return {call_id:'a'.repeat(32)};
+  return f.hold.promise;
+ }});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();f.session.finish();await tick();
+ f.hold.resolve({state:'LISTENING',frames:[{index:0,turn_index:0,type:'turn_complete'}],next_index:1,total_frames:1});await tick();assert.equal(f.session.state,'idle');
+ let next;if(window==='preparing'){preparing=true;next=f.session.start();await tick();assert.equal(f.session.state,'starting');}
+ ack.reject(new TypeError('delayed Finish failure'));await tick();assert.deepEqual(f.errors,[]);assert.equal(f.session.state,window==='idle'?'idle':'starting');
+ if(next){prepared.resolve();await next;assert.equal(f.session.state,'listening');}
+ f.session.end();await started;
+});
+
+test('Paid-envelope idle close drains completed output without an error or renewed microphone',async()=>{
+ const drained=deferred();const f=fixture({player:{checkpoint:()=>drained.promise}});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();f.session.finish();await tick();
+ f.hold.resolve({state:'CLOSED',code:'call_ended',frames:[{index:0,turn_index:0,type:'audio',pcm:Buffer.from(pcm()).toString('base64')},{index:1,turn_index:0,type:'turn_complete'}],next_index:2,total_frames:2});await tick();
+ assert.equal(f.session.state,'speaking');assert.equal(f.audioStops,0);
+ drained.resolve();await started;assert.equal(f.session.state,'ended');assert.deepEqual(f.errors,[]);assert.equal(f.audioStops,1);
+});
+
+test('Denied renewal at next-turn boundary never opens the microphone or retries admission',async()=>{
+ let admissions=0;
+ const f=fixture({request:async(path,args={})=>{
+  if(path.endsWith('/readiness'))return {available:true};
+  if(path.endsWith('/turn'))throw Object.assign(Error(),{code:'budget_limit'});
+  if(path.endsWith('/finish'))return {input_finished:true};
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST'){admissions++;return {call_id:'a'.repeat(32)};}
+  return f.hold.promise;
+ }});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();f.session.finish();await tick();
+ f.hold.resolve({state:'LISTENING',frames:[{index:0,turn_index:0,type:'turn_complete'}],next_index:1,total_frames:1});await tick();
+ const capture=f.capture;await f.session.start();await started;
+ assert.equal(f.capture,capture);assert.equal(admissions,1);assert.equal(f.session.state,'ended');assert.deepEqual(f.errors,['budget_limit']);
+});

@@ -111,7 +111,13 @@ class Call:
             if require_policy and monotonic()>self.authorized_until:raise CallError('call_unavailable')
             # This rare metering boundary still performs normal durable funding
             # before any input/output can exceed the current allowance.
-            if monotonic()-self.funded_at>=budget.RENEW_SECONDS:self.fund()
+            if monotonic()-self.funded_at>=budget.RENEW_SECONDS:
+                # A completed reusable turn must not purchase another envelope
+                # merely to keep an idle socket alive. Active work retains the
+                # existing metered renewal contract.
+                if self.settings.get('reuse_session') and self.turn_complete:
+                    if monotonic()-self.funded_at>=budget.LEASE_SECONDS:raise CallError('call_ended',409)
+                else:self.fund()
 
     def check(self):
         """Fresh admission/watchdog authorization, outside the audio lock.
@@ -215,6 +221,9 @@ class Call:
                 return
             if turn_index!=self.turn_index+1 or index!=self.expected or not self.turn_complete or not self.input_finished:
                 raise CallError('call_input_invalid',409)
+            # Renew only for this explicit new turn, before provider activity.
+            # A denied reservation leaves the old turn sealed and sends nothing.
+            if monotonic()-self.funded_at>=budget.RENEW_SECONDS:self.fund()
             try:self.queue.put_nowait(ACTIVITY_START)
             except Full:raise CallError('call_backlog',409) from None
             self.turn_index=turn_index;self.input_finished=False;self.turn_complete=False;self.turn_idle_at=None

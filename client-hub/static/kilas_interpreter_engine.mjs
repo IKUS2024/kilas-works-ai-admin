@@ -92,13 +92,13 @@ export class CallSession {
  }
  async nextTurn(){
   if(this.state!=='idle')return;
-  this.turnIdle=false;const ticket=this.version;this.clear(this.idleTimer);this.idleTimer=null;
+  this.turnIdle=false;const ticket=this.version,next=++this.turnIndex;this.clear(this.idleTimer);this.idleTimer=null;
   this.finishRequested=false;this.finishSent=false;this.captureReady=false;this.turnSealed=false;this.input.firstPacket=true;
   this.speaking=false;this.captionAwaitingAudio=false;this.sourceAwaitingAudio=false;
   this.stateTo('starting');this.onText('');this.onOriginal('');
   try{
    await this.prepare(this.controller.signal);if(!this.current(ticket))return;
-   const next=++this.turnIndex,body=new FormData();body.append('turn_index',String(next));body.append('next_index',String(this.input.index));
+   const body=new FormData();body.append('turn_index',String(next));body.append('next_index',String(this.input.index));
    const result=await this.request(this.path+'/turn',{method:'POST',body,signal:this.controller.signal,timeoutMs:8000});
    if(!this.current(ticket))return;
    if(result.turn_index!==next)throw failure('call_protocol');
@@ -108,7 +108,7 @@ export class CallSession {
   }catch(error){if(this.current(ticket))this.fail(error,ticket);}
  }
  idle(){
-  this.turnIdle=true;this.captureReady=false;this.captureVersion++;this.capture.cancel();this.speaking=false;
+  this.turnIdle=true;this.finishRequested=false;this.captureReady=false;this.captureVersion++;this.capture.cancel();this.speaking=false;
   this.clear(this.timer);this.timer=null;this.stateTo('idle');
   const ticket=this.version;
   this.idleTimer=this.schedule(()=>{if(this.current(ticket)&&this.state==='idle')this.end();},45000);
@@ -130,8 +130,8 @@ export class CallSession {
    if(!this.current(ticket))return;
    const body=new FormData();body.append('next_index',String(this.input.index));body.append('turn_index',String(this.turnIndex));
    const result=await this.request(this.path+'/finish',{method:'POST',body,signal:this.controller.signal,timeoutMs:8000});
-   if(this.current(ticket)&&turn===this.turnIndex&&result.input_finished!==true)throw failure('call_protocol');
-  }catch(error){if(this.current(ticket)&&turn===this.turnIndex)this.fail(error,ticket);}
+   if(this.current(ticket)&&this.finishRequested&&!this.turnIdle&&turn===this.turnIndex&&result.input_finished!==true)throw failure('call_protocol');
+  }catch(error){if(this.current(ticket)&&this.finishRequested&&!this.turnIdle&&turn===this.turnIndex)this.fail(error,ticket);}
  }
  async pause(ticket,ms){
   if(!this.current(ticket))return;
@@ -196,7 +196,8 @@ export class CallSession {
     }else throw failure('call_protocol');
    }
    if(value.state==='CLOSED'&&this.cursor>=value.total_frames){
-    if(['budget_limit','account_credit_limit'].includes(value.code))await this.player.checkpoint();
+    if(['budget_limit','account_credit_limit'].includes(value.code)||(this.reusable&&this.turnSealed))await this.player.checkpoint();
+    if(this.current(ticket)&&this.reusable&&value.code==='call_ended'&&(this.turnIdle||this.turnSealed)){this.end();return;}
     if(this.current(ticket))this.fail(failure(value.code||'call_ended'),ticket);return;
    }
    if(value.state==='RECONNECTING'||this.uploadRecovering)this.stateTo('reconnecting');
