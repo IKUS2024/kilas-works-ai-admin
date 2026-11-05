@@ -23,7 +23,7 @@ def main():
                 for lang in ('id','en','es','zh'):
                     ctx=browser.new_context(viewport={'width':width,'height':900},reduced_motion='reduce')
                     cookie=case.client.get_cookie('session')
-                    ctx.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':lang,'url':origin}])
+                    ctx.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':lang,'url':origin,'httpOnly':True}])
                     ctx.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin) else route.abort())
                     page=ctx.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                     for name,path in [('products','/products/catalog'),('creative','/creative-services/'),('checkout','/creative-services/checkout/creative_social_basic'),('payment',f'/creative-services/payment/{invoice}')]:
@@ -62,7 +62,9 @@ def main():
             ctx=browser.new_context();page=ctx.new_page();page.goto(origin+'/creative-services/')
             assert page.locator('html').get_attribute('lang')=='en'
             page.locator('[data-cs-language=es]').click()
+            page.wait_for_function('document.documentElement.lang === "es"')
             assert next(c['value'] for c in ctx.cookies() if c['name']=='kilas_language')=='es'
+            assert next(c['httpOnly'] for c in ctx.cookies() if c['name']=='kilas_language')
             page.goto(origin+'/creative-services/checkout/creative_event_basic')
             assert page.locator('html').get_attribute('lang')=='es'
             ctx.close();browser.close()

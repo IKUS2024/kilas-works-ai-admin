@@ -147,7 +147,15 @@ class CreativeServicesTests(unittest.TestCase):
         self.assertEqual(response.location, 'https://app.kilasworks.id/creative-services/')
         response = client.get('/creative-services/', base_url='https://app.kilasworks.id')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, (SOURCE / 'index.html').read_bytes())
+        # Only the app locale and CSRF bootstrap differ from the packaged source.
+        context = re.search(r'<script id="creative-app-context" type="application/json">(.*?)</script>', response.text)[1]
+        self.assertEqual(json.loads(context)['language'], 'en')
+        self.assertTrue(json.loads(context)['csrfToken'])
+        normalized = response.text.replace('<html lang="en">', '<html lang="id">', 1)
+        normalized = re.sub(r'<script id="creative-app-context" type="application/json">.*?</script>', '<!-- creative-app-context -->', normalized)
+        self.assertEqual(normalized, (SOURCE / 'index.html').read_text())
+        self.assertEqual(response.headers['Cache-Control'], 'private, no-store')
+        self.assertIn('Cookie', response.headers['Vary'])
         self.assertEqual(response.headers['X-Frame-Options'], 'DENY')
         self.assertNotIn('<iframe', response.text)
         self.assertIn('manrope-variable.ttf', response.text)

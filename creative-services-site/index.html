@@ -5,6 +5,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png"><link rel="preload" href="assets/fonts/manrope-variable.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="assets/editorial.css?v=studio-20261022"><link rel="stylesheet" href="assets/brief.css"><link rel="stylesheet" href="assets/studio-photo.css?v=contact-20261104"><link rel="stylesheet" href="assets/reference-refresh.css?v=mobile-locale-20261105">
 <noscript><style>.cs-language{display:none}#creative-services .cs-panel:target[hidden]{display:block!important}#creative-services:has(.cs-panel:target) .cs-home-view{display:none}</style></noscript>
+<!-- creative-app-context -->
 </head><body>
 <a class="skip-link" href="#main"><span  data-cs-id="Langsung ke konten" data-cs-en="Skip to content" data-cs-es="Saltar al contenido" data-cs-zh="跳至内容">Langsung ke konten</span></a>
 <header class="header"><div class="wrap header-inner">
@@ -710,6 +711,7 @@
   const genericContact = document.querySelector('#cs-contact-whatsapp');
   const contactPending = document.querySelector('#cs-contact-pending');
   const contactNotice = document.querySelector('#cs-contact-notice');
+  const appContext = JSON.parse(document.querySelector('#creative-app-context')?.textContent || 'null');
   let language = 'en';
   const copy = {"discuss": {"id": "Halo Kilas, saya ingin berkonsultasi tentang ", "en": "Hi Kilas, I’d like to discuss ", "es": "Hola Kilas, me gustaría consultar sobre ", "zh": "您好 Kilas，我想咨询"}, "hello": {"id": "Halo Kilas, saya ingin bertanya tentang Creative Services.", "en": "Hi Kilas, I’d like to ask about Creative Services.", "es": "Hola Kilas, quisiera consultar sobre servicios creativos.", "zh": "您好 Kilas，我想咨询创意服务"}, "package": {"id": "Paket pilihan Anda: ", "en": "Your package: ", "es": "Tu paquete: ", "zh": "您选择的套餐："}, "date": {"id": "Tanggal: ", "en": "Date: ", "es": "Fecha: ", "zh": "日期："}, "location": {"id": "Lokasi: ", "en": "Location: ", "es": "Ubicación: ", "zh": "地点："}, "needs": {"id": "Kebutuhan: ", "en": "Needs: ", "es": "Necesidades: ", "zh": "需求："}, "menu": {"id": "Buka atau tutup navigasi", "en": "Toggle navigation", "es": "Abrir o cerrar navegación", "zh": "打开或关闭导航"}};
   const copyText = key => copy[key][language];
@@ -756,13 +758,13 @@
     language = ['id','en','es','zh'].includes(next) ? next : 'en';
     root.lang = language;
     document.documentElement.lang = language;
-    document.title = language === 'en' ? 'Kilas Works — Creative Services' : 'Kilas Works — Creative Services';
+    document.title = 'Kilas Works — ' + {id:'Jasa Kreatif',en:'Creative Services',es:'Servicios creativos',zh:'创意服务'}[language];
     document.querySelectorAll('[data-cs-id][data-cs-en]').forEach(el => { el.textContent = el.getAttribute('data-cs-' + language); });
     document.querySelectorAll('[data-cs-alt-id]').forEach(el=>{el.alt=el.getAttribute('data-cs-alt-'+language);});
     document.querySelector('[data-cs-menu]').setAttribute('aria-label',copyText('menu'));
     languageButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.csLanguage === language)));
     updateContactLinks();
-    if (save) { document.cookie='kilas_language='+language+'; Path=/; Max-Age=31536000; SameSite=Lax'; try { localStorage.setItem('kilas-package-language', language); } catch (_) {} }
+    if (save && !appContext) { try { localStorage.setItem('kilas-package-language', language); } catch (_) {} }
   }
   function updateAnchorOffset() {
     const header = document.querySelector('.header');
@@ -805,7 +807,25 @@
   document.querySelector('#studio-navigation').addEventListener('click',event=>{if(event.target.closest('a'))closeMenu();});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&menu.getAttribute('aria-expanded')==='true'){closeMenu();menu.focus();}});
   document.addEventListener('click',event=>{if(!header.contains(event.target))closeMenu();});
-  languageButtons.forEach(button => button.addEventListener('click', () => setLanguage(button.dataset.csLanguage)));
+  languageButtons.forEach(button => button.addEventListener('click', async () => {
+    const next = button.dataset.csLanguage;
+    if (!appContext) { setLanguage(next); return; }
+    languageButtons.forEach(item => { item.disabled = true; });
+    try {
+      const response = await fetch('/language', {
+        method: 'POST', credentials: 'same-origin',
+        body: new URLSearchParams({language: next, csrf_token: appContext.csrfToken, next: location.pathname + location.hash})
+      });
+      if (!response.ok) throw new Error('Language preference was not saved');
+      appContext.language = next;
+      setLanguage(next, false);
+    } catch (_) {
+      // Keep the current language and edited draft if preference persistence fails.
+      button.title = {id:'Bahasa belum tersimpan, coba lagi',en:'Language was not saved, try again',es:'No se guardó el idioma, inténtalo de nuevo',zh:'语言未保存，请重试'}[language];
+    } finally {
+      languageButtons.forEach(item => { item.disabled = false; });
+    }
+  }));
   packageLinks.forEach(link => link.addEventListener('click', () => { chosenPackage = link; updateContactLinks(); }));
   choices.forEach(link => link.addEventListener('click', event => {
     if (link.hash === window.location.hash) { event.preventDefault(); setView(true); }
@@ -814,7 +834,7 @@
   window.addEventListener('resize', updateAnchorOffset);
   updateAnchorOffset();
   document.querySelector('#year').textContent = new Date().getFullYear();
-  try { const appLanguage=document.cookie.match(/(?:^|; )kilas_language=([^;]+)/)?.[1];setLanguage(appLanguage || 'en', false); } catch (_) { setLanguage('en', false); }
+  try { setLanguage(appContext?.language || localStorage.getItem('kilas-package-language') || 'en', false); } catch (_) { setLanguage(appContext?.language || 'en', false); }
   prepareMessage(false);
   setView(false);
   // Native hash scrolling may run after load; restore the collection after layout settles.
