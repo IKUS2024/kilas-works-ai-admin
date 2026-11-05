@@ -27,7 +27,7 @@ def main():
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(executable_path=args.browser)
-            for language in ('en', 'id'):
+            for language in ('en', 'id', 'es', 'zh'):
                 for width in (320, 360, 393, 834, 1440):
                     context = browser.new_context(viewport={'width': width, 'height': 900})
                     context.add_cookies([{'name': 'kilas_language', 'value': language, 'url': origin}])
@@ -38,9 +38,13 @@ def main():
                     page.goto(origin + '/kilas-ai/usage', wait_until='networkidle')
                     profile = page.locator('.kilas-profile-menu')
                     profile.locator('>summary').click()
-                    profile.get_by_role('link', name='Subscription', exact=True).click()
-                    expect(page.locator('#subscription-title')).to_be_visible()
+                    profile.get_by_role('link', name={'en':'Subscription','id':'Langganan','es':'Suscripción','zh':'订阅'}[language], exact=True).click()
+                    expect(page.locator('#subscription-title')).to_have_text({'en':'Subscription','id':'Langganan','es':'Suscripción','zh':'订阅'}[language])
                     assert page.locator('.subscription-features li').count() == 10
+                    expect(page.locator('.subscription-current')).to_have_attribute('data-current-plan', 'FREE')
+                    assert page.locator('html').get_attribute('lang') == language
+                    for label in page.locator('main h1,main h2,main h3,main button,main dt').all_inner_texts():
+                        assert not label.rstrip().endswith(('.', '。')), label
                     assert page.locator('main form, main input[type=file]').count() == 0
                     assert 'Kuota dapat berubah' not in page.locator('main').inner_text()
                     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
@@ -49,6 +53,10 @@ def main():
                         page.locator('#subscription-open-payment').click()
                         expect(page.locator('#payment-title')).to_be_visible()
                         expect(page.locator('#payment-title')).to_be_focused()
+                        expect(page.locator('#payment-title')).to_have_text({'en':'Payment','id':'Pembayaran','es':'Pago','zh':'付款'}[language])
+                        expect(page.locator('.subscription-bank dd').nth(0)).to_have_text('10180016000684')
+                        expect(page.locator('.subscription-bank dd').nth(1)).to_have_text('KILAS TEKNOLOGI KREATIF')
+                        assert '/ bulan' not in page.locator('#payment-preview').inner_text() if language != 'id' else True
                         expect(page.locator('#subscription-plans')).not_to_be_visible()
                         for button in page.locator('#payment-preview button').all():
                             expect(button).to_be_disabled()

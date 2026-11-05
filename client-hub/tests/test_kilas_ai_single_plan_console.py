@@ -48,7 +48,7 @@ class SinglePlanConsoleTests(unittest.TestCase):
     def test_subscription_preview_is_explicitly_inert(self):
         client = self.client_for(self.other)
         body = client.get('/kilas-ai/usage').get_data(as_text=True)
-        for text in ('Langganan belum tersedia', 'Rancangan paket', 'Usulan', 'Contoh nomor rekening', 'Belum menerima pembayaran', 'Translator', 'Voice Over', 'Scan struk'):
+        for text in ('Langganan baru belum tersedia', 'Rancangan paket', 'Usulan', '10180016000684', 'Belum menerima pembayaran', 'Penerjemah', 'Narasi suara', 'Pindai struk'):
             self.assertIn(text, body)
         for forbidden in ('Kuota dapat berubah', '<form', 'type="file"', 'action="/kilas-ai/checkout"', 'action="/kilas-ai/topups"'):
             self.assertNotIn(forbidden, body.split('<main', 1)[1].split('</main>', 1)[0])
@@ -60,7 +60,7 @@ class SinglePlanConsoleTests(unittest.TestCase):
     def test_customer_offer_and_amount_validation(self):
         client = self.client_for(self.owner)
         preview = client.get("/kilas-ai/usage").get_data(as_text=True)
-        self.assertIn("Subscription", preview)
+        self.assertIn("Langganan", preview)
         self.assertIn('view=legacy', preview)
         self.assertIn('disabled>Kirim bukti', preview)
         self.assertNotIn('action="/kilas-ai/checkout"', preview)
@@ -104,7 +104,7 @@ class SinglePlanConsoleTests(unittest.TestCase):
                   'kilas_ai_topup_debits', 'kilas_audio_balances', 'kilas_ai_usage')
         before = {table: db.query_all('SELECT * FROM ' + table) for table in tables}
         client = self.client_for(self.owner)
-        for language, heading in (('en', 'Subscription'), ('id', 'Subscription')):
+        for language, heading in (('en', 'Subscription'), ('id', 'Langganan'), ('es', 'Suscripción'), ('zh', '订阅')):
             client.set_cookie('kilas_language', language)
             response = client.get('/kilas-ai/usage')
             self.assertEqual(response.status_code, 200)
@@ -117,6 +117,28 @@ class SinglePlanConsoleTests(unittest.TestCase):
         self.assertEqual(usage.effective_plan(self.owner)['plan'], 'PLUS')
         self.assertEqual(client.get('/kilas-ai/usage?view=legacy').status_code, 200)
         self.assertIn('/login', self.app.test_client().get('/kilas-ai/usage').location)
+
+    def test_current_plan_uses_only_effective_entitlement_without_writes(self):
+        client = self.client_for(self.other)
+        now = usage._now()
+        cases = [('PRO', 'ACTIVE', -1, 30, 'PRO'), ('PLUS', 'ACTIVE', -1, 30, 'PLUS'),
+                 ('MAX', 'ACTIVE', -1, 30, 'MAX'), ('PRO', 'EXPIRED', -30, -1, 'FREE'),
+                 ('PRO', 'ACTIVE', 1, 30, 'FREE'), ('PRO', 'CANCELLED', -1, 30, 'FREE')]
+        db.execute('DELETE FROM kilas_ai_subscriptions WHERE user_id=?', (self.other,))
+        self.assertIn('data-current-plan="FREE"', client.get('/kilas-ai/usage').get_data(as_text=True))
+        for plan, status, start, end, expected in cases:
+            with self.subTest(plan=plan, status=status, start=start):
+                db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET plan=excluded.plan,status=excluded.status,period_start=excluded.period_start,period_end=excluded.period_end",
+                           (self.other, plan, status, (now + timedelta(days=start)).isoformat(), (now + timedelta(days=end)).isoformat()))
+                before = db.query_all('SELECT * FROM kilas_ai_subscriptions')
+                for language in ('en', 'id', 'es', 'zh'):
+                    client.set_cookie('kilas_language', language)
+                    body = client.get('/kilas-ai/usage').get_data(as_text=True)
+                    self.assertIn('data-current-plan="' + expected + '"', body)
+                    self.assertIn('10180016000684', body)
+                    self.assertIn('KILAS TEKNOLOGI KREATIF', body)
+                self.assertEqual(before, db.query_all('SELECT * FROM kilas_ai_subscriptions'))
+        db.execute('DELETE FROM kilas_ai_subscriptions WHERE user_id=?', (self.other,))
 
     def test_admin_overview_escapes_postgres_percent_wildcard(self):
         with patch.object(platform_console.db, "query_all", return_value=[]), \

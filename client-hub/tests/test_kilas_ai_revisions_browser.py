@@ -57,7 +57,7 @@ def main():
                     return page.locator('#premium-sidebar')
                 sidebar=rail();assert sidebar.locator('[name=product]').count()==0
                 sidebar.locator('.kilas-profile-menu>summary').click()
-                options=sidebar.locator('.kilas-profile-options');expect(options.get_by_role('link',name='Subscription',exact=True)).to_be_visible()
+                options=sidebar.locator('.kilas-profile-options');expect(options.get_by_role('link',name='Langganan',exact=True)).to_be_visible()
                 options.locator('.kilas-profile-language>summary').click();expect(options.locator('select[name=language]')).to_be_visible()
                 page.screenshot(path=str(output/f'profile-{width}.png'),full_page=True)
                 sidebar.locator('.kilas-profile-menu>summary').click()
