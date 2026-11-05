@@ -70,3 +70,10 @@ body.premium-workspace.subscription-design-preview {background:radial-gradient(e
 .subscription-design-preview .subscription-bank dd {overflow-wrap:anywhere}
 .subscription-design-preview .subscription-plan-heading {flex-wrap:wrap}
 .subscription-design-preview .subscription-pending {font-size:12px;color:var(--sub-muted);margin-top:12px!important}
+
+.subscription-design-preview .subscription-credit-amount {font-size:16px;font-weight:700;margin-top:3px!important}
+.subscription-design-preview .subscription-estimates {margin-top:16px}
+.subscription-design-preview .subscription-estimates > h3 {font-size:12px;font-weight:700}
+.subscription-design-preview .subscription-estimates .subscription-features {margin-top:10px;gap:10px}
+.subscription-design-preview .subscription-estimate {font-weight:600;color:var(--sub-ink)!important}
+.subscription-design-preview .subscription-estimate-note {font-size:11px;color:var(--sub-muted);margin-bottom:16px!important}

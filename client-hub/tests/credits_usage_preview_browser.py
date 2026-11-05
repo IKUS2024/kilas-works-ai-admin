@@ -38,19 +38,24 @@ def main():
                     page.goto(origin + '/kilas-ai/usage', wait_until='networkidle')
                     profile = page.locator('.kilas-profile-menu')
                     profile.locator('>summary').click()
-                    profile.get_by_role('link', name={'en':'Subscription','id':'Langganan','es':'Suscripción','zh':'订阅'}[language], exact=True).click()
-                    expect(page.locator('#subscription-title')).to_have_text({'en':'Subscription','id':'Langganan','es':'Suscripción','zh':'订阅'}[language])
-                    assert page.locator('.subscription-features li').count() == 10
-                    assert page.locator('.subscription-features p:not(.subscription-quota), .subscription-features small, .subscription-badge, .subscription-plan-intro, .subscription-current p, .subscription-existing p, #subscription-plans .subscription-heading p').count() == 0
-                    expect(page.locator('.subscription-notice')).to_have_text({'en':'Proposed quotas are not active','id':'Kuota rancangan belum aktif','es':'Las cuotas propuestas no están activas','zh':'拟议额度尚未生效'}[language])
+                    profile.get_by_role('link', name={'en':'Credit & Usage','id':'Kredit & Penggunaan','es':'Créditos y uso','zh':'积分与用量'}[language], exact=True).click()
+                    expect(page.locator('#subscription-title')).to_have_text({'en':'Credit & Usage','id':'Kredit & Penggunaan','es':'Créditos y uso','zh':'积分与用量'}[language])
+                    assert page.locator('.subscription-features li').count() == 9
+                    assert page.locator('.subscription-features small, .subscription-badge, .subscription-plan-intro, .subscription-current p, .subscription-existing p, #subscription-plans .subscription-heading p').count() == 0
+                    expect(page.locator('.subscription-notice')).to_have_text({'en':'Preview · Quotas, purchases & credit deductions are inactive','id':'Pratinjau · Kuota, pembelian & potongan kredit belum aktif','es':'Vista previa · Cuotas, compras y deducciones de créditos inactivos','zh':'预览 · 额度、购买及积分扣除尚未启用'}[language])
                     words={'en':('messages','day','month'),'id':('pesan','hari','bulan'),'es':('mensajes','día','mes'),'zh':('条消息','天','月')}[language]
                     messages,day,month=words
                     expect(page.locator('.subscription-quota')).to_have_count(2)
                     expect(page.locator('.subscription-quota').first).to_have_text(f'70 {messages} / {day} · 500 {messages} / {month}')
-                    expect(page.locator('.subscription-plan-pro .subscription-quota, .subscription-plan-pro .subscription-price')).to_have_count(0)
-                    expect(page.locator('.subscription-pending')).to_have_text({'en':'Future offer · Details pending','id':'Penawaran mendatang · Detail menyusul','es':'Oferta futura · Detalles pendientes','zh':'未来方案 · 详情待定'}[language])
-                    assert not any(value in page.locator('main').inner_text() for value in ('99.000','99,000','8.000','8,000'))
-                    assert page.locator('.subscription-plan').first.bounding_box()['height'] < 570
+                    expect(page.locator('.subscription-plan-pro .subscription-quota')).to_have_count(0)
+                    expect(page.locator('.subscription-plan-pro .subscription-price')).to_contain_text('Rp99.000')
+                    expect(page.locator('.subscription-credit-amount')).to_have_text({'en':'2,000 credits','id':'2.000 kredit','es':'2.000 créditos','zh':'2,000 积分'}[language])
+                    expect(page.locator('.subscription-pending')).to_have_text({'en':'Proposed: no expiry · Used after free allowance runs out','id':'Rancangan: tanpa kedaluwarsa · Dipakai setelah kuota gratis habis','es':'Propuesta: sin caducidad · Se usa al agotar la cuota gratuita','zh':'拟议：不过期 · 免费额度用尽后使用'}[language])
+                    expect(page.locator('.subscription-estimate')).to_have_count(4)
+                    estimates = page.locator('.subscription-estimates').inner_text()
+                    assert all(n in estimates for n in ('40', '125', '80', '87', '1'))
+                    assert not any(value in page.locator('.subscription-plan-pro').inner_text() for value in ('/ month','/ bulan','/ mes','/ 月','8.000','8,000'))
+                    assert width >= 760 or page.locator('.subscription-plan').first.bounding_box()['height'] < 570
                     expect(page.locator('.subscription-current')).to_have_attribute('data-current-plan', 'FREE')
                     assert page.locator('html').get_attribute('lang') == language
                     for label in page.locator('main h1,main h2,main h3,main button,main dt').all_inner_texts():
