@@ -69,3 +69,9 @@
 /* Override the tool shell's rail reset only for this centered preview. */
 body.subscription-design-preview > #kw-main.subscription-page {margin-inline:auto!important;width:100%}
 body.premium-workspace.subscription-design-preview {background:radial-gradient(ellipse at top right,#fff1e3 0,transparent 40%),#fcfaf7!important}
+
+.subscription-design-preview .subscription-current {margin-bottom:16px;font-size:13px}
+.subscription-design-preview .subscription-current p {color:var(--sub-muted);font-size:12px;margin-top:3px}
+.subscription-design-preview .subscription-bank dd {overflow-wrap:anywhere}
+.subscription-design-preview .subscription-plan-heading {flex-wrap:wrap}
+.subscription-design-preview .subscription-notice strong {display:block;margin-bottom:3px}

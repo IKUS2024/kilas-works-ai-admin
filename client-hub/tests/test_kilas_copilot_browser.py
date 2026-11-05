@@ -160,7 +160,7 @@ def main():
                 expect(page.locator('#premium-sidebar [data-products-catalog]')).to_be_visible()
                 page.screenshot(path=str(output/f'sidebar-closed-{width}.png'),full_page=False,animations='disabled')
                 page.locator('#premium-sidebar .kilas-profile-menu>summary').click()
-                expect(page.locator('#premium-sidebar .kilas-profile-options')).to_contain_text('Subscription')
+                expect(page.locator('#premium-sidebar .kilas-profile-options')).to_contain_text('Langganan')
                 assert abs(page.locator('#premium-sidebar').bounding_box()['x'])<1
                 page.screenshot(path=str(output/f'sidebar-{width}.png'), full_page=False, animations='disabled')
                 page.keyboard.press('Escape')
