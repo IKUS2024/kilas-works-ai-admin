@@ -1,0 +1,290 @@
+[
+  {
+    "viewport": 320,
+    "service": "event",
+    "state": "checkout",
+    "document_height": 1120,
+    "width": 266,
+    "height": 121.046875,
+    "fit": "contain"
+  },
+  {
+    "viewport": 320,
+    "service": "event",
+    "state": "payment",
+    "document_height": 1084,
+    "width": 266,
+    "height": 121.046875,
+    "fit": "contain"
+  },
+  {
+    "viewport": 320,
+    "service": "social",
+    "state": "checkout",
+    "document_height": 1226,
+    "width": 266,
+    "height": 121.046875,
+    "fit": "contain"
+  },
+  {
+    "viewport": 320,
+    "service": "social",
+    "state": "payment",
+    "document_height": 1106,
+    "width": 266,
+    "height": 121.046875,
+    "fit": "contain"
+  },
+  {
+    "viewport": 360,
+    "service": "event",
+    "state": "checkout",
+    "document_height": 1138,
+    "width": 306,
+    "height": 139.25,
+    "fit": "contain"
+  },
+  {
+    "viewport": 360,
+    "service": "event",
+    "state": "payment",
+    "document_height": 1102,
+    "width": 306,
+    "height": 139.25,
+    "fit": "contain"
+  },
+  {
+    "viewport": 360,
+    "service": "social",
+    "state": "checkout",
+    "document_height": 1222,
+    "width": 306,
+    "height": 139.25,
+    "fit": "contain"
+  },
+  {
+    "viewport": 360,
+    "service": "social",
+    "state": "payment",
+    "document_height": 1102,
+    "width": 306,
+    "height": 139.25,
+    "fit": "contain"
+  },
+  {
+    "viewport": 390,
+    "service": "event",
+    "state": "checkout",
+    "document_height": 1152,
+    "width": 336,
+    "height": 152.90625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 390,
+    "service": "event",
+    "state": "payment",
+    "document_height": 1115,
+    "width": 336,
+    "height": 152.90625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 390,
+    "service": "social",
+    "state": "checkout",
+    "document_height": 1235,
+    "width": 336,
+    "height": 152.90625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 390,
+    "service": "social",
+    "state": "payment",
+    "document_height": 1115,
+    "width": 336,
+    "height": 152.90625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 393,
+    "service": "event",
+    "state": "checkout",
+    "document_height": 1153,
+    "width": 339,
+    "height": 154.265625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 393,
+    "service": "event",
+    "state": "payment",
+    "document_height": 1117,
+    "width": 339,
+    "height": 154.265625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 393,
+    "service": "social",
+    "state": "checkout",
+    "document_height": 1237,
+    "width": 339,
+    "height": 154.265625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 393,
+    "service": "social",
+    "state": "payment",
+    "document_height": 1117,
+    "width": 339,
+    "height": 154.265625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 412,
+    "service": "event",
+    "state": "checkout",
+    "document_height": 1162,
+    "width": 358,
+    "height": 162.90625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 412,
+    "service": "event",
+    "state": "payment",
+    "document_height": 1125,
+    "width": 358,
+    "height": 162.90625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 412,
+    "service": "social",
+    "state": "checkout",
+    "document_height": 1245,
+    "width": 358,
+    "height": 162.90625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 412,
+    "service": "social",
+    "state": "payment",
+    "document_height": 1125,
+    "width": 358,
+    "height": 162.90625,
+    "fit": "contain"
+  },
+  {
+    "viewport": 430,
+    "service": "event",
+    "state": "checkout",
+    "document_height": 1169,
+    "width": 374,
+    "height": 170.1875,
+    "fit": "contain"
+  },
+  {
+    "viewport": 430,
+    "service": "event",
+    "state": "payment",
+    "document_height": 1133,
+    "width": 374,
+    "height": 170.1875,
+    "fit": "contain"
+  },
+  {
+    "viewport": 430,
+    "service": "social",
+    "state": "checkout",
+    "document_height": 1253,
+    "width": 374,
+    "height": 170.1875,
+    "fit": "contain"
+  },
+  {
+    "viewport": 430,
+    "service": "social",
+    "state": "payment",
+    "document_height": 1133,
+    "width": 374,
+    "height": 170.1875,
+    "fit": "contain"
+  },
+  {
+    "viewport": 1024,
+    "service": "event",
+    "state": "checkout",
+    "document_height": 1506,
+    "width": 349.59375,
+    "height": 159.09375,
+    "fit": "contain"
+  },
+  {
+    "viewport": 1024,
+    "service": "event",
+    "state": "payment",
+    "document_height": 1481,
+    "width": 262.1875,
+    "height": 119.3125,
+    "fit": "contain"
+  },
+  {
+    "viewport": 1024,
+    "service": "social",
+    "state": "checkout",
+    "document_height": 1618,
+    "width": 349.59375,
+    "height": 159.09375,
+    "fit": "contain"
+  },
+  {
+    "viewport": 1024,
+    "service": "social",
+    "state": "payment",
+    "document_height": 1481,
+    "width": 262.1875,
+    "height": 119.3125,
+    "fit": "contain"
+  },
+  {
+    "viewport": 1440,
+    "service": "event",
+    "state": "checkout",
+    "document_height": 1509,
+    "width": 349.59375,
+    "height": 159.09375,
+    "fit": "contain"
+  },
+  {
+    "viewport": 1440,
+    "service": "event",
+    "state": "payment",
+    "document_height": 1484,
+    "width": 262.1875,
+    "height": 119.3125,
+    "fit": "contain"
+  },
+  {
+    "viewport": 1440,
+    "service": "social",
+    "state": "checkout",
+    "document_height": 1621,
+    "width": 349.59375,
+    "height": 159.09375,
+    "fit": "contain"
+  },
+  {
+    "viewport": 1440,
+    "service": "social",
+    "state": "payment",
+    "document_height": 1484,
+    "width": 262.1875,
+    "height": 119.3125,
+    "fit": "contain"
+  }
+]

@@ -147,7 +147,15 @@ class CreativeServicesTests(unittest.TestCase):
         self.assertEqual(response.location, 'https://app.kilasworks.id/creative-services/')
         response = client.get('/creative-services/', base_url='https://app.kilasworks.id')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, (SOURCE / 'index.html').read_bytes())
+        # Only the app locale and CSRF bootstrap differ from the packaged source.
+        context = re.search(r'<script id="creative-app-context" type="application/json">(.*?)</script>', response.text)[1]
+        self.assertEqual(json.loads(context)['language'], 'en')
+        self.assertTrue(json.loads(context)['csrfToken'])
+        normalized = response.text.replace('<html lang="en">', '<html lang="id">', 1)
+        normalized = re.sub(r'<script id="creative-app-context" type="application/json">.*?</script>', '<!-- creative-app-context -->', normalized)
+        self.assertEqual(normalized, (SOURCE / 'index.html').read_text())
+        self.assertEqual(response.headers['Cache-Control'], 'private, no-store')
+        self.assertIn('Cookie', response.headers['Vary'])
         self.assertEqual(response.headers['X-Frame-Options'], 'DENY')
         self.assertNotIn('<iframe', response.text)
         self.assertIn('manrope-variable.ttf', response.text)
@@ -164,6 +172,31 @@ class CreativeServicesTests(unittest.TestCase):
         font = client.get('/creative-services/assets/fonts/inter-variable.woff2')
         self.assertEqual(font.mimetype, 'font/woff2')
         self.assertEqual(client.get('/creative-services/assets/editorial.css', headers={'If-None-Match':client.get('/creative-services/assets/editorial.css').headers['ETag']}).status_code, 304)
+
+    def test_release_contract_allows_only_exact_personalization(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('release_contract', ROOT/'scripts/qa/creative_services_release_contract.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        expected = (SOURCE/'index.html').read_bytes()
+        client = self.client().application.test_client()
+        for locale in ('id', 'en', 'es', 'zh'):
+            client.set_cookie('kilas_language', locale)
+            response = client.get('/creative-services/')
+            self.assertEqual(module.verify_released_html(response.data, expected, response.headers,
+                             app_served=True, expected_language=locale), expected)
+            for corrupted in (response.data.replace(b'kilasworks</a>', b'changed-brand</a>', 1),
+                              response.data.replace(b'</head>', b'<script>unexpected()</script></head>', 1),
+                              response.data.replace(b'"csrfToken": "', b'"csrfToken": "invalid', 1),
+                              response.data.replace(b'"language": "'+locale.encode()+b'"', b'"language": "xx"', 1)):
+                with self.assertRaises(AssertionError):
+                    module.verify_released_html(corrupted, expected, response.headers, app_served=True)
+            for header in ('Cache-Control', 'Vary', 'X-Frame-Options'):
+                headers = dict(response.headers); headers.pop(header, None)
+                with self.assertRaises(AssertionError):
+                    module.verify_released_html(response.data, expected, headers, app_served=True)
+        self.assertEqual(module.verify_released_html(expected, expected, {}, app_served=False), expected)
+        with self.assertRaises(AssertionError):
+            module.verify_released_html(expected+b' ', expected, {}, app_served=False)
 
     def test_directory_traversal_unknown_files_and_writes_are_not_served(self):
         client = self.client()

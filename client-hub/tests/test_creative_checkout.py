@@ -18,7 +18,25 @@ class CreativeCheckoutTests(auth_fixture.CustomerAuthTests):
     def setUp(self):
         super().setUp()
         self.client, _ = self.login()
+        self.client.set_cookie("kilas_language", "id")
         self.base_url = '/creative-services/checkout/'
+
+    def test_checkout_uses_app_language_without_rewriting_customer_text(self):
+        from creative_i18n import CATALOG, translate
+        for lang in ('id', 'en', 'es', 'zh'):
+            self.client.set_cookie('kilas_language', lang)
+            page = self.client.get(self.base_url + 'creative_event_basic', follow_redirects=True)
+            self.assertIn(f'<html lang="{lang}">', page.text)
+            self.assertIn(CATALOG['Nama lengkap'][lang], page.text)
+            self.assertNotIn('<span>.</span>', page.text)
+            data = self.form()
+            data['name'] = ''
+            data['notes'] = 'Customer note. example.com 1.25'
+            invalid = self.client.post(self.base_url + 'creative_event_basic', data=data, follow_redirects=True)
+            self.assertIn(CATALOG['Nama lengkap wajib diisi.'][lang], invalid.text)
+            self.assertIn('Customer note. example.com 1.25', invalid.text)
+        with self.app.test_request_context(headers={'Cookie': 'kilas_language=es'}):
+            self.assertEqual(translate('Customer title. example.com 1.25'), 'Customer title. example.com 1.25')
 
     def form(self, key='creative_event_basic', client=None):
         client = client or self.client

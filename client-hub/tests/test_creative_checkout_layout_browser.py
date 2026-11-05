@@ -13,7 +13,7 @@ try:
  invoices={service:case.create('creative_'+service+'_basic')[0] for service in ('event','social')}
  with sync_playwright() as pw:
   browser=pw.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
-  ctx=browser.new_context();cookie=case.client.get_cookie('session');ctx.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}]);ctx.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort());page=ctx.new_page()
+  ctx=browser.new_context();cookie=case.client.get_cookie('session');ctx.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}]);ctx.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort());page=ctx.new_page()
   for width in (320,360,390,393,412,430,1024,1440):
    page.set_viewport_size({'width':width,'height':900})
    for service in ('event','social'):

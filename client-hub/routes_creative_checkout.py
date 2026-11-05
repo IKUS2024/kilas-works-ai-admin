@@ -55,7 +55,8 @@ def preserve_selection(response):
 
 
 def render(page, **kwargs):
-    return render_template('creative_checkout.html', page=page, money=orders.money, **kwargs)
+    from creative_i18n import translate, messages
+    return render_template('creative_checkout.html', page=page, money=orders.money, cs_t=translate, cs_messages=messages(), **kwargs)
 
 
 @creative_checkout_bp.route('/checkout/<key>', methods=['GET', 'POST'])

@@ -1,10 +1,10 @@
 name: Kilas Creative Services QA
 on:
   pull_request:
-    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/tests/creative_checkout_browser.py', 'client-hub/tests/creative_checkout_postgres.py', 'client-hub/creative_orders.py', 'client-hub/creative_catalog.json', 'client-hub/routes_creative_checkout.py', 'client-hub/static/creative_checkout.*', 'client-hub/templates/creative_checkout.html', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/tests/test_kilas_translator_navigation*', 'client-hub/tests/creative_services_offer_facts.json', 'client-hub/tests/creative_portfolio_sources.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
+    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/tests/creative_checkout_browser.py', 'client-hub/tests/creative_checkout_postgres.py', 'client-hub/creative_orders.py', 'client-hub/creative_catalog.json', 'client-hub/routes_creative_checkout.py', 'client-hub/static/creative_checkout.*', 'client-hub/templates/creative_checkout.html', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/tests/test_kilas_translator_navigation*', 'client-hub/tests/creative_services_offer_facts.json', 'client-hub/tests/creative_portfolio_sources.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', 'scripts/qa/creative_services_release_contract.py', '.github/workflows/kilas-creative-services-qa.yml']
   push:
     branches: [main]
-    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/tests/creative_checkout_browser.py', 'client-hub/tests/creative_checkout_postgres.py', 'client-hub/creative_orders.py', 'client-hub/creative_catalog.json', 'client-hub/routes_creative_checkout.py', 'client-hub/static/creative_checkout.*', 'client-hub/templates/creative_checkout.html', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/tests/test_kilas_translator_navigation*', 'client-hub/tests/creative_services_offer_facts.json', 'client-hub/tests/creative_portfolio_sources.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', '.github/workflows/kilas-creative-services-qa.yml']
+    paths: ['creative-services-site/**', 'client-hub/creative-services-site/**', 'client-hub/tests/test_creative*', 'client-hub/tests/creative_checkout_browser.py', 'client-hub/tests/creative_checkout_postgres.py', 'client-hub/creative_orders.py', 'client-hub/creative_catalog.json', 'client-hub/routes_creative_checkout.py', 'client-hub/static/creative_checkout.*', 'client-hub/templates/creative_checkout.html', 'client-hub/templates/kilas_ai/_home_task_selector.html', 'client-hub/tests/test_kilas_translator_navigation*', 'client-hub/tests/creative_services_offer_facts.json', 'client-hub/tests/creative_portfolio_sources.json', 'scripts/package_creative_services.py', 'scripts/qa/creative_services_release_browser.py', 'scripts/qa/creative_services_release_contract.py', '.github/workflows/kilas-creative-services-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,6 +23,10 @@ jobs:
       - run: python -B -m unittest discover -s client-hub/tests -p test_creative_checkout.py -v
       - run: python -B client-hub/tests/creative_checkout_browser.py
       - run: python -B client-hub/tests/test_creative_checkout_layout_browser.py
+      - run: python -B client-hub/tests/test_creative_language_persistence_browser.py
+      - run: python -B scripts/qa/creative_services_release_browser.py --local-app
+      - run: python -B scripts/qa/creative_services_release_browser.py --local
+      - run: python -B client-hub/tests/test_creative_locale_mobile_browser.py
       - run: python -B client-hub/tests/test_creative_studio_browser.py
         env: {KILAS_STUDIO_SCREENSHOTS: /tmp/creative-studio-qa}
       - uses: actions/upload-artifact@v4
@@ -78,7 +82,9 @@ jobs:
       - name: Wait for exact released index and verify image assets and health
         shell: python
         run: |
-          import hashlib,json,pathlib,time,urllib.request
+          import hashlib,json,pathlib,time,urllib.request,sys
+          sys.path.insert(0,"scripts/qa")
+          from creative_services_release_contract import verify_released_html
           origin='https://kilas-works-client-hub.onrender.com'
           root=pathlib.Path('creative-services-site')
           expected=(root/'index.html').read_bytes()
@@ -88,7 +94,9 @@ jobs:
                   try:
                       with urllib.request.urlopen(host+prefix,timeout=20) as response:
                           actual=response.read()
-                      if actual==expected: break
+                          headers=dict(response.headers)
+                      verify_released_html(actual,expected,headers,app_served=prefix=='/creative-services/')
+                      break
                   except Exception as error:
                       print('Waiting for Creative Services release:',host,type(error).__name__,flush=True)
                   time.sleep(10)

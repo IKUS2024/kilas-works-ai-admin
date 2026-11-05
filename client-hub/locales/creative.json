@@ -1,0 +1,1190 @@
+{
+  "Langsung ke konten": {
+    "id": "Langsung ke konten",
+    "en": "Skip to content",
+    "es": "Saltar al contenido",
+    "zh": "跳至内容"
+  },
+  "Layanan": {
+    "id": "Layanan",
+    "en": "Services",
+    "es": "Servicios",
+    "zh": "服务"
+  },
+  "Portofolio": {
+    "id": "Portofolio",
+    "en": "Portfolio",
+    "es": "Portafolio",
+    "zh": "作品集"
+  },
+  "Konsultasi": {
+    "id": "Konsultasi",
+    "en": "Enquiries",
+    "es": "Consultas",
+    "zh": "咨询"
+  },
+  "Kembali ke Home": {
+    "id": "Kembali ke Home",
+    "en": "Back to Home",
+    "es": "Volver al inicio",
+    "zh": "返回首页"
+  },
+  "Momen jadi cerita.": {
+    "id": "Momen jadi cerita",
+    "en": "Moments into stories",
+    "es": "Momentos que se convierten en historias",
+    "zh": "让瞬间成为故事"
+  },
+  "Ide jadi konten.": {
+    "id": "Ide jadi konten",
+    "en": "Ideas into content",
+    "es": "Ideas que se convierten en contenido",
+    "zh": "让创意成为内容"
+  },
+  "Foto & video acara. Perencanaan dan produksi konten media sosial.": {
+    "id": "Foto & video acara. Perencanaan dan produksi konten media sosial.",
+    "en": "Event photography & video. Social media content planning and production.",
+    "es": "Fotografía y vídeo de eventos. Planificación y producción de contenido para redes sociales.",
+    "zh": "活动摄影与视频制作，社交媒体内容策划与制作"
+  },
+  "Ceritakan proyek Anda": {
+    "id": "Ceritakan proyek Anda",
+    "en": "Tell us about your project",
+    "es": "Cuéntanos tu proyecto",
+    "zh": "介绍您的项目"
+  },
+  "Lihat karya": {
+    "id": "Lihat karya",
+    "en": "See our work",
+    "es": "Ver nuestros trabajos",
+    "zh": "查看作品"
+  },
+  "Visual ilustrasi": {
+    "id": "Visual ilustrasi",
+    "en": "Illustrative visuals",
+    "es": "Imágenes ilustrativas",
+    "zh": "示意图"
+  },
+  "Dua layanan. Satu tim kreatif.": {
+    "id": "Dua layanan. Satu tim kreatif",
+    "en": "Two services. One creative team",
+    "es": "Dos servicios, un equipo creativo",
+    "zh": "两项服务，一个创意团队"
+  },
+  "Perencanaan dan produksi konten foto serta video untuk bisnis Anda.": {
+    "id": "Perencanaan dan produksi konten foto serta video untuk bisnis Anda.",
+    "en": "Photo and video content planning and production for your business.",
+    "es": "Planificación y producción de fotos y vídeos para tu negocio.",
+    "zh": "为您的企业策划和制作照片及视频内容"
+  },
+  "Foto & video acara": {
+    "id": "Foto & video acara",
+    "en": "Event photography & video",
+    "es": "Fotografía y vídeo de eventos",
+    "zh": "活动摄影与视频"
+  },
+  "Dokumentasi acara, dari foto pilihan hingga video highlight.": {
+    "id": "Dokumentasi acara, dari foto pilihan hingga video highlight.",
+    "en": "Event coverage, from selected photos to highlight videos.",
+    "es": "Cobertura de eventos, desde fotos seleccionadas hasta vídeos de momentos destacados.",
+    "zh": "活动记录，从精选照片到精彩集锦视频"
+  },
+  "Lihat paket": {
+    "id": "Lihat paket",
+    "en": "View packages",
+    "es": "Ver paquetes",
+    "zh": "查看套餐"
+  },
+  "Content plan bulanan": {
+    "id": "Content plan bulanan",
+    "en": "Monthly content plans",
+    "es": "Planes mensuales de contenido",
+    "zh": "每月内容计划"
+  },
+  "Add-on Influencer": {
+    "id": "Add-on Influencer",
+    "en": "Influencer add-on",
+    "es": "Complemento de influencer",
+    "zh": "达人附加服务"
+  },
+  "Kembali ke pilihan layanan": {
+    "id": "Kembali ke pilihan layanan",
+    "en": "Back to service choices",
+    "es": "Volver a los servicios",
+    "zh": "返回服务选项"
+  },
+  "Foto & Video Acara": {
+    "id": "Foto & Video Acara",
+    "en": "Event Photography & Videography",
+    "es": "Fotografía y videografía de eventos",
+    "zh": "活动摄影与摄像"
+  },
+  "Pilih cakupan dokumentasi untuk acara Anda.": {
+    "id": "Pilih cakupan dokumentasi untuk acara Anda.",
+    "en": "Choose the coverage for your event.",
+    "es": "Elige la cobertura de tu evento.",
+    "zh": "选择活动拍摄范围"
+  },
+  "HARGA PER ACARA": {
+    "id": "HARGA PER ACARA",
+    "en": "PRICED PER EVENT",
+    "es": "PRECIO POR EVENTO",
+    "zh": "按场次计费"
+  },
+  "/acara": {
+    "id": "/acara",
+    "en": "/event",
+    "es": "/evento",
+    "zh": "/场"
+  },
+  "Maksimal": {
+    "id": "Maksimal",
+    "en": "Up to",
+    "es": "Hasta",
+    "zh": "最多"
+  },
+  "foto pilihan klien yang diedit": {
+    "id": "foto pilihan klien yang diedit",
+    "en": "client-selected edited photos",
+    "es": "fotos editadas elegidas por el cliente",
+    "zh": "张客户选定的精修照片"
+  },
+  "1 fotografer": {
+    "id": "1 fotografer",
+    "en": "1 photographer",
+    "es": "1 fotógrafo",
+    "zh": "1 名摄影师"
+  },
+  "Durasi hingga 5 jam": {
+    "id": "Durasi hingga 5 jam",
+    "en": "Up to 5 hours of coverage",
+    "es": "Hasta 5 horas de cobertura",
+    "zh": "最长 5 小时拍摄"
+  },
+  "Semua file foto asli": {
+    "id": "Semua file foto asli",
+    "en": "All original photo files",
+    "es": "Todos los archivos de fotos originales",
+    "zh": "全部原始照片文件"
+  },
+  "1 kali revisi editing": {
+    "id": "1 kali revisi editing",
+    "en": "1 editing revision",
+    "es": "1 revisión de edición",
+    "zh": "1 次后期修改"
+  },
+  "Pilih Basic": {
+    "id": "Pilih Basic",
+    "en": "Choose Basic",
+    "es": "Elegir Basic",
+    "zh": "选择 Basic"
+  },
+  "1 fotografer + 1 videografer": {
+    "id": "1 fotografer + 1 videografer",
+    "en": "1 photographer + 1 videographer",
+    "es": "1 fotógrafo + 1 videógrafo",
+    "zh": "1 名摄影师 + 1 名摄像师"
+  },
+  "Durasi hingga 8 jam": {
+    "id": "Durasi hingga 8 jam",
+    "en": "Up to 8 hours of coverage",
+    "es": "Hasta 8 horas de cobertura",
+    "zh": "最长 8 小时拍摄"
+  },
+  "Semua file foto & video asli": {
+    "id": "Semua file foto & video asli",
+    "en": "All original photo & video files",
+    "es": "Todos los archivos de fotos y vídeos originales",
+    "zh": "全部原始照片与视频文件"
+  },
+  "Video Highlight Acara": {
+    "id": "Video Highlight Acara",
+    "en": "Event Highlight Video",
+    "es": "Vídeo de momentos destacados",
+    "zh": "活动精彩集锦视频"
+  },
+  "Pilih Standard": {
+    "id": "Pilih Standard",
+    "en": "Choose Standard",
+    "es": "Elegir Standard",
+    "zh": "选择 Standard"
+  },
+  "Teaser Instagram Reels": {
+    "id": "Teaser Instagram Reels",
+    "en": "Instagram Reels Teaser",
+    "es": "Avance para Instagram Reels",
+    "zh": "Instagram Reels 预告片"
+  },
+  "2 kali revisi editing": {
+    "id": "2 kali revisi editing",
+    "en": "2 editing revisions",
+    "es": "2 revisiones de edición",
+    "zh": "2 次后期修改"
+  },
+  "Pengambilan video udara menggunakan drone": {
+    "id": "Pengambilan video udara menggunakan drone",
+    "en": "Aerial video footage captured with a drone",
+    "es": "Vídeo aéreo grabado con dron",
+    "zh": "无人机航拍视频"
+  },
+  "Pengambilan gambar drone menyesuaikan cuaca, kondisi lokasi, dan izin penerbangan.": {
+    "id": "Pengambilan gambar drone menyesuaikan cuaca, kondisi lokasi, dan izin penerbangan.",
+    "en": "Drone filming is subject to weather, site conditions, and flight permissions.",
+    "es": "La grabación con dron depende del clima, del lugar y de los permisos de vuelo.",
+    "zh": "无人机拍摄取决于天气、场地条件及飞行许可"
+  },
+  "Pilih Premium": {
+    "id": "Pilih Premium",
+    "en": "Choose Premium",
+    "es": "Elegir Premium",
+    "zh": "选择 Premium"
+  },
+  "Foto yang diedit dipilih oleh klien. Revisi berlaku untuk proses editing.": {
+    "id": "Foto yang diedit dipilih oleh klien. Revisi berlaku untuk proses editing.",
+    "en": "Edited photos are selected by the client. Revisions apply to editing.",
+    "es": "El cliente elige las fotos para editar. Las revisiones se aplican a la edición.",
+    "zh": "精修照片由客户选择，修改适用于后期编辑"
+  },
+  "Content Plan Media Sosial": {
+    "id": "Content Plan Media Sosial",
+    "en": "Social Media Content Plan",
+    "es": "Plan de contenido para redes sociales",
+    "zh": "社交媒体内容计划"
+  },
+  "Jumlah konten yang jelas untuk setiap bulan.": {
+    "id": "Jumlah konten yang jelas untuk setiap bulan.",
+    "en": "Clearly defined content quantities each month.",
+    "es": "Cantidades de contenido definidas cada mes.",
+    "zh": "每月明确的内容数量"
+  },
+  "PAKET BULANAN": {
+    "id": "PAKET BULANAN",
+    "en": "MONTHLY PACKAGES",
+    "es": "PAQUETES MENSUALES",
+    "zh": "月度套餐"
+  },
+  "/bulan": {
+    "id": "/bulan",
+    "en": "/month",
+    "es": "/mes",
+    "zh": "/月"
+  },
+  "8 video dan 8 foto setiap bulan.": {
+    "id": "8 video dan 8 foto setiap bulan.",
+    "en": "8 videos and 8 photos each month.",
+    "es": "8 vídeos y 8 fotos al mes.",
+    "zh": "每月 8 个视频和 8 张照片"
+  },
+  "Konten Video": {
+    "id": "Konten Video",
+    "en": "Video Content",
+    "es": "Contenido de vídeo",
+    "zh": "视频内容"
+  },
+  "Konten Foto": {
+    "id": "Konten Foto",
+    "en": "Photo Content",
+    "es": "Contenido fotográfico",
+    "zh": "照片内容"
+  },
+  "Konsep Konten": {
+    "id": "Konsep Konten",
+    "en": "Content Concept",
+    "es": "Concepto de contenido",
+    "zh": "内容创意"
+  },
+  "Kalender Konten": {
+    "id": "Kalender Konten",
+    "en": "Content Calendar",
+    "es": "Calendario de contenido",
+    "zh": "内容日历"
+  },
+  "Penulisan Naskah": {
+    "id": "Penulisan Naskah",
+    "en": "Scriptwriting",
+    "es": "Redacción de guiones",
+    "zh": "脚本撰写"
+  },
+  "Produksi Foto & Video": {
+    "id": "Produksi Foto & Video",
+    "en": "Photo & Video Production",
+    "es": "Producción de fotos y vídeos",
+    "zh": "照片与视频制作"
+  },
+  "Editing": {
+    "id": "Editing",
+    "en": "Editing",
+    "es": "Edición",
+    "zh": "后期编辑"
+  },
+  "Caption": {
+    "id": "Caption",
+    "en": "Captions",
+    "es": "Textos de publicaciones",
+    "zh": "发布文案"
+  },
+  "Penjadwalan Posting": {
+    "id": "Penjadwalan Posting",
+    "en": "Post Scheduling",
+    "es": "Programación de publicaciones",
+    "zh": "发布排期"
+  },
+  "Evaluasi Performa": {
+    "id": "Evaluasi Performa",
+    "en": "Performance Review",
+    "es": "Evaluación de resultados",
+    "zh": "效果评估"
+  },
+  "12 video dan 12 foto setiap bulan.": {
+    "id": "12 video dan 12 foto setiap bulan.",
+    "en": "12 videos and 12 photos each month.",
+    "es": "12 vídeos y 12 fotos al mes.",
+    "zh": "每月 12 个视频和 12 张照片"
+  },
+  "Talent / Influencer": {
+    "id": "Talent / Influencer",
+    "en": "Talent / Influencer",
+    "es": "Talento / Influencer",
+    "zh": "出镜人员 / 达人"
+  },
+  "Influencer": {
+    "id": "Influencer",
+    "en": "Influencer",
+    "es": "Influencer",
+    "zh": "达人"
+  },
+  "Pilihan tambahan untuk paket konten media sosial.": {
+    "id": "Pilihan tambahan untuk paket konten media sosial.",
+    "en": "Optional additions to your social media content package.",
+    "es": "Complementos opcionales para tu paquete de contenido de redes sociales.",
+    "zh": "社交媒体内容套餐的可选附加服务"
+  },
+  "ADD-ON OPSIONAL": {
+    "id": "ADD-ON OPSIONAL",
+    "en": "OPTIONAL ADD-ONS",
+    "es": "COMPLEMENTOS OPCIONALES",
+    "zh": "可选附加服务"
+  },
+  "Rentang jumlah pengikut talent": {
+    "id": "Rentang jumlah pengikut talent",
+    "en": "Talent follower ranges",
+    "es": "Rangos de seguidores del talento",
+    "zh": "出镜人员粉丝数量范围"
+  },
+  "10 ribu–<100 ribu pengikut": {
+    "id": "10 ribu–<100 ribu pengikut",
+    "en": "10K–<100K followers",
+    "es": "10 mil–<100 mil seguidores",
+    "zh": "1 万至不足 10 万粉丝"
+  },
+  "Kolaborasi Konten": {
+    "id": "Kolaborasi Konten",
+    "en": "Content Collaboration",
+    "es": "Colaboración de contenido",
+    "zh": "内容合作"
+  },
+  "100 ribu–<1 juta pengikut": {
+    "id": "100 ribu–<1 juta pengikut",
+    "en": "100K–<1M followers",
+    "es": "100 mil–<1 millón de seguidores",
+    "zh": "10 万至不足 100 万粉丝"
+  },
+  "1 juta+ pengikut": {
+    "id": "1 juta+ pengikut",
+    "en": "1M+ followers",
+    "es": "Más de 1 millón de seguidores",
+    "zh": "100 万以上粉丝"
+  },
+  "Lihat karya kami": {
+    "id": "Lihat karya kami",
+    "en": "See our work",
+    "es": "Ver nuestros trabajos",
+    "zh": "查看作品"
+  },
+  "Pilihan karya Kilas Works.": {
+    "id": "Pilihan karya Kilas Works.",
+    "en": "Selected Kilas Works videos.",
+    "es": "Vídeos seleccionados de Kilas Works.",
+    "zh": "Kilas Works 精选视频"
+  },
+  "(tab baru)": {
+    "id": "(tab baru)",
+    "en": "(new tab)",
+    "es": "(nueva pestaña)",
+    "zh": "（新标签页）"
+  },
+  "Tonton video": {
+    "id": "Tonton video",
+    "en": "Watch video",
+    "es": "Ver vídeo",
+    "zh": "观看视频"
+  },
+  "Profil perusahaan": {
+    "id": "Profil perusahaan",
+    "en": "Company profile",
+    "es": "Presentación de empresa",
+    "zh": "企业介绍"
+  },
+  "CT Advance Technology": {
+    "id": "CT Advance Technology",
+    "en": "CT Advance Technology",
+    "es": "CT Advance Technology",
+    "zh": "CT Advance Technology"
+  },
+  "Acara ulang tahun": {
+    "id": "Acara ulang tahun",
+    "en": "Birthday event",
+    "es": "Cumpleaños",
+    "zh": "生日活动"
+  },
+  "Tonton Reel": {
+    "id": "Tonton Reel",
+    "en": "Watch Reel",
+    "es": "Ver Reel",
+    "zh": "观看短视频"
+  },
+  "Reel kolam renang": {
+    "id": "Reel kolam renang",
+    "en": "Pool Reel",
+    "es": "Reel de piscina",
+    "zh": "泳池短视频"
+  },
+  "Reel percakapan": {
+    "id": "Reel percakapan",
+    "en": "Conversation Reel",
+    "es": "Reel de conversación",
+    "zh": "对话短视频"
+  },
+  "Reel biliar": {
+    "id": "Reel biliar",
+    "en": "Billiards Reel",
+    "es": "Reel de billar",
+    "zh": "台球短视频"
+  },
+  "Kantor": {
+    "id": "Kantor",
+    "en": "Office",
+    "es": "Oficina",
+    "zh": "办公室"
+  },
+  "Telepon / WhatsApp": {
+    "id": "Telepon / WhatsApp",
+    "en": "Phone / WhatsApp",
+    "es": "Teléfono / WhatsApp",
+    "zh": "电话 / WhatsApp"
+  },
+  "Mulai dari cerita Anda.": {
+    "id": "Mulai dari cerita Anda",
+    "en": "Start with your story",
+    "es": "Empieza con tu historia",
+    "zh": "从您的故事开始"
+  },
+  "Ceritakan kebutuhan proyek Anda.": {
+    "id": "Ceritakan kebutuhan proyek Anda.",
+    "en": "Tell us what your project needs.",
+    "es": "Cuéntanos qué necesita tu proyecto.",
+    "zh": "介绍您的项目需求"
+  },
+  "Tanyakan waktu penyerahan, area layanan, jadwal shooting, serta cakupan talent/influencer saat konsultasi.": {
+    "id": "Tanyakan waktu penyerahan, area layanan, jadwal shooting, serta cakupan talent/influencer saat konsultasi.",
+    "en": "Ask about delivery time, service area, shoot scheduling and talent/influencer scope during your consultation.",
+    "es": "Consulta los plazos de entrega, la zona de servicio, el calendario de rodaje y el alcance del talento o influencer.",
+    "zh": "咨询交付时间、服务区域、拍摄排期及出镜人员或达人的服务范围"
+  },
+  "Tanggal acara / target": {
+    "id": "Tanggal acara / target",
+    "en": "Event / target date",
+    "es": "Fecha del evento / objetivo",
+    "zh": "活动 / 目标日期"
+  },
+  "Lokasi": {
+    "id": "Lokasi",
+    "en": "Location",
+    "es": "Ubicación",
+    "zh": "地点"
+  },
+  "Kebutuhan Anda": {
+    "id": "Kebutuhan Anda",
+    "en": "What you need",
+    "es": "Qué necesitas",
+    "zh": "您的需求"
+  },
+  "Siapkan pesan WhatsApp": {
+    "id": "Siapkan pesan WhatsApp",
+    "en": "Prepare WhatsApp message",
+    "es": "Preparar mensaje de WhatsApp",
+    "zh": "准备 WhatsApp 消息"
+  },
+  "Tinjau & edit pesan": {
+    "id": "Tinjau & edit pesan",
+    "en": "Review & edit message",
+    "es": "Revisar y editar mensaje",
+    "zh": "检查并编辑消息"
+  },
+  "Pesan WhatsApp — bisa diedit": {
+    "id": "Pesan WhatsApp — bisa diedit",
+    "en": "WhatsApp message — editable",
+    "es": "Mensaje de WhatsApp — editable",
+    "zh": "WhatsApp 消息 — 可编辑"
+  },
+  "Periksa dan edit pesan. WhatsApp dibuka setelah Anda klik; pesan tidak terkirim otomatis.": {
+    "id": "Periksa dan edit pesan. WhatsApp dibuka setelah Anda klik; pesan tidak terkirim otomatis.",
+    "en": "Review and edit the message. WhatsApp opens when you click; nothing is sent automatically.",
+    "es": "Revisa y edita el mensaje. WhatsApp se abre al hacer clic; no se envía nada automáticamente.",
+    "zh": "请检查并编辑消息，点击后打开 WhatsApp，消息不会自动发送"
+  },
+  "Hubungi via WhatsApp": {
+    "id": "Hubungi via WhatsApp",
+    "en": "Contact via WhatsApp",
+    "es": "Contactar por WhatsApp",
+    "zh": "通过 WhatsApp 联系"
+  },
+  "Kontak WhatsApp belum tersedia.": {
+    "id": "Kontak WhatsApp belum tersedia.",
+    "en": "WhatsApp contact is not yet available.",
+    "es": "El contacto de WhatsApp aún no está disponible.",
+    "zh": "WhatsApp 联系方式暂不可用"
+  },
+  "Pesan tidak terkirim otomatis.": {
+    "id": "Pesan tidak terkirim otomatis.",
+    "en": "Messages are never sent automatically.",
+    "es": "Los mensajes nunca se envían automáticamente.",
+    "zh": "消息绝不会自动发送"
+  },
+  "Checkout": {
+    "id": "Checkout",
+    "en": "Checkout",
+    "es": "Pago",
+    "zh": "结账"
+  },
+  "Pembayaran": {
+    "id": "Pembayaran",
+    "en": "Payment",
+    "es": "Pago",
+    "zh": "付款"
+  },
+  "Pesanan": {
+    "id": "Pesanan",
+    "en": "Orders",
+    "es": "Pedidos",
+    "zh": "订单"
+  },
+  "Buka navigasi": {
+    "id": "Buka navigasi",
+    "en": "Open navigation",
+    "es": "Abrir navegación",
+    "zh": "打开导航"
+  },
+  "Pesanan saya": {
+    "id": "Pesanan saya",
+    "en": "My orders",
+    "es": "Mis pedidos",
+    "zh": "我的订单"
+  },
+  "Kembali": {
+    "id": "Kembali",
+    "en": "Back",
+    "es": "Volver",
+    "zh": "返回"
+  },
+  "Data Pemesan": {
+    "id": "Data Pemesan",
+    "en": "Customer details",
+    "es": "Datos del cliente",
+    "zh": "客户信息"
+  },
+  "Nama lengkap": {
+    "id": "Nama lengkap",
+    "en": "Full name",
+    "es": "Nombre completo",
+    "zh": "姓名"
+  },
+  "Masukkan nama lengkap": {
+    "id": "Masukkan nama lengkap",
+    "en": "Enter your full name",
+    "es": "Introduce tu nombre completo",
+    "zh": "输入姓名"
+  },
+  "Nomor WhatsApp": {
+    "id": "Nomor WhatsApp",
+    "en": "WhatsApp number",
+    "es": "Número de WhatsApp",
+    "zh": "WhatsApp 号码"
+  },
+  "Masukkan nomor WhatsApp": {
+    "id": "Masukkan nomor WhatsApp",
+    "en": "Enter your WhatsApp number",
+    "es": "Introduce tu número de WhatsApp",
+    "zh": "输入 WhatsApp 号码"
+  },
+  "Tanggal acara": {
+    "id": "Tanggal acara",
+    "en": "Event date",
+    "es": "Fecha del evento",
+    "zh": "活动日期"
+  },
+  "Pilih tanggal acara": {
+    "id": "Pilih tanggal acara",
+    "en": "Choose an event date",
+    "es": "Elige una fecha",
+    "zh": "选择活动日期"
+  },
+  "Lokasi acara": {
+    "id": "Lokasi acara",
+    "en": "Event location",
+    "es": "Lugar del evento",
+    "zh": "活动地点"
+  },
+  "Masukkan lokasi acara (contoh: Jakarta Selatan)": {
+    "id": "Masukkan lokasi acara (contoh: Jakarta Selatan)",
+    "en": "Enter the event location (e.g. South Jakarta)",
+    "es": "Introduce el lugar (p. ej., Yakarta Sur)",
+    "zh": "输入活动地点（如南雅加达）"
+  },
+  "Nama bisnis / brand": {
+    "id": "Nama bisnis / brand",
+    "en": "Business / brand name",
+    "es": "Nombre del negocio / marca",
+    "zh": "企业 / 品牌名称"
+  },
+  "Masukkan nama bisnis atau brand": {
+    "id": "Masukkan nama bisnis atau brand",
+    "en": "Enter your business or brand name",
+    "es": "Introduce el nombre del negocio o marca",
+    "zh": "输入企业或品牌名称"
+  },
+  "Akun media sosial": {
+    "id": "Akun media sosial",
+    "en": "Social media account",
+    "es": "Cuenta de redes sociales",
+    "zh": "社交媒体账号"
+  },
+  "Masukkan akun media sosial (contoh: @namabrand)": {
+    "id": "Masukkan akun media sosial (contoh: @namabrand)",
+    "en": "Enter a social account (e.g. @brandname)",
+    "es": "Introduce una cuenta (p. ej., @marca)",
+    "zh": "输入社交媒体账号（如 @品牌名）"
+  },
+  "Add-on influencer": {
+    "id": "Add-on influencer",
+    "en": "Influencer add-on",
+    "es": "Complemento de influencer",
+    "zh": "达人附加服务"
+  },
+  "(Opsional)": {
+    "id": "(Opsional)",
+    "en": "(Optional)",
+    "es": "(Opcional)",
+    "zh": "（选填）"
+  },
+  "Catatan": {
+    "id": "Catatan",
+    "en": "Notes",
+    "es": "Notas",
+    "zh": "备注"
+  },
+  "Tambahkan catatan (opsional)": {
+    "id": "Tambahkan catatan (opsional)",
+    "en": "Add notes (optional)",
+    "es": "Añade notas (opcional)",
+    "zh": "添加备注（选填）"
+  },
+  "Ringkasan Pesanan": {
+    "id": "Ringkasan Pesanan",
+    "en": "Order summary",
+    "es": "Resumen del pedido",
+    "zh": "订单摘要"
+  },
+  "Paket": {
+    "id": "Paket",
+    "en": "Package",
+    "es": "Paquete",
+    "zh": "套餐"
+  },
+  "bulan": {
+    "id": "bulan",
+    "en": "month",
+    "es": "mes",
+    "zh": "月"
+  },
+  "acara": {
+    "id": "acara",
+    "en": "event",
+    "es": "evento",
+    "zh": "场"
+  },
+  "Lanjutkan": {
+    "id": "Lanjutkan",
+    "en": "Continue",
+    "es": "Continuar",
+    "zh": "继续"
+  },
+  "Masuk untuk melanjutkan": {
+    "id": "Masuk untuk melanjutkan",
+    "en": "Sign in to continue",
+    "es": "Inicia sesión para continuar",
+    "zh": "登录以继续"
+  },
+  "Masuk / daftar": {
+    "id": "Masuk / daftar",
+    "en": "Sign in / register",
+    "es": "Iniciar sesión / registrarse",
+    "zh": "登录 / 注册"
+  },
+  "Masuk untuk menyimpan pesanan dan mengirim bukti transfer.": {
+    "id": "Masuk untuk menyimpan pesanan dan mengirim bukti transfer.",
+    "en": "Sign in to save your order and upload payment proof.",
+    "es": "Inicia sesión para guardar tu pedido y subir el comprobante de pago.",
+    "zh": "登录以保存订单并上传付款凭证"
+  },
+  "Transfer ke rekening berikut.": {
+    "id": "Transfer ke rekening berikut.",
+    "en": "Transfer to the following bank account.",
+    "es": "Transfiere a la siguiente cuenta bancaria.",
+    "zh": "请转账至以下银行账户"
+  },
+  "Nomor rekening": {
+    "id": "Nomor rekening",
+    "en": "Account number",
+    "es": "Número de cuenta",
+    "zh": "银行账号"
+  },
+  "Salin nomor rekening": {
+    "id": "Salin nomor rekening",
+    "en": "Copy account number",
+    "es": "Copiar número de cuenta",
+    "zh": "复制银行账号"
+  },
+  "Atas nama": {
+    "id": "Atas nama",
+    "en": "Account holder",
+    "es": "Titular de la cuenta",
+    "zh": "账户名称"
+  },
+  "Pesanan dibatalkan": {
+    "id": "Pesanan dibatalkan",
+    "en": "Order cancelled",
+    "es": "Pedido cancelado",
+    "zh": "订单已取消"
+  },
+  "Pembayaran terverifikasi": {
+    "id": "Pembayaran terverifikasi",
+    "en": "Payment verified",
+    "es": "Pago verificado",
+    "zh": "付款已核实"
+  },
+  "Pesanan ditutup": {
+    "id": "Pesanan ditutup",
+    "en": "Order closed",
+    "es": "Pedido cerrado",
+    "zh": "订单已关闭"
+  },
+  "Bukti terkirim": {
+    "id": "Bukti terkirim",
+    "en": "Proof submitted",
+    "es": "Comprobante enviado",
+    "zh": "凭证已提交"
+  },
+  "Pesanan ini tidak menerima pembayaran.": {
+    "id": "Pesanan ini tidak menerima pembayaran.",
+    "en": "This order does not accept payments.",
+    "es": "Este pedido no acepta pagos.",
+    "zh": "此订单不接受付款"
+  },
+  "Status pembayaran: terverifikasi.": {
+    "id": "Status pembayaran: terverifikasi.",
+    "en": "Payment status: verified.",
+    "es": "Estado del pago: verificado.",
+    "zh": "付款状态：已核实"
+  },
+  "Pesanan ini tidak menerima bukti transfer.": {
+    "id": "Pesanan ini tidak menerima bukti transfer.",
+    "en": "This order does not accept payment proof.",
+    "es": "Este pedido no acepta comprobantes de pago.",
+    "zh": "此订单不接受付款凭证"
+  },
+  "Status pembayaran: menunggu verifikasi.": {
+    "id": "Status pembayaran: menunggu verifikasi.",
+    "en": "Payment status: awaiting verification.",
+    "es": "Estado del pago: pendiente de verificación.",
+    "zh": "付款状态：等待核实"
+  },
+  "Lihat bukti transfer": {
+    "id": "Lihat bukti transfer",
+    "en": "View payment proof",
+    "es": "Ver comprobante de pago",
+    "zh": "查看付款凭证"
+  },
+  "Detail Pesanan": {
+    "id": "Detail Pesanan",
+    "en": "Order details",
+    "es": "Detalles del pedido",
+    "zh": "订单详情"
+  },
+  "Bukti perlu diperbarui.": {
+    "id": "Bukti perlu diperbarui.",
+    "en": "Please update your payment proof.",
+    "es": "Actualiza el comprobante de pago.",
+    "zh": "请更新付款凭证"
+  },
+  "Unggah Bukti Transfer": {
+    "id": "Unggah Bukti Transfer",
+    "en": "Upload payment proof",
+    "es": "Subir comprobante de pago",
+    "zh": "上传付款凭证"
+  },
+  "Unggah bukti transfer": {
+    "id": "Unggah bukti transfer",
+    "en": "Upload payment proof",
+    "es": "Subir comprobante de pago",
+    "zh": "上传付款凭证"
+  },
+  "Pilih foto bukti transfer": {
+    "id": "Pilih foto bukti transfer",
+    "en": "Choose a payment proof photo",
+    "es": "Elige una foto del comprobante",
+    "zh": "选择付款凭证照片"
+  },
+  "PNG atau JPEG · maksimal 5 MB": {
+    "id": "PNG atau JPEG · maksimal 5 MB",
+    "en": "PNG or JPEG · up to 5 MB",
+    "es": "PNG o JPEG · máximo 5 MB",
+    "zh": "PNG 或 JPEG · 最大 5 MB"
+  },
+  "Kirim bukti": {
+    "id": "Kirim bukti",
+    "en": "Submit proof",
+    "es": "Enviar comprobante",
+    "zh": "提交凭证"
+  },
+  "Dibatalkan": {
+    "id": "Dibatalkan",
+    "en": "Cancelled",
+    "es": "Cancelado",
+    "zh": "已取消"
+  },
+  "Terverifikasi": {
+    "id": "Terverifikasi",
+    "en": "Verified",
+    "es": "Verificado",
+    "zh": "已核实"
+  },
+  "Menunggu verifikasi": {
+    "id": "Menunggu verifikasi",
+    "en": "Awaiting verification",
+    "es": "Pendiente de verificación",
+    "zh": "等待核实"
+  },
+  "Ditutup": {
+    "id": "Ditutup",
+    "en": "Closed",
+    "es": "Cerrado",
+    "zh": "已关闭"
+  },
+  "Unggah bukti": {
+    "id": "Unggah bukti",
+    "en": "Upload proof",
+    "es": "Subir comprobante",
+    "zh": "上传凭证"
+  },
+  "Belum ada pesanan Creative Services.": {
+    "id": "Belum ada pesanan Creative Services.",
+    "en": "No Creative Services orders yet.",
+    "es": "Aún no hay pedidos de servicios creativos.",
+    "zh": "暂无创意服务订单"
+  },
+  "Pilih layanan": {
+    "id": "Pilih layanan",
+    "en": "Choose a service",
+    "es": "Elige un servicio",
+    "zh": "选择服务"
+  },
+  "Ilustrasi operator kamera merekam pernikahan": {
+    "id": "Ilustrasi operator kamera merekam pernikahan",
+    "en": "Illustration of a camera operator filming a wedding",
+    "es": "Ilustración de una persona grabando una boda",
+    "zh": "摄像师拍摄婚礼示意图"
+  },
+  "Ilustrasi ponsel merekam produk dengan ring light dan laptop editing": {
+    "id": "Ilustrasi ponsel merekam produk dengan ring light dan laptop editing",
+    "en": "Illustration of a phone filming a product with a ring light and editing laptop",
+    "es": "Ilustración de un teléfono grabando un producto con aro de luz y portátil de edición",
+    "zh": "手机配合环形灯拍摄产品及笔记本剪辑示意图"
+  },
+  "Nomor rekening disalin.": {
+    "id": "Nomor rekening disalin.",
+    "en": "Account number copied.",
+    "es": "Número de cuenta copiado.",
+    "zh": "银行账号已复制"
+  },
+  "Nomor rekening dipilih. Gunakan menu Salin perangkat Anda.": {
+    "id": "Nomor rekening dipilih. Gunakan menu Salin perangkat Anda.",
+    "en": "Account number selected. Use your device’s Copy menu.",
+    "es": "Número de cuenta seleccionado. Usa el menú Copiar del dispositivo.",
+    "zh": "已选中银行账号，请使用设备的复制菜单"
+  },
+  "Ukuran foto maksimal 5 MB.": {
+    "id": "Ukuran foto maksimal 5 MB.",
+    "en": "Photo size must not exceed 5 MB.",
+    "es": "La foto no debe superar los 5 MB.",
+    "zh": "照片大小不得超过 5 MB"
+  },
+  "Pilih foto PNG atau JPEG.": {
+    "id": "Pilih foto PNG atau JPEG.",
+    "en": "Choose a PNG or JPEG photo.",
+    "es": "Elige una foto PNG o JPEG.",
+    "zh": "请选择 PNG 或 JPEG 照片"
+  },
+  "Menyimpan…": {
+    "id": "Menyimpan…",
+    "en": "Saving…",
+    "es": "Guardando…",
+    "zh": "正在保存…"
+  },
+  "Tanpa add-on": {
+    "id": "Tanpa add-on",
+    "en": "No add-on",
+    "es": "Sin complemento",
+    "zh": "无附加服务"
+  },
+  "Social media": {
+    "id": "Social media",
+    "en": "Social media",
+    "es": "Redes sociales",
+    "zh": "社交媒体"
+  },
+  "Event": {
+    "id": "Event",
+    "en": "Event",
+    "es": "Evento",
+    "zh": "活动"
+  },
+  "Foto & Video Acara — Basic": {
+    "id": "Foto & Video Acara — Basic",
+    "en": "Event Photography & Video — Basic",
+    "es": "Fotografía y vídeo de eventos — Basic",
+    "zh": "活动摄影与视频 — Basic"
+  },
+  "Foto & Video Acara — Standard": {
+    "id": "Foto & Video Acara — Standard",
+    "en": "Event Photography & Video — Standard",
+    "es": "Fotografía y vídeo de eventos — Standard",
+    "zh": "活动摄影与视频 — Standard"
+  },
+  "Foto & Video Acara — Premium": {
+    "id": "Foto & Video Acara — Premium",
+    "en": "Event Photography & Video — Premium",
+    "es": "Fotografía y vídeo de eventos — Premium",
+    "zh": "活动摄影与视频 — Premium"
+  },
+  "Content Plan Media Sosial — Basic": {
+    "id": "Content Plan Media Sosial — Basic",
+    "en": "Social Media Content Plan — Basic",
+    "es": "Plan de contenido para redes sociales — Basic",
+    "zh": "社交媒体内容计划 — Basic"
+  },
+  "Content Plan Media Sosial — Standard": {
+    "id": "Content Plan Media Sosial — Standard",
+    "en": "Social Media Content Plan — Standard",
+    "es": "Plan de contenido para redes sociales — Standard",
+    "zh": "社交媒体内容计划 — Standard"
+  },
+  "Content Plan Media Sosial — Premium": {
+    "id": "Content Plan Media Sosial — Premium",
+    "en": "Social Media Content Plan — Premium",
+    "es": "Plan de contenido para redes sociales — Premium",
+    "zh": "社交媒体内容计划 — Premium"
+  },
+  "Influencer Micro": {
+    "id": "Influencer Micro",
+    "en": "Influencer Micro",
+    "es": "Influencer Micro",
+    "zh": "达人 Micro"
+  },
+  "Influencer Macro": {
+    "id": "Influencer Macro",
+    "en": "Influencer Macro",
+    "es": "Influencer Macro",
+    "zh": "达人 Macro"
+  },
+  "Influencer Mega": {
+    "id": "Influencer Mega",
+    "en": "Influencer Mega",
+    "es": "Influencer Mega",
+    "zh": "达人 Mega"
+  },
+  "Total": {
+    "id": "Total",
+    "en": "Total",
+    "es": "Total",
+    "zh": "合计"
+  },
+  "Pilihan paket tidak tersedia.": {
+    "id": "Pilihan paket tidak tersedia.",
+    "en": "This package is unavailable.",
+    "es": "Este paquete no está disponible.",
+    "zh": "此套餐不可用"
+  },
+  "Add-on influencer hanya tersedia untuk paket media sosial.": {
+    "id": "Add-on influencer hanya tersedia untuk paket media sosial.",
+    "en": "Influencer add-ons are only available for social media packages.",
+    "es": "Los complementos de influencer solo están disponibles para paquetes de redes sociales.",
+    "zh": "达人附加服务仅适用于社交媒体套餐"
+  },
+  "Masukkan nomor WhatsApp yang valid (8–15 digit).": {
+    "id": "Masukkan nomor WhatsApp yang valid (8–15 digit).",
+    "en": "Enter a valid WhatsApp number (8–15 digits).",
+    "es": "Introduce un número de WhatsApp válido (8–15 dígitos).",
+    "zh": "请输入有效的 WhatsApp 号码（8 至 15 位数字）"
+  },
+  "Pilih tanggal acara hari ini atau setelahnya.": {
+    "id": "Pilih tanggal acara hari ini atau setelahnya.",
+    "en": "Choose today or a later event date.",
+    "es": "Elige hoy o una fecha posterior para el evento.",
+    "zh": "请选择今天或之后的活动日期"
+  },
+  "Sesi checkout berakhir. Muat ulang halaman, lalu coba lagi.": {
+    "id": "Sesi checkout berakhir. Muat ulang halaman, lalu coba lagi.",
+    "en": "Checkout session expired. Reload the page and try again.",
+    "es": "La sesión de pago ha caducado. Recarga la página e inténtalo de nuevo.",
+    "zh": "结账会话已过期，请刷新页面后重试"
+  },
+  "Pilihan atau harga paket berubah. Buka kembali paket untuk melihat harga terbaru.": {
+    "id": "Pilihan atau harga paket berubah. Buka kembali paket untuk melihat harga terbaru.",
+    "en": "Package options or prices changed. Reopen the package to see current prices.",
+    "es": "Las opciones o precios han cambiado. Abre el paquete de nuevo para ver los precios actuales.",
+    "zh": "套餐选项或价格已变更，请重新打开套餐查看最新价格"
+  },
+  "Pilih foto bukti transfer terlebih dahulu.": {
+    "id": "Pilih foto bukti transfer terlebih dahulu.",
+    "en": "Choose a payment proof photo first.",
+    "es": "Primero elige una foto del comprobante.",
+    "zh": "请先选择付款凭证照片"
+  },
+  "Gunakan foto PNG atau JPEG dengan nama file biasa.": {
+    "id": "Gunakan foto PNG atau JPEG dengan nama file biasa.",
+    "en": "Use a PNG or JPEG photo with a standard filename.",
+    "es": "Usa una foto PNG o JPEG con un nombre de archivo normal.",
+    "zh": "请使用文件名正常的 PNG 或 JPEG 照片"
+  },
+  "Jenis file tidak sesuai. Gunakan foto PNG atau JPEG asli.": {
+    "id": "Jenis file tidak sesuai. Gunakan foto PNG atau JPEG asli.",
+    "en": "File type mismatch. Use a genuine PNG or JPEG photo.",
+    "es": "El tipo de archivo no coincide. Usa una foto PNG o JPEG auténtica.",
+    "zh": "文件类型不符，请使用真正的 PNG 或 JPEG 照片"
+  },
+  "File foto rusak atau berisi data tambahan.": {
+    "id": "File foto rusak atau berisi data tambahan.",
+    "en": "The photo is corrupted or contains extra data.",
+    "es": "La foto está dañada o contiene datos adicionales.",
+    "zh": "照片文件损坏或含有额外数据"
+  },
+  "File foto berisi konten yang tidak diizinkan.": {
+    "id": "File foto berisi konten yang tidak diizinkan.",
+    "en": "The photo contains disallowed content.",
+    "es": "La foto contiene contenido no permitido.",
+    "zh": "照片文件包含不允许的内容"
+  },
+  "Foto tidak dapat dibaca. Pilih PNG atau JPEG lain (maksimal 20 megapiksel).": {
+    "id": "Foto tidak dapat dibaca. Pilih PNG atau JPEG lain (maksimal 20 megapiksel).",
+    "en": "The photo cannot be read. Choose another PNG or JPEG (up to 20 megapixels).",
+    "es": "No se puede leer la foto. Elige otro PNG o JPEG (máximo 20 megapíxeles).",
+    "zh": "无法读取照片，请选择其他 PNG 或 JPEG（最高 2000 万像素）"
+  },
+  "Pesanan tidak tersedia.": {
+    "id": "Pesanan tidak tersedia.",
+    "en": "Order unavailable.",
+    "es": "Pedido no disponible.",
+    "zh": "订单不可用"
+  },
+  "Pesanan sudah ditutup dan tidak menerima bukti transfer.": {
+    "id": "Pesanan sudah ditutup dan tidak menerima bukti transfer.",
+    "en": "The order is closed and no longer accepts payment proof.",
+    "es": "El pedido está cerrado y ya no acepta comprobantes.",
+    "zh": "订单已关闭，不再接受付款凭证"
+  },
+  "Nama lengkap wajib diisi.": {
+    "id": "Nama lengkap wajib diisi.",
+    "en": "Full name is required.",
+    "es": "Nombre completo es obligatorio.",
+    "zh": "姓名为必填项"
+  },
+  "Nama lengkap terlalu panjang atau mengandung karakter tidak valid.": {
+    "id": "Nama lengkap terlalu panjang atau mengandung karakter tidak valid.",
+    "en": "Full name is too long or contains invalid characters.",
+    "es": "Nombre completo es demasiado largo o contiene caracteres no válidos.",
+    "zh": "姓名过长或包含无效字符"
+  },
+  "Nomor WhatsApp wajib diisi.": {
+    "id": "Nomor WhatsApp wajib diisi.",
+    "en": "WhatsApp number is required.",
+    "es": "Número de WhatsApp es obligatorio.",
+    "zh": "WhatsApp 号码为必填项"
+  },
+  "Nomor WhatsApp terlalu panjang atau mengandung karakter tidak valid.": {
+    "id": "Nomor WhatsApp terlalu panjang atau mengandung karakter tidak valid.",
+    "en": "WhatsApp number is too long or contains invalid characters.",
+    "es": "Número de WhatsApp es demasiado largo o contiene caracteres no válidos.",
+    "zh": "WhatsApp 号码过长或包含无效字符"
+  },
+  "Tanggal acara wajib diisi.": {
+    "id": "Tanggal acara wajib diisi.",
+    "en": "Event date is required.",
+    "es": "Fecha del evento es obligatorio.",
+    "zh": "活动日期为必填项"
+  },
+  "Tanggal acara terlalu panjang atau mengandung karakter tidak valid.": {
+    "id": "Tanggal acara terlalu panjang atau mengandung karakter tidak valid.",
+    "en": "Event date is too long or contains invalid characters.",
+    "es": "Fecha del evento es demasiado largo o contiene caracteres no válidos.",
+    "zh": "活动日期过长或包含无效字符"
+  },
+  "Lokasi acara wajib diisi.": {
+    "id": "Lokasi acara wajib diisi.",
+    "en": "Event location is required.",
+    "es": "Lugar del evento es obligatorio.",
+    "zh": "活动地点为必填项"
+  },
+  "Lokasi acara terlalu panjang atau mengandung karakter tidak valid.": {
+    "id": "Lokasi acara terlalu panjang atau mengandung karakter tidak valid.",
+    "en": "Event location is too long or contains invalid characters.",
+    "es": "Lugar del evento es demasiado largo o contiene caracteres no válidos.",
+    "zh": "活动地点过长或包含无效字符"
+  },
+  "Nama bisnis / brand wajib diisi.": {
+    "id": "Nama bisnis / brand wajib diisi.",
+    "en": "Business / brand name is required.",
+    "es": "Nombre del negocio / marca es obligatorio.",
+    "zh": "企业 / 品牌名称为必填项"
+  },
+  "Nama bisnis / brand terlalu panjang atau mengandung karakter tidak valid.": {
+    "id": "Nama bisnis / brand terlalu panjang atau mengandung karakter tidak valid.",
+    "en": "Business / brand name is too long or contains invalid characters.",
+    "es": "Nombre del negocio / marca es demasiado largo o contiene caracteres no válidos.",
+    "zh": "企业 / 品牌名称过长或包含无效字符"
+  },
+  "Akun media sosial wajib diisi.": {
+    "id": "Akun media sosial wajib diisi.",
+    "en": "Social media account is required.",
+    "es": "Cuenta de redes sociales es obligatorio.",
+    "zh": "社交媒体账号为必填项"
+  },
+  "Akun media sosial terlalu panjang atau mengandung karakter tidak valid.": {
+    "id": "Akun media sosial terlalu panjang atau mengandung karakter tidak valid.",
+    "en": "Social media account is too long or contains invalid characters.",
+    "es": "Cuenta de redes sociales es demasiado largo o contiene caracteres no válidos.",
+    "zh": "社交媒体账号过长或包含无效字符"
+  },
+  "Catatan wajib diisi.": {
+    "id": "Catatan wajib diisi.",
+    "en": "Notes is required.",
+    "es": "Notas es obligatorio.",
+    "zh": "备注为必填项"
+  },
+  "Catatan terlalu panjang atau mengandung karakter tidak valid.": {
+    "id": "Catatan terlalu panjang atau mengandung karakter tidak valid.",
+    "en": "Notes is too long or contains invalid characters.",
+    "es": "Notas es demasiado largo o contiene caracteres no válidos.",
+    "zh": "备注过长或包含无效字符"
+  }
+}

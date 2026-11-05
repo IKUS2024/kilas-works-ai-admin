@@ -57,19 +57,19 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
     <header class="ko-status-head">
       <span class="ko-status-code">{{ item.request_code }}</span>
       {% if item.is_whatsapp_handoff %}
-      <h1>Permintaan sudah masuk ke WhatsApp.</h1>
+      <h1>Permintaan sudah masuk ke WhatsApp</h1>
       <p>Request kamu sudah tersimpan di Kilas. Tim Kilas akan melanjutkan pencarian dan mengabari kamu lewat WhatsApp.</p>
       {% elif item.status in ('SEARCH_REQUESTED','SEARCHING') %}
-      <h1>AI Kilas sedang mencari.</h1>
+      <h1>AI Kilas sedang mencari</h1>
       <p>Kilas sedang mencari dan menyaring kandidat yang sesuai. Kamu tetap di halaman ini sampai proses selesai.</p>
       {% elif item.status == 'RESULTS_READY' %}
-      <h1>Kandidat sudah ditemukan.</h1>
+      <h1>Kandidat sudah ditemukan</h1>
       <p>Kilas sedang memeriksa source, seller, harga, dan kecocokan sebelum pilihan ditampilkan ke kamu.</p>
       {% elif item.status == 'ISSUE' %}
-      <h1>Pencarian belum berhasil.</h1>
+      <h1>Pencarian belum berhasil</h1>
       <p>Request tetap tersimpan. Kamu bisa mencoba pencarian lagi tanpa mengulang penjelasan dari awal.</p>
       {% else %}
-      <h1>Permintaan sudah tersimpan.</h1>
+      <h1>Permintaan sudah tersimpan</h1>
       <p>Detail yang sudah dipahami Kilas aman tersimpan dan siap diproses.</p>
       {% endif %}
     </header>

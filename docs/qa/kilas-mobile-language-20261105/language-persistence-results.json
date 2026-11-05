@@ -1,0 +1,34 @@
+[
+  {
+    "language": "id",
+    "real_language_post": true,
+    "http_only": true,
+    "reload_catalog_checkout_back": true,
+    "local_button_post_csrf": true,
+    "edited_draft_preserved": true
+  },
+  {
+    "language": "en",
+    "real_language_post": true,
+    "http_only": true,
+    "reload_catalog_checkout_back": true,
+    "local_button_post_csrf": true,
+    "edited_draft_preserved": true
+  },
+  {
+    "language": "es",
+    "real_language_post": true,
+    "http_only": true,
+    "reload_catalog_checkout_back": true,
+    "local_button_post_csrf": true,
+    "edited_draft_preserved": true
+  },
+  {
+    "language": "zh",
+    "real_language_post": true,
+    "http_only": true,
+    "reload_catalog_checkout_back": true,
+    "local_button_post_csrf": true,
+    "edited_draft_preserved": true
+  }
+]

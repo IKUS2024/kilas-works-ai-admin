@@ -1,0 +1,38 @@
+[
+  {
+    "origin": "http://127.0.0.1:34629",
+    "locale": "id",
+    "width": 393,
+    "result": "PASS",
+    "writes": 0,
+    "external_sends": 0,
+    "provider_calls": 0
+  },
+  {
+    "origin": "http://127.0.0.1:34629",
+    "locale": "en",
+    "width": 393,
+    "result": "PASS",
+    "writes": 0,
+    "external_sends": 0,
+    "provider_calls": 0
+  },
+  {
+    "origin": "http://127.0.0.1:34629",
+    "locale": "id",
+    "width": 1440,
+    "result": "PASS",
+    "writes": 0,
+    "external_sends": 0,
+    "provider_calls": 0
+  },
+  {
+    "origin": "http://127.0.0.1:34629",
+    "locale": "en",
+    "width": 1440,
+    "result": "PASS",
+    "writes": 0,
+    "external_sends": 0,
+    "provider_calls": 0
+  }
+]
