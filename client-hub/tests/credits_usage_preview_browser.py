@@ -42,7 +42,7 @@ def main():
                     expect(page.locator('#subscription-title')).to_have_text({'en':'Credit & Usage','id':'Kredit & Penggunaan','es':'Créditos y uso','zh':'积分与用量'}[language])
                     assert page.locator('.subscription-features li').count() == 9
                     assert page.locator('.subscription-features small, .subscription-badge, .subscription-plan-intro, .subscription-current p, .subscription-existing p, #subscription-plans .subscription-heading p').count() == 0
-                    expect(page.locator('.subscription-notice')).to_have_text({'en':'Preview · Quotas, purchases & credit deductions are inactive','id':'Pratinjau · Kuota, pembelian & potongan kredit belum aktif','es':'Vista previa · Cuotas, compras y descuentos de créditos inactivos','zh':'预览 · 额度、购买及积分扣除尚未启用'}[language])
+                    expect(page.locator('.subscription-notice')).to_have_text({'en':'Preview · Quotas, purchases & credit deductions are inactive','id':'Pratinjau · Kuota, pembelian & potongan kredit belum aktif','es':'Vista previa · Cuotas, compras y deducciones de créditos inactivos','zh':'预览 · 额度、购买及积分扣除尚未启用'}[language])
                     words={'en':('messages','day','month'),'id':('pesan','hari','bulan'),'es':('mensajes','día','mes'),'zh':('条消息','天','月')}[language]
                     messages,day,month=words
                     expect(page.locator('.subscription-quota')).to_have_count(2)
