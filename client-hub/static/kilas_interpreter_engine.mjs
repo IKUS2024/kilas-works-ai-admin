@@ -130,8 +130,8 @@ export class CallSession {
    if(!this.current(ticket))return;
    const body=new FormData();body.append('next_index',String(this.input.index));body.append('turn_index',String(this.turnIndex));
    const result=await this.request(this.path+'/finish',{method:'POST',body,signal:this.controller.signal,timeoutMs:8000});
-   if(this.current(ticket)&&this.finishRequested&&!this.turnIdle&&turn===this.turnIndex&&result.input_finished!==true)throw failure('call_protocol');
-  }catch(error){if(this.current(ticket)&&this.finishRequested&&!this.turnIdle&&turn===this.turnIndex)this.fail(error,ticket);}
+   if(this.current(ticket)&&this.finishRequested&&!this.turnIdle&&!this.turnSealed&&turn===this.turnIndex&&result.input_finished!==true)throw failure('call_protocol');
+  }catch(error){if(this.current(ticket)&&this.finishRequested&&!this.turnIdle&&!this.turnSealed&&turn===this.turnIndex)this.fail(error,ticket);}
  }
  async pause(ticket,ms){
   if(!this.current(ticket))return;

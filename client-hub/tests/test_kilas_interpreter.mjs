@@ -459,3 +459,22 @@ test('Denied renewal at next-turn boundary never opens the microphone or retries
  const capture=f.capture;await f.session.start();await started;
  assert.equal(f.capture,capture);assert.equal(admissions,1);assert.equal(f.session.state,'ended');assert.deepEqual(f.errors,['budget_limit']);
 });
+
+test('Provider completion fences a failed Finish ACK while translated audio still drains',async()=>{
+ const ack=deferred(),drained=deferred();let cancelled=0;
+ const f=fixture({player:{checkpoint:()=>drained.promise,cancel(){cancelled++;}},request:async(path,args={})=>{
+  if(path.endsWith('/readiness'))return {available:true};
+  if(path.endsWith('/finish'))return ack.promise;
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST')return {call_id:'a'.repeat(32)};
+  return f.hold.promise;
+ }});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();f.session.finish();await tick();
+ f.hold.resolve({state:'LISTENING',frames:[{index:0,turn_index:0,type:'audio',pcm:Buffer.from(pcm()).toString('base64')},{index:1,turn_index:0,type:'turn_complete'}],next_index:2,total_frames:2});await tick();
+ assert.equal(f.session.state,'speaking');assert.equal(f.session.turnSealed,true);
+ ack.reject(new TypeError('lost ACK after provider completed'));await tick();
+ assert.equal(f.session.state,'speaking');assert.equal(cancelled,0);assert.equal(f.audioStops,0);assert.deepEqual(f.errors,[]);
+ drained.resolve();await tick();assert.equal(f.session.state,'idle');assert.equal(cancelled,0);
+ f.session.end();await started;
+});
