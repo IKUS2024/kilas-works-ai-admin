@@ -34,6 +34,8 @@ def main():
             browser=pw.chromium.launch(headless=True,executable_path=shutil.which('chromium'),args=['--no-sandbox'])
             for width in (390,1024):
                 context=browser.new_context(viewport={'width':width,'height':900},permissions=['clipboard-read','clipboard-write'])
+                # This journey asserts Indonesian offer/status copy explicitly.
+                context.add_cookies([{'name':'kilas_language','value':'id','url':origin,'httpOnly':True}])
                 def route(r):
                     if r.request.url.startswith(origin):r.continue_()
                     else:external.append(r.request.url);r.abort()
