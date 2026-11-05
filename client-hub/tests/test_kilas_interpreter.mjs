@@ -371,3 +371,47 @@ test('Stop has a bounded wait for provider output, and End fences a pending Fini
   assert.equal(f.session.state,'ended');assert.equal(f.timers.size,0);
  }
 });
+
+test('Reusable tap session keeps one admission, stops capture between turns, fences old callbacks and expires idle',async()=>{
+ let poll=deferred(),ready=0,admissions=0,turns=0,finishes=0;const paths=[];
+ const f=fixture({request:async(path,args={})=>{
+  paths.push(path);
+  if(path.endsWith('/readiness')){ready++;return {available:true};}
+  if(path.endsWith('/turn')){turns++;assert.equal(args.body.get('turn_index'),'1');return {turn_index:1};}
+  if(path.endsWith('/finish')){finishes++;return {input_finished:true};}
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST'){admissions++;return {call_id:'a'.repeat(32)};}
+  return poll.promise;
+ }});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();
+ const oldCapture=f.capture;f.session.finish();await tick();
+ poll.resolve({state:'LISTENING',frames:[{index:0,turn_index:0,type:'turn_complete'}],next_index:1,total_frames:1});await tick();
+ assert.equal(f.session.state,'idle');assert.equal(f.audioStops,0);assert.ok(f.stops>0);
+ const count=paths.length;oldCapture.pcm(pcm());oldCapture.error(Error('stale'));await tick();assert.equal(paths.length,count);assert.equal(f.session.state,'idle');
+ poll=deferred();for(const [id,t] of [...f.timers])if(t.ms===250){f.timers.delete(id);t.fn();}await tick();
+ await f.session.start();assert.equal(f.session.state,'listening');assert.equal(f.timers.size,0);
+ f.session.finish();f.session.finish();await tick();
+ poll.resolve({state:'LISTENING',frames:[{index:1,turn_index:0,type:'text',text:'stale'},{index:2,turn_index:1,type:'text',text:'second'},{index:3,turn_index:1,type:'turn_complete'}],next_index:4,total_frames:4});await tick();
+ assert.equal(f.session.state,'idle');assert.equal(f.captions.at(-1),'second');assert.ok(!f.captions.includes('stale'));
+ assert.deepEqual([ready,admissions,turns,finishes],[1,1,1,2]);assert.equal(paths.filter(p=>p.endsWith('/end')).length,0);
+ const idle=[...f.timers.values()].find(t=>t.ms===45000);assert.ok(idle);idle.fn();await tick();await started;
+ assert.equal(f.session.state,'ended');assert.equal(paths.filter(p=>p.endsWith('/end')).length,1);assert.equal(f.timers.size,0);
+});
+
+test('Late Finish failure from the previous turn cannot end a newly started turn',async()=>{
+ const finish=deferred();let poll=deferred(),finishCount=0;
+ const f=fixture({request:async(path,args={})=>{
+  if(path.endsWith('/readiness'))return {available:true};
+  if(path.endsWith('/finish')){finishCount++;return finish.promise;}
+  if(path.endsWith('/turn'))return {turn_index:1};
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST')return {call_id:'a'.repeat(32)};
+  return poll.promise;
+ }});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();f.session.finish();await tick();assert.equal(finishCount,1);
+ poll.resolve({state:'LISTENING',frames:[{index:0,turn_index:0,type:'turn_complete'}],next_index:1,total_frames:1});await tick();assert.equal(f.session.state,'idle');
+ await f.session.start();finish.reject(new TypeError('lost old finish ACK'));await tick();
+ assert.equal(f.session.state,'listening');assert.deepEqual(f.errors,[]);f.session.end();await started;
+});

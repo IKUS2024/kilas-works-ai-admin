@@ -298,4 +298,45 @@ class InterpreterTests(unittest.TestCase):
             self.addCleanup(lambda:calls._calls.pop((self.other,staff_id),None));self.addCleanup(lambda:calls.end(self.other,staff_id))
             self.assertEqual(self.client.post(staff_path+'/finish',headers=headers,data={'next_index':'0'}).status_code,200)
 
+    def test_reusable_turn_boundaries_are_ordered_idempotent_and_fenced(self):
+        call=calls.Call(1,'f'*32,object(),settings=dict(SETTINGS,turn_mode='tap',reuse_session=True))
+        call.transport_check=Mock();call.ws=Mock()
+        call.accept(0,PCM);call.finish_input(1)
+        with self.assertRaises(calls.CallError):call.begin_turn(1,1)
+        call.receive(json.dumps({'serverContent':{'turnComplete':True}}))
+        self.assertTrue(call.turn_complete)
+        call.begin_turn(1,1);call.begin_turn(1,1)
+        self.assertEqual(call.queue.qsize(),3)
+        self.assertFalse(call.input_finished)
+        with self.assertRaises(calls.CallError):call.finish_input(1,0)
+        with self.assertRaises(calls.CallError):call.begin_turn(2,1)
+        call.accept(1,PCM);call.finish_input(2,1)
+        queued=[call.queue.get_nowait() for _ in range(call.queue.qsize())]
+        self.assertEqual(queued,[PCM,None,calls.ACTIVITY_START,PCM,None])
+        call.stop()
+        with self.assertRaises(calls.CallError):call.begin_turn(2,2)
+
+    def test_reusable_turn_endpoint_ownership_csrf_and_stale_finish(self):
+        with self.enabled(),patch.object(calls.Thread,'start'),patch.object(calls.wire,'connect') as connect:
+            ident=uuid4().hex;path='/kilas-translator/interpreter/'+ident;headers={'X-CSRF-Token':'audio-csrf'}
+            self.assertEqual(self.client.post(path,headers=headers,data={'settings':json.dumps(dict(SETTINGS,turn_mode='tap',reuse_session=True))}).status_code,202)
+            call=calls.get(self.user,ident)
+            self.addCleanup(lambda:calls._calls.pop((self.user,ident),None));self.addCleanup(lambda:calls.end(self.user,ident))
+            call.finish_input(0);call.receive(json.dumps({'serverContent':{'turnComplete':True}}))
+            body={'turn_index':'1','next_index':'0'}
+            self.assertIn(self.client.post(path+'/turn',data=body).status_code,(400,403))
+            self.assertEqual(self.client.post(path+'/turn',headers=headers,data={'turn_index':'-1','next_index':'0'}).status_code,400)
+            for _ in range(2):self.assertEqual(self.client.post(path+'/turn',headers=headers,data=body).json,{'turn_index':1})
+            self.assertEqual(self.client.post(path+'/finish',headers=headers,data={'turn_index':'0','next_index':'0'}).status_code,409)
+            self.assertFalse(call.input_finished)
+            self.login_other('CLIENT_MEMBER')
+            self.assertEqual(self.client.post(path+'/turn',headers=headers,data=body).status_code,404)
+            connect.assert_not_called()
+
+    def test_reusable_idle_expires_even_while_client_polls(self):
+        call=calls.Call(1,'f'*32,object(),settings=dict(SETTINGS,turn_mode='tap',reuse_session=True))
+        call.turn_idle_at=calls.monotonic()-calls.TURN_IDLE_SECONDS-1
+        call.last_seen=calls.monotonic()
+        with self.assertRaisesRegex(calls.CallError,'call_ended'):call.transport_check()
+
 if __name__=='__main__':unittest.main()

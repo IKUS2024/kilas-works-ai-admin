@@ -52,10 +52,11 @@ export class CallSession {
  stateTo(value){this.state=value;this.onState(value);}
  current(ticket){return ticket===this.version&&!this.controller?.signal.aborted;}
  async start(settings={}){
+  if(this.state==='idle')return this.nextTurn();
   if(this.state!=='ended')return;
   const ticket=++this.version;this.controller=new AbortController();const signal=this.controller.signal;
   this.ident=this.key();this.path='/kilas-translator/interpreter/'+this.ident;this.admitted=false;this.lastServerState='CONNECTING';this.uploadRecovering=false;this.speaking=false;this.turnSealed=false;this.cursor=0;this.playVersion=0;
-  this.manual=settings.turn_mode==='tap';this.captureReady=false;this.finishRequested=false;this.finishSent=false;
+  this.turnIdle=false;this.reusable=settings.reuse_session===true;this.turnIndex=0;this.captureVersion=0;this.manual=settings.turn_mode==='tap';this.captureReady=false;this.finishRequested=false;this.finishSent=false;
   this.stateTo('connecting');this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;this.captionAwaitingAudio=false;
   this.input=new CallInput({request:this.request,path:this.path,signal,onRecovery:active=>{if(this.current(ticket)){this.uploadRecovering=active;this.stateTo(active?'reconnecting':this.lastServerState==='CONNECTING'?'connecting':this.lastServerState==='RECONNECTING'?'reconnecting':this.speaking?'speaking':this.finishRequested?'processing':'listening');}},onError:error=>this.fail(error,ticket)});
   try{
@@ -65,13 +66,7 @@ export class CallSession {
    if(!this.current(ticket))return;
    if(!eligibility.available)throw failure(eligibility.reason||'call_unavailable');
    await prepared;if(!this.current(ticket))return;
-   await this.capture.start({ready:()=>{},level:()=>{},blob:()=>this.finishInput(ticket),
-    pcm:raw=>{if(this.current(ticket)){try{
-     // Keep the provider's VAD clock running during playback, without sending
-     // speaker echo back as another question. Never reuse microphone PCM here.
-     this.input.push(this.speaking?new Uint8Array(raw.length):prepareCallPcm(raw));
-    }catch(error){this.fail(error,ticket);}}},
-    error:error=>this.fail(error,ticket)});
+   await this.startCapture(ticket);
    if(!this.current(ticket))return;
    this.captureReady=true;
    this.admitted=true;
@@ -84,8 +79,42 @@ export class CallSession {
    await this.poll(ticket);
   }catch(error){if(this.current(ticket))this.fail(error,ticket);}
  }
+ async startCapture(ticket){
+  const captureVersion=++this.captureVersion;
+  const valid=()=>this.current(ticket)&&captureVersion===this.captureVersion;
+  await this.capture.start({ready:()=>{},level:()=>{},blob:()=>valid()&&this.finishInput(ticket),
+    pcm:raw=>{if(valid()){try{
+     // Keep the provider's VAD clock running during playback, without sending
+     // speaker echo back as another question. Never reuse microphone PCM here.
+     this.input.push(this.speaking?new Uint8Array(raw.length):prepareCallPcm(raw));
+    }catch(error){this.fail(error,ticket);}}},
+    error:error=>{if(valid())this.fail(error,ticket);}});
+ }
+ async nextTurn(){
+  if(this.state!=='idle')return;
+  this.turnIdle=false;const ticket=this.version;this.clear(this.idleTimer);this.idleTimer=null;
+  this.finishRequested=false;this.finishSent=false;this.captureReady=false;this.turnSealed=false;this.input.firstPacket=true;
+  this.speaking=false;this.captionAwaitingAudio=false;this.sourceAwaitingAudio=false;
+  this.stateTo('starting');this.onText('');this.onOriginal('');
+  try{
+   await this.prepare(this.controller.signal);if(!this.current(ticket))return;
+   const next=++this.turnIndex,body=new FormData();body.append('turn_index',String(next));body.append('next_index',String(this.input.index));
+   const result=await this.request(this.path+'/turn',{method:'POST',body,signal:this.controller.signal,timeoutMs:8000});
+   if(!this.current(ticket))return;
+   if(result.turn_index!==next)throw failure('call_protocol');
+   this.turnIndex=next;
+   await this.startCapture(ticket);if(!this.current(ticket))return;
+   this.captureReady=true;this.stateTo('listening');
+  }catch(error){if(this.current(ticket))this.fail(error,ticket);}
+ }
+ idle(){
+  this.turnIdle=true;this.captureReady=false;this.captureVersion++;this.capture.cancel();this.speaking=false;
+  this.clear(this.timer);this.timer=null;this.stateTo('idle');
+  const ticket=this.version;
+  this.idleTimer=this.schedule(()=>{if(this.current(ticket)&&this.state==='idle')this.end();},45000);
+ }
  finish(){
-  if(!this.manual||this.state==='ended'||this.finishRequested||this.speaking)return;
+  if(!this.manual||['ended','idle'].includes(this.state)||this.finishRequested||this.speaking)return;
   // A second tap during permission/readiness cancels immediately, before any
   // paid admission. Once PCM exists, flush its tail and finish that utterance.
   if(!this.captureReady){this.end();return;}
@@ -95,14 +124,14 @@ export class CallSession {
  }
  async finishInput(ticket){
   if(!this.current(ticket)||!this.manual||!this.finishRequested||this.finishSent)return;
-  this.finishSent=true;
+  this.finishSent=true;const turn=this.turnIndex;
   try{
    this.input.flush();await this.input.chain;
    if(!this.current(ticket))return;
-   const body=new FormData();body.append('next_index',String(this.input.index));
+   const body=new FormData();body.append('next_index',String(this.input.index));body.append('turn_index',String(this.turnIndex));
    const result=await this.request(this.path+'/finish',{method:'POST',body,signal:this.controller.signal,timeoutMs:8000});
-   if(this.current(ticket)&&result.input_finished!==true)throw failure('call_protocol');
-  }catch(error){if(this.current(ticket))this.fail(error,ticket);}
+   if(this.current(ticket)&&turn===this.turnIndex&&result.input_finished!==true)throw failure('call_protocol');
+  }catch(error){if(this.current(ticket)&&turn===this.turnIndex)this.fail(error,ticket);}
  }
  async pause(ticket,ms){
   if(!this.current(ticket))return;
@@ -118,7 +147,7 @@ export class CallSession {
     // Polling only reads the same server session/cursor. Never repeat admission,
     // PCM POSTs or provider requests when their outcome may be uncertain.
     if(!transient(error)||transientFailures>=2)throw error;
-    this.stateTo('reconnecting');
+    if(!this.turnIdle)this.stateTo('reconnecting');
     await this.pause(ticket,300*++transientFailures);continue;
    }
    if(!this.current(ticket))return;
@@ -127,6 +156,8 @@ export class CallSession {
    for(const frame of value.frames){
     if(!this.current(ticket))return;
     if(frame.index!==this.cursor++)throw failure('call_protocol');
+    if(this.reusable&&Number.isInteger(frame.turn_index)&&frame.turn_index!==this.turnIndex)continue;
+    if(this.turnIdle)continue;
     if(this.manual&&this.finishRequested){
      this.clear(this.timer);
      this.timer=frame.type==='turn_complete'?null:this.schedule(()=>this.fail(failure('request_timeout'),ticket),30000);
@@ -151,10 +182,10 @@ export class CallSession {
      this.clear(this.echoTimer);this.player.cancel();this.turnSealed=false;this.speaking=false;this.playVersion++;this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;this.captionAwaitingAudio=false;
      this.stateTo('listening');
     }else if(frame.type==='turn_complete'){
-     this.turnSealed=true;this.captionAwaitingAudio=false;const generation=this.playVersion;
+     this.turnSealed=true;this.captionAwaitingAudio=false;const generation=this.playVersion,turn=this.turnIndex;
      this.player.checkpoint().then(()=>{
-      if(this.current(ticket)&&generation===this.playVersion){
-       if(this.manual){this.end();return;}
+      if(this.current(ticket)&&generation===this.playVersion&&turn===this.turnIndex){
+       if(this.manual){if(this.reusable)this.idle();else this.end();return;}
        // Discard the final worklet frame containing room/speaker decay before
        // showing Listening. End and a newer answer fence this callback too.
        this.clear(this.echoTimer);this.echoTimer=this.schedule(()=>{
@@ -169,14 +200,14 @@ export class CallSession {
     if(this.current(ticket))this.fail(failure(value.code||'call_ended'),ticket);return;
    }
    if(value.state==='RECONNECTING'||this.uploadRecovering)this.stateTo('reconnecting');
-   else if(value.state==='LISTENING'&&!this.speaking)this.stateTo(this.finishRequested?'processing':'listening');
+   else if(value.state==='LISTENING'&&!this.speaking&&!['idle','starting'].includes(this.state))this.stateTo(this.finishRequested?'processing':'listening');
    await this.pause(ticket,250);
   }
  }
  fail(error,ticket=this.version){if(!this.current(ticket))return;const code=typeof error.code==='string'?error.code:(['NotFoundError','NotReadableError','OverconstrainedError'].includes(error.name)?'microphone_unavailable':transient(error)?'call_network':'call_transport');this.end(code);this.onError(code);}
  end(reason='call_ended'){
   const path=this.path,admitted=this.admitted;this.admitted=false;this.ident=null;this.path=null;++this.version;
-  this.controller?.abort();this.clear(this.timer);this.clear(this.echoTimer);this.clear(this.pollTimer);this.pollResolve?.();this.pollResolve=null;
+  this.controller?.abort();this.clear(this.timer);this.clear(this.idleTimer);this.captureVersion++;this.clear(this.echoTimer);this.clear(this.pollTimer);this.pollResolve?.();this.pollResolve=null;
   try{this.input?.cancel();}catch{}try{this.capture.cancel();}catch{}try{this.player.cancel();}catch{}try{this.stopAudio();}catch{}
   this.speaking=false;this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;this.captionAwaitingAudio=false;this.stateTo('ended');
   if(path&&admitted){try{const body=new FormData();body.append('reason',reason);this.ending=Promise.resolve(this.request(path+'/end',{method:'POST',body,keepalive:true,timeoutMs:8000}));this.ending.catch(()=>{});}catch{}}

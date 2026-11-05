@@ -7,7 +7,8 @@ LANGUAGES=json.loads(Path(__file__).with_name('interpreter_languages.json').read
 
 def validate(value):
     if (not isinstance(value,dict) or not {'source','target','consent'}<=set(value)
-            or set(value)-{'source','target','consent','turn_mode'}
+            or set(value)-{'source','target','consent','turn_mode','reuse_session'}
+            or ('reuse_session' in value and (value['reuse_session'] is not True or value.get('turn_mode')!='tap'))
             or ('turn_mode' in value and value['turn_mode']!='tap')):
         raise ValueError('invalid_settings')
     if (not isinstance(value['source'],str) or not isinstance(value['target'],str)

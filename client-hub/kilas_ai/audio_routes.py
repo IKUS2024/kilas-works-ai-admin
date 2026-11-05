@@ -57,7 +57,7 @@ def _native_route_access(user):
     from . import live_gemini as native, live_gemini_pair as pair
     endpoint=request.endpoint
     shared=_shared_native_user(user)
-    if endpoint in {'kilas_audio.interpreter_page','kilas_audio.interpreter_readiness','kilas_audio.interpreter_session','kilas_audio.interpreter_chunk','kilas_audio.interpreter_end','kilas_audio.interpreter_finish'}:
+    if endpoint in {'kilas_audio.interpreter_page','kilas_audio.interpreter_readiness','kilas_audio.interpreter_session','kilas_audio.interpreter_chunk','kilas_audio.interpreter_end','kilas_audio.interpreter_finish','kilas_audio.interpreter_turn'}:
         return shared
     if endpoint=='kilas_audio.live_gemini_home':
         return shared or _active_native_session(user)
