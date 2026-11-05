@@ -30,12 +30,6 @@
     "es": "Gratis",
     "zh": "免费"
   },
-  "Pro": {
-    "id": "Pro",
-    "en": "Pro",
-    "es": "Pro",
-    "zh": "Pro"
-  },
   "bulan": {
     "id": "bulan",
     "en": "month",
@@ -186,18 +180,29 @@
     "es": "Solo vista previa · No transfieras fondos",
     "zh": "仅供预览 · 请勿转账"
   },
-  "use": {
-    "id": "kali",
-    "en": "use",
-    "es": "uso",
-    "zh": "次"
+  "Kredit sesuai pemakaian": {
+    "id": "Kredit sesuai pemakaian",
+    "en": "Pay-as-you-go credits",
+    "es": "Créditos por uso",
+    "zh": "按量使用积分"
   },
-  "uses": {
-    "id": "kali",
-    "en": "uses",
-    "es": "usos",
-    "zh": "次"
+  "Penawaran mendatang · Detail menyusul": {
+    "id": "Penawaran mendatang · Detail menyusul",
+    "en": "Future offer · Details pending",
+    "es": "Oferta futura · Detalles pendientes",
+    "zh": "未来方案 · 详情待定"
+  },
+  "Detail menyusul": {
+    "id": "Detail menyusul",
+    "en": "Details pending",
+    "es": "Detalles pendientes",
+    "zh": "详情待定"
+  },
+  "pesan": {
+    "id": "pesan",
+    "en": "messages",
+    "es": "mensajes",
+    "zh": "条消息"
   }
 } %}
 {% macro t(key) -%}{{ copy[key][ui_language()] }}{%- endmacro %}
-{% macro number(value) -%}{{ '{:,}'.format(value)|replace(',', '.' if ui_language() in ('id', 'es') else ',') }}{%- endmacro %}

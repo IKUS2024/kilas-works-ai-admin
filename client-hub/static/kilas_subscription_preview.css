@@ -69,3 +69,4 @@ body.premium-workspace.subscription-design-preview {background:radial-gradient(e
 .subscription-design-preview .subscription-current {margin-bottom:16px;font-size:13px}
 .subscription-design-preview .subscription-bank dd {overflow-wrap:anywhere}
 .subscription-design-preview .subscription-plan-heading {flex-wrap:wrap}
+.subscription-design-preview .subscription-pending {font-size:12px;color:var(--sub-muted);margin-top:12px!important}
