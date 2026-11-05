@@ -48,7 +48,6 @@
       </article>
       {% endfor %}
       </div>
-      <aside class="subscription-existing"><div><h2>{{ t('Akses & tagihan saat ini') }}</h2></div><a href="{{ url_for('kilas_ai.usage_page',view='legacy') }}">{{ t('Lihat saldo, top-up & riwayat tagihan') }} {{ drawer_icon('chevron') }}</a></aside>
     </section>
     <section id="payment-preview" class="subscription-payment" aria-labelledby="payment-title" hidden>
       <a href="#subscription-plans" class="subscription-back" id="subscription-close-payment"><span aria-hidden="true">←</span> {{ t('Kembali ke paket') }}</a>

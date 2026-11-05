@@ -89,11 +89,11 @@ def main():
                     expect(page.locator('#payment-title')).to_be_visible()
                     page.keyboard.press('Escape')
                     expect(page.locator('#subscription-title')).to_be_visible()
-                    legacy = page.locator('.subscription-existing a')
-                    assert legacy.get_attribute('href') == '/kilas-ai/usage?view=legacy'
-                    legacy.click()
-                    assert page.url.endswith('?view=legacy')
-                    # Harness stubs legacy; actual billing forms are checked in route tests.
+                    expect(page.locator('.subscription-existing')).to_have_count(0)
+                    expect(page.locator('main a[href*="view=legacy"]')).to_have_count(0)
+                    expect(page.locator('.subscription-footer')).to_be_visible()
+                    expect(page.locator('#subscription-open-payment')).to_be_visible()
+                    # Actual legacy route and billing forms remain covered in route tests.
                     assert not errors, errors
                     assert not writes, writes
                     report.append({'language': language, 'width': width, 'overflow': False, 'errors': errors, 'writes': writes})
@@ -101,6 +101,6 @@ def main():
             browser.close()
     finally: server.shutdown()
     (output / 'browser-report.json').write_text(json.dumps(report, indent=2))
-    print(f'PASS: {len(report)} viewport/language cases; profile navigation, inert payment, repeated open/close, Escape, Back/Forward, reload and legacy link.')
+    print(f'PASS: {len(report)} viewport/language cases; profile navigation, inert payment, repeated open/close, Escape, Back/Forward, reload, retained footer and removed lower billing section.')
 
 if __name__ == '__main__': main()
