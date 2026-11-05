@@ -11,11 +11,14 @@ import threading
 import sys
 from urllib.parse import parse_qs, urlsplit
 from playwright.sync_api import sync_playwright, expect
+from creative_services_release_contract import verify_released_html
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--local', action='store_true')
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument('--local', action='store_true')
+    modes.add_argument('--local-app', action='store_true', help='Disposable app route with server locale/CSRF bootstrap')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     sys.path.insert(0,str(root/'client-hub/tests'))
@@ -23,7 +26,18 @@ def main():
     output = Path('/tmp/creative-services-live-smoke')
     output.mkdir(exist_ok=True)
     server = None
-    if args.local:
+    fixture = None
+    if args.local_app:
+        sys.path.insert(0,str(root/'client-hub'))
+        from test_creative_checkout import CreativeCheckoutTests
+        from werkzeug.serving import make_server
+        fixture = CreativeCheckoutTests('test_repeated_submit_and_persistence')
+        fixture.id = lambda: 'creative-release-smoke'
+        fixture.setUp()
+        server = make_server('127.0.0.1', 0, fixture.app, threaded=True)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        origins = [(f'http://127.0.0.1:{server.server_port}', '/creative-services/', True)]
+    elif args.local:
         class Quiet(http.server.SimpleHTTPRequestHandler):
             def log_message(self, *args):
                 pass
@@ -32,18 +46,21 @@ def main():
                 super().do_GET()
         server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Quiet, directory=str(root/'creative-services-site')))
         threading.Thread(target=server.serve_forever, daemon=True).start()
-        origins = [(f'http://127.0.0.1:{server.server_port}', '/creative-services/')]
+        origins = [(f'http://127.0.0.1:{server.server_port}', '/creative-services/', False)]
     else:
-        origins = [('https://kilas-works-client-hub.onrender.com','/creative-services/'), ('https://app.kilasworks.id','/creative-services/'), ('https://kilasworks-creative-services.onrender.com','/')]
+        origins = [('https://kilas-works-client-hub.onrender.com','/creative-services/',True), ('https://app.kilasworks.id','/creative-services/',True), ('https://kilasworks-creative-services.onrender.com','/',False)]
     reports = []
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None)
-            for origin, path in origins:
+            for origin, path, app_served in origins:
                 for width in (393, 1440):
                     for locale in ('id', 'en'):
                         context = browser.new_context(viewport={'width': width, 'height': 852}, reduced_motion='reduce', has_touch=width<=700)
-                        context.add_cookies([{'name': 'kilas_language', 'value': locale, 'url': origin}])
+                        if app_served:
+                            context.add_cookies([{'name': 'kilas_language', 'value': locale, 'url': origin, 'httpOnly': True}])
+                        else:
+                            context.add_init_script('localStorage.setItem("kilas-package-language", ' + json.dumps(locale) + ')')
                         external, writes, errors = [], [], []
                         def route(r):
                             url = urlsplit(r.request.url)
@@ -58,8 +75,9 @@ def main():
                         page.on('pageerror', lambda error: errors.append(str(error)))
                         response = page.goto(origin+path, wait_until='networkidle')
                         assert response.status == 200
+                        verify_released_html(response.body(), (root/'creative-services-site/index.html').read_bytes(), response.headers, app_served=app_served, expected_language=locale)
                         expect(page.locator('html')).to_have_attribute('lang', locale)
-                        expect(page.locator('#cs-title')).to_contain_text('Momen jadi cerita.' if locale == 'id' else 'Moments into stories.')
+                        expect(page.locator('#cs-title')).to_contain_text('Momen jadi cerita' if locale == 'id' else 'Moments into stories')
                         expect(page.locator('[data-service-choice]')).to_have_count(2)
                         expect(page.locator('footer a').last).to_have_attribute('href','https://app.kilasworks.id/products/start')
                         check_contrast(page)
@@ -124,6 +142,8 @@ def main():
     finally:
         if server:
             server.shutdown()
+        if fixture:
+            fixture.tearDown()
 
 
 if __name__ == '__main__':
