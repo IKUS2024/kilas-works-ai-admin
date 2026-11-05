@@ -88,6 +88,22 @@ def interpreter_finish(ident):
         if call is None:raise calls.CallError('call_ended',409)
         raw=request.form.get('next_index','')
         if not re.fullmatch(r'[0-9]{1,9}',raw):raise calls.CallError('call_input_invalid',400)
-        call.finish_input(int(raw))
+        turn=request.form.get('turn_index','0')
+        if not re.fullmatch(r'[0-9]{1,9}',turn):raise calls.CallError('call_input_invalid',400)
+        call.finish_input(int(raw),int(turn))
         return {'input_finished':True},200,HEADERS
+    except (calls.CallError,budget.ledger.BudgetError) as error:return failure(error)
+
+
+@ai_bp.post('/interpreter/<ident>/turn')
+def interpreter_turn(ident):
+    csrf()
+    if request.content_length and request.content_length>4096:abort(400)
+    try:
+        call=calls.get(session['user_id'],ident)
+        if call is None:raise calls.CallError('call_ended',409)
+        turn=request.form.get('turn_index','');index=request.form.get('next_index','')
+        if not all(re.fullmatch(r'[0-9]{1,9}',v) for v in (turn,index)):raise calls.CallError('call_input_invalid',400)
+        call.begin_turn(int(turn),int(index))
+        return {'turn_index':int(turn)},200,HEADERS
     except (calls.CallError,budget.ledger.BudgetError) as error:return failure(error)

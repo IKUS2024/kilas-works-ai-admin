@@ -79,7 +79,7 @@ def main():
                     expect(page.locator('#interpreter-orb')).to_have_attribute('aria-label','Stop and translate')
                     # One synchronous burst exercises duplicate activation while Finish is pending.
                     page.evaluate("id=>{const b=document.getElementById(id);for(let i=0;i<10;i++)b.click();}",'interpreter-orb')
-                    page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='ended'")
+                    page.wait_for_function("['ended','idle'].includes(document.querySelector('#interpreter-state').dataset.state)")
                     assert page.evaluate('micStops')>=1
                     page.locator('#interpreter-transcript').evaluate('e=>e.open=true')
                     expect(page.locator('#interpreter-original')).to_have_text(source)
@@ -104,7 +104,7 @@ def main():
                     # Direction selection is locked until output finishes.
                     expect(page.locator('#interpreter-right')).to_be_disabled()
                     page.locator('#interpreter-right').evaluate('e=>e.click()')
-                    page.locator('#interpreter-orb img').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='ended'")
+                    page.locator('#interpreter-orb img').click();page.wait_for_function("['ended','idle'].includes(document.querySelector('#interpreter-state').dataset.state)")
                     expect(page.locator('#interpreter-caption')).to_have_text('Good morning.')
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
                 page.screenshot(path=str(output/f'translated-{width}.png'),full_page=True)

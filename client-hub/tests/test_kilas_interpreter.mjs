@@ -371,3 +371,110 @@ test('Stop has a bounded wait for provider output, and End fences a pending Fini
   assert.equal(f.session.state,'ended');assert.equal(f.timers.size,0);
  }
 });
+
+test('Reusable tap session keeps one admission, stops capture between turns, fences old callbacks and expires idle',async()=>{
+ let poll=deferred(),ready=0,admissions=0,turns=0,finishes=0;const paths=[];
+ const f=fixture({request:async(path,args={})=>{
+  paths.push(path);
+  if(path.endsWith('/readiness')){ready++;return {available:true};}
+  if(path.endsWith('/turn')){turns++;assert.equal(args.body.get('turn_index'),'1');return {turn_index:1};}
+  if(path.endsWith('/finish')){finishes++;return {input_finished:true};}
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST'){admissions++;return {call_id:'a'.repeat(32)};}
+  return poll.promise;
+ }});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();
+ const oldCapture=f.capture;f.session.finish();await tick();
+ poll.resolve({state:'LISTENING',frames:[{index:0,turn_index:0,type:'turn_complete'}],next_index:1,total_frames:1});await tick();
+ assert.equal(f.session.state,'idle');assert.equal(f.audioStops,0);assert.ok(f.stops>0);
+ const count=paths.length;oldCapture.pcm(pcm());oldCapture.error(Error('stale'));await tick();assert.equal(paths.length,count);assert.equal(f.session.state,'idle');
+ poll=deferred();for(const [id,t] of [...f.timers])if(t.ms===250){f.timers.delete(id);t.fn();}await tick();
+ await f.session.start();assert.equal(f.session.state,'listening');assert.equal(f.timers.size,0);
+ f.session.finish();f.session.finish();await tick();
+ poll.resolve({state:'LISTENING',frames:[{index:1,turn_index:0,type:'text',text:'stale'},{index:2,turn_index:1,type:'text',text:'second'},{index:3,turn_index:1,type:'turn_complete'}],next_index:4,total_frames:4});await tick();
+ assert.equal(f.session.state,'idle');assert.equal(f.captions.at(-1),'second');assert.ok(!f.captions.includes('stale'));
+ assert.deepEqual([ready,admissions,turns,finishes],[1,1,1,2]);assert.equal(paths.filter(p=>p.endsWith('/end')).length,0);
+ const idle=[...f.timers.values()].find(t=>t.ms===45000);assert.ok(idle);idle.fn();await tick();await started;
+ assert.equal(f.session.state,'ended');assert.equal(paths.filter(p=>p.endsWith('/end')).length,1);assert.equal(f.timers.size,0);
+});
+
+test('Late Finish failure from the previous turn cannot end a newly started turn',async()=>{
+ const finish=deferred();let poll=deferred(),finishCount=0;
+ const f=fixture({request:async(path,args={})=>{
+  if(path.endsWith('/readiness'))return {available:true};
+  if(path.endsWith('/finish')){finishCount++;return finish.promise;}
+  if(path.endsWith('/turn'))return {turn_index:1};
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST')return {call_id:'a'.repeat(32)};
+  return poll.promise;
+ }});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();f.session.finish();await tick();assert.equal(finishCount,1);
+ poll.resolve({state:'LISTENING',frames:[{index:0,turn_index:0,type:'turn_complete'}],next_index:1,total_frames:1});await tick();assert.equal(f.session.state,'idle');
+ await f.session.start();finish.reject(new TypeError('lost old finish ACK'));await tick();
+ assert.equal(f.session.state,'listening');assert.deepEqual(f.errors,[]);f.session.end();await started;
+});
+
+for(const window of ['idle','preparing'])test('Late failed Finish is ignored after completion: '+window,async()=>{
+ const ack=deferred(),prepared=deferred();let preparing=false;
+ const f=fixture({prepare:()=>preparing?prepared.promise:Promise.resolve(),request:async(path,args={})=>{
+  if(path.endsWith('/readiness'))return {available:true};
+  if(path.endsWith('/finish'))return ack.promise;
+  if(path.endsWith('/turn'))return {turn_index:1};
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST')return {call_id:'a'.repeat(32)};
+  return f.hold.promise;
+ }});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();f.session.finish();await tick();
+ f.hold.resolve({state:'LISTENING',frames:[{index:0,turn_index:0,type:'turn_complete'}],next_index:1,total_frames:1});await tick();assert.equal(f.session.state,'idle');
+ let next;if(window==='preparing'){preparing=true;next=f.session.start();await tick();assert.equal(f.session.state,'starting');}
+ ack.reject(new TypeError('delayed Finish failure'));await tick();assert.deepEqual(f.errors,[]);assert.equal(f.session.state,window==='idle'?'idle':'starting');
+ if(next){prepared.resolve();await next;assert.equal(f.session.state,'listening');}
+ f.session.end();await started;
+});
+
+test('Paid-envelope idle close drains completed output without an error or renewed microphone',async()=>{
+ const drained=deferred();const f=fixture({player:{checkpoint:()=>drained.promise}});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();f.session.finish();await tick();
+ f.hold.resolve({state:'CLOSED',code:'call_ended',frames:[{index:0,turn_index:0,type:'audio',pcm:Buffer.from(pcm()).toString('base64')},{index:1,turn_index:0,type:'turn_complete'}],next_index:2,total_frames:2});await tick();
+ assert.equal(f.session.state,'speaking');assert.equal(f.audioStops,0);
+ drained.resolve();await started;assert.equal(f.session.state,'ended');assert.deepEqual(f.errors,[]);assert.equal(f.audioStops,1);
+});
+
+test('Denied renewal at next-turn boundary never opens the microphone or retries admission',async()=>{
+ let admissions=0;
+ const f=fixture({request:async(path,args={})=>{
+  if(path.endsWith('/readiness'))return {available:true};
+  if(path.endsWith('/turn'))throw Object.assign(Error(),{code:'budget_limit'});
+  if(path.endsWith('/finish'))return {input_finished:true};
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST'){admissions++;return {call_id:'a'.repeat(32)};}
+  return f.hold.promise;
+ }});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();f.session.finish();await tick();
+ f.hold.resolve({state:'LISTENING',frames:[{index:0,turn_index:0,type:'turn_complete'}],next_index:1,total_frames:1});await tick();
+ const capture=f.capture;await f.session.start();await started;
+ assert.equal(f.capture,capture);assert.equal(admissions,1);assert.equal(f.session.state,'ended');assert.deepEqual(f.errors,['budget_limit']);
+});
+
+test('Provider completion fences a failed Finish ACK while translated audio still drains',async()=>{
+ const ack=deferred(),drained=deferred();let cancelled=0;
+ const f=fixture({player:{checkpoint:()=>drained.promise,cancel(){cancelled++;}},request:async(path,args={})=>{
+  if(path.endsWith('/readiness'))return {available:true};
+  if(path.endsWith('/finish'))return ack.promise;
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST')return {call_id:'a'.repeat(32)};
+  return f.hold.promise;
+ }});
+ const started=f.session.start({turn_mode:'tap',reuse_session:true});await tick();f.session.finish();await tick();
+ f.hold.resolve({state:'LISTENING',frames:[{index:0,turn_index:0,type:'audio',pcm:Buffer.from(pcm()).toString('base64')},{index:1,turn_index:0,type:'turn_complete'}],next_index:2,total_frames:2});await tick();
+ assert.equal(f.session.state,'speaking');assert.equal(f.session.turnSealed,true);
+ ack.reject(new TypeError('lost ACK after provider completed'));await tick();
+ assert.equal(f.session.state,'speaking');assert.equal(cancelled,0);assert.equal(f.audioStops,0);assert.deepEqual(f.errors,[]);
+ drained.resolve();await tick();assert.equal(f.session.state,'idle');assert.equal(cancelled,0);
+ f.session.end();await started;
+});

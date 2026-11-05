@@ -22,6 +22,8 @@ QUEUE_BYTES=20*32000
 MAX_TURNS=4
 POLICY_TTL_SECONDS=3
 CLIENT_IDLE_SECONDS=30
+TURN_IDLE_SECONDS=90
+ACTIVITY_START=object()
 CLIENT_END_CODES={'call_ended','call_network','call_audio','call_backlog','call_protocol','call_transport','microphone_unavailable','realtime_input_timeout','realtime_capture_failed','request_timeout','auth_required'}
 
 
@@ -88,7 +90,7 @@ class Call:
         self.provider_started=self.started
         self.input_energy=0;self.input_samples=0;self.input_peak=0;self.input_transcript_chars=0
         self.sent_bytes=0;self.sent_chunks=0;self.provider_messages=0
-        self.input_finished=False
+        self.input_finished=False;self.turn_index=0;self.turn_complete=False;self.turn_idle_at=None
         self.original_caption = ""
         self.turn_timing = TurnTiming()
         # Claim has just authorized this capability. The provider worker also
@@ -99,6 +101,7 @@ class Call:
         """In-memory PCM/frame fence; database work only at funding boundaries."""
         from .routes import enabled
         if self.closed.is_set():raise CallError('call_ended',409)
+        if self.turn_idle_at is not None and monotonic()-self.turn_idle_at>TURN_IDLE_SECONDS:raise CallError('call_ended',409)
         if monotonic()-self.last_seen>CLIENT_IDLE_SECONDS:raise CallError('call_network',409)
         if not (enabled() and budget.config() and storage.single_worker()
                 and os.environ.get('GEMINI_API_KEY','').strip()):raise CallError('call_unavailable')
@@ -108,7 +111,13 @@ class Call:
             if require_policy and monotonic()>self.authorized_until:raise CallError('call_unavailable')
             # This rare metering boundary still performs normal durable funding
             # before any input/output can exceed the current allowance.
-            if monotonic()-self.funded_at>=budget.RENEW_SECONDS:self.fund()
+            if monotonic()-self.funded_at>=budget.RENEW_SECONDS:
+                # A completed reusable turn must not purchase another envelope
+                # merely to keep an idle socket alive. Active work retains the
+                # existing metered renewal contract.
+                if self.settings.get('reuse_session') and self.turn_complete:
+                    if monotonic()-self.funded_at>=budget.LEASE_SECONDS:raise CallError('call_ended',409)
+                else:self.fund()
 
     def check(self):
         """Fresh admission/watchdog authorization, outside the audio lock.
@@ -184,7 +193,7 @@ class Call:
             self.expected+=1;self.input_bytes+=len(raw);self.queued+=len(raw)
             self.last_seen=monotonic()
 
-    def finish_input(self,index):
+    def finish_input(self,index,turn_index=0):
         """One ordered activityEnd after every acknowledged PCM packet.
 
         Duplicate Finish is metadata-only and never enqueues a second marker.
@@ -193,7 +202,7 @@ class Call:
         self.transport_check()
         with self.lock:
             if self.closed.is_set():raise CallError('call_ended',409)
-            if self.settings.get('turn_mode')!='tap' or type(index) is not int or index!=self.expected:
+            if turn_index!=self.turn_index or self.settings.get('turn_mode')!='tap' or type(index) is not int or index!=self.expected:
                 raise CallError('call_input_invalid',409)
             if not self.input_finished:
                 try:self.queue.put_nowait(None)
@@ -201,9 +210,28 @@ class Call:
                 self.input_finished=True
             self.last_seen=monotonic()
 
+    def begin_turn(self,turn_index,index):
+        """Idempotent next-turn boundary; no admission, reconnect or audio replay."""
+        self.transport_check()
+        with self.lock:
+            if self.closed.is_set():raise CallError('call_ended',409)
+            if not self.settings.get('reuse_session') or type(turn_index) is not int or type(index) is not int:
+                raise CallError('call_input_invalid',409)
+            if turn_index==self.turn_index and index==self.expected and not self.input_finished:
+                return
+            if turn_index!=self.turn_index+1 or index!=self.expected or not self.turn_complete or not self.input_finished:
+                raise CallError('call_input_invalid',409)
+            # Renew only for this explicit new turn, before provider activity.
+            # A denied reservation leaves the old turn sealed and sends nothing.
+            if monotonic()-self.funded_at>=budget.RENEW_SECONDS:self.fund()
+            try:self.queue.put_nowait(ACTIVITY_START)
+            except Full:raise CallError('call_backlog',409) from None
+            self.turn_index=turn_index;self.input_finished=False;self.turn_complete=False;self.turn_idle_at=None
+            self.last_seen=monotonic();self.state='LISTENING'
+
     def publish(self,value):
         if len(self.frames)>=2048:raise CallError('call_output_invalid')
-        self.frames.append({'index':self.frame_next,**value});self.frame_next+=1
+        self.frames.append({'index':self.frame_next,**({'turn_index':self.turn_index} if self.settings.get('reuse_session') else {}),**value});self.frame_next+=1
 
     def receive(self,raw):
         value=wire.message(raw)
@@ -233,6 +261,7 @@ class Call:
                     self.resume_handle=handle
                     if self.go_away:self.resume_pending=True
                 else:self.resume_handle=None;self.resume_pending=False
+            if self.settings.get('reuse_session') and self.turn_complete:return
             if content.get('interrupted') is True:
                 self.turn_timing.boundary()
                 self.interruptions+=1;self.publish({'type':'reset'});self.caption=''
@@ -271,6 +300,8 @@ class Call:
                 self.turn_timing.boundary()
                 self.original_caption=""
                 self.turns+=1;self.publish({'type':'turn_complete'});self.caption='';self.state='LISTENING'
+                if self.settings.get('reuse_session'):
+                    self.turn_complete=True;self.turn_idle_at=monotonic()
 
     def snapshot(self,after):
         with self.lock:
@@ -289,7 +320,7 @@ class Call:
                 try:raw=self.queue.get(timeout=.1)
                 except Empty:continue
                 self.transport_check()
-                if raw is not None:
+                if raw is not None and raw is not ACTIVITY_START:
                     with self.lock:self.queued-=len(raw)
                 while not self.closed.is_set():
                     if self.renewing.is_set():
@@ -299,13 +330,14 @@ class Call:
                         if self.closed.is_set():return
                         if self.renewing.is_set():continue
                         try:
-                            value={'activityEnd':{}} if raw is None else {'audio':{
+                            value={'activityStart':{}} if raw is ACTIVITY_START else {'activityEnd':{}} if raw is None else {'audio':{
                                 'mimeType':'audio/pcm;rate=16000','data':base64.b64encode(raw).decode('ascii')}}
                             self.ws.send(json.dumps({'realtimeInput':value}))
                         except (OSError,wire_connection_error()):
                             self.recover_transport();break  # Delivery uncertain: never replay this PCM.
-                        if raw is None:return
-                        with self.lock:self.sent_bytes+=len(raw);self.sent_chunks+=1
+                        if raw is None and not self.settings.get('reuse_session'):return
+                        if raw is not None and raw is not ACTIVITY_START:
+                            with self.lock:self.sent_bytes+=len(raw);self.sent_chunks+=1
                         break
         except Exception as error:self.stop(getattr(error,'code','call_transport'))
         finally:db._discard_cached_connection()

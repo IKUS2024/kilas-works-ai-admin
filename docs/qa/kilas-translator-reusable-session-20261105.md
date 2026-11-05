@@ -1,0 +1,20 @@
+Translator reusable tap session — 5 November 2026
+
+Baseline: origin/main d949c87c, including PR201 and subsequent unrelated changes.
+
+Root cause: the browser ended the entire CallSession after every manual turn's player checkpoint, while the backend sender exited immediately after activityEnd. Each next K therefore paid the readiness/admission/provider setup latency again.
+
+The UI opts into reusable manual sessions. After output drains it retains the same provider socket, admission, PCM cursor, poll cursor and playback AudioContext, with microphone tracks stopped and capture callbacks fenced. K begins the next turn using an authenticated, CSRF-protected /turn endpoint. Monotonic turn and chunk indices prevent a delayed Finish from closing the next turn; old response frames/capture callbacks are ignored. Manual activityStart/PCM/activityEnd remain ordered on one sender queue. Legacy one-turn tap and continuous clients keep their existing behavior.
+
+Both cards still only select direction. Changing direction while idle closes the old direction's session without capturing; the next K opens the chosen direction. Active turns keep direction controls locked. Actual provider disconnection surfaces an error and releases resources; the next explicit K can start afresh, without replaying uncertain audio. End, backgrounding and navigation close the retained session. Client idle timeout is 45 seconds after playback; independent server timeout is 90 seconds after turn completion even if polling continues. Existing lost-client timeout, authorization checks, metering and funding limits remain enforced.
+
+Validation includes 23 backend tests, 44 interpreter lifecycle tests plus existing capture/player/PCM/API regressions, four-width K image browser tests with actual Flask and a synthetic provider, four-width tap tests, sixteen locale/viewport checks, five legacy browser viewports, existing i18n/Copilot/Finance-shell/language/VoiceOver checks. Reuse assertions count one provider connection/readiness/admission and unchanged playback context for consecutive same-direction turns, with no active microphone tracks between turns. Coverage includes duplicate controls, stale Finish rejection, CSRF/ownership, idle expiry, real synthetic-socket disconnection followed by explicit retry, language changes and End/background fences.
+
+Provider protocol reference: https://ai.google.dev/gemini-api/docs/live-api/capabilities (manual activityStart/activityEnd with automatic detection disabled). Tests use synthetic microphone PCM and provider replies. Physical-device speech and real Gemini multi-turn acceptance are not claimed. No billing/configuration changes or Finance implementation changes.
+
+
+Independent review corrections: a completed turn clears Finish ownership, and the logical turn index advances before awaiting audio preparation. Delayed rejected Finish responses are ignored both during completed idle and during a new K press waiting on prepare; valid current-turn failures remain terminal. Regression cases cover both timing windows.
+
+Idle must not reserve another paid envelope at the existing 80-second renewal boundary. A completed reusable turn may keep its socket only within the already funded 90-second envelope, without renewal. An explicit next-turn boundary at t80–t90 funds before enqueuing activityStart or opening capture; denial sends neither audio nor activity. At envelope expiry the idle socket closes normally, preserving/draining completed output. Active-turn renewal retains its original metering behavior. Actual trial/operator ledger tests cover idle no-renewal, explicit next-turn renewal and settlement; denied renewal and expiry are independently tested. Full audio/session Node total is 94.
+
+Playback-drain review: provider turn_complete now also seals Finish ACK ownership before the player checkpoint resolves. The regression rejects an old Finish ACK while audio is still Speaking, proves no playback cancellation/context close/error, then drains to idle. It fails on the prior guard and passes with the seal guard.

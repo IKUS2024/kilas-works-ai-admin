@@ -511,7 +511,7 @@ def create_app():
             # instruction for this phase.
             return None
         if request.endpoint in ('kilas_ai.ai_call_session','kilas_ai.ai_call_chunk','kilas_ai.ai_call_end',
-                                'kilas_audio.interpreter_session','kilas_audio.interpreter_chunk','kilas_audio.interpreter_end','kilas_audio.interpreter_finish'):
+                                'kilas_audio.interpreter_session','kilas_audio.interpreter_chunk','kilas_audio.interpreter_end','kilas_audio.interpreter_finish','kilas_audio.interpreter_turn'):
             # Call PCM is binary, so validate its same-origin CSRF header too.
             # End's page-exit beacon uses the existing form token instead.
             token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')

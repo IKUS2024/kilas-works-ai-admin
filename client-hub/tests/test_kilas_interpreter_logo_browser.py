@@ -35,7 +35,7 @@ def main():
     def connect():
         wire=LogoWire(fail[0]);wires.append(wire);return wire
     def listening(page):page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
-    def ended(page):page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='ended'")
+    def ended(page):page.wait_for_function("['ended','idle'].includes(document.querySelector('#interpreter-state').dataset.state)")
     try:
         with case.enabled(),patch.object(fixture.calls.wire,'connect',side_effect=connect),sync_playwright() as pw:
             browser=pw.chromium.launch(executable_path=os.environ.get('KILAS_QA_CHROMIUM') or shutil.which('chromium'),headless=True,args=['--no-sandbox'])
@@ -46,7 +46,7 @@ def main():
                 context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'en','url':origin}])
                 context.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
                 context.add_init_script(MIC)
-                context.add_init_script("window.audioContexts=0;const Audio=window.AudioContext;window.AudioContext=new Proxy(Audio,{construct(target,args){window.audioContexts++;return Reflect.construct(target,args);}});")
+                context.add_init_script("window.audioContexts=0;const Audio=window.AudioContext;window.AudioContext=new Proxy(Audio,{construct(target,args){if(args[0]?.latencyHint==='playback')window.audioContexts++;return Reflect.construct(target,args);}});")
                 page=context.new_page();errors=[];requests=[]
                 page.on('request',lambda request:requests.append(request.url) if '/interpreter/' in request.url else None)
                 page.set_default_timeout(10000);page.on('pageerror',lambda e:errors.append(str(e)))
@@ -76,7 +76,7 @@ def main():
                     if mobile:image.tap()
                     else:image.click()
                 for cycle in range(3):
-                    before=len(wires)
+                    before=len(wires);ready_before=sum('/readiness' in url for url in requests);audio_before=page.evaluate('audioContexts')
                     if cycle==0:hit_k()
                     elif cycle==1:
                         mic_count=page.evaluate('micRequests');page.locator('#interpreter-right').press('Enter')
@@ -87,6 +87,9 @@ def main():
                         logo.focus();assert logo.evaluate("e=>getComputedStyle(e).outlineWidth")=='3px'
                         logo.press('Space')
                     listening(page)
+                    if cycle==2:
+                        assert sum('/readiness' in url for url in requests)==ready_before
+                        assert page.evaluate('audioContexts')==audio_before
                     source,target=('Indonesian','English') if cycle==0 else ('English','Indonesian')
                     expect(page.locator('#interpreter-current-direction')).to_have_text(source+' → '+target)
                     expect(logo).to_have_attribute('aria-pressed','true')
@@ -97,7 +100,7 @@ def main():
                         page.locator(selector).evaluate('e=>{for(let i=0;i<5;i++)e.click()}')
                     expect(page.locator('#interpreter-current-direction')).to_have_text(source+' → '+target)
                     assert logo.evaluate('e=>getComputedStyle(e).borderColor')=='rgb(189, 71, 0)'
-                    assert len(wires)==before+1
+                    assert len(wires)==before+(0 if cycle==2 else 1)
                     stops=page.evaluate('micStops')
                     if cycle==2:logo.press('Enter')
                     else:hit_k()
@@ -106,12 +109,13 @@ def main():
                     expect(logo).to_have_attribute('aria-busy','true');expect(logo).to_be_disabled()
                     page.evaluate("()=>{for(let i=0;i<10;i++)for(const id of ['orb','left','right'])document.querySelector('#interpreter-'+id).click();}")
                     ended(page)
+                    assert page.evaluate('micRequests')==page.evaluate('micStops')
                     expect(logo).to_be_enabled();expect(logo).to_have_attribute('aria-busy','false')
                     expect(logo).to_have_attribute('aria-label',f'Start listening: {source} to {target}')
                     stream=[m['realtimeInput'] for m in wires[-1].messages if 'realtimeInput' in m]
                     assert stream[0]=={'activityStart':{}} and stream[-1]=={'activityEnd':{}}
-                    assert sum('activityEnd' in m for m in stream)==1 and any('audio' in m for m in stream)
-                    assert len(wires)==before+1
+                    assert sum('activityEnd' in m for m in stream)==(2 if cycle==2 else 1) and any('audio' in m for m in stream)
+                    assert len(wires)==before+(0 if cycle==2 else 1)
                     expect(page.locator('#interpreter-caption')).to_have_text('Good morning.' if cycle==0 else 'Selamat pagi.')
                 page.locator('#interpreter-transcript').evaluate('e=>e.open=true')
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
@@ -160,6 +164,13 @@ def main():
                     hit_k();ended(page)
                     expect(page.locator('#interpreter-original')).to_have_attribute('lang','ja')
                     expect(page.locator('#interpreter-caption')).to_have_attribute('lang','fr')
+                    # A truly disconnected idle provider is surfaced, never silently
+                    # re-admitted; the next explicit K starts a fresh session.
+                    before=len(wires);wires[-1].shutdown()
+                    expect(page.locator('#interpreter-state')).to_have_text('Gemini disconnected.')
+                    assert len(wires)==before
+                    hit_k();listening(page);assert len(wires)==before+1
+                    hit_k();ended(page)
                     page.locator('#interpreter-end').click()
                 if width==1440:
                     # Run lost-cookie recovery last: the unauthenticated client

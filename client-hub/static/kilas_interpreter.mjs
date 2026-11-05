@@ -2,7 +2,7 @@ import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=translator-auth-20261031';
 import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-reliable-20261023';
 import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-reliable-20261023';
-import {CallSession} from './kilas_interpreter_engine.mjs?v=translator-logo-20261104';
+import {CallSession} from './kilas_interpreter_engine.mjs?v=translator-reuse-20261105';
 const root=document.querySelector('#interpreter');
 if(root){
  const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),orb=field('orb'),end=field('end'),consent=field('consent'),navigation=document.querySelector('#interpreter-navigation');
@@ -35,15 +35,15 @@ if(root){
  const sync=()=>{
   navigation.hidden=active;for(const control of [a,b,field('swap')])control.disabled=active;field('start').disabled=authExpired;end.disabled=false;
   const names=code=>code===pair?.a?a.selectedOptions[0].text:b.selectedOptions[0].text;
-  const recording=side!==null&&session.state!=='ended'&&!session.finishRequested;
-  const processing=session.state!=='ended'&&(session.finishRequested||session.speaking);
+  const recording=side!==null&&!['ended','idle'].includes(session.state)&&!session.finishRequested;
+  const processing=!['ended','idle'].includes(session.state)&&(session.finishRequested||session.speaking);
   orb.disabled=!active||switching||authExpired||processing;
   orb.setAttribute('aria-pressed',String(recording));
   orb.setAttribute('aria-busy',String(switching||processing));
   orb.setAttribute('aria-label',processing?t(session.speaking?'Terjemahan diputar. Tunggu giliran.':'Menerjemahkan'):recording?t('Hentikan dan terjemahkan'):t('Mulai mendengarkan {source} ke {target}',{source:names(selectedSource||pair?.a),target:names(selectedSource===pair?.b?pair?.a:pair?.b)}));
   if(pair)field('current-direction').textContent=names(selectedSource)+' → '+names(selectedSource===pair.a?pair.b:pair.a);
   for(const [button,source,target] of [[left,pair?.a,pair?.b],[right,pair?.b,pair?.a]]){
-   button.disabled=!active||switching||authExpired||session.state!=='ended';
+   button.disabled=!active||switching||authExpired||!['ended','idle'].includes(session.state);
    button.setAttribute('aria-pressed',String(source===selectedSource&&selectedSource!==null));
    button.dataset.selected=String(source===selectedSource&&selectedSource!==null);
    if(pair)button.setAttribute('aria-label',t('Pilih arah bicara')+': '+names(source)+' → '+names(target));
@@ -101,23 +101,25 @@ if(root){
    try{Promise.resolve(own.resume()).then(()=>{clearTimeout(timeout);resolve();},failed);}catch{failed();}
   });
  };
- const session=new CallSession({request,capture,player,stopAudio,prepare:()=>context?.state==='running'?Promise.resolve():Promise.reject(Object.assign(Error(),{code:'call_audio'})),
+ const session=new CallSession({request,capture,player,stopAudio,prepare:()=>context?context.resume():Promise.reject(Object.assign(Error(),{code:'call_audio'})),
   onState:state=>{
-   if(state==='connecting')clearTranscript();
+   if(['connecting','starting'].includes(state))clearTranscript();
    if(state==='listening'&&lastState==='speaking')newTranscript=true;
    field('state').dataset.state=state;
-   field('state').textContent=t({ended:'Pilih arah bicara',connecting:'Menghubungkan…',listening:'Mendengarkan. Ketuk lagi untuk menerjemahkan.',processing:'Menerjemahkan',speaking:'Terjemahan diputar. Tunggu giliran.',reconnecting:'Menghubungkan kembali…'}[state]||'Pilih arah bicara');
-   field('orb').dataset.state=state==='speaking'?'playing':['connecting','reconnecting','processing'].includes(state)?'processing':state==='ended'?'idle':'listening';
-   if(state==='ended')side=null;lastState=state;sync();
+   field('state').textContent=t({idle:'Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.',starting:'Mendengarkan. Ketuk lagi untuk menerjemahkan.',ended:'Pilih arah bicara',connecting:'Menghubungkan…',listening:'Mendengarkan. Ketuk lagi untuk menerjemahkan.',processing:'Menerjemahkan',speaking:'Terjemahan diputar. Tunggu giliran.',reconnecting:'Menghubungkan kembali…'}[state]||'Pilih arah bicara');
+   field('orb').dataset.state=state==='speaking'?'playing':['connecting','reconnecting','processing'].includes(state)?'processing':['ended','idle'].includes(state)?'idle':'listening';
+   if(['ended','idle'].includes(state))side=null;lastState=state;sync();
   },onText:text=>caption('caption',text),onOriginal:text=>caption('original',text),onError:showError});
  function chooseDirection(source){
-  if(!active||switching||authExpired||session.state!=='ended')return;
+  if(!active||switching||authExpired||!['ended','idle'].includes(session.state))return;
+  if(source!==selectedSource&&session.state==='idle')session.end();
   selectedSource=source;sync();
  }
  async function toggleRecording(){
   const source=selectedSource||pair?.a;
   if(!active||switching||authExpired||!consent.checked)return;
-  if(side===source&&session.state!=='ended'){session.finish();sync();return;}
+  if(side===source&&!['ended','idle'].includes(session.state)){session.finish();sync();return;}
+  if(session.state==='idle'){side=source;void session.start();sync();return;}
   selectedSource=source;
   const ticket=++generation;switching=true;session.end();clearTranscript();field('error').hidden=true;sync();
   try{
@@ -126,12 +128,12 @@ if(root){
    if(ticket!==generation){return;}
    const target=source===pair.a?pair.b:pair.a;
    field('original').lang=source;field('caption').lang=target;
-   side=source;switching=false;sync();void session.start({source,target,consent:true,turn_mode:'tap'});
+   side=source;switching=false;sync();void session.start({source,target,consent:true,turn_mode:'tap',reuse_session:true});
   }catch(error){if(ticket===generation){switching=false;session.end();showError(error.code||'call_network');sync();}}
  }
  orb.addEventListener('click',toggleRecording);
  left.addEventListener('click',()=>chooseDirection(pair.a));right.addEventListener('click',()=>chooseDirection(pair.b));consent.addEventListener('change',sync);field('start').addEventListener('click',enter);for(const name of ['language-a','language-b'])field(name).addEventListener('change',()=>updatePair(name));field('swap').addEventListener('click',()=>{const a=field('language-a'),b=field('language-b');[a.value,b.value]=[b.value,a.value];updatePair('language-b');});
  // Backgrounding stops capture immediately, but only explicit End leaves this screen.
- const suspend=()=>{const interrupted=switching||session.state!=='ended';++generation;switching=false;session.end();sync();if(active&&interrupted)field('state').textContent=t('Sesi berakhir.')+' '+t('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.');};
+ const suspend=()=>{const interrupted=switching||!['ended','idle'].includes(session.state);++generation;switching=false;session.end();sync();if(active&&interrupted)field('state').textContent=t('Sesi berakhir.')+' '+t('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.');};
  const close=()=>{suspend();active=false;clearTranscript();field('transcript').open=false;field('error').hidden=true;field('setup').hidden=false;field('active').hidden=true;sync();if(authExpired)showError('auth_required');else field('start').focus();};end.addEventListener('click',close);window.addEventListener('pagehide',suspend);document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend();});updatePair('language-b',restoredEqual);
 }

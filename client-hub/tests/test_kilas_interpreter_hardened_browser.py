@@ -45,7 +45,7 @@ def main():
      context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':locale,'url':origin}])
      context.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
      context.add_init_script(MIC);page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-     mode=['normal'];starts=[];ends=[];finished=set()
+     mode=['normal'];starts=[];ends=[];finished=set();offset=[0];last_cursor=[0]
      audio=b''.join(struct.pack('<h',int(8000*math.sin(i/12))) for i in range(24000))
      frames=[{'index':0,'type':'original','text':SOURCE},{'index':1,'type':'text','text':REPLY}]
      for at in range(0,len(audio),9600):frames.append({'index':len(frames),'type':'audio','pcm':base64.b64encode(audio[at:at+9600]).decode()})
@@ -55,16 +55,20 @@ def main():
       if path.endswith('/end'):ends.append(path);return route.fulfill(json={'state':'CLOSED'})
       if path.endswith('/finish'):finished.add(path.rsplit('/',1)[0]);return route.fulfill(json={'input_finished':True})
       if mode[0]=='auth':return route.fulfill(status=401,content_type='text/html',body='<h1>Authentication required</h1>')
+      if path.endswith('/turn'):
+       finished.discard(path.rsplit('/',1)[0]);offset[0]=last_cursor[0]
+       turn=int(re.search(r'name="turn_index"\r\n\r\n(\d+)',request.post_data).group(1))
+       return route.fulfill(json={'turn_index':turn})
       if path.endswith('/readiness'):
        if mode[0]=='network':return route.abort('failed')
        return route.fulfill(json={'available':mode[0]!='unavailable','reason':'call_unavailable'})
       if '/chunks/' in path:return route.fulfill(json={'accepted_index':int(path.rsplit('/',1)[1])})
       if request.method=='POST':
-       starts.append(request.post_data);return route.fulfill(status=202,json={'call_id':path.rsplit('/',1)[1],'state':'CONNECTING'})
+       offset[0]=0;last_cursor[0]=0;starts.append(request.post_data);return route.fulfill(status=202,json={'call_id':path.rsplit('/',1)[1],'state':'CONNECTING'})
       from urllib.parse import parse_qs,urlsplit
       after=int(parse_qs(urlsplit(request.url).query).get('after',['0'])[0])
-      items=frames[after:] if path in finished else []
-      return route.fulfill(json={'state':'LISTENING','frames':items,'next_index':after+len(items),'total_frames':len(frames)})
+      items=[dict(frame,index=offset[0]+frame['index']) for frame in frames[max(0,after-offset[0]):]] if path in finished else [];last_cursor[0]=after+len(items)
+      return route.fulfill(json={'state':'LISTENING','frames':items,'next_index':after+len(items),'total_frames':offset[0]+len(frames)})
      page.route('**/kilas-translator/interpreter/**',relay)
      page.goto(origin+'/kilas-translator/interpreter',wait_until='networkidle')
      expect(page.locator('#interpreter-start')).to_have_text(copy('Lanjut'))
@@ -113,8 +117,8 @@ def main():
      assert page.locator('#interpreter-original').evaluate("e=>getComputedStyle(e).direction")=='rtl'
      assert page.locator('#interpreter-caption').get_attribute('lang')=='en'
      assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-     page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='ended'")
-     expect(page.locator('#interpreter-state')).to_have_text(copy('Pilih arah bicara'))
+     page.wait_for_function("['ended','idle'].includes(document.querySelector('#interpreter-state').dataset.state)")
+     expect(page.locator('#interpreter-state')).to_have_text(copy('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.'))
      if width in (393,1440):page.screenshot(path=str(output/f'transcript-{locale}-{width}.png'),full_page=True)
      assert not page.evaluate("(s)=>Object.values(localStorage).some(v=>v.includes(s))",REPLY)
      latest_reply=REPLY
@@ -127,12 +131,12 @@ def main():
       page.locator('#interpreter-orb img').click()
       expect(page.locator('#interpreter-original')).to_have_text(second_source)
       expect(page.locator('#interpreter-caption')).to_have_text(latest_reply)
-     page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='ended'")
-     mode[0]='auth';page.locator('#interpreter-orb img').click()
+     page.wait_for_function("['ended','idle'].includes(document.querySelector('#interpreter-state').dataset.state)")
+     mode[0]='auth' # The retained session detects expired auth while idle.
      expect(page.locator('#interpreter-login')).to_be_visible()
      expect(page.locator('#interpreter-state')).to_have_text(copy('Sesi akun berakhir. Masuk kembali.'))
      expect(page.locator('#interpreter-left')).to_be_disabled()
-     assert page.evaluate('micStops')>=1 and len(starts)==(2 if width==393 else 1)
+     assert page.evaluate('micStops')>=1 and len(starts)==1
      # Starting a new turn clears prior captions; errors within a turn retain them.
      assert page.locator('#interpreter-login').get_attribute('href')=='/login'
      expect(page.locator('#interpreter-login')).to_be_focused()

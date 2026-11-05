@@ -27,9 +27,9 @@ class InterpreterTests(unittest.TestCase):
         with budget.transaction() as conn:budget.ledger._campaign(conn,budget.config()['base'])
         return stack
 
-    def make(self):
+    def make(self,settings=SETTINGS):
         ident=uuid4().hex
-        with patch.object(calls.Thread,'start'):call=calls.start(self.user,ident,SETTINGS)
+        with patch.object(calls.Thread,'start'):call=calls.start(self.user,ident,settings)
         self.addCleanup(lambda:calls._calls.pop((self.user,ident),None));self.addCleanup(lambda:calls.end(self.user,ident))
         return call
 
@@ -297,5 +297,82 @@ class InterpreterTests(unittest.TestCase):
             self.assertEqual(self.client.post(staff_path,headers=headers,data={'settings':json.dumps(dict(SETTINGS,source='en',target='id',turn_mode='tap'))}).status_code,202)
             self.addCleanup(lambda:calls._calls.pop((self.other,staff_id),None));self.addCleanup(lambda:calls.end(self.other,staff_id))
             self.assertEqual(self.client.post(staff_path+'/finish',headers=headers,data={'next_index':'0'}).status_code,200)
+
+    def test_reusable_turn_boundaries_are_ordered_idempotent_and_fenced(self):
+        call=calls.Call(1,'f'*32,object(),settings=dict(SETTINGS,turn_mode='tap',reuse_session=True))
+        call.transport_check=Mock();call.ws=Mock()
+        call.accept(0,PCM);call.finish_input(1)
+        with self.assertRaises(calls.CallError):call.begin_turn(1,1)
+        call.receive(json.dumps({'serverContent':{'turnComplete':True}}))
+        self.assertTrue(call.turn_complete)
+        call.begin_turn(1,1);call.begin_turn(1,1)
+        self.assertEqual(call.queue.qsize(),3)
+        self.assertFalse(call.input_finished)
+        with self.assertRaises(calls.CallError):call.finish_input(1,0)
+        with self.assertRaises(calls.CallError):call.begin_turn(2,1)
+        call.accept(1,PCM);call.finish_input(2,1)
+        queued=[call.queue.get_nowait() for _ in range(call.queue.qsize())]
+        self.assertEqual(queued,[PCM,None,calls.ACTIVITY_START,PCM,None])
+        call.stop()
+        with self.assertRaises(calls.CallError):call.begin_turn(2,2)
+
+    def test_reusable_turn_endpoint_ownership_csrf_and_stale_finish(self):
+        with self.enabled(),patch.object(calls.Thread,'start'),patch.object(calls.wire,'connect') as connect:
+            ident=uuid4().hex;path='/kilas-translator/interpreter/'+ident;headers={'X-CSRF-Token':'audio-csrf'}
+            self.assertEqual(self.client.post(path,headers=headers,data={'settings':json.dumps(dict(SETTINGS,turn_mode='tap',reuse_session=True))}).status_code,202)
+            call=calls.get(self.user,ident)
+            self.addCleanup(lambda:calls._calls.pop((self.user,ident),None));self.addCleanup(lambda:calls.end(self.user,ident))
+            call.finish_input(0);call.receive(json.dumps({'serverContent':{'turnComplete':True}}))
+            body={'turn_index':'1','next_index':'0'}
+            self.assertIn(self.client.post(path+'/turn',data=body).status_code,(400,403))
+            self.assertEqual(self.client.post(path+'/turn',headers=headers,data={'turn_index':'-1','next_index':'0'}).status_code,400)
+            for _ in range(2):self.assertEqual(self.client.post(path+'/turn',headers=headers,data=body).json,{'turn_index':1})
+            self.assertEqual(self.client.post(path+'/finish',headers=headers,data={'turn_index':'0','next_index':'0'}).status_code,409)
+            self.assertFalse(call.input_finished)
+            self.login_other('CLIENT_MEMBER')
+            self.assertEqual(self.client.post(path+'/turn',headers=headers,data=body).status_code,404)
+            connect.assert_not_called()
+
+    def test_reusable_idle_expires_even_while_client_polls(self):
+        call=calls.Call(1,'f'*32,object(),settings=dict(SETTINGS,turn_mode='tap',reuse_session=True))
+        call.turn_idle_at=calls.monotonic()-calls.TURN_IDLE_SECONDS-1
+        call.last_seen=calls.monotonic()
+        with self.assertRaisesRegex(calls.CallError,'call_ended'):call.transport_check()
+
+    def test_reusable_paid_boundary_never_renews_a_completed_idle_turn(self):
+        for funding in ('trial','operator'):
+            with self.enabled(),patch.dict(os.environ,{'KILAS_TRANSLATOR_FUNDING_MODE':funding}):
+                call=self.make(dict(SETTINGS,turn_mode='tap',reuse_session=True));budget.dispatch(call.capability)
+                old=call.capability;call.funded_at-=budget.RENEW_SECONDS+1
+                call.input_finished=True;call.turn_complete=True;call.turn_idle_at=calls.monotonic()
+                with patch.object(budget,'renew',wraps=budget.renew) as renew:
+                    call.transport_check();renew.assert_not_called()
+                self.assertIs(call.capability,old)
+                call.begin_turn(1,0)
+                self.assertNotEqual(call.capability.key,old.key)
+                self.assertIs(call.queue.get_nowait(),calls.ACTIVITY_START)
+                calls.end(self.user,call.ident)
+                self.assertEqual(budget.owned(self.user,call.ident)['status'],'UNKNOWN')
+                active=self.make(dict(SETTINGS,turn_mode='tap',reuse_session=True));budget.dispatch(active.capability)
+                old=active.capability;active.funded_at-=budget.RENEW_SECONDS+1
+                active.transport_check()
+                self.assertNotEqual(active.capability.key,old.key)
+                self.assertTrue(budget.active(self.user,active.ident,active.capability))
+                calls.end(self.user,active.ident)
+
+    def test_idle_envelope_expiry_and_denied_next_turn_never_send_activity(self):
+        with self.enabled():
+            call=self.make(dict(SETTINGS,turn_mode='tap',reuse_session=True));budget.dispatch(call.capability)
+            call.input_finished=True;call.turn_complete=True;call.turn_idle_at=calls.monotonic()-35
+            call.funded_at=calls.monotonic()-81
+            with patch.object(budget,'renew',side_effect=budget.ledger.BudgetError('budget_limit',429)) as renew:
+                call.transport_check();renew.assert_not_called()
+                with self.assertRaisesRegex(budget.ledger.BudgetError,'budget_limit'):call.begin_turn(1,0)
+                renew.assert_called_once()
+            self.assertEqual(call.turn_index,0);self.assertTrue(call.input_finished);self.assertTrue(call.queue.empty())
+            call.funded_at=calls.monotonic()-91
+            with patch.object(budget,'renew') as renew:
+                with self.assertRaisesRegex(calls.CallError,'call_ended'):call.transport_check()
+                renew.assert_not_called()
 
 if __name__=='__main__':unittest.main()
