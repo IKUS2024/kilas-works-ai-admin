@@ -48,7 +48,7 @@ class SinglePlanConsoleTests(unittest.TestCase):
     def test_subscription_preview_is_explicitly_inert(self):
         client = self.client_for(self.other)
         body = client.get('/kilas-ai/usage').get_data(as_text=True)
-        for text in ('Langganan baru belum tersedia', 'Rancangan paket', 'Usulan', '10180016000684', 'Belum menerima pembayaran', 'Penerjemah', 'Narasi suara', 'Pindai struk'):
+        for text in ('Kuota rancangan belum aktif', '70 pesan / hari', 'Pratinjau saja · Jangan transfer', '10180016000684', 'Belum menerima pembayaran', 'Penerjemah', 'Narasi suara', 'Pindai struk'):
             self.assertIn(text, body)
         for forbidden in ('Kuota dapat berubah', '<form', 'type="file"', 'action="/kilas-ai/checkout"', 'action="/kilas-ai/topups"'):
             self.assertNotIn(forbidden, body.split('<main', 1)[1].split('</main>', 1)[0])

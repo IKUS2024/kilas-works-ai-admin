@@ -41,6 +41,16 @@ def main():
                     profile.get_by_role('link', name={'en':'Subscription','id':'Langganan','es':'Suscripción','zh':'订阅'}[language], exact=True).click()
                     expect(page.locator('#subscription-title')).to_have_text({'en':'Subscription','id':'Langganan','es':'Suscripción','zh':'订阅'}[language])
                     assert page.locator('.subscription-features li').count() == 10
+                    assert page.locator('.subscription-features p:not(.subscription-quota), .subscription-features small, .subscription-badge, .subscription-plan-intro, .subscription-current p, .subscription-existing p, #subscription-plans .subscription-heading p').count() == 0
+                    expect(page.locator('.subscription-notice')).to_have_text({'en':'Proposed quotas are not active','id':'Kuota rancangan belum aktif','es':'Las cuotas propuestas no están activas','zh':'拟议额度尚未生效'}[language])
+                    words={'en':('messages','day','month'),'id':('pesan','hari','bulan'),'es':('mensajes','día','mes'),'zh':('条消息','天','月')}[language]
+                    messages,day,month=words
+                    expect(page.locator('.subscription-quota')).to_have_count(2)
+                    expect(page.locator('.subscription-quota').first).to_have_text(f'70 {messages} / {day} · 500 {messages} / {month}')
+                    expect(page.locator('.subscription-plan-pro .subscription-quota, .subscription-plan-pro .subscription-price')).to_have_count(0)
+                    expect(page.locator('.subscription-pending')).to_have_text({'en':'Future offer · Details pending','id':'Penawaran mendatang · Detail menyusul','es':'Oferta futura · Detalles pendientes','zh':'未来方案 · 详情待定'}[language])
+                    assert not any(value in page.locator('main').inner_text() for value in ('99.000','99,000','8.000','8,000'))
+                    assert page.locator('.subscription-plan').first.bounding_box()['height'] < 570
                     expect(page.locator('.subscription-current')).to_have_attribute('data-current-plan', 'FREE')
                     assert page.locator('html').get_attribute('lang') == language
                     for label in page.locator('main h1,main h2,main h3,main button,main dt').all_inner_texts():

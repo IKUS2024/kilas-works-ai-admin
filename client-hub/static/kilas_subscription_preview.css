@@ -7,28 +7,24 @@
 .subscription-design-preview .subscription-page a {text-underline-offset:4px}
 .subscription-design-preview .subscription-page :is(a,button):focus-visible {outline:2px solid #ac4500;outline-offset:4px}
 .subscription-design-preview .subscription-page ::selection {background:#ffdfc6;color:#172236}
-.subscription-design-preview .subscription-topbar {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0;border-bottom:1px solid var(--sub-line);margin-bottom:28px}
+.subscription-design-preview .subscription-topbar {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0;border-bottom:1px solid var(--sub-line);margin-bottom:18px}
 .subscription-design-preview .subscription-topbar a {display:inline-flex;align-items:center;gap:8px;min-height:42px;color:var(--sub-ink);text-decoration:none;font-size:12px}
 .subscription-design-preview .subscription-topbar svg {width:18px;height:18px}
-.subscription-design-preview .subscription-badge {font-size:10px;font-weight:600;line-height:1.5;padding:4px 9px;border-radius:20px;background:#f3efe9;color:#5a554f}
 .subscription-design-preview .subscription-heading {margin-bottom:18px}
 .subscription-design-preview .subscription-heading h1 {font-size:24px;line-height:1.3;letter-spacing:-.025em;font-weight:700;margin-bottom:7px}
 .subscription-design-preview .subscription-heading p {font-size:13px;color:var(--sub-muted)}
 .subscription-design-preview .subscription-notice {font-size:12px;color:#694429;padding:12px 15px;background:#fff0e2;border-radius:10px;margin-bottom:22px}
 .subscription-design-preview .subscription-plans {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
-.subscription-design-preview .subscription-plan {border:1px solid var(--sub-line);border-radius:17px;background:#fffdf9;padding:22px;display:flex;flex-direction:column;min-width:0}
+.subscription-design-preview .subscription-plan {border:1px solid var(--sub-line);border-radius:17px;background:#fffdf9;padding:18px;display:flex;flex-direction:column;min-width:0}
 .subscription-design-preview .subscription-plan-pro {border-color:var(--sub-orange);background:#fff8f0}
 .subscription-design-preview .subscription-plan-heading {display:flex;align-items:center;justify-content:space-between;gap:10px}
 .subscription-design-preview .subscription-plan h2 {font-size:19px;line-height:1.4;font-weight:700;letter-spacing:-.02em}
-.subscription-design-preview .subscription-plan-pro .subscription-badge {color:#974100;background:#ffead5}
 .subscription-design-preview .subscription-price {font-size:25px;font-weight:700;letter-spacing:-.025em;margin-top:12px!important;font-variant-numeric:tabular-nums}
 .subscription-design-preview .subscription-price span {font-size:12px;font-weight:400;letter-spacing:0;color:var(--sub-muted)}
-.subscription-design-preview .subscription-plan-intro {font-size:12px;color:var(--sub-muted);margin-top:3px!important}
-.subscription-design-preview .subscription-features {list-style:none;padding:0;margin:23px 0;display:grid;gap:18px}
+.subscription-design-preview .subscription-features {list-style:none;padding:0;margin:16px 0;display:grid;gap:12px}
 .subscription-design-preview .subscription-features li {display:grid;grid-template-columns:16px minmax(0,1fr);gap:9px}
 .subscription-design-preview .subscription-check {color:#b84a00;padding-top:2px}
 .subscription-design-preview .subscription-features h3 {font-size:13px;font-weight:700;line-height:1.5;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.subscription-design-preview .subscription-features small {font-size:10px;color:#805331;background:#f6ecdf;border-radius:4px;padding:1px 5px;font-weight:500}
 .subscription-design-preview .subscription-features p {font-size:12px;color:var(--sub-muted);line-height:1.65;margin-top:3px}
 .subscription-design-preview .subscription-features .subscription-quota {color:var(--sub-ink);font-weight:600;font-variant-numeric:tabular-nums}
 .subscription-design-preview .subscription-plan-action {border-top:1px solid var(--sub-line);padding-top:17px;margin-top:auto}
@@ -71,7 +67,6 @@ body.subscription-design-preview > #kw-main.subscription-page {margin-inline:aut
 body.premium-workspace.subscription-design-preview {background:radial-gradient(ellipse at top right,#fff1e3 0,transparent 40%),#fcfaf7!important}
 
 .subscription-design-preview .subscription-current {margin-bottom:16px;font-size:13px}
-.subscription-design-preview .subscription-current p {color:var(--sub-muted);font-size:12px;margin-top:3px}
 .subscription-design-preview .subscription-bank dd {overflow-wrap:anywhere}
 .subscription-design-preview .subscription-plan-heading {flex-wrap:wrap}
-.subscription-design-preview .subscription-notice strong {display:block;margin-bottom:3px}
+.subscription-design-preview .subscription-pending {font-size:12px;color:var(--sub-muted);margin-top:12px!important}

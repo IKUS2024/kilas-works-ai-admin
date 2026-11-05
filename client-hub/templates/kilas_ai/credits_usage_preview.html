@@ -1,5 +1,5 @@
 {# UI proposal: no balance values, price conversion or payment submission. Existing billing stays available. #}
-{% from 'kilas_ai/_subscription_copy.html' import t, number with context %}
+{% from 'kilas_ai/_subscription_copy.html' import t with context %}
 {% set current_plan = subscription.plan if subscription is defined else 'FREE' %}
 {% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
 <!doctype html>
@@ -19,39 +19,38 @@
   {% set revision_styles_in_head=true %}{% set kilas_revision_shell=true %}
   {% include '_premium_workspace.html' %}
   <main id="kw-main" class="subscription-page">
-    <nav class="subscription-topbar" aria-label="{{ t('Navigasi halaman') }}"><a href="{{ url_for('products.product_start') }}">{{ drawer_icon('home') }} {{ t('Workspace') }}</a><span class="subscription-badge">{{ t('Rancangan paket') }}</span></nav>
+    <nav class="subscription-topbar" aria-label="{{ t('Navigasi halaman') }}"><a href="{{ url_for('products.product_start') }}">{{ drawer_icon('home') }} {{ t('Workspace') }}</a></nav>
     <section id="subscription-plans" aria-labelledby="subscription-title">
-      <header class="subscription-heading"><h1 id="subscription-title">{{ t('Subscription') }}</h1><p>{{ t('Pilihan paket untuk kebutuhan harianmu bersama Kilas.') }}</p></header>
-      <div class="subscription-current" data-current-plan="{{ current_plan }}"><strong>{{ t('Paket saat ini') }}: Kilas {{ t('Free') if current_plan == 'FREE' else current_plan|title }}</strong><p>{{ t('Paket aktif tetap mengikuti layanan saat ini.') }}</p></div>
-      <div class="subscription-notice"><strong>{{ t('Langganan belum tersedia') }}</strong> {{ t('Ini rancangan paket, bukan kuota aktif akunmu.') }}</div>
+      <header class="subscription-heading"><h1 id="subscription-title">{{ t('Subscription') }}</h1></header>
+      <div class="subscription-current" data-current-plan="{{ current_plan }}"><strong>{{ t('Paket saat ini') }}: Kilas {{ t('Free') if current_plan == 'FREE' else current_plan|title }}</strong></div>
+      <div class="subscription-notice">{{ t('Kuota rancangan belum aktif') }}</div>
       <div class="subscription-plans">
       {% for pro in [false, true] %}
       <article class="subscription-plan{% if pro %} subscription-plan-pro{% endif %}" aria-labelledby="plan-{{ 'pro' if pro else 'free' }}">
-        <div class="subscription-plan-heading"><h2 id="plan-{{ 'pro' if pro else 'free' }}">Kilas {{ t('Pro' if pro else 'Free') }}</h2><span class="subscription-badge">{{ t('Lebih banyak ruang' if pro else 'Mulai sederhana') }}</span></div>
-        <p class="subscription-price">Rp{{ number(99000) if pro else '0' }}{% if pro %}<span> / {{ t('bulan') }}</span>{% endif %}</p>
-        <p class="subscription-plan-intro">{{ t('Untuk ide dan pekerjaan yang lebih rutin.' if pro else 'Untuk mencoba berbagai kebutuhan dengan AI.') }}</p>
+        <div class="subscription-plan-heading"><h2 id="plan-{{ 'pro' if pro else 'free' }}">{{ t('Kredit sesuai pemakaian') if pro else 'Kilas ' ~ t('Free') }}</h2></div>
+        {% if pro %}<p class="subscription-pending">{{ t('Penawaran mendatang · Detail menyusul') }}</p>{% else %}<p class="subscription-price">Rp0</p>{% endif %}
         <ul class="subscription-features">
-          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('AI Chat') }}</h3><p class="subscription-quota">{{ '300' if pro else '70' }} / {{ t('hari') }} · {{ number(8000) if pro else '500' }} / {{ t('bulan') }}</p><p>{{ t('Tanya jawab, kembangkan ide, dan bantu susun tulisan.') }}</p></div></li>
-          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Gambar AI') }} {% if pro %}<small>{{ t('Usulan') }}</small>{% endif %}</h3><p class="subscription-quota">{% if pro %}5 / {{ t('hari') }} · 50 / {{ t('bulan') }}{% else %}{{ t('1 kali coba / akun') }}{% endif %}</p><p>{{ t('Buat gambar dari deskripsi yang kamu tulis.') }}</p></div></li>
-          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Translator') }} <small>{{ t('Usulan') }}</small></h3><p class="subscription-quota">{{ '3' if pro else '1' }} / {{ t('hari') }} · {{ '10' if pro else '3' }} / {{ t('bulan') }}</p><p>{{ t('Terjemahkan percakapan dengan hasil teks dan suara. Detail durasi paket belum ditetapkan.') }}</p></div></li>
-          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Voice Over') }} <small>{{ t('Usulan') }}</small></h3><p class="subscription-quota">1 / {{ t('hari') }} · {{ '5' if pro else '2' }} / {{ t('bulan') }}</p><p>{{ t('Ubah naskah menjadi audio narasi yang bisa diputar dan diunduh. Detail durasi paket belum ditetapkan.') }}</p></div></li>
-          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Scan struk') }} <small>{{ t('Usulan') }}</small></h3><p class="subscription-quota">{{ '10' if pro else '2' }} / {{ t('hari') }} · {{ '100' if pro else '10' }} / {{ t('bulan') }}</p><p>{{ t('Baca foto struk untuk menyiapkan catatan Finance. Periksa hasil sebelum menyimpan transaksi.') }}</p></div></li>
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('AI Chat') }}</h3>{% if not pro %}<p class="subscription-quota">70 {{ t('pesan') }} / {{ t('hari') }} · 500 {{ t('pesan') }} / {{ t('bulan') }}</p>{% endif %}</div></li>
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Gambar AI') }}</h3>{% if not pro %}<p class="subscription-quota">{{ t('1 kali coba / akun') }}</p>{% endif %}</div></li>
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Translator') }}</h3></div></li>
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Voice Over') }}</h3></div></li>
+          <li><span class="subscription-check" aria-hidden="true">{{ check() }}</span><div><h3>{{ t('Scan struk') }}</h3></div></li>
         </ul>
         <footer class="subscription-plan-action">{% if pro %}<a class="subscription-button" id="subscription-open-payment" href="#payment-preview">{{ t('Lihat rancangan pembayaran') }} {{ drawer_icon('chevron') }}</a>{% else %}<button class="subscription-button subscription-neutral" disabled>{{ t('Paket saat ini') if current_plan == 'FREE' else t('Rancangan paket Free') }}</button>{% endif %}</footer>
       </article>
       {% endfor %}
       </div>
-      <aside class="subscription-existing"><div><h2>{{ t('Akses & tagihan saat ini') }}</h2><p>{{ t('Akses, saldo, dan tagihan yang sudah ada tetap mengikuti layanan saat ini. Angka paket di atas tidak menggantikan saldo akunmu.') }}</p></div><a href="{{ url_for('kilas_ai.usage_page',view='legacy') }}">{{ t('Lihat saldo, top-up & riwayat tagihan') }} {{ drawer_icon('chevron') }}</a></aside>
+      <aside class="subscription-existing"><div><h2>{{ t('Akses & tagihan saat ini') }}</h2></div><a href="{{ url_for('kilas_ai.usage_page',view='legacy') }}">{{ t('Lihat saldo, top-up & riwayat tagihan') }} {{ drawer_icon('chevron') }}</a></aside>
     </section>
     <section id="payment-preview" class="subscription-payment" aria-labelledby="payment-title" hidden>
       <a href="#subscription-plans" class="subscription-back" id="subscription-close-payment"><span aria-hidden="true">←</span> {{ t('Kembali ke paket') }}</a>
       <header class="subscription-heading"><h1 id="payment-title" tabindex="-1">{{ t('Pembayaran') }}</h1><p>{{ t('Preview pembayaran · Belum menerima pembayaran') }}</p></header>
-      <div class="subscription-payment-summary"><div><strong>Kilas Pro</strong><p>Rp{{ number(99000) }} <span>/ {{ t('bulan') }}</span></p></div><span class="subscription-crown" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 7 5 4 4-7 4 7 5-4-2 12H5L3 7Z"/></svg></span></div>
+      <div class="subscription-payment-summary"><div><strong>{{ t('Kredit sesuai pemakaian') }}</strong><p>{{ t('Detail menyusul') }}</p></div><span class="subscription-crown" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 7 5 4 4-7 4 7 5-4-2 12H5L3 7Z"/></svg></span></div>
       <h2>{{ t('Transfer Bank Mega') }}</h2>
       <div class="subscription-bank"><strong class="subscription-bank-name">BANK <span>MEGA</span></strong><dl><dt>{{ t('Nomor rekening') }}</dt><dd translate="no">10180016000684</dd><dt>{{ t('Atas nama perusahaan') }}</dt><dd><span translate="no">KILAS TEKNOLOGI KREATIF</span></dd></dl><button type="button" class="subscription-button subscription-neutral" disabled>{{ t('Salin rekening · Belum tersedia') }}</button></div>
       <div class="subscription-upload"><svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 18H5a4 4 0 0 1-1-8 8 8 0 0 1 15-1 4.5 4.5 0 0 1 0 9h-2M12 21V11m-4 4 4-4 4 4"/></svg><strong>{{ t('Unggah bukti transfer') }}</strong><p>{{ t('Contoh tampilan · Belum tersedia') }}</p></div>
       <button class="subscription-button subscription-submit" disabled>{{ t('Kirim bukti · Belum tersedia') }}</button>
-      <p class="subscription-payment-status"><strong>{{ t('Belum tersedia') }}</strong><br>{{ t('Rancangan ini tidak menerima transfer atau bukti pembayaran.') }}</p>
+      <p class="subscription-payment-status">{{ t('Pratinjau saja · Jangan transfer') }}</p>
     </section>
     <footer class="subscription-footer">Kilas Works <span>{{ t('Preview Subscription') }}</span></footer>
   </main>
