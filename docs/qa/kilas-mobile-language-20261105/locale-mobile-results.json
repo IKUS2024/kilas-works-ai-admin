@@ -1,0 +1,386 @@
+[
+  {
+    "page": "products",
+    "width": 360,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 360,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 360,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 360,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 360,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 360,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 360,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 360,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 360,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 360,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 360,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 360,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 360,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 360,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 360,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 360,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 393,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 393,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 393,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 393,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 393,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 393,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 393,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 393,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 393,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 393,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 393,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 393,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 393,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 393,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 393,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 393,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 430,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 430,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 430,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 430,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 430,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 430,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 430,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 430,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 430,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 430,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 430,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 430,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 430,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 430,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 430,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 430,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 1180,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 1180,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 1180,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 1180,
+    "language": "id",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 1180,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 1180,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 1180,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 1180,
+    "language": "en",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 1180,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 1180,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 1180,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 1180,
+    "language": "es",
+    "result": "PASS"
+  },
+  {
+    "page": "products",
+    "width": 1180,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "creative",
+    "width": 1180,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "checkout",
+    "width": 1180,
+    "language": "zh",
+    "result": "PASS"
+  },
+  {
+    "page": "payment",
+    "width": 1180,
+    "language": "zh",
+    "result": "PASS"
+  }
+]

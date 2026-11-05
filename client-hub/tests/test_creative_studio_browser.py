@@ -142,7 +142,7 @@ def main():
                     expect(page.locator('[data-cs-menu]')).to_have_attribute('aria-expanded','false')
                     expect(page.locator('#studio-navigation')).not_to_be_visible()
                 page.locator('[data-cs-language="en"]').click()
-                expect(page.locator('#cs-title')).to_contain_text('Moments into stories.')
+                expect(page.locator('#cs-title')).to_contain_text('Moments into stories')
                 expect(page.locator('.studio-hero-main')).to_have_attribute('alt','Illustration of a videographer filming an event')
                 images_ready()
                 check_portfolio(page,'en',activate=True,touch=width<=700)
@@ -215,7 +215,7 @@ def main():
                 # Reload uses the saved UI language; language switch itself retains the edited draft.
                 page.locator('[data-cs-language="en"]').click();page.reload(wait_until='networkidle')
                 expect(page.locator('html')).to_have_attribute('lang','en')
-                expect(page.locator('#cs-title')).to_contain_text('Moments into stories.')
+                expect(page.locator('#cs-title')).to_contain_text('Moments into stories')
                 page.locator('#cs-brief-review-panel summary').click()
                 # Empty messages cannot open WhatsApp, nor can preparing a draft send it.
                 page.locator('#cs-brief-message').fill('  ')
