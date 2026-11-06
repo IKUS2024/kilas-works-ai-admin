@@ -26,6 +26,22 @@ A bounded read-only audit found one existing admin reviewer account and no owner
 
 Fresh read-only aggregates at `2026-11-06T05:22:28.422292Z` and `2026-11-06T05:24:30.219355Z` found zero non-owner current Interpreter leases, completed translation jobs requiring source classification, nonterminal Work jobs, active Audio jobs, pending AI operations, active supplier operations or live turns requiring drain/classification. No personal rows, transcripts, payment data or balances were exported. This observation must be repeated at actual cutover; it is not a permanent waiver of the audit.
 
+### Exact-source runtime proof follow-up
+
+The read-only retained receipt is `SUCCEEDED`, with a completed job, confirmed cleanup, document PASS and download validation. Its recorded runtime is `cp311`, with root-owned wheels, no network install and no host execution. Its document fingerprint is `7eba594fa618d6caf8f2836e8ef4cac6a657904a6e52147ee8db92f4c0411472`. This is retained evidence for its original source, not candidate acceptance.
+
+| Source | Large fingerprint | Document fingerprint |
+| --- | --- | --- |
+| Repository base `5968534f` | `a3a10d9a4380c4f578cff6b9739679f177ca939fac823a4227c0b75377e51178` | `acd2f39d38889988de001d9ebe92e8c16cf1de2bf12f490655d30315aa06c86b` |
+| Earlier feature base `33c86e61` | `ac61d50a98985651603ef59c932e62c80711f9834cd61df8f266140538a57344` | `f8196aa2e1cd22c087776b7200a87a65b9a9351e83691af8a09150ed08bef154` |
+| Inactive candidate `d57dc816` | `82c16050c071c11a2a60653df21e4b44ebd43b18f31f76067b859f4b1b8aa939` | `76e3c4ec15ce1a5ec879c1f957c28264f6a6e0a40ee70929b0a4a1a6ee7a1d97` |
+
+The only large-profile fingerprint input changed between `33c86e61` and `d57dc816` is `autonomous_runner.py`. General execution boundary, access, credit and compatibility-verifier files are unchanged from `5968534f`. None of these base/candidate document fingerprints matches the retained receipt; the mismatch was not first introduced by this last continuation. This comparison does not assert what source is currently deployed.
+
+Fresh acceptance was not attempted. `document-runtime-20261019-v1` is already consumed and its approval expired on October 20, 2026 at 10:02:37 UTC. The contract requires a real isolated E2B runtime, verified boundary evidence, actual generated/downloaded documents and confirmed teardown. This executor has neither the E2B SDK nor an existing E2B key. A local synthetic PASS cannot replace that evidence. A separately reviewed candidate-bound acceptance procedure, authorized existing runtime access and explicit bounded paid-VM authorization are required before that action can proceed. No expiry, operation key, source pin, receipt, approval flag or runtime guard was changed.
+
+All 15 focused document-runtime and large-proof tests pass offline. Added regressions mutate runner bytes only inside a mock, verify both fingerprints change and capability fails closed, preserve the original synthetic receipt byte for byte, and reject replay despite a synthetic armed approval. These are validator tests, not a claim of remote acceptance. No broad suite was repeated for this test/document-only follow-up. The remaining pricing, operational access, receipt quality, migration and release gates below still apply.
+
 ## Decisions and actions still required
 
 | Area | Exact remaining gate |
