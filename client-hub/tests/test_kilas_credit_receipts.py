@@ -111,5 +111,19 @@ class ReceiptCreditTests(unittest.TestCase):
         self.assertEqual(wallet.balance(self.user)['available_milli'],2000000)
         self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kilas_credit_admissions WHERE user_id=?',(self.user,))['n'],0)
 
+    def test_existing_paid_plan_keeps_its_legacy_receipt_profile_and_accounting(self):
+        from datetime import timedelta
+        from kilas_ai import usage
+        now=usage._now()
+        db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PRO','ACTIVE',?,?)",(self.user,(now-timedelta(days=1)).isoformat(),(now+timedelta(days=30)).isoformat()))
+        image=io.BytesIO();Image.new('RGB',(2049,16),'white').save(image,'PNG');self.raw=image.getvalue()
+        with patch.object(providers,'_openai',return_value=self.events(receipt.empty_result())) as dispatch:
+            self.extract()
+            self.assertEqual(dispatch.call_args.kwargs['profile']['input_token_bound'],200000)
+        row=db.query_one('SELECT operation_type FROM kilas_ai_usage WHERE user_id=?',(self.user,))
+        self.assertEqual(row['operation_type'],'CHAT')
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kilas_credit_admissions WHERE user_id=?',(self.user,))['n'],0)
+        self.assertEqual(wallet.balance(self.user)['balance_milli'],2000000)
+
 
 if __name__=='__main__':unittest.main()

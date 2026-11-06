@@ -261,6 +261,8 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
             if count >= ceiling:
                 raise UsageLimit("Terlalu banyak permintaan dalam waktu singkat. Coba lagi sebentar.")
         operations = _operations(mode, tool)
+        from . import credit_policy
+        if tool=='RECEIPT' and credit_policy.enabled() and plan!='FREE':operations=('CHAT',)
         from . import chat_offering
         sponsored = (tool in ('CHAT','WEB','PDF','PPTX','IMAGE_GENERATE','IMAGE_EDIT')
                      and chat_offering.sponsored(user_id,operations,conn,origin=origin))

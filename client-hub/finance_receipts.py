@@ -109,7 +109,7 @@ def extract(raw, mime, pdf_text, category_names, business_id=None, user_id=None)
     if credit_policy.enabled():
         from kilas_ai import credit_wallet,credit_receipts
         conn=usage._connect()
-        try:customer_meter=not credit_policy.owner(conn,user_id)
+        try:customer_meter=not credit_policy.owner(conn,user_id) and usage._plan(conn,user_id,usage._now())[0]=='FREE'
         finally:conn.close()
         if customer_meter:
             try:profile.update(credit_receipts.bound(raw,mime,category_names,SYSTEM,schema))
