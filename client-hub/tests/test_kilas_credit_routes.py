@@ -135,7 +135,7 @@ class CreditRoutesTests(unittest.TestCase):
 
     def test_receipt_quote_no_provider_before_consent_no_chat_allowance(self):
         import finance_receipts
-        from kilas_ai import providers,chat_models
+        from kilas_ai import credit_receipts,chat_models
         from test_kilas_credit_adapters import TARIFFS
         # Own synthetic purchase; no real payment or financial data.
         ident=wallet.create_purchase(self.owner,'receipt-route-fund')
@@ -145,7 +145,7 @@ class CreditRoutesTests(unittest.TestCase):
         from PIL import Image
         image=io.BytesIO();Image.new('RGB',(16,16),'white').save(image,'PNG');image_raw=image.getvalue()
         events=[{'type':'delta','text':json.dumps(finance_receipts.empty_result())},{'type':'usage','input_tokens':10,'output_tokens':10},{'type':'finish','reason':'stop'}]
-        with patch.dict(os.environ,{'KILAS_CREDIT_TARIFFS_JSON':json.dumps(TARIFFS)}),patch.object(chat_models,'check',return_value={'available':True,'images':True}),patch.object(finance_receipts.branches,'token_branch',return_value=1),patch.object(providers,'_openai',return_value=iter(events)) as dispatch:
+        with patch.dict(os.environ,{'KILAS_CREDIT_TARIFFS_JSON':json.dumps(TARIFFS)}),patch.object(chat_models,'check',return_value={'available':True,'images':True}),patch.object(finance_receipts.branches,'token_branch',return_value=1),patch.object(credit_receipts,'preflight',return_value={'count':10,'payload_digest':'synthetic'}),patch.object(credit_receipts,'generate',return_value=iter(events)) as dispatch:
             with self.assertRaises(policy.ConsentRequired) as caught:
                 finance_receipts.extract(image_raw,'image/png',None,[],business_id=1,user_id=self.owner)
             self.assertEqual(dispatch.call_count,0)

@@ -61,6 +61,32 @@ def apply(conn):
         user_id BIGINT NOT NULL REFERENCES users(id),operation_key TEXT NOT NULL,root_key TEXT NOT NULL,
         source_ms BIGINT NOT NULL DEFAULT 0,output_ms BIGINT NOT NULL DEFAULT 0,maximum_ms BIGINT NOT NULL,output_ratio_milli BIGINT NOT NULL,
         source_digest TEXT,dispatched INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(user_id,operation_key))""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_interpreter_sessions (
+        user_id BIGINT NOT NULL REFERENCES users(id),session_id TEXT NOT NULL UNIQUE,model TEXT NOT NULL,
+        settings_digest TEXT NOT NULL,billing_mode TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'ACTIVE',
+        created_at TEXT NOT NULL,PRIMARY KEY(user_id,session_id))""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_interpreter_turns (
+        user_id BIGINT NOT NULL,session_id TEXT NOT NULL,turn_index BIGINT NOT NULL,operation_key TEXT NOT NULL,
+        maximum_ms BIGINT NOT NULL,output_ratio_milli BIGINT NOT NULL,
+        source_ms BIGINT NOT NULL DEFAULT 0,output_ms BIGINT NOT NULL DEFAULT 0,source_digest TEXT,
+        dispatched INTEGER NOT NULL DEFAULT 0,confirmed INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'ACTIVE',
+        PRIMARY KEY(user_id,session_id,turn_index),UNIQUE(user_id,operation_key),
+        FOREIGN KEY(user_id,session_id) REFERENCES kilas_credit_interpreter_sessions(user_id,session_id))""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_work_waits (
+        token TEXT PRIMARY KEY REFERENCES kilas_credit_consents(token),user_id BIGINT NOT NULL REFERENCES users(id),
+        job_id BIGINT NOT NULL,step_id BIGINT NOT NULL,operation_key TEXT NOT NULL,fingerprint TEXT NOT NULL,
+        job_revision BIGINT NOT NULL,job_digest TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'WAITING',created_at TEXT NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_work_operations (
+        user_id BIGINT NOT NULL REFERENCES users(id),operation_key TEXT NOT NULL,job_id BIGINT NOT NULL,step_id BIGINT NOT NULL,
+        fingerprint TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'ADMITTED',dispatched_at TEXT,
+        PRIMARY KEY(user_id,operation_key))""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_activation (
+        version TEXT PRIMARY KEY,cutoff TEXT NOT NULL,release_sha TEXT NOT NULL,tariff_digest TEXT NOT NULL,
+        meter_version TEXT NOT NULL,snapshot_digest TEXT NOT NULL,created_at TEXT NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_quota_baselines (
+        version TEXT NOT NULL REFERENCES kilas_credit_activation(version),user_id BIGINT NOT NULL REFERENCES users(id),
+        feature TEXT NOT NULL,period_start TEXT NOT NULL,period_end TEXT NOT NULL,units BIGINT NOT NULL,
+        provenance TEXT NOT NULL,PRIMARY KEY(version,user_id,feature,period_start))""",
     ]
     for sql in statements:
         usage._query(conn, sql)

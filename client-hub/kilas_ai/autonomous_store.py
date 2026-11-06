@@ -155,6 +155,10 @@ def control(user_id, job_id, action):
     if action not in ('pause', 'resume', 'stop'):
         raise ValueError('invalid_control')
     with transaction() as conn:
+        from . import credit_policy
+        if credit_policy.enabled():
+            credit_policy.lock_account_in(conn,user_id)
+            if action=='resume' and usage._query(conn,"SELECT 1 FROM kilas_credit_work_waits WHERE user_id=? AND job_id=? AND state IN ('WAITING','DECLINED')",(user_id,job_id),one=True):raise ValueError('credit_consent_required')
         suffix = ' FOR UPDATE' if db.BACKEND == 'postgres' else ''
         row = usage._query(conn, 'SELECT status,plan_json FROM kilas_agent_jobs WHERE id=? AND user_id=?' + suffix, (job_id, user_id), one=True)
         if not row or row[0] in TERMINAL:

@@ -10,7 +10,7 @@ import test_kilas_credit_routes as fixture
 from test_kilas_credit_adapters import TARIFFS
 import db
 import finance_receipts as receipt
-from kilas_ai import credit_policy as policy, credit_wallet as wallet, providers, chat_models
+from kilas_ai import credit_policy as policy, credit_wallet as wallet, providers, chat_models, credit_receipts
 
 
 class ReceiptCreditTests(unittest.TestCase):
@@ -21,6 +21,7 @@ class ReceiptCreditTests(unittest.TestCase):
         tariffs=json.loads(json.dumps(TARIFFS));tariffs['limits']['RECEIPT']['input_tokens']=32000
         self.flags=patch.dict(os.environ,{'KILAS_CREDIT_ENFORCEMENT_ENABLED':'yes','KILAS_CREDIT_TARIFFS_JSON':json.dumps(tariffs)})
         self.flags.start();self.addCleanup(self.flags.stop)
+        counter=patch.object(credit_receipts,'preflight',return_value={'count':100,'payload_digest':'synthetic'});counter.start();self.addCleanup(counter.stop)
         self.ready=patch.object(chat_models,'check',return_value={'available':True,'images':True});self.ready.start();self.addCleanup(self.ready.stop)
         self.branch=patch.object(receipt.branches,'token_branch',return_value=1);self.branch.start();self.addCleanup(self.branch.stop)
         ident=wallet.create_purchase(self.user,'synthetic-funding')
@@ -45,7 +46,7 @@ class ReceiptCreditTests(unittest.TestCase):
 
     def test_readable_amount_currency_captures_once_inside_actual_payload_bounds(self):
         result={**receipt.empty_result(),'readable':True,'total_minor':10000,'currency':'IDR'}
-        with patch.object(providers,'_openai',return_value=self.events(result)) as dispatch:
+        with patch.object(credit_receipts,'generate',return_value=self.events(result)) as dispatch:
             self.admit();dispatch.assert_not_called()
             token=db.query_one('SELECT token FROM kilas_credit_consents WHERE user_id=?',(self.user,))['token']
             for lang,copy in [('en','Only a readable receipt'),('id','Kredit hanya dipakai'),('es','Solo se deducen créditos'),('zh','仅对包含金额')]:
@@ -55,8 +56,8 @@ class ReceiptCreditTests(unittest.TestCase):
             self.assertEqual(wallet.balance(self.user)['balance_milli'],1999000)
             self.assertEqual(self.admission(),'CAPTURED')
             args=dispatch.call_args
-            self.assertEqual(args.kwargs['profile']['input_token_bound'],32000)
-            self.assertEqual(args.args[2][0]['content'][0]['image_url']['detail'],'high')
+            self.assertEqual(json.loads(args.args[0])['input'][0]['content'][0]['detail'],'high')
+            self.assertEqual(json.loads(args.args[0])['model'],'gpt-6-luna')
             with self.assertRaisesRegex(receipt.ReceiptError,'already_analyzed'):self.extract()
             dispatch.assert_called_once()
 
@@ -64,7 +65,7 @@ class ReceiptCreditTests(unittest.TestCase):
         for complete in (False,True):
             self.raw+=b'\0'  # distinct synthetic request identity, still a valid PNG.
             result={**receipt.empty_result(),'readable':complete}
-            with patch.object(providers,'_openai',return_value=self.events(result)):
+            with patch.object(credit_receipts,'generate',return_value=self.events(result)):
                 self.admit();self.extract()
             self.assertEqual(wallet.balance(self.user)['balance_milli'],2000000)
             self.assertEqual(wallet.balance(self.user)['reserved_milli'],0)
@@ -76,7 +77,7 @@ class ReceiptCreditTests(unittest.TestCase):
         for outcome in outcomes:
             self.raw+=b'\0'
             self.admit()
-            with patch.object(providers,'_openai',**({'side_effect':outcome} if isinstance(outcome,Exception) else {'return_value':outcome})) as dispatch:
+            with patch.object(credit_receipts,'generate',**({'side_effect':outcome} if isinstance(outcome,Exception) else {'return_value':outcome})) as dispatch:
                 with self.assertRaises(receipt.ReceiptError):self.extract()
                 with self.assertRaisesRegex(receipt.ReceiptError,'already_analyzed'):self.extract()
                 dispatch.assert_called_once()
@@ -85,7 +86,10 @@ class ReceiptCreditTests(unittest.TestCase):
 
     def test_ambiguous_transport_is_not_captured_or_automatically_released(self):
         self.admit()
-        with patch.object(providers,'_openai',side_effect=providers.ProviderError('synthetic ambiguous transport')) as dispatch:
+        def interrupted(*args):
+            yield from ()
+            raise providers.ProviderError('synthetic ambiguous transport')
+        with patch.object(credit_receipts,'generate',side_effect=interrupted) as dispatch:
             with self.assertRaises(receipt.ReceiptError):self.extract()
             with self.assertRaisesRegex(receipt.ReceiptError,'already_analyzed'):self.extract()
             dispatch.assert_called_once()
@@ -97,7 +101,7 @@ class ReceiptCreditTests(unittest.TestCase):
         self.assertEqual(wallet.balance(self.user)['reserved_milli'],0)
 
     def test_image_category_and_unverified_accounting_limits_deny_before_quote_or_dispatch(self):
-        with patch.object(providers,'_openai') as dispatch:
+        with patch.object(credit_receipts,'generate') as dispatch:
             for size in ((2049,1),(16,2049)):
                 output=io.BytesIO();Image.new('RGB',size,'white').save(output,'PNG');self.raw=output.getvalue()
                 with self.assertRaisesRegex(receipt.ReceiptError,'capacity_unavailable'):self.extract()

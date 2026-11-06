@@ -165,6 +165,8 @@ def execute(job_id, token):
             result = agent_workers.execute(job, step)
         finish(job, token, step, result)
     except Exception as error:
+        from . import credit_policy,credit_work
+        if isinstance(error,credit_policy.ConsentRequired) and step is not None and credit_work.park(job,token,step,error):return
         if step is not None:
             if step['worker'] == 'CODE':
                 from .agent_workers.code_worker import cleanup

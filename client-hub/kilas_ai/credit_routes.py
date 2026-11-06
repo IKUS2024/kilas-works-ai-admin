@@ -102,6 +102,10 @@ def credit_retry_account_fence():
     if not re.fullmatch(r'[a-f0-9]{64}',token):return {'code':'credit_consent_invalid'},409
     item=db.query_one('SELECT user_id,operation_key,status,expires_at FROM kilas_credit_consents WHERE token=?',(token,))
     key=(request.view_args or {}).get('key') or request.form.get('operation_key') or (request.get_json(silent=True) or {}).get('operation_key')
+    if request.endpoint in ('kilas_audio.interpreter_session','kilas_audio.interpreter_turn'):
+        from .credit_interpreter import operation
+        try:key=operation(request.view_args['ident'],0 if request.endpoint.endswith('interpreter_session') else int(request.form['turn_index']))
+        except (ValueError,KeyError):return {'code':'credit_consent_invalid'},409
     if (not item or item['user_id']!=session.get('user_id') or item['operation_key']!=key
             or item['status'] not in ('APPROVED','CONSUMED') or usage._as_utc(item['expires_at'])<=usage._now()):
         return {'code':'credit_consent_account_or_request_changed'},409
@@ -116,9 +120,12 @@ def credit_consent(token):
     if request.method=='POST':
         decision=request.form.get('decision')
         if decision not in ('approve','decline'):abort(400)
-        try:state=policy.consent(session['user_id'],token,decision=='approve')
+        try:
+            from . import credit_work
+            state=credit_work.decide(session['user_id'],token,decision=='approve')
         except wallet.WalletError as error:return {'code':str(error)},409
-    return render_template('kilas_ai/credit_consent.html',quote=item,terms=json.loads(item['terms_json']),state=state,return_to=request.args.get('return_to') if re.fullmatch(r'/business/[0-9]+/finance/receipts/new',request.args.get('return_to','')) else None),200,{'Cache-Control':'private, no-store'}
+    work=db.query_one('SELECT job_id FROM kilas_credit_work_waits WHERE token=? AND user_id=?',(token,session['user_id']))
+    return render_template('kilas_ai/credit_consent.html',work=work,quote=item,terms=json.loads(item['terms_json']),state=state,return_to=request.args.get('return_to') if re.fullmatch(r'/business/[0-9]+/finance/receipts/new',request.args.get('return_to','')) else None),200,{'Cache-Control':'private, no-store'}
 
 
 @admin_bp.post('/credits/reconcile')

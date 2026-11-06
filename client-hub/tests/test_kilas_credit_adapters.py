@@ -22,7 +22,7 @@ TARIFFS = {
         'VOICE':{'models':['eleven_multilingual_v2','eleven_v4'], 'characters':4000, 'output_ms':600000},
         'TRANSLATOR':{'models':['gpt-6-luna','gemini-3.5-live-translate-preview','dubbing_v2'],
                       'source_ms':600000, 'output_ratio_milli':2000},
-        'RECEIPT':{'models':['gpt-6-luna'], 'input_tokens':200000, 'output_tokens':2048, 'bytes':1000,'input_accounting_verified':'luna-high-2048-text12k-v1'},
+        'RECEIPT':{'models':['gpt-6-luna'], 'input_tokens':200000, 'output_tokens':2048, 'bytes':1000,'input_accounting_verified':'luna-responses-count-32k-2048-v2'},
     },
 }
 

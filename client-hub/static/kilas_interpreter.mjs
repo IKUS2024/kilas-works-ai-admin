@@ -30,7 +30,7 @@ if(root){
   for(const select of [a,b]){select.dataset.language=select.value;select.title=select.selectedOptions[0].textContent;let full=select.parentNode.querySelector('.reference-language-full');if(!full){full=document.createElement('span');full.className='reference-language-full';full.setAttribute('aria-hidden','true');select.after(full);}full.textContent=select.title;full.hidden=select.title.length<22;}
   savePair();sync();
  };
- const request=(url,options={})=>requestJSON(url,{csrf:root.querySelector('[name=csrf_token]').value,...options});
+ const request=(url,options={})=>requestJSON(url,{csrf:root.querySelector('[name=csrf_token]').value,...options,...(window.kilasCreditConsentInstalled&&options.method==='POST'&&/^\/kilas-translator\/interpreter\/[a-f0-9]{32}(?:\/turn)?$/.test(url)?{timeoutMs:250000}:{})});
  let active=false,pair=null,context=null,side=null,selectedSource=null,switching=false,generation=0,recoveryTimer=null,authExpired=false,lastState='ended',newTranscript=true;
  const sync=()=>{
   navigation.hidden=active;for(const control of [a,b,field('swap')])control.disabled=active;field('start').disabled=authExpired;end.disabled=false;
@@ -101,7 +101,7 @@ if(root){
    try{Promise.resolve(own.resume()).then(()=>{clearTimeout(timeout);resolve();},failed);}catch{failed();}
   });
  };
- const session=new CallSession({request,capture,player,stopAudio,prepare:()=>context?context.resume():Promise.reject(Object.assign(Error(),{code:'call_audio'})),
+ const session=new CallSession({request,capture,player,stopAudio,admitBeforeCapture:window.kilasCreditConsentInstalled===true,prepare:()=>context?context.resume():Promise.reject(Object.assign(Error(),{code:'call_audio'})),
   onState:state=>{
    if(['connecting','starting'].includes(state))clearTranscript();
    if(state==='listening'&&lastState==='speaking')newTranscript=true;

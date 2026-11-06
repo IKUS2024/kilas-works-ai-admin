@@ -106,13 +106,17 @@ def extract(raw, mime, pdf_text, category_names, business_id=None, user_id=None)
     key='finance-receipt:'+str(business_id)+':'+str(branches.token_branch(business_id))+':'+hashlib.sha256(raw).hexdigest()
     from kilas_ai import credit_policy
     profile={'credit_fingerprint':credit_policy.fingerprint({'image_sha256':hashlib.sha256(raw).hexdigest(),'mime':mime,'categories':category_names,'model':model,'business':business_id}), 'model':model,'selected_model':model,'output_tokens':2048,'input_token_bound':200000,'receipt_bytes':len(raw),'effort':'low'}
+    customer_meter=False
     if credit_policy.enabled():
         from kilas_ai import credit_wallet,credit_receipts
         conn=usage._connect()
         try:customer_meter=not credit_policy.owner(conn,user_id) and usage._plan(conn,user_id,usage._now())[0]=='FREE'
         finally:conn.close()
         if customer_meter:
-            try:profile.update(credit_receipts.bound(raw,mime,category_names,SYSTEM,schema))
+            try:
+                profile.update(credit_receipts.bound(raw,mime,category_names,SYSTEM,schema))
+                serialized=credit_receipts.payload(raw,mime,category_names,SYSTEM,schema)
+                profile['credit_fingerprint']=credit_policy.fingerprint({'payload_sha256':hashlib.sha256(serialized.encode()).hexdigest(),'request':profile['credit_fingerprint'],'contract':credit_receipts.CONTRACT})
             except credit_wallet.WalletError:raise ReceiptError('capacity_unavailable') from None
     try:_,operations=usage.reserve(user_id,None,key,'SMART','RECEIPT',profile=profile)
     except usage.UsageLimit:raise ReceiptError('capacity_unavailable') from None
@@ -120,8 +124,12 @@ def extract(raw, mime, pdf_text, category_names, business_id=None, user_id=None)
     used={};success=False;readable=False;dispatched=False;text=[];finish=None;refused=False;rejected=False;invalid=False
     try:
         messages=[{'role':'user','content':[{'type':'image_url','image_url':{'url':'data:'+mime+';base64,'+base64.b64encode(raw).decode('ascii'),'detail':'high'}},{'type':'text','text':json.dumps({'active_expense_category_names':category_names},ensure_ascii=False)}]}]
+        if customer_meter:
+            verified=credit_receipts.preflight(serialized)
+            events=credit_receipts.generate(serialized,verified)
+        else:events=providers._openai(model,os.environ.get('OPENAI_API_KEY','').strip(),messages,'SMART',SYSTEM,project=os.environ.get('OPENAI_PROJECT_ID'),profile=profile,response_format=schema)
         dispatched=True
-        for event in providers._openai(model,os.environ.get('OPENAI_API_KEY','').strip(),messages,'SMART',SYSTEM,project=os.environ.get('OPENAI_PROJECT_ID'),profile=profile,response_format=schema):
+        for event in events:
             if event['type']=='usage':used.update({k:v for k,v in event.items() if k!='type'})
             if event['type']=='delta':
                 text.append(event['text'])
@@ -139,7 +147,7 @@ def extract(raw, mime, pdf_text, category_names, business_id=None, user_id=None)
         rejected=bool(getattr(error,'usage',{}).get('provider_rejected'))
         raise ReceiptError('upstream_failure') from None
     finally:
-        usage.finish(user_id,key,operations,success=success,provider='openai',model=model,usage={**used,'selected_model':model,'billing_unknown':bool(dispatched and not used),'customer_success':bool(success and readable),'customer_failure_definitive':bool(success or refused or invalid or rejected or finish is not None),'provider_rejected':rejected})
+        usage.finish(user_id,key,operations,success=success,provider='openai',model=model,usage={**used,'selected_model':model,'billing_unknown':bool(dispatched and not used),'customer_success':bool(success and readable),'customer_failure_definitive':bool(not dispatched or success or refused or invalid or rejected or finish is not None),'provider_rejected':rejected})
 
 
 def analyze(business_id, user_id, filename, raw):

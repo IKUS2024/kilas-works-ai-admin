@@ -178,7 +178,9 @@ def detail(job_id):
         step['display_label'] = agent_results.step_label(step)
         step['reason_label'] = {'provider_not_configured': 'Data market real-time belum tersedia.', 'adapter_not_configured': 'Kemampuan eksternal belum tersedia.', 'sandbox_not_configured': 'Sandbox pengujian belum tersedia.', 'repository_not_configured': 'Repository belum dikonfigurasi.', 'unsupported_format': 'Format file belum didukung.'}.get(output.get('reason'), '')
         step['signal'] = output.get('signal')
-    return render_template('kilas_ai/autonomous_detail.html', job=job, waiting_question=job.get('waiting_question',''), steps=job_steps, result=result,
+    from . import credit_work
+    credit_wait=credit_work.waiting(session['user_id'],job_id)
+    return render_template('kilas_ai/autonomous_detail.html', credit_wait=credit_wait, job=job, waiting_question=job.get('waiting_question',''), steps=job_steps, result=result,
                            events=list(reversed(events)), artifacts=artifacts, approvals=approvals,
                            constraints=json.loads(job['constraints_json']),files=files)
 

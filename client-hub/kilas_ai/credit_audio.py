@@ -46,13 +46,18 @@ def child_in(conn,user,parent,key):
 
 
 class SourceMeter:
-    """Packet-invariant 20ms digital-silence meter for PCM16 mono at16kHz.
+    """Packet-invariant 20 ms digital-silence meter for PCM16 mono at 16 or 24 kHz.
 
     This is the existing STT silence floor, not linguistic voice activity
     detection. Hardware/background-noise calibration remains an activation gate.
     """
-    def __init__(self):
+    def __init__(self,sample_rate=16000):
+        if sample_rate not in (16000,24000):raise wallet.WalletError('invalid_pcm_meter')
+        self.sample_rate=sample_rate;self.frame_bytes=sample_rate//50*2
         self.pending=b'';self.samples=0;self.digest=hashlib.sha256()
+
+    def clone(self):
+        other=SourceMeter(self.sample_rate);other.pending=self.pending;other.samples=self.samples;other.digest=self.digest.copy();return other
 
     @staticmethod
     def audible(part):return any(abs(n[0])>=32 for n in struct.iter_unpack('<h',part))
@@ -60,15 +65,15 @@ class SourceMeter:
     def feed(self,raw):
         if not isinstance(raw,bytes) or len(raw)%2:raise wallet.WalletError('invalid_pcm_meter')
         self.digest.update(raw);self.pending+=raw
-        while len(self.pending)>=640:
-            part,self.pending=self.pending[:640],self.pending[640:]
-            if self.audible(part):self.samples+=320
+        while len(self.pending)>=self.frame_bytes:
+            part,self.pending=self.pending[:self.frame_bytes],self.pending[self.frame_bytes:]
+            if self.audible(part):self.samples+=self.frame_bytes//2
         return self.milliseconds
 
     @property
     def milliseconds(self):
         samples=self.samples+(len(self.pending)//2 if self.audible(self.pending) else 0)
-        return (samples*1000+15999)//16000
+        return (samples*1000+self.sample_rate-1)//self.sample_rate
 
 
 def pcm_units(raw):

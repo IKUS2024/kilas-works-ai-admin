@@ -70,13 +70,13 @@ class ConsentRequired(wallet.WalletError):
         self.token=token
 
 
-def _quote(conn,user,key,feature,maximum_units,digest,priced_units):
+def _quote(conn,user,key,feature,maximum_units,digest,priced_units,pricing_feature=None):
     source='OWNER' if owner(conn,user) else 'FREE'
     available=remaining_in(conn,user,feature,usage._now())
     free=min(maximum_units,available) if source!='OWNER' else maximum_units
     priced=0;rate=0;unit=1;allocation='units'
     if source!='OWNER' and free<maximum_units:
-        rate,unit=_rate(feature)
+        rate,unit=_rate(pricing_feature or feature)
         if feature=='VOICE':
             config=json.loads(os.environ.get('KILAS_CREDIT_TARIFFS_JSON','{}'))
             if config.get('voice_allocation')!='proportional_actual_duration':raise wallet.WalletError('voice_allocation_unapproved')
@@ -85,7 +85,7 @@ def _quote(conn,user,key,feature,maximum_units,digest,priced_units):
         else:priced=maximum_units-free
         source='SPLIT' if free else 'PAID'
     maximum_charge=_ceil(priced*rate,unit)
-    return {'source':source,'free':free,'priced':priced,'rate':rate,'unit':unit,'charge':maximum_charge,'allocation':allocation,'output_ratio_milli':json.loads(os.environ.get('KILAS_CREDIT_TARIFFS_JSON','{}')).get('limits',{}).get('TRANSLATOR',{}).get('output_ratio_milli') if feature=='TRANSLATOR' else None}
+    return {'source':source,'free':free,'priced':priced,'rate':rate,'unit':unit,'charge':maximum_charge,'allocation':allocation,'pricing_feature':pricing_feature or feature,'output_ratio_milli':json.loads(os.environ.get('KILAS_CREDIT_TARIFFS_JSON','{}')).get('limits',{}).get(pricing_feature or 'TRANSLATOR',{}).get('output_ratio_milli') if feature=='TRANSLATOR' else None}
 
 
 def _consent(conn,user,key,feature,maximum_units,digest,q,*,consume=True):
@@ -107,7 +107,7 @@ def _consent(conn,user,key,feature,maximum_units,digest,q,*,consume=True):
     error=ConsentRequired(token);error.request=(user,key,feature,maximum_units,digest,q);raise error
 
 
-def admit_in(conn,user,key,feature,maximum_units,digest,*,spending_ceiling=0,priced_units=None,require_consent=True):
+def admit_in(conn,user,key,feature,maximum_units,digest,*,spending_ceiling=0,priced_units=None,require_consent=True,pricing_feature=None):
     if feature not in ('CHAT','IMAGE','VOICE','TRANSLATOR','RECEIPT'):raise wallet.WalletError('feature_unpriced')
     lock_account_in(conn,user)
     key=wallet._key(key);maximum_units=wallet._amount(maximum_units)
@@ -118,7 +118,9 @@ def admit_in(conn,user,key,feature,maximum_units,digest,*,spending_ceiling=0,pri
         if tuple(old[:3])!=(feature,maximum_units,digest) or (feature=='VOICE' and priced_units is not None and old[4] not in (0,priced_units)):raise wallet.WalletError('idempotency_conflict')
         return {'dispatch':False,'status':old[3]}
     if not enabled():raise wallet.WalletError('credit_policy_disabled')
-    q=_quote(conn,user,key,feature,maximum_units,digest,priced_units)
+    if pricing_feature not in (None,'INTERPRETER'):raise wallet.WalletError('invalid_pricing_feature')
+    if pricing_feature and feature!='TRANSLATOR':raise wallet.WalletError('invalid_pricing_feature')
+    q=_quote(conn,user,key,feature,maximum_units,digest,priced_units,pricing_feature)
     if q['charge']:
         if wallet._totals(conn,user)['available_milli']<q['charge']:raise wallet.WalletError('insufficient_credit')
         if require_consent:_consent(conn,user,key,feature,maximum_units,digest,q)
@@ -150,10 +152,10 @@ def finish_in(conn,user,key,actual_units,*,success,definitive_failure=False):
     return True
 
 
-def admit(user,key,feature,maximum_units,digest,*,spending_ceiling=0,priced_units=None,require_consent=True):
+def admit(user,key,feature,maximum_units,digest,*,spending_ceiling=0,priced_units=None,require_consent=True,pricing_feature=None):
     # Persist only the quote on a consent response; no usage/provider dispatch.
     with wallet._locked(user) as conn:
-        try:return admit_in(conn,user,key,feature,maximum_units,digest,spending_ceiling=spending_ceiling,priced_units=priced_units,require_consent=require_consent)
+        try:return admit_in(conn,user,key,feature,maximum_units,digest,spending_ceiling=spending_ceiling,priced_units=priced_units,require_consent=require_consent,pricing_feature=pricing_feature)
         except ConsentRequired as error:
             pending=error
     raise pending
@@ -196,7 +198,7 @@ def historical_in(conn,user,feature,start):
 
 
 def table_exists(conn,name):
-    if name not in ('kilas_credit_admissions','kilas_ai_usage','kilas_credit_audio_links','kilas_credit_translation_links','kilas_audio_jobs','kilas_live_translator_turns','kilas_live_translator_sessions'):raise ValueError('invalid_table')
+    if name not in ('kilas_credit_admissions','kilas_ai_subscriptions','kilas_ai_usage','kilas_credit_audio_links','kilas_credit_translation_links','kilas_audio_jobs','kilas_live_translator_turns','kilas_live_translator_sessions','kilas_credit_interpreter_sessions','kilas_credit_interpreter_turns','kilas_credit_work_waits','kilas_credit_work_operations','kilas_credit_activation','kilas_credit_quota_baselines'):raise ValueError('invalid_table')
     if db.BACKEND=='postgres':
         row=usage._query(conn,'SELECT to_regclass(?)',(name,),one=True)
         return bool(row and row[0])
@@ -230,17 +232,19 @@ def validate_request(conn,user,feature,profile):
     except (ValueError,KeyError,TypeError):raise wallet.WalletError('credit_request_outside_approved_bounds') from None
 
 
-def consent(user,token,approve):
-    with wallet._locked(user) as conn:
-        row=usage._query(conn,'SELECT status,expires_at FROM kilas_credit_consents WHERE token=? AND user_id=?',(token,user),one=True)
-        if not row:raise wallet.WalletError('consent_not_found')
-        if usage._as_utc(row[1])<=usage._now():raise wallet.WalletError('credit_quote_expired')
-        target='APPROVED' if approve else 'DECLINED'
-        if row[0]==target:return target
-        if row[0]!='PENDING':raise wallet.WalletError('consent_closed')
-        usage._query(conn,'UPDATE kilas_credit_consents SET status=?,decided_at=? WHERE token=? AND user_id=?',(target,usage._now().isoformat(),token,user))
-        return target
+def consent_in(conn,user,token,approve):
+    row=usage._query(conn,'SELECT status,expires_at FROM kilas_credit_consents WHERE token=? AND user_id=?',(token,user),one=True)
+    if not row:raise wallet.WalletError('consent_not_found')
+    if usage._as_utc(row[1])<=usage._now():raise wallet.WalletError('credit_quote_expired')
+    target='APPROVED' if approve else 'DECLINED'
+    if row[0]==target:return target
+    if row[0]!='PENDING':raise wallet.WalletError('consent_closed')
+    usage._query(conn,'UPDATE kilas_credit_consents SET status=?,decided_at=? WHERE token=? AND user_id=?',(target,usage._now().isoformat(),token,user))
+    return target
 
+
+def consent(user,token,approve):
+    with wallet._locked(user) as conn:return consent_in(conn,user,token,approve)
 
 def reconcile(user,key,reviewer,outcome,actual_units,evidence):
     if outcome not in ('DELIVERED','NOT_DELIVERED') or not isinstance(evidence,str) or not 10<=len(evidence)<=1000:raise wallet.WalletError('reconciliation_evidence_required')
@@ -261,6 +265,7 @@ def reconcile(user,key,reviewer,outcome,actual_units,evidence):
         if table_exists(conn,'kilas_live_translator_turns') and table_exists(conn,'kilas_live_translator_sessions'):
             active=usage._query(conn,"SELECT 1 FROM kilas_live_translator_turns t JOIN kilas_live_translator_sessions s ON s.id=t.session_id WHERE s.user_id=? AND t.operation_key=? AND t.status='PROCESSING'",(user,key),one=True)
             if active:raise wallet.WalletError('reconciliation_operation_still_active')
+        if table_exists(conn,'kilas_credit_interpreter_turns') and usage._query(conn,"SELECT 1 FROM kilas_credit_interpreter_turns WHERE user_id=? AND operation_key=? AND status='ACTIVE'",(user,key),one=True):raise wallet.WalletError('reconciliation_operation_still_active')
         if table_exists(conn,'kilas_ai_usage') and usage._query(conn,"SELECT 1 FROM kilas_ai_usage WHERE user_id=? AND operation_key=? AND status='PENDING'",(user,key),one=True):raise wallet.WalletError('reconciliation_operation_still_active')
         finish_in(conn,user,key,actual_units,success=outcome=='DELIVERED',definitive_failure=True)
         priced=usage._query(conn,'SELECT priced_actual FROM kilas_credit_admissions WHERE user_id=? AND operation_key=?',(user,key),one=True)[0]

@@ -7,11 +7,8 @@ from . import Result
 from .. import tools,usage,work_artifacts,routing,image_models
 
 
-def run(job,step,data):
+def contract(job,step,data):
     selected=json.loads(job['checkpoint_json']).get('image_model')
-    if selected:
-        if not image_models.check(selected)['available']:return Result('WAITING_CAPABILITY','Model gambar pilihan tidak tersedia; pekerjaan tidak dialihkan.',{'reason':'selected_image_unavailable'})
-    if not selected and not os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL'):return Result('WAITING_CAPABILITY','Pembuatan gambar belum tersedia.',{'reason':'image_not_configured'})
     # Preserve the complete direct image brief and reserve for its actual input bound.
     prompt=routing.enhance_image_prompt(json.loads(job['checkpoint_json']).get('image_prompt_full') or data['prompt'])
     effective=selected or os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL','').strip()
@@ -20,15 +17,26 @@ def run(job,step,data):
         resolve(effective,prompt)  # Reject unsupported settings before reserving quota.
     if credit_policy.enabled():selected=effective
     key=step['idempotency_key'] if credit_policy.enabled() else step['idempotency_key']+'-'+str(step['attempts'])
-    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',origin=chat_offering.for_job(job,'IMAGE'),profile={'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8')),'image_prompt':prompt,'credit_fingerprint':credit_policy.fingerprint({'tool':step['action'],'model':effective,'prompt':prompt,'sources':json.loads(job['checkpoint_json']).get('image_source_ids',[])})})
+    return {'credit_mode':credit_policy.enabled(),'selected':selected,'prompt':prompt,'key':key,'profile':{'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8')),'image_prompt':prompt,'credit_fingerprint':credit_policy.fingerprint({'tool':step['action'],'model':effective,'prompt':prompt,'sources':json.loads(job['checkpoint_json']).get('image_source_ids',[])})}}
+
+
+def run(job,step,data):
+    from .. import credit_work
+    credit_work.guard_mode(job,step)
+    selected=json.loads(job['checkpoint_json']).get('image_model')
+    if selected and not image_models.check(selected)['available']:return Result('WAITING_CAPABILITY','Model gambar pilihan tidak tersedia; pekerjaan tidak dialihkan.',{'reason':'selected_image_unavailable'})
+    if not selected and not os.environ.get('KILAS_AI_OPENAI_IMAGE_MODEL'):return Result('WAITING_CAPABILITY','Pembuatan gambar belum tersedia.',{'reason':'image_not_configured'})
+    spec=contract(job,step,data);selected=spec['selected'];prompt=spec['prompt'];key=spec['key']
+    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',origin=chat_offering.for_job(job,'IMAGE'),profile=spec['profile'])
     if not ops:raise ValueError('duplicate_reservation')
-    success=False;result={}
+    success=False;result={};dispatched=False
     try:
         source=work_artifacts.image_source(job['user_id'],data['source_id'],job['origin_conversation_id']) if step['action']=='edit' else None
         source_ids=json.loads(job['checkpoint_json']).get('image_source_ids',[])
         if source and len(source_ids)>1:source=[work_artifacts.image_source(job['user_id'],ident,job['origin_conversation_id']) for ident in source_ids]
         from ..work_runtime import progress
         progress(job,'GENERATING_IMAGE','Membuat gambar…')
+        credit_work.dispatch(job,step,spec);dispatched=True
         result=tools.image(prompt,source=source,request_timeout=140,**({'selected_model':selected} if selected else {}))
         extension={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[result['mime']]
         title=' '.join(data['prompt'].split()[:8])
@@ -46,4 +54,4 @@ def run(job,step,data):
             return Result('FAILED',IMAGE_REJECTION_MESSAGE,{'reason':error.code},usage=error.usage)
         raise
     finally:
-        usage.finish(job['user_id'],key,ops,success=success,provider=image_models.spec(selected)['provider'] if selected else result.get('provider','openai') if result else None,model=result.get('model'),usage=result.get('usage',{}))
+        usage.finish(job['user_id'],key,ops,success=success,provider=image_models.spec(selected)['provider'] if selected else result.get('provider','openai') if result else None,model=result.get('model'),usage={**result.get('usage',{}),'customer_failure_definitive':not dispatched})
