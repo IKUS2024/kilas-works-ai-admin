@@ -10,6 +10,7 @@ def test_credit_browser(request):
         'wallet': 'credit_wallet_browser.py',
         'work': 'credit_work_browser.py',
         'work_steps': 'credit_work_steps_browser.py',
+        'popup_repro': 'credit_popup_repro.py',
     }
     selected = os.environ.get('KILAS_CREDIT_BROWSER_CASE')
     if not selected:

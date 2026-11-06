@@ -85,6 +85,8 @@ jobs:
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      DEBUG: pw:browser
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -92,14 +94,26 @@ jobs:
         with: {python-version: '3.12'}
       - run: pip install -r client-hub/requirements.txt playwright 'pytest>=9,<10' 'pytest-socket>=0.7,<1'
       - run: python -m playwright install --with-deps --no-shell chromium
-      - name: Four languages, mobile and desktop, synthetic providers and payments
+      - name: Minimal localhost popup, no application or account
+        env: {KILAS_CREDIT_BROWSER_CASE: popup_repro}
         run: |
+          python -m pytest -q -s client-hub/tests/test_kilas_credit_browser.py \
+            --disable-socket --allow-unix-socket --allow-hosts=127.0.0.1,::1
+      - name: Standalone synthetic popup control without pytest integration
+        if: always()
+        env: {KILAS_CREDIT_REPRO_LABEL: standalone}
+        run: python client-hub/tests/credit_popup_repro.py
+      - name: Four languages, mobile and desktop, synthetic providers and payments
+        if: always()
+        run: |
+          failed=0
           for case in wallet work work_steps; do
             KILAS_CREDIT_BROWSER_CASE="$case" python -m pytest -q \
               client-hub/tests/test_kilas_credit_browser.py \
               --disable-socket --allow-unix-socket --allow-hosts=127.0.0.1,::1 \
-              --junitxml="/tmp/credit-wallet-qa/browser/${case}.xml"
+              --junitxml="/tmp/credit-wallet-qa/browser/${case}.xml" || failed=1
           done
+          test "$failed" -eq 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -109,3 +123,4 @@ jobs:
             /tmp/kilas-credit-active-browser
             /tmp/kilas-credit-work-browser
             /tmp/kilas-credit-work-steps-browser
+            /tmp/credit-wallet-popup-repro
