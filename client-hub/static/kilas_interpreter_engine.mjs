@@ -46,8 +46,8 @@ export class CallInput {
 
 export class CallSession {
  constructor({request,capture,player,prepare=async()=>{},stopAudio=()=>{},onState=()=>{},onError=()=>{},onText=()=>{},onOriginal=()=>{},onSources=()=>{},
-  key=()=>crypto.randomUUID().replaceAll('-',''),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
-  Object.assign(this,{request,capture,player,prepare,stopAudio,onState,onError,onText,onOriginal,onSources,key,schedule,clear});this.version=0;this.state='ended';
+  admitBeforeCapture=false,key=()=>crypto.randomUUID().replaceAll('-',''),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
+  Object.assign(this,{request,capture,player,prepare,stopAudio,onState,onError,onText,onOriginal,onSources,admitBeforeCapture,key,schedule,clear});this.version=0;this.state='ended';
  }
  stateTo(value){this.state=value;this.onState(value);}
  current(ticket){return ticket===this.version&&!this.controller?.signal.aborted;}
@@ -66,15 +66,16 @@ export class CallSession {
    if(!this.current(ticket))return;
    if(!eligibility.available)throw failure(eligibility.reason||'call_unavailable');
    await prepared;if(!this.current(ticket))return;
-   await this.startCapture(ticket);
+   if(!this.admitBeforeCapture){await this.startCapture(ticket);
    if(!this.current(ticket))return;
-   this.captureReady=true;
+   this.captureReady=true;}
    this.admitted=true;
    this.settings={...settings};
    const body=new FormData();body.append('settings',JSON.stringify(this.settings));
    const result=await this.request(this.path,{method:'POST',body,signal,timeoutMs:12000});
    if(!this.current(ticket))return;
    if(result.call_id!==this.ident)throw failure('call_protocol');
+   if(this.admitBeforeCapture){await this.startCapture(ticket);if(!this.current(ticket))return;this.captureReady=true;}
    this.input.open();
    await this.poll(ticket);
   }catch(error){if(this.current(ticket))this.fail(error,ticket);}

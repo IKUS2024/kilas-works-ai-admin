@@ -32,6 +32,8 @@ class UsageLimit(ValueError):
 
 # Server-owned allowlist; never accepted from a request, user field or plan record.
 def _qa_quota_exempt(conn, user_id, now):
+    from . import credit_policy
+    if credit_policy.enabled():return credit_policy.owner(conn,user_id)
     from . import free_test
     if free_test.eligible(user_id, conn, now):
         return True
@@ -122,6 +124,9 @@ def _operations(mode, tool):
         return ("IMAGE_GENERATION",)
     if tool == "IMAGE_EDIT":
         return ("IMAGE_EDIT",)
+    if tool == "RECEIPT":
+        from . import credit_policy
+        if credit_policy.enabled():return ("PDF",)
     if tool == "PDF":
         return ("PDF",)
     return ("CHAT",)
@@ -239,8 +244,21 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
         existing = _query(conn, "SELECT 1 FROM kilas_ai_usage WHERE user_id=? AND operation_key=? LIMIT 1",
                           (user_id, key), one=True)
         if existing:
+            from . import credit_policy
+            if credit_policy.enabled() and credit_policy.installed(conn):
+                admitted=_query(conn,'SELECT fingerprint FROM kilas_credit_admissions WHERE user_id=? AND operation_key=?',(user_id,key),one=True)
+                if admitted and (profile or {}).get('credit_fingerprint') != admitted[0]:raise UsageLimit('credit_idempotency_conflict')
             conn.commit()
             return None, ()
+        from . import credit_activation
+        from . import credit_work_steps
+        accepted_parent=False
+        if profile and profile.get('credit_parent'):
+            from . import credit_audio
+            parent=credit_audio.root_in(conn,user_id,profile['credit_parent'])
+            row=_query(conn,'SELECT status FROM kilas_credit_admissions WHERE user_id=? AND operation_key=?',(user_id,parent[0]),one=True) if parent else None
+            accepted_parent=bool(row and row[0]=='RESERVED')
+        if not credit_work_steps.supplier_only_in(conn,user_id) and not accepted_parent:credit_activation.gate_in(conn,user_id)
         plan, paid_start, paid_end = _plan(conn, user_id, now)
         burst = max(1, int(os.environ.get("KILAS_AI_BURST_PER_MINUTE", "30")))
         hourly = max(burst, int(os.environ.get("KILAS_AI_MAX_PER_HOUR", "300")))
@@ -252,10 +270,51 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
             if count >= ceiling:
                 raise UsageLimit("Terlalu banyak permintaan dalam waktu singkat. Coba lagi sebentar.")
         operations = _operations(mode, tool)
+        from . import credit_policy
+        if tool=='RECEIPT' and credit_policy.enabled() and plan!='FREE':operations=('CHAT',)
         from . import chat_offering
         sponsored = (tool in ('CHAT','WEB','PDF','PPTX','IMAGE_GENERATE','IMAGE_EDIT')
                      and chat_offering.sponsored(user_id,operations,conn,origin=origin))
-        qa_exempt = sponsored or _qa_quota_exempt(conn, user_id, now)
+        from . import credit_policy
+        from . import credit_work_steps
+        work_supplier_only=credit_work_steps.supplier_only_in(conn,user_id)
+        credit_admitted=False
+        if credit_policy.enabled() or work_supplier_only or accepted_parent:
+            sponsored=False
+            if work_supplier_only:
+                credit_admitted=True
+            elif credit_policy.owner(conn,user_id):
+                credit_admitted=True
+            elif profile and profile.get('credit_parent'):
+                from . import credit_audio
+                parent=credit_audio.root_in(conn,user_id,profile['credit_parent'])
+                if not parent:raise UsageLimit('credit_parent_missing')
+                state=_query(conn,"SELECT status FROM kilas_credit_admissions WHERE user_id=? AND operation_key=?",(user_id,parent[0]),one=True)
+                if not state or state[0]!='RESERVED':raise UsageLimit('credit_parent_closed')
+                credit_audio.child_in(conn,user_id,profile['credit_parent'],key)
+                credit_admitted=True
+            elif profile and profile.get('credit_legacy_parent'):
+                # Only server-created already accepted Translator turns can use
+                # this path. A new active-policy claim always has a wallet link.
+                parent=profile['credit_legacy_parent']
+                turn=_query(conn,"SELECT 1 FROM kilas_live_translator_turns t JOIN kilas_live_translator_sessions s ON s.id=t.session_id WHERE s.user_id=? AND t.operation_key=? AND t.status='PROCESSING' AND s.status='ACTIVE' AND NOT EXISTS(SELECT 1 FROM kilas_credit_translation_links l WHERE l.user_id=s.user_id AND l.operation_key=t.operation_key)",(user_id,parent),one=True)
+                if not turn:raise UsageLimit('credit_legacy_parent_missing')
+                credit_admitted=True
+            elif plan=='FREE':
+                feature={'CHAT':'CHAT','IMAGE_GENERATE':'IMAGE','RECEIPT':'RECEIPT'}.get(tool)
+                # All other surfaces fail closed until their accepted tariff/unit
+                # contract and immutable payload adapters are integrated.
+                if not feature or not profile or not profile.get('credit_fingerprint'):raise UsageLimit('credit_feature_not_ready')
+                from . import credit_wallet
+                try:
+                    credit_policy.validate_request(conn,user_id,feature,profile)
+                    result=credit_policy.admit_in(conn,user_id,key,feature,1,profile['credit_fingerprint'],spending_ceiling=profile.get('credit_spending_ceiling',0))
+                    if not result['dispatch']:
+                        conn.commit();return None, ()
+                    credit_admitted=True
+                except credit_policy.ConsentRequired:raise
+                except credit_wallet.WalletError as error:raise UsageLimit(str(error)) from None
+        qa_exempt = credit_admitted or sponsored or _qa_quota_exempt(conn, user_id, now)
         paid_chat = plan != 'FREE' and fair_use.normal_chat(thread_id,key,tool)
         from . import capacity
         if tool == 'CHAT' and profile and profile['model'].endswith('-sol'):
@@ -313,7 +372,10 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
         for operation in operations:
             _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,model,created_at,customer_charge_exempt,customer_charge_origin) "
                    "VALUES (?,?,?,?,?,'PENDING',?,?,?,?,?,?)", (user_id, thread_id, key, operation, mode,
-                       'TOPUP' if needs_topup else 'BASE', str(predicted), profile.get('selected_model') if profile and operation==operations[0] else None, now.isoformat(),int(sponsored),origin.label if sponsored else None))
+                       'TOPUP' if needs_topup else 'BASE', str(predicted), profile.get('selected_model') if profile and operation==operations[0] else None, now.isoformat(),int(sponsored or work_supplier_only),'customer_work_wallet_v1' if work_supplier_only else origin.label if sponsored else None))
+        if work_supplier_only:
+            from .credit_work_steps import CURRENT
+            _query(conn,'INSERT INTO kilas_credit_work_usage(user_id,operation_key,root_key) VALUES (?,?,?) ON CONFLICT(user_id,operation_key) DO NOTHING',(user_id,key,CURRENT.get()['spec']['key']))
         conn.commit()
         return plan, operations
     except Exception:
@@ -410,6 +472,11 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
         fallback = 1000 if fallback_key == "PDF" else topups.FORECAST_MICRO.get(fallback_key, 80000)
         actual_micro = int(Decimal(first_cost) * Decimal(1000000)) if first_cost is not None else (fallback if success else 0)
         if not pending or not pending[1]:topups.settle(conn, user_id, key, success, actual_micro)
+        from . import credit_policy
+        if credit_policy.installed(conn):
+            customer_success=success and usage.get('customer_success',True)
+            credit_policy.finish_in(conn,user_id,key,1 if customer_success else 0,success=customer_success,
+                definitive_failure=bool(usage.get('provider_rejected') or usage.get('customer_failure_definitive')))
         conn.commit()
     except Exception:
         conn.rollback()

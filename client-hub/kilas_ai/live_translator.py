@@ -1,4 +1,5 @@
 """Gated ElevenLabs STT -> existing Luna integration -> existing billed ElevenLabs TTS."""
+from . import credit_audio, credit_policy
 import hashlib
 import json
 import os
@@ -132,7 +133,7 @@ def check_session(owner,ident,key):
 
 def require_audio_allowance(owner,reserve=1):
     """Bound Live output even for the existing internal QA Audio exemption."""
-    if free_test.eligible(owner):return
+    if free_test.eligible(owner) and not credit_policy.enabled():return
     now=usage._now()
     start=now.replace(day=1,hour=0,minute=0,second=0,microsecond=0) if os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa')=='owner' else now-timedelta(days=1)
     rows=db.query_all("SELECT status,actual_ms,original_script,initial_reserved_seconds FROM kilas_audio_jobs WHERE user_id=? AND operation_key LIKE ? AND title='Live Translator' AND created_at>=?",(owner,'live-%-audio',start.isoformat()))
@@ -245,6 +246,10 @@ def translation_system(a,b):
 
 def translation(owner,key,text,a,b,check,*,timings=None,clause_context=None,drafts=None):
     profile=translation_profile(text,pair=(a,b),whole=clause_context is None and not drafts);model=profile['model']
+    if credit_policy.enabled():
+        root=re.match(r'^(live-[a-f0-9]{32})(?:-|$)',key)
+        parent=root[1] if root else key
+        profile['credit_parent' if credit_audio.ratio(owner,parent) is not None else 'credit_legacy_parent']=parent
     if timings is not None:timings['translation_effort_none']=int(profile['effort']=='none')
     system=translation_system(a,b)
     message=json.dumps({'source_text':text},ensure_ascii=False);drafts=drafts or []
@@ -354,7 +359,7 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
             check()
             temporary.activate(owner,ident,key)
             temporary_owned=True
-            audio_store.require_balance(owner)
+            audio_store.require_balance(owner,product=True)
             require_audio_allowance(owner)
             choice=voices.resolve(info['voice_alias'])
             if not choice:raise audio_store.AudioError('Suara yang dipilih tidak tersedia.','voice_unavailable',409)
@@ -369,6 +374,8 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
                     if not any(abs(value[0])>=32 for value in struct.iter_unpack('<h',wav.readframes(wav.getnframes()))):raise audio_store.AudioError('Tidak ada ucapan terbaca. Bicara kembali.','no_speech',422)
             elif not isinstance(committed_text,str) or not 1<=len(committed_text)<=4000:raise audio_store.AudioError('Ucapan belum lengkap.','realtime_response_invalid',503)
         if committed_text is None:
+            if credit_policy.enabled():credit_audio.source(owner,key,pcm,wav=True)
+            credit_audio.dispatched(owner,key)
             with _timed(timings,'credit_stt_ms'):stt.require_subscription_credit()
             check()
             with _timed(timings,'stt_claim_ms'):
@@ -394,7 +401,7 @@ def _process(owner,ident,key,pcm,info,*,timings=None,started=None,stream_output=
         with _timed(timings,'audio_reserve_ms'):
             expected,reserve=audio_service.estimate(result['text'])
             require_audio_allowance(owner,reserve)
-            job,new=audio_store.create(owner,key+'-audio','voiceover','Live Translator',result['source_language'],result['target_language'],choice['id'],choice['name'],result['text'],0,None,expected,reserve,live_session=(ident,key))
+            job,new=audio_store.create(owner,key+'-audio','voiceover','Live Translator',result['source_language'],result['target_language'],choice['id'],choice['name'],result['text'],0,None,expected,reserve,live_session=(ident,key),credit_context=True)
             temporary.bind(owner,ident,key,job,{**result,'source_text':text})
         check()
         if not new:raise audio_store.AudioError('Audio ini sudah diproses.','duplicate_turn',409)
@@ -460,9 +467,14 @@ def enqueue(owner,ident,key,recording,*,stream_output=False,whole_output=True):
     claimed=False;timings={};started=monotonic()
     try:
         with _timed(timings,'admission_ms'):
-            info=sessions.claim(owner,ident,key);claimed=True
-            audio_store.require_balance(owner)
-        with _timed(timings,'decode_ms'):pcm=audio_media.voice_sample(recording,sample_rate=16000)
+            if credit_policy.enabled():
+                decoded=audio_media.voice_sample(recording,sample_rate=16000)
+                normalized,source_ms=stt.normalize(decoded)
+                info=sessions.claim(owner,ident,key,credit_maximum_ms=source_ms,credit_payload_digest=hashlib.sha256(normalized).hexdigest())
+            else:info=sessions.claim(owner,ident,key)
+            claimed=True
+            audio_store.require_balance(owner,product=True)
+        with _timed(timings,'decode_ms'):pcm=decoded if credit_policy.enabled() else audio_media.voice_sample(recording,sample_rate=16000)
         sessions.check(owner,ident,key)
         queued_at=monotonic()
         def run():

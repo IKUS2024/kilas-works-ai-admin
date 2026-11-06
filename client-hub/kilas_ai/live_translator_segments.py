@@ -12,7 +12,7 @@ from pathlib import Path
 from time import monotonic
 import requests
 import db
-from . import audio_store as store, audio_media as media, audio_provider as provider, usage
+from . import audio_store as store, audio_media as media, audio_provider as provider, usage, credit_audio
 from . import live_translator_store as sessions, live_translator_transport as transport
 from . import live_translator_output as temporary
 
@@ -120,7 +120,8 @@ def commit_clip(owner,job,index,raw,ms=None):
         total_ms=int(row[2])+ms
         if size+8+len(raw)>MAX_BYTES:raise store.AudioError('Audio melebihi batas.','stream_limit',413)
         if total_ms>data['ceiling_ms']:raise store.AudioError('Durasi melebihi cadangan audio.','output_exceeds_reservation',402)
-        exempt=usage._qa_quota_exempt(conn,owner,usage._now())
+        exempt=bool(credit_audio.audio_link(conn,owner,job)) or usage._qa_quota_exempt(conn,owner,usage._now())
+        if credit_audio.audio_link(conn,owner,job):credit_audio.finish_audio_in(conn,owner,job,total_ms)
         charge=0 if exempt else math.ceil(total_ms/1000)
         delta=charge-int(row[3])
         if delta<0 or (not exempt and (delta>int(row[4]) or delta>store._balance(conn,owner))):raise store.AudioError('Durasi melebihi cadangan audio.','output_exceeds_reservation',402)
@@ -182,8 +183,9 @@ def complete(owner,job,check=lambda:None):
         data=manifest(row[1]) if row else None
         if not row or row[0]!='PROCESSING' or not data or len(data['clips'])!=data['total']:raise store.AudioError('Audio belum lengkap.','stream_invalid',409)
         if row[1]!=output['provider_id']:raise store.AudioError('Audio berubah.','stream_invalid',409)
+        if credit_audio.audio_link(conn,owner,job):credit_audio.finish_audio_in(conn,owner,job,final_ms)
         ledger=usage._query(conn,'SELECT seconds_charged,reserved_seconds FROM kilas_audio_jobs WHERE id=? AND user_id=?',(job,owner),one=True)
-        exempt=usage._qa_quota_exempt(conn,owner,usage._now());charge=0 if exempt else math.ceil(final_ms/1000);delta=charge-int(ledger[0])
+        exempt=bool(credit_audio.audio_link(conn,owner,job)) or usage._qa_quota_exempt(conn,owner,usage._now());charge=0 if exempt else math.ceil(final_ms/1000);delta=charge-int(ledger[0])
         if delta<0 or (not exempt and (delta>int(ledger[1]) or delta>store._balance(conn,owner))):raise store.AudioError('Durasi melebihi cadangan audio.','output_exceeds_reservation',402)
         if delta:usage._query(conn,'UPDATE kilas_audio_balances SET seconds=seconds-? WHERE user_id=? AND seconds>=?',(delta,owner,delta))
         # Reuse completed duration/charges; never debit the full job a second time.

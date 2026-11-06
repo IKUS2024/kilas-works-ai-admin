@@ -9,3 +9,5 @@
     <a href="{{ url_for('auth.logout_page') }}">{{ drawer_icon('logout') }}<span>{{ ui_t("Logout") }}</span>{{ drawer_icon('chevron') }}</a>
   </div>
 </details>
+
+{% include 'kilas_ai/_credit_consent_hook.html' %}

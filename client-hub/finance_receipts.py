@@ -104,28 +104,50 @@ def extract(raw, mime, pdf_text, category_names, business_id=None, user_id=None)
     properties={key:({'type':'boolean'} if key=='readable' else {'type':['integer','null']} if key=='total_minor' else {'type':['string','null']}) for key in FIELDS}
     schema={'type':'json_schema','json_schema':{'name':'receipt_review','strict':True,'schema':{'type':'object','properties':properties,'required':sorted(FIELDS),'additionalProperties':False}}}
     key='finance-receipt:'+str(business_id)+':'+str(branches.token_branch(business_id))+':'+hashlib.sha256(raw).hexdigest()
-    profile={'model':model,'selected_model':model,'output_tokens':2048,'input_token_bound':200000,'effort':'low'}
+    from kilas_ai import credit_policy
+    profile={'credit_fingerprint':credit_policy.fingerprint({'image_sha256':hashlib.sha256(raw).hexdigest(),'mime':mime,'categories':category_names,'model':model,'business':business_id}), 'model':model,'selected_model':model,'output_tokens':2048,'input_token_bound':200000,'receipt_bytes':len(raw),'effort':'low'}
+    customer_meter=False
+    if credit_policy.enabled():
+        from kilas_ai import credit_wallet,credit_receipts
+        conn=usage._connect()
+        try:customer_meter=not credit_policy.owner(conn,user_id) and usage._plan(conn,user_id,usage._now())[0]=='FREE'
+        finally:conn.close()
+        if customer_meter:
+            try:
+                profile.update(credit_receipts.bound(raw,mime,category_names,SYSTEM,schema))
+                serialized=credit_receipts.payload(raw,mime,category_names,SYSTEM,schema)
+                profile['credit_fingerprint']=credit_policy.fingerprint({'payload_sha256':hashlib.sha256(serialized.encode()).hexdigest(),'request':profile['credit_fingerprint'],'contract':credit_receipts.CONTRACT})
+            except credit_wallet.WalletError:raise ReceiptError('capacity_unavailable') from None
     try:_,operations=usage.reserve(user_id,None,key,'SMART','RECEIPT',profile=profile)
     except usage.UsageLimit:raise ReceiptError('capacity_unavailable') from None
     if not operations:raise ReceiptError('already_analyzed')
-    used={};success=False;dispatched=False;text=[];finish=None
+    used={};success=False;readable=False;dispatched=False;text=[];finish=None;refused=False;rejected=False;invalid=False
     try:
         messages=[{'role':'user','content':[{'type':'image_url','image_url':{'url':'data:'+mime+';base64,'+base64.b64encode(raw).decode('ascii'),'detail':'high'}},{'type':'text','text':json.dumps({'active_expense_category_names':category_names},ensure_ascii=False)}]}]
+        if customer_meter:
+            verified=credit_receipts.preflight(serialized)
+            events=credit_receipts.generate(serialized,verified)
+        else:events=providers._openai(model,os.environ.get('OPENAI_API_KEY','').strip(),messages,'SMART',SYSTEM,project=os.environ.get('OPENAI_PROJECT_ID'),profile=profile,response_format=schema)
         dispatched=True
-        for event in providers._openai(model,os.environ.get('OPENAI_API_KEY','').strip(),messages,'SMART',SYSTEM,project=os.environ.get('OPENAI_PROJECT_ID'),profile=profile,response_format=schema):
+        for event in events:
             if event['type']=='usage':used.update({k:v for k,v in event.items() if k!='type'})
             if event['type']=='delta':
                 text.append(event['text'])
-                if sum(map(len,text))>6000:raise ReceiptError('invalid_result')
+                if sum(map(len,text))>6000:
+                    invalid=True
+                    raise ReceiptError('invalid_result')
             if event['type']=='finish':finish=event.get('reason')
-            if event['type']=='refusal':raise ReceiptError('invalid_result')
+            if event['type']=='refusal':
+                refused=True
+                raise ReceiptError('invalid_result')
         if finish!='stop':raise ReceiptError('invalid_result')
-        result=validate_result(safety.json_object(''.join(text)),category_names);success=True
+        result=validate_result(safety.json_object(''.join(text)),category_names);success=True;readable=bool(result['readable'] and result['total_minor'] is not None and result['currency'] is not None)
         return result
-    except (providers.ProviderError,ValueError,TypeError,KeyError):
+    except (providers.ProviderError,ValueError,TypeError,KeyError) as error:
+        rejected=bool(getattr(error,'usage',{}).get('provider_rejected'))
         raise ReceiptError('upstream_failure') from None
     finally:
-        usage.finish(user_id,key,operations,success=success,provider='openai',model=model,usage={**used,'selected_model':model,'billing_unknown':bool(dispatched and not used)})
+        usage.finish(user_id,key,operations,success=success,provider='openai',model=model,usage={**used,'selected_model':model,'billing_unknown':bool(dispatched and not used),'customer_success':bool(success and readable),'customer_failure_definitive':bool(not dispatched or success or refused or invalid or rejected or finish is not None),'provider_rejected':rejected})
 
 
 def analyze(business_id, user_id, filename, raw):

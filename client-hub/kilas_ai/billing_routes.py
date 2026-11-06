@@ -24,6 +24,8 @@ def admin_access():
 
 @ai_bp.post("/checkout")
 def checkout():
+    from . import credit_policy,credit_activation
+    if credit_policy.enabled() or credit_activation.configured():return {'code':'legacy_new_purchase_retired','purchase_url':url_for('kilas_ai.usage_page')},410
     try:
         invoice_id = payment_gateways.current().subscription(session["user_id"])
     except billing.BillingError as error:
@@ -54,6 +56,8 @@ def proof_upload(invoice_id):
 
 @ai_bp.post("/topups")
 def topup_checkout():
+    from . import credit_policy,credit_activation
+    if credit_policy.enabled() or credit_activation.configured():return {'code':'legacy_new_purchase_retired','purchase_url':url_for('kilas_ai.usage_page')},410
     try:
         order_id = payment_gateways.current().capacity(session["user_id"], request.form.get("pack"))
     except topups.TopupError as error:
@@ -130,3 +134,6 @@ def review(payment_id):
     except billing.BillingError as error:
         return {"error": str(error)}, 400
     return redirect(url_for("kilas_ai_admin.payments"), code=303)
+
+# Registers the separately gated fixed-credit routes after both blueprints exist.
+from . import credit_routes  # noqa: E402,F401

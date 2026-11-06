@@ -1,0 +1,33 @@
+{
+  "observed_at": "2026-11-06T04:12:27.98481Z",
+  "method": "Read-only aggregate SQL, separately validated against current source namespaces and verified owner policy",
+  "utc_month_start": "2026-11-01T00:00:00Z",
+  "classic_and_gemini35": {
+    "historical_completed_root_turns": 219,
+    "historical_accounts": 3,
+    "recorded_media_duration_upper_bounds": 44,
+    "fixed_supplier_lease_bounds": 156,
+    "without_matched_source_record": 19,
+    "reliable_processed_speech_duration_rows": 0,
+    "completed_live_audio_jobs": 212,
+    "jobs_with_persisted_source_ms": 0,
+    "jobs_with_output_duration_only": 211,
+    "current_month_all_turns": 0
+  },
+  "current_gemini38_interpreter": {
+    "supplier_lease_rows": 29,
+    "accounts": 1,
+    "logical_fingerprints": 28,
+    "operator_funded_rows": 29,
+    "supplier_status_unknown": 29,
+    "reserved_duration_per_lease_ms": 90000,
+    "rows_with_actual_input_or_output_tokens": 0,
+    "reliable_processed_speech_duration_rows": 0,
+    "verified_exempt_owner_accounts": 1,
+    "nonowner_customer_accounts": 0,
+    "warning": "UNKNOWN is deliberate conservative funding settlement, not proof of failed or zero usage; renewals are not extra conversations"
+  },
+  "production_writes": false,
+  "backfill_approved": false,
+  "activation_approved": false
+}

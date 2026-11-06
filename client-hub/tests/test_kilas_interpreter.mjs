@@ -478,3 +478,20 @@ test('Provider completion fences a failed Finish ACK while translated audio stil
  drained.resolve();await tick();assert.equal(f.session.state,'idle');assert.equal(cancelled,0);
  f.session.end();await started;
 });
+
+test('Customer spending approval completes before microphone capture; decline never captures',async()=>{
+ for(const approved of [false,true]){
+  const consent=deferred();let captures=0,admissions=0;
+  const f=fixture({admitBeforeCapture:true,capture:{start:async()=>{captures++;},cancel(){},finalize(){}},
+   request:async(path,args={})=>{
+    if(path.endsWith('/readiness'))return {available:true};
+    if(path.endsWith('/end'))return {};
+    if(args.method==='POST'){admissions++;await consent.promise;if(!approved)throw Object.assign(Error(),{code:'credit_consent_declined'});return {call_id:'a'.repeat(32)};}
+    return new Promise(()=>{});
+   }});
+  void f.session.start();await tick();assert.equal(admissions,1);assert.equal(captures,0);
+  consent.resolve();await tick();assert.equal(captures,approved?1:0);
+  if(!approved)assert.deepEqual(f.errors,['credit_consent_declined']);
+  f.session.end();
+ }
+});

@@ -233,6 +233,15 @@ class ProofTests(unittest.TestCase):
             self.assertFalse(large.capability(self.owner)['available'])
             with patch.dict(os.environ,{'KILAS_LARGE_OUTPUT_APPROVAL':proof.POLICY}):self.assertTrue(large.capability(self.owner)['available'])
             with patch.object(large,'fingerprint',return_value='changed'):self.assertFalse(proof.accepted())
+            retained=db.query_one('SELECT outcome_json FROM kilas_workspace_executions')['outcome_json']
+            original=Path.read_bytes
+            def changed_runner(path):
+                return original(path)+(b'\n# Synthetic runner revision\n' if path.name=='autonomous_runner.py' else b'')
+            with patch.object(Path,'read_bytes',changed_runner):
+                self.assertFalse(proof.accepted());self.assertFalse(large.capability(self.owner)['available'])
+                proof.run(self.app)
+                self.assertEqual(db.query_one('SELECT outcome_json FROM kilas_workspace_executions')['outcome_json'],retained)
+            self.assertTrue(proof.accepted());create.assert_called_once()
         row=db.query_one('SELECT outcome_json FROM kilas_workspace_executions');value=json.loads(row['outcome_json'])
         self.assertTrue(value['download_checked']);self.assertFalse(value['customer_metered']);self.assertNotIn('large_storage_reserved',value)
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE user_id=? AND operation_type='CODE_EXECUTION'",(self.owner,))['n'],0)

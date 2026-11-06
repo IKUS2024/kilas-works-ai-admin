@@ -68,8 +68,11 @@ def turn(model,history,instruction,output_tokens=8192,effort='medium'):
     used={};phase='transport';response=None
     from .workspace_qa_once import before_send
     before_send(model,payload)  # One-job guard; no-op for ordinary requests.
+    from . import credit_work_steps
+    credit_work_steps.before_provider('native',model,payload,output_tokens)
     try:
         response=requests.post(url,headers=headers,json=payload,timeout=(5,55))
+        credit_work_steps.provider_done()
         from .provider_failures import quota_rejected
         if provider=='openai' and quota_rejected(response):
             raise NativeFailure('provider_quota_exhausted',{'provider_rejected':True,'billing_unknown':False},phase='provider_rejected')

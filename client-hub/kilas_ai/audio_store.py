@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from datetime import timedelta
 
 import db
-from . import usage, billing, free_test
+from . import usage, billing, free_test, credit_audio, credit_policy
 
 PACKS = {'MINUTE': (60,19000), 'FIVE': (300,89000), 'TEN': (600,169000)}
 log = logging.getLogger(__name__)
@@ -40,7 +40,8 @@ def _balance(conn,user):
 def _expire(conn,user):
     # Release stranded reservations on the next owner visit/action without a worker or retry.
     now=usage._now()
-    usage._query(conn,"UPDATE kilas_audio_jobs SET status='FAILED',error_code='processing_timeout',reserved_seconds=0,source_content=NULL,script=NULL,updated_at=? WHERE user_id=? AND status IN ('QUEUED','PROCESSING') AND ((provider_id='' AND created_at<?) OR created_at<?)",
+    exclusion=(" AND NOT EXISTS (SELECT 1 FROM kilas_credit_audio_links w WHERE w.user_id=kilas_audio_jobs.user_id AND w.job_id=kilas_audio_jobs.id)" if credit_policy.table_exists(conn,'kilas_credit_audio_links') else '')
+    usage._query(conn,"UPDATE kilas_audio_jobs SET status='FAILED',error_code='processing_timeout',reserved_seconds=0,source_content=NULL,script=NULL,updated_at=? WHERE user_id=? AND status IN ('QUEUED','PROCESSING') AND ((provider_id='' AND created_at<?) OR created_at<?)"+exclusion,
                  (now.isoformat(),user,(now-timedelta(minutes=3)).isoformat(),(now-timedelta(hours=2)).isoformat()))
 
 
@@ -53,8 +54,9 @@ def balance(user):
     return {'seconds':seconds,'available':max(0,seconds-int(reserved)), 'reserved':int(reserved), 'exempt':exempt}
 
 
-def require_balance(user, required=1):
+def require_balance(user, required=1, *, product=False):
     state = balance(user)
+    if product and credit_policy.enabled():return state
     if not state['exempt'] and state['available'] < required:
         raise AudioError('Saldo Audio belum tersedia. Beli saldo untuk menggunakan Translate atau Voice Over.' if not state['available']
                          else f'Saldo tidak cukup. Dibutuhkan {required}s; saldo tersedia {state["available"]}s.',
@@ -138,7 +140,8 @@ def spoken_edit_script(user,ident):
     return db.query_one("SELECT spoken_script,target_language,voice_id,voice_is_personal FROM kilas_audio_jobs WHERE id=? AND user_id=? AND mode='voiceover' AND status IN ('COMPLETED','FAILED') AND content_origin!='live_session' AND spoken_script IS NOT NULL AND spoken_script<>''",(ident,user))
 
 
-def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,pcm,estimated,reserve,*,personal_required=False,original_script=None,live_session=None,alternate_of=None,delivery_stability=None):
+def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,pcm,estimated,reserve,*,personal_required=False,original_script=None,live_session=None,alternate_of=None,delivery_stability=None,credit_context=False,credit_source_ms=None):
+    if credit_context and credit_policy.enabled() and mode=='translate' and credit_source_ms is None:raise credit_policy.wallet.WalletError('translator_source_meter_missing')
     if mode!='voiceover':original_script=None
     if original_script is not None and (not isinstance(original_script,str) or not 1<=len(original_script)<=4000):
         raise AudioError('Naskah asli maksimal 4.000 karakter; teks tidak dipotong.')
@@ -166,17 +169,25 @@ def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,p
             personal=usage._query(conn,'SELECT voice_id,claim_until FROM kilas_audio_personal_voices WHERE user_id=?',(user,),one=True)
             if not personal or (personal[0]!=voice and not saved_voice) or (personal[1] and usage._as_utc(personal[1])>usage._now()):
                 raise AudioError('Suara Saya sedang diperbarui. Muat ulang lalu coba lagi.','voice_unavailable',409)
+        legacy_fingerprint=fingerprint
+        resolved_model='dubbing_v2' if mode=='translate' else 'eleven_v4' if saved_voice or voice_name=='Suara Saya' or alternate_of is not None else 'eleven_multilingual_v2'
+        if credit_context and credit_policy.enabled() and not live_session:
+            fingerprint=credit_policy.fingerprint({'inputs':fingerprint,'provider_model':resolved_model})
         existing = usage._query(conn,'SELECT id,fingerprint FROM kilas_audio_jobs WHERE user_id=? AND operation_key=?',(user,key),one=True)
         if existing:
+            if existing[1]==legacy_fingerprint and not credit_audio.audio_link(conn,user,existing[0]):return existing[0],False
             if existing[1]!=fingerprint:raise AudioError('Permintaan berubah. Mulai audio baru.','idempotency_conflict',409)
             return existing[0],False
+        from . import credit_activation
+        if not live_session or not credit_audio.root_in(conn,user,live_session[1]):credit_activation.gate_in(conn,user)
         # One concurrent paid operation per account. Locks cover reservations across both modes.
         active = usage._query(conn,"SELECT 1 FROM kilas_audio_jobs WHERE user_id=? AND status IN ('QUEUED','PROCESSING')",(user,),one=True)
         if active:raise AudioError('Audio sebelumnya masih diproses. Buka hasilnya di riwayat.','busy',409)
         recent = usage._query(conn,'SELECT COUNT(*) FROM kilas_audio_jobs WHERE user_id=? AND created_at>?',(user,(usage._now()-timedelta(minutes=1)).isoformat()),one=True)[0]
         if recent>=5:raise AudioError('Tunggu sebentar sebelum membuat audio berikutnya.','rate_limit',429)
+        credit_admitted=credit_audio.admitted_audio(conn,user,key,mode,script,source_ms if credit_source_ms is None else credit_source_ms,reserve*1000,fingerprint,live_session,credit_context,resolved_model)
         admitted_at = usage._now()
-        exempt = usage._qa_quota_exempt(conn,user,admitted_at)
+        exempt = credit_admitted or usage._qa_quota_exempt(conn,user,admitted_at)
         available = _balance(conn,user)
         if not exempt and available<reserve:
             raise AudioError(f'Saldo tidak cukup. Estimasi {estimated}s; perlu mencadangkan hingga {reserve}s. Saldo tersedia {available}s. Sisa reservasi dikembalikan setelah durasi aktual dihitung.','insufficient_balance',402)
@@ -193,7 +204,9 @@ def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,p
         if live_session:
             usage._query(conn,"UPDATE kilas_audio_jobs SET content_origin='live_session',initial_reserved_seconds=? WHERE id=? AND user_id=?",(initial_reserve,ident,user))
             usage._query(conn,"UPDATE kilas_live_translator_turns SET audio_job_id=? WHERE session_id=? AND operation_key=? AND status='PROCESSING'",(ident,session_id,turn_key))
-        free_test.mark_audio(conn,user,ident,admitted_at)
+        if credit_admitted:
+            credit_audio.link_audio_in(conn,user,ident,key,'TRANSLATOR' if live_session or mode=='translate' else 'VOICE',source_ms if credit_source_ms is None else credit_source_ms,initial_reserve*1000,live_session)
+        else:free_test.mark_audio(conn,user,ident,admitted_at)
     log.info('KILAS_AUDIO job=%s user=%s mode=%s status=QUEUED reserved_seconds=%s',ident,user,mode,reserve)
     return ident,True
 
@@ -220,11 +233,12 @@ def detected_source(user,ident,language):
         usage._query(conn,"UPDATE kilas_audio_jobs SET source_language=? WHERE id=? AND user_id=? AND source_language='auto' AND status='PROCESSING'",(language,ident,user))
 
 
-def finish(user,ident,raw,actual_ms,provider_id=''):
+def finish(user,ident,raw,actual_ms,provider_id='',*,credit_output_ms=None):
     with locked(user) as conn:
         row=usage._query(conn,'SELECT mode,source_ms,reserved_seconds,status,content_origin FROM kilas_audio_jobs WHERE id=? AND user_id=?',(ident,user),one=True)
         if not row or row[3]!='PROCESSING':return False
-        exempt=free_test.sponsored_audio(conn,user,ident) or usage._qa_quota_exempt(conn,user,usage._now())
+        wallet_settled=credit_audio.finish_audio_in(conn,user,ident,actual_ms if credit_output_ms is None else credit_output_ms)
+        exempt=wallet_settled or free_test.sponsored_audio(conn,user,ident) or usage._qa_quota_exempt(conn,user,usage._now())
         charge=0 if exempt else math.ceil((row[1] if row[0]=='translate' else actual_ms)/1000)
         if charge>row[2] or charge>_balance(conn,user):
             if not exempt:raise AudioError('Durasi hasil melebihi saldo yang dapat dicadangkan. Saldo tidak dipotong. Gunakan naskah lebih pendek.','output_exceeds_reservation',402)
@@ -250,6 +264,7 @@ def finish(user,ident,raw,actual_ms,provider_id=''):
 
 def fail(user,ident,code):
     with locked(user) as conn:
+        credit_audio.fail_audio_in(conn,user,ident,code)
         usage._query(conn,"UPDATE kilas_audio_jobs SET status='FAILED',reserved_seconds=0,error_code=?,source_content=CASE WHEN mode='translate' AND substr(source_content,5,4)=? THEN source_content ELSE NULL END,script=NULL,updated_at=? WHERE id=? AND user_id=? AND status IN ('QUEUED','PROCESSING')",(code[:80],b'ftyp',usage._now().isoformat(),ident,user))
     log.warning('KILAS_AUDIO job=%s user=%s status=FAILED category=%s',ident,user,code[:80])
 

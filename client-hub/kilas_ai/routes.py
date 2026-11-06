@@ -1,3 +1,4 @@
+from . import credit_policy
 """Kilas AI account routes; the flag and role gate apply to every private action."""
 import os
 import json
@@ -81,6 +82,9 @@ def home(initial_brief=None):
 
 @ai_bp.get("/usage")
 def usage_page():
+    from . import credit_policy, credit_routes
+    if credit_policy.enabled() and request.args.get('view') != 'legacy':
+        return credit_routes.page()
     from . import billing, topups, usage, capacity, audio_store
     import db
     previous = db.query_one('SELECT period_end FROM kilas_ai_subscriptions WHERE user_id=?', (session['user_id'],))
@@ -278,7 +282,7 @@ def regenerate(thread_id):
     from . import chat_offering
     origin=chat_offering.for_request(user_id,'thread',thread_id,key)
     try:
-        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, "CHAT", profile=model_policy.chat_profile(context),origin=origin)
+        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, "CHAT", profile={**model_policy.chat_profile(context),'credit_fingerprint':credit_policy.fingerprint({'tool':'CHAT','context':context})},origin=origin)
     except ai_usage.UsageLimit as error:
         return {"error": str(error)}, 429
     if plan is None:
@@ -465,11 +469,13 @@ def send(thread_id, *, script_only=False):
             from .tools import ToolUnavailable
             try:resolve(effective_image,image_prompt)
             except ToolUnavailable as error:return {'error':str(error)},400
+    if credit_policy.enabled() and tool in ('IMAGE_GENERATE','IMAGE_EDIT'):
+        selected_image=effective_image  # Pin the actual server model in quote and dispatch.
     from . import chat_offering
     origin=chat_offering.for_request(user_id,'thread',thread_id,key)
     try:
         plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool,origin=origin,
-            profile={'image_model':selected_image,'image_input_token_bound':512+len(image_prompt.encode('utf-8')),'image_prompt':image_prompt} if tool in ('IMAGE_GENERATE','IMAGE_EDIT') else model_policy.chat_profile(preview) if tool=='CHAT' or selected_model and tool in ('WEB','PDF','PPTX') else None)
+            profile={'credit_fingerprint':credit_policy.fingerprint({'tool':tool,'model':selected_image,'prompt':image_prompt}),'image_model':selected_image,'image_input_token_bound':512+len(image_prompt.encode('utf-8')),'image_prompt':image_prompt} if tool in ('IMAGE_GENERATE','IMAGE_EDIT') else {**model_policy.chat_profile(preview),'credit_fingerprint':credit_policy.fingerprint({'tool':tool,'context':preview,'model':selected_model})} if tool=='CHAT' or selected_model and tool in ('WEB','PDF','PPTX') else None)
     except ai_usage.UsageLimit as error:
         from .chat_web import UNVERIFIED
         return {"error": str(error) + (' ' + UNVERIFIED if tool == 'WEB' else '')}, 429

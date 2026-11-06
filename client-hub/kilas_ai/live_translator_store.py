@@ -1,4 +1,5 @@
 """Owner-scoped session/turn fences across workers. No recorded audio or transcript here."""
+from . import credit_audio, credit_policy
 import secrets
 from datetime import timedelta
 import db
@@ -84,14 +85,18 @@ def renew(owner,ident,a,b,voice):
     return ident
 
 
-def claim(owner,ident,key):
+def claim(owner,ident,key,*,credit_maximum_ms=600000,credit_payload_digest=None):
     with transaction() as conn:
+        if credit_policy.enabled():credit_policy.lock_account_in(conn,owner)
         info=locked(owner,ident,conn)
         require_explicit_pair(info['language_a'],info['language_b'],voice=info['voice_alias'])
         old=usage._query(conn,'SELECT status FROM kilas_live_translator_turns WHERE operation_key=?',(key,),one=True)
         if old:raise audio_store.AudioError('Ucapan ini sudah diproses. Tidak diulang otomatis.','duplicate_turn',409)
+        from . import credit_activation
+        credit_activation.gate_in(conn,owner)
         busy=usage._query(conn,"SELECT 1 FROM kilas_live_translator_turns WHERE session_id=? AND status='PROCESSING'",(ident,),one=True)
         if busy:raise audio_store.AudioError('Ucapan sebelumnya masih diproses.','turn_busy',409)
+        credit_audio.claim_in(conn,owner,ident,key,info,credit_maximum_ms,credit_payload_digest)
         usage._query(conn,"INSERT INTO kilas_live_translator_turns(operation_key,session_id,status,created_at) VALUES (?,?,'PROCESSING',?)",(key,ident,usage._now().isoformat()))
         from . import live_translator_output
         live_translator_output.begin(owner,ident,key)  # Reserve before even realtime STT can dispatch.
@@ -101,10 +106,12 @@ def claim(owner,ident,key):
 def claim_clause(owner,ident,parent,key):
     # Internal server-generated child identity; not exposed as HTTP admission.
     with transaction() as conn:
+        if credit_policy.enabled():credit_policy.lock_account_in(conn,owner)
         locked(owner,ident,conn)
         row=usage._query(conn,"SELECT status FROM kilas_live_translator_turns WHERE session_id=? AND operation_key=?",(ident,parent),one=True)
         if not row or row[0]!='PROCESSING':raise audio_store.AudioError('Ucapan dibatalkan.','turn_cancelled',409)
         if usage._query(conn,'SELECT 1 FROM kilas_live_translator_turns WHERE operation_key=?',(key,),one=True):raise audio_store.AudioError('Ucapan tidak diulang.','duplicate_turn',409)
+        credit_audio.child_in(conn,owner,parent,key)
         usage._query(conn,"INSERT INTO kilas_live_translator_turns(operation_key,session_id,status,created_at) VALUES (?,?,'PROCESSING',?)",(key,ident,usage._now().isoformat()))
         from . import live_translator_output
         live_translator_output.begin(owner,ident,key,preserve=True)
@@ -126,6 +133,7 @@ def check(owner,ident,key):
 
 def finish(owner,ident,key,success,job=None,code=None):
     with transaction() as conn:
+        credit_audio.finish_turn_in(conn,owner,key,success,code)
         if success:locked(owner,ident,conn)
         usage._query(conn,"UPDATE kilas_live_translator_turns SET status=?,audio_job_id=?,error_code=? WHERE operation_key=? AND session_id=? AND status='PROCESSING' AND EXISTS(SELECT 1 FROM kilas_live_translator_sessions WHERE id=? AND user_id=?)",('COMPLETED' if success else 'FAILED',job,code,key,ident,ident,owner))
 

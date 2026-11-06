@@ -60,7 +60,7 @@ def decode(raw, suffix, *, mp3=False):
         return _decode_source(source, directory)
 
 
-def upload(item, *, preserve_video=False):
+def upload(item, *, preserve_video=False,credit_meter=False):
     if not item or not item.filename:
         raise MediaError('Pilih audio atau video terlebih dahulu.')
     name = secure_filename(item.filename)[:160] or 'audio'
@@ -89,10 +89,13 @@ def upload(item, *, preserve_video=False):
         if not total or not valid[suffix]:
             raise MediaError('Audio pada file ini tidak dapat dibaca.')
         ms, pcm = _decode_source(source, directory)
+        if credit_meter:
+            from .credit_audio import wav_units
+            processed_ms=wav_units(pcm)
         if preserve_video and suffix=='mp4':pcm=source.read_bytes()
     # Context cleanup has deleted both the large source and extracted temp audio.
     print(f'KILAS_AUDIO_MEDIA bytes={total} duration_ms={ms} source_cleanup=true', flush=True)
-    return name, ms, pcm
+    return (name,ms,pcm,processed_ms) if credit_meter else (name,ms,pcm)
 
 
 def mp3_duration(raw):

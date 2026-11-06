@@ -220,6 +220,19 @@ class DocumentRuntimeTests(unittest.TestCase):
                 self.assertTrue(large.capability(self.other)['available'])
             with patch.object(document, 'fingerprint', return_value='changed'):
                 self.assertFalse(document.accepted())
+            retained = db.query_one('SELECT outcome_json FROM kilas_workspace_executions')['outcome_json']
+            original = Path.read_bytes
+            large_fingerprint, document_fingerprint = large.fingerprint(), document.fingerprint()
+            def changed_runner(path):
+                return original(path) + (b'\n# Synthetic runner revision\n' if path.name == 'autonomous_runner.py' else b'')
+            with patch.object(Path, 'read_bytes', changed_runner):
+                self.assertNotEqual(large.fingerprint(), large_fingerprint)
+                self.assertNotEqual(document.fingerprint(), document_fingerprint)
+                self.assertFalse(document.accepted())
+                self.assertFalse(large.capability(self.owner)['available'])
+                document.run(app.app)  # A changed source cannot renew the consumed one-shot.
+                self.assertEqual(db.query_one('SELECT outcome_json FROM kilas_workspace_executions')['outcome_json'], retained)
+            self.assertTrue(document.accepted())  # The original synthetic receipt was never rewritten.
         create.assert_called_once()
         self.assertEqual(create.call_args.kwargs['template'], 'base')
         vm.kill.assert_called_once()
@@ -336,7 +349,8 @@ class DocumentRuntimeTests(unittest.TestCase):
         original = Path.read_bytes
         fingerprint = document.fingerprint()
         for name in ('workspace_document_runtime.py', 'workspace_document_guest.py', 'workspace_document_fixture.py',
-                     'workspace_document_bundle.py', 'workspace_document_bundle.lock.json', 'workspace_large_execution.py'):
+                     'workspace_document_bundle.py', 'workspace_document_bundle.lock.json', 'workspace_large_execution.py',
+                     'autonomous_runner.py'):
             def changed(path, target=name):
                 return original(path) + (b'\nsynthetic-change' if path.name == target else b'')
             with self.subTest(fingerprint_file=name), patch.object(Path, 'read_bytes', changed):

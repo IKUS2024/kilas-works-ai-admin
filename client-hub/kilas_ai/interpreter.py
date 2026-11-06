@@ -10,6 +10,7 @@ from queue import Queue, Empty, Full
 from threading import Event, Lock, RLock, Thread, Timer
 from time import monotonic
 import db
+from . import credit_interpreter
 from . import interpreter_budget as budget, live_gemini as wire, live_translator_output as storage
 from .ai_call_timing import TurnTiming
 from . import interpreter_settings as preferences
@@ -75,7 +76,10 @@ def setup(handle=None,settings=None):
 
 
 class Call:
-    def __init__(self,owner,ident,capability,started=None,settings=None):
+    def __init__(self,owner,ident,capability,started=None,settings=None,credit_context=None):
+        self.credit_context=credit_context
+        self.credit_meter=credit_interpreter.Meter(credit_context) if credit_context and credit_context['mode']=='CUSTOMER' else None
+        self.credit_confirmed=False;self.credit_result=False;self.credit_interrupted=False;self.credit_input_ended=False
         self.settings=preferences.validate(settings)
         self.owner,self.ident,self.capability=owner,ident,capability
         self.started=monotonic() if started is None else started
@@ -211,7 +215,7 @@ class Call:
             self.last_seen=monotonic()
 
     def begin_turn(self,turn_index,index):
-        """Idempotent next-turn boundary; no admission, reconnect or audio replay."""
+        """Reserve the next turn before activity; never reconnect or replay audio."""
         self.transport_check()
         with self.lock:
             if self.closed.is_set():raise CallError('call_ended',409)
@@ -221,11 +225,20 @@ class Call:
                 return
             if turn_index!=self.turn_index+1 or index!=self.expected or not self.turn_complete or not self.input_finished:
                 raise CallError('call_input_invalid',409)
+            admission=credit_interpreter.begin(self.owner,self.ident,turn_index,self.settings) if self.credit_context else None
+            next_meter=credit_interpreter.Meter(admission) if admission and admission['mode']=='CUSTOMER' else None
             # Renew only for this explicit new turn, before provider activity.
             # A denied reservation leaves the old turn sealed and sends nothing.
-            if monotonic()-self.funded_at>=budget.RENEW_SECONDS:self.fund()
-            try:self.queue.put_nowait(ACTIVITY_START)
-            except Full:raise CallError('call_backlog',409) from None
+            try:
+                if monotonic()-self.funded_at>=budget.RENEW_SECONDS:self.fund()
+                self.queue.put_nowait(ACTIVITY_START)
+            except Full:
+                if next_meter:next_meter.finish(self.owner,self.ident,turn_index,known_failure=True)
+                raise CallError('call_backlog',409) from None
+            except Exception:
+                if next_meter:next_meter.finish(self.owner,self.ident,turn_index,known_failure=True)
+                raise
+            self.credit_meter=next_meter;self.credit_confirmed=False;self.credit_result=False;self.credit_interrupted=False;self.credit_input_ended=False
             self.turn_index=turn_index;self.input_finished=False;self.turn_complete=False;self.turn_idle_at=None
             self.last_seen=monotonic();self.state='LISTENING'
 
@@ -263,6 +276,7 @@ class Call:
                 else:self.resume_handle=None;self.resume_pending=False
             if self.settings.get('reuse_session') and self.turn_complete:return
             if content.get('interrupted') is True:
+                self.credit_interrupted=True
                 self.turn_timing.boundary()
                 self.interruptions+=1;self.publish({'type':'reset'});self.caption=''
             turn=content.get('modelTurn',{})
@@ -276,6 +290,9 @@ class Call:
                 try:pcm=base64.b64decode(audio['data'],validate=True)
                 except (ValueError,binascii.Error):raise CallError('call_output_invalid') from None
                 if not pcm or len(pcm)%2:raise CallError('call_output_invalid')
+                if self.credit_meter:
+                    self.credit_meter.audio(pcm)
+                    self.credit_result=self.credit_result or any(pcm)
                 self.turn_timing.audio()
                 if self.output_bytes-self.funded_output+len(pcm)>OUTPUT_BYTES or self.turns-self.funded_turns>=MAX_TURNS:self.fund()
                 self.output_bytes+=len(pcm);self.state='SPEAKING'
@@ -293,10 +310,15 @@ class Call:
             transcript=content.get('outputTranscription')
             if transcript is not None:
                 if not isinstance(transcript,dict) or not isinstance(transcript.get('text',''),str):raise CallError('call_output_invalid')
+                self.credit_result=self.credit_result or bool(transcript.get('text',''))
                 self.caption+=transcript.get('text','')
                 if len(self.caption)>4000:raise CallError('call_output_invalid')
                 self.publish({'type':'text','text':self.caption})
             if content.get('turnComplete') is True and content.get('interactionStatus')!='IN_PROGRESS':
+                if self.credit_meter and self.settings.get('reuse_session') and not self.credit_input_ended:raise CallError('call_output_invalid')
+                self.credit_confirmed=self.credit_result and not self.credit_interrupted
+                if self.credit_meter and self.settings.get('reuse_session'):
+                    self.credit_meter.finish(self.owner,self.ident,self.turn_index,confirmed=self.credit_confirmed,known_failure=not self.credit_result)
                 self.turn_timing.boundary()
                 self.original_caption=""
                 self.turns+=1;self.publish({'type':'turn_complete'});self.caption='';self.state='LISTENING'
@@ -332,6 +354,12 @@ class Call:
                         try:
                             value={'activityStart':{}} if raw is ACTIVITY_START else {'activityEnd':{}} if raw is None else {'audio':{
                                 'mimeType':'audio/pcm;rate=16000','data':base64.b64encode(raw).decode('ascii')}}
+                            with self.lock:
+                                if self.credit_meter and raw is not None and raw is not ACTIVITY_START:
+                                    before=self.credit_meter.source.milliseconds;self.credit_meter.input(raw)
+                                    if self.credit_meter.source.milliseconds!=before:self.credit_confirmed=False
+                                if self.credit_meter and raw is None:self.credit_input_ended=True
+                                if self.credit_meter and raw is ACTIVITY_START:credit_interpreter.dispatched(self.owner,self.ident,self.turn_index)
                             self.ws.send(json.dumps({'realtimeInput':value}))
                         except (OSError,wire_connection_error()):
                             self.recover_transport();break  # Delivery uncertain: never replay this PCM.
@@ -351,6 +379,7 @@ class Call:
     def run(self):
         try:
             self.check();budget.dispatch(self.capability);self.check()
+            if self.credit_meter:credit_interpreter.dispatched(self.owner,self.ident,self.turn_index)
             self.ws=wire.connect();self.check()
             self.ws.send(json.dumps(setup(settings=self.settings)))
             hello=wire.message(self.ws.recv())
@@ -380,6 +409,10 @@ class Call:
             while True:
                 try:self.queue.get_nowait()
                 except Empty:break
+            try:
+                if self.credit_meter:self.credit_meter.finish(self.owner,self.ident,self.turn_index,confirmed=self.credit_confirmed)
+                if self.credit_context:credit_interpreter.close(self.owner,self.ident)
+            except Exception:print('KILAS_TRANSLATOR_INTERPRETER customer_settlement=held',flush=True)
             try:budget.finish(self.capability)
             except Exception:print('KILAS_TRANSLATOR_INTERPRETER settlement=unknown',flush=True)
             db._discard_cached_connection()
@@ -445,12 +478,19 @@ def start(owner,ident,settings=None):
     with _lock:
         if (owner,ident) in _calls:raise CallError('duplicate_turn',409)
         if len(_calls)>=16:raise CallError('service_busy',429)
-    capability=budget.claim(owner,ident)
-    call=Call(owner,ident,capability,began,settings=settings)
+    context=credit_interpreter.start(owner,ident,settings)
+    try:capability=budget.claim(owner,ident)
+    except Exception:
+        if context and context['mode']=='CUSTOMER':credit_interpreter.Meter(context).finish(owner,ident,0,known_failure=True)
+        if context:credit_interpreter.close(owner,ident)
+        raise
+    call=Call(owner,ident,capability,began,settings=settings,credit_context=context)
     with _lock:_calls[(owner,ident)]=call
     try:Thread(target=call.run,name='kilas-interpreter',daemon=True).start()
     except Exception:
         call.stop(erase=True);budget.finish(capability)
+        if call.credit_meter:call.credit_meter.finish(owner,ident,0,known_failure=True)
+        if context:credit_interpreter.close(owner,ident)
         raise CallError('call_unavailable') from None
     return call
 
@@ -466,5 +506,12 @@ def get(owner,ident):
 def end(owner,ident,code='call_ended'):
     if code not in CLIENT_END_CODES:code='call_transport'
     with _lock:call=_calls.get((owner,ident))
-    if call:call.stop(code,erase=True)
-    budget.end(owner,ident)
+    try:
+        if call:
+            call.stop(code,erase=True)
+            with call.lock:
+                if call.credit_meter:call.credit_meter.finish(owner,ident,call.turn_index,confirmed=call.credit_confirmed)
+                if call.credit_context:credit_interpreter.close(owner,ident)
+    finally:
+        budget.end(owner,ident)
+        credit_interpreter.abandon(owner,ident)

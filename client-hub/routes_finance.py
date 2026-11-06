@@ -3027,6 +3027,7 @@ def receipt_new(business_id, user, business):
 @ai_safety.endpoint
 @finance_access
 def receipt_analyze(business_id, user, business):
+    from kilas_ai import credit_policy
     uploaded = None
     try:
         if set(request.files) != {'receipt'} or len(request.files.getlist('receipt')) != 1:
@@ -3044,6 +3045,9 @@ def receipt_analyze(business_id, user, business):
         return receipt_page(user, business, error=str(error), status=400)
     except finance.FinanceError as error:
         return receipt_page(user,business,error=finance_receipts.ERROR_MESSAGES['capacity_unavailable'],status=403)
+    except credit_policy.ConsentRequired as error:
+        token=credit_policy.persist_consent(error)
+        return redirect(url_for('kilas_ai.credit_consent',token=token,return_to=url_for('finance.receipt_new',business_id=business_id)),code=303)
     except finance_receipts.ReceiptError as error:
         ai_safety.receipt_event(str(error))
         return receipt_page(user, business, error=finance_receipts.ERROR_MESSAGES.get(str(error),finance_receipts.READ_ERROR), status=503)
