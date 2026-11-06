@@ -18,14 +18,20 @@ def enabled():
 def finish(job, token, step, result):
     from .work_schedule import clarification
     if result.status=='SUCCEEDED' and clarification(result.output.get('text','')):
+        prior=result
         result=agent_workers.Result('WAITING',result.output['text'],{'reason':'waiting_input','question':result.output['text'][:500]})
+        if getattr(prior,'_credit_work',None):result._credit_work={**prior._credit_work,'success':False}
     if result.status not in ('SUCCEEDED', 'FAILED', 'WAITING', 'WAITING_CAPABILITY', 'NEEDS_APPROVAL'):
         raise ValueError('invalid_worker_result')
     if result.status == 'SUCCEEDED' and not result.verified:
         raise ValueError('unverified_success')
     output = store.encode(result.output)
     with store.transaction() as conn:
+        from . import credit_policy
+        if getattr(result,'_credit_work',None):credit_policy.lock_account_in(conn,job['user_id'])
         if not store.locked(conn, job['id'], token, job['revision']):
+            meta=getattr(result,'_credit_work',None)
+            if meta and meta['known']:credit_policy.finish_in(conn,job['user_id'],meta['key'],0,success=False,definitive_failure=True)
             return False
         state = 'WAITING' if result.status == 'WAITING_CAPABILITY' else result.status
         failures = job['failures'] + 1 if state == 'FAILED' else 0
@@ -68,7 +74,7 @@ def finish(job, token, step, result):
             store.approval(conn, job['id'], step, {'worker': step['worker'], 'action': step['action'], 'input': json.loads(step['input_json'])})
         elif state == 'WAITING':
             state_job, delay = 'WAITING', max(300, min(result.delay, 86400))
-        elif state == 'FAILED' and step['worker'] in ('DOCUMENT','IMAGE','PROJECT','EXECUTION'):
+        elif state == 'FAILED' and (step['worker'] in ('DOCUMENT','IMAGE','PROJECT','EXECUTION') or getattr(result,'_credit_work',None)):
             # A timeout/crash may already have been billed. Keep terminal evidence;
             # never repeat generation implicitly on cron, refresh or reconnect.
             state_job='FAILED';delay=0
@@ -80,6 +86,8 @@ def finish(job, token, step, result):
                 else:
                     state_job = 'FAILED'
             delay = 300
+        from . import credit_work_steps
+        credit_work_steps.finish_in(conn,job,result)
         remaining = usage._query(conn, "SELECT COUNT(*) FROM kilas_agent_steps WHERE job_id=? AND status NOT IN ('SUCCEEDED','SKIPPED','STOPPED')", (job['id'],), one=True)[0]
         stop_after_tests = (state == 'SUCCEEDED' and step['worker'] == 'CODE' and step['action'] == 'test' and
                             re.search(r'(?i)(?:stop|berhenti|hentikan).{0,40}(?:test|pengujian).{0,25}(?:pass|berhasil|lulus)', job['constraints_json']))
@@ -171,7 +179,9 @@ def execute(job_id, token):
             if step['worker'] == 'CODE':
                 from .agent_workers.code_worker import cleanup
                 cleanup(job)
-            finish(job, token, step, agent_workers.Result('FAILED', 'Langkah belum berhasil; percobaan dibatasi.', {'reason': 'worker_failed'}))
+            failed=agent_workers.Result('FAILED', 'Langkah belum berhasil; percobaan dibatasi.', {'reason': 'worker_failed'})
+            if getattr(error,'_credit_work',None):failed._credit_work=error._credit_work
+            finish(job, token, step, failed)
             return
         # Store fixed public codes only, never provider bodies, credentials or raw exception text.
         code = str(error) if isinstance(error, ValueError) and str(error) in ('daily_execution_limit', 'attempt_limit', 'step_limit', 'replan_limit') else 'worker_failed'

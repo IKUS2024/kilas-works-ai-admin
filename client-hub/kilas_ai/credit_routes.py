@@ -13,8 +13,15 @@ from . import credit_policy as policy, credit_wallet as wallet, usage
 BANK={'bank_name':'Bank Mega','account_number':'10180016000684','account_holder':'KILAS TEKNOLOGI KREATIF'}
 
 
-def require_enabled():
-    if not policy.enabled():abort(404)
+def require_enabled(*,accepted=False):
+    if policy.enabled():return
+    if not accepted:abort(404)
+    conn=usage._connect()
+    try:
+        if not policy.installed(conn):abort(404)
+        existing=usage._query(conn,'SELECT 1 FROM kilas_credit_orders LIMIT 1',one=True) or usage._query(conn,'SELECT 1 FROM kilas_credit_admissions LIMIT 1',one=True)
+        if not existing:abort(404)
+    finally:conn.close()
 
 
 def page():
@@ -25,6 +32,8 @@ def page():
 @ai_bp.post('/credits/orders')
 def purchase():
     require_enabled()
+    from . import credit_activation
+    credit_activation.gate(session['user_id'])
     if request.form.get('acknowledge')!='yes':return {'code':'purchase_confirmation_required'},400
     try:ident=wallet.create_purchase(session['user_id'],request.form.get('request_key'))
     except wallet.WalletError as error:return {'code':str(error)},400
@@ -33,14 +42,14 @@ def purchase():
 
 @ai_bp.get('/credits/orders/<ident>')
 def credit_order(ident):
-    require_enabled();invoice=wallet.order(session['user_id'],ident)
+    require_enabled(accepted=True);invoice=wallet.order(session['user_id'],ident)
     if not invoice:abort(404)
     return render_template('kilas_ai/credit_wallet.html',balance=wallet.balance(session['user_id']),invoice=invoice,bank=BANK,subscription=usage.effective_plan(session['user_id'])),200,{'Cache-Control':'private, no-store'}
 
 
 @ai_bp.post('/credits/orders/<ident>/proof')
 def credit_proof_upload(ident):
-    require_enabled()
+    require_enabled(accepted=True)
     if not wallet.order(session['user_id'],ident):abort(404)
     try:wallet.submit_proof(session['user_id'],ident,request.files.get('proof'))
     except wallet.WalletError as error:return {'code':str(error)},400
@@ -57,13 +66,13 @@ def _proof(ident,user=None):
 
 @ai_bp.get('/credits/orders/<ident>/proof')
 def credit_proof(ident):
-    require_enabled()
+    require_enabled(accepted=True)
     return _proof(ident,session['user_id'])
 
 
 @admin_bp.get('/credits/payments')
 def credit_payments():
-    require_enabled()
+    require_enabled(accepted=True)
     rows=db.query_all("SELECT o.id,o.user_id,o.amount_idr,o.status,o.proof_digest,(SELECT COUNT(*) FROM kilas_credit_orders d WHERE d.proof_digest=o.proof_digest AND d.id<>o.id) AS duplicate_proofs FROM kilas_credit_orders o WHERE o.status='UNDER_REVIEW' ORDER BY o.created_at LIMIT 100")
     pending=db.query_all("SELECT user_id,operation_key,feature,maximum_charge,created_at FROM kilas_credit_admissions WHERE status='RESERVED' ORDER BY created_at LIMIT 100")
     return render_template('kilas_ai/credit_reviews.html',payments=rows,pending=pending)
@@ -71,13 +80,13 @@ def credit_payments():
 
 @admin_bp.get('/credits/orders/<ident>/proof')
 def credit_review_proof(ident):
-    require_enabled()
+    require_enabled(accepted=True)
     return _proof(ident)
 
 
 @admin_bp.post('/credits/orders/<ident>/review')
 def credit_review(ident):
-    require_enabled()
+    require_enabled(accepted=True)
     try:wallet.review(ident,session['user_id'],request.form.get('decision'),request.form.get('note'),transfer_reference=request.form.get('transfer_reference'))
     except wallet.WalletError as error:return {'code':str(error)},400
     return redirect(url_for('kilas_ai_admin.credit_payments'),code=303)
@@ -86,6 +95,12 @@ def credit_review(ident):
 @ai_bp.app_context_processor
 def credit_context():
     return {'credit_wallet_enabled':policy.enabled()}
+
+
+@ai_bp.errorhandler(wallet.WalletError)
+def credit_contract_error(error):
+    code=str(error)
+    return {'code':code,'error':code},402 if code=='insufficient_credit' else 409
 
 
 @ai_bp.errorhandler(policy.ConsentRequired)
@@ -130,7 +145,7 @@ def credit_consent(token):
 
 @admin_bp.post('/credits/reconcile')
 def credit_reconcile():
-    require_enabled()
+    require_enabled(accepted=True)
     try:
         policy.reconcile(int(request.form['user_id']),request.form['operation_key'],session['user_id'],request.form['outcome'],int(request.form['actual_units']),request.form['evidence'])
     except (KeyError,ValueError,wallet.WalletError) as error:return {'code':str(error)},400

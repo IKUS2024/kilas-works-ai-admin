@@ -1,5 +1,7 @@
 # Inactive credit activation review — November 6, 2026
 
+Current continuation: [complete activation gates and Work/cutoff evidence](KILAS_CREDIT_ACTIVATION_GATES_20261106.md). This supersedes the earlier Work/cutoff and receipt-preflight billing limitations below; the historical evidence remains unchanged.
+
 Activation, production schema/data/configuration, public PR creation, merge and deployment remain held. The latest continuation below supersedes historical adapter-readiness statements in the earlier audit. All implementation and test activity is isolated; production remains untouched. No account identifier, email, transcript, transfer reference, bank detail or balance is published in this report.
 
 ## Latest inactive continuation

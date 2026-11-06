@@ -99,7 +99,8 @@ def execute(job, step):
         from ..workspace_projects import run
         from ..workspace_qa_once import for_job,run_project
         with for_job(job,step):
-            return run_project(job,step,data)
+            from .. import credit_work_steps
+            return credit_work_steps.execute(job,step,lambda:run_project(job,step,data))
     elif step['worker'] == 'EXECUTION':
         from ..workspace_execution_worker import run
     elif step['worker'] == 'CODE':
@@ -108,4 +109,5 @@ def execute(job, step):
         from .market_worker import run
     else:
         from .content_worker import run
-    return run(job, step, data)
+    from .. import credit_work_steps
+    return credit_work_steps.execute(job,step,lambda:run(job, step, data))

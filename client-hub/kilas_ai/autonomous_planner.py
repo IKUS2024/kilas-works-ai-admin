@@ -82,6 +82,12 @@ def propose(job, completed):
             'stop_condition': 'Provider-backed condition or owner stop', 'next_action': 'Wait for real market provider',
             'steps': [{'worker': 'UNAVAILABLE', 'action': 'request', 'instruction': 'Menunggu market data provider.',
                        'input_json': '{"capability":"market_data_provider"}', 'completion_criteria': 'Real provider configured', 'requires_approval': False}]}, job['mode'], job['instruction'])
+    from . import credit_policy,credit_wallet
+    if credit_policy.enabled():
+        conn=usage._connect()
+        try:customer=not credit_policy.owner(conn,job['user_id']) and usage._plan(conn,job['user_id'],usage._now())[0]=='FREE'
+        finally:conn.close()
+        if customer:raise credit_wallet.WalletError('work_planning_terms_unapproved')
     model,effort,reason = model_policy.agent_planner(job)
     key = 'autonomous-plan-' + str(job['id']) + '-' + str(job['revision']) + '-' + str(job['replans']) + '-' + str(job['cycle'])
     _, operations = usage.reserve(job['user_id'], None, key, 'SMART', 'CHAT')

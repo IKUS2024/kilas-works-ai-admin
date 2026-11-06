@@ -14,6 +14,8 @@ class Author:
         self.style=style;self.profile=model_policy.chat_profile(self.messages)
 
     def write(self):
+        from . import credit_work_steps
+        credit_work_steps.before_provider('author',self.model,{'messages':list(self.messages),'style':self.style,'profile':self.profile},self.profile['output_tokens'])
         pieces=[];size=0;finish=None
         try:
             for event in providers.stream('FAST',self.messages,system=self.style):
@@ -31,6 +33,7 @@ class Author:
             self.used.update(error.usage)
             raise
         finally:
+            if finish is not None or self.used.get('provider_rejected') or self.used.get('input_tokens') or self.used.get('output_tokens'):credit_work_steps.provider_done()
             if self.dispatched and not self.used.get('provider_rejected') and not self.used.get('input_tokens') and not self.used.get('output_tokens'):self.used['billing_unknown']=True
 
     def provenance(self):

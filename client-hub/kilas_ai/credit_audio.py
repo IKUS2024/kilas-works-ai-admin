@@ -42,7 +42,12 @@ def claim_in(conn,user,session_id,key,info,maximum_ms,payload_digest=None):
 
 def child_in(conn,user,parent,key):
     row=root_in(conn,user,parent)
-    if row:usage._query(conn,'INSERT INTO kilas_credit_translation_links(user_id,operation_key,root_key,maximum_ms,output_ratio_milli) VALUES (?,?,?,?,?)',(user,key,row[0],row[3],row[4]))
+    if row:
+        old=root_in(conn,user,key)
+        if old:
+            if old[0]!=row[0]:raise wallet.WalletError('translator_child_changed')
+            return
+        usage._query(conn,'INSERT INTO kilas_credit_translation_links(user_id,operation_key,root_key,maximum_ms,output_ratio_milli) VALUES (?,?,?,?,?)',(user,key,row[0],row[3],row[4]))
 
 
 class SourceMeter:
@@ -130,13 +135,18 @@ def finish_turn_in(conn,user,key,success,code=None):
 
 
 def admitted_audio(conn,user,key,mode,script,source_ms,reserve_ms,digest,live_session,credit_context,model):
-    if not policy.enabled() or not credit_context:return False
+    if not credit_context:return False
     if live_session:
         parent=root_in(conn,user,live_session[1])
+        if parent:
+            row=usage._query(conn,"SELECT status FROM kilas_credit_admissions WHERE user_id=? AND operation_key=?",(user,parent[0]),one=True)
+            if not row or row[0]!='RESERVED':raise wallet.WalletError('translator_parent_closed')
+            return True
         if not parent:
-            if policy.owner(conn,user):return False
+            if not policy.enabled() or policy.owner(conn,user):return False
             raise wallet.WalletError('translator_parent_admission_missing')
         return True
+    if not policy.enabled():return False
     feature='VOICE' if mode=='voiceover' else 'TRANSLATOR'
     policy.validate_request(conn,user,feature,{'model':model,'characters':len(script),'output_ms':reserve_ms,'source_ms':source_ms})
     admitted=policy.admit_in(conn,user,key,feature,reserve_ms if feature=='VOICE' else source_ms,digest,priced_units=len(script) if feature=='VOICE' else None)

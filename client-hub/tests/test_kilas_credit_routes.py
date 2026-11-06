@@ -161,6 +161,22 @@ class CreditRoutesTests(unittest.TestCase):
             with wallet._locked(self.owner) as conn:
                 self.assertEqual(policy.remaining_in(conn,self.owner,'CHAT',usage._now()),70)
 
+    def test_rollback_preserves_issued_invoice_and_private_proof_review_only(self):
+        client,ident=self.create('rollback-accepted')
+        with patch.dict(os.environ,{'KILAS_CREDIT_ENFORCEMENT_ENABLED':'no'}):
+            page=client.get('/kilas-ai/credits/orders/'+ident)
+            self.assertEqual(page.status_code,200);self.assertIn('Pembelian baru dijeda',page.text)
+            self.assertNotIn('10180016000684',page.text)
+            self.assertEqual(client.post('/kilas-ai/credits/orders',data={'csrf_token':'console-csrf','acknowledge':'yes','request_key':'must-not-create'}).status_code,404)
+            with patch('file_utils.validate_project_attachment_upload',return_value=('proof.png','image/png')):
+                response=client.post('/kilas-ai/credits/orders/'+ident+'/proof',data={'csrf_token':'console-csrf','proof':(io.BytesIO(b'synthetic rollback proof'),'proof.png','image/png')})
+            self.assertEqual(response.status_code,303)
+            self.assertEqual(client.get('/kilas-ai/credits/orders/'+ident+'/proof').status_code,200)
+            self.assertEqual(self.client_for(self.other).get('/kilas-ai/credits/orders/'+ident+'/proof').status_code,404)
+            self.assertEqual(self.client_for(self.admin,'KILAS_ADMIN').get('/admin/kilas-ai/credits/orders/'+ident+'/proof').status_code,200)
+            self.assertEqual(self.client_for(self.other).get('/admin/kilas-ai/credits/orders/'+ident+'/proof').status_code,404)
+            self.assertEqual(wallet.balance(self.owner)['reserved_milli'],0)
+
     def test_activation_retires_only_new_legacy_purchases(self):
         client=self.client_for(self.owner)
         for path in ('/kilas-ai/checkout','/kilas-ai/topups','/kilas-translator/checkout'):
@@ -169,6 +185,9 @@ class CreditRoutesTests(unittest.TestCase):
         with patch.dict(os.environ,{'KILAS_CREDIT_ENFORCEMENT_ENABLED':'no'}):
             result=client.post('/kilas-translator/checkout',data={'csrf_token':'console-csrf','pack':'MINUTE'})
             self.assertEqual(result.status_code,303)
+        with patch.dict(os.environ,{'KILAS_CREDIT_ENFORCEMENT_ENABLED':'no','KILAS_CREDIT_CUTOFF_CANDIDATE_ENABLED':'yes'}):
+            for path in ('/kilas-ai/checkout','/kilas-ai/topups','/kilas-translator/checkout'):
+                self.assertEqual(client.post(path,data={'csrf_token':'console-csrf','pack':'MINUTE'}).status_code,410)
         # Existing invoice remains available, even after activating the candidate.
         self.assertEqual(client.get(result.location).status_code,200)
 

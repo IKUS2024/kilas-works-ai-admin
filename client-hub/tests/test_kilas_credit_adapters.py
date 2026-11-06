@@ -166,6 +166,19 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(wallet.balance(1)['balance_milli'],1995000)
         self.assertEqual(wallet.balance(1)['reserved_milli'],0)
 
+    def test_accepted_translation_audio_child_survives_cutoff_rollback(self):
+        ident=sessions.create(1,'id','en','kilas-female')
+        sessions.claim(1,ident,'accepted-parent',credit_maximum_ms=1000)
+        credit_audio.source_units(1,'accepted-parent',1000,'a'*64)
+        with patch.dict(os.environ,{'KILAS_CREDIT_ENFORCEMENT_ENABLED':'no','KILAS_CREDIT_CUTOFF_CANDIDATE_ENABLED':'yes'}):
+            job,new=audio.create(1,'accepted-parent-audio','voiceover','Synthetic','id','en','voice123','Synthetic','Translated text',0,None,1,2,credit_context=True,live_session=(ident,'accepted-parent'))
+            self.assertTrue(new);self.assertEqual(audio.balance(1)['seconds'],0)
+            self.assertTrue(audio.start(1,job));audio.finish(1,job,b'synthetic',1000)
+            sessions.finish(1,ident,'accepted-parent',True)
+        self.assertEqual(self.state('accepted-parent')['status'],'CAPTURED')
+        self.assertEqual(self.state('accepted-parent')['actual_units'],1000)
+        self.assertEqual(wallet.balance(1)['balance_milli'],0)
+
     def test_concurrent_free_admission_cannot_replenish_quota(self):
         def reserve(index):
             try:return policy.admit(1,'parallel-'+str(index),'VOICE',60000,'a'*64)

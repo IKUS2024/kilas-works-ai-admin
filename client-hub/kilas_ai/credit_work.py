@@ -54,7 +54,7 @@ def rows(conn, user, job_id, step_id):
 
 
 def park(job, lease, step, error):
-    if not policy.enabled() or step["worker"] != "IMAGE":
+    if not policy.enabled():
         return False
     token = policy.persist_consent(error)
     with wallet._locked(job["user_id"]) as conn:
@@ -65,7 +65,8 @@ def park(job, lease, step, error):
         ):
             return False
         request = error.request
-        if request[0] != job["user_id"] or request[1] != actual["idempotency_key"]:
+        spec = contract_for(current, actual)
+        if request[0] != job["user_id"] or request[1] != spec["key"]:
             raise wallet.WalletError("work_quote_changed")
         usage._query(
             conn,
@@ -128,9 +129,7 @@ def decide(user, token, approve):
         ):
             raise wallet.WalletError("work_changed")
         # Resolve the actual configured model and exact immutable prompt again.
-        from .agent_workers.image_worker import contract
-
-        spec = contract(job, step, json.loads(step["input_json"]))
+        spec = contract_for(job, step)
         if spec["key"] != wait[2] or spec["profile"]["credit_fingerprint"] != wait[3]:
             raise wallet.WalletError("work_changed")
         quote = usage._query(
@@ -139,7 +138,16 @@ def decide(user, token, approve):
             (token,),
             one=True,
         )
-        q = policy._quote(conn, user, wait[2], quote[0], quote[1], wait[3], None)
+        q = policy._quote(
+            conn,
+            user,
+            wait[2],
+            quote[0],
+            quote[1],
+            wait[3],
+            None,
+            json.loads(quote[3]).get("pricing_feature") if quote[0] == "WORK" else None,
+        )
         if (
             policy.fingerprint(
                 {
@@ -181,6 +189,16 @@ def decide(user, token, approve):
         return target
 
 
+def contract_for(job, step):
+    if step["worker"] == "IMAGE":
+        from .agent_workers.image_worker import contract
+
+        return contract(job, step, json.loads(step["input_json"]))
+    from .credit_work_steps import contract
+
+    return contract(job, step)
+
+
 def guard_mode(job, step):
     if policy.enabled():
         return
@@ -190,8 +208,8 @@ def guard_mode(job, step):
             return
         waiting = usage._query(
             conn,
-            "SELECT 1 FROM kilas_credit_work_waits WHERE user_id=? AND operation_key=?",
-            (job["user_id"], step["idempotency_key"]),
+            "SELECT 1 FROM kilas_credit_work_waits WHERE user_id=? AND (operation_key=? OR step_id=?)",
+            (job["user_id"], step["idempotency_key"], step.get("id", -1)),
             one=True,
         )
         admitted = usage._query(

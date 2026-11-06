@@ -220,10 +220,14 @@ def _cited_urls_only(answer, citations):
 
 
 def _request(payload, timeout=90):
+    from . import credit_work_steps
+    key=_openai_key()
+    credit_work_steps.before_provider('search',payload.get('model'),payload,payload.get('max_output_tokens'))
     try:
         response = requests.post("https://api.openai.com/v1/responses",
-            headers={"Authorization": "Bearer " + _openai_key(), "Content-Type": "application/json"},
+            headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
             json=payload, timeout=(10, timeout))
+        credit_work_steps.provider_done()
         from .provider_failures import quota_rejected, QUOTA_MESSAGE
         if quota_rejected(response):
             raise ToolUnavailable(QUOTA_MESSAGE,code='provider_quota_exhausted',

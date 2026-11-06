@@ -77,3 +77,8 @@ Receipt customer success is now separated from supplier completion, with explici
 The actual Interpreter now has account-bound source/output admission and settlement, distinct Gemini 3.8 pricing configuration, exact-owner enforcement, paid/accepted-session preservation, terminal dispatch fencing and evidence-based interrupted-session reconciliation. Paid Work image steps have durable exact-quote consent and resume; no provider runs from an approval POST. Receipt customer requests have an exact Responses token-count preflight before generation, bounded output and success-only customer settlement. Existing paid receipt access stays on its original path. The explicit cutoff/baseline candidate is additive and tested without touching production; runtime loading and admission transition remain a reviewed activation gate.
 
 See the current review for exact tests, official pricing, operational reviewer evidence and remaining limitations. Public prose spacing is corrected. No new tariff, production activation, public PR, migration/backfill, credential, financial activity, merge or deployment is implied by this milestone.
+
+
+## Bounded non-image Work / cutoff continuation
+
+See [activation gates and validation](KILAS_CREDIT_ACTIVATION_GATES_20261106.md) for the current non-image Work integration, strict inactive cutoff loader, rollback preservation, free receipt-counter documentation and exact operational/release limits. Activation remains off; no public PR, production data/configuration, credentials, real financial activity, merge or deployment changed.

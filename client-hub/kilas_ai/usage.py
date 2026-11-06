@@ -250,6 +250,15 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
                 if admitted and (profile or {}).get('credit_fingerprint') != admitted[0]:raise UsageLimit('credit_idempotency_conflict')
             conn.commit()
             return None, ()
+        from . import credit_activation
+        from . import credit_work_steps
+        accepted_parent=False
+        if profile and profile.get('credit_parent'):
+            from . import credit_audio
+            parent=credit_audio.root_in(conn,user_id,profile['credit_parent'])
+            row=_query(conn,'SELECT status FROM kilas_credit_admissions WHERE user_id=? AND operation_key=?',(user_id,parent[0]),one=True) if parent else None
+            accepted_parent=bool(row and row[0]=='RESERVED')
+        if not credit_work_steps.supplier_only_in(conn,user_id) and not accepted_parent:credit_activation.gate_in(conn,user_id)
         plan, paid_start, paid_end = _plan(conn, user_id, now)
         burst = max(1, int(os.environ.get("KILAS_AI_BURST_PER_MINUTE", "30")))
         hourly = max(burst, int(os.environ.get("KILAS_AI_MAX_PER_HOUR", "300")))
@@ -267,10 +276,14 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
         sponsored = (tool in ('CHAT','WEB','PDF','PPTX','IMAGE_GENERATE','IMAGE_EDIT')
                      and chat_offering.sponsored(user_id,operations,conn,origin=origin))
         from . import credit_policy
+        from . import credit_work_steps
+        work_supplier_only=credit_work_steps.supplier_only_in(conn,user_id)
         credit_admitted=False
-        if credit_policy.enabled():
+        if credit_policy.enabled() or work_supplier_only or accepted_parent:
             sponsored=False
-            if credit_policy.owner(conn,user_id):
+            if work_supplier_only:
+                credit_admitted=True
+            elif credit_policy.owner(conn,user_id):
                 credit_admitted=True
             elif profile and profile.get('credit_parent'):
                 from . import credit_audio
@@ -278,6 +291,7 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
                 if not parent:raise UsageLimit('credit_parent_missing')
                 state=_query(conn,"SELECT status FROM kilas_credit_admissions WHERE user_id=? AND operation_key=?",(user_id,parent[0]),one=True)
                 if not state or state[0]!='RESERVED':raise UsageLimit('credit_parent_closed')
+                credit_audio.child_in(conn,user_id,profile['credit_parent'],key)
                 credit_admitted=True
             elif profile and profile.get('credit_legacy_parent'):
                 # Only server-created already accepted Translator turns can use
@@ -358,7 +372,10 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
         for operation in operations:
             _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,model,created_at,customer_charge_exempt,customer_charge_origin) "
                    "VALUES (?,?,?,?,?,'PENDING',?,?,?,?,?,?)", (user_id, thread_id, key, operation, mode,
-                       'TOPUP' if needs_topup else 'BASE', str(predicted), profile.get('selected_model') if profile and operation==operations[0] else None, now.isoformat(),int(sponsored),origin.label if sponsored else None))
+                       'TOPUP' if needs_topup else 'BASE', str(predicted), profile.get('selected_model') if profile and operation==operations[0] else None, now.isoformat(),int(sponsored or work_supplier_only),'customer_work_wallet_v1' if work_supplier_only else origin.label if sponsored else None))
+        if work_supplier_only:
+            from .credit_work_steps import CURRENT
+            _query(conn,'INSERT INTO kilas_credit_work_usage(user_id,operation_key,root_key) VALUES (?,?,?) ON CONFLICT(user_id,operation_key) DO NOTHING',(user_id,key,CURRENT.get()['spec']['key']))
         conn.commit()
         return plan, operations
     except Exception:

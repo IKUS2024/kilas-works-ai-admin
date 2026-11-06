@@ -507,7 +507,8 @@ def result(ident):
 
 @audio_bp.post('/checkout')
 def checkout():
-    if credit_policy.enabled():return {'code':'legacy_purchase_retired','url':url_for('kilas_ai.usage_page')},410
+    from . import credit_activation
+    if credit_policy.enabled() or credit_activation.configured():return {'code':'legacy_purchase_retired','url':url_for('kilas_ai.usage_page')},410
     ident=billing.create(session['user_id'],request.form.get('pack'))
     return redirect(url_for('kilas_audio.invoice',ident=ident),code=303)
 

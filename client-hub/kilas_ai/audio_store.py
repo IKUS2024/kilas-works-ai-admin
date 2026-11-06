@@ -178,6 +178,8 @@ def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,p
             if existing[1]==legacy_fingerprint and not credit_audio.audio_link(conn,user,existing[0]):return existing[0],False
             if existing[1]!=fingerprint:raise AudioError('Permintaan berubah. Mulai audio baru.','idempotency_conflict',409)
             return existing[0],False
+        from . import credit_activation
+        if not live_session or not credit_audio.root_in(conn,user,live_session[1]):credit_activation.gate_in(conn,user)
         # One concurrent paid operation per account. Locks cover reservations across both modes.
         active = usage._query(conn,"SELECT 1 FROM kilas_audio_jobs WHERE user_id=? AND status IN ('QUEUED','PROCESSING')",(user,),one=True)
         if active:raise AudioError('Audio sebelumnya masih diproses. Buka hasilnya di riwayat.','busy',409)

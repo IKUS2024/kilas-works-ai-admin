@@ -92,6 +92,8 @@ def claim(owner,ident,key,*,credit_maximum_ms=600000,credit_payload_digest=None)
         require_explicit_pair(info['language_a'],info['language_b'],voice=info['voice_alias'])
         old=usage._query(conn,'SELECT status FROM kilas_live_translator_turns WHERE operation_key=?',(key,),one=True)
         if old:raise audio_store.AudioError('Ucapan ini sudah diproses. Tidak diulang otomatis.','duplicate_turn',409)
+        from . import credit_activation
+        credit_activation.gate_in(conn,owner)
         busy=usage._query(conn,"SELECT 1 FROM kilas_live_translator_turns WHERE session_id=? AND status='PROCESSING'",(ident,),one=True)
         if busy:raise audio_store.AudioError('Ucapan sebelumnya masih diproses.','turn_busy',409)
         credit_audio.claim_in(conn,owner,ident,key,info,credit_maximum_ms,credit_payload_digest)

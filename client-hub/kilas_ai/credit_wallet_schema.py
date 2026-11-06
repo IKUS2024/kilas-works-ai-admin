@@ -80,9 +80,19 @@ def apply(conn):
         user_id BIGINT NOT NULL REFERENCES users(id),operation_key TEXT NOT NULL,job_id BIGINT NOT NULL,step_id BIGINT NOT NULL,
         fingerprint TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'ADMITTED',dispatched_at TEXT,
         PRIMARY KEY(user_id,operation_key))""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_work_usage (
+        user_id BIGINT NOT NULL REFERENCES users(id),operation_key TEXT NOT NULL,root_key TEXT NOT NULL,
+        PRIMARY KEY(user_id,operation_key))""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_work_calls (
+        user_id BIGINT NOT NULL REFERENCES users(id),operation_key TEXT NOT NULL,ordinal INTEGER NOT NULL,
+        kind TEXT NOT NULL,model TEXT NOT NULL,fingerprint TEXT NOT NULL,
+        PRIMARY KEY(user_id,operation_key,ordinal))""",
         """CREATE TABLE IF NOT EXISTS kilas_credit_activation (
         version TEXT PRIMARY KEY,cutoff TEXT NOT NULL,release_sha TEXT NOT NULL,tariff_digest TEXT NOT NULL,
         meter_version TEXT NOT NULL,snapshot_digest TEXT NOT NULL,created_at TEXT NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_activation_payload (
+        version TEXT PRIMARY KEY REFERENCES kilas_credit_activation(version),payload_json TEXT NOT NULL,
+        baseline_digest TEXT NOT NULL,schema_checksum TEXT NOT NULL)""",
         """CREATE TABLE IF NOT EXISTS kilas_credit_quota_baselines (
         version TEXT NOT NULL REFERENCES kilas_credit_activation(version),user_id BIGINT NOT NULL REFERENCES users(id),
         feature TEXT NOT NULL,period_start TEXT NOT NULL,period_end TEXT NOT NULL,units BIGINT NOT NULL,

@@ -130,6 +130,8 @@ def begin(user, ident, index, settings):
 
 
 def start(user, ident, settings):
+    from . import credit_activation
+    credit_activation.gate(user)
     if not policy.enabled():
         return None
     return begin(user, ident, 0, settings)

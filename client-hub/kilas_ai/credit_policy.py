@@ -85,6 +85,9 @@ def _quote(conn,user,key,feature,maximum_units,digest,priced_units,pricing_featu
         else:priced=maximum_units-free
         source='SPLIT' if free else 'PAID'
     maximum_charge=_ceil(priced*rate,unit)
+    if feature=='WORK':
+        from .credit_work_steps import terms
+        terms(pricing_feature)
     return {'source':source,'free':free,'priced':priced,'rate':rate,'unit':unit,'charge':maximum_charge,'allocation':allocation,'pricing_feature':pricing_feature or feature,'output_ratio_milli':json.loads(os.environ.get('KILAS_CREDIT_TARIFFS_JSON','{}')).get('limits',{}).get(pricing_feature or 'TRANSLATOR',{}).get('output_ratio_milli') if feature=='TRANSLATOR' else None}
 
 
@@ -108,7 +111,7 @@ def _consent(conn,user,key,feature,maximum_units,digest,q,*,consume=True):
 
 
 def admit_in(conn,user,key,feature,maximum_units,digest,*,spending_ceiling=0,priced_units=None,require_consent=True,pricing_feature=None):
-    if feature not in ('CHAT','IMAGE','VOICE','TRANSLATOR','RECEIPT'):raise wallet.WalletError('feature_unpriced')
+    if feature not in ('CHAT','IMAGE','VOICE','TRANSLATOR','RECEIPT','WORK'):raise wallet.WalletError('feature_unpriced')
     lock_account_in(conn,user)
     key=wallet._key(key);maximum_units=wallet._amount(maximum_units)
     wallet._amount(spending_ceiling,zero=True)
@@ -118,8 +121,10 @@ def admit_in(conn,user,key,feature,maximum_units,digest,*,spending_ceiling=0,pri
         if tuple(old[:3])!=(feature,maximum_units,digest) or (feature=='VOICE' and priced_units is not None and old[4] not in (0,priced_units)):raise wallet.WalletError('idempotency_conflict')
         return {'dispatch':False,'status':old[3]}
     if not enabled():raise wallet.WalletError('credit_policy_disabled')
-    if pricing_feature not in (None,'INTERPRETER'):raise wallet.WalletError('invalid_pricing_feature')
-    if pricing_feature and feature!='TRANSLATOR':raise wallet.WalletError('invalid_pricing_feature')
+    from . import credit_activation
+    credit_activation.gate_in(conn,user)
+    if pricing_feature not in (None,'INTERPRETER','WORK_TEXT','WORK_WEB','WORK_WATCH','WORK_DOCUMENT','WORK_CODE','WORK_PROJECT'):raise wallet.WalletError('invalid_pricing_feature')
+    if pricing_feature and feature!=('WORK' if pricing_feature.startswith('WORK_') else 'TRANSLATOR'):raise wallet.WalletError('invalid_pricing_feature')
     q=_quote(conn,user,key,feature,maximum_units,digest,priced_units,pricing_feature)
     if q['charge']:
         if wallet._totals(conn,user)['available_milli']<q['charge']:raise wallet.WalletError('insufficient_credit')
@@ -173,6 +178,15 @@ def installed(conn):
 
 
 def historical_in(conn,user,feature,start):
+    from . import credit_activation
+    baseline=credit_activation.baseline_in(conn,user,feature,start)
+    if baseline:
+        units,cutoff=baseline
+        return units+historical_raw_in(conn,user,feature,max(start,cutoff) if start else cutoff)
+    return historical_raw_in(conn,user,feature,start)
+
+
+def historical_raw_in(conn,user,feature,start,end=None):
     # Read successful pre-wallet usage; never create retroactive debits or reset
     # lifetime trials. Newly admitted operations are excluded to avoid double count.
     if feature in ('VOICE','TRANSLATOR') and table_exists(conn,'kilas_audio_jobs'):
@@ -187,18 +201,22 @@ def historical_in(conn,user,feature,start):
         if table_exists(conn,'kilas_credit_audio_links'):
             sql+=" AND NOT EXISTS (SELECT 1 FROM kilas_credit_audio_links l WHERE l.user_id=j.user_id AND l.job_id=j.id)"
         if start:sql+=' AND j.created_at>=?';args+=(start.isoformat(),)
+        if end:sql+=' AND j.created_at<?';args+=(end.isoformat(),)
         return usage._query(conn,sql,args,one=True)[0]
     if feature not in ('CHAT','IMAGE') or not table_exists(conn,'kilas_ai_usage'):return 0
     clause="u.operation_type='CHAT'" if feature=='CHAT' else "u.operation_type IN ('IMAGE_GENERATION','IMAGE_EDIT')"
     sql="SELECT COUNT(*) FROM kilas_ai_usage u WHERE u.user_id=? AND u.status='COMPLETE' AND "+clause+" AND NOT EXISTS (SELECT 1 FROM kilas_credit_admissions a WHERE a.user_id=u.user_id AND a.operation_key=u.operation_key)"
     args=(user,)
+    if feature=='CHAT' and table_exists(conn,'kilas_credit_translation_links'):sql+=' AND NOT EXISTS (SELECT 1 FROM kilas_credit_translation_links l WHERE l.user_id=u.user_id AND l.operation_key=u.operation_key)'
+    if table_exists(conn,'kilas_credit_work_usage'):sql+=' AND NOT EXISTS (SELECT 1 FROM kilas_credit_work_usage w WHERE w.user_id=u.user_id AND w.operation_key=u.operation_key)'
     if start:sql+=' AND u.created_at>=?';args+=(start.isoformat(),)
+    if end:sql+=' AND u.created_at<?';args+=(end.isoformat(),)
     if feature=='CHAT':sql+=usage._chat_only_sql()
     return usage._query(conn,sql,args,one=True)[0]
 
 
 def table_exists(conn,name):
-    if name not in ('kilas_credit_admissions','kilas_ai_subscriptions','kilas_ai_usage','kilas_credit_audio_links','kilas_credit_translation_links','kilas_audio_jobs','kilas_live_translator_turns','kilas_live_translator_sessions','kilas_credit_interpreter_sessions','kilas_credit_interpreter_turns','kilas_credit_work_waits','kilas_credit_work_operations','kilas_credit_activation','kilas_credit_quota_baselines'):raise ValueError('invalid_table')
+    if name not in ('kilas_credit_admissions','kilas_agent_jobs','kilas_vo_stt_operations','kilas_ai_subscriptions','kilas_ai_usage','kilas_credit_audio_links','kilas_credit_translation_links','kilas_audio_jobs','kilas_live_translator_turns','kilas_live_translator_sessions','kilas_credit_interpreter_sessions','kilas_credit_interpreter_turns','kilas_credit_work_waits','kilas_credit_work_usage','kilas_credit_work_operations','kilas_credit_activation','kilas_credit_activation_payload','kilas_credit_quota_baselines'):raise ValueError('invalid_table')
     if db.BACKEND=='postgres':
         row=usage._query(conn,'SELECT to_regclass(?)',(name,),one=True)
         return bool(row and row[0])
@@ -266,6 +284,7 @@ def reconcile(user,key,reviewer,outcome,actual_units,evidence):
             active=usage._query(conn,"SELECT 1 FROM kilas_live_translator_turns t JOIN kilas_live_translator_sessions s ON s.id=t.session_id WHERE s.user_id=? AND t.operation_key=? AND t.status='PROCESSING'",(user,key),one=True)
             if active:raise wallet.WalletError('reconciliation_operation_still_active')
         if table_exists(conn,'kilas_credit_interpreter_turns') and usage._query(conn,"SELECT 1 FROM kilas_credit_interpreter_turns WHERE user_id=? AND operation_key=? AND status='ACTIVE'",(user,key),one=True):raise wallet.WalletError('reconciliation_operation_still_active')
+        if table_exists(conn,'kilas_agent_jobs') and table_exists(conn,'kilas_credit_work_operations') and usage._query(conn,"SELECT 1 FROM kilas_credit_work_operations w JOIN kilas_agent_jobs j ON j.id=w.job_id AND j.user_id=w.user_id WHERE w.user_id=? AND w.operation_key=? AND j.status IN ('PLANNING','RUNNING','WAITING','NEEDS_APPROVAL','PAUSED')",(user,key),one=True):raise wallet.WalletError('reconciliation_operation_still_active')
         if table_exists(conn,'kilas_ai_usage') and usage._query(conn,"SELECT 1 FROM kilas_ai_usage WHERE user_id=? AND operation_key=? AND status='PENDING'",(user,key),one=True):raise wallet.WalletError('reconciliation_operation_still_active')
         finish_in(conn,user,key,actual_units,success=outcome=='DELIVERED',definitive_failure=True)
         priced=usage._query(conn,'SELECT priced_actual FROM kilas_credit_admissions WHERE user_id=? AND operation_key=?',(user,key),one=True)[0]
