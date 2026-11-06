@@ -1,6 +1,7 @@
 """Synthetic Work consent and Interpreter layout, four languages and two widths."""
 import json
 import logging
+import shutil
 from pathlib import Path
 import threading
 from unittest.mock import patch
@@ -22,7 +23,8 @@ def main():
     reports=[]
     try:
         with sync_playwright() as p:
-            browser=p.chromium.launch(executable_path='/usr/bin/chromium')
+            executable=shutil.which('chromium')
+            browser=p.chromium.launch(**({'executable_path':executable} if executable else {}))
             for lang in ('en','id','es','zh'):
                 for width in (393,1440):
                     case=fixture.WorkRouteCreditTests('test_real_runner_pauses_renders_localized_consent_and_resumes_provider_once')
@@ -34,6 +36,7 @@ def main():
                             case.tick();provider.assert_not_called()
                             client=case.client_for(case.user)
                             context=browser.new_context(viewport={'width':width,'height':900})
+                            context.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin+'/') else route.abort())
                             context.add_cookies([{'name':'session','value':client.get_cookie('session').value,'url':origin},{'name':'kilas_language','value':lang,'url':origin}])
                             page=context.new_page();errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
                             page.goto(origin+'/kilas-ai/agent/jobs/'+str(case.job),wait_until='networkidle')

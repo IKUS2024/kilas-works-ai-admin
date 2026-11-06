@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import shutil
 from pathlib import Path
 import threading
 from unittest.mock import patch
@@ -33,7 +34,8 @@ def main():
     report=[]
     try:
         with sync_playwright() as p:
-            browser=p.chromium.launch(executable_path='/usr/bin/chromium')
+            executable=shutil.which('chromium')
+            browser=p.chromium.launch(**({'executable_path':executable} if executable else {}))
             for lang in ('en','id','es','zh'):
                 for width in (393,1440):
                     user=fixture.fixture.repo.create_user(f'credit-browser-{lang}-{width}@example.test','hash')
@@ -44,6 +46,7 @@ def main():
                         wallet.submit_proof(user,funded,FileStorage(io.BytesIO(b'synthetic'),filename='proof.png',content_type='image/png'))
                     wallet.review(funded,case.admin,'VERIFIED',transfer_reference=f'SYNTHETIC-BROWSER-{lang}-{width}')
                     context=browser.new_context(viewport={'width':width,'height':900})
+                    context.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin+'/') else route.abort())
                     context.add_cookies([{'name':'session','value':client.get_cookie('session').value,'url':origin},{'name':'kilas_language','value':lang,'url':origin}])
                     page=context.new_page();errors=[];writes=[]
                     page.on('pageerror',lambda e:errors.append(str(e)))

@@ -1,6 +1,7 @@
 """Localized non-image Work consent/resume and paused issued invoices; synthetic IO."""
 import json
 import logging
+import shutil
 from pathlib import Path
 import threading
 from unittest.mock import patch
@@ -18,7 +19,8 @@ def main():
     origin=f'http://127.0.0.1:{server.server_port}';dest=Path('/tmp/kilas-credit-work-steps-browser');dest.mkdir(exist_ok=True);reports=[]
     try:
         with sync_playwright() as p:
-            browser=p.chromium.launch(executable_path='/usr/bin/chromium')
+            executable=shutil.which('chromium')
+            browser=p.chromium.launch(**({'executable_path':executable} if executable else {}))
             for lang in ('en','id','es','zh'):
                 for width in (393,1440):
                     case=fixture.WorkStepsTests('test_multistep_text_consent_completed_steps_and_no_internal_chat_quota');case.id=lambda:f'synthetic-work-step-browser-{lang}-{width}';case.setUp();context=None
@@ -27,6 +29,7 @@ def main():
                         with patch.object(content_worker.requests,'post',return_value=case.response()) as provider:
                             case.tick();provider.assert_not_called()
                             client=case.client_for(case.user);context=browser.new_context(viewport={'width':width,'height':900})
+                            context.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin+'/') else route.abort())
                             context.add_cookies([{'name':'session','value':client.get_cookie('session').value,'url':origin},{'name':'kilas_language','value':lang,'url':origin}])
                             page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                             page.goto(origin+'/kilas-ai/agent/jobs/'+str(case.job),wait_until='networkidle');page.locator('[data-credit-work-consent] a').click();page.wait_for_load_state('networkidle')
