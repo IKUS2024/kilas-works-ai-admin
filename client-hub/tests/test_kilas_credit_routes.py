@@ -117,6 +117,13 @@ class CreditRoutesTests(unittest.TestCase):
                 self.assertIn(label,response.text)
             self.assertEqual(client.post(target,data={'decision':'approve'}).status_code,400)
             self.assertEqual(client.post(target,data={'csrf_token':'console-csrf','decision':'approve'}).status_code,200)
+            token=target.rsplit('/',1)[-1]
+            header={'X-Kilas-Credit-Consent':token}
+            # Even a valid browser CSRF/session on another account cannot retry
+            # an approval obtained on the original account.
+            self.assertEqual(self.client_for(self.owner).post('/kilas-translator/jobs',data=form,headers=header).status_code,409)
+            self.assertEqual(client.post('/kilas-translator/jobs',data={**form,'operation_key':'another-operation-key'},headers=header).status_code,409)
+            self.assertEqual(dispatch.call_count,0)
             result=client.post('/kilas-translator/jobs',data=form)
             self.assertEqual(result.status_code,201,result.data)
             self.assertEqual(dispatch.call_count,1)
@@ -135,16 +142,21 @@ class CreditRoutesTests(unittest.TestCase):
         with patch('file_utils.validate_project_attachment_upload',return_value=('proof.png','image/png')):
             wallet.submit_proof(self.owner,ident,__import__('werkzeug.datastructures',fromlist=['FileStorage']).FileStorage(io.BytesIO(b'synthetic'),filename='proof.png',content_type='image/png'))
         wallet.review(ident,self.admin,'VERIFIED',transfer_reference='TEST-ROUTE-RECEIPT')
+        from PIL import Image
+        image=io.BytesIO();Image.new('RGB',(16,16),'white').save(image,'PNG');image_raw=image.getvalue()
         events=[{'type':'delta','text':json.dumps(finance_receipts.empty_result())},{'type':'usage','input_tokens':10,'output_tokens':10},{'type':'finish','reason':'stop'}]
         with patch.dict(os.environ,{'KILAS_CREDIT_TARIFFS_JSON':json.dumps(TARIFFS)}),patch.object(chat_models,'check',return_value={'available':True,'images':True}),patch.object(finance_receipts.branches,'token_branch',return_value=1),patch.object(providers,'_openai',return_value=iter(events)) as dispatch:
             with self.assertRaises(policy.ConsentRequired) as caught:
-                finance_receipts.extract(b'synthetic receipt','image/png',None,[],business_id=1,user_id=self.owner)
+                finance_receipts.extract(image_raw,'image/png',None,[],business_id=1,user_id=self.owner)
             self.assertEqual(dispatch.call_count,0)
             token=policy.persist_consent(caught.exception);policy.consent(self.owner,token,True)
-            result=finance_receipts.extract(b'synthetic receipt','image/png',None,[],business_id=1,user_id=self.owner)
+            balance_before=wallet.balance(self.owner)['balance_milli']
+            result=finance_receipts.extract(image_raw,'image/png',None,[],business_id=1,user_id=self.owner)
             self.assertFalse(result['readable']);self.assertEqual(dispatch.call_count,1)
+            self.assertEqual(wallet.balance(self.owner)['balance_milli'],balance_before)
+            self.assertEqual(wallet.balance(self.owner)['reserved_milli'],0)
             with self.assertRaisesRegex(finance_receipts.ReceiptError,'already_analyzed'):
-                finance_receipts.extract(b'synthetic receipt','image/png',None,[],business_id=1,user_id=self.owner)
+                finance_receipts.extract(image_raw,'image/png',None,[],business_id=1,user_id=self.owner)
             self.assertEqual(dispatch.call_count,1)
             with wallet._locked(self.owner) as conn:
                 self.assertEqual(policy.remaining_in(conn,self.owner,'CHAT',usage._now()),70)

@@ -469,6 +469,8 @@ def send(thread_id, *, script_only=False):
             from .tools import ToolUnavailable
             try:resolve(effective_image,image_prompt)
             except ToolUnavailable as error:return {'error':str(error)},400
+    if credit_policy.enabled() and tool in ('IMAGE_GENERATE','IMAGE_EDIT'):
+        selected_image=effective_image  # Pin the actual server model in quote and dispatch.
     from . import chat_offering
     origin=chat_offering.for_request(user_id,'thread',thread_id,key)
     try:

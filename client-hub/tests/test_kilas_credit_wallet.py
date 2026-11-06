@@ -2,7 +2,6 @@
 import io
 import os
 import hashlib
-import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -168,7 +167,7 @@ class WalletTests(unittest.TestCase):
             self.assertEqual(balance,wallet.balance(1))
 
     def test_duplicate_proof_is_review_signal_not_automatic_rejection(self):
-        first=self.fund();second=wallet.create_purchase(2,'second');self.proof(2,second)
+        self.fund();second=wallet.create_purchase(2,'second');self.proof(2,second)
         digests=db.query_all('SELECT proof_digest FROM kilas_credit_orders ORDER BY id')
         self.assertEqual(digests[0]['proof_digest'],digests[1]['proof_digest'])
         wallet.review(second,3,'VERIFIED',transfer_reference='DISTINCT-CONFIRMED-TRANSFER')

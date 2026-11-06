@@ -455,7 +455,8 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
         if not pending or not pending[1]:topups.settle(conn, user_id, key, success, actual_micro)
         from . import credit_policy
         if credit_policy.installed(conn):
-            credit_policy.finish_in(conn,user_id,key,1 if success else 0,success=success,
+            customer_success=success and usage.get('customer_success',True)
+            credit_policy.finish_in(conn,user_id,key,1 if customer_success else 0,success=customer_success,
                 definitive_failure=bool(usage.get('provider_rejected') or usage.get('customer_failure_definitive')))
         conn.commit()
     except Exception:

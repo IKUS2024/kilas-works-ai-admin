@@ -244,7 +244,12 @@ class LiveTranslatorTests(unittest.TestCase):
         self.assertIn('class="kilas-live-page"',html)
         self.assertNotIn('live-pair-help',html);self.assertNotIn('Privasi &amp; pemrosesan audio',html)
         self.assertNotIn('ElevenLabs',html);self.assertNotIn('OpenAI',html)
-        self.assertIn('href="/privacy#audio-processing"',html)
+        #45a70f2f intentionally restored compact inline consent instead of
+        #the separate saved-permission/privacy settings panel.
+        self.assertIn('Saya punya izin dan menyetujui pemrosesan ucapan.',html)
+        self.assertIn('Audio dapat dikirim selagi saya berbicara.',html)
+        self.assertNotIn('id="live-permission-settings"',html)
+        self.assertEqual(self.client.get('/privacy').status_code,200)
         self.assertLess(html.index('kilas_live_translator.css'),html.index('</head>'))
         self.assertIn('id="live-recovery" hidden',html)
         self.assertIn('id="live-session-status" class="live-session-status" role="status" aria-live="polite"',html)
@@ -269,7 +274,7 @@ class LiveTranslatorTests(unittest.TestCase):
             with self.assertRaises(audio_store.AudioError) as error:live.enqueue(self.other,response.json['session_id'],self.key(),None)
             self.assertEqual(error.exception.code,'translator_unavailable');decode.assert_not_called()
 
-    def test_bidirectional_existing_accounting_no_clone_no_ids_or_transcript_response(self):
+    def test_bidirectional_accounting_no_clone_no_provider_ids_or_durable_transcripts(self):
         self.credit(300)
         with self.funded(),self.on(),patch.object(branded,'resolve',return_value=VOICE),patch.object(live.stt,'transcribe',side_effect=self.transcribe) as stt,patch.object(providers,'_openai',side_effect=self.stream) as ai,patch.object(audio_provider,'speech',return_value=(self.audio,'synthetic-request')) as tts,patch.object(audio_provider,'clone_voice') as clone:
             ident=self.session();key=self.key();info=self.claim(ident,key);job=live.process(self.user,ident,key,self.signal(),info)
@@ -282,7 +287,18 @@ class LiveTranslatorTests(unittest.TestCase):
             ai.side_effect=reverse;key2=self.key(2);info=self.claim(ident,key2);live.process(self.user,ident,key2,self.signal(),info)
             self.assertEqual(tts.call_args.args[2],'id');self.assertEqual(stt.call_count,2);clone.assert_not_called()
             response=self.client.get('/kilas-translator/live/sessions/'+ident+'/turns/'+key2)
-            self.assertEqual(set(response.json),{'status','audio_url','translated_text','source_language','target_language'});self.assertNotIn(VOICE['id'],response.text)
+            #ff1c81f6/9841a55d/499706fd added owned RAM-only history,
+            #early captions and content-bound playback identity.
+            self.assertEqual(set(response.json),{'status','audio_url','translated_text','source_language','target_language','translation_key','source_text','audio_sha256'});self.assertNotIn(VOICE['id'],response.text)
+            self.assertEqual(response.json['translation_key'],key2)
+            self.assertEqual(response.json['source_text'],'Halo, apa kabar?')
+            self.assertEqual(response.json['audio_sha256'],hashlib.sha256(self.audio).hexdigest())
+            self.assertIn('no-store',response.headers['Cache-Control'])
+            foreign=audio.f.app.app.test_client()
+            from auth_test_helpers import authenticate
+            authenticate(foreign,audio.f.repo.get_user_by_id(self.other),_csrf_token='audio-csrf')
+            self.assertEqual(foreign.get(response.json['audio_url']).status_code,404)
+            self.assertEqual(foreign.get('/kilas-translator/live/sessions/'+ident+'/turns/'+key2).status_code,404)
             self.assertEqual(response.json['translated_text'],'Selamat pagi.')
             self.assertEqual(response.json['source_language'],'en');self.assertEqual(response.json['target_language'],'id')
             self.assertEqual(self.client.get(response.json['audio_url']).status_code,200)

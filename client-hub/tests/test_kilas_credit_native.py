@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 import test_kilas_live_gemini as fixture
 from test_kilas_credit_adapters import TARIFFS
-from kilas_ai import credit_wallet_schema as schema, usage, credit_policy as policy
+from kilas_ai import credit_wallet_schema as schema, usage
 from kilas_ai import live_gemini as native, live_translator_store as sessions, audio_store
 from kilas_ai import live_translator as classic, live_translator_segments as segments
 from kilas_ai import audio_service, audio_provider, audio_transcription_budget

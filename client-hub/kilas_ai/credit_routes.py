@@ -94,6 +94,19 @@ def credit_consent_needed(error):
     return {'code':'credit_consent_required','error':'credit_consent_required','credit_consent_url':url_for('kilas_ai.credit_consent',token=token)},402
 
 
+@ai_bp.before_app_request
+def credit_retry_account_fence():
+    token=request.headers.get('X-Kilas-Credit-Consent')
+    if not token or request.method!='POST' or not re.match(r'^/kilas-(ai|translator)/',request.path):return
+    if not policy.enabled():return {'code':'credit_policy_disabled'},409
+    if not re.fullmatch(r'[a-f0-9]{64}',token):return {'code':'credit_consent_invalid'},409
+    item=db.query_one('SELECT user_id,operation_key,status,expires_at FROM kilas_credit_consents WHERE token=?',(token,))
+    key=(request.view_args or {}).get('key') or request.form.get('operation_key') or (request.get_json(silent=True) or {}).get('operation_key')
+    if (not item or item['user_id']!=session.get('user_id') or item['operation_key']!=key
+            or item['status'] not in ('APPROVED','CONSUMED') or usage._as_utc(item['expires_at'])<=usage._now()):
+        return {'code':'credit_consent_account_or_request_changed'},409
+
+
 @ai_bp.route('/credits/consent/<token>',methods=['GET','POST'])
 def credit_consent(token):
     require_enabled()

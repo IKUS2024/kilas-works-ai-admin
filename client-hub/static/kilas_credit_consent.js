@@ -29,6 +29,7 @@
      decline.onclick=()=>finish(false);dialog.addEventListener('cancel',()=>finish(false));
    });
    if(!accepted||retry.signal.aborted)return response;
+   retry.headers.set('X-Kilas-Credit-Consent',target.pathname.split('/').pop());
    return nativeFetch(retry);
  };
 })();

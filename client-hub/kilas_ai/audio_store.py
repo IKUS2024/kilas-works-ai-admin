@@ -169,8 +169,13 @@ def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,p
             personal=usage._query(conn,'SELECT voice_id,claim_until FROM kilas_audio_personal_voices WHERE user_id=?',(user,),one=True)
             if not personal or (personal[0]!=voice and not saved_voice) or (personal[1] and usage._as_utc(personal[1])>usage._now()):
                 raise AudioError('Suara Saya sedang diperbarui. Muat ulang lalu coba lagi.','voice_unavailable',409)
+        legacy_fingerprint=fingerprint
+        resolved_model='dubbing_v2' if mode=='translate' else 'eleven_v4' if saved_voice or voice_name=='Suara Saya' or alternate_of is not None else 'eleven_multilingual_v2'
+        if credit_context and credit_policy.enabled() and not live_session:
+            fingerprint=credit_policy.fingerprint({'inputs':fingerprint,'provider_model':resolved_model})
         existing = usage._query(conn,'SELECT id,fingerprint FROM kilas_audio_jobs WHERE user_id=? AND operation_key=?',(user,key),one=True)
         if existing:
+            if existing[1]==legacy_fingerprint and not credit_audio.audio_link(conn,user,existing[0]):return existing[0],False
             if existing[1]!=fingerprint:raise AudioError('Permintaan berubah. Mulai audio baru.','idempotency_conflict',409)
             return existing[0],False
         # One concurrent paid operation per account. Locks cover reservations across both modes.
@@ -178,7 +183,7 @@ def create(user,key,mode,title,source,target,voice,voice_name,script,source_ms,p
         if active:raise AudioError('Audio sebelumnya masih diproses. Buka hasilnya di riwayat.','busy',409)
         recent = usage._query(conn,'SELECT COUNT(*) FROM kilas_audio_jobs WHERE user_id=? AND created_at>?',(user,(usage._now()-timedelta(minutes=1)).isoformat()),one=True)[0]
         if recent>=5:raise AudioError('Tunggu sebentar sebelum membuat audio berikutnya.','rate_limit',429)
-        credit_admitted=credit_audio.admitted_audio(conn,user,key,mode,script,source_ms if credit_source_ms is None else credit_source_ms,reserve*1000,fingerprint,live_session,credit_context,'dubbing_v2' if mode=='translate' else 'eleven_v4' if saved_voice or voice_name=='Suara Saya' or alternate_of is not None else 'eleven_multilingual_v2')
+        credit_admitted=credit_audio.admitted_audio(conn,user,key,mode,script,source_ms if credit_source_ms is None else credit_source_ms,reserve*1000,fingerprint,live_session,credit_context,resolved_model)
         admitted_at = usage._now()
         exempt = credit_admitted or usage._qa_quota_exempt(conn,user,admitted_at)
         available = _balance(conn,user)

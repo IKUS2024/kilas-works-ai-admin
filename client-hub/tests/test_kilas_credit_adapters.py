@@ -22,7 +22,7 @@ TARIFFS = {
         'VOICE':{'models':['eleven_multilingual_v2','eleven_v4'], 'characters':4000, 'output_ms':600000},
         'TRANSLATOR':{'models':['gpt-6-luna','gemini-3.5-live-translate-preview','dubbing_v2'],
                       'source_ms':600000, 'output_ratio_milli':2000},
-        'RECEIPT':{'models':['gpt-6-luna'], 'input_tokens':200000, 'output_tokens':2048, 'bytes':1000},
+        'RECEIPT':{'models':['gpt-6-luna'], 'input_tokens':200000, 'output_tokens':2048, 'bytes':1000,'input_accounting_verified':'luna-high-2048-text12k-v1'},
     },
 }
 
@@ -178,6 +178,7 @@ class AdapterTests(unittest.TestCase):
         with patch.dict(os.environ,{'KILAS_CREDIT_ENFORCEMENT_ENABLED':'no'}), patch.object(usage,'_qa_quota_exempt',return_value=True):
             job,_=self.voice('old-success',reserve=60)
             audio.start(1,job);audio.finish(1,job,b'synthetic',20000)
+        self.assertEqual(self.voice('old-success',reserve=60),(job,False))
         job,_=self.voice('new-success',reserve=40)
         audio.start(1,job);audio.finish(1,job,b'synthetic',10000)
         for _ in range(2):
@@ -255,6 +256,31 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(wallet.balance(1)['balance_milli'],0)
         with self.assertRaisesRegex(wallet.WalletError,'meter_missing'):
             audio.create(1,'missing-source','translate','Synthetic','id','en','','','',3000,b'synthetic',3,3,credit_context=True)
+
+    def test_work_image_retry_keeps_logical_key_and_pins_actual_model(self):
+        from kilas_ai.agent_workers import image_worker
+        model='gpt-image-2.5-sunburst'
+        job={'user_id':1,'checkpoint_json':'{}'}
+        step={'idempotency_key':'stable-work-image','attempts':1,'action':'generate'}
+        with patch.dict(os.environ,{'KILAS_AI_OPENAI_IMAGE_MODEL':model}),patch.object(image_worker.chat_offering,'for_job',return_value=None),patch.object(usage,'reserve',side_effect=usage.UsageLimit('synthetic stop before provider')) as reserve,patch.object(image_worker.tools,'image') as provider:
+            for attempt in (1,2):
+                with self.assertRaises(usage.UsageLimit):image_worker.run(job,{**step,'attempts':attempt},{'prompt':'Synthetic 2K image'})
+                self.assertEqual(reserve.call_args.args[2],'stable-work-image')
+                self.assertEqual(reserve.call_args.kwargs['profile']['image_model'],model)
+            provider.assert_not_called()
+
+    def test_voice_model_change_after_quote_requires_new_approval(self):
+        self.fund()
+        with self.assertRaises(policy.ConsentRequired) as caught:self.voice('model-bound',reserve=90)
+        token=policy.persist_consent(caught.exception);policy.consent(1,token,True)
+        with wallet._locked(1) as conn:
+            now=usage._now().isoformat()
+            usage._query(conn,"INSERT INTO kilas_audio_personal_voices(user_id,voice_id) VALUES (1,'voice123')")
+            usage._query(conn,"INSERT INTO kilas_audio_saved_voices(user_id,name,voice_id,operation_key,consent_at,updated_at) VALUES (1,'Synthetic','voice123','synthetic-save',?,?)",(now,now))
+        with self.assertRaises(policy.ConsentRequired) as caught:self.voice('model-bound',reserve=90)
+        self.assertNotEqual(token,caught.exception.token)
+        self.assertEqual(wallet.balance(1)['reserved_milli'],0)
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_jobs')['n'],0)
 
 
 if __name__=='__main__':unittest.main()

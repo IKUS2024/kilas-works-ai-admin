@@ -18,7 +18,8 @@ def run(job,step,data):
     if effective in image_models.CATALOG:
         from ..image_options import resolve
         resolve(effective,prompt)  # Reject unsupported settings before reserving quota.
-    key=step['idempotency_key']+'-'+str(step['attempts'])
+    if credit_policy.enabled():selected=effective
+    key=step['idempotency_key'] if credit_policy.enabled() else step['idempotency_key']+'-'+str(step['attempts'])
     _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',origin=chat_offering.for_job(job,'IMAGE'),profile={'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8')),'image_prompt':prompt,'credit_fingerprint':credit_policy.fingerprint({'tool':step['action'],'model':effective,'prompt':prompt,'sources':json.loads(job['checkpoint_json']).get('image_source_ids',[])})})
     if not ops:raise ValueError('duplicate_reservation')
     success=False;result={}

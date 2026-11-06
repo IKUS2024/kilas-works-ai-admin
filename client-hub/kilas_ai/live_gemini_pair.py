@@ -7,7 +7,7 @@ other until that receiver closes. Legacy sessions retain whole-turn output
 holding. Both preserve contiguous stream runs, without claiming semantic order
 when a single utterance mixes both languages.
 """
-from . import credit_audio, credit_policy
+from . import credit_audio
 import base64
 import json
 import re

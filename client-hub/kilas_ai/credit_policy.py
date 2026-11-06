@@ -218,7 +218,10 @@ def validate_request(conn,user,feature,profile):
         elif feature in ('CHAT','RECEIPT'):
             if (profile.get('model') not in limits['models'] or profile.get('output_tokens',0)>limits['output_tokens']
                     or profile.get('input_token_bound',0)>limits['input_tokens']):raise ValueError()
-            if feature=='RECEIPT' and profile.get('receipt_bytes',0)>limits['bytes']:raise ValueError()
+            if feature=='RECEIPT':
+                from .credit_receipts import CONTRACT
+                if (profile.get('receipt_bytes',0)>limits['bytes'] or profile.get('input_accounting')!=CONTRACT
+                        or limits.get('input_accounting_verified')!=CONTRACT):raise ValueError()
         elif feature=='VOICE':
             if (profile['model'] not in limits['models'] or profile['characters']>limits['characters']
                     or profile['output_ms']>limits['output_ms']):raise ValueError()
