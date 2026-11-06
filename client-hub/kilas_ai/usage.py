@@ -32,6 +32,8 @@ class UsageLimit(ValueError):
 
 # Server-owned allowlist; never accepted from a request, user field or plan record.
 def _qa_quota_exempt(conn, user_id, now):
+    from . import credit_policy
+    if credit_policy.enabled():return credit_policy.owner(conn,user_id)
     from . import free_test
     if free_test.eligible(user_id, conn, now):
         return True
@@ -239,6 +241,10 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
         existing = _query(conn, "SELECT 1 FROM kilas_ai_usage WHERE user_id=? AND operation_key=? LIMIT 1",
                           (user_id, key), one=True)
         if existing:
+            from . import credit_policy
+            if credit_policy.enabled() and credit_policy.installed(conn):
+                admitted=_query(conn,'SELECT fingerprint FROM kilas_credit_admissions WHERE user_id=? AND operation_key=?',(user_id,key),one=True)
+                if admitted and (profile or {}).get('credit_fingerprint') != admitted[0]:raise UsageLimit('credit_idempotency_conflict')
             conn.commit()
             return None, ()
         plan, paid_start, paid_end = _plan(conn, user_id, now)
@@ -255,7 +261,26 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
         from . import chat_offering
         sponsored = (tool in ('CHAT','WEB','PDF','PPTX','IMAGE_GENERATE','IMAGE_EDIT')
                      and chat_offering.sponsored(user_id,operations,conn,origin=origin))
-        qa_exempt = sponsored or _qa_quota_exempt(conn, user_id, now)
+        from . import credit_policy
+        credit_admitted=False
+        if credit_policy.enabled():
+            sponsored=False
+            if credit_policy.owner(conn,user_id):
+                credit_admitted=True
+            elif plan=='FREE':
+                feature={'CHAT':'CHAT','IMAGE_GENERATE':'IMAGE'}.get(tool)
+                # All other surfaces fail closed until their accepted tariff/unit
+                # contract and immutable payload adapters are integrated.
+                if not feature or not profile or not profile.get('credit_fingerprint'):raise UsageLimit('credit_feature_not_ready')
+                from . import credit_wallet
+                try:
+                    credit_policy.validate_request(conn,user_id,feature,profile)
+                    result=credit_policy.admit_in(conn,user_id,key,feature,1,profile['credit_fingerprint'],spending_ceiling=profile.get('credit_spending_ceiling',0))
+                    if not result['dispatch']:
+                        conn.commit();return None, ()
+                    credit_admitted=True
+                except credit_wallet.WalletError as error:raise UsageLimit(str(error)) from None
+        qa_exempt = credit_admitted or sponsored or _qa_quota_exempt(conn, user_id, now)
         paid_chat = plan != 'FREE' and fair_use.normal_chat(thread_id,key,tool)
         from . import capacity
         if tool == 'CHAT' and profile and profile['model'].endswith('-sol'):
@@ -410,6 +435,10 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
         fallback = 1000 if fallback_key == "PDF" else topups.FORECAST_MICRO.get(fallback_key, 80000)
         actual_micro = int(Decimal(first_cost) * Decimal(1000000)) if first_cost is not None else (fallback if success else 0)
         if not pending or not pending[1]:topups.settle(conn, user_id, key, success, actual_micro)
+        from . import credit_policy
+        if credit_policy.installed(conn):
+            credit_policy.finish_in(conn,user_id,key,1 if success else 0,success=success,
+                definitive_failure=bool(usage.get('provider_rejected')))
         conn.commit()
     except Exception:
         conn.rollback()

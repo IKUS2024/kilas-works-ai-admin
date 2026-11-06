@@ -77,3 +77,10 @@ body.premium-workspace.subscription-design-preview {background:radial-gradient(e
 .subscription-design-preview .subscription-estimates .subscription-features {margin-top:10px;gap:10px}
 .subscription-design-preview .subscription-estimate {font-weight:600;color:var(--sub-ink)!important}
 .subscription-design-preview .subscription-estimate-note {font-size:11px;color:var(--sub-muted);margin-bottom:16px!important}
+
+/* Activated wallet forms only; preview and Finance forms are unaffected. */
+.subscription-design-preview .credit-wallet-page form {display:grid;gap:12px;margin-top:16px;min-width:0}
+.subscription-design-preview .credit-wallet-page label {display:block;min-height:44px;font-size:12px}
+.subscription-design-preview .credit-wallet-page input:not([type=checkbox]), .subscription-design-preview .credit-wallet-page textarea {display:block;width:100%;max-width:100%;min-width:0;min-height:44px;padding:8px;border:1px solid var(--sub-line);border-radius:8px;font:inherit;background:#fffdf9;color:var(--sub-ink)}
+.subscription-design-preview .credit-wallet-page input[type=checkbox] {margin:8px;vertical-align:middle}
+.subscription-design-preview .credit-wallet-page .subscription-plan {overflow-wrap:anywhere;margin-top:16px}

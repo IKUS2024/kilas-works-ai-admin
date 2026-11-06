@@ -5,6 +5,7 @@ server-resolved user row. Reservations never expire automatically: an interrupte
 provider call must be reconciled before release, rather than silently permitting
 another potentially paid request. This module makes no provider calls.
 """
+import hashlib
 import re
 import secrets
 from contextlib import contextmanager
@@ -72,58 +73,72 @@ def balance(user):
     return {'balance_milli': total, 'reserved_milli': held, 'available_milli': total-held}
 
 
-def reserve(user, key, maximum_milli):
+def reserve(user, key, maximum_milli, *, fingerprint):
+    with _locked(user) as conn:
+        return reserve_in(conn, user, key, maximum_milli, fingerprint=fingerprint)
+
+
+def reserve_in(conn, user, key, maximum_milli, *, fingerprint):
     key = _key(key)
     maximum_milli = _amount(maximum_milli)
-    with _locked(user) as conn:
-        old = usage._query(conn, 'SELECT maximum_milli,status FROM kilas_credit_holds WHERE user_id=? AND operation_key=?', (user, key), one=True)
-        if old:
-            if old[0] != maximum_milli:
-                raise WalletError('idempotency_conflict')
-            if old[1] == 'RELEASED':
-                raise WalletError('operation_closed')
-            return old[1]
-        if _totals(conn, user)['available_milli'] < maximum_milli:
-            raise WalletError('insufficient_credit')
-        usage._query(conn, "INSERT INTO kilas_credit_holds(user_id,operation_key,maximum_milli,status,created_at) VALUES (?,?,?,'RESERVED',?)",
-                     (user, key, maximum_milli, usage._now().isoformat()))
-        _event(conn, user, 'reserve:'+key, 'RESERVE', 0, maximum_milli)
-        return 'RESERVED'
+    if not isinstance(fingerprint,str) or not re.fullmatch('[a-f0-9]{64}',fingerprint):
+        raise WalletError('invalid_fingerprint')
+    old = usage._query(conn, 'SELECT maximum_milli,status,fingerprint FROM kilas_credit_holds WHERE user_id=? AND operation_key=?', (user, key), one=True)
+    if old:
+        if old[0] != maximum_milli or old[2] != fingerprint:
+            raise WalletError('idempotency_conflict')
+        if old[1] == 'RELEASED':
+            raise WalletError('operation_closed')
+        return old[1]
+    if _totals(conn, user)['available_milli'] < maximum_milli:
+        raise WalletError('insufficient_credit')
+    usage._query(conn, "INSERT INTO kilas_credit_holds(user_id,operation_key,fingerprint,maximum_milli,status,created_at) VALUES (?,?,?,?,'RESERVED',?)",
+                 (user, key, fingerprint, maximum_milli, usage._now().isoformat()))
+    _event(conn, user, 'reserve:'+key, 'RESERVE', 0, maximum_milli)
+    return 'RESERVED'
 
 
 def settle(user, key, actual_milli):
+    with _locked(user) as conn:
+        return settle_in(conn, user, key, actual_milli)
+
+
+def settle_in(conn, user, key, actual_milli):
     key = _key(key)
     actual_milli = _amount(actual_milli, zero=True)
-    with _locked(user) as conn:
-        old = usage._query(conn, 'SELECT maximum_milli,actual_milli,status FROM kilas_credit_holds WHERE user_id=? AND operation_key=?', (user, key), one=True)
-        if not old:
-            raise WalletError('reservation_not_found')
-        if old[2] == 'CAPTURED' and old[1] == actual_milli:
-            return 'CAPTURED'
-        if old[2] != 'RESERVED':
-            raise WalletError('operation_closed')
-        if actual_milli > old[0]:
-            raise WalletError('reservation_exceeded')
-        _event(conn, user, 'capture:'+key, 'CAPTURE', -actual_milli, -old[0])
-        usage._query(conn, "UPDATE kilas_credit_holds SET status='CAPTURED',actual_milli=?,finished_at=? WHERE user_id=? AND operation_key=?",
-                     (actual_milli, usage._now().isoformat(), user, key))
+    old = usage._query(conn, 'SELECT maximum_milli,actual_milli,status FROM kilas_credit_holds WHERE user_id=? AND operation_key=?', (user, key), one=True)
+    if not old:
+        raise WalletError('reservation_not_found')
+    if old[2] == 'CAPTURED' and old[1] == actual_milli:
         return 'CAPTURED'
+    if old[2] != 'RESERVED':
+        raise WalletError('operation_closed')
+    if actual_milli > old[0]:
+        raise WalletError('reservation_exceeded')
+    _event(conn, user, 'capture:'+key, 'CAPTURE', -actual_milli, -old[0])
+    usage._query(conn, "UPDATE kilas_credit_holds SET status='CAPTURED',actual_milli=?,finished_at=? WHERE user_id=? AND operation_key=?",
+                 (actual_milli, usage._now().isoformat(), user, key))
+    return 'CAPTURED'
 
 
 def release(user, key):
+    with _locked(user) as conn:
+        return release_in(conn, user, key)
+
+
+def release_in(conn, user, key):
     """Call only after a definitive cancellation/failure, never an unknown timeout."""
     key = _key(key)
-    with _locked(user) as conn:
-        old = usage._query(conn, 'SELECT maximum_milli,status FROM kilas_credit_holds WHERE user_id=? AND operation_key=?', (user, key), one=True)
-        if not old:
-            raise WalletError('reservation_not_found')
-        if old[1] == 'RELEASED':
-            return 'RELEASED'
-        if old[1] != 'RESERVED':
-            raise WalletError('operation_closed')
-        _event(conn, user, 'release:'+key, 'RELEASE', 0, -old[0])
-        usage._query(conn, "UPDATE kilas_credit_holds SET status='RELEASED',finished_at=? WHERE user_id=? AND operation_key=?", (usage._now().isoformat(), user, key))
+    old = usage._query(conn, 'SELECT maximum_milli,status FROM kilas_credit_holds WHERE user_id=? AND operation_key=?', (user, key), one=True)
+    if not old:
+        raise WalletError('reservation_not_found')
+    if old[1] == 'RELEASED':
         return 'RELEASED'
+    if old[1] != 'RESERVED':
+        raise WalletError('operation_closed')
+    _event(conn, user, 'release:'+key, 'RELEASE', 0, -old[0])
+    usage._query(conn, "UPDATE kilas_credit_holds SET status='RELEASED',finished_at=? WHERE user_id=? AND operation_key=?", (usage._now().isoformat(), user, key))
+    return 'RELEASED'
 
 
 def create_purchase(user, request_key):
@@ -158,11 +173,17 @@ def submit_proof(user, ident, upload):
         row = usage._query(conn, 'SELECT status FROM kilas_credit_orders WHERE user_id=? AND id=?', (user, ident), one=True)
         if not row or row[0] not in ('PAYMENT_PENDING', 'REJECTED'):
             raise WalletError('order_not_pending')
-        usage._query(conn, "UPDATE kilas_credit_orders SET status='UNDER_REVIEW',proof_name=?,proof_mime=?,proof_content=?,reviewed_by=NULL,reviewed_at=NULL,admin_note=NULL WHERE user_id=? AND id=?",
-                     (name, mime, raw, user, ident))
+        usage._query(conn, "UPDATE kilas_credit_orders SET status='UNDER_REVIEW',proof_name=?,proof_mime=?,proof_content=?,proof_digest=?,transfer_reference=NULL,reviewed_by=NULL,reviewed_at=NULL,admin_note=NULL WHERE user_id=? AND id=?",
+                     (name, mime, raw, hashlib.sha256(raw).hexdigest(), user, ident))
 
 
-def review(ident, reviewer, decision, note=''):
+def _review(ident, reviewer, decision, note='', *, transfer_reference=None):
+    if decision == 'VERIFIED':
+        if not isinstance(transfer_reference,str) or not re.fullmatch('[A-Za-z0-9:/_-]{4,100}',transfer_reference.strip()):
+            raise WalletError('verified_transfer_reference_required')
+        transfer_reference=transfer_reference.strip().upper()
+    else:
+        transfer_reference=None
     if decision not in ('VERIFIED', 'REJECTED') or type(reviewer) is not int:
         raise WalletError('invalid_review')
     seed = db.query_one('SELECT user_id FROM kilas_credit_orders WHERE id=?', (ident,))
@@ -173,15 +194,28 @@ def review(ident, reviewer, decision, note=''):
         role = usage._query(conn, 'SELECT role FROM users WHERE id=?', (reviewer,), one=True)
         if not role or role[0] != 'KILAS_ADMIN' or reviewer == user:
             raise WalletError('review_forbidden')
-        row = usage._query(conn, 'SELECT status,amount_idr,credit_milli,proof_content FROM kilas_credit_orders WHERE user_id=? AND id=?', (user, ident), one=True)
+        row = usage._query(conn, 'SELECT status,amount_idr,credit_milli,proof_content,transfer_reference,proof_digest FROM kilas_credit_orders WHERE user_id=? AND id=?', (user, ident), one=True)
         if row[1:3] != (PACK_IDR, PACK_MILLI):
             raise WalletError('order_pack_mismatch')
         if row[0] == decision:
+            if row[4] != transfer_reference:raise WalletError('review_idempotency_conflict')
             return decision
         if row[0] != 'UNDER_REVIEW' or not row[3]:
             raise WalletError('order_not_reviewable')
         if decision == 'VERIFIED':
+            # Unique partial index also fences races between different users/orders.
+            usage._query(conn, 'UPDATE kilas_credit_orders SET transfer_reference=? WHERE id=?', (transfer_reference,ident))
             _event(conn, user, 'purchase:'+ident, 'PURCHASE', PACK_MILLI, 0)
-        usage._query(conn, 'UPDATE kilas_credit_orders SET status=?,reviewed_by=?,reviewed_at=?,admin_note=? WHERE user_id=? AND id=?',
-                     (decision, reviewer, usage._now().isoformat(), str(note or '')[:1000], user, ident))
+        usage._query(conn, 'UPDATE kilas_credit_orders SET status=?,reviewed_by=?,reviewed_at=?,admin_note=?,transfer_reference=? WHERE user_id=? AND id=?',
+                     (decision, reviewer, usage._now().isoformat(), str(note or '')[:1000], transfer_reference, user, ident))
+        usage._query(conn,'INSERT INTO kilas_credit_reviews(id,order_id,reviewer,decision,transfer_reference,proof_digest,created_at) VALUES (?,?,?,?,?,?,?)', (secrets.token_hex(16),ident,reviewer,decision,transfer_reference,row[5],usage._now().isoformat()))
         return decision
+
+
+def review(ident, reviewer, decision, note='', *, transfer_reference=None):
+    try:
+        return _review(ident,reviewer,decision,note,transfer_reference=transfer_reference)
+    except Exception as error:
+        if getattr(error,'pgcode',None)=='23505' or ('UNIQUE constraint failed: kilas_credit_orders.transfer_reference' in str(error)):
+            raise WalletError('transfer_reference_already_verified') from None
+        raise

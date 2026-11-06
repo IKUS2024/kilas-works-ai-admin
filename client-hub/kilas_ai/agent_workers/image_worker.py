@@ -1,7 +1,7 @@
 """Reuse the existing validated image provider with bounded Work execution and metering."""
 import os
 import json
-from .. import chat_offering
+from .. import chat_offering, credit_policy
 import re
 from . import Result
 from .. import tools,usage,work_artifacts,routing,image_models
@@ -19,7 +19,7 @@ def run(job,step,data):
         from ..image_options import resolve
         resolve(effective,prompt)  # Reject unsupported settings before reserving quota.
     key=step['idempotency_key']+'-'+str(step['attempts'])
-    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',origin=chat_offering.for_job(job,'IMAGE'),profile={'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8')),'image_prompt':prompt})
+    _,ops=usage.reserve(job['user_id'],None,key,'FAST','IMAGE_EDIT' if step['action']=='edit' else 'IMAGE_GENERATE',origin=chat_offering.for_job(job,'IMAGE'),profile={'image_model':selected,'image_input_token_bound':512+len(prompt.encode('utf-8')),'image_prompt':prompt,'credit_fingerprint':credit_policy.fingerprint({'tool':step['action'],'model':effective,'prompt':prompt,'sources':json.loads(job['checkpoint_json']).get('image_source_ids',[])})})
     if not ops:raise ValueError('duplicate_reservation')
     success=False;result={}
     try:

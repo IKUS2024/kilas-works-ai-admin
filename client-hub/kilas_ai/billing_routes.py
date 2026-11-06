@@ -130,3 +130,6 @@ def review(payment_id):
     except billing.BillingError as error:
         return {"error": str(error)}, 400
     return redirect(url_for("kilas_ai_admin.payments"), code=303)
+
+# Registers the separately gated fixed-credit routes after both blueprints exist.
+from . import credit_routes  # noqa: E402,F401

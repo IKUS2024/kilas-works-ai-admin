@@ -20,7 +20,7 @@ def apply(conn):
         created_at TEXT NOT NULL, PRIMARY KEY(user_id,event_key))''',
         '''CREATE TABLE IF NOT EXISTS kilas_credit_holds (
         user_id BIGINT NOT NULL REFERENCES users(id), operation_key TEXT NOT NULL,
-        maximum_milli BIGINT NOT NULL CHECK(maximum_milli>0),
+        fingerprint TEXT NOT NULL, maximum_milli BIGINT NOT NULL CHECK(maximum_milli>0),
         actual_milli BIGINT CHECK(actual_milli>=0 AND actual_milli<=maximum_milli),
         status TEXT NOT NULL CHECK(status IN ('RESERVED','CAPTURED','RELEASED')),
         created_at TEXT NOT NULL, finished_at TEXT, PRIMARY KEY(user_id,operation_key))''',
@@ -29,9 +29,43 @@ def apply(conn):
         request_key TEXT NOT NULL, amount_idr BIGINT NOT NULL CHECK(amount_idr=99000),
         credit_milli BIGINT NOT NULL CHECK(credit_milli=2000000),
         status TEXT NOT NULL CHECK(status IN ('PAYMENT_PENDING','UNDER_REVIEW','VERIFIED','REJECTED')),
-        proof_name TEXT, proof_mime TEXT, proof_content {binary},
+        proof_name TEXT, proof_mime TEXT, proof_content {binary}, proof_digest TEXT,
+        transfer_reference TEXT,
         reviewed_by BIGINT REFERENCES users(id), reviewed_at TEXT, admin_note TEXT,
         created_at TEXT NOT NULL, UNIQUE(user_id,request_key))''',
+        "CREATE UNIQUE INDEX IF NOT EXISTS kilas_credit_transfer_once ON kilas_credit_orders(transfer_reference) WHERE status='VERIFIED'",
+        "CREATE TABLE IF NOT EXISTS kilas_credit_reviews (id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES kilas_credit_orders(id),reviewer BIGINT NOT NULL REFERENCES users(id),decision TEXT NOT NULL,transfer_reference TEXT,proof_digest TEXT NOT NULL,created_at TEXT NOT NULL)",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_admissions (
+        user_id BIGINT NOT NULL REFERENCES users(id),operation_key TEXT NOT NULL,
+        feature TEXT NOT NULL,maximum_units BIGINT NOT NULL CHECK(maximum_units>0),fingerprint TEXT NOT NULL,
+        source TEXT NOT NULL CHECK(source IN ('FREE','PAID','OWNER')),rate_milli BIGINT NOT NULL,
+        rate_units BIGINT NOT NULL CHECK(rate_units>0),maximum_charge BIGINT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('RESERVED','CAPTURED','RELEASED')),
+        actual_units BIGINT,created_at TEXT NOT NULL,finished_at TEXT,PRIMARY KEY(user_id,operation_key))""",
     ]
     for sql in statements:
         usage._query(conn, sql)
+
+
+def apply_release():
+    """Explicit additive release; no backfill/conversion or automatic startup call."""
+    import hashlib
+    from pathlib import Path
+    checksum=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    conn=usage._connect()
+    try:
+        if db.BACKEND=='postgres':
+            usage._query(conn,"SET LOCAL lock_timeout='10s'")
+            usage._query(conn,'SELECT pg_advisory_xact_lock(74120601)')
+        usage._query(conn,'CREATE TABLE IF NOT EXISTS kilas_credit_schema_releases(name TEXT PRIMARY KEY,checksum TEXT NOT NULL)')
+        old=usage._query(conn,"SELECT checksum FROM kilas_credit_schema_releases WHERE name='customer-credit-v1'",one=True)
+        if old:
+            if old[0]!=checksum:raise RuntimeError('credit_schema_checksum_mismatch')
+        else:
+            apply(conn)
+            usage._query(conn,"INSERT INTO kilas_credit_schema_releases(name,checksum) VALUES ('customer-credit-v1',?)",(checksum,))
+        conn.commit()
+        return not bool(old)
+    except Exception:
+        conn.rollback();raise
+    finally:conn.close()
