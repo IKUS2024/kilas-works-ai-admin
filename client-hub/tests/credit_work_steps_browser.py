@@ -1,11 +1,11 @@
 """Localized non-image Work consent/resume and paused issued invoices; synthetic IO."""
 import json
 import logging
-import shutil
 from pathlib import Path
 import threading
 from unittest.mock import patch
 from playwright.sync_api import sync_playwright,expect
+from credit_browser_tools import launch
 from werkzeug.serving import make_server
 import test_kilas_credit_work_steps as fixture
 from kilas_ai import credit_wallet as wallet
@@ -19,8 +19,7 @@ def main():
     origin=f'http://127.0.0.1:{server.server_port}';dest=Path('/tmp/kilas-credit-work-steps-browser');dest.mkdir(exist_ok=True);reports=[]
     try:
         with sync_playwright() as p:
-            executable=shutil.which('chromium')
-            browser=p.chromium.launch(**({'executable_path':executable} if executable else {'channel':'chromium'}))
+            browser=launch(p)
             for lang in ('en','id','es','zh'):
                 for width in (393,1440):
                     case=fixture.WorkStepsTests('test_multistep_text_consent_completed_steps_and_no_internal_chat_quota');case.id=lambda:f'synthetic-work-step-browser-{lang}-{width}';case.setUp();context=None

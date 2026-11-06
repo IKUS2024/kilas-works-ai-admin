@@ -27,6 +27,16 @@ runner, fixtures, assertions and network restrictions. This is a test-toolchain
 pin, not a customer-browser setting or a claim that Chromium 156 is repaired.
 Hosted acceptance of this pin remains pending until its exact-head run passes.
 
+The first pin run, [42191277005](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/42191277005),
+installed Chromium 151 but the previous local-browser preference still launched
+`/usr/bin/chromium` 156. It reproduced the original abort and did not test the
+intended browser. The corrected CI launcher explicitly selects the managed
+browser, records its actual version and fails if it is not major 151. The same
+selection applies to minimal controls and real journeys. The Ubuntu 24.04 runner
+already launches its system Chromium, demonstrating required shared libraries;
+CI installs the pinned browser without a redundant apt upgrade, which took over
+nine minutes in the prior run. Missing dependencies will still fail the job.
+
 The minimal regression stays in CI both guarded and standalone. Every real
 wallet/Work browser case still runs, and any failed case makes the job fail.
 Future toolchain updates must pass the minimal popup and the real financial

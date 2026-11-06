@@ -2,11 +2,11 @@
 import json
 import logging
 import os
-import shutil
 from pathlib import Path
 import threading
 from unittest.mock import patch
 from playwright.sync_api import sync_playwright,expect
+from credit_browser_tools import launch
 from werkzeug.serving import make_server
 import test_kilas_credit_routes as fixture
 from kilas_ai import credit_wallet as wallet, audio_provider, audio_service, audio_store
@@ -34,8 +34,7 @@ def main():
     report=[]
     try:
         with sync_playwright() as p:
-            executable=shutil.which('chromium')
-            browser=p.chromium.launch(**({'executable_path':executable} if executable else {'channel':'chromium'}))
+            browser=launch(p)
             for lang in ('en','id','es','zh'):
                 for width in (393,1440):
                     user=fixture.fixture.repo.create_user(f'credit-browser-{lang}-{width}@example.test','hash')

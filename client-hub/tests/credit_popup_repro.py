@@ -9,6 +9,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright, expect
+from credit_browser_tools import launch
 
 
 CASES = {'tab': (False, ''), 'popup': (False, 'popup,width=520,height=660'),
@@ -68,8 +69,7 @@ def main():
                 row = {'case': name, 'crashes': [], 'ok': False}
                 started = time.monotonic()
                 try:
-                    executable = shutil.which('chromium')
-                    browser = playwright.chromium.launch(**({'executable_path': executable} if executable else {'channel': 'chromium'}))
+                    browser = launch(playwright)
                     report['browser'] = browser.version
                     context = browser.new_context(viewport={'width': 393, 'height': 900})
                     context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(origin+'/') else route.abort())

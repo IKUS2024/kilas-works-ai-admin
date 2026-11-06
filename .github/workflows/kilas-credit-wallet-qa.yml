@@ -83,10 +83,12 @@ jobs:
         if: always()
         with: {name: credit-wallet-postgres, path: /tmp/credit-wallet-qa/postgres}
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       DEBUG: pw:browser
+      KILAS_CREDIT_BROWSER_BUNDLED: 'yes'
+      KILAS_CREDIT_BROWSER_MAJOR: '151'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -96,7 +98,9 @@ jobs:
       # on the retained localhost-only popup fixture (run 42190631465).
       # Keep the released 1.62 toolchain until both fixture and real flow pass.
       - run: pip install -r client-hub/requirements.txt 'playwright==1.62.0' 'pytest>=9,<10' 'pytest-socket>=0.7,<1'
-      - run: python -m playwright install --with-deps --no-shell chromium
+      # The runner's existing Chromium already demonstrates the shared libraries.
+      # Install the pinned managed browser; don't upgrade the OS with apt here.
+      - run: python -m playwright install --no-shell chromium
       - name: Minimal localhost popup, no application or account
         env: {KILAS_CREDIT_BROWSER_CASE: popup_repro}
         run: |
