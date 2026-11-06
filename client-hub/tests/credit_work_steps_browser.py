@@ -20,7 +20,7 @@ def main():
     try:
         with sync_playwright() as p:
             executable=shutil.which('chromium')
-            browser=p.chromium.launch(**({'executable_path':executable} if executable else {}))
+            browser=p.chromium.launch(**({'executable_path':executable} if executable else {'channel':'chromium'}))
             for lang in ('en','id','es','zh'):
                 for width in (393,1440):
                     case=fixture.WorkStepsTests('test_multistep_text_consent_completed_steps_and_no_internal_chat_quota');case.id=lambda:f'synthetic-work-step-browser-{lang}-{width}';case.setUp();context=None

@@ -24,7 +24,7 @@ def main():
     try:
         with sync_playwright() as p:
             executable=shutil.which('chromium')
-            browser=p.chromium.launch(**({'executable_path':executable} if executable else {}))
+            browser=p.chromium.launch(**({'executable_path':executable} if executable else {'channel':'chromium'}))
             for lang in ('en','id','es','zh'):
                 for width in (393,1440):
                     case=fixture.WorkRouteCreditTests('test_real_runner_pauses_renders_localized_consent_and_resumes_provider_once')

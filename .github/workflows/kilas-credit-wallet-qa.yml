@@ -91,7 +91,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: pip install -r client-hub/requirements.txt playwright 'pytest>=9,<10' 'pytest-socket>=0.7,<1'
-      - run: python -m playwright install --with-deps chromium
+      - run: python -m playwright install --with-deps --no-shell chromium
       - name: Four languages, mobile and desktop, synthetic providers and payments
         run: |
           for case in wallet work work_steps; do

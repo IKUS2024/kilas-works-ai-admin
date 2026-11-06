@@ -35,7 +35,7 @@ def main():
     try:
         with sync_playwright() as p:
             executable=shutil.which('chromium')
-            browser=p.chromium.launch(**({'executable_path':executable} if executable else {}))
+            browser=p.chromium.launch(**({'executable_path':executable} if executable else {'channel':'chromium'}))
             for lang in ('en','id','es','zh'):
                 for width in (393,1440):
                     user=fixture.fixture.repo.create_user(f'credit-browser-{lang}-{width}@example.test','hash')
