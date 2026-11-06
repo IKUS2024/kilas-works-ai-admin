@@ -22,7 +22,9 @@ class PolicyTests(WalletTests):
             self.assertTrue(policy.admit(1,key,'CHAT',1,policy.fingerprint({'text':key}))['dispatch'])
             policy.finish(1,key,1,success=True)
         with self.assertRaisesRegex(wallet.WalletError,'consent'):policy.admit(1,'paid','CHAT',1,'a'*64)
-        self.assertEqual(policy.admit(1,'paid','CHAT',1,'a'*64,spending_ceiling=1000)['source'],'PAID')
+        token=__import__('db').query_one("SELECT token FROM kilas_credit_consents WHERE user_id=1 AND operation_key='paid'")['token']
+        policy.consent(1,token,True)
+        self.assertEqual(policy.admit(1,'paid','CHAT',1,'a'*64)['source'],'PAID')
         with patch.dict(os.environ,{'KILAS_CREDIT_ENFORCEMENT_ENABLED':'no'}):policy.finish(1,'paid',1,success=True)
         self.assertEqual(wallet.balance(1)['balance_milli'],1999000)
 
@@ -51,7 +53,7 @@ class PolicyTests(WalletTests):
     def test_unapproved_tariffs_partial_duration_and_disabled_policy_fail_closed(self):
         self.fund()
         with self.assertRaisesRegex(wallet.WalletError,'not_approved'):policy.admit(1,'ocr','RECEIPT',1,'a'*64,spending_ceiling=1000)
-        with self.assertRaisesRegex(wallet.WalletError,'partial'):policy.admit(1,'long','TRANSLATOR',180001,'b'*64,spending_ceiling=1000)
+        with self.assertRaisesRegex(wallet.WalletError,'not_approved'):policy.admit(1,'long','TRANSLATOR',180001,'b'*64,spending_ceiling=1000)
         with patch.dict(os.environ,{'KILAS_CREDIT_ENFORCEMENT_ENABLED':'no'}):
             with self.assertRaisesRegex(wallet.WalletError,'disabled'):policy.admit(1,'off','CHAT',1,'c'*64)
 

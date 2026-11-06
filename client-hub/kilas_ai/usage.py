@@ -124,6 +124,9 @@ def _operations(mode, tool):
         return ("IMAGE_GENERATION",)
     if tool == "IMAGE_EDIT":
         return ("IMAGE_EDIT",)
+    if tool == "RECEIPT":
+        from . import credit_policy
+        if credit_policy.enabled():return ("PDF",)
     if tool == "PDF":
         return ("PDF",)
     return ("CHAT",)
@@ -267,8 +270,22 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
             sponsored=False
             if credit_policy.owner(conn,user_id):
                 credit_admitted=True
+            elif profile and profile.get('credit_parent'):
+                from . import credit_audio
+                parent=credit_audio.root_in(conn,user_id,profile['credit_parent'])
+                if not parent:raise UsageLimit('credit_parent_missing')
+                state=_query(conn,"SELECT status FROM kilas_credit_admissions WHERE user_id=? AND operation_key=?",(user_id,parent[0]),one=True)
+                if not state or state[0]!='RESERVED':raise UsageLimit('credit_parent_closed')
+                credit_admitted=True
+            elif profile and profile.get('credit_legacy_parent'):
+                # Only server-created already accepted Translator turns can use
+                # this path. A new active-policy claim always has a wallet link.
+                parent=profile['credit_legacy_parent']
+                turn=_query(conn,"SELECT 1 FROM kilas_live_translator_turns t JOIN kilas_live_translator_sessions s ON s.id=t.session_id WHERE s.user_id=? AND t.operation_key=? AND t.status='PROCESSING' AND s.status='ACTIVE' AND NOT EXISTS(SELECT 1 FROM kilas_credit_translation_links l WHERE l.user_id=s.user_id AND l.operation_key=t.operation_key)",(user_id,parent),one=True)
+                if not turn:raise UsageLimit('credit_legacy_parent_missing')
+                credit_admitted=True
             elif plan=='FREE':
-                feature={'CHAT':'CHAT','IMAGE_GENERATE':'IMAGE'}.get(tool)
+                feature={'CHAT':'CHAT','IMAGE_GENERATE':'IMAGE','RECEIPT':'RECEIPT'}.get(tool)
                 # All other surfaces fail closed until their accepted tariff/unit
                 # contract and immutable payload adapters are integrated.
                 if not feature or not profile or not profile.get('credit_fingerprint'):raise UsageLimit('credit_feature_not_ready')
@@ -279,6 +296,7 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
                     if not result['dispatch']:
                         conn.commit();return None, ()
                     credit_admitted=True
+                except credit_policy.ConsentRequired:raise
                 except credit_wallet.WalletError as error:raise UsageLimit(str(error)) from None
         qa_exempt = credit_admitted or sponsored or _qa_quota_exempt(conn, user_id, now)
         paid_chat = plan != 'FREE' and fair_use.normal_chat(thread_id,key,tool)
@@ -438,7 +456,7 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
         from . import credit_policy
         if credit_policy.installed(conn):
             credit_policy.finish_in(conn,user_id,key,1 if success else 0,success=success,
-                definitive_failure=bool(usage.get('provider_rejected')))
+                definitive_failure=bool(usage.get('provider_rejected') or usage.get('customer_failure_definitive')))
         conn.commit()
     except Exception:
         conn.rollback()

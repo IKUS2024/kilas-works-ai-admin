@@ -1,4 +1,5 @@
 """Authenticated Translator utility, private media and existing admin review."""
+from . import credit_policy,credit_wallet
 import io
 import hashlib
 import math
@@ -101,6 +102,19 @@ def access():
     if user['role']!='CLIENT_OWNER' and not free_test.eligible(session['user_id']) and not _native_route_access(session['user_id']):abort(404)
 
 
+@audio_bp.errorhandler(credit_policy.ConsentRequired)
+def credit_consent_needed(error):
+    from .credit_routes import credit_consent_needed as response
+    return response(error)
+
+
+@audio_bp.errorhandler(credit_wallet.WalletError)
+def credit_invalid(error):
+    code=str(error)
+    status=402 if code=='insufficient_credit' else 503 if 'unapproved' in code or 'not_approved' in code else 409
+    return {'error':code,'code':code,'purchase_url':url_for('kilas_ai.usage_page')},status
+
+
 @audio_bp.errorhandler(store.AudioError)
 @audio_bp.errorhandler(media.MediaError)
 def invalid(error):
@@ -180,7 +194,7 @@ def home_handoff():
 
 @audio_bp.post('/inspect')
 def inspect():
-    store.require_balance(session['user_id'])  # Zero balance never even decodes/uploads to provider.
+    store.require_balance(session['user_id'],product=True)  # Zero balance never even decodes/uploads to provider.
     name,ms,_=media.upload(request.files.get('file'))
     return {'filename':name,'duration_ms':ms,'required_seconds':math.ceil(ms/1000),'duration_label':seconds(math.ceil(ms/1000))}
 
@@ -190,16 +204,19 @@ def create():
     user=session['user_id'];key=request.form.get('operation_key','')
     if not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',key):abort(400)
     existing=db.query_one('SELECT id FROM kilas_audio_jobs WHERE user_id=? AND operation_key=?',(user,key))
-    if existing:return {'url':url_for('kilas_audio.home',ident=existing['id']),'id':existing['id']},200
-    store.require_balance(user)
+    if existing and not credit_policy.enabled():return {'url':url_for('kilas_audio.home',ident=existing['id']),'id':existing['id']},200
+    store.require_balance(user,product=True)
     if not provider.configured():raise store.AudioError('Audio sedang belum tersedia. Saldo kamu tetap aman.','not_configured',503)
     mode=request.form.get('mode');source=request.form.get('source_language','auto');target=request.form.get('language','en')
     targets=translator.DUBBING if mode=='translate' else provider.LANGUAGES
     sources=translator.STT&translator.DUBBING if mode=='translate' else provider.LANGUAGES
     if (target not in targets and not (mode=='voiceover' and target=='auto')) or (source!='auto' and source not in sources):abort(400)
-    voice=voice_name=script='';original_script=None;ms=0;pcm=None
+    voice=voice_name=script='';original_script=None;ms=0;pcm=None;credit_source_ms=None
     if mode=='translate':
-        title,ms,pcm=media.upload(request.files.get('file'),preserve_video=True)
+        if credit_policy.enabled() and request.form.get('billing_source')!='legacy':
+            title,ms,pcm,credit_source_ms=media.upload(request.files.get('file'),preserve_video=True,credit_meter=True)
+            if not credit_source_ms:raise store.AudioError('Tidak ada ucapan terbaca.','no_speech',422)
+        else:title,ms,pcm=media.upload(request.files.get('file'),preserve_video=True)
         estimated=reserve=math.ceil(ms/1000)
     elif mode=='voiceover':
         original_script=request.form.get('script')
@@ -230,7 +247,7 @@ def create():
         estimated,reserve=service.estimate(script)
         if estimated>media.duration_limit():raise store.AudioError('Naskah terlalu panjang. Pendekkan naskah sebelum membuat audio.')
     else:abort(400)
-    ident,new=store.create(user,key,mode,title,source,target,voice,voice_name,script,ms,pcm,estimated,reserve,personal_required=mode=='voiceover' and request.form.get('voice','').startswith('personal:'),original_script=original_script)
+    ident,new=store.create(user,key,mode,title,source,target,voice,voice_name,script,ms,pcm,estimated,reserve,personal_required=mode=='voiceover' and request.form.get('voice','').startswith('personal:'),original_script=original_script,credit_context=request.form.get('billing_source')!='legacy',credit_source_ms=credit_source_ms)
     if new:service.submit(user,ident)
     return {'url':url_for('kilas_audio.home',ident=ident),'id':ident},201 if new else 200
 
@@ -245,14 +262,14 @@ def alternate(ident):
     if existing:
         if existing['alternate_of']!=ident:abort(409)
         return {'url':url_for('kilas_audio.home',ident=existing['id']),'id':existing['id']},200
-    store.require_balance(user)
+    store.require_balance(user,product=True)
     if not provider.configured():raise store.AudioError('Audio sedang belum tersedia. Saldo kamu tetap aman.','not_configured',503)
     if job['voice_is_personal'] and not personal.owns(user,job['voice_id']):
         raise store.AudioError('Suara tidak lagi tersedia. Pilih kembali.','voice_unavailable',409)
     source=db.query_one('SELECT spoken_script,original_script FROM kilas_audio_jobs WHERE id=? AND user_id=?',(ident,user))
     estimate,reserve=service.estimate(source['spoken_script'])
     new_id,new=store.create(user,key,'voiceover',job['title'],job['source_language'],job['target_language'],job['voice_id'],job['voice_name'],source['spoken_script'],0,None,estimate,reserve,
-                           original_script=source['original_script'],alternate_of=ident,delivery_stability=0.65 if job['delivery_stability']==0.35 else 0.35)
+                           original_script=source['original_script'],alternate_of=ident,delivery_stability=0.65 if job['delivery_stability']==0.35 else 0.35,credit_context=request.form.get('billing_source')!='legacy')
     if new:service.submit(user,new_id)
     return {'url':url_for('kilas_audio.home',ident=new_id),'id':new_id},201 if new else 200
 
@@ -490,6 +507,7 @@ def result(ident):
 
 @audio_bp.post('/checkout')
 def checkout():
+    if credit_policy.enabled():return {'code':'legacy_purchase_retired','url':url_for('kilas_ai.usage_page')},410
     ident=billing.create(session['user_id'],request.form.get('pack'))
     return redirect(url_for('kilas_audio.invoice',ident=ident),code=303)
 

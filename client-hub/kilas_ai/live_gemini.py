@@ -3,6 +3,7 @@
 One fixed-target stream, not an assistant or automatic bidirectional router.
 Permanent credentials stay on this server. Audio/transcripts exist only in RAM.
 """
+from . import credit_audio, credit_policy
 import base64
 import binascii
 import json
@@ -173,6 +174,9 @@ class Relay:
         self.validation_reason = None
         self.provider_status = None
         self.ws = None
+        if credit_policy.enabled():
+            self.credit_source_ms=0;self.credit_meter=credit_audio.SourceMeter();self.credit_source_digest=self.credit_meter.digest
+            self.credit_ratio=credit_audio.ratio(self.owner,self.key)
         self.expected = self.accepted = self.queued = self.output_bytes = self.generation = 0
         self.frames = []
         self.source_text = self.target_text = ''
@@ -325,8 +329,9 @@ class Relay:
         finally:
             db._discard_cached_connection()
 
-    def send_packet(self, packet):
+    def send_packet(self, packet,*,meter=True):
         self.check()
+        if meter and hasattr(self,'credit_meter'):self.credit_source_ms=self.credit_meter.feed(packet)
         self.ws.send(json.dumps({'realtimeInput':{'audio':{
             'mimeType':'audio/pcm;rate=16000', 'data':base64.b64encode(packet).decode('ascii')}}}))
         with self.lock:
@@ -340,7 +345,7 @@ class Relay:
         remaining=min(int(END_PADDING_SECONDS*32000),max(0,INPUT_BYTES-self.sent_bytes))
         for offset in range(0,remaining,3200):
             packet=bytes(min(3200,remaining-offset))
-            self.send_packet(packet)
+            self.send_packet(packet,meter=False)
             self.cancelled.wait(len(packet)/32000)
             self.check()
 
@@ -454,10 +459,13 @@ class Relay:
     def accept_pcm(self, pcm):
         """Accept validated PCM while receive holds the relay lock."""
         self.received_packets += 1
+        if getattr(self,'credit_ratio',None) is not None and any(pcm) and getattr(self,'credit_output_bytes',0)+len(pcm)>(self.credit_source_ms*self.credit_ratio*48)//1000:
+            raise failure('credit_translator_output_cap',429)
         if self.output_bytes+len(pcm) > OUTPUT_BYTES:
             self.rejected_output_bytes += len(pcm)
             raise failure('gemini_output_limit', 429)
         self.output_bytes += len(pcm)
+        if getattr(self,'credit_ratio',None) is not None and any(pcm):self.credit_output_bytes=getattr(self,'credit_output_bytes',0)+len(pcm)
         # This interpreter sends continuous exact-zero PCM even when silent.
         # Keep it in provider metering/limits, but never let filler select the
         # speaking direction, postpone drain, or queue seconds of silence.
@@ -505,6 +513,7 @@ class Relay:
         try:
             timer.start()
             self.check()
+            credit_audio.dispatched(self.owner,self.key)
             budget.dispatch(self.capability)  # Durable before possibly billable handshake.
             self.check()  # End may commit while the durable dispatch waits.
             self.ws = connect()
@@ -543,10 +552,11 @@ class Relay:
             self.stop()
             timer.cancel()
             try:
+                if hasattr(self,'credit_source_ms'):credit_audio.source_units(self.owner,self.key,self.credit_source_ms,self.credit_source_digest.hexdigest())
                 # Settle all valid generated samples once, even when End raced
                 # publication. Unheard output is never replayed or refunded.
                 if self.output_bytes or success:
-                    if not audio_store.finish(self.owner, self.job, None, (self.output_bytes*1000+47999)//48000,
+                    if not audio_store.finish(self.owner, self.job, None, (getattr(self,'credit_output_bytes',self.output_bytes)*1000+47999)//48000,
                                               provider_id='gemini-live-native-v1'):
                         raise failure('gemini_settlement_failed')
                 else:
@@ -597,11 +607,11 @@ def start(owner, ident, key):
     capability = job = None
     claimed = False
     try:
-        info = sessions.claim(owner, ident, key)
+        info = sessions.claim(owner, ident, key,credit_maximum_ms=60000)
         claimed = True
         if info['voice_alias'] != VOICE:
             raise failure('gemini_session_changed', 409)
-        audio_store.require_balance(owner)
+        audio_store.require_balance(owner,product=True)
         live.require_audio_allowance(owner, 90)
         # Include admission/DB delay in the hard lease; never let the shared
         # ledger's stale-operation fence expire while this socket is live.
@@ -609,7 +619,7 @@ def start(owner, ident, key):
         capability = budget.claim(owner, ident, key)
         job, new = audio_store.create(owner, key+'-audio', 'voiceover', 'Live Translator',
                                      info['language_a'], info['language_b'], VOICE, 'Gemini Live',
-                                     '', 0, None, 90, 90, live_session=(ident,key))
+                                     '', 0, None, 90, 90, live_session=(ident,key),credit_context=True)
         if not new or not audio_store.start(owner, job):
             raise failure('duplicate_turn', 409)
         relay = Relay(owner, ident, key, info, capability, job, lease_started=lease_started)

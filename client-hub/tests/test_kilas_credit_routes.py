@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 import test_kilas_ai_single_plan_console as fixture
 from kilas_ai import credit_wallet_schema as schema, usage, credit_wallet as wallet
+from kilas_ai import credit_policy as policy
 
 
 class CreditRoutesTests(unittest.TestCase):
@@ -93,5 +94,70 @@ class CreditRoutesTests(unittest.TestCase):
             usage.finish(self.other,'wallet-real-usage',ops,success=True,model='gpt-6-luna',provider='openai',usage={'input_tokens':1,'output_tokens':2})
             self.assertEqual(usage.reserve(self.other,None,'wallet-real-usage','FAST','CHAT',profile=profile),(None,()))
             with self.assertRaises(usage.UsageLimit):usage.reserve(self.other,None,'wallet-real-usage','FAST','CHAT',profile={**profile,'credit_fingerprint':'b'*64})
+
+    def test_voice_route_consent_then_exactly_one_synthetic_dispatch(self):
+        from test_kilas_credit_adapters import TARIFFS
+        from kilas_ai import audio_provider, audio_service, audio_store
+        ident=wallet.create_purchase(self.other,'route-voice-fund')
+        with patch('file_utils.validate_project_attachment_upload',return_value=('proof.png','image/png')):
+            wallet.submit_proof(self.other,ident,__import__('werkzeug.datastructures',fromlist=['FileStorage']).FileStorage(io.BytesIO(b'synthetic'),filename='proof.png',content_type='image/png'))
+        wallet.review(ident,self.admin,'VERIFIED',transfer_reference='TEST-ROUTE-VOICE')
+        client=self.client_for(self.other)
+        form={'csrf_token':'console-csrf','operation_key':'route-voice-credit-test','mode':'voiceover','language':'en','voice':'syntheticVoice123','script':'Synthetic speech'}
+        with patch.dict(os.environ,{'KILAS_CREDIT_TARIFFS_JSON':json.dumps(TARIFFS)}),patch.object(audio_provider,'configured',return_value=True),patch.object(audio_provider,'voices',return_value=[{'id':'syntheticVoice123','name':'Synthetic'}]),patch.object(audio_service,'estimate',return_value=(30,90)),patch.object(audio_service,'submit') as dispatch:
+            result=client.post('/kilas-translator/jobs',data=form)
+            self.assertEqual(result.status_code,402,result.data)
+            self.assertEqual(dispatch.call_count,0)
+            target=result.json['credit_consent_url']
+            self.assertEqual(self.client_for(self.owner).get(target).status_code,404)
+            for lang,label in [('en','Approve credit use'),('id','Setujui pemakaian kredit'),('es','Aprobar uso de créditos'),('zh','批准使用积分')]:
+                client.set_cookie('kilas_language',lang)
+                response=client.get(target)
+                self.assertEqual(response.status_code,200,response.data)
+                self.assertIn(label,response.text)
+            self.assertEqual(client.post(target,data={'decision':'approve'}).status_code,400)
+            self.assertEqual(client.post(target,data={'csrf_token':'console-csrf','decision':'approve'}).status_code,200)
+            result=client.post('/kilas-translator/jobs',data=form)
+            self.assertEqual(result.status_code,201,result.data)
+            self.assertEqual(dispatch.call_count,1)
+            self.assertEqual(client.post('/kilas-translator/jobs',data=form).status_code,200)
+            self.assertEqual(dispatch.call_count,1)
+            self.assertEqual(client.post('/kilas-translator/jobs',data={**form,'script':'Changed same-price text'}).status_code,409)
+            self.assertEqual(dispatch.call_count,1)
+            audio_store.fail(self.other,result.json['id'],'synthetic_pre_dispatch')
+
+    def test_receipt_quote_no_provider_before_consent_no_chat_allowance(self):
+        import finance_receipts
+        from kilas_ai import providers,chat_models
+        from test_kilas_credit_adapters import TARIFFS
+        # Own synthetic purchase; no real payment or financial data.
+        ident=wallet.create_purchase(self.owner,'receipt-route-fund')
+        with patch('file_utils.validate_project_attachment_upload',return_value=('proof.png','image/png')):
+            wallet.submit_proof(self.owner,ident,__import__('werkzeug.datastructures',fromlist=['FileStorage']).FileStorage(io.BytesIO(b'synthetic'),filename='proof.png',content_type='image/png'))
+        wallet.review(ident,self.admin,'VERIFIED',transfer_reference='TEST-ROUTE-RECEIPT')
+        events=[{'type':'delta','text':json.dumps(finance_receipts.empty_result())},{'type':'usage','input_tokens':10,'output_tokens':10},{'type':'finish','reason':'stop'}]
+        with patch.dict(os.environ,{'KILAS_CREDIT_TARIFFS_JSON':json.dumps(TARIFFS)}),patch.object(chat_models,'check',return_value={'available':True,'images':True}),patch.object(finance_receipts.branches,'token_branch',return_value=1),patch.object(providers,'_openai',return_value=iter(events)) as dispatch:
+            with self.assertRaises(policy.ConsentRequired) as caught:
+                finance_receipts.extract(b'synthetic receipt','image/png',None,[],business_id=1,user_id=self.owner)
+            self.assertEqual(dispatch.call_count,0)
+            token=policy.persist_consent(caught.exception);policy.consent(self.owner,token,True)
+            result=finance_receipts.extract(b'synthetic receipt','image/png',None,[],business_id=1,user_id=self.owner)
+            self.assertFalse(result['readable']);self.assertEqual(dispatch.call_count,1)
+            with self.assertRaisesRegex(finance_receipts.ReceiptError,'already_analyzed'):
+                finance_receipts.extract(b'synthetic receipt','image/png',None,[],business_id=1,user_id=self.owner)
+            self.assertEqual(dispatch.call_count,1)
+            with wallet._locked(self.owner) as conn:
+                self.assertEqual(policy.remaining_in(conn,self.owner,'CHAT',usage._now()),70)
+
+    def test_activation_retires_only_new_legacy_purchases(self):
+        client=self.client_for(self.owner)
+        for path in ('/kilas-ai/checkout','/kilas-ai/topups','/kilas-translator/checkout'):
+            self.assertEqual(client.post(path,data={'csrf_token':'console-csrf','pack':'MINUTE'}).status_code,410)
+        self.assertEqual(client.get('/kilas-ai/usage?view=legacy').status_code,200)
+        with patch.dict(os.environ,{'KILAS_CREDIT_ENFORCEMENT_ENABLED':'no'}):
+            result=client.post('/kilas-translator/checkout',data={'csrf_token':'console-csrf','pack':'MINUTE'})
+            self.assertEqual(result.status_code,303)
+        # Existing invoice remains available, even after activating the candidate.
+        self.assertEqual(client.get(result.location).status_code,200)
 
 if __name__=='__main__':unittest.main()

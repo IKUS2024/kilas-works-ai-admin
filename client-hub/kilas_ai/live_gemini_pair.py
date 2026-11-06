@@ -7,6 +7,7 @@ other until that receiver closes. Legacy sessions retain whole-turn output
 holding. Both preserve contiguous stream runs, without claiming semantic order
 when a single utterance mixes both languages.
 """
+from . import credit_audio, credit_policy
 import base64
 import json
 import re
@@ -96,6 +97,8 @@ class Stream(native.Relay):
             if self.stopped:
                 raise native.invalid_response('closed_stream')
             pair.received_packets += 1
+            if getattr(pair,'credit_ratio',None) is not None and any(pcm) and getattr(pair,'credit_output_bytes',0)+len(pcm)>(pair.credit_source_ms*pair.credit_ratio*48)//1000:
+                raise failure('credit_translator_output_cap',429)
             if pair.output_bytes+len(pcm) > native.OUTPUT_BYTES:
                 pair.rejected_output_bytes += len(pcm)
                 self.received_packets += 1
@@ -103,6 +106,7 @@ class Stream(native.Relay):
                 raise failure('gemini_output_limit', 429)
             super().accept_pcm(pcm)
             pair.output_bytes += len(pcm)
+            if getattr(pair,'credit_ratio',None) is not None and any(pcm):pair.credit_output_bytes=getattr(pair,'credit_output_bytes',0)+len(pcm)
             if not any(pcm):
                 pair.silent_output_bytes += len(pcm)
                 return
@@ -232,7 +236,8 @@ class Pair(native.Relay):
         finally:
             db._discard_cached_connection()
 
-    def send_packet(self, packet):
+    def send_packet(self, packet,*,meter=True):
+        if meter and hasattr(self,'credit_meter'):self.credit_source_ms=self.credit_meter.feed(packet)
         value=json.dumps({'realtimeInput':{'audio':{
             'mimeType':'audio/pcm;rate=16000', 'data':base64.b64encode(packet).decode('ascii')}}})
         for stream in self.streams.values():
@@ -327,6 +332,7 @@ class Pair(native.Relay):
         try:
             timer.start()
             self.check()
+            credit_audio.dispatched(self.owner,self.key)
             budget.dispatch(self.capability)  # One durable pair marker before either socket.
             self.check()
             for stream in self.streams.values():
@@ -373,11 +379,12 @@ class Pair(native.Relay):
             with self.error_lock:
                 success = success and self.error is None
             try:
+                if hasattr(self,'credit_source_ms'):credit_audio.source_units(self.owner,self.key,self.credit_source_ms,self.credit_source_digest.hexdigest())
                 # Every valid accepted sample is settled once, including a
                 # failed pair's buffered output. No retry, replay or refund.
                 if self.output_bytes or success:
                     if not audio_store.finish(self.owner, self.job, None,
-                            (self.output_bytes*1000+47999)//48000, provider_id='gemini-live-native-v1'):
+                            (getattr(self,'credit_output_bytes',self.output_bytes)*1000+47999)//48000, provider_id='gemini-live-native-v1'):
                         raise failure('gemini_settlement_failed')
                 else:
                     audio_store.fail(self.owner, self.job, getattr(self.error, 'code', 'gemini_transport'))
@@ -453,17 +460,17 @@ def start(owner, ident, key):
     capability = job = None
     claimed = False
     try:
-        info = sessions.claim(owner, ident, key)
+        info = sessions.claim(owner, ident, key,credit_maximum_ms=60000)
         claimed = True
         if info['voice_alias'] not in VOICES:
             raise failure('gemini_session_changed', 409)
-        audio_store.require_balance(owner)
+        audio_store.require_balance(owner,product=True)
         live.require_audio_allowance(owner, 90)
         lease_started = monotonic()
         capability = budget.claim(owner, ident, key, streams=2)
         job, new = audio_store.create(owner, key+'-audio', 'voiceover', 'Live Translator',
                                      info['language_a'], info['language_b'], VOICE, 'Gemini Live',
-                                     '', 0, None, 90, 90, live_session=(ident, key))
+                                     '', 0, None, 90, 90, live_session=(ident, key),credit_context=True)
         if not new or not audio_store.start(owner, job):
             raise failure('duplicate_turn', 409)
         relay = Pair(owner, ident, key, info, capability, job, lease_started=lease_started)

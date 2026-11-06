@@ -4,6 +4,7 @@ Registry is only a bounded transport cache. Shared DB admission, lease and End
 fences prevent duplicate dispatch; a different HTTP worker fails/pauses instead
 of opening another supplier socket. A500ms watcher closes cross-worker End.
 """
+from . import credit_audio, credit_policy
 import base64
 from contextlib import ExitStack
 import json
@@ -75,6 +76,9 @@ class Relay:
         self.started=monotonic();self.last_chunk=self.started;self.final_at=None;self.finished=False;self.deadline=None
         self.partial='';self.partial_at=None;self.quiet_bytes=0;self.early_commits=0;self.phrase_voice_bytes=0
         self.clause_cursor=0;self.clause_count=0
+        if credit_policy.enabled():
+            self.credit_source_ms=0;self.credit_meter=credit_audio.SourceMeter();self.credit_source_digest=self.credit_meter.digest
+            self.credit_ratio=credit_audio.ratio(self.owner,self.key)
         self.clauses=None
         if clauses:
             from . import live_translator_clauses
@@ -171,6 +175,7 @@ class Relay:
 
     def send(self,raw,commit=False):
         self.check()
+        if raw and hasattr(self,'credit_meter'):self.credit_source_ms=self.credit_meter.feed(raw)
         if commit:
             with self.lock:
                 if self.pending_ack:raise failure('realtime_commit_unexpected')
@@ -184,7 +189,9 @@ class Relay:
             try:text=self.acks.get(timeout=.1);break
             except Empty:
                 if monotonic()>=deadline:raise failure('realtime_commit_timeout')
-        if self.clauses and (text or phrase_end):self.clauses.offer(text, phrase_end=phrase_end)
+        if self.clauses and (text or phrase_end):
+            if hasattr(self,'credit_meter'):credit_audio.source_units(self.owner,self.key,self.credit_source_ms,self.credit_source_digest.hexdigest())
+            self.clauses.offer(text, phrase_end=phrase_end)
         if phrase_end:self.phrase_voice_bytes=0
         if text:
             if not self.clauses:self.pieces.append(text)
@@ -239,6 +246,7 @@ class Relay:
             self.check()
             with live._timed(timings,'credit_stt_ms'):stt.require_subscription_credit()
             self.check()
+            credit_audio.dispatched(self.owner,self.key)
             budget.dispatch(self.capability)  # Unknown handshake cost is durable.
             with live._timed(timings,'input_connect_ms'):self.ws=connect(self.info)
             self.check();self.ws.settimeout(8)
@@ -283,6 +291,7 @@ class Relay:
             timings['input_finalize_ms']=(finalized-self.final_at)*1000
             timings['input_early_commits']=self.early_commits
             timings.update(self.input_metrics());log_input(True,None,self.started,timings)
+            if hasattr(self,'credit_source_ms'):credit_audio.source_units(self.owner,self.key,self.credit_source_ms,self.credit_source_digest.hexdigest())
             if self.clauses:
                 self.clauses.offer('',final=True)
                 return
@@ -312,9 +321,9 @@ def start(owner,ident,key,*,hold_to_talk=False,coalesced=False,clauses=False):
     if not _slots.acquire(blocking=False):raise failure('service_busy')
     capability=None;claimed=False
     try:
-        info=sessions.claim(owner,ident,key);claimed=True
+        info=sessions.claim(owner,ident,key,credit_maximum_ms=180000);claimed=True
         if info['voice_alias']=='gemini-live-native' or info['language_a']=='auto':raise failure('realtime_unverified')
-        audio_store.require_balance(owner);live.require_audio_allowance(owner)
+        audio_store.require_balance(owner,product=True);live.require_audio_allowance(owner)
         capability=budget.claim(owner,ident,key)
         relay=Relay(owner,ident,key,info,capability,hold_to_talk=hold_to_talk,coalesced=coalesced,clauses=clauses)
         with _lock:_relays[(owner,ident,key)]=relay

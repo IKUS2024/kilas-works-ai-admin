@@ -38,10 +38,29 @@ def apply(conn):
         """CREATE TABLE IF NOT EXISTS kilas_credit_admissions (
         user_id BIGINT NOT NULL REFERENCES users(id),operation_key TEXT NOT NULL,
         feature TEXT NOT NULL,maximum_units BIGINT NOT NULL CHECK(maximum_units>0),fingerprint TEXT NOT NULL,
-        source TEXT NOT NULL CHECK(source IN ('FREE','PAID','OWNER')),rate_milli BIGINT NOT NULL,
+        source TEXT NOT NULL CHECK(source IN ('FREE','PAID','SPLIT','OWNER')),rate_milli BIGINT NOT NULL,
         rate_units BIGINT NOT NULL CHECK(rate_units>0),maximum_charge BIGINT NOT NULL,
         status TEXT NOT NULL CHECK(status IN ('RESERVED','CAPTURED','RELEASED')),
-        actual_units BIGINT,created_at TEXT NOT NULL,finished_at TEXT,PRIMARY KEY(user_id,operation_key))""",
+        actual_units BIGINT,free_reserved BIGINT NOT NULL DEFAULT 0,free_actual BIGINT NOT NULL DEFAULT 0,
+        priced_max BIGINT NOT NULL DEFAULT 0,priced_actual BIGINT NOT NULL DEFAULT 0,allocation TEXT NOT NULL DEFAULT 'units',
+        created_at TEXT NOT NULL,finished_at TEXT,PRIMARY KEY(user_id,operation_key))""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_consents (
+        token TEXT PRIMARY KEY,user_id BIGINT NOT NULL REFERENCES users(id),operation_key TEXT NOT NULL,
+        fingerprint TEXT NOT NULL,quote_hash TEXT NOT NULL,feature TEXT NOT NULL,maximum_units BIGINT NOT NULL,
+        free_units BIGINT NOT NULL,maximum_charge BIGINT NOT NULL,terms_json TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN ('PENDING','APPROVED','DECLINED','CONSUMED')),
+        expires_at TEXT NOT NULL,created_at TEXT NOT NULL,decided_at TEXT,UNIQUE(user_id,operation_key,quote_hash))""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_reconciliations (
+        user_id BIGINT NOT NULL REFERENCES users(id),operation_key TEXT NOT NULL,reviewer BIGINT NOT NULL REFERENCES users(id),
+        outcome TEXT NOT NULL,actual_units BIGINT NOT NULL,priced_actual BIGINT NOT NULL,evidence TEXT NOT NULL,
+        created_at TEXT NOT NULL,PRIMARY KEY(user_id,operation_key))""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_audio_links (
+        user_id BIGINT NOT NULL REFERENCES users(id),job_id BIGINT NOT NULL,operation_key TEXT NOT NULL,
+        feature TEXT NOT NULL,source_ms BIGINT NOT NULL,maximum_output_ms BIGINT NOT NULL,dispatched INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY(user_id,job_id))""",
+        """CREATE TABLE IF NOT EXISTS kilas_credit_translation_links (
+        user_id BIGINT NOT NULL REFERENCES users(id),operation_key TEXT NOT NULL,root_key TEXT NOT NULL,
+        source_ms BIGINT NOT NULL DEFAULT 0,output_ms BIGINT NOT NULL DEFAULT 0,maximum_ms BIGINT NOT NULL,output_ratio_milli BIGINT NOT NULL,
+        source_digest TEXT,dispatched INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(user_id,operation_key))""",
     ]
     for sql in statements:
         usage._query(conn, sql)

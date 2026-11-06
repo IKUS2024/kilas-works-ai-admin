@@ -30,7 +30,7 @@
 <input type="file" id="audio-file" name="file" accept=".mp4,.mp3,.wav,.m4a" data-max-file-mb="{{ max_mb }}" data-max-audio-mb="{{ audio_max_mb }}" required aria-describedby="audio-duration"><p id="audio-duration" role="status">{{ ui_t("Durasi dibaca sebelum Translate.") }}</p>
 {% from 'kilas_translator/_language_picker.html' import language_picker with context %}
 <div class="audio-fields"><label>{{ ui_t("Bahasa sumber") }}{{ language_picker('source_language',ui_t('Bahasa sumber'),dubbing_sources,'auto',auto=true) }}</label><label>{{ ui_t("Bahasa tujuan") }}{{ language_picker('language',ui_t('Bahasa tujuan'),dubbing_languages,'en') }}</label></div>
-<button class="btn" type="submit" {{ 'disabled' if not provider_ready or (not balance.exempt and not balance.available) }}>{{ ui_t('Translate') }}</button>
+<button class="btn" type="submit" {{ 'disabled' if not provider_ready or (not balance.exempt and not balance.available and not credit_wallet_enabled|default(false)) }}>{{ ui_t('Translate') }}</button>
 </form></section>{% endif %}
 <section id="voiceover-panel" role="tabpanel" aria-labelledby="voiceover-tab" {{ 'hidden' if active_mode!='voiceover' }}>
 
@@ -81,7 +81,7 @@
 <label class="voice-translation-toggle"><input type="checkbox" id="voice-translate-toggle" name="translate_script" value="yes">{{ ui_t("Terjemahkan naskah") }}</label>
 <div id="voice-translation-options" hidden><label for="voice-translation-target">{{ ui_t("Terjemahkan ke") }}</label><select id="voice-translation-target">{% for code,label in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }}>{{ ui_t(label) }}</option>{% endfor %}</select><button type="button" class="btn secondary" id="voice-translate-preview">{{ ui_t("Terjemahkan Naskah") }}</button><p id="voice-translation-status" role="status" hidden></p><p id="voice-translation-error" role="alert" hidden></p><div id="voice-translated-result" hidden><label for="voice-translated-script">{{ ui_t("Hasil terjemahan") }}</label><textarea id="voice-translated-script" name="translated_script" maxlength="4000" rows="5"></textarea><p>{{ ui_t("Periksa atau edit terjemahan ini sebelum membuat suara. Naskah asli tetap disimpan di atas.") }}</p></div></div>
 </div>
-<button id="voice-generate" type="submit" class="btn" data-enabled="{{ 'true' if provider_ready and (balance.exempt or balance.available) else 'false' }}" {{ 'disabled' if not voices or not provider_ready or (not balance.exempt and not balance.available) }}>{{ ui_t('Generate Voice Over') }}</button>
+{% if credit_wallet_enabled|default(false) and balance.available %}{% from 'kilas_ai/_credit_wallet_copy.html' import c with context %}<label>{{ c('Billing source') }}<select name="billing_source"><option value="product">{{ c('Free allowance then credits') }}</option><option value="legacy">{{ c('Existing Audio balance') }}</option></select></label>{% endif %}<button id="voice-generate" type="submit" class="btn" data-enabled="{{ 'true' if provider_ready and (balance.exempt or balance.available or credit_wallet_enabled|default(false)) else 'false' }}" {{ 'disabled' if not voices or not provider_ready or (not balance.exempt and not balance.available and not credit_wallet_enabled|default(false)) }}>{{ ui_t('Generate Voice Over') }}</button>
 </form></section>
 <p id="audio-progress" role="status" aria-live="polite" hidden></p><p id="audio-error" role="alert" hidden></p><span id="audio-error-purchase" hidden></span>
 

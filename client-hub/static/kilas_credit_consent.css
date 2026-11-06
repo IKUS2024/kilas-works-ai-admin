@@ -1,0 +1,9 @@
+/* Only the gated customer spending-consent dialog. */
+dialog.kilas-credit-dialog{box-sizing:border-box;width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:20px;border:1px solid #e5dfd7;border-radius:16px;background:#fffdf9;color:#172236;font:inherit;font-size:13px;line-height:1.6;overflow:auto}
+dialog.kilas-credit-dialog::backdrop{background:rgb(23 34 54 / .35)}
+dialog.kilas-credit-dialog p{margin:0 0 16px}
+dialog.kilas-credit-dialog button{display:block;box-sizing:border-box;width:100%;min-height:44px;margin-top:10px;padding:10px 12px;border:1px solid #e5dfd7;border-radius:10px;background:#f1eee9;color:#172236;font:inherit;cursor:pointer}
+dialog.kilas-credit-dialog button:first-of-type{background:#ff6b00;border-color:#ff6b00;color:#172236;font-weight:600}
+dialog.kilas-credit-dialog button:focus-visible{outline:2px solid #ac4500;outline-offset:3px}
+
+body.credit-consent-page{min-height:100dvh;margin:0;padding:18px 0}

@@ -2,7 +2,7 @@
 import math
 from datetime import timedelta
 from . import audio_store as store, audio_provider as provider, audio_media as media, usage
-from . import audio_transcription_provider as stt, audio_transcription_budget as budget, free_test
+from . import audio_transcription_provider as stt, audio_transcription_budget as budget, free_test, credit_audio, credit_wallet
 
 
 def estimate(script):
@@ -19,7 +19,9 @@ def submit(user,ident):
     try:
         with store.locked(user) as conn:
             sponsored=free_test.sponsored_audio(conn,user,ident)
-        if sponsored:stt.require_subscription_credit()
+            customer_wallet=credit_audio.audio_link(conn,user,ident)
+        if sponsored or customer_wallet:stt.require_subscription_credit()
+        credit_audio.mark_audio_dispatched(user,ident)
         if job['mode']=='translate':
             ident_provider=provider.dub(bytes(payload['source_content']),job['source_language'],job['target_language'],ident)
             store.submitted(user,ident,ident_provider,retain_video=bytes(payload['source_content'])[4:8]==b'ftyp')
@@ -68,12 +70,15 @@ def refresh(user,ident):
                 from .translator_languages import STT,DUBBING
                 if job['source_language']=='auto' and detected in STT|DUBBING:
                     store.detected_source(user,ident,detected)
-                store.finish(user,ident,raw,ms)
+                with store.locked(user) as conn:wallet_link=credit_audio.audio_link(conn,user,ident)
+                meter_audio=(media.ensure_mp3(output)[0] if raw[4:8]==b'ftyp' else raw) if wallet_link else None
+                processed_ms=credit_audio.wav_units(media.decode(meter_audio,'mp3')[1]) if wallet_link else None
+                store.finish(user,ident,raw,ms,credit_output_ms=processed_ms)
             elif status=='failed':store.fail(user,ident,'provider_failed')
         except provider.ProviderError as error:
             if error.code=='voice_preservation_unavailable':store.fail(user,ident,error.code)
             # Read-only transient poll failures never trigger another paid submission.
-        except (media.MediaError,store.AudioError) as error:
+        except (media.MediaError,store.AudioError,credit_wallet.WalletError) as error:
             store.fail(user,ident,getattr(error,'code','invalid_audio'))
         finally:store.poll_release(user,ident)
     return store.get(user,ident)

@@ -104,7 +104,8 @@ def extract(raw, mime, pdf_text, category_names, business_id=None, user_id=None)
     properties={key:({'type':'boolean'} if key=='readable' else {'type':['integer','null']} if key=='total_minor' else {'type':['string','null']}) for key in FIELDS}
     schema={'type':'json_schema','json_schema':{'name':'receipt_review','strict':True,'schema':{'type':'object','properties':properties,'required':sorted(FIELDS),'additionalProperties':False}}}
     key='finance-receipt:'+str(business_id)+':'+str(branches.token_branch(business_id))+':'+hashlib.sha256(raw).hexdigest()
-    profile={'model':model,'selected_model':model,'output_tokens':2048,'input_token_bound':200000,'effort':'low'}
+    from kilas_ai import credit_policy
+    profile={'credit_fingerprint':credit_policy.fingerprint({'image_sha256':hashlib.sha256(raw).hexdigest(),'mime':mime,'categories':category_names,'model':model,'business':business_id}), 'model':model,'selected_model':model,'output_tokens':2048,'input_token_bound':200000,'receipt_bytes':len(raw),'effort':'low'}
     try:_,operations=usage.reserve(user_id,None,key,'SMART','RECEIPT',profile=profile)
     except usage.UsageLimit:raise ReceiptError('capacity_unavailable') from None
     if not operations:raise ReceiptError('already_analyzed')
@@ -125,7 +126,7 @@ def extract(raw, mime, pdf_text, category_names, business_id=None, user_id=None)
     except (providers.ProviderError,ValueError,TypeError,KeyError):
         raise ReceiptError('upstream_failure') from None
     finally:
-        usage.finish(user_id,key,operations,success=success,provider='openai',model=model,usage={**used,'selected_model':model,'billing_unknown':bool(dispatched and not used)})
+        usage.finish(user_id,key,operations,success=success,provider='openai',model=model,usage={**used,'selected_model':model,'billing_unknown':bool(dispatched and not used),'customer_failure_definitive':bool(not success and (finish is not None or used))})
 
 
 def analyze(business_id, user_id, filename, raw):

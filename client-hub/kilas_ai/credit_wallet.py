@@ -54,7 +54,8 @@ def _locked(user):
 
 def _totals(conn, user):
     row = usage._query(conn, 'SELECT balance_milli,reserved_milli FROM kilas_credit_accounts WHERE user_id=?', (user,), one=True)
-    return {'balance_milli': row[0], 'reserved_milli': row[1], 'available_milli': row[0]-row[1]}
+    total,held=row if row else (0,0)
+    return {'balance_milli':total,'reserved_milli':held,'available_milli':total-held}
 
 
 def _event(conn, user, key, kind, balance_delta, reserved_delta):
