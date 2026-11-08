@@ -613,6 +613,13 @@ def live_translator_cancel_turn(ident,key):
 def live_gemini_home():
     from . import live_gemini as native, live_gemini_pair as pair
     active=db.query_one("SELECT voice_alias,language_a,language_b FROM kilas_live_translator_sessions WHERE user_id=? AND status='ACTIVE' AND (expires_at='' OR expires_at>?) ORDER BY created_at DESC LIMIT 1",(session['user_id'],usage._now().isoformat()))
+    # Old bookmarks and the Classic return link must use the current funded
+    # Translator, not the retired trial's allowance screen. A GET never ends
+    # or migrates an existing session, and trial-only deployments stay intact.
+    if not active and os.environ.get('KILAS_TRANSLATOR_FUNDING_MODE') == 'operator':
+        from . import interpreter
+        if interpreter.ready(session['user_id']):
+            return redirect(url_for('kilas_audio.interpreter_page')),302,{'Cache-Control':'private, no-store'}
     # Existing one-way sessions retain their original protocol and consent.
     # The server-owned marker, never a request flag, selects their backend.
     two_way = not active or active['voice_alias']!=native.VOICE
