@@ -30,6 +30,9 @@ Validation:
   offline runner. All 44 interpreter JavaScript lifecycle tests pass.
 - Focused Ruff E9/F and diff whitespace checks pass. New route suite added to both
   applicable Gemini CI test lists.
+- Native-streaming CI initially stopped before tests because ubuntu-latest moved
+  to Ubuntu 26.04, unsupported by the pinned Playwright 1.58.2. That job now uses
+  Ubuntu 24.04; all test steps and assertions remain intact.
 
 These checks do not certify real speech recognition, translation quality or
 physical-device microphone/speaker behavior. No paid provider QA was performed.

@@ -88,7 +88,8 @@ jobs:
         env: {DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/native_live_qa', KILAS_AI_POSTGRES_QA: '1', PYTHONDONTWRITEBYTECODE: '1'}
 
   native-streaming:
-    runs-on: ubuntu-latest
+    # Keep the pinned Playwright 1.58.2 browser on its supported runner image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
