@@ -478,3 +478,44 @@ test('Provider completion fences a failed Finish ACK while translated audio stil
  drained.resolve();await tick();assert.equal(f.session.state,'idle');assert.equal(cancelled,0);
  f.session.end();await started;
 });
+
+test('Prewarmed readiness is shared with the first start without early microphone or admission',async()=>{
+ const ready=deferred();let reads=0,posts=0;
+ const f=fixture({request:async(path,args={})=>{
+  if(path.endsWith('/readiness')){reads++;return ready.promise;}
+  if(path.endsWith('/end'))return {};
+  if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST'){posts++;return {call_id:'a'.repeat(32)};}
+  return f.hold.promise;
+ }});
+ f.session.warm();const started=f.session.start(tap);await tick();assert.equal(reads,1);assert.equal(posts,0);assert.equal(f.capture,undefined);
+ ready.resolve({available:true});await tick();assert.equal(posts,1);f.session.end();f.hold.resolve({state:'LISTENING',frames:[],next_index:0,total_frames:0});await started;
+});
+
+test('No provider result returns to the initial state quickly without an error',async()=>{
+ let ends=0;const f=fixture({request:async(path,args={})=>{
+  if(path.endsWith('/readiness'))return {available:true};if(path.endsWith('/finish'))return {input_finished:true};
+  if(path.endsWith('/end')){ends++;return {};}if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+  if(args.method==='POST')return {call_id:'a'.repeat(32)};return f.hold.promise;
+ }});
+ const started=f.session.start({...tap,reuse_session:true});await tick();f.session.finish();await tick();
+ const timer=[...f.timers].find(([,v])=>v.ms===6000);assert.ok(timer);timer[1].fn();await tick();
+ assert.equal(f.session.state,'ended');assert.deepEqual(f.errors,[]);assert.equal(ends,1);
+ f.hold.resolve({state:'LISTENING',frames:[],next_index:0,total_frames:0});await started;
+});
+
+test('Missing completion drains received audio; a stuck player has a bounded fallback',async()=>{
+ for(const complete of [false,true]){
+  const drained=deferred();const f=fixture({player:{checkpoint:()=>drained.promise},request:async(path,args={})=>{
+   if(path.endsWith('/readiness'))return {available:true};if(path.endsWith('/finish'))return {input_finished:true};
+   if(path.endsWith('/end'))return {};if(path.includes('/chunks/'))return {accepted_index:Number(path.split('/').at(-1))};
+   if(args.method==='POST')return {call_id:'a'.repeat(32)};return f.hold.promise;
+  }});
+  const started=f.session.start({...tap,reuse_session:true});await tick();f.session.finish();await tick();
+  const frames=[{index:0,turn_index:0,type:'audio',pcm:Buffer.from(pcm()).toString('base64')}];if(complete)frames.push({index:1,turn_index:0,type:'turn_complete'});
+  f.hold.resolve({state:'LISTENING',frames,next_index:frames.length,total_frames:frames.length});await tick();
+  if(!complete){const watchdog=[...f.timers].find(([,v])=>v.ms===6000);assert.ok(watchdog);watchdog[1].fn();await tick();}
+  assert.equal(f.session.state,'speaking');const bound=[...f.timers].find(([,v])=>v.ms>3000&&v.ms<3100);assert.ok(bound);bound[1].fn();await tick();
+  assert.equal(f.session.state,'ended');assert.deepEqual(f.errors,[]);drained.resolve();await started;
+ }
+});

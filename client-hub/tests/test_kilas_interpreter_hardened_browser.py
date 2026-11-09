@@ -105,7 +105,7 @@ def main():
      page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='speaking'")
      expect(page.locator('#interpreter-state')).to_have_text(copy('Terjemahan diputar. Tunggu giliran.'))
      assert len(starts)==1 and page.evaluate('micRequests')==1
-     expect(page.locator('#interpreter-left')).to_be_disabled();expect(page.locator('#interpreter-right')).to_be_disabled();assert len(starts)==1
+     expect(page.locator('#interpreter-left')).to_be_enabled();expect(page.locator('#interpreter-right')).to_be_enabled();assert len(starts)==1
      expect(page.locator('#interpreter-caption')).to_have_text(REPLY)
      assert not page.locator('#interpreter-caption').is_visible()
      page.locator('#interpreter-transcript > summary').click()

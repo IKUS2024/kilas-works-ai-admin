@@ -50,19 +50,24 @@ export class CallSession {
   Object.assign(this,{request,capture,player,prepare,stopAudio,onState,onError,onText,onOriginal,onSources,key,schedule,clear});this.version=0;this.state='ended';
  }
  stateTo(value){this.state=value;this.onState(value);}
+ warm(){
+  const pending=this.request('/kilas-translator/interpreter/readiness',{timeoutMs:8000});
+  this.warmed={pending,at:Date.now()};pending.catch(()=>{});
+ }
  current(ticket){return ticket===this.version&&!this.controller?.signal.aborted;}
  async start(settings={}){
   if(this.state==='idle')return this.nextTurn();
   if(this.state!=='ended')return;
   const ticket=++this.version;this.controller=new AbortController();const signal=this.controller.signal;
   this.ident=this.key();this.path='/kilas-translator/interpreter/'+this.ident;this.admitted=false;this.lastServerState='CONNECTING';this.uploadRecovering=false;this.speaking=false;this.turnSealed=false;this.cursor=0;this.playVersion=0;
-  this.turnIdle=false;this.reusable=settings.reuse_session===true;this.turnIndex=0;this.captureVersion=0;this.manual=settings.turn_mode==='tap';this.captureReady=false;this.finishRequested=false;this.finishSent=false;
+  this.outputBytes=0;this.recoveringOutput=false;this.turnIdle=false;this.reusable=settings.reuse_session===true;this.turnIndex=0;this.captureVersion=0;this.manual=settings.turn_mode==='tap';this.captureReady=false;this.finishRequested=false;this.finishSent=false;
   this.stateTo('connecting');this.onText('');this.onSources([]);this.sourceAwaitingAudio=false;this.captionAwaitingAudio=false;
   this.input=new CallInput({request:this.request,path:this.path,signal,onRecovery:active=>{if(this.current(ticket)){this.uploadRecovering=active;this.stateTo(active?'reconnecting':this.lastServerState==='CONNECTING'?'connecting':this.lastServerState==='RECONNECTING'?'reconnecting':this.speaking?'speaking':this.finishRequested?'processing':'listening');}},onError:error=>this.fail(error,ticket)});
   try{
    // Called synchronously from the click to preserve the audio user gesture.
    const prepared=Promise.resolve(this.prepare(signal));prepared.catch(()=>{});
-   const eligibility=await this.request('/kilas-translator/interpreter/readiness',{signal,timeoutMs:8000});
+   const warmed=this.warmed;this.warmed=null;
+   const eligibility=await (warmed&&Date.now()-warmed.at<10000?warmed.pending:this.request('/kilas-translator/interpreter/readiness',{signal,timeoutMs:8000}));
    if(!this.current(ticket))return;
    if(!eligibility.available)throw failure(eligibility.reason||'call_unavailable');
    await prepared;if(!this.current(ticket))return;
@@ -93,7 +98,7 @@ export class CallSession {
  async nextTurn(){
   if(this.state!=='idle')return;
   this.turnIdle=false;const ticket=this.version,next=++this.turnIndex;this.clear(this.idleTimer);this.idleTimer=null;
-  this.finishRequested=false;this.finishSent=false;this.captureReady=false;this.turnSealed=false;this.input.firstPacket=true;
+  this.finishRequested=false;this.finishSent=false;this.captureReady=false;this.turnSealed=false;this.outputBytes=0;this.recoveringOutput=false;this.input.firstPacket=true;
   this.speaking=false;this.captionAwaitingAudio=false;this.sourceAwaitingAudio=false;
   this.stateTo('starting');this.onText('');this.onOriginal('');
   try{
@@ -122,6 +127,22 @@ export class CallSession {
   this.timer=this.schedule(()=>this.fail(failure('request_timeout')),30000);
   try{this.capture.finalize();}catch(error){this.fail(error);}
  }
+ armOutputWatchdog(ticket){
+  this.clear(this.timer);
+  const turn=this.turnIndex;
+  this.timer=this.schedule(()=>{
+   if(!this.current(ticket)||turn!==this.turnIndex||this.turnSealed||!this.finishRequested)return;
+   // A silent or stalled provider may never send turnComplete. Do not keep the
+   // controls locked forever. Drain any received sound, with a final bound.
+   if(!this.speaking){this.end();return;}
+   this.turnSealed=true;this.recoveringOutput=true;
+   const generation=this.playVersion;
+   this.timer=this.schedule(()=>{if(this.current(ticket)&&turn===this.turnIndex&&generation===this.playVersion)this.end();},Math.min(65000,3000+this.outputBytes/48));
+   Promise.resolve().then(()=>this.player.checkpoint()).then(()=>{
+    if(this.current(ticket)&&turn===this.turnIndex&&generation===this.playVersion)this.end();
+   },()=>{if(this.current(ticket)&&turn===this.turnIndex&&generation===this.playVersion)this.end();});
+  },6000);
+ }
  async finishInput(ticket){
   if(!this.current(ticket)||!this.manual||!this.finishRequested||this.finishSent)return;
   this.finishSent=true;const turn=this.turnIndex;
@@ -130,7 +151,10 @@ export class CallSession {
    if(!this.current(ticket))return;
    const body=new FormData();body.append('next_index',String(this.input.index));body.append('turn_index',String(this.turnIndex));
    const result=await this.request(this.path+'/finish',{method:'POST',body,signal:this.controller.signal,timeoutMs:8000});
-   if(this.current(ticket)&&this.finishRequested&&!this.turnIdle&&!this.turnSealed&&turn===this.turnIndex&&result.input_finished!==true)throw failure('call_protocol');
+   if(this.current(ticket)&&this.finishRequested&&!this.turnIdle&&!this.turnSealed&&turn===this.turnIndex){
+    if(result.input_finished!==true)throw failure('call_protocol');
+    this.armOutputWatchdog(ticket);
+   }
   }catch(error){if(this.current(ticket)&&this.finishRequested&&!this.turnIdle&&!this.turnSealed&&turn===this.turnIndex)this.fail(error,ticket);}
  }
  async pause(ticket,ms){
@@ -157,17 +181,17 @@ export class CallSession {
     if(!this.current(ticket))return;
     if(frame.index!==this.cursor++)throw failure('call_protocol');
     if(this.reusable&&Number.isInteger(frame.turn_index)&&frame.turn_index!==this.turnIndex)continue;
-    if(this.turnIdle)continue;
+    if(this.turnIdle||this.recoveringOutput)continue;
     if(this.manual&&this.finishRequested){
-     this.clear(this.timer);
-     this.timer=frame.type==='turn_complete'?null:this.schedule(()=>this.fail(failure('request_timeout'),ticket),30000);
+     this.clear(this.timer);this.timer=null;
+     if(frame.type!=='turn_complete')this.armOutputWatchdog(ticket);
     }
     if(frame.type==='audio'){
      if(typeof frame.pcm!=='string'||frame.pcm.length>12800)throw failure('call_protocol');
      // Reply arrival must not erase the question's captured/upload-pending
      // tail. Its original bytes stay ahead of subsequent playback silence.
      if(!this.speaking||this.turnSealed){this.clear(this.echoTimer);this.echoTimer=null;this.turnSealed=false;this.speaking=true;this.playVersion++;this.input.flush();if(!this.captionAwaitingAudio)this.onText('');this.captionAwaitingAudio=false;if(!this.sourceAwaitingAudio)this.onSources([]);this.sourceAwaitingAudio=false;}
-     this.stateTo('speaking');const raw=Uint8Array.from(atob(frame.pcm),c=>c.charCodeAt(0));this.player.push(raw,'call');
+     this.stateTo('speaking');const raw=Uint8Array.from(atob(frame.pcm),c=>c.charCodeAt(0));this.outputBytes+=raw.length;this.player.push(raw,'call');
     }else if(frame.type==='text'){
      if(typeof frame.text!=='string'||frame.text.length>4000)throw failure('call_protocol');this.onText(frame.text);
      // Transcription and audio arrive independently. Preserve an early caption
@@ -183,8 +207,10 @@ export class CallSession {
      this.stateTo('listening');
     }else if(frame.type==='turn_complete'){
      this.turnSealed=true;this.captionAwaitingAudio=false;const generation=this.playVersion,turn=this.turnIndex;
+     if(this.manual)this.timer=this.schedule(()=>{if(this.current(ticket)&&generation===this.playVersion&&turn===this.turnIndex)this.end();},Math.min(65000,3000+this.outputBytes/48));
      this.player.checkpoint().then(()=>{
       if(this.current(ticket)&&generation===this.playVersion&&turn===this.turnIndex){
+       this.clear(this.timer);this.timer=null;
        if(this.manual){if(this.reusable)this.idle();else this.end();return;}
        // Discard the final worklet frame containing room/speaker decay before
        // showing Listening. End and a newer answer fence this callback too.
