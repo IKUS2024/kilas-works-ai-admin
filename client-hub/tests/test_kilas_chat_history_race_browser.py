@@ -4,6 +4,8 @@ from unittest.mock import patch
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 import test_kilas_home as fixture
+import test_kilas_chat_models as model_fixture
+from kilas_ai import chat_models
 from kilas_ai import agent_store, providers
 
 
@@ -19,7 +21,7 @@ def main():
         yield {'type':'delta','text':'Akhir jawaban.'}
         yield {'type':'finish','reason':'stop'}
     try:
-        with patch.object(providers,'stream',side_effect=answer),sync_playwright() as p:
+        with patch.object(chat_models,'check',side_effect=model_fixture.available),patch.object(providers,'stream',side_effect=answer),sync_playwright() as p:
             browser=p.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
             for race in ('discovery','poll'):
                 owner=fixture.fixture.base.f.fixture.repo.create_user(f'history-race-{race}@example.test','hash')

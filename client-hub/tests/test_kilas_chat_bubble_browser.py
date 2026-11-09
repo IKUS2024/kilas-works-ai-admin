@@ -10,6 +10,8 @@ from unittest.mock import patch
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 import test_kilas_home as fixture
+import test_kilas_chat_models as model_fixture
+from kilas_ai import chat_models
 from kilas_ai import providers, agent_store
 
 
@@ -65,7 +67,7 @@ def main():
                 yield event
 
     try:
-        with patch.object(providers, 'stream', side_effect=stream), sync_playwright() as pw:
+        with patch.object(chat_models, 'check', side_effect=model_fixture.available), patch.object(providers, 'stream', side_effect=stream), sync_playwright() as pw:
             browser = pw.chromium.launch(executable_path=shutil.which('chromium'), args=['--no-sandbox'])
             for width in (320, 390, 820, 1440):
                 for agent in (False, True):
