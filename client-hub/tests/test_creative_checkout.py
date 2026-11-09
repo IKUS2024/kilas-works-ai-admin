@@ -17,6 +17,12 @@ class CreativeCheckoutTests(auth_fixture.CustomerAuthTests):
     # Only inherit fixture helpers, not the unrelated authentication suite.
     def setUp(self):
         super().setUp()
+        # Historical fixed-price catalog: retain invoice/proof/security regressions.
+        # Current quotation-only offers are covered by test_creative_quotation.py.
+        historical = json.loads(Path(__file__).with_name('creative_historical_catalog.json').read_text())
+        catalog_patch = patch.object(orders, 'CATALOG', historical)
+        catalog_patch.start()
+        self.addCleanup(catalog_patch.stop)
         self.client, _ = self.login()
         self.client.set_cookie("kilas_language", "id")
         self.base_url = '/creative-services/checkout/'
@@ -161,8 +167,9 @@ class CreativeCheckoutTests(auth_fixture.CustomerAuthTests):
             self.assertEqual(payment_service.get_payment_for_invoice(invoice),before_payment)
 
     def test_all_prices_options_and_frozen_snapshot(self):
-        facts=json.loads(Path(__file__).with_name('creative_services_offer_facts.json').read_text())
-        self.assertEqual([orders.money(v['amount']) for v in orders.CATALOG['packages'].values()],[x['price'] for x in facts['cards']])
+        # Frozen legacy amounts are independent of today's public rate card.
+        self.assertEqual([v['amount'] for v in orders.CATALOG['packages'].values()],
+                         [1500000, 3000000, 5000000, 4500000, 6000000, 9500000])
         for key, spec in orders.CATALOG['packages'].items():
             for addon in (orders.CATALOG['addons'] if spec['service']=='social' else ['none']):
                 invoice,_=self.create(key,addon)
