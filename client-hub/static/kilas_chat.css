@@ -214,3 +214,17 @@ body.kilas-light.premium-workspace.home-chat-compact .kilas-home-workspace.ai-sh
 /* Under magnification with a very short viewport, the managed brand can join
    the scroller at its own text width without stealing tab or composer space. */
 body.home-chat-compact .kilas-home-workspace.ai-shell[data-chat-reflow] .home-task-choices>.home-workspace-top:not(.has-model-selector){width:max-content!important;min-width:max-content;max-width:none;flex:0 0 auto!important;padding-inline:10px!important}
+
+/* Reference chat: readable, consistent bubbles for new and restored messages.
+   Scope to the chat workspace so other product surfaces remain unchanged. */
+.kilas-light .kilas-home-workspace :is(.ai-user .ai-message-text,.agent-message-user .agent-message-text){
+  background:#0562f6;color:#fff;border:0;border-radius:16px;
+  padding:10px 14px;max-width:min(90%,65ch);white-space:pre-wrap;
+}
+.kilas-light .kilas-home-workspace :is(.ai-assistant .ai-message-text,.agent-message-assistant .agent-message-text){
+  background:#f3f3f3;color:#171717;border:0;border-radius:16px;
+  padding:10px 14px;max-width:min(100%,75ch);
+}
+.kilas-light .kilas-home-workspace :is(.ai-message,.agent-message){min-width:0;width:100%;box-sizing:border-box}
+.kilas-light .kilas-home-workspace :is(.ai-user,.agent-message-user){align-items:flex-end}
+.kilas-light .kilas-home-workspace :is(.ai-assistant,.agent-message-assistant){align-items:flex-start}

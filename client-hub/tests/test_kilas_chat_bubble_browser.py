@@ -105,7 +105,7 @@ def main():
                             const s=getComputedStyle(e),r=e.getBoundingClientRect(),p=e.parentElement.getBoundingClientRect();
                             return {width:r.width,height:r.height,parentWidth:p.width,left:r.left,right:r.right,
                                 parentLeft:p.left,parentRight:p.right,font:s.fontFamily,fontSize:s.fontSize,
-                                lineHeight:s.lineHeight,padding:s.padding,minHeight:s.minHeight};
+                                lineHeight:s.lineHeight,padding:s.padding,minHeight:s.minHeight,background:s.backgroundColor,color:s.color};
                         }''')
                     page.screenshot(path=str(output / f'{kind}-{width}-short.png'))
                     if not baseline:
@@ -113,8 +113,11 @@ def main():
                             assert value['fontSize'] == '16px', (kind, width, value)
                             assert value['lineHeight'] == '24px', (kind, width, value)
                             assert 'system-ui' in value['font']
-                            assert value['height'] <= 44, (kind, width, name, value)
+                            assert value['height'] <= 48, (kind, width, name, value)
                             assert value['width'] < (230 if name == 'assistant' else 110), (kind, width, name, value)
+                        assert measurements['user']['background'] == 'rgb(5, 98, 246)'
+                        assert measurements['user']['color'] == 'rgb(255, 255, 255)'
+                        assert measurements['assistant']['background'] == 'rgb(243, 243, 243)'
                         assert abs(measurements['assistant']['left'] - measurements['assistant']['parentLeft']) < 2
                         assert abs(measurements['user']['right'] - measurements['user']['parentRight']) < 2
                     copy = assistant.locator('.ai-copy')

@@ -215,6 +215,9 @@
       const response = await fetch(`/kilas-ai/agent?${query}`, {cache:'no-store'});
       if (!response.ok) return;
       const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+      // A poll started before a send can finish during streaming. Never replace
+      // the live transcript with that older snapshot.
+      if (busy) return;
       refreshCounts(doc);
       // Preserve each result's position in the durable message timeline.
       const incoming=doc.querySelector('#agent-conversation');
@@ -252,10 +255,14 @@
   // Refresh reattaches to the existing stream; this GET never dispatches inference.
   async function resumeStream(){
     if(busy)return;
+    let resumed=false;
     try{
       const response=await fetch(`/kilas-ai/work/streams?conversation_id=${encodeURIComponent(form.elements.conversation_id.value)}`,{cache:'no-store'});
-      if(!response.ok)return;const result=await response.json();if(!result.streams.length)return;
-      activeStream=result.streams[0].id;busy=true;send.disabled=true;input.readOnly=true;controller=new AbortController();if(stop)stop.hidden=false;
+      if(!response.ok)return;const result=await response.json();
+      // A user can submit while stream discovery is in flight. That submission
+      // owns the timeline; do not attach a second reader over it.
+      if(busy||!result.streams.length)return;
+      activeStream=result.streams[0].id;resumed=true;busy=true;send.disabled=true;input.readOnly=true;controller=new AbortController();if(stop)stop.hidden=false;
       thinking.hidden=false;thinking.lastElementChild.textContent=t('Berpikir…');chat.setAttribute('aria-busy','true');
       document.dispatchEvent(new Event('kilas:request-started'));
       let after=0,complete=false,answer,pending='';const decoder=new TextDecoder();
@@ -276,7 +283,7 @@
       }
       if(answer)window.KilasMarkdown.finish(answer);await refresh();
     }catch(_){error.textContent=t('Jawaban terhenti. Buka riwayat; permintaan tidak diulang otomatis.');error.hidden=false;}
-    finally{if(activeStream){busy=false;send.disabled=false;input.readOnly=false;thinking.hidden=true;chat.removeAttribute('aria-busy');if(stop)stop.hidden=true;activeStream=null;controller=null;document.dispatchEvent(new Event('kilas:request-finished'));}}
+    finally{if(resumed){busy=false;send.disabled=false;input.readOnly=false;thinking.hidden=true;chat.removeAttribute('aria-busy');if(stop)stop.hidden=true;activeStream=null;controller=null;document.dispatchEvent(new Event('kilas:request-finished'));}}
   }
   resumeStream();
   setInterval(refreshTasks, 3000);
