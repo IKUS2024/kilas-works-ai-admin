@@ -1,113 +1,301 @@
 {
+  "source": "https://app.notion.com/p/Creative-Production-Rate-Card-2026-413aa064bd9881eb8898f58aa3920659",
+  "price_notice": "Semua harga untuk diskusi. Hubungi WhatsApp Kilas untuk scope dan quotation; tidak ada checkout atau pembayaran baru di website.",
   "packages": {
     "creative_event_basic": {
       "service": "event",
-      "tier": "Basic",
-      "name": "Foto & Video Acara — Basic",
-      "amount": 1500000,
+      "tier": "Essential",
+      "name": "Dokumentasi Event — Essential",
+      "amount": 2000000,
       "unit": "acara",
       "features": [
-        "Maksimal 50 foto pilihan klien yang diedit",
+        "Durasi maksimal 4 jam",
         "1 fotografer",
-        "Durasi hingga 5 jam",
-        "Semua file foto asli",
-        "1 kali revisi editing"
+        "50 foto diedit",
+        "File digital resolusi tinggi"
       ],
+      "quotation_required": true,
+      "price_type": "reference",
+      "payment_terms": "deposit_50_balance_before_delivery",
       "image": "portfolio/event-01.jpg"
     },
     "creative_event_standard": {
       "service": "event",
-      "tier": "Standard",
-      "name": "Foto & Video Acara — Standard",
-      "amount": 3000000,
+      "tier": "Professional",
+      "name": "Dokumentasi Event — Professional",
+      "amount": 4500000,
       "unit": "acara",
       "features": [
-        "Maksimal 50 foto pilihan klien yang diedit",
+        "Durasi maksimal 6 jam",
         "1 fotografer + 1 videografer",
-        "Durasi hingga 8 jam",
-        "Semua file foto & video asli",
-        "Video Highlight Acara",
-        "1 kali revisi editing"
+        "Foto diedit",
+        "Video highlight 1–2 menit",
+        "1 teaser Reel"
       ],
+      "quotation_required": true,
+      "price_type": "reference",
+      "payment_terms": "deposit_50_balance_before_delivery",
       "image": "portfolio/event-01.jpg"
     },
     "creative_event_premium": {
       "service": "event",
-      "tier": "Premium",
-      "name": "Foto & Video Acara — Premium",
-      "amount": 5000000,
+      "tier": "Corporate",
+      "name": "Dokumentasi Event — Corporate",
+      "amount": 7500000,
       "unit": "acara",
       "features": [
-        "Maksimal 100 foto pilihan klien yang diedit",
-        "1 fotografer + 1 videografer",
-        "Durasi hingga 8 jam",
-        "Semua file foto & video asli",
-        "Video Highlight Acara",
-        "Teaser Instagram Reels",
-        "2 kali revisi editing",
-        "Pengambilan video udara menggunakan drone"
+        "Durasi maksimal 8 jam",
+        "2 kru photography/videography sesuai pembagian tugas",
+        "100+ foto diedit",
+        "Video sinematik 2–3 menit",
+        "2 teaser Reels",
+        "Drone sesuai lokasi dan perizinan"
       ],
+      "quotation_required": true,
+      "price_type": "reference",
+      "payment_terms": "deposit_50_balance_before_delivery",
       "image": "portfolio/event-01.jpg"
     },
     "creative_social_basic": {
       "service": "social",
       "tier": "Basic",
-      "name": "Content Plan Media Sosial — Basic",
-      "amount": 4500000,
+      "name": "Konten Bulanan — Basic",
+      "amount": 3500000,
       "unit": "bulan",
       "features": [
-        "8 Konten Video",
-        "8 Konten Foto",
-        "Konsep Konten",
-        "Kalender Konten",
-        "Penulisan Naskah",
-        "Produksi Foto & Video",
-        "Editing",
-        "Caption",
-        "Penjadwalan Posting",
-        "Evaluasi Performa"
+        "1 sesi produksi",
+        "4 video pendek",
+        "6 konten statis",
+        "Perencanaan dasar",
+        "Caption"
       ],
+      "quotation_required": true,
+      "price_type": "reference",
+      "payment_terms": "monthly_upfront",
       "image": "portfolio/social-01.jpg"
     },
     "creative_social_standard": {
       "service": "social",
-      "tier": "Standard",
-      "name": "Content Plan Media Sosial — Standard",
+      "tier": "Growth",
+      "name": "Konten Bulanan — Growth",
       "amount": 6000000,
       "unit": "bulan",
       "features": [
-        "12 Konten Video",
-        "12 Konten Foto",
-        "Konsep Konten",
-        "Kalender Konten",
-        "Penulisan Naskah",
-        "Produksi Foto & Video",
-        "Editing",
-        "Caption",
-        "Penjadwalan Posting",
-        "Evaluasi Performa"
+        "2 sesi produksi",
+        "8 video",
+        "10 konten statis",
+        "Kalender konten",
+        "Arahan kreatif",
+        "Caption"
       ],
+      "quotation_required": true,
+      "price_type": "reference",
+      "payment_terms": "monthly_upfront",
       "image": "portfolio/social-01.jpg"
     },
     "creative_social_premium": {
       "service": "social",
-      "tier": "Premium",
-      "name": "Content Plan Media Sosial — Premium",
-      "amount": 9500000,
+      "tier": "Professional",
+      "name": "Konten Bulanan — Professional",
+      "amount": 9000000,
       "unit": "bulan",
       "features": [
-        "16 Konten Video",
-        "14 Konten Foto",
-        "Konsep Konten",
-        "Kalender Konten",
-        "Penulisan Naskah",
-        "Produksi Foto & Video",
-        "Editing",
+        "3 sesi produksi",
+        "12 video",
+        "14 konten statis",
+        "Strategi dan kalender konten",
+        "Arahan kreatif",
         "Caption",
-        "Penjadwalan Posting",
-        "Evaluasi Performa",
-        "Talent / Influencer"
+        "Evaluasi performa"
       ],
+      "quotation_required": true,
+      "price_type": "reference",
+      "payment_terms": "monthly_upfront",
+      "image": "portfolio/social-01.jpg"
+    },
+    "creative_commercial_promo": {
+      "service": "commercial",
+      "tier": "Promotional Video",
+      "name": "Produksi Komersial — Promotional Video",
+      "amount": 4500000,
+      "unit": "proyek",
+      "features": [
+        "Konsep",
+        "1 sesi shooting",
+        "1 video utama",
+        "Color dasar",
+        "1 kali revisi"
+      ],
+      "quotation_required": true,
+      "price_type": "reference",
+      "payment_terms": "deposit_50_balance_before_delivery",
+      "image": "portfolio/social-01.jpg"
+    },
+    "creative_commercial_product": {
+      "service": "commercial",
+      "tier": "Product Commercial",
+      "name": "Produksi Komersial — Product Commercial",
+      "amount": 7500000,
+      "unit": "proyek",
+      "features": [
+        "Konsep dan storyboard",
+        "Shooting produk",
+        "Visual sinematik",
+        "1 video utama",
+        "2 cutdown"
+      ],
+      "quotation_required": true,
+      "price_type": "reference",
+      "payment_terms": "deposit_50_balance_before_delivery",
+      "image": "portfolio/social-01.jpg"
+    },
+    "creative_commercial_campaign": {
+      "service": "commercial",
+      "tier": "Brand Campaign",
+      "name": "Produksi Komersial — Brand Campaign",
+      "amount": 12000000,
+      "unit": "proyek",
+      "features": [
+        "Konsep dan arahan kreatif",
+        "Storyboard",
+        "Produksi kampanye",
+        "Editing dan color"
+      ],
+      "quotation_required": true,
+      "price_type": "starting_from",
+      "payment_terms": "deposit_50_balance_before_delivery",
+      "image": "portfolio/social-01.jpg"
+    },
+    "creative_commercial_profile": {
+      "service": "commercial",
+      "tier": "Company Profile",
+      "name": "Produksi Komersial — Company Profile",
+      "amount": 12000000,
+      "unit": "proyek",
+      "features": [
+        "Konsep dan naskah",
+        "Wawancara",
+        "Footage perusahaan",
+        "Produksi",
+        "Editing dan color"
+      ],
+      "quotation_required": true,
+      "price_type": "starting_from",
+      "payment_terms": "deposit_50_balance_before_delivery",
+      "image": "portfolio/social-01.jpg"
+    },
+    "creative_editing_1m": {
+      "service": "editing",
+      "tier": "Basic Social Media Editing",
+      "name": "Basic Social Media Editing",
+      "amount": 250000,
+      "unit": "video",
+      "features": [
+        "Durasi maksimal 1 menit",
+        "Cutting dan penyusunan alur",
+        "Transisi sederhana",
+        "Musik latar",
+        "Penyesuaian suara dasar",
+        "Subtitle / teks sederhana",
+        "Color dasar",
+        "Ekspor vertikal 9:16 untuk media sosial",
+        "Maksimal 2 revisi minor",
+        "Untuk talking head, daily vlog, potongan podcast, showcase produk sederhana, dan konten harian"
+      ],
+      "scope_notes": [
+        "Footage dan materi disediakan oleh klien",
+        "Shooting, penulisan naskah, konsep, talent, dan voice-over tidak termasuk kecuali disepakati terpisah",
+        "Durasi lebih dari 1 menit melalui quotation terpisah",
+        "Timeline dimulai setelah materi diterima lengkap"
+      ],
+      "quotation_required": true,
+      "price_type": "reference",
+      "payment_terms": "deposit_50_balance_before_delivery",
+      "image": "portfolio/social-01.jpg"
+    },
+    "creative_editing_advanced": {
+      "service": "editing",
+      "tier": "Advanced Social Media Editing",
+      "name": "Advanced Social Media Editing",
+      "amount": 350000,
+      "unit": "video",
+      "features": [
+        "Durasi maksimal 1 menit",
+        "Semua cakupan Basic",
+        "Cutting dan pacing dinamis",
+        "Caption animasi",
+        "Efek suara",
+        "Efek zoom / motion sederhana",
+        "Color lebih detail",
+        "Maksimal 2 revisi minor",
+        "Untuk promo, storytelling, brand, dan konten sosial dinamis"
+      ],
+      "scope_notes": [
+        "Footage dan materi disediakan oleh klien",
+        "Shooting, penulisan naskah, konsep, talent, dan voice-over tidak termasuk kecuali disepakati terpisah",
+        "Durasi lebih dari 1 menit melalui quotation terpisah",
+        "Timeline dimulai setelah materi diterima lengkap"
+      ],
+      "quotation_required": true,
+      "price_type": "range",
+      "payment_terms": "deposit_50_balance_before_delivery",
+      "image": "portfolio/social-01.jpg",
+      "amount_max": 500000
+    },
+    "creative_editing_premium": {
+      "service": "editing",
+      "tier": "Premium / Creative Editing",
+      "name": "Premium / Creative Editing",
+      "amount": 600000,
+      "unit": "video",
+      "features": [
+        "Durasi maksimal 1 menit",
+        "Semua cakupan Advanced",
+        "Editing kreatif dan visual storytelling",
+        "Motion graphic sederhana",
+        "Sound design detail",
+        "Color lanjutan",
+        "Transisi khusus / VFX sesuai kebutuhan",
+        "Maksimal 2 revisi minor",
+        "Untuk cinematic Reels, campaign, dan product storytelling"
+      ],
+      "scope_notes": [
+        "Footage dan materi disediakan oleh klien",
+        "Shooting, penulisan naskah, konsep, talent, dan voice-over tidak termasuk kecuali disepakati terpisah",
+        "Durasi lebih dari 1 menit melalui quotation terpisah",
+        "Timeline dimulai setelah materi diterima lengkap"
+      ],
+      "quotation_required": true,
+      "price_type": "range",
+      "payment_terms": "deposit_50_balance_before_delivery",
+      "image": "portfolio/social-01.jpg",
+      "amount_max": 900000
+    },
+    "creative_editing_professional": {
+      "service": "editing",
+      "tier": "Professional / Commercial Editing",
+      "name": "Professional / Commercial Editing",
+      "amount": 1500000,
+      "unit": "proyek",
+      "features": [
+        "Scope dan durasi sesuai brief",
+        "Struktur cerita",
+        "Editing lanjutan",
+        "Motion graphic lanjutan",
+        "Sound design detail",
+        "Color profesional",
+        "Beberapa output / cutdown hanya jika disepakati",
+        "Untuk iklan, brand film, company profile, dan campaign commercial"
+      ],
+      "scope_notes": [
+        "Footage dan materi disediakan oleh klien",
+        "Shooting, penulisan naskah, konsep, talent, dan voice-over tidak termasuk kecuali disepakati terpisah",
+        "Durasi lebih dari 1 menit melalui quotation terpisah",
+        "Timeline dimulai setelah materi diterima lengkap"
+      ],
+      "quotation_required": true,
+      "price_type": "starting_from",
+      "payment_terms": "deposit_50_balance_before_delivery",
       "image": "portfolio/social-01.jpg"
     }
   },
@@ -116,17 +304,32 @@
       "name": "Tanpa add-on",
       "amount": 0
     },
-    "micro": {
-      "name": "Influencer Micro",
-      "amount": 2000000
+    "motion": {
+      "name": "Motion graphic tambahan",
+      "amount": 300000,
+      "price_type": "starting_from",
+      "service": "editing",
+      "quotation_required": true
     },
-    "macro": {
-      "name": "Influencer Macro",
-      "amount": 3500000
+    "bilingual": {
+      "name": "Subtitle bilingual",
+      "amount": 150000,
+      "service": "editing",
+      "quotation_required": true,
+      "price_type": "starting_from"
     },
-    "mega": {
-      "name": "Influencer Mega",
-      "amount": 7500000
+    "urgent": {
+      "name": "Pengerjaan urgent",
+      "amount": null,
+      "percentage": 30,
+      "service": "editing",
+      "quotation_required": true
+    },
+    "revision": {
+      "name": "Revisi tambahan",
+      "amount": 100000,
+      "service": "editing",
+      "quotation_required": true
     }
   }
 }

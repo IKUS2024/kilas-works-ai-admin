@@ -11,7 +11,7 @@ permissions:
   contents: read
 jobs:
   translator-hardening:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +48,7 @@ jobs:
             /tmp/kilas-interpreter-tap/
             /tmp/kilas-interpreter-logo/
   offline:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +69,7 @@ jobs:
         run: node --test client-hub/tests/test_kilas_sidebar_products_dom.mjs client-hub/tests/test_kilas_ai_call*.mjs client-hub/tests/test_kilas_live_gemini*.mjs client-hub/tests/test_kilas_live_translator*.mjs
         env: {KILAS_SIDEBAR_PRODUCTS_FIXTURE_PATH: /tmp/kilas-sidebar-products-ui.json, KILAS_AI_CALL_UI_FIXTURE_PATH: /tmp/kilas-ai-call-ui.json, KILAS_GEMINI_UI_FIXTURE_PATH: /tmp/kilas-gemini-ui.json, KILAS_UI_DOM_TOOLS: /tmp/kilas-gemini-dom}
   postgres:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     services:
       postgres:

@@ -1,5 +1,6 @@
 """Scoped Creative Services checkout; existing account and admin roles are unchanged."""
 import io
+from urllib.parse import urlencode
 from flask import Blueprint, abort, current_app, make_response, redirect, render_template, request, url_for
 from itsdangerous import BadSignature
 import creative_orders as orders
@@ -9,6 +10,13 @@ import projects_repo
 import security
 
 creative_checkout_bp = Blueprint('creative_checkout', __name__, url_prefix='/creative-services')
+
+
+def current_offer(key, addon='none'):
+    # Retired influencer links still resolve to the current package, without an add-on.
+    if addon in ('micro', 'macro', 'mega') and addon not in orders.CATALOG['addons']:
+        addon = 'none'
+    return orders.offer(key, addon)
 
 
 @creative_checkout_bp.before_app_request
@@ -26,7 +34,8 @@ def resume_after_login():
     try:
         choice = orders.signer().loads(request.cookies['creative_selection'], max_age=1800)
         key, addon = choice['key'], choice['addon']
-        orders.offer(key, addon)
+        selected = current_offer(key, addon)
+        addon = selected['addon']
     except (BadSignature, ValueError, TypeError, KeyError):
         return
     response = redirect(url_for('creative_checkout.checkout', key=key, addon=addon), code=303)
@@ -46,7 +55,7 @@ def preserve_selection(response):
     # Called after invalid identity is cleared. This cookie grants no identity/access.
     if request.method == 'GET' and request.endpoint in ('creative_checkout.checkout', 'creative_checkout.begin_login'):
         try:
-            selected = orders.offer(request.view_args['key'], request.args.get('addon', 'none'))
+            selected = current_offer(request.view_args['key'], request.args.get('addon', 'none'))
         except (ValueError, KeyError, TypeError):
             return response
         response.set_cookie('creative_selection', orders.signer().dumps({'key': selected['key'], 'addon': selected['addon']}),
@@ -59,10 +68,16 @@ def render(page, **kwargs):
     return render_template('creative_checkout.html', page=page, money=orders.money, cs_t=translate, cs_messages=messages(), **kwargs)
 
 
+def quotation(selected, user, error=None):
+    message = 'Halo Kilas, saya ingin konsultasi dan quotation untuk ' + selected['name'] + '.'
+    return make_response(render('quotation', selected=selected, user=user, error=error,
+        consultation_url='https://wa.me/6282213039137?' + urlencode({'text': message})), 422 if error else 200)
+
+
 @creative_checkout_bp.route('/checkout/<key>', methods=['GET', 'POST'])
 def checkout(key):
     try:
-        selected = orders.offer(key, request.args.get('addon', 'none'))
+        selected = current_offer(key, request.args.get('addon', 'none'))
     except ValueError:
         abort(404)
     user = security.current_user()
@@ -78,11 +93,17 @@ def checkout(key):
                 if invoice:
                     return redirect(url_for('creative_checkout.payment', invoice_id=invoice['id']), code=303)
         except (BadSignature, ValueError, TypeError, AttributeError):
+            if selected.get('quotation_required'):
+                return quotation(selected, user)
             return redirect(url_for('creative_checkout.checkout', key=key,
                                     draft=orders.checkout_token(user['id'], key), addon=selected['addon']), code=303)
+    if request.method == 'GET' and selected.get('quotation_required'):
+        return quotation(selected, user)
     error = None
     if request.method == 'POST':
         if not user:
+            if selected.get('quotation_required'):
+                return quotation(selected, user, 'Paket ini memerlukan quotation tertulis sebelum invoice dapat dibuat.')
             abort(401)
         try:
             invoice_id = orders.create_order(user['id'], key, request.form)
@@ -93,9 +114,11 @@ def checkout(key):
             selected = orders.offer(key, request.form.get('addon', 'none'))
         except ValueError:
             pass
+    if selected.get('quotation_required'):
+        return quotation(selected, user, error)
     token = request.form.get('order_token') if request.method == 'POST' else request.args.get('draft')
     response = make_response(render('checkout', selected=selected, user=user, error=error,
-        values=request.form if request.method == 'POST' else {}, addons=orders.CATALOG['addons'],
+        values=request.form if request.method == 'POST' else {}, addons=orders.checkout_addons(selected['service']),
         token=token or (orders.checkout_token(user['id'], key) if user else ''),
         bank=orders.BANK), 422 if error else 200)
     if not user:
@@ -107,9 +130,11 @@ def checkout(key):
 @creative_checkout_bp.route('/checkout/<key>/login')
 def begin_login(key):
     try:
-        selected = orders.offer(key, request.args.get('addon', 'none'))
+        selected = current_offer(key, request.args.get('addon', 'none'))
     except ValueError:
         abort(404)
+    if selected.get('quotation_required'):
+        return redirect(url_for('creative_checkout.checkout', key=key, addon=selected['addon']), code=303)
     response = redirect(url_for('auth.login_page'), code=303)
     response.set_cookie('creative_selection', orders.signer().dumps({'key': key, 'addon': selected['addon']}),
                         max_age=1800, httponly=True, secure=request.is_secure, samesite='Lax', path='/')

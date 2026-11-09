@@ -1,133 +1,238 @@
 {
+  "source": "Notion Creative Production Rate Card 2026, re-read 2026-11-09; user approved all four editing levels",
   "cards": [
     {
-      "name": "Basic",
-      "price": "Rp1.500.000",
-      "outputs": [
-        "Maksimal 50 foto pilihan klien yang diedit"
-      ],
+      "name": "Essential",
+      "price": "Rp2.000.000",
+      "outputs": [],
       "features": [
-        "1 fotografer",
-        "Durasi hingga 5 jam",
-        "Semua file foto asli",
-        "1 kali revisi editing"
+        "Maksimal 4 jam",
+        "1 photographer",
+        "50 foto hasil editing",
+        "File digital resolusi tinggi"
       ]
     },
     {
-      "name": "Standard",
-      "price": "Rp3.000.000",
-      "outputs": [
-        "Maksimal 50 foto pilihan klien yang diedit"
-      ],
-      "features": [
-        "1 fotografer + 1 videografer",
-        "Durasi hingga 8 jam",
-        "Semua file foto & video asli",
-        "Video Highlight Acara",
-        "1 kali revisi editing"
-      ]
-    },
-    {
-      "name": "Premium",
-      "price": "Rp5.000.000",
-      "outputs": [
-        "Maksimal 100 foto pilihan klien yang diedit"
-      ],
-      "features": [
-        "1 fotografer + 1 videografer",
-        "Durasi hingga 8 jam",
-        "Semua file foto & video asli",
-        "Video Highlight Acara",
-        "Teaser Instagram Reels",
-        "2 kali revisi editing",
-        "Pengambilan video udara menggunakan drone"
-      ]
-    },
-    {
-      "name": "Basic",
+      "name": "Professional",
       "price": "Rp4.500.000",
-      "outputs": [
-        "8 Konten Video",
-        "8 Konten Foto"
-      ],
+      "outputs": [],
       "features": [
-        "Konsep Konten",
-        "Kalender Konten",
-        "Penulisan Naskah",
-        "Produksi Foto & Video",
-        "Editing",
-        "Caption",
-        "Penjadwalan Posting",
-        "Evaluasi Performa"
+        "Maksimal 6 jam",
+        "1 photographer + 1 videographer",
+        "Foto hasil editing",
+        "1 highlight video (1–2 menit)",
+        "1 teaser Reel"
       ]
     },
     {
-      "name": "Standard",
+      "name": "Corporate",
+      "price": "Rp7.500.000",
+      "outputs": [],
+      "features": [
+        "Maksimal 8 jam",
+        "2 crew photography/videography sesuai pembagian tugas",
+        "100+ foto hasil editing",
+        "1 cinematic highlight (2–3 menit)",
+        "2 teaser Reels",
+        "Drone footage jika lokasi dan izin memungkinkan"
+      ]
+    },
+    {
+      "name": "Basic",
+      "price": "Rp3.500.000",
+      "outputs": [],
+      "features": [
+        "1 sesi produksi",
+        "4 short-form videos",
+        "6 static visuals",
+        "Basic content planning",
+        "Caption support"
+      ]
+    },
+    {
+      "name": "Growth",
       "price": "Rp6.000.000",
-      "outputs": [
-        "12 Konten Video",
-        "12 Konten Foto"
-      ],
+      "outputs": [],
       "features": [
-        "Konsep Konten",
-        "Kalender Konten",
-        "Penulisan Naskah",
-        "Produksi Foto & Video",
-        "Editing",
-        "Caption",
-        "Penjadwalan Posting",
-        "Evaluasi Performa"
+        "2 sesi produksi",
+        "8 short-form videos",
+        "10 static visuals",
+        "Monthly content calendar",
+        "Creative direction",
+        "Caption support"
       ]
     },
     {
-      "name": "Premium",
-      "price": "Rp9.500.000",
-      "outputs": [
-        "16 Konten Video",
-        "14 Konten Foto"
-      ],
+      "name": "Professional",
+      "price": "Rp9.000.000",
+      "outputs": [],
       "features": [
-        "Konsep Konten",
-        "Kalender Konten",
-        "Penulisan Naskah",
-        "Produksi Foto & Video",
-        "Editing",
-        "Caption",
-        "Penjadwalan Posting",
-        "Evaluasi Performa",
-        "Talent / Influencer"
+        "3 sesi produksi",
+        "12 short-form videos",
+        "14 static visuals",
+        "Monthly content strategy & calendar",
+        "Creative direction",
+        "Caption support",
+        "Performance review"
+      ]
+    },
+    {
+      "name": "Promotional Video",
+      "price": "Rp4.500.000",
+      "outputs": [],
+      "features": [
+        "Creative concept",
+        "1 shooting session",
+        "1 main promotional video",
+        "Basic color grading",
+        "1x revision"
+      ]
+    },
+    {
+      "name": "Product Commercial",
+      "price": "Rp7.500.000",
+      "outputs": [],
+      "features": [
+        "Creative concept & storyboard",
+        "Product shooting",
+        "Cinematic editing",
+        "1 main commercial video",
+        "2 cutdown videos"
+      ]
+    },
+    {
+      "name": "Brand Campaign",
+      "price": "Mulai Rp12.000.000",
+      "outputs": [],
+      "features": [
+        "Campaign concept & creative direction",
+        "Storyboard / visual planning",
+        "Campaign video production",
+        "Editing & color grading"
+      ]
+    },
+    {
+      "name": "Company Profile",
+      "price": "Mulai Rp12.000.000",
+      "outputs": [],
+      "features": [
+        "Concept & script development",
+        "Interview / company footage",
+        "Production",
+        "Editing & color grading"
+      ]
+    },
+    {
+      "name": "Basic Social Media Editing",
+      "price": "Rp250.000",
+      "outputs": [],
+      "features": [
+        "Cutting dan penyusunan footage",
+        "Transisi sederhana",
+        "Background music & sound adjustment dasar",
+        "Subtitle / text overlay sederhana",
+        "Basic color correction",
+        "Export sosial media 9:16",
+        "Maksimal 2 kali revisi minor"
+      ]
+    },
+    {
+      "name": "Advanced Social Media Editing",
+      "price": "Rp350.000–Rp500.000",
+      "outputs": [],
+      "features": [
+        "Semua cakupan Basic",
+        "Dynamic cuts & pacing lebih detail",
+        "Animated captions & sound effects",
+        "Zoom effects & motion sederhana",
+        "Color correction lebih detail",
+        "Maksimal 2 kali revisi minor"
+      ]
+    },
+    {
+      "name": "Premium / Creative Editing",
+      "price": "Rp600.000–Rp900.000",
+      "outputs": [],
+      "features": [
+        "Semua cakupan Advanced",
+        "Creative editing & visual storytelling",
+        "Motion graphics sederhana",
+        "Sound design lebih detail",
+        "Advanced color grading",
+        "Custom transitions & visual effects sesuai kebutuhan",
+        "Maksimal 2 kali revisi minor"
+      ]
+    },
+    {
+      "name": "Professional / Commercial Editing",
+      "price": "Mulai Rp1.500.000",
+      "outputs": [],
+      "features": [
+        "Struktur cerita & alur video",
+        "Advanced editing & motion graphics",
+        "Detailed sound design",
+        "Professional color grading",
+        "Multiple output / cutdown jika disepakati"
       ]
     }
   ],
+  "addon_prices": [],
   "service_ids": [
     [
-      "Foto & Video Acara — Basic",
-      "Event Photography & Videography — Basic"
+      "Event Documentation — Essential",
+      "Event Documentation — Essential"
     ],
     [
-      "Foto & Video Acara — Standard",
-      "Event Photography & Videography — Standard"
+      "Event Documentation — Professional",
+      "Event Documentation — Professional"
     ],
     [
-      "Foto & Video Acara — Premium",
-      "Event Photography & Videography — Premium"
+      "Event Documentation — Corporate",
+      "Event Documentation — Corporate"
     ],
     [
-      "Content Plan Media Sosial — Basic",
-      "Social Media Content Plan — Basic"
+      "Monthly Content Production — Basic",
+      "Monthly Content Production — Basic"
     ],
     [
-      "Content Plan Media Sosial — Standard",
-      "Social Media Content Plan — Standard"
+      "Monthly Content Production — Growth",
+      "Monthly Content Production — Growth"
     ],
     [
-      "Content Plan Media Sosial — Premium",
-      "Social Media Content Plan — Premium"
+      "Monthly Content Production — Professional",
+      "Monthly Content Production — Professional"
+    ],
+    [
+      "Commercial Production — Promotional Video",
+      "Commercial Production — Promotional Video"
+    ],
+    [
+      "Commercial Production — Product Commercial",
+      "Commercial Production — Product Commercial"
+    ],
+    [
+      "Commercial Production — Brand Campaign",
+      "Commercial Production — Brand Campaign"
+    ],
+    [
+      "Commercial Production — Company Profile",
+      "Commercial Production — Company Profile"
+    ],
+    [
+      "Video Editing — Basic Social Media Editing",
+      "Video Editing — Basic Social Media Editing"
+    ],
+    [
+      "Video Editing — Advanced Social Media Editing",
+      "Video Editing — Advanced Social Media Editing"
+    ],
+    [
+      "Video Editing — Premium / Creative Editing",
+      "Video Editing — Premium / Creative Editing"
+    ],
+    [
+      "Video Editing — Professional / Commercial Editing",
+      "Video Editing — Professional / Commercial Editing"
     ]
-  ],
-  "addon_prices": [
-    "+Rp2.000.000",
-    "+Rp3.500.000",
-    "+Rp7.500.000"
   ]
 }

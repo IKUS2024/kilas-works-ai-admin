@@ -78,7 +78,7 @@ def main():
                         verify_released_html(response.body(), (root/'creative-services-site/index.html').read_bytes(), response.headers, app_served=app_served, expected_language=locale)
                         expect(page.locator('html')).to_have_attribute('lang', locale)
                         expect(page.locator('#cs-title')).to_contain_text('Momen jadi cerita' if locale == 'id' else 'Moments into stories')
-                        expect(page.locator('[data-service-choice]')).to_have_count(2)
+                        expect(page.locator('[data-service-choice]')).to_have_count(4)
                         expect(page.locator('footer a').last).to_have_attribute('href','https://app.kilasworks.id/products/start')
                         check_contrast(page)
                         check_section_markers(page)
@@ -103,17 +103,18 @@ def main():
                             expect(page.locator(f'#cs-{kind}')).to_be_visible()
                             expect(page.locator(f'#cs-{kind} .cs-card')).to_have_count(3)
                             if kind == 'event':
-                                premium=page.locator('#cs-event .cs-premium')
-                                expect(premium.locator('.cs-price')).to_have_text('Rp5.000.000')
-                                expect(premium).to_contain_text('1 fotografer + 1 videografer' if locale=='id' else '1 photographer + 1 videographer')
-                                expect(premium).to_contain_text('Pengambilan video udara menggunakan drone' if locale=='id' else 'Aerial video footage captured with a drone')
-                                expect(premium.locator('.cs-drone-note')).to_have_text('Pengambilan gambar drone menyesuaikan cuaca, kondisi lokasi, dan izin penerbangan.' if locale=='id' else 'Drone filming is subject to weather, site conditions, and flight permissions.')
+                                premium=page.locator('#cs-event .cs-card').last
+                                expect(premium.locator('.cs-price')).to_have_text('Rp7.500.000')
+                                expect(premium).to_contain_text('2 crew photography/videography sesuai pembagian tugas' if locale=='id' else '2 photography/videography crew according to assigned roles')
+                                expect(premium).to_contain_text('Drone footage jika lokasi dan izin memungkinkan' if locale=='id' else 'Drone footage where location and permits allow')
+                                expect(premium.locator('.cs-features li').last).to_have_text('Drone footage jika lokasi dan izin memungkinkan' if locale=='id' else 'Drone footage where location and permits allow')
                                 expect(premium).not_to_contain_text('2 fotografer' if locale=='id' else '2 photographers')
                                 premium.screenshot(path=str(output/f'{host}-event-premium-{locale}-{width}.png'),animations='disabled')
                             if kind == 'social':
-                                expect(page.locator('#cs-addons-title')).to_be_visible()
-                            choice=page.locator('#cs-event .cs-premium [data-service-id]') if kind=='event' else page.locator('#cs-social [data-service-id]').first
-                            assert '/creative-services/checkout/creative_' + kind + '_' in choice.get_attribute('href')
+                                expect(page.locator('#cs-social .cs-card').last).to_contain_text('Rp9.000.000')
+                            choice=page.locator('#cs-event .cs-card').last.locator('[data-service-id]') if kind=='event' else page.locator('#cs-social [data-service-id]').first
+                            assert choice.get_attribute('href').startswith('https://wa.me/6282213039137?text=')
+                            assert choice.get_attribute('target') == '_blank'
                             page.locator('#studio-navigation a[href="#contact"]').evaluate('(e)=>e.click()')
                             page.locator('#cs-brief-date').fill('2026-11-20')
                             page.locator('#cs-brief-location').fill('UI smoke — no send')

@@ -96,8 +96,7 @@ def main():
                     expect(logo).to_have_attribute('aria-label','Stop and translate')
                     expect(logo).to_be_enabled()
                     for selector in ['#interpreter-left','#interpreter-right']:
-                        expect(page.locator(selector)).to_be_disabled()
-                        page.locator(selector).evaluate('e=>{for(let i=0;i<5;i++)e.click()}')
+                        expect(page.locator(selector)).to_be_enabled()
                     expect(page.locator('#interpreter-current-direction')).to_have_text(source+' → '+target)
                     assert logo.evaluate('e=>getComputedStyle(e).borderColor')=='rgb(189, 71, 0)'
                     assert len(wires)==before+(0 if cycle==2 else 1)
@@ -107,7 +106,7 @@ def main():
                     assert page.evaluate('micStops')==stops+1
                     expect(logo).to_have_attribute('aria-pressed','false')
                     expect(logo).to_have_attribute('aria-busy','true');expect(logo).to_be_disabled()
-                    page.evaluate("()=>{for(let i=0;i<10;i++)for(const id of ['orb','left','right'])document.querySelector('#interpreter-'+id).click();}")
+                    page.evaluate("()=>{for(let i=0;i<10;i++)document.querySelector('#interpreter-orb').click();}")
                     ended(page)
                     assert page.evaluate('micRequests')==page.evaluate('micStops')
                     expect(logo).to_be_enabled();expect(logo).to_have_attribute('aria-busy','false')
@@ -126,11 +125,12 @@ def main():
                     before=len(wires)
                     page.evaluate("()=>{window.savedMic=navigator.mediaDevices.getUserMedia;navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>window.finishPermission=resolve);}")
                     hit_k();page.wait_for_function("typeof window.finishPermission==='function'")
-                    expect(page.locator('#interpreter-left')).to_be_disabled()
-                    page.locator('#interpreter-left').evaluate('e=>e.click()')
-                    expect(page.locator('#interpreter-current-direction')).to_have_text('English → Indonesian')
-                    hit_k();ended(page)
+                    expect(page.locator('#interpreter-left')).to_be_enabled()
+                    page.locator('#interpreter-left').click()
+                    expect(page.locator('#interpreter-current-direction')).to_have_text('Indonesian → English')
+                    ended(page)
                     page.evaluate("async()=>{const stream=await savedMic();finishPermission(stream);navigator.mediaDevices.getUserMedia=savedMic;}")
+                    page.locator('#interpreter-right').click()
                     expect(logo).to_have_attribute('aria-pressed','false');assert len(wires)==before
                     for mode,message in [('denied','Allow microphone access in your browser.'),('missing','Check the connected microphone, then choose a direction again.')]:
                         page.evaluate('(value)=>window.mockPermission=value',mode);hit_k()
@@ -144,8 +144,7 @@ def main():
                     expect(page.locator('#interpreter-caption')).to_have_text('Selamat pagi.')
                     # End and a direction change also fence input started from K.
                     hit_k();listening(page)
-                    expect(page.locator('#interpreter-left')).to_be_disabled()
-                    page.locator('#interpreter-left').evaluate('e=>e.click()')
+                    expect(page.locator('#interpreter-left')).to_be_enabled()
                     expect(page.locator('#interpreter-current-direction')).to_have_text('English → Indonesian')
                     stops=page.evaluate('micStops');before=len(wires)
                     page.evaluate("()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));}")

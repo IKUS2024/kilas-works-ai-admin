@@ -1,0 +1,121 @@
+"""2026 studio acceptance: local-only browser regression, never sends messages."""
+import functools, http.server, json, shutil, threading
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+from playwright.sync_api import sync_playwright, expect
+
+
+def main():
+    root=Path(__file__).resolve().parents[2]
+    output=Path('/tmp/creative-rate-card-qa');output.mkdir(exist_ok=True)
+    class Quiet(http.server.SimpleHTTPRequestHandler):
+        def log_message(self,*args):pass
+    server=http.server.ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=str(root/'creative-services-site')))
+    threading.Thread(target=server.serve_forever,daemon=True).start()
+    origin=f'http://127.0.0.1:{server.server_port}'
+    reports=[]
+    def verify_media(page, selector, count):
+        cards = page.locator(selector)
+        assert cards.count() == count
+        for card in cards.all():
+            img = card.locator('img')
+            assert img.count() == 1
+            img.scroll_into_view_if_needed()
+            expect(img).to_be_visible()
+            page.wait_for_function('(e)=>e.complete&&e.naturalWidth>0', arg=img.element_handle())
+            size = img.evaluate('(e)=>({w:e.getBoundingClientRect().width,h:e.getBoundingClientRect().height,fit:getComputedStyle(e).objectFit})')
+            assert abs(size['w']/size['h']-16/9)<.03, size
+            assert size['fit']=='cover', size
+            assert size['w'] >= card.evaluate('e=>e.getBoundingClientRect().width')-4, size
+
+    try:
+        with sync_playwright() as p:
+            browser=p.chromium.launch(headless=True,executable_path=shutil.which('chromium'),args=['--no-sandbox'])
+            for width in (320,393,820,1440):
+                ctx=browser.new_context(viewport={'width':width,'height':900},reduced_motion='reduce')
+                ctx.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
+                page=ctx.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+                page.goto(origin,wait_until='networkidle')
+                for lang in ('id','en','es','zh'):
+                    page.locator('[data-cs-language='+lang+']').click()
+                    assert page.locator('html').get_attribute('lang')==lang
+                    for sid in ('event','social','commercial','editing'):
+                        page.goto(origin+'/#cs-'+sid,wait_until='networkidle')
+                        expect(page.locator('#cs-'+sid)).to_be_visible()
+                        expect(page.locator('#cs-service-choices')).to_be_hidden()
+                        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(width,lang,sid)
+                        assert page.locator('.cs-panel:visible').count()==1
+                        assert page.locator('#cs-'+sid+' h1').evaluate('e=>e.getBoundingClientRect().top')>=page.locator('.header').evaluate('e=>e.getBoundingClientRect().bottom'),(width,lang,sid,'covered')
+                        if sid=='editing':
+                            expect(page.locator('#cs-editing')).to_contain_text('Rp250.000')
+                            expect(page.locator('#cs-editing')).to_contain_text('Basic Social Media Editing')
+                            assert page.locator('#cs-editing .cs-card').count()==4
+                            expect(page.locator('#cs-editing')).to_contain_text('Rp350.000–Rp500.000')
+                            expect(page.locator('#cs-editing')).to_contain_text('Rp600.000–Rp900.000')
+                            expect(page.locator('#cs-editing')).to_contain_text('Rp1.500.000')
+                        verify_media(page, '#cs-'+sid+' .cs-card', 4 if sid in ('commercial','editing') else 3)
+                        tabs=page.locator('#cs-'+sid+' .cs-service-tabs')
+                        assert tabs.locator('a').count()==4 and tabs.locator('.cs-tab-icon').count()==4
+                        expect(tabs.locator('a[aria-current]')).to_have_attribute('href','#cs-'+sid)
+                        grid=tabs.evaluate('(e)=>({display:getComputedStyle(e).display,columns:getComputedStyle(e).gridTemplateColumns.split(" ").length})')
+                        assert grid=={'display':'grid','columns':2 if width<=900 else 4},grid
+                        for tab in tabs.locator('a').all():
+                            assert tab.evaluate('(e)=>e.getBoundingClientRect().height')>=44
+                            assert tab.evaluate('(e)=>e.scrollWidth<=e.clientWidth')
+                        if lang=='id' and width in (393,1440):tabs.screenshot(path=str(output/f'tabs-{sid}-{width}.png'))
+
+                        assert page.locator('[data-checkout]').count()==0
+                        for quote in page.locator('#cs-'+sid+' [data-quote-choice]').all():
+                            selected=quote.get_attribute('data-service-'+lang)
+                            url=urlsplit(quote.get_attribute('href'))
+                            assert url.scheme=='https' and url.netloc=='wa.me' and url.path=='/6282213039137'
+                            assert selected in parse_qs(url.query)['text'][0]
+                            assert quote.get_attribute('target')=='_blank'
+                            # Observe actual click target without making any request to WhatsApp.
+                            quote.evaluate("e=>e.addEventListener('click',event=>{event.preventDefault();window.__qaWhatsApp=e.href},{once:true})")
+                            quote.click()
+                            assert page.evaluate('window.__qaWhatsApp')==quote.get_attribute('href')
+                            expect(page).to_have_url(origin+'/#cs-'+sid)
+                        if lang=='id' and width in (393,1440):
+                            page.goto(origin+'/#cs-'+sid,wait_until='networkidle')
+                            page.screenshot(path=str(output/f'{sid}-{width}.png'),full_page=True)
+                    page.goto(origin,wait_until='networkidle')
+                    verify_media(page, '[data-service-choice]', 4)
+                    for dest in ('#portfolio','#service-list','#portfolio','#contact','#service-list'):
+                        if width<=1100:page.locator('[data-cs-menu]').click()
+                        page.locator('#studio-navigation a[href="'+dest+'"]').click()
+                        expect(page).to_have_url(origin+'/'+dest)
+                        assert page.locator('.header').get_attribute('class')=='header'
+                        top=page.locator(dest).evaluate('e=>e.getBoundingClientRect().top')
+                        bottom=page.locator('.header').evaluate('e=>e.getBoundingClientRect().bottom')
+                        assert top>=bottom-1,(width,lang,dest,top,bottom)
+                    # Same destination click must still navigate and close the menu.
+                    if width<=1100:page.locator('[data-cs-menu]').click()
+                    page.locator('#studio-navigation a[href="#service-list"]').click()
+                    assert page.locator('.header').get_attribute('class')=='header'
+                    page.locator('[data-service-choice=event]').click()
+                    page.locator('#cs-event .cs-service-tabs a[href="#cs-commercial"]').click()
+                    expect(page.locator('#cs-commercial')).to_be_visible()
+                    page.go_back();expect(page.locator('#cs-event')).to_be_visible()
+                    page.go_forward();expect(page.locator('#cs-commercial')).to_be_visible()
+                    page.locator('#cs-commercial .cs-back-services').click()
+                    expect(page.locator('#cs-service-choices')).to_be_visible()
+                    page.locator('#cs-brief-needs').fill('Synthetic brief, do not send.')
+                    page.locator('.cs-brief-prepare').click()
+                    assert 'Synthetic brief, do not send.' in page.locator('#cs-brief-message').input_value()
+                    assert 'Synthetic brief' in parse_qs(urlsplit(page.locator('#cs-contact-whatsapp').get_attribute('href')).query)['text'][0]
+                    if width<=1100:
+                        page.locator('[data-cs-menu]').click();page.keyboard.press('Escape')
+                        expect(page.locator('[data-cs-menu]')).to_have_attribute('aria-expanded','false')
+                    page.goto(origin,wait_until='networkidle')
+                    assert page.locator('[data-cs-id][data-cs-en]').evaluate_all('(es)=>es.every(e=>e.textContent===e.getAttribute("data-cs-"+document.documentElement.lang))')
+                    if lang=='id' and width in (393,1440):page.screenshot(path=str(output/f'home-{width}.png'),full_page=True)
+                    assert not errors,errors
+                    reports.append({'width':width,'language':lang,'views':4,'result':'PASS'})
+                ctx.close()
+            browser.close()
+        (output/'results.json').write_text(json.dumps(reports,indent=2))
+        print('PASS: 64 detail views, 16 home states, anchors/menu/back/forward, all 14 direct WhatsApp targets, four languages, all 18 service/package images proportional and no checkout links; no external sends.')
+    finally:server.shutdown()
+
+if __name__=='__main__':main()

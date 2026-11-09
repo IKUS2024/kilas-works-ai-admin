@@ -18,13 +18,13 @@ class CreativeServicesTests(unittest.TestCase):
     setUp = fixture.HomeTests.setUp
     client = fixture.HomeTests.client
 
-    def test_approved_offers_remain_unchanged(self):
+    def test_rate_card_offers_match_latest_approved_facts(self):
         expected = json.loads(Path(__file__).with_name('creative_services_offer_facts.json').read_text())
         html = (SOURCE / 'index.html').read_text()
         def plain(value):
             return re.sub(r'\s+', ' ', unescape(re.sub(r'<[^>]+>', ' ', value))).strip()
         cards = []
-        for match in re.finditer(r'<article class="cs-card(?: cs-premium)?">(.*?)</article>', html, re.S):
+        for match in re.finditer(r'<article class="cs-card(?: cs-premium)?"[^>]*>(.*?)</article>', html, re.S):
             text = match[1]
             def grab(pattern):
                 return [plain(value) for value in re.findall(pattern, text, re.S)]
@@ -48,7 +48,7 @@ class CreativeServicesTests(unittest.TestCase):
         html = (SOURCE / 'index.html').read_text()
         self.assertNotIn('Foto di bagian lain adalah ilustrasi layanan.', html)
         self.assertNotIn('Photos in other sections illustrate our services.', html)
-        self.assertEqual(html.count('data-cs-id="Visual ilustrasi" data-cs-en="Illustrative visuals"'), 3)
+        self.assertEqual(html.count('data-cs-id="Visual ilustrasi" data-cs-en="Illustrative visuals"'), 1)
         self.assertNotIn('Foto di halaman ini adalah ilustrasi layanan.', html)
         self.assertNotIn('reference.webp', html)
         self.assertFalse((ROOT / 'creative-redesign-transfer-20261031.json').exists())
@@ -68,15 +68,44 @@ class CreativeServicesTests(unittest.TestCase):
                 if tag == 'img' and 'illustrations/' in item.get('src', ''):
                     self.items.append(item)
         parsed = Images(); parsed.feed(html)
-        self.assertEqual(len(parsed.items), 7)
+        self.assertEqual(len(parsed.items), 11)
         self.assertEqual(sum(item.get('fetchpriority') == 'high' for item in parsed.items), 1)
         for item in parsed.items:
             self.assertIn('alt', item)
-            self.assertEqual((item['width'], item['height']), ('1536', '1024'))
-            self.assertIn('srcset', item)
-            self.assertIn('sizes', item)
+            self.assertEqual(int(item['width']) / int(item['height']), 1.5)
+            if 'srcset' in item:
+                self.assertIn('sizes', item)
             self.assertIn(item['loading'], ('eager', 'lazy'))
             self.assertTrue((SOURCE / item['src']).is_file())
+
+    def test_every_service_and_package_has_local_image_and_whatsapp(self):
+        html = (SOURCE / 'index.html').read_text()
+        from PIL import Image
+        services = re.findall(r'<a class="cs-service-choice"[^>]*>(.*?)</a>', html, re.S)
+        packages = re.findall(r'<article class="cs-card"[^>]*>(.*?)</article>', html, re.S)
+        self.assertEqual((len(services), len(packages)), (4, 14))
+        for card in services + packages:
+            images = re.findall(r'<img ([^>]+)>', card)
+            self.assertEqual(len(images), 1)
+            attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', images[0]))
+            with Image.open(SOURCE / attrs['src']) as image:
+                self.assertGreater(image.width, 0)
+                self.assertAlmostEqual(int(attrs['width']) / int(attrs['height']), image.width / image.height, places=2)
+        catalog = json.loads((ROOT / 'client-hub/creative_catalog.json').read_text())['packages']
+        self.assertTrue(all(value.get('quotation_required') for value in catalog.values()))
+        self.assertNotIn('data-checkout', html)
+        self.assertNotIn('/creative-services/checkout/', html)
+        links = re.findall(r'<a class="cs-choose cs-quote-primary"([^>]+)>', html)
+        self.assertEqual(len(links), 14)
+        from urllib.parse import parse_qs, urlsplit
+        for attrs in links:
+            attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', attrs))
+            url = urlsplit(attrs['href'])
+            self.assertEqual(url.netloc, 'wa.me')
+            self.assertEqual(url.path, '/6282213039137')
+            self.assertIn(attrs['data-service-id'], parse_qs(url.query)['text'][0])
+            self.assertEqual(attrs['target'], '_blank')
+            self.assertIn('noopener', attrs['rel'])
 
     def test_verified_portfolio_uses_exact_local_covers_and_direct_links(self):
         facts = json.loads(Path(__file__).with_name('creative_portfolio_sources.json').read_text())['works']

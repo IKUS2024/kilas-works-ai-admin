@@ -30,15 +30,29 @@ def money(amount):
     return 'Rp' + format(int(amount), ',').replace(',', '.')
 
 
+def requires_quote(item):
+    return bool(item.get('quotation_required') or item.get('price_type') in
+                ('reference', 'range', 'starting_from', 'quote_only') or item.get('amount') is None)
+
+
+def checkout_addons(service):
+    return {key: value for key, value in CATALOG['addons'].items()
+            if key == 'none' or (value.get('service') == service and not requires_quote(value))}
+
+
 def offer(key, addon='none'):
     if key not in CATALOG['packages'] or addon not in CATALOG['addons']:
         raise ValueError('Pilihan paket tidak tersedia.')
     result = dict(CATALOG['packages'][key])
-    if result['service'] != 'social' and addon != 'none':
-        raise ValueError('Add-on influencer hanya tersedia untuk paket media sosial.')
     extra = CATALOG['addons'][addon]
+    if addon != 'none' and result['service'] != extra.get('service'):
+        raise ValueError('Add-on hanya tersedia untuk layanan editing.')
+    # Reference prices are not payable totals. Percentage/custom items need a quote.
+    quote_required = requires_quote(result) or (addon != 'none' and requires_quote(extra))
+    total = None if quote_required else result['amount'] + extra['amount']
+    result['quotation_required'] = quote_required
     result.update(key=key, addon=addon, addon_name=extra['name'], addon_amount=extra['amount'],
-                  total=result['amount'] + extra['amount'])
+                  total=total)
     return result
 
 
@@ -59,7 +73,8 @@ def validate_fields(form, service):
               'location':'Lokasi acara', 'brand':'Nama bisnis / brand', 'social_account':'Akun media sosial',
               'notes':'Catatan'}
     fields = {key: (form.get(key) or '').strip() for key in labels}
-    required = ['name', 'whatsapp'] + (['event_date', 'location'] if service == 'event' else ['brand', 'social_account'])
+    required = ['name', 'whatsapp'] + (['event_date', 'location'] if service == 'event' else
+                                        ['brand', 'social_account'] if service == 'social' else ['brand'])
     for key, value in fields.items():
         if key in required and not value:
             raise ValueError(labels[key] + ' wajib diisi.')
@@ -96,9 +111,11 @@ def create_order(user_id, key, form):
         previous = find_draft(user_id, token['nonce'])
         if previous:
             return payment_service.get_latest_invoice_for_project(previous['id'])['id']
+        selected = offer(key, form.get('addon', 'none'))
+        if selected['quotation_required']:
+            raise ValueError('Paket ini memerlukan quotation tertulis sebelum invoice dapat dibuat.')
         if token.get('catalog_version') != catalog_version():
             raise ValueError('Pilihan atau harga paket berubah. Buka kembali paket untuk melihat harga terbaru.')
-        selected = offer(key, form.get('addon', 'none'))
         customer = validate_fields(form, selected['service'])
         snapshot = dict(selected, bank=dict(BANK), customer=customer, checkout_nonce=token['nonce'], creative_order=1)
         pid = projects_repo.create_fixed_price_project(None, {
