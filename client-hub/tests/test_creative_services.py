@@ -78,7 +78,7 @@ class CreativeServicesTests(unittest.TestCase):
             self.assertIn(item['loading'], ('eager', 'lazy'))
             self.assertTrue((SOURCE / item['src']).is_file())
 
-    def test_every_service_and_package_has_local_image_and_checkout(self):
+    def test_every_service_and_package_has_local_image_and_whatsapp(self):
         html = (SOURCE / 'index.html').read_text()
         from PIL import Image
         services = re.findall(r'<a class="cs-service-choice"[^>]*>(.*?)</a>', html, re.S)
@@ -92,10 +92,20 @@ class CreativeServicesTests(unittest.TestCase):
                 self.assertGreater(image.width, 0)
                 self.assertAlmostEqual(int(attrs['width']) / int(attrs['height']), image.width / image.height, places=2)
         catalog = json.loads((ROOT / 'client-hub/creative_catalog.json').read_text())['packages']
-        payable = [key for key, value in catalog.items() if not value.get('quotation_required')]
-        self.assertEqual(re.findall(r'data-checkout="([^"]+)"', html), payable)
-        for key in payable:
-            self.assertIn('href="https://app.kilasworks.id/creative-services/checkout/' + key + '"', html)
+        self.assertTrue(all(value.get('quotation_required') for value in catalog.values()))
+        self.assertNotIn('data-checkout', html)
+        self.assertNotIn('/creative-services/checkout/', html)
+        links = re.findall(r'<a class="cs-choose cs-quote-primary"([^>]+)>', html)
+        self.assertEqual(len(links), 14)
+        from urllib.parse import parse_qs, urlsplit
+        for attrs in links:
+            attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', attrs))
+            url = urlsplit(attrs['href'])
+            self.assertEqual(url.netloc, 'wa.me')
+            self.assertEqual(url.path, '/6282213039137')
+            self.assertIn(attrs['data-service-id'], parse_qs(url.query)['text'][0])
+            self.assertEqual(attrs['target'], '_blank')
+            self.assertIn('noopener', attrs['rel'])
 
     def test_verified_portfolio_uses_exact_local_covers_and_direct_links(self):
         facts = json.loads(Path(__file__).with_name('creative_portfolio_sources.json').read_text())['works']
