@@ -14,6 +14,20 @@ def main():
     threading.Thread(target=server.serve_forever,daemon=True).start()
     origin=f'http://127.0.0.1:{server.server_port}'
     reports=[]
+    def verify_media(page, selector, count):
+        cards = page.locator(selector)
+        assert cards.count() == count
+        for card in cards.all():
+            img = card.locator('img')
+            assert img.count() == 1
+            img.scroll_into_view_if_needed()
+            expect(img).to_be_visible()
+            page.wait_for_function('(e)=>e.complete&&e.naturalWidth>0', arg=img.element_handle())
+            size = img.evaluate('(e)=>({w:e.getBoundingClientRect().width,h:e.getBoundingClientRect().height,fit:getComputedStyle(e).objectFit})')
+            assert abs(size['w']/size['h']-16/9)<.03, size
+            assert size['fit']=='cover', size
+            assert size['w'] >= card.evaluate('e=>e.getBoundingClientRect().width')-4, size
+
     try:
         with sync_playwright() as p:
             browser=p.chromium.launch(headless=True,executable_path=shutil.which('chromium'),args=['--no-sandbox'])
@@ -39,6 +53,10 @@ def main():
                             expect(page.locator('#cs-editing')).to_contain_text('Rp350.000–Rp500.000')
                             expect(page.locator('#cs-editing')).to_contain_text('Rp600.000–Rp900.000')
                             expect(page.locator('#cs-editing')).to_contain_text('Rp1.500.000')
+                        verify_media(page, '#cs-'+sid+' .cs-card', 4 if sid in ('commercial','editing') else 3)
+                        for checkout in page.locator('#cs-'+sid+' [data-checkout]').all():
+                            key=checkout.get_attribute('data-checkout')
+                            assert checkout.get_attribute('href')=='https://app.kilasworks.id/creative-services/checkout/'+key
                         quote=page.locator('#cs-'+sid+' [data-quote-choice]').first
                         selected=quote.get_attribute('data-service-'+lang)
                         quote.click()
@@ -50,6 +68,7 @@ def main():
                             page.goto(origin+'/#cs-'+sid,wait_until='networkidle')
                             page.screenshot(path=str(output/f'{sid}-{width}.png'),full_page=True)
                     page.goto(origin,wait_until='networkidle')
+                    verify_media(page, '[data-service-choice]', 4)
                     for dest in ('#portfolio','#service-list','#portfolio','#contact','#service-list'):
                         if width<=1100:page.locator('[data-cs-menu]').click()
                         page.locator('#studio-navigation a[href="'+dest+'"]').click()
@@ -84,7 +103,7 @@ def main():
                 ctx.close()
             browser.close()
         (output/'results.json').write_text(json.dumps(reports,indent=2))
-        print('PASS: 64 detail views, 16 home states, anchors/menu/back/forward, selected quote, four languages, no external sends.')
+        print('PASS: 64 detail views, 16 home states, anchors/menu/back/forward, selected quote, four languages, all 18 service/package images proportional and checkout links present; no external sends.')
     finally:server.shutdown()
 
 if __name__=='__main__':main()

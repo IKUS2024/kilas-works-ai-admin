@@ -18,3 +18,21 @@
 @media(max-width:359px){.cs-service-choice{grid-template-columns:76px minmax(0,1fr)}.studio-service-content{padding:16px 12px}.studio-service-type{padding:12px}.studio-service-type svg{width:44px;height:44px}.cs-service-choice h3{font-size:18px}.cs-choose{padding:12px}.cs-service-tabs a{font-size:11px}}
 @media(prefers-reduced-motion:reduce){.cs-service-choice{transition:none}}
 .cs-editing-packages{margin-top:32px}.cs-editing-packages .cs-price{font-size:clamp(24px,2.4vw,32px);overflow-wrap:anywhere}.cs-editing-use{font-size:14px;color:var(--muted);line-height:1.7;margin-top:20px}.cs-editing-packages .cs-price>span{display:block}
+
+/* Every service and package has a wide, proportional image at every viewport. */
+.cs-service-choice{display:flex;flex-direction:column;align-items:stretch;gap:0;padding:0}
+.studio-service-visual{width:100%;height:auto;min-height:0;aspect-ratio:16/9;flex:none;overflow:hidden}
+.studio-service-visual img,.cs-package-visual img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}
+.studio-service-content{display:flex;flex:1;flex-direction:column;padding:22px}
+.cs-service-choice .studio-service-link{margin-top:auto;padding-top:20px;min-height:44px}
+.cs-card,.cs-card+.cs-card{padding:0;overflow:hidden}
+.cs-package-visual{width:100%;aspect-ratio:16/9;overflow:hidden;background:#eee9df;flex:none}
+.cs-card>:not(.cs-package-visual){margin-left:24px;margin-right:24px}
+.cs-card-top{margin-top:24px}
+.cs-checkout{background:var(--studio-action);border-color:var(--studio-action);color:#fff;min-height:48px;justify-content:space-between}
+.cs-checkout:hover{background:var(--studio-action-hover);border-color:var(--studio-action-hover);color:#fff}
+.cs-consult-link{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;padding:10px 0;font-size:13px;margin-top:8px;margin-bottom:18px;color:var(--muted);text-decoration:underline;text-underline-offset:4px}
+.cs-consult-link .cs-icon{width:16px;height:16px}
+@media(max-width:700px){.cs-service-choice{display:flex;grid-template-columns:none;padding:0;gap:0}.studio-service-visual{height:auto;min-height:0;aspect-ratio:16/9}.studio-service-content{padding:22px}.cs-service-choice h3{font-size:24px}.cs-service-choice p{font-size:15px}.cs-service-choice .cs-start-price{font-size:14px;margin-top:16px}.cs-start-price strong{font-size:19px}.cs-service-choice .studio-service-link{font-size:14px;padding-top:18px}.cs-card>:not(.cs-package-visual){margin-left:22px;margin-right:22px}.cs-card-top{margin-top:22px}}
+
+.cs-quote-primary{margin-bottom:24px;min-height:48px;justify-content:space-between}

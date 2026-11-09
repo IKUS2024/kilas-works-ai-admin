@@ -1,4 +1,4 @@
-"""Current quote-only catalog and historical payment preservation; isolated SQLite."""
+"""Current fixed-price/quote catalog and historical payment preservation; isolated SQLite."""
 import io
 import json
 import unittest
@@ -22,7 +22,7 @@ class CreativeQuotationTests(auth_fixture.CustomerAuthTests):
         return {table:self.db.query_one(f'SELECT COUNT(*) n FROM {table}')['n']
                 for table in ('projects','invoices','payments','project_files')}
 
-    def test_current_prices_and_all_packages_require_quote(self):
+    def test_current_prices_and_final_price_requirement(self):
         expected = {'creative_event_basic':2000000,'creative_event_standard':4500000,
                     'creative_event_premium':7500000,'creative_social_basic':3500000,
                     'creative_social_standard':6000000,'creative_social_premium':9000000}
@@ -32,10 +32,16 @@ class CreativeQuotationTests(auth_fixture.CustomerAuthTests):
         self.assertEqual(orders.offer('creative_editing_1m')['name'],'Basic Social Media Editing')
         self.assertEqual([k for k in orders.CATALOG['packages'] if k.startswith('creative_editing_')],['creative_editing_1m','creative_editing_advanced','creative_editing_premium','creative_editing_professional'])
         self.assertEqual(len(orders.CATALOG['packages']),14)
+        self.assertEqual(sum(not orders.offer(key)['quotation_required'] for key in orders.CATALOG['packages']),9)
         self.assertEqual(self.client.get('/creative-services/checkout/creative_editing_5_10m').status_code,404)
         for key in orders.CATALOG['packages']:
-            self.assertTrue(orders.offer(key)['quotation_required'])
-            self.assertIsNone(orders.offer(key)['total'])
+            spec=orders.offer(key)
+            if spec['price_type']=='fixed':
+                self.assertFalse(spec['quotation_required'])
+                self.assertEqual(spec['total'],spec['amount'])
+            else:
+                self.assertTrue(spec['quotation_required'])
+                self.assertIsNone(spec['total'])
         self.assertNotIn('mega',orders.CATALOG['addons'])
         self.assertNotIn('color',orders.CATALOG['addons'])
         self.assertEqual(orders.CATALOG['addons']['bilingual']['price_type'],'starting_from')
@@ -59,10 +65,10 @@ class CreativeQuotationTests(auth_fixture.CustomerAuthTests):
         self.assertIn('Scope dan durasi sesuai brief',page.text)
         self.assertNotIn('Durasi maksimal 1 menit',page.text)
         for key in ('creative_editing_1m','creative_editing_advanced','creative_editing_premium','creative_editing_professional'):
-            page=self.client.get('/creative-services/checkout/'+key)
+            page=self.client.get('/creative-services/checkout/'+key,follow_redirects=True)
             for term in orders.offer(key)['scope_notes']:
                 self.assertIn(term,page.text)
-            self.assertNotIn('data-checkout-form',page.text)
+            self.assertEqual('data-checkout-form' in page.text, not orders.offer(key)['quotation_required'])
 
     def test_anonymous_legacy_links_show_current_quote_without_order_form(self):
         client=self.app.test_client();client.set_cookie('kilas_language','id')
@@ -70,23 +76,27 @@ class CreativeQuotationTests(auth_fixture.CustomerAuthTests):
         for key in orders.CATALOG['packages']:
             response=client.get('/creative-services/checkout/'+key)
             self.assertEqual(response.status_code,200,response.text)
-            self.assertIn('quotation tertulis',response.text)
-            self.assertIn('https://wa.me/6282213039137?',response.text)
-            self.assertNotIn('data-checkout-form',response.text)
-            self.assertNotIn('name="order_token"',response.text)
+            if orders.offer(key)['quotation_required']:
+                self.assertIn('quotation tertulis',response.text)
+                self.assertIn('https://wa.me/6282213039137?',response.text)
+                self.assertNotIn('data-checkout-form',response.text)
+                self.assertNotIn('name="order_token"',response.text)
+            else:
+                self.assertIn('data-checkout-form',response.text)
             if orders.offer(key)['amount'] is not None:
                 self.assertIn(orders.money(orders.offer(key)['amount']),response.text)
         response=client.get('/creative-services/checkout/creative_social_premium?addon=mega')
         self.assertEqual(response.status_code,200)
         self.assertIn('Rp9.000.000',response.text)
         self.assertNotIn('Influencer',response.text)
-        self.assertIn('dibayar di muka',response.text)
         self.assertEqual(client.get(self.path+'/login').status_code,303)
         self.assertEqual(before,self.counts())
 
     def test_direct_post_and_service_calls_cannot_create_new_invoices(self):
         before=self.counts()
         for key in orders.CATALOG['packages']:
+            if not orders.offer(key)['quotation_required']:
+                continue
             with self.app.app_context():
                 token=orders.checkout_token(self.owner,key)
                 with self.assertRaisesRegex(ValueError,'quotation tertulis'):
@@ -99,6 +109,64 @@ class CreativeQuotationTests(auth_fixture.CustomerAuthTests):
             self.assertIn('quotation tertulis',response.text)
             self.assertNotIn('data-checkout-form',response.text)
         self.assertEqual(before,self.counts())
+
+    def test_current_fixed_price_checkout_snapshot_ownership_and_replay(self):
+        import re
+        with self.client.session_transaction() as state:
+            state['active_product']='finance'
+        for key,spec in orders.CATALOG['packages'].items():
+            if orders.offer(key)['quotation_required']:
+                continue
+            path='/creative-services/checkout/'+key
+            page=self.client.get(path,follow_redirects=True)
+            self.assertEqual(page.status_code,200)
+            token=re.search('name="order_token" value="([^"]+)"',page.text)[1]
+            data={'order_token':token,'csrf_token':self.csrf(self.client),'name':'Synthetic',
+                  'whatsapp':'081234567890','event_date':'2099-12-01','location':'Test venue',
+                  'brand':'Test brand','social_account':'@test'}
+            if spec['service'] in ('commercial','editing'):
+                data.pop('social_account')
+                self.assertNotIn('name="social_account"',page.text)
+            before=self.counts()
+            denied=self.client.post(path,data=dict(data,csrf_token='invalid-synthetic-csrf'))
+            self.assertIn(denied.status_code,(400,403))
+            self.assertEqual(self.counts(),before)
+            forged=self.client.post(path,data=dict(data,order_token='invalid-synthetic-order'))
+            self.assertEqual(forged.status_code,422)
+            self.assertEqual(self.counts(),before)
+            response=self.client.post(path,data=data)
+            self.assertEqual(response.status_code,303,response.text)
+            invoice_id=int(response.location.rsplit('/',1)[1])
+            invoice=payment_service.get_invoice(invoice_id)
+            project=projects_repo.get_project(invoice['project_id'])
+            snapshot=deepcopy(project['requirements'])
+            self.assertEqual(invoice['amount'],spec['amount'])
+            self.assertEqual(snapshot['total'],spec['amount'])
+            counts=self.counts()
+            replay=self.client.post(path,data=data)
+            self.assertEqual(replay.location,response.location)
+            self.assertEqual(self.counts(),counts)
+            self.assertEqual(self.client.get(response.location).status_code,200)
+            self.assertEqual(self.base.client(self.other).get(response.location).status_code,404)
+            self.assertEqual(projects_repo.get_project(invoice['project_id'])['requirements'],snapshot)
+        with self.client.session_transaction() as state:
+            self.assertEqual(state['active_product'],'finance')
+
+    def test_nonfinal_addons_and_ranges_cannot_charge_minimum(self):
+        before=self.counts()
+        with self.app.app_context():
+            for addon in ('motion','bilingual','urgent','revision'):
+                self.assertTrue(orders.offer('creative_editing_1m',addon)['quotation_required'])
+                with self.assertRaisesRegex(ValueError,'quotation tertulis'):
+                    orders.create_order(self.owner,'creative_editing_1m',{
+                        'order_token':orders.checkout_token(self.owner,'creative_editing_1m'),'addon':addon})
+            for key in ('creative_editing_advanced','creative_editing_professional'):
+                with patch.dict(orders.CATALOG['packages'][key],quotation_required=False):
+                    self.assertTrue(orders.offer(key)['quotation_required'])
+                    with self.assertRaisesRegex(ValueError,'quotation tertulis'):
+                        orders.create_order(self.owner,key,{'order_token':orders.checkout_token(self.owner,key)})
+        self.assertEqual(before,self.counts())
+        self.assertEqual(list(orders.checkout_addons('editing')),['none'])
 
     def test_historical_snapshot_invoice_proof_and_nonce_replay_are_preserved(self):
         legacy=deepcopy(orders.CATALOG)
@@ -137,7 +205,7 @@ class CreativeQuotationTests(auth_fixture.CustomerAuthTests):
         from creative_i18n import CATALOG
         for lang in ('id','en','es','zh'):
             self.client.set_cookie('kilas_language',lang)
-            response=self.client.get(self.path)
+            response=self.client.get('/creative-services/checkout/creative_editing_advanced')
             self.assertEqual(response.status_code,200)
             self.assertIn(CATALOG['Harga referensi / draft'][lang],response.text)
             self.assertIn(CATALOG['DP 50% setelah quotation disepakati; pelunasan 50% sebelum hasil diserahkan.'][lang],response.text)
