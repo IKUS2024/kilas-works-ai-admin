@@ -1,13 +1,21 @@
 """SaaS control center and explicit, scoped support sessions."""
-from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
+import io
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, session, url_for
 import db
 import repo
 import security
 import platform_control as control
 import platform_console as console
+import platform_payments as payments
 import assist_connections as connections
 
 platform_bp=Blueprint('platform_control',__name__,url_prefix='/platform')
+
+
+@platform_bp.after_request
+def private_console(response):
+    response.headers['Cache-Control']='private, no-store'
+    return response
 
 
 @platform_bp.get('/')
@@ -21,9 +29,9 @@ def page(section='overview'):
         try: page_number=max(1,min(1000,int(request.args.get('page','1'))))
         except ValueError: page_number=1
         data=(console.overview() if section=='overview' else
-              console.customers(query,product or ('ai' if section=='kilas-ai' else ''),status,page_number) if section in ('customers','kilas-ai') else
+              console.customers(query,product or ('ai' if section=='kilas-ai' else 'translator' if section=='translator' else ''),status,page_number) if section in ('customers','kilas-ai','translator') else
               console.finance_businesses(query,page_number) if section=='finance' else
-              console.payments() if section=='payments' else
+              payments.queue(product,status,query,page_number) if section=='payments' else
               console.usage_cost() if section=='usage-cost' else console.settings())
         return render_template('platform_console.html',section=section,sections=console.SECTIONS,
                                data=data,query=query,product=product,status=status)
@@ -33,6 +41,35 @@ def page(section='overview'):
     return render_template('platform_control.html',section=section,sections=control.SECTIONS,rows=rows,
         metrics=control.overview(rows) if section=='overview' else {},economics=economics,
         system=control.system() if section=='system' else {},plans=__import__('pricing_config').ASSIST_PLANS)
+
+
+@platform_bp.get('/payments/<kind>/<int:payment_id>/proof')
+@security.admin_required
+def payment_proof(kind,payment_id):
+    item=payments.proof(kind,payment_id)
+    if not item or not item['proof_content']:abort(404)
+    if item['proof_mime_type'] not in ('image/jpeg','image/png','image/webp','image/gif','application/pdf'):abort(404)
+    response=send_file(io.BytesIO(bytes(item['proof_content'])),mimetype=item['proof_mime_type'],
+                       download_name=item['proof_filename'] or 'bukti-pembayaran',as_attachment=False)
+    response.headers['Cache-Control']='private, no-store'
+    response.headers['X-Content-Type-Options']='nosniff'
+    response.headers['Content-Security-Policy']="default-src 'none'; sandbox"
+    return response
+
+
+@platform_bp.post('/payments/<kind>/<int:payment_id>/review')
+@security.admin_required
+def payment_review(kind,payment_id):
+    decision=request.form.get('decision','')
+    if kind not in dict(payments.PRODUCTS) or decision not in ('VERIFIED','REJECTED'):abort(400)
+    try:
+        payments.review(kind,payment_id,security.current_user()['id'],decision,request.form.get('note',''))
+    except ValueError:
+        flash('Pembayaran belum dapat diproses. Periksa bukti dan status terbaru. Tidak ada approval tambahan yang diperlukan.','error')
+    else:
+        flash('Pembayaran disetujui. Akses atau saldo sesuai tagihan sudah aktif.' if decision=='VERIFIED'
+              else 'Pembayaran ditolak. Akses dan saldo tidak ditambahkan.','success')
+    return redirect(url_for('platform_control.page',section='payments'),code=303)
 
 
 @platform_bp.get('/customers/<int:user_id>')

@@ -1,0 +1,47 @@
+<p class="console-intro">Cek bukti transfer, lalu klik Approve. Akses atau saldo sesuai tagihan langsung aktif, tanpa persetujuan kedua.</p>
+<nav class="console-tabs" aria-label="Status pembayaran">
+  <a href="{{ url_for('platform_control.page',section='payments') }}" {% if not data.history %}aria-current="page"{% endif %}>Perlu approval <span>{{ data.pending }}</span></a>
+  <a href="{{ url_for('platform_control.page',section='payments',status='history') }}" {% if data.history %}aria-current="page"{% endif %}>Riwayat</a>
+</nav>
+<form class="console-filter console-payment-filter" method="get">
+  {% if data.history %}<input type="hidden" name="status" value="history">{% endif %}
+  <div><label for="payment-query">Cari pembayaran</label><input id="payment-query" name="q" value="{{ query }}" placeholder="Nama, email, atau nomor tagihan"></div>
+  <div><label for="payment-product">Produk</label><select id="payment-product" name="product"><option value="">Semua produk</option>{% for key,label in data.products %}<option value="{{ key }}" {% if product==key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <button type="submit">Cari</button>
+</form>
+<section class="console-panel console-payments-panel" aria-label="Daftar pembayaran">
+  <div class="console-panel-head"><h2>{{ 'Riwayat pembayaran' if data.history else 'Menunggu persetujuan' }}</h2><span>{{ data.total }} tagihan</span></div>
+  {% for item in data.rows %}
+  <article class="console-payment" data-payment-kind="{{ item.kind }}" data-payment-id="{{ item.payment_id or '' }}">
+    <div class="console-payment-info">
+      <span class="console-badge">{{ item.product_label }}</span>
+      <h3>{{ item.full_name or item.email }}</h3><small>{{ item.email }}</small>
+      {% if item.business_name %}<small>{{ item.business_name }}</small>{% endif %}
+      <strong class="console-amount">Rp{{ '{:,.0f}'.format(item.amount_idr).replace(',','.') }}</strong>
+      <p class="console-note">{{ item.effect }}</p>
+      <small>{{ item.invoice_number }} · {{ item.created_at|humanize_timestamp }}</small>
+    </div>
+    <div class="console-review">
+      {% if item.status=='UNDER_REVIEW' and item.proof_ready and item.payment_id %}
+      <a class="console-proof" href="{{ url_for('platform_control.payment_proof',kind=item.kind,payment_id=item.payment_id) }}" target="_blank" rel="noopener">Lihat bukti transfer ↗</a>
+      <form method="post" action="{{ url_for('platform_control.payment_review',kind=item.kind,payment_id=item.payment_id) }}" data-payment-review>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="console-review-actions"><button type="submit" name="decision" value="VERIFIED">Approve</button><button class="console-reject" type="submit" name="decision" value="REJECTED">Tolak</button></div>
+        {% if item.kind!='finance' %}<details class="console-review-note"><summary>Tambah catatan (opsional)</summary><label class="console-sr-only" for="note-{{ item.kind }}-{{ item.payment_id }}">Catatan pembayaran {{ item.invoice_number }}</label><input id="note-{{ item.kind }}-{{ item.payment_id }}" name="note" maxlength="1000" placeholder="Catatan untuk customer"></details>{% endif %}
+      </form>
+      {% elif item.status=='UNDER_REVIEW' %}
+      <p class="console-note">Bukti transfer belum lengkap. Approval belum tersedia.</p>
+      {% else %}
+      <span class="console-status" data-status="{{ item.status }}">{{ item.status_label }}</span>
+      {% if item.reviewed_by %}<small>Admin #{{ item.reviewed_by }} · {{ item.updated_at|humanize_timestamp }}</small>{% endif %}
+      {% if item.note %}<p class="console-note">{{ item.note }}</p>{% endif %}
+      {% if item.proof_ready and item.payment_id %}<a class="console-proof" href="{{ url_for('platform_control.payment_proof',kind=item.kind,payment_id=item.payment_id) }}" target="_blank" rel="noopener">Lihat bukti transfer ↗</a>{% endif %}
+      {% endif %}
+    </div>
+  </article>
+  {% else %}
+  <div class="console-empty"><strong>{{ 'Tidak ada pembayaran sesuai filter.' if query or product else 'Belum ada riwayat pembayaran.' if data.history else 'Semua sudah ditangani.' }}</strong><p>{{ 'Coba nama, nomor tagihan, atau produk lain.' if query or product else 'Tagihan yang menunggu bukti dan keputusan admin akan tampil di sini.' if data.history else 'Pembayaran AI, Translator, Voice Over, dan Finance yang perlu approval akan muncul di sini.' }}</p></div>
+  {% endfor %}
+</section>
+{% if data.page>1 or data.has_next %}<nav class="console-pagination" aria-label="Halaman pembayaran">{% if data.page>1 %}<a href="{{ url_for('platform_control.page',section='payments',q=query,product=product,status=status,page=data.page-1) }}">← Sebelumnya</a>{% endif %}<span>Halaman {{ data.page }}</span>{% if data.has_next %}<a href="{{ url_for('platform_control.page',section='payments',q=query,product=product,status=status,page=data.page+1) }}">Berikutnya →</a>{% endif %}</nav>{% endif %}
+<p class="console-note">Nominal dan manfaat mengikuti tagihan asli. Kredit universal baru belum diaktifkan dari halaman ini.</p>
