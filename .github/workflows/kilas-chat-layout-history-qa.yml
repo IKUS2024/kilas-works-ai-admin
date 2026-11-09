@@ -1,0 +1,27 @@
+name: Kilas Chat layout and history QA
+on:
+  pull_request:
+    paths:
+      - 'client-hub/static/kilas_chat.css'
+      - 'client-hub/static/kilas_ai_agent_chat.js'
+      - 'client-hub/templates/kilas_ai/**'
+      - 'client-hub/tests/test_kilas_chat_bubble_browser.py'
+      - 'client-hub/tests/test_kilas_chat_history_race_browser.py'
+      - '.github/workflows/kilas-chat-layout-history-qa.yml'
+  push:
+    branches: ['fix/chat-layout-history-20261109']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  chat-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python client-hub/tests/test_kilas_chat_bubble_browser.py
+      - run: python client-hub/tests/test_kilas_chat_history_race_browser.py

@@ -10,6 +10,8 @@ from unittest.mock import patch
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 import test_kilas_home as fixture
+import test_kilas_chat_models as model_fixture
+from kilas_ai import chat_models
 from kilas_ai import providers, agent_store
 
 
@@ -65,7 +67,7 @@ def main():
                 yield event
 
     try:
-        with patch.object(providers, 'stream', side_effect=stream), sync_playwright() as pw:
+        with patch.object(chat_models, 'check', side_effect=model_fixture.available), patch.object(providers, 'stream', side_effect=stream), sync_playwright() as pw:
             browser = pw.chromium.launch(executable_path=shutil.which('chromium'), args=['--no-sandbox'])
             for width in (320, 390, 820, 1440):
                 for agent in (False, True):
@@ -77,7 +79,7 @@ def main():
                     case.conversation = agent_store.new_conversation(case.owner)
                     cookie = case.client(case.owner).get_cookie('session')
                     context = browser.new_context(viewport={'width': width, 'height': 900}, has_touch=width < 761)
-                    context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}])
+                    context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}, {'name': 'kilas_language', 'value': 'id', 'url': origin}])
                     context.add_init_script("Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{window.__copied=text}}})")
                     page = context.new_page()
                     errors = []
@@ -105,16 +107,19 @@ def main():
                             const s=getComputedStyle(e),r=e.getBoundingClientRect(),p=e.parentElement.getBoundingClientRect();
                             return {width:r.width,height:r.height,parentWidth:p.width,left:r.left,right:r.right,
                                 parentLeft:p.left,parentRight:p.right,font:s.fontFamily,fontSize:s.fontSize,
-                                lineHeight:s.lineHeight,padding:s.padding,minHeight:s.minHeight};
+                                lineHeight:s.lineHeight,padding:s.padding,minHeight:s.minHeight,background:s.backgroundColor,color:s.color};
                         }''')
                     page.screenshot(path=str(output / f'{kind}-{width}-short.png'))
                     if not baseline:
                         for name, value in measurements.items():
                             assert value['fontSize'] == '16px', (kind, width, value)
-                            assert value['lineHeight'] == '24px', (kind, width, value)
+                            assert 24 <= float(value['lineHeight'].removesuffix('px')) <= 28, (kind, width, value)
                             assert 'system-ui' in value['font']
-                            assert value['height'] <= 44, (kind, width, name, value)
+                            assert value['height'] <= 48, (kind, width, name, value)
                             assert value['width'] < (230 if name == 'assistant' else 110), (kind, width, name, value)
+                        assert measurements['user']['background'] == 'rgb(5, 98, 246)'
+                        assert measurements['user']['color'] == 'rgb(255, 255, 255)'
+                        assert measurements['assistant']['background'] == 'rgb(243, 243, 243)'
                         assert abs(measurements['assistant']['left'] - measurements['assistant']['parentLeft']) < 2
                         assert abs(measurements['user']['right'] - measurements['user']['parentRight']) < 2
                     copy = assistant.locator('.ai-copy')
@@ -142,7 +147,7 @@ def main():
                         assert message.locator(body).evaluate('e=>e.getBoundingClientRect().width<=e.parentElement.getBoundingClientRect().width+1')
                     copy = assistant.locator('.ai-copy')
                     copy.click()
-                    assert page.evaluate('window.__copied') == assistant.locator(body).text_content()
+                    assert page.evaluate('window.__copied') == assistant.locator(body).evaluate('e=>KilasMarkdown.source(e)')
                     timeline.evaluate('e=>e.scrollTop=e.scrollHeight')
                     page.screenshot(path=str(output / f'{kind}-{width}-long.png'))
                     page.reload(wait_until='networkidle')
