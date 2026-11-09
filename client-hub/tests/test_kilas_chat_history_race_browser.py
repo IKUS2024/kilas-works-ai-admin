@@ -28,7 +28,7 @@ def main():
                 conversation=agent_store.new_conversation(owner)
                 cookie=case.client(owner).get_cookie('session')
                 ctx=browser.new_context(viewport={'width':390,'height':844})
-                ctx.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin}])
+                ctx.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':'id','url':origin}])
                 ctx.add_init_script("""(()=>{const original=window.fetch;window.__race=%s;window.fetch=async(...args)=>{
                   const url=String(args[0]);
                   if(window.__race==='discovery'&&url.includes('/work/streams?conversation_id=')){

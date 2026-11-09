@@ -79,7 +79,7 @@ def main():
                     case.conversation = agent_store.new_conversation(case.owner)
                     cookie = case.client(case.owner).get_cookie('session')
                     context = browser.new_context(viewport={'width': width, 'height': 900}, has_touch=width < 761)
-                    context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}])
+                    context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin}, {'name': 'kilas_language', 'value': 'id', 'url': origin}])
                     context.add_init_script("Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{window.__copied=text}}})")
                     page = context.new_page()
                     errors = []
