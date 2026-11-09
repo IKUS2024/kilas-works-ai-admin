@@ -1,6 +1,6 @@
 {
   "source": "https://app.notion.com/p/Creative-Production-Rate-Card-2026-413aa064bd9881eb8898f58aa3920659",
-  "price_notice": "Harga referensi / draft. Harga final melalui quotation tertulis setelah scope disepakati.",
+  "price_notice": "Paket harga pasti dapat checkout. Harga rentang dan mulai dari memerlukan kesepakatan nominal final sebelum pembayaran.",
   "packages": {
     "creative_event_basic": {
       "service": "event",
@@ -14,8 +14,8 @@
         "50 foto diedit",
         "File digital resolusi tinggi"
       ],
-      "quotation_required": true,
-      "price_type": "reference",
+      "quotation_required": false,
+      "price_type": "fixed",
       "payment_terms": "deposit_50_balance_before_delivery",
       "image": "portfolio/event-01.jpg"
     },
@@ -32,8 +32,8 @@
         "Video highlight 1–2 menit",
         "1 teaser Reel"
       ],
-      "quotation_required": true,
-      "price_type": "reference",
+      "quotation_required": false,
+      "price_type": "fixed",
       "payment_terms": "deposit_50_balance_before_delivery",
       "image": "portfolio/event-01.jpg"
     },
@@ -51,8 +51,8 @@
         "2 teaser Reels",
         "Drone sesuai lokasi dan perizinan"
       ],
-      "quotation_required": true,
-      "price_type": "reference",
+      "quotation_required": false,
+      "price_type": "fixed",
       "payment_terms": "deposit_50_balance_before_delivery",
       "image": "portfolio/event-01.jpg"
     },
@@ -69,8 +69,8 @@
         "Perencanaan dasar",
         "Caption"
       ],
-      "quotation_required": true,
-      "price_type": "reference",
+      "quotation_required": false,
+      "price_type": "fixed",
       "payment_terms": "monthly_upfront",
       "image": "portfolio/social-01.jpg"
     },
@@ -88,8 +88,8 @@
         "Arahan kreatif",
         "Caption"
       ],
-      "quotation_required": true,
-      "price_type": "reference",
+      "quotation_required": false,
+      "price_type": "fixed",
       "payment_terms": "monthly_upfront",
       "image": "portfolio/social-01.jpg"
     },
@@ -108,8 +108,8 @@
         "Caption",
         "Evaluasi performa"
       ],
-      "quotation_required": true,
-      "price_type": "reference",
+      "quotation_required": false,
+      "price_type": "fixed",
       "payment_terms": "monthly_upfront",
       "image": "portfolio/social-01.jpg"
     },
@@ -126,8 +126,8 @@
         "Color dasar",
         "1 kali revisi"
       ],
-      "quotation_required": true,
-      "price_type": "reference",
+      "quotation_required": false,
+      "price_type": "fixed",
       "payment_terms": "deposit_50_balance_before_delivery",
       "image": "portfolio/social-01.jpg"
     },
@@ -144,8 +144,8 @@
         "1 video utama",
         "2 cutdown"
       ],
-      "quotation_required": true,
-      "price_type": "reference",
+      "quotation_required": false,
+      "price_type": "fixed",
       "payment_terms": "deposit_50_balance_before_delivery",
       "image": "portfolio/social-01.jpg"
     },
@@ -208,8 +208,8 @@
         "Durasi lebih dari 1 menit melalui quotation terpisah",
         "Timeline dimulai setelah materi diterima lengkap"
       ],
-      "quotation_required": true,
-      "price_type": "reference",
+      "quotation_required": false,
+      "price_type": "fixed",
       "payment_terms": "deposit_50_balance_before_delivery",
       "image": "portfolio/social-01.jpg"
     },

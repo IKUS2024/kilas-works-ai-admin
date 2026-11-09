@@ -14,16 +14,17 @@ import db,repo,creative_orders as orders,payment_service,projects_repo
 app=Flask('creative-checkout-native');app.secret_key='synthetic-native-test-only'
 db.init_schema()
 owner=repo.create_user('checkout-native-'+__import__('uuid').uuid4().hex+'@example.test','synthetic-password-hash')
-# First exercise the real public catalog: no new automatic invoices are permitted.
+# First exercise unresolved public prices: they must not become automatic invoices.
 # Counts include every financial/project table this path can create, not just invoices.
 def counts():
     return {table: db.query_one(f'SELECT COUNT(*) n FROM {table}')['n']
             for table in ('projects', 'invoices', 'payments', 'project_files')}
 before_quote = counts()
-quote_packages = len(orders.CATALOG['packages'])
+quote_packages = sum(orders.offer(key)['quotation_required'] for key in orders.CATALOG['packages'])
 with app.app_context():
     for key, spec in orders.CATALOG['packages'].items():
-        assert spec['quotation_required'] is True
+        if not orders.offer(key)['quotation_required']:
+            continue
         try:
             orders.create_order(owner, key, {'order_token': orders.checkout_token(owner, key)})
         except ValueError as exc:
@@ -31,8 +32,20 @@ with app.app_context():
         else:
             raise AssertionError('current quote-only offer created an invoice: ' + key)
 assert counts() == before_quote
+current_fixed_packages = 0
+with app.app_context():
+    for key, spec in orders.CATALOG['packages'].items():
+        if orders.offer(key)['quotation_required']:
+            continue
+        form = {'order_token': orders.checkout_token(owner, key), 'name': 'Synthetic Current QA',
+                'whatsapp': '081234567890', 'event_date': '2099-12-01', 'location': 'Synthetic venue',
+                'brand': 'Synthetic brand', 'social_account': '@synthetic'}
+        invoice_id = orders.create_order(owner, key, form)
+        assert payment_service.get_invoice(invoice_id)['amount'] == spec['amount']
+        assert orders.create_order(owner, key, form) == invoice_id
+        current_fixed_packages += 1
 # The remaining concurrency/security scenarios deliberately rehearse saved historical
-# purchases, independent of today's quotation-only rates and new public package cards.
+# purchases, independent of today's fixed/quotation rates and new public package cards.
 orders.CATALOG = json.loads(Path(__file__).with_name('creative_historical_catalog.json').read_text())
 with app.app_context():
     for key,spec in orders.CATALOG['packages'].items():
@@ -108,4 +121,4 @@ assert projects_repo.get_project(closed_project)['status']=='CANCELLED'
 assert payment_service.get_invoice(closed_invoice)['status']=='ISSUED'
 assert payment_service.get_payment(closed_payment)['status']=='PAYMENT_PENDING'
 assert db.query_one('SELECT COUNT(*) n FROM project_files WHERE project_id=?',(closed_project,))['n']==0
-print(json.dumps({'result':'PASS','postgres_version':db.query_one('SHOW server_version')['server_version'],'quotation_gate_packages':quote_packages,'price_variations':15,'purchase_scope':'historical fixed-price checkout','concurrent_checkout_and_upload':'PASS','persistent_private_bytea':'PASS','cancel_upload_verify_race':'PASS','paid_transitions':0}))
+print(json.dumps({'result':'PASS','postgres_version':db.query_one('SHOW server_version')['server_version'],'quotation_gate_packages':quote_packages,'current_fixed_packages':current_fixed_packages,'price_variations':15,'purchase_scope':'historical fixed-price checkout','concurrent_checkout_and_upload':'PASS','persistent_private_bytea':'PASS','cancel_upload_verify_race':'PASS','paid_transitions':0}))

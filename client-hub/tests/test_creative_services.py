@@ -24,7 +24,7 @@ class CreativeServicesTests(unittest.TestCase):
         def plain(value):
             return re.sub(r'\s+', ' ', unescape(re.sub(r'<[^>]+>', ' ', value))).strip()
         cards = []
-        for match in re.finditer(r'<article class="cs-card(?: cs-premium)?">(.*?)</article>', html, re.S):
+        for match in re.finditer(r'<article class="cs-card(?: cs-premium)?"[^>]*>(.*?)</article>', html, re.S):
             text = match[1]
             def grab(pattern):
                 return [plain(value) for value in re.findall(pattern, text, re.S)]
@@ -68,15 +68,34 @@ class CreativeServicesTests(unittest.TestCase):
                 if tag == 'img' and 'illustrations/' in item.get('src', ''):
                     self.items.append(item)
         parsed = Images(); parsed.feed(html)
-        self.assertEqual(len(parsed.items), 5)
+        self.assertEqual(len(parsed.items), 11)
         self.assertEqual(sum(item.get('fetchpriority') == 'high' for item in parsed.items), 1)
         for item in parsed.items:
             self.assertIn('alt', item)
-            self.assertEqual((item['width'], item['height']), ('1536', '1024'))
-            self.assertIn('srcset', item)
-            self.assertIn('sizes', item)
+            self.assertEqual(int(item['width']) / int(item['height']), 1.5)
+            if 'srcset' in item:
+                self.assertIn('sizes', item)
             self.assertIn(item['loading'], ('eager', 'lazy'))
             self.assertTrue((SOURCE / item['src']).is_file())
+
+    def test_every_service_and_package_has_local_image_and_checkout(self):
+        html = (SOURCE / 'index.html').read_text()
+        from PIL import Image
+        services = re.findall(r'<a class="cs-service-choice"[^>]*>(.*?)</a>', html, re.S)
+        packages = re.findall(r'<article class="cs-card"[^>]*>(.*?)</article>', html, re.S)
+        self.assertEqual((len(services), len(packages)), (4, 14))
+        for card in services + packages:
+            images = re.findall(r'<img ([^>]+)>', card)
+            self.assertEqual(len(images), 1)
+            attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', images[0]))
+            with Image.open(SOURCE / attrs['src']) as image:
+                self.assertGreater(image.width, 0)
+                self.assertAlmostEqual(int(attrs['width']) / int(attrs['height']), image.width / image.height, places=2)
+        catalog = json.loads((ROOT / 'client-hub/creative_catalog.json').read_text())['packages']
+        payable = [key for key, value in catalog.items() if not value.get('quotation_required')]
+        self.assertEqual(re.findall(r'data-checkout="([^"]+)"', html), payable)
+        for key in payable:
+            self.assertIn('href="https://app.kilasworks.id/creative-services/checkout/' + key + '"', html)
 
     def test_verified_portfolio_uses_exact_local_covers_and_direct_links(self):
         facts = json.loads(Path(__file__).with_name('creative_portfolio_sources.json').read_text())['works']

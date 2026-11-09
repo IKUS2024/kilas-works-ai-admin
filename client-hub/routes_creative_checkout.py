@@ -116,7 +116,7 @@ def checkout(key):
         return quotation(selected, user, error)
     token = request.form.get('order_token') if request.method == 'POST' else request.args.get('draft')
     response = make_response(render('checkout', selected=selected, user=user, error=error,
-        values=request.form if request.method == 'POST' else {}, addons=orders.CATALOG['addons'],
+        values=request.form if request.method == 'POST' else {}, addons=orders.checkout_addons(selected['service']),
         token=token or (orders.checkout_token(user['id'], key) if user else ''),
         bank=orders.BANK), 422 if error else 200)
     if not user:
