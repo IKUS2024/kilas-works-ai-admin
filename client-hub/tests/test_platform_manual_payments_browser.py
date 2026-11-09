@@ -38,6 +38,7 @@ def main():
                     if path=='/platform/payments':
                         expect(page.locator('[data-payment-review]')).to_have_count(4)
                         expect(page.get_by_role('button',name='Approve',exact=True)).to_have_count(4)
+                        expect(page.locator('[data-payment-kind="finance"] .console-amount')).to_have_text('Rp99.000')
                         page.screenshot(path=str(out/f'payments-{width}.png'),full_page=True)
                     if path=='/platform/':page.screenshot(path=str(out/f'overview-{width}.png'),full_page=True)
                     results.append({'width':width,'path':path,'ok':True})

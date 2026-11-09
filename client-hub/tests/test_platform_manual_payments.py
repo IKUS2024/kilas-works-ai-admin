@@ -293,6 +293,37 @@ class ManualPaymentsTests(unittest.TestCase):
                 self.assertIn(email, response.text)
         self.assertEqual(before, snapshot())
 
+    def test_finance_minor_units_display_as_rupiah_without_repricing(self):
+        from decimal import Decimal
+        from pricing_config import FINANCE_PLAN
+        ident = self.seed('finance')
+        email = repo.get_user_by_id(self.owner)['email']
+        self.assertEqual(self.row('finance')['amount_minor'], FINANCE_PLAN['amount_minor'])
+        self.assertIn(14900000, FINANCE_PLAN['accepted_amounts_minor'])
+        for minor in (FINANCE_PLAN['amount_minor'], 14900000):
+            with self.subTest(amount_minor=minor):
+                # A synthetic historical regular-price bill must retain its
+                # original amount while the admin view converts cents to rupiah.
+                db.execute('UPDATE finance_subscription_bills SET amount_minor=? WHERE id=?', (minor, ident))
+                stored = self.row('finance')
+                expected = Decimal(minor) / Decimal(100)
+                rows = platform_payments.queue(product='finance', query=email)['rows']
+                self.assertEqual(len(rows), 1)
+                self.assertEqual(rows[0]['amount_idr'], expected)
+                html = self.client.get('/platform/payments', query_string={'product':'finance','q':email}).text
+                formatted = 'Rp' + format(expected, ',.0f').replace(',', '.')
+                wrong = 'Rp' + format(minor, ',.0f').replace(',', '.')
+                self.assertIn(formatted, html)
+                self.assertNotIn(wrong, html)
+                self.assertEqual(stored, self.row('finance'))
+        self.assertEqual(self.post('finance').status_code, 303)
+        self.assertEqual(self.row('finance')['status'], 'VERIFIED')
+        self.assertEqual(self.row('finance')['amount_minor'], 14900000)
+        self.assertTrue(self.entitlement('finance'))
+        history = self.client.get('/platform/payments', query_string={'product':'finance','q':email,'status':'history'}).text
+        self.assertIn('Rp149.000', history)
+        self.assertNotIn('Rp14.900.000', history)
+
     def test_finance_transaction_rolls_back_if_audit_fails(self):
         self.seed('finance')
         with patch.object(repo, 'write_audit', side_effect=RuntimeError('synthetic rollback')):

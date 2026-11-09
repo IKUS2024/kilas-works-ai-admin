@@ -19,7 +19,7 @@
       {% if item.business_name %}<small>{{ item.business_name }}</small>{% endif %}
       <strong class="console-amount">Rp{{ '{:,.0f}'.format(item.amount_idr).replace(',','.') }}</strong>
       <p class="console-note">{{ item.effect }}</p>
-      <small>{{ item.invoice_number }} · {{ item.created_at }}</small>
+      <small>{{ item.invoice_number }} · {{ item.created_at|humanize_timestamp }}</small>
     </div>
     <div class="console-review">
       {% if item.status=='UNDER_REVIEW' and item.proof_ready and item.payment_id %}
@@ -33,7 +33,7 @@
       <p class="console-note">Bukti transfer belum lengkap. Approval belum tersedia.</p>
       {% else %}
       <span class="console-status" data-status="{{ item.status }}">{{ item.status_label }}</span>
-      {% if item.reviewed_by %}<small>Admin #{{ item.reviewed_by }} · {{ item.updated_at }}</small>{% endif %}
+      {% if item.reviewed_by %}<small>Admin #{{ item.reviewed_by }} · {{ item.updated_at|humanize_timestamp }}</small>{% endif %}
       {% if item.note %}<p class="console-note">{{ item.note }}</p>{% endif %}
       {% if item.proof_ready and item.payment_id %}<a class="console-proof" href="{{ url_for('platform_control.payment_proof',kind=item.kind,payment_id=item.payment_id) }}" target="_blank" rel="noopener">Lihat bukti transfer ↗</a>{% endif %}
       {% endif %}

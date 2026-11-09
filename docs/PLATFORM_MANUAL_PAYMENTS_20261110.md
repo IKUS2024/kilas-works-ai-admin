@@ -26,7 +26,7 @@ environment setting, provider key or WhatsApp configuration changes.
 
 ## Validation
 
-- New isolated SQLite integration matrix: 16 tests pass, covering all four
+- New isolated SQLite integration matrix: 17 tests pass, covering all four
   products, exact proof bytes, RBAC/CSRF, retry/conflict/concurrency, rollback,
   server-resolved Finance scope, queue/history/filter/pagination and bound input.
 - Existing single-plan/admin console: 7 pass. Manual AI billing: 2 pass.
@@ -40,6 +40,10 @@ environment setting, provider key or WhatsApp configuration changes.
 - Candidate fd239f79: all three dedicated CI jobs succeeded in run 42676599010,
   including 16 native PostgreSQL tests and all 20 responsive browser page checks
   plus proof/approve/refresh/history/Back/reject.
+- Visual review caught Finance minor units displayed as whole rupiah. The final
+  presentation divides stored Finance hundredths by 100 without changing bills.
+  Current Rp99,000 and retained Rp149,000 invoices have dedicated regression
+  coverage, including unchanged original amounts during successful settlement.
 - Local browser execution could not start under this workspace's socket
   restrictions, so the browser gate is performed in CI.
 

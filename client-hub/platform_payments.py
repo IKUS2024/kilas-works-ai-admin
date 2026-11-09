@@ -3,6 +3,7 @@
 The owning billing services remain the only settlement authority. Their locks,
 idempotency, prices and entitlement rules are deliberately not duplicated here.
 """
+from decimal import Decimal
 import db
 from kilas_ai import billing, topups, audio_billing
 import finance_subscription
@@ -64,6 +65,10 @@ def queue(product="", status="", query="", page=1):
     labels = {"UNDER_REVIEW": "Perlu approval", "PAYMENT_PENDING": "Menunggu bukti",
               "VERIFIED": "Disetujui", "REJECTED": "Ditolak"}
     for row in rows:
+        # Finance persists hundredths even for IDR; AI/audio persist whole IDR.
+        # Normalize presentation only, never the bill or its settlement inputs.
+        if row["kind"] == "finance":
+            row["amount_idr"] = Decimal(row["amount_idr"]) / Decimal(100)
         row["product_label"] = dict(PRODUCTS)[row["kind"]]
         row["status_label"] = labels.get(row["status"], row["status"])
         row["effect"] = ("Saldo audio bertambah " + str(row["seconds"]) + " detik" if row["kind"] == "translator" else
