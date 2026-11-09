@@ -1,0 +1,79 @@
+name: Platform Manual Payments QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client-hub/platform_payments.py'
+      - 'client-hub/platform_console.py'
+      - 'client-hub/routes_platform_control.py'
+      - 'client-hub/templates/platform_console.html'
+      - 'client-hub/templates/_platform_payments.html'
+      - 'client-hub/static/platform_console.*'
+      - 'client-hub/tests/test_platform_manual_payments*.py'
+      - 'client-hub/kilas_ai/billing.py'
+      - 'client-hub/kilas_ai/topups.py'
+      - 'client-hub/kilas_ai/audio_billing.py'
+      - 'client-hub/finance_subscription.py'
+      - '.github/workflows/platform-manual-payments-qa.yml'
+  pull_request:
+    paths:
+      - 'client-hub/platform_payments.py'
+      - 'client-hub/platform_console.py'
+      - 'client-hub/routes_platform_control.py'
+      - 'client-hub/templates/platform_console.html'
+      - 'client-hub/templates/_platform_payments.html'
+      - 'client-hub/static/platform_console.*'
+      - 'client-hub/tests/test_platform_manual_payments*.py'
+      - 'client-hub/kilas_ai/billing.py'
+      - 'client-hub/kilas_ai/topups.py'
+      - 'client-hub/kilas_ai/audio_billing.py'
+      - 'client-hub/finance_subscription.py'
+      - '.github/workflows/platform-manual-payments-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  payments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python client-hub/tests/test_platform_manual_payments.py
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: platform_payments_qa}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d platform_payments_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python client-hub/tests/test_platform_manual_payments_postgres.py
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/platform_payments_qa
+          KILAS_AI_POSTGRES_QA: '1'
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python client-hub/tests/test_platform_manual_payments_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: platform-payments-responsive
+          path: /tmp/platform-payments-browser/

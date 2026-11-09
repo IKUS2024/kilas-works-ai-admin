@@ -11,8 +11,8 @@ import db
 from kilas_ai import usage, topups
 
 SECTIONS = (("overview", "Overview"), ("customers", "Customers"),
-            ("kilas-ai", "Kilas AI"), ("finance", "Kilas Finance"),
-            ("payments", "Payments"), ("usage-cost", "Usage & Cost"),
+            ("kilas-ai", "Kilas AI"), ("translator", "Translator & Voice Over"), ("finance", "Kilas Finance"),
+            ("payments", "Pembayaran"), ("usage-cost", "Usage & Cost"),
             ("settings", "Settings"))
 
 
@@ -28,7 +28,8 @@ def overview():
         "customers": _number("SELECT COUNT(*) AS n FROM users WHERE role='CLIENT_OWNER'"),
         "subscriptions": subscriptions,
         "finance": _number("SELECT COUNT(*) AS n FROM businesses b WHERE EXISTS (SELECT 1 FROM finance_entitlements e WHERE e.business_id=b.id) OR EXISTS (SELECT 1 FROM finance_accounts a WHERE a.business_id=b.id)"),
-        "pending": _number("SELECT COUNT(*) AS n FROM kilas_ai_invoices WHERE status='UNDER_REVIEW'") + _number("SELECT COUNT(*) AS n FROM kilas_ai_topup_orders WHERE status='UNDER_REVIEW'") + _number("SELECT COUNT(*) AS n FROM finance_subscription_bills WHERE status='REVIEW'"),
+        "pending": _number("SELECT COUNT(*) AS n FROM kilas_ai_invoices WHERE status='UNDER_REVIEW'") + _number("SELECT COUNT(*) AS n FROM kilas_ai_topup_orders WHERE status='UNDER_REVIEW'") + _number("SELECT COUNT(*) AS n FROM kilas_audio_orders WHERE status='UNDER_REVIEW'") + _number("SELECT COUNT(*) AS n FROM finance_subscription_bills WHERE status='REVIEW'"),
+        "translator": _number("SELECT COUNT(*) AS n FROM users u WHERE u.role='CLIENT_OWNER' AND (EXISTS (SELECT 1 FROM kilas_audio_orders o WHERE o.user_id=u.id) OR EXISTS (SELECT 1 FROM kilas_audio_jobs j WHERE j.user_id=u.id) OR EXISTS (SELECT 1 FROM kilas_live_translator_sessions l WHERE l.user_id=u.id))"),
         "capacity_orders": _number("SELECT COUNT(*) AS n FROM kilas_ai_topup_orders WHERE invoice_number LIKE 'KAI-C-%%' AND status='VERIFIED'"),
         "revenue_idr": sum(int(row["n"]) * usage.PLANS[row["plan"]]["price"] for row in active_plans),
     }
@@ -41,7 +42,10 @@ def customers(query="", product="", status="", page=1):
         where.append("LOWER(COALESCE(u.full_name,'') || ' ' || u.email) LIKE ?")
         params.append("%" + query.lower() + "%")
     finance = "EXISTS (SELECT 1 FROM business_memberships m JOIN businesses b ON b.id=m.business_id WHERE m.user_id=u.id AND (EXISTS (SELECT 1 FROM finance_entitlements e WHERE e.business_id=b.id) OR EXISTS (SELECT 1 FROM finance_accounts a WHERE a.business_id=b.id)))"
-    if product == "finance":
+    translator = "EXISTS (SELECT 1 FROM kilas_audio_orders o WHERE o.user_id=u.id) OR EXISTS (SELECT 1 FROM kilas_audio_jobs j WHERE j.user_id=u.id) OR EXISTS (SELECT 1 FROM kilas_live_translator_sessions l WHERE l.user_id=u.id)"
+    if product == "translator":
+        where.append(translator)
+    elif product == "finance":
         where.append(finance)
     elif product == "ai":
         where.append("EXISTS (SELECT 1 FROM kilas_ai_threads t WHERE t.user_id=u.id) OR EXISTS (SELECT 1 FROM kilas_ai_subscriptions s WHERE s.user_id=u.id) OR EXISTS (SELECT 1 FROM kilas_ai_invoices i WHERE i.user_id=u.id)")
@@ -49,13 +53,15 @@ def customers(query="", product="", status="", page=1):
         where.append("EXISTS (SELECT 1 FROM kilas_ai_subscriptions s WHERE s.user_id=u.id AND s.status='ACTIVE' AND s.period_end>?)")
         params.append(usage._now().isoformat())
     elif status == "pending":
-        where.append("EXISTS (SELECT 1 FROM kilas_ai_invoices i WHERE i.user_id=u.id AND i.status='UNDER_REVIEW') OR EXISTS (SELECT 1 FROM kilas_ai_topup_orders o WHERE o.user_id=u.id AND o.status='UNDER_REVIEW')")
+        where.append("EXISTS (SELECT 1 FROM kilas_ai_invoices i WHERE i.user_id=u.id AND i.status='UNDER_REVIEW') OR EXISTS (SELECT 1 FROM kilas_ai_topup_orders o WHERE o.user_id=u.id AND o.status='UNDER_REVIEW') OR EXISTS (SELECT 1 FROM kilas_audio_orders a WHERE a.user_id=u.id AND a.status='UNDER_REVIEW') OR EXISTS (SELECT 1 FROM business_memberships m JOIN finance_subscription_bills f ON f.business_id=m.business_id WHERE m.user_id=u.id AND f.status='REVIEW')")
     sql = "SELECT u.id,u.full_name,u.email,u.created_at,s.plan,s.status AS subscription_status,s.period_end," \
           "(SELECT MAX(created_at) FROM kilas_ai_usage k WHERE k.user_id=u.id) AS last_ai_activity," \
           "(SELECT status FROM kilas_ai_invoices i WHERE i.user_id=u.id ORDER BY id DESC LIMIT 1) AS billing_status," \
           "(SELECT COUNT(*) FROM business_memberships m JOIN businesses b ON b.id=m.business_id WHERE m.user_id=u.id AND (EXISTS (SELECT 1 FROM finance_entitlements e WHERE e.business_id=b.id) OR EXISTS (SELECT 1 FROM finance_accounts a WHERE a.business_id=b.id))) AS finance_count," \
           "(SELECT COUNT(*) FROM kilas_ai_threads t WHERE t.user_id=u.id) AS ai_threads," \
-          "(SELECT COUNT(*) FROM kilas_ai_invoices i WHERE i.user_id=u.id) AS ai_invoices " \
+          "(SELECT COUNT(*) FROM kilas_ai_invoices i WHERE i.user_id=u.id) AS ai_invoices," \
+          "CASE WHEN " + translator + " THEN 1 ELSE 0 END AS translator_used," \
+          "COALESCE((SELECT seconds FROM kilas_audio_balances ab WHERE ab.user_id=u.id),0) AS audio_seconds " \
           "FROM users u LEFT JOIN kilas_ai_subscriptions s ON s.user_id=u.id WHERE " + " AND ".join("(" + item + ")" for item in where)
     total = _number("SELECT COUNT(*) AS n FROM users u WHERE " + " AND ".join("(" + item + ")" for item in where), tuple(params))
     rows = db.query_all(sql + " ORDER BY u.id DESC LIMIT 50 OFFSET ?", tuple(params + [(page - 1) * 50]))
@@ -77,6 +83,8 @@ def ai_customer(user_id):
     ratio = (cost * fx / Decimal(price)) if price else None
     return {"user": user, "subscription": subscription, "operations": operations, "models": models,
             "recent": recent, "cost_usd": cost, "cost_ratio": ratio, "capacity": topups.balance(user_id),
+            "audio_seconds": _number("SELECT COALESCE(SUM(seconds),0) AS n FROM kilas_audio_balances WHERE user_id=?", (user_id,)),
+            "audio_orders": db.query_all("SELECT invoice_number,seconds,amount_idr,status FROM kilas_audio_orders WHERE user_id=? ORDER BY id DESC LIMIT 20", (user_id,)),
             "finance_businesses": db.query_all("SELECT b.id,b.business_name,e.trial_until,e.paid_until FROM businesses b JOIN business_memberships m ON m.business_id=b.id LEFT JOIN finance_entitlements e ON e.business_id=b.id WHERE m.user_id=? AND (e.business_id IS NOT NULL OR EXISTS (SELECT 1 FROM finance_accounts a WHERE a.business_id=b.id)) ORDER BY b.id DESC", (user_id,)),
             "invoices": db.query_all("SELECT id,invoice_number,amount_idr,status,created_at FROM kilas_ai_invoices WHERE user_id=? ORDER BY id DESC LIMIT 20", (user_id,)),
             "topups": db.query_all("SELECT id,invoice_number,amount_idr,status,created_at FROM kilas_ai_topup_orders WHERE user_id=? ORDER BY id DESC LIMIT 20", (user_id,))}
@@ -99,12 +107,9 @@ def finance_businesses(query="", page=1):
     return {"rows": rows, "total": total, "page": page, "has_next": total > page * 50}
 
 
-def payments():
-    return {
-        "subscriptions": db.query_all("SELECT i.id,i.invoice_number,i.amount_idr,i.status,i.created_at,u.full_name,u.email,p.id AS proof_id,p.proof_filename FROM kilas_ai_invoices i JOIN users u ON u.id=i.user_id LEFT JOIN kilas_ai_payments p ON p.invoice_id=i.id ORDER BY CASE WHEN i.status='UNDER_REVIEW' THEN 0 ELSE 1 END,i.id DESC LIMIT 100"),
-        "capacity": db.query_all("SELECT o.id,o.invoice_number,o.amount_idr,o.status,o.created_at,o.proof_filename,u.full_name,u.email FROM kilas_ai_topup_orders o JOIN users u ON u.id=o.user_id ORDER BY CASE WHEN o.status='UNDER_REVIEW' THEN 0 ELSE 1 END,o.id DESC LIMIT 100"),
-        "finance_pending": _number("SELECT COUNT(*) AS n FROM finance_subscription_bills WHERE status='REVIEW'"),
-    }
+def payments(product="", status="", query="", page=1):
+    from platform_payments import queue
+    return queue(product, status, query, page)
 
 
 def usage_cost():
