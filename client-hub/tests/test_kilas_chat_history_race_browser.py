@@ -36,7 +36,7 @@ def main():
                     return new Response(JSON.stringify({streams:[{id:999999}]}),{status:200,headers:{'content-type':'application/json'}});
                   }
                   if(window.__race==='poll'&&window.__holdPoll&&url.includes('/kilas-ai/agent?')){
-                    const response=await original(...args);window.__held=true;
+                    window.__holdPoll=false;const response=await original(...args);window.__held=true;
                     await new Promise(resolve=>window.__release=resolve);return response;
                   }
                   return original(...args);
