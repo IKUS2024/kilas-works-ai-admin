@@ -185,7 +185,8 @@ def main():
                         if width in (393,1440):premium.screenshot(path=str(output/f'event-premium-en-{width}.png'),animations='disabled')
                     page.locator('[data-cs-language="id"]').click()
                     choice=page.locator('#cs-event .cs-card').last.locator('[data-service-id]') if kind=='event' else page.locator('#cs-social [data-service-id]').first
-                    assert choice.get_attribute('href') == '#contact'
+                    assert choice.get_attribute('href').startswith('https://wa.me/6282213039137?text=')
+                    assert choice.get_attribute('target') == '_blank'
                     page.locator('#studio-navigation a[href="#contact"]').evaluate('(e)=>e.click()')
                     page.wait_for_url('**/#contact')
                     page.locator('#cs-brief-date').fill('2026-11-20')

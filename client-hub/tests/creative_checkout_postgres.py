@@ -1,4 +1,4 @@
-"""Current quotation gate + historical order/proof rehearsal on disposable PostgreSQL."""
+"""Current discussion gate + historical order/proof rehearsal on disposable PostgreSQL."""
 import io,json,os,sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -20,11 +20,11 @@ def counts():
     return {table: db.query_one(f'SELECT COUNT(*) n FROM {table}')['n']
             for table in ('projects', 'invoices', 'payments', 'project_files')}
 before_quote = counts()
-quote_packages = sum(orders.offer(key)['quotation_required'] for key in orders.CATALOG['packages'])
+quote_packages = len(orders.CATALOG['packages'])
+assert quote_packages == 14
 with app.app_context():
     for key, spec in orders.CATALOG['packages'].items():
-        if not orders.offer(key)['quotation_required']:
-            continue
+        assert orders.offer(key)['quotation_required']
         try:
             orders.create_order(owner, key, {'order_token': orders.checkout_token(owner, key)})
         except ValueError as exc:
@@ -32,7 +32,13 @@ with app.app_context():
         else:
             raise AssertionError('current quote-only offer created an invoice: ' + key)
 assert counts() == before_quote
-current_fixed_packages = 0
+# Rehearse the immediately previous release's nine fixed-price snapshots.
+# This fixture is isolated from the real current catalog verified above.
+orders.CATALOG = json.loads(json.dumps(orders.CATALOG))
+for spec in orders.CATALOG['packages'].values():
+    if spec['price_type'] == 'reference':
+        spec.update(price_type='fixed', quotation_required=False)
+previous_fixed_packages = 0
 with app.app_context():
     for key, spec in orders.CATALOG['packages'].items():
         if orders.offer(key)['quotation_required']:
@@ -43,7 +49,7 @@ with app.app_context():
         invoice_id = orders.create_order(owner, key, form)
         assert payment_service.get_invoice(invoice_id)['amount'] == spec['amount']
         assert orders.create_order(owner, key, form) == invoice_id
-        current_fixed_packages += 1
+        previous_fixed_packages += 1
 # The remaining concurrency/security scenarios deliberately rehearse saved historical
 # purchases, independent of today's fixed/quotation rates and new public package cards.
 orders.CATALOG = json.loads(Path(__file__).with_name('creative_historical_catalog.json').read_text())
@@ -121,4 +127,4 @@ assert projects_repo.get_project(closed_project)['status']=='CANCELLED'
 assert payment_service.get_invoice(closed_invoice)['status']=='ISSUED'
 assert payment_service.get_payment(closed_payment)['status']=='PAYMENT_PENDING'
 assert db.query_one('SELECT COUNT(*) n FROM project_files WHERE project_id=?',(closed_project,))['n']==0
-print(json.dumps({'result':'PASS','postgres_version':db.query_one('SHOW server_version')['server_version'],'quotation_gate_packages':quote_packages,'current_fixed_packages':current_fixed_packages,'price_variations':15,'purchase_scope':'historical fixed-price checkout','concurrent_checkout_and_upload':'PASS','persistent_private_bytea':'PASS','cancel_upload_verify_race':'PASS','paid_transitions':0}))
+print(json.dumps({'result':'PASS','postgres_version':db.query_one('SHOW server_version')['server_version'],'quotation_gate_packages':quote_packages,'previous_fixed_packages':previous_fixed_packages,'price_variations':15,'purchase_scope':'historical fixed-price checkout','concurrent_checkout_and_upload':'PASS','persistent_private_bytea':'PASS','cancel_upload_verify_race':'PASS','paid_transitions':0}))

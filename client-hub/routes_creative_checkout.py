@@ -102,6 +102,8 @@ def checkout(key):
     error = None
     if request.method == 'POST':
         if not user:
+            if selected.get('quotation_required'):
+                return quotation(selected, user, 'Paket ini memerlukan quotation tertulis sebelum invoice dapat dibuat.')
             abort(401)
         try:
             invoice_id = orders.create_order(user['id'], key, request.form)

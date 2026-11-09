@@ -32,7 +32,7 @@ def money(amount):
 
 def requires_quote(item):
     return bool(item.get('quotation_required') or item.get('price_type') in
-                ('range', 'starting_from', 'quote_only') or item.get('amount') is None)
+                ('reference', 'range', 'starting_from', 'quote_only') or item.get('amount') is None)
 
 
 def checkout_addons(service):

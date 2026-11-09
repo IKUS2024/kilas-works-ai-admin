@@ -113,7 +113,8 @@ def main():
                             if kind == 'social':
                                 expect(page.locator('#cs-social .cs-card').last).to_contain_text('Rp9.000.000')
                             choice=page.locator('#cs-event .cs-card').last.locator('[data-service-id]') if kind=='event' else page.locator('#cs-social [data-service-id]').first
-                            assert choice.get_attribute('href') == '#contact'
+                            assert choice.get_attribute('href').startswith('https://wa.me/6282213039137?text=')
+                            assert choice.get_attribute('target') == '_blank'
                             page.locator('#studio-navigation a[href="#contact"]').evaluate('(e)=>e.click()')
                             page.locator('#cs-brief-date').fill('2026-11-20')
                             page.locator('#cs-brief-location').fill('UI smoke — no send')

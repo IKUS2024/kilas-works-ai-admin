@@ -54,16 +54,18 @@ def main():
                             expect(page.locator('#cs-editing')).to_contain_text('Rp600.000–Rp900.000')
                             expect(page.locator('#cs-editing')).to_contain_text('Rp1.500.000')
                         verify_media(page, '#cs-'+sid+' .cs-card', 4 if sid in ('commercial','editing') else 3)
-                        for checkout in page.locator('#cs-'+sid+' [data-checkout]').all():
-                            key=checkout.get_attribute('data-checkout')
-                            assert checkout.get_attribute('href')=='https://app.kilasworks.id/creative-services/checkout/'+key
-                        quote=page.locator('#cs-'+sid+' [data-quote-choice]').first
-                        selected=quote.get_attribute('data-service-'+lang)
-                        quote.click()
-                        expect(page).to_have_url(origin+'/#contact')
-                        expect(page.locator('#selected-service')).to_be_visible()
-                        assert selected in page.locator('#selected-service').inner_text()
-                        assert selected in page.locator('#cs-brief-message').input_value()
+                        assert page.locator('[data-checkout]').count()==0
+                        for quote in page.locator('#cs-'+sid+' [data-quote-choice]').all():
+                            selected=quote.get_attribute('data-service-'+lang)
+                            url=urlsplit(quote.get_attribute('href'))
+                            assert url.scheme=='https' and url.netloc=='wa.me' and url.path=='/6282213039137'
+                            assert selected in parse_qs(url.query)['text'][0]
+                            assert quote.get_attribute('target')=='_blank'
+                            # Observe actual click target without making any request to WhatsApp.
+                            quote.evaluate("e=>e.addEventListener('click',event=>{event.preventDefault();window.__qaWhatsApp=e.href},{once:true})")
+                            quote.click()
+                            assert page.evaluate('window.__qaWhatsApp')==quote.get_attribute('href')
+                            expect(page).to_have_url(origin+'/#cs-'+sid)
                         if lang=='id' and width in (393,1440):
                             page.goto(origin+'/#cs-'+sid,wait_until='networkidle')
                             page.screenshot(path=str(output/f'{sid}-{width}.png'),full_page=True)
@@ -103,7 +105,7 @@ def main():
                 ctx.close()
             browser.close()
         (output/'results.json').write_text(json.dumps(reports,indent=2))
-        print('PASS: 64 detail views, 16 home states, anchors/menu/back/forward, selected quote, four languages, all 18 service/package images proportional and checkout links present; no external sends.')
+        print('PASS: 64 detail views, 16 home states, anchors/menu/back/forward, all 14 direct WhatsApp targets, four languages, all 18 service/package images proportional and no checkout links; no external sends.')
     finally:server.shutdown()
 
 if __name__=='__main__':main()
