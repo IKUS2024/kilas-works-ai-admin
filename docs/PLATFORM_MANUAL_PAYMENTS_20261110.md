@@ -37,6 +37,9 @@ environment setting, provider key or WhatsApp configuration changes.
 - New CI gates run the same matrix on PostgreSQL 18 and a responsive Chromium
   journey (320/393/768/1440 widths, proof, approve, refresh, history, Back, reject).
   Native PostgreSQL and browser results must be green before deployment.
+- Candidate fd239f79: all three dedicated CI jobs succeeded in run 42676599010,
+  including 16 native PostgreSQL tests and all 20 responsive browser page checks
+  plus proof/approve/refresh/history/Back/reject.
 - Local browser execution could not start under this workspace's socket
   restrictions, so the browser gate is performed in CI.
 

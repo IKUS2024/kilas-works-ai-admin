@@ -69,14 +69,16 @@ with sync_playwright() as p:
         page.keyboard.press('Control+Home'); page.reload();page.keyboard.press('Tab')
         expect(page.locator('.kw-skip')).to_be_focused()
         visit('/dev/persona/admin','admin')
-        platform_labels=['Overview','Customers','Kilas AI','Kilas Finance','Payments','Usage & Cost','Settings']
+        platform_labels=['Ringkasan','Pembayaran','Pelanggan','Penggunaan']
         platform_nav=page.get_by_role('navigation',name='Navigasi admin',exact=True)
         assert platform_nav.get_by_role('link').all_text_contents()==platform_labels
         expect(page.get_by_role('heading',name='Overview',exact=True)).to_be_visible()
         assert page.locator('.kw-operator-nav').count()==0
-        for section,label in zip(('overview','customers','kilas-ai','finance','payments','usage-cost','settings'),platform_labels):
+        for section,label in (('overview','Ringkasan'),('customers','Pelanggan'),('kilas-ai','Pelanggan'),('translator','Pelanggan'),('finance','Pelanggan'),('payments','Pembayaran'),('usage-cost','Penggunaan'),('settings',None)):
             visit('/platform/'+section,'platform-'+section)
-            expect(page.get_by_role('navigation',name='Navigasi admin',exact=True).locator('[aria-current]')).to_have_text(label)
+            current=page.get_by_role('navigation',name='Navigasi admin',exact=True).locator('[aria-current]')
+            if label:expect(current).to_have_text(label)
+            else:expect(current).to_have_count(0)
             assert page.locator('.kw-operator-nav').count()==0
 
         visit('/admin/customers','admin-customers')
