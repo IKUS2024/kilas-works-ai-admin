@@ -26,7 +26,7 @@ environment setting, provider key or WhatsApp configuration changes.
 
 ## Validation
 
-- New isolated SQLite integration matrix: 15 tests pass, covering all four
+- New isolated SQLite integration matrix: 16 tests pass, covering all four
   products, exact proof bytes, RBAC/CSRF, retry/conflict/concurrency, rollback,
   server-resolved Finance scope, queue/history/filter/pagination and bound input.
 - Existing single-plan/admin console: 7 pass. Manual AI billing: 2 pass.

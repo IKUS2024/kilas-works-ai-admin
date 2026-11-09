@@ -3,6 +3,7 @@
 Run: python tests/test_platform_manual_payments.py
 """
 import io
+import json
 import os
 from pathlib import Path
 import sys
@@ -249,6 +250,48 @@ class ManualPaymentsTests(unittest.TestCase):
         ids = [row['payment_id'] for row in first['rows']+second['rows']]
         self.assertEqual(len(set(ids)), 35)
         self.assertEqual(platform_payments.queue(query="' OR 1=1 --")['total'], 0)
+
+    def test_admin_translator_console_gets_preserve_every_application_table(self):
+        import platform_console
+        self.seed('translator')
+        self.post('translator')
+        second = audio_billing.create(self.owner, 'FIVE')
+        audio_billing.proof(self.owner, second, self.upload())
+        email = repo.get_user_by_id(self.owner)['email']
+
+        def snapshot():
+            # Snapshot complete rows, not just counts: catches status, balance,
+            # entitlement, audit and auth mutations anywhere in this synthetic DB.
+            if db.BACKEND == 'postgres':
+                tables = db.query_all("SELECT table_name AS name FROM information_schema.tables "
+                    "WHERE table_schema=current_schema() AND table_type='BASE TABLE'")
+            else:
+                tables = db.query_all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            def encode(value):
+                return bytes(value).hex() if isinstance(value, (bytes, bytearray, memoryview)) else str(value)
+            return {table['name']: sorted(json.dumps(row, sort_keys=True, default=encode)
+                for row in db.query_all('SELECT * FROM "'+table['name'].replace('"', '""')+'"'))
+                for table in tables}
+
+        before = snapshot()
+        self.assertGreaterEqual(platform_console.overview()['translator'], 1)
+        directory = platform_console.customers(query=email, product='translator')
+        self.assertEqual(directory['total'], 1)
+        self.assertEqual(directory['rows'][0]['id'], self.owner)
+        self.assertEqual(directory['rows'][0]['translator_used'], 1)
+        detail = platform_console.ai_customer(self.owner)
+        self.assertEqual(detail['audio_seconds'], 60)
+        self.assertEqual(len(detail['audio_orders']), 2)
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_orders WHERE user_id=?',
+                                    (self.owner,))['n'], 2)
+        for path in ('/platform/', '/platform/overview', '/platform/translator',
+                     '/platform/customers?product=translator', f'/platform/customers/{self.owner}'):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200, path)
+            self.assertIn('Translator', response.text)
+            if path not in ('/platform/', '/platform/overview'):
+                self.assertIn(email, response.text)
+        self.assertEqual(before, snapshot())
 
     def test_finance_transaction_rolls_back_if_audit_fails(self):
         self.seed('finance')
