@@ -1001,6 +1001,7 @@
 
 
   const choices = [...root.querySelectorAll('[data-service-choice]')];
+  const appContext = JSON.parse(document.querySelector('#creative-app-context')?.textContent || 'null');
   document.querySelectorAll('[data-checkout]').forEach(link => {
     const path = '/creative-services/checkout/' + encodeURIComponent(link.dataset.checkout);
     link.href = appContext ? path : 'https://app.kilasworks.id' + path;
@@ -1010,7 +1011,6 @@
   const genericContact = document.querySelector('#cs-contact-whatsapp');
   const contactPending = document.querySelector('#cs-contact-pending');
   const contactNotice = document.querySelector('#cs-contact-notice');
-  const appContext = JSON.parse(document.querySelector('#creative-app-context')?.textContent || 'null');
   let language = 'en';
   const copy = {"discuss": {"id": "Halo Kilas, saya ingin berkonsultasi tentang ", "en": "Hi Kilas, I’d like to discuss ", "es": "Hola Kilas, me gustaría consultar sobre ", "zh": "您好 Kilas，我想咨询"}, "hello": {"id": "Halo Kilas, saya ingin bertanya tentang Creative Services.", "en": "Hi Kilas, I’d like to ask about Creative Services.", "es": "Hola Kilas, quisiera consultar sobre servicios creativos.", "zh": "您好 Kilas，我想咨询创意服务"}, "package": {"id": "Paket pilihan Anda: ", "en": "Your package: ", "es": "Tu paquete: ", "zh": "您选择的套餐："}, "date": {"id": "Tanggal: ", "en": "Date: ", "es": "Fecha: ", "zh": "日期："}, "location": {"id": "Lokasi: ", "en": "Location: ", "es": "Ubicación: ", "zh": "地点："}, "needs": {"id": "Kebutuhan: ", "en": "Needs: ", "es": "Necesidades: ", "zh": "需求："}, "menu": {"id": "Buka atau tutup navigasi", "en": "Toggle navigation", "es": "Abrir o cerrar navegación", "zh": "打开或关闭导航"}};
   const copyText = key => copy[key][language];
