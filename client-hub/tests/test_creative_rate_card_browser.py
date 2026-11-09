@@ -54,6 +54,16 @@ def main():
                             expect(page.locator('#cs-editing')).to_contain_text('Rp600.000–Rp900.000')
                             expect(page.locator('#cs-editing')).to_contain_text('Rp1.500.000')
                         verify_media(page, '#cs-'+sid+' .cs-card', 4 if sid in ('commercial','editing') else 3)
+                        tabs=page.locator('#cs-'+sid+' .cs-service-tabs')
+                        assert tabs.locator('a').count()==4 and tabs.locator('.cs-tab-icon').count()==4
+                        expect(tabs.locator('a[aria-current]')).to_have_attribute('href','#cs-'+sid)
+                        grid=tabs.evaluate('(e)=>({display:getComputedStyle(e).display,columns:getComputedStyle(e).gridTemplateColumns.split(" ").length})')
+                        assert grid=={'display':'grid','columns':2 if width<=900 else 4},grid
+                        for tab in tabs.locator('a').all():
+                            assert tab.evaluate('(e)=>e.getBoundingClientRect().height')>=44
+                            assert tab.evaluate('(e)=>e.scrollWidth<=e.clientWidth')
+                        if lang=='id' and width in (393,1440):tabs.screenshot(path=str(output/f'tabs-{sid}-{width}.png'))
+
                         assert page.locator('[data-checkout]').count()==0
                         for quote in page.locator('#cs-'+sid+' [data-quote-choice]').all():
                             selected=quote.get_attribute('data-service-'+lang)

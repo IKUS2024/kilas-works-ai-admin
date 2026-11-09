@@ -36,3 +36,16 @@
 @media(max-width:700px){.cs-service-choice{display:flex;grid-template-columns:none;padding:0;gap:0}.studio-service-visual{height:auto;min-height:0;aspect-ratio:16/9}.studio-service-content{padding:22px}.cs-service-choice h3{font-size:24px}.cs-service-choice p{font-size:15px}.cs-service-choice .cs-start-price{font-size:14px;margin-top:16px}.cs-start-price strong{font-size:19px}.cs-service-choice .studio-service-link{font-size:14px;padding-top:18px}.cs-card>:not(.cs-package-visual){margin-left:22px;margin-right:22px}.cs-card-top{margin-top:22px}}
 
 .cs-quote-primary{margin-bottom:24px;min-height:48px;justify-content:space-between}
+
+/* Tactile category navigation: a compact, responsive control rather than text tabs. */
+.cs-service-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;border:0;padding:8px 0;margin:16px 0 30px}
+.cs-service-tabs a{display:flex;align-items:center;gap:12px;min-width:0;max-width:none;min-height:86px;padding:18px;border:0;border-radius:12px;background:#fff;color:var(--ink);box-shadow:0 4px 12px rgba(39,31,22,.09);font-size:13px;font-weight:600;line-height:1.45;text-decoration:none;transition:background .18s ease,color .18s ease,transform .18s ease}
+.cs-service-tabs a span{min-width:0;overflow-wrap:normal;text-wrap:balance}
+.cs-service-tabs .cs-tab-icon{display:block;width:26px;height:26px;flex:0 0 26px;color:var(--studio-action)}
+.cs-service-tabs a:hover{background:#f0e8dc;transform:translateY(-2px)}
+.cs-service-tabs a[aria-current]{background:var(--studio-action);color:#fff;font-weight:650;box-shadow:0 5px 14px rgba(120,52,24,.2)}
+.cs-service-tabs a[aria-current] .cs-tab-icon{color:inherit}
+.cs-service-tabs a:focus-visible{outline:3px solid var(--studio-action);outline-offset:4px}
+@media(max-width:900px){.cs-service-tabs{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.cs-service-tabs a{padding:15px;min-height:84px;font-size:13px}}
+@media(max-width:359px){.cs-service-tabs a{padding:12px;gap:8px;font-size:12px}.cs-service-tabs .cs-tab-icon{width:22px;height:22px;flex-basis:22px}}
+@media(prefers-reduced-motion:reduce){.cs-service-tabs a{transition:none}.cs-service-tabs a:hover{transform:none}}
