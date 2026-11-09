@@ -69,7 +69,7 @@ def check_portfolio(page, locale, *, activate=False, touch=False):
         assert page.locator('#portfolio .studio-illustration-note').count()==0
         expect(page.locator('#portfolio')).not_to_contain_text('Foto di bagian lain adalah ilustrasi layanan.')
         expect(page.locator('#portfolio')).not_to_contain_text('Photos in other sections illustrate our services.')
-        assert page.locator('[data-cs-id="Visual ilustrasi"][data-cs-en="Illustrative visuals"]').count()==3
+        assert page.locator('[data-cs-id="Visual ilustrasi"][data-cs-en="Illustrative visuals"]').count()==1
         assert page.locator('#portfolio iframe,#portfolio video').count()==0
         page.evaluate('document.activeElement?.blur()')
     finally:
@@ -153,8 +153,9 @@ def main():
                 if width in (393,1440):page.locator('#portfolio').screenshot(path=str(output/f'portfolio-id-{width}.png'))
                 def fits():assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
                 fits();expect(page.locator('#cs-title')).to_be_visible()
-                expect(page.locator('[data-service-choice]')).to_have_count(2)
-                for a in page.locator('[data-studio-portfolio]').all():
+                expect(page.locator('[data-service-choice]')).to_have_count(4)
+                expect(page.locator('#studio-navigation [data-studio-portfolio]')).to_have_attribute('href','#portfolio')
+                for a in page.locator('#portfolio [data-studio-portfolio]').all():
                     expect(a).to_have_attribute('href','https://instagram.com/kilasworks')
                     expect(a).to_have_attribute('target','_blank')
                 page.screenshot(path=str(output/f'home-{width}.png'),full_page=True)
@@ -164,27 +165,27 @@ def main():
                     expect(page.locator(f'#cs-{kind} .cs-card')).to_have_count(3)
                     images_ready()
                     if kind=='event':
-                        premium=page.locator('#cs-event .cs-premium')
-                        expect(premium.locator('.cs-price')).to_have_text('Rp5.000.000')
-                        expect(premium).to_contain_text('1 fotografer + 1 videografer')
+                        premium=page.locator('#cs-event .cs-card').last
+                        expect(premium.locator('.cs-price')).to_have_text('Rp7.500.000')
+                        expect(premium).to_contain_text('2 crew photography/videography sesuai pembagian tugas')
                         expect(premium).not_to_contain_text('2 fotografer')
-                        expect(premium).to_contain_text('Pengambilan video udara menggunakan drone')
-                        expect(premium.locator('.cs-drone-note')).to_have_text('Pengambilan gambar drone menyesuaikan cuaca, kondisi lokasi, dan izin penerbangan.')
+                        expect(premium).to_contain_text('Drone footage jika lokasi dan izin memungkinkan')
+                        expect(premium.locator('.cs-features li').last).to_have_text('Drone footage jika lokasi dan izin memungkinkan')
                         expect(page.locator('#cs-social .cs-drone-note')).to_have_count(0)
                         if width in (393,1440):premium.screenshot(path=str(output/f'event-premium-id-{width}.png'),animations='disabled')
                     page.screenshot(path=str(output/f'{kind}-{width}.png'),full_page=True)
                     page.locator('[data-cs-language="en"]').click();fits()
                     expect(page.locator('html')).to_have_attribute('lang','en')
-                    expect(page.locator(f'#cs-{kind} h1')).to_have_text('Event Photography & Videography' if kind=='event' else 'Social Media Content Plan')
+                    expect(page.locator(f'#cs-{kind} h1')).to_have_text('Event Documentation' if kind=='event' else 'Monthly Content Production')
                     if kind=='event':
-                        expect(premium).to_contain_text('1 photographer + 1 videographer')
+                        expect(premium).to_contain_text('2 photography/videography crew according to assigned roles')
                         expect(premium).not_to_contain_text('2 photographers')
-                        expect(premium).to_contain_text('Aerial video footage captured with a drone')
-                        expect(premium.locator('.cs-drone-note')).to_have_text('Drone filming is subject to weather, site conditions, and flight permissions.')
+                        expect(premium).to_contain_text('Drone footage where location and permits allow')
+                        expect(premium.locator('.cs-features li').last).to_have_text('Drone footage where location and permits allow')
                         if width in (393,1440):premium.screenshot(path=str(output/f'event-premium-en-{width}.png'),animations='disabled')
                     page.locator('[data-cs-language="id"]').click()
-                    choice=page.locator('#cs-event .cs-premium [data-service-id]') if kind=='event' else page.locator('#cs-social [data-service-id]').first
-                    assert '/creative-services/checkout/creative_' + kind + '_' in choice.get_attribute('href')
+                    choice=page.locator('#cs-event .cs-card').last.locator('[data-service-id]') if kind=='event' else page.locator('#cs-social [data-service-id]').first
+                    assert choice.get_attribute('href') == '#contact'
                     page.locator('#studio-navigation a[href="#contact"]').evaluate('(e)=>e.click()')
                     page.wait_for_url('**/#contact')
                     page.locator('#cs-brief-date').fill('2026-11-20')

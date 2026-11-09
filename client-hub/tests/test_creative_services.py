@@ -18,7 +18,7 @@ class CreativeServicesTests(unittest.TestCase):
     setUp = fixture.HomeTests.setUp
     client = fixture.HomeTests.client
 
-    def test_approved_offers_remain_unchanged(self):
+    def test_rate_card_offers_match_latest_approved_facts(self):
         expected = json.loads(Path(__file__).with_name('creative_services_offer_facts.json').read_text())
         html = (SOURCE / 'index.html').read_text()
         def plain(value):
@@ -48,7 +48,7 @@ class CreativeServicesTests(unittest.TestCase):
         html = (SOURCE / 'index.html').read_text()
         self.assertNotIn('Foto di bagian lain adalah ilustrasi layanan.', html)
         self.assertNotIn('Photos in other sections illustrate our services.', html)
-        self.assertEqual(html.count('data-cs-id="Visual ilustrasi" data-cs-en="Illustrative visuals"'), 3)
+        self.assertEqual(html.count('data-cs-id="Visual ilustrasi" data-cs-en="Illustrative visuals"'), 1)
         self.assertNotIn('Foto di halaman ini adalah ilustrasi layanan.', html)
         self.assertNotIn('reference.webp', html)
         self.assertFalse((ROOT / 'creative-redesign-transfer-20261031.json').exists())
@@ -68,7 +68,7 @@ class CreativeServicesTests(unittest.TestCase):
                 if tag == 'img' and 'illustrations/' in item.get('src', ''):
                     self.items.append(item)
         parsed = Images(); parsed.feed(html)
-        self.assertEqual(len(parsed.items), 7)
+        self.assertEqual(len(parsed.items), 5)
         self.assertEqual(sum(item.get('fetchpriority') == 'high' for item in parsed.items), 1)
         for item in parsed.items:
             self.assertIn('alt', item)

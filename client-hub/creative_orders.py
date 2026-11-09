@@ -34,11 +34,13 @@ def offer(key, addon='none'):
     if key not in CATALOG['packages'] or addon not in CATALOG['addons']:
         raise ValueError('Pilihan paket tidak tersedia.')
     result = dict(CATALOG['packages'][key])
-    if result['service'] != 'social' and addon != 'none':
-        raise ValueError('Add-on influencer hanya tersedia untuk paket media sosial.')
     extra = CATALOG['addons'][addon]
+    if addon != 'none' and result['service'] != extra.get('service'):
+        raise ValueError('Add-on hanya tersedia untuk layanan editing.')
+    # Reference prices are not payable totals. Percentage/custom items need a quote.
+    total = None if result.get('quotation_required') else result['amount'] + extra['amount']
     result.update(key=key, addon=addon, addon_name=extra['name'], addon_amount=extra['amount'],
-                  total=result['amount'] + extra['amount'])
+                  total=total)
     return result
 
 
@@ -96,6 +98,8 @@ def create_order(user_id, key, form):
         previous = find_draft(user_id, token['nonce'])
         if previous:
             return payment_service.get_latest_invoice_for_project(previous['id'])['id']
+        if CATALOG['packages'].get(key, {}).get('quotation_required'):
+            raise ValueError('Paket ini memerlukan quotation tertulis sebelum invoice dapat dibuat.')
         if token.get('catalog_version') != catalog_version():
             raise ValueError('Pilihan atau harga paket berubah. Buka kembali paket untuk melihat harga terbaru.')
         selected = offer(key, form.get('addon', 'none'))

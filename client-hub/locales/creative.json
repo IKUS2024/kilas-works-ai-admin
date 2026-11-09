@@ -153,7 +153,7 @@
     "id": "1 fotografer",
     "en": "1 photographer",
     "es": "1 fotógrafo",
-    "zh": "1 名摄影师"
+    "zh": "1名摄影师"
   },
   "Durasi hingga 5 jam": {
     "id": "Durasi hingga 5 jam",
@@ -183,7 +183,7 @@
     "id": "1 fotografer + 1 videografer",
     "en": "1 photographer + 1 videographer",
     "es": "1 fotógrafo + 1 videógrafo",
-    "zh": "1 名摄影师 + 1 名摄像师"
+    "zh": "1名摄影师 + 1名摄像师"
   },
   "Durasi hingga 8 jam": {
     "id": "Durasi hingga 8 jam",
@@ -320,8 +320,8 @@
   "Caption": {
     "id": "Caption",
     "en": "Captions",
-    "es": "Textos de publicaciones",
-    "zh": "发布文案"
+    "es": "Textos de publicación",
+    "zh": "配文"
   },
   "Penjadwalan Posting": {
     "id": "Penjadwalan Posting",
@@ -1186,5 +1186,689 @@
     "en": "Notes is too long or contains invalid characters.",
     "es": "Notas es demasiado largo o contiene caracteres no válidos.",
     "zh": "备注过长或包含无效字符"
+  },
+  "Konsultasi & quotation": {
+    "id": "Konsultasi & quotation",
+    "en": "Consultation & quotation",
+    "es": "Consulta y presupuesto",
+    "zh": "咨询与报价"
+  },
+  "Harga melalui quotation": {
+    "id": "Harga melalui quotation",
+    "en": "Price by quotation",
+    "es": "Precio según presupuesto",
+    "zh": "价格另行报价"
+  },
+  "Mulai dari": {
+    "id": "Mulai dari",
+    "en": "From",
+    "es": "Desde",
+    "zh": "起价"
+  },
+  "Harga referensi / draft": {
+    "id": "Harga referensi / draft",
+    "en": "Reference / draft price",
+    "es": "Precio de referencia / borrador",
+    "zh": "参考 / 草案价格"
+  },
+  "Harga final melalui quotation tertulis setelah scope disepakati. Tidak ada invoice atau pembayaran otomatis dari halaman ini.": {
+    "id": "Harga final melalui quotation tertulis setelah scope disepakati. Tidak ada invoice atau pembayaran otomatis dari halaman ini.",
+    "en": "Final pricing is confirmed in a written quotation after the scope is agreed. This page does not create invoices or take payments.",
+    "es": "El precio final se confirma en un presupuesto escrito tras acordar el alcance. Esta página no genera facturas ni cobra pagos.",
+    "zh": "确定服务范围后，将通过书面报价确认最终价格。此页面不会自动生成账单或收款。"
+  },
+  "Ketentuan pembayaran": {
+    "id": "Ketentuan pembayaran",
+    "en": "Payment terms",
+    "es": "Condiciones de pago",
+    "zh": "付款条款"
+  },
+  "Paket bulanan dibayar di muka.": {
+    "id": "Paket bulanan dibayar di muka.",
+    "en": "Monthly packages are paid upfront.",
+    "es": "Los paquetes mensuales se pagan por adelantado.",
+    "zh": "月度套餐需预付。"
+  },
+  "DP 50% setelah quotation disepakati; pelunasan 50% sebelum hasil diserahkan.": {
+    "id": "DP 50% setelah quotation disepakati; pelunasan 50% sebelum hasil diserahkan.",
+    "en": "50% deposit after quotation approval; the remaining 50% before delivery.",
+    "es": "Anticipo del 50% al aprobar el presupuesto; el 50% restante antes de la entrega.",
+    "zh": "确认报价后支付50%定金，交付前支付剩余50%。"
+  },
+  "Konsultasi & minta quotation": {
+    "id": "Konsultasi & minta quotation",
+    "en": "Discuss your project & request a quote",
+    "es": "Consulta tu proyecto y solicita presupuesto",
+    "zh": "咨询项目并索取报价"
+  },
+  "Lihat kontak tim": {
+    "id": "Lihat kontak tim",
+    "en": "View team contact details",
+    "es": "Ver contacto del equipo",
+    "zh": "查看团队联系方式"
+  },
+  "Paket ini memerlukan quotation tertulis sebelum invoice dapat dibuat.": {
+    "id": "Paket ini memerlukan quotation tertulis sebelum invoice dapat dibuat.",
+    "en": "This package requires a written quotation before an invoice can be created.",
+    "es": "Este paquete requiere un presupuesto escrito antes de generar una factura.",
+    "zh": "此套餐需先确认书面报价，才能生成账单。"
+  },
+  "Add-on hanya tersedia untuk layanan editing.": {
+    "id": "Add-on hanya tersedia untuk layanan editing.",
+    "en": "Add-ons are only available for editing services.",
+    "es": "Los extras solo están disponibles para servicios de edición.",
+    "zh": "附加项目仅适用于剪辑服务。"
+  },
+  "Durasi maksimal 4 jam": {
+    "id": "Durasi maksimal 4 jam",
+    "en": "Up to 4 hours",
+    "es": "Hasta 4 horas",
+    "zh": "最长4小时"
+  },
+  "Durasi maksimal 6 jam": {
+    "id": "Durasi maksimal 6 jam",
+    "en": "Up to 6 hours",
+    "es": "Hasta 6 horas",
+    "zh": "最长6小时"
+  },
+  "Durasi maksimal 8 jam": {
+    "id": "Durasi maksimal 8 jam",
+    "en": "Up to 8 hours",
+    "es": "Hasta 8 horas",
+    "zh": "最长8小时"
+  },
+  "50 foto diedit": {
+    "id": "50 foto diedit",
+    "en": "50 edited photos",
+    "es": "50 fotos editadas",
+    "zh": "50张精修照片"
+  },
+  "File digital resolusi tinggi": {
+    "id": "File digital resolusi tinggi",
+    "en": "High-resolution digital files",
+    "es": "Archivos digitales de alta resolución",
+    "zh": "高分辨率数字文件"
+  },
+  "Foto diedit": {
+    "id": "Foto diedit",
+    "en": "Edited photos",
+    "es": "Fotos editadas",
+    "zh": "精修照片"
+  },
+  "Video highlight 1–2 menit": {
+    "id": "Video highlight 1–2 menit",
+    "en": "1–2 minute highlight video",
+    "es": "Vídeo resumen de 1–2 minutos",
+    "zh": "1–2分钟精彩集锦"
+  },
+  "1 teaser": {
+    "id": "1 teaser",
+    "en": "1 teaser",
+    "es": "1 teaser",
+    "zh": "1支预告片"
+  },
+  "2 kru": {
+    "id": "2 kru",
+    "en": "2 crew members",
+    "es": "2 profesionales",
+    "zh": "2名工作人员"
+  },
+  "100+ foto diedit": {
+    "id": "100+ foto diedit",
+    "en": "100+ edited photos",
+    "es": "Más de 100 fotos editadas",
+    "zh": "100张以上精修照片"
+  },
+  "Video sinematik 2–3 menit": {
+    "id": "Video sinematik 2–3 menit",
+    "en": "2–3 minute cinematic video",
+    "es": "Vídeo cinematográfico de 2–3 minutos",
+    "zh": "2–3分钟电影感视频"
+  },
+  "2 teaser": {
+    "id": "2 teaser",
+    "en": "2 teasers",
+    "es": "2 teasers",
+    "zh": "2支预告片"
+  },
+  "Drone sesuai lokasi dan perizinan": {
+    "id": "Drone sesuai lokasi dan perizinan",
+    "en": "Drone subject to location and permissions",
+    "es": "Dron sujeto a ubicación y permisos",
+    "zh": "航拍视地点和许可情况而定"
+  },
+  "1 sesi produksi": {
+    "id": "1 sesi produksi",
+    "en": "1 production session",
+    "es": "1 sesión de producción",
+    "zh": "1次制作拍摄"
+  },
+  "2 sesi produksi": {
+    "id": "2 sesi produksi",
+    "en": "2 production sessions",
+    "es": "2 sesiones de producción",
+    "zh": "2次制作拍摄"
+  },
+  "3 sesi produksi": {
+    "id": "3 sesi produksi",
+    "en": "3 production sessions",
+    "es": "3 sesiones de producción",
+    "zh": "3次制作拍摄"
+  },
+  "4 video pendek": {
+    "id": "4 video pendek",
+    "en": "4 short videos",
+    "es": "4 vídeos cortos",
+    "zh": "4支短视频"
+  },
+  "6 konten statis": {
+    "id": "6 konten statis",
+    "en": "6 static posts",
+    "es": "6 publicaciones estáticas",
+    "zh": "6条静态内容"
+  },
+  "Perencanaan dasar": {
+    "id": "Perencanaan dasar",
+    "en": "Basic planning",
+    "es": "Planificación básica",
+    "zh": "基础策划"
+  },
+  "8 video": {
+    "id": "8 video",
+    "en": "8 videos",
+    "es": "8 vídeos",
+    "zh": "8支视频"
+  },
+  "10 konten statis": {
+    "id": "10 konten statis",
+    "en": "10 static posts",
+    "es": "10 publicaciones estáticas",
+    "zh": "10条静态内容"
+  },
+  "Kalender konten": {
+    "id": "Kalender konten",
+    "en": "Content calendar",
+    "es": "Calendario de contenido",
+    "zh": "内容日历"
+  },
+  "Arahan kreatif": {
+    "id": "Arahan kreatif",
+    "en": "Creative direction",
+    "es": "Dirección creativa",
+    "zh": "创意指导"
+  },
+  "12 video": {
+    "id": "12 video",
+    "en": "12 videos",
+    "es": "12 vídeos",
+    "zh": "12支视频"
+  },
+  "14 konten statis": {
+    "id": "14 konten statis",
+    "en": "14 static posts",
+    "es": "14 publicaciones estáticas",
+    "zh": "14条静态内容"
+  },
+  "Strategi dan kalender konten": {
+    "id": "Strategi dan kalender konten",
+    "en": "Content strategy and calendar",
+    "es": "Estrategia y calendario de contenido",
+    "zh": "内容策略与日历"
+  },
+  "Evaluasi performa": {
+    "id": "Evaluasi performa",
+    "en": "Performance review",
+    "es": "Evaluación de rendimiento",
+    "zh": "效果评估"
+  },
+  "Konsep": {
+    "id": "Konsep",
+    "en": "Concept",
+    "es": "Concepto",
+    "zh": "创意概念"
+  },
+  "1 sesi shooting": {
+    "id": "1 sesi shooting",
+    "en": "1 shoot session",
+    "es": "1 sesión de rodaje",
+    "zh": "1次拍摄"
+  },
+  "1 video utama": {
+    "id": "1 video utama",
+    "en": "1 main video",
+    "es": "1 vídeo principal",
+    "zh": "1支主视频"
+  },
+  "Color dasar": {
+    "id": "Color dasar",
+    "en": "Basic color correction",
+    "es": "Corrección de color básica",
+    "zh": "基础调色"
+  },
+  "1 kali revisi": {
+    "id": "1 kali revisi",
+    "en": "1 revision",
+    "es": "1 revisión",
+    "zh": "1次修改"
+  },
+  "Konsep dan storyboard": {
+    "id": "Konsep dan storyboard",
+    "en": "Concept and storyboard",
+    "es": "Concepto y guion gráfico",
+    "zh": "创意概念与分镜"
+  },
+  "Shooting produk": {
+    "id": "Shooting produk",
+    "en": "Product shoot",
+    "es": "Rodaje de producto",
+    "zh": "产品拍摄"
+  },
+  "Visual sinematik": {
+    "id": "Visual sinematik",
+    "en": "Cinematic visuals",
+    "es": "Imágenes cinematográficas",
+    "zh": "电影感画面"
+  },
+  "2 cutdown": {
+    "id": "2 cutdown",
+    "en": "2 cutdowns",
+    "es": "2 versiones cortas",
+    "zh": "2支短版视频"
+  },
+  "Konsep dan arahan kreatif": {
+    "id": "Konsep dan arahan kreatif",
+    "en": "Concept and creative direction",
+    "es": "Concepto y dirección creativa",
+    "zh": "创意概念与指导"
+  },
+  "Storyboard": {
+    "id": "Storyboard",
+    "en": "Storyboard",
+    "es": "Guion gráfico",
+    "zh": "分镜"
+  },
+  "Produksi kampanye": {
+    "id": "Produksi kampanye",
+    "en": "Campaign production",
+    "es": "Producción de campaña",
+    "zh": "营销活动制作"
+  },
+  "Editing dan color": {
+    "id": "Editing dan color",
+    "en": "Editing and color",
+    "es": "Edición y color",
+    "zh": "剪辑与调色"
+  },
+  "Konsep dan naskah": {
+    "id": "Konsep dan naskah",
+    "en": "Concept and script",
+    "es": "Concepto y guion",
+    "zh": "创意概念与脚本"
+  },
+  "Wawancara": {
+    "id": "Wawancara",
+    "en": "Interviews",
+    "es": "Entrevistas",
+    "zh": "采访"
+  },
+  "Footage perusahaan": {
+    "id": "Footage perusahaan",
+    "en": "Company footage",
+    "es": "Grabaciones de la empresa",
+    "zh": "企业素材"
+  },
+  "Produksi": {
+    "id": "Produksi",
+    "en": "Production",
+    "es": "Producción",
+    "zh": "制作"
+  },
+  "Footage disediakan klien": {
+    "id": "Footage disediakan klien",
+    "en": "Client-supplied footage",
+    "es": "Material proporcionado por el cliente",
+    "zh": "客户提供素材"
+  },
+  "Cutting dan penyusunan alur": {
+    "id": "Cutting dan penyusunan alur",
+    "en": "Cutting and sequencing",
+    "es": "Corte y secuenciación",
+    "zh": "剪切与编排"
+  },
+  "Transisi": {
+    "id": "Transisi",
+    "en": "Transitions",
+    "es": "Transiciones",
+    "zh": "转场"
+  },
+  "Musik dan suara": {
+    "id": "Musik dan suara",
+    "en": "Music and sound",
+    "es": "Música y sonido",
+    "zh": "音乐与声音"
+  },
+  "Teks / subtitle sederhana": {
+    "id": "Teks / subtitle sederhana",
+    "en": "Simple text / subtitles",
+    "es": "Textos / subtítulos sencillos",
+    "zh": "简单文字 / 字幕"
+  },
+  "Ekspor sesuai platform": {
+    "id": "Ekspor sesuai platform",
+    "en": "Platform-ready export",
+    "es": "Exportación para cada plataforma",
+    "zh": "适配平台导出"
+  },
+  "Maksimal 2 revisi minor": {
+    "id": "Maksimal 2 revisi minor",
+    "en": "Up to 2 minor revisions",
+    "es": "Hasta 2 revisiones menores",
+    "zh": "最多2次小幅修改"
+  },
+  "proyek": {
+    "id": "proyek",
+    "en": "project",
+    "es": "proyecto",
+    "zh": "项目"
+  },
+  "Dokumentasi Event — Essential": {
+    "id": "Dokumentasi Event — Essential",
+    "en": "Event Coverage — Essential",
+    "es": "Cobertura de eventos — Essential",
+    "zh": "活动记录 — Essential"
+  },
+  "Dokumentasi Event — Professional": {
+    "id": "Dokumentasi Event — Professional",
+    "en": "Event Coverage — Professional",
+    "es": "Cobertura de eventos — Professional",
+    "zh": "活动记录 — Professional"
+  },
+  "Dokumentasi Event — Corporate": {
+    "id": "Dokumentasi Event — Corporate",
+    "en": "Event Coverage — Corporate",
+    "es": "Cobertura de eventos — Corporate",
+    "zh": "活动记录 — Corporate"
+  },
+  "Konten Bulanan — Basic": {
+    "id": "Konten Bulanan — Basic",
+    "en": "Monthly Content — Basic",
+    "es": "Contenido mensual — Basic",
+    "zh": "月度内容 — Basic"
+  },
+  "Konten Bulanan — Growth": {
+    "id": "Konten Bulanan — Growth",
+    "en": "Monthly Content — Growth",
+    "es": "Contenido mensual — Growth",
+    "zh": "月度内容 — Growth"
+  },
+  "Konten Bulanan — Professional": {
+    "id": "Konten Bulanan — Professional",
+    "en": "Monthly Content — Professional",
+    "es": "Contenido mensual — Professional",
+    "zh": "月度内容 — Professional"
+  },
+  "Produksi Komersial — Brand Campaign": {
+    "id": "Produksi Komersial — Brand Campaign",
+    "en": "Commercial Production — Brand Campaign",
+    "es": "Producción comercial — Brand Campaign",
+    "zh": "商业制作 — Brand Campaign"
+  },
+  "Produksi Komersial — Company Profile": {
+    "id": "Produksi Komersial — Company Profile",
+    "en": "Commercial Production — Company Profile",
+    "es": "Producción comercial — Company Profile",
+    "zh": "商业制作 — Company Profile"
+  },
+  "Durasi maksimal 1 menit": {
+    "id": "Durasi maksimal 1 menit",
+    "en": "Maximum duration: 1 minute",
+    "es": "Duración máxima: 1 minuto",
+    "zh": "最长1分钟"
+  },
+  "Untuk Instagram Reels, TikTok, dan YouTube Shorts": {
+    "id": "Untuk Instagram Reels, TikTok, dan YouTube Shorts",
+    "en": "For Instagram Reels, TikTok, and YouTube Shorts",
+    "es": "Para Instagram Reels, TikTok y YouTube Shorts",
+    "zh": "适用于Instagram Reels、TikTok和YouTube Shorts"
+  },
+  "Footage disediakan oleh klien": {
+    "id": "Footage disediakan oleh klien",
+    "en": "Footage supplied by the client",
+    "es": "Material proporcionado por el cliente",
+    "zh": "素材由客户提供"
+  },
+  "Berlaku untuk kebutuhan editing standar": {
+    "id": "Berlaku untuk kebutuhan editing standar",
+    "en": "For standard editing requirements",
+    "es": "Para necesidades de edición estándar",
+    "zh": "适用于标准剪辑需求"
+  },
+  "1 teaser Reel": {
+    "id": "1 teaser Reel",
+    "en": "1 teaser Reel",
+    "es": "1 Reel de avance",
+    "zh": "1支Reel预告短片"
+  },
+  "2 teaser Reels": {
+    "id": "2 teaser Reels",
+    "en": "2 teaser Reels",
+    "es": "2 Reels de avance",
+    "zh": "2支Reel预告短片"
+  },
+  "2 kru photography/videography sesuai pembagian tugas": {
+    "id": "2 kru photography/videography sesuai pembagian tugas",
+    "en": "2 photography/videography crew members with assigned roles",
+    "es": "2 profesionales de fotografía/videografía según la distribución de tareas",
+    "zh": "2名摄影/摄像工作人员，按职责分工"
+  },
+  "Produksi Komersial — Promotional Video": {
+    "id": "Produksi Komersial — Promotional Video",
+    "en": "Commercial Production — Promotional Video",
+    "es": "Producción comercial — Promotional Video",
+    "zh": "商业制作 — Promotional Video"
+  },
+  "Produksi Komersial — Product Commercial": {
+    "id": "Produksi Komersial — Product Commercial",
+    "en": "Commercial Production — Product Commercial",
+    "es": "Producción comercial — Product Commercial",
+    "zh": "商业制作 — Product Commercial"
+  },
+  "Ketentuan editing": {
+    "id": "Ketentuan editing",
+    "en": "Editing terms",
+    "es": "Condiciones de edición",
+    "zh": "剪辑条款"
+  },
+  "Footage dan materi disediakan oleh klien": {
+    "id": "Footage dan materi disediakan oleh klien",
+    "en": "Footage and materials supplied by the client",
+    "es": "Grabaciones y materiales proporcionados por el cliente",
+    "zh": "素材及资料由客户提供"
+  },
+  "Shooting, penulisan naskah, konsep, talent, dan voice-over tidak termasuk kecuali disepakati terpisah": {
+    "id": "Shooting, penulisan naskah, konsep, talent, dan voice-over tidak termasuk kecuali disepakati terpisah",
+    "en": "Shooting, scriptwriting, concept, talent, and voice-over excluded unless separately agreed",
+    "es": "Rodaje, guion, concepto, talento y voz en off excluidos salvo acuerdo separado",
+    "zh": "除非另行约定，否则不含拍摄、脚本、创意概念、出演人员和配音"
+  },
+  "Durasi lebih dari 1 menit melalui quotation terpisah": {
+    "id": "Durasi lebih dari 1 menit melalui quotation terpisah",
+    "en": "Videos over 1 minute require a separate quotation",
+    "es": "Los vídeos de más de 1 minuto requieren un presupuesto aparte",
+    "zh": "超过1分钟的视频需另行报价"
+  },
+  "Timeline dimulai setelah materi diterima lengkap": {
+    "id": "Timeline dimulai setelah materi diterima lengkap",
+    "en": "Timeline starts after all materials are received",
+    "es": "El plazo comienza al recibir todos los materiales",
+    "zh": "收到完整素材后开始计算制作周期"
+  },
+  "Transisi sederhana": {
+    "id": "Transisi sederhana",
+    "en": "Simple transitions",
+    "es": "Transiciones sencillas",
+    "zh": "简单转场"
+  },
+  "Musik latar": {
+    "id": "Musik latar",
+    "en": "Background music",
+    "es": "Música de fondo",
+    "zh": "背景音乐"
+  },
+  "Penyesuaian suara dasar": {
+    "id": "Penyesuaian suara dasar",
+    "en": "Basic sound adjustment",
+    "es": "Ajuste básico de sonido",
+    "zh": "基础声音调整"
+  },
+  "Subtitle / teks sederhana": {
+    "id": "Subtitle / teks sederhana",
+    "en": "Simple subtitles / text",
+    "es": "Subtítulos / textos sencillos",
+    "zh": "简单字幕 / 文字"
+  },
+  "Ekspor vertikal 9:16 untuk media sosial": {
+    "id": "Ekspor vertikal 9:16 untuk media sosial",
+    "en": "9:16 vertical export for social media",
+    "es": "Exportación vertical 9:16 para redes sociales",
+    "zh": "9:16竖版社交媒体导出"
+  },
+  "Untuk talking head, daily vlog, potongan podcast, showcase produk sederhana, dan konten harian": {
+    "id": "Untuk talking head, daily vlog, potongan podcast, showcase produk sederhana, dan konten harian",
+    "en": "For talking heads, daily vlogs, podcast clips, simple product showcases, and daily content",
+    "es": "Para vídeos a cámara, vlogs diarios, clips de pódcast, muestras sencillas de productos y contenido diario",
+    "zh": "适用于口播、日常视频、播客片段、简单产品展示和日常内容"
+  },
+  "Semua cakupan Basic": {
+    "id": "Semua cakupan Basic",
+    "en": "Everything in Basic",
+    "es": "Todo lo incluido en Basic",
+    "zh": "包含Basic所有内容"
+  },
+  "Cutting dan pacing dinamis": {
+    "id": "Cutting dan pacing dinamis",
+    "en": "Dynamic cuts and pacing",
+    "es": "Cortes y ritmo dinámicos",
+    "zh": "动态剪切与节奏"
+  },
+  "Caption animasi": {
+    "id": "Caption animasi",
+    "en": "Animated captions",
+    "es": "Subtítulos animados",
+    "zh": "动态字幕"
+  },
+  "Efek suara": {
+    "id": "Efek suara",
+    "en": "Sound effects",
+    "es": "Efectos de sonido",
+    "zh": "音效"
+  },
+  "Efek zoom / motion sederhana": {
+    "id": "Efek zoom / motion sederhana",
+    "en": "Zoom effects / simple motion",
+    "es": "Efectos de zoom / movimiento sencillo",
+    "zh": "缩放效果 / 简单动态效果"
+  },
+  "Color lebih detail": {
+    "id": "Color lebih detail",
+    "en": "More detailed color correction",
+    "es": "Corrección de color más detallada",
+    "zh": "更精细的调色"
+  },
+  "Untuk promo, storytelling, brand, dan konten sosial dinamis": {
+    "id": "Untuk promo, storytelling, brand, dan konten sosial dinamis",
+    "en": "For promos, storytelling, brands, and dynamic social content",
+    "es": "Para promociones, narrativa, marcas y contenido social dinámico",
+    "zh": "适用于推广、叙事、品牌及动态社交内容"
+  },
+  "Semua cakupan Advanced": {
+    "id": "Semua cakupan Advanced",
+    "en": "Everything in Advanced",
+    "es": "Todo lo incluido en Advanced",
+    "zh": "包含Advanced所有内容"
+  },
+  "Editing kreatif dan visual storytelling": {
+    "id": "Editing kreatif dan visual storytelling",
+    "en": "Creative editing and visual storytelling",
+    "es": "Edición creativa y narrativa visual",
+    "zh": "创意剪辑与视觉叙事"
+  },
+  "Motion graphic sederhana": {
+    "id": "Motion graphic sederhana",
+    "en": "Simple motion graphics",
+    "es": "Gráficos animados sencillos",
+    "zh": "简单动态图形"
+  },
+  "Sound design detail": {
+    "id": "Sound design detail",
+    "en": "Detailed sound design",
+    "es": "Diseño de sonido detallado",
+    "zh": "精细声音设计"
+  },
+  "Color lanjutan": {
+    "id": "Color lanjutan",
+    "en": "Advanced color correction",
+    "es": "Corrección de color avanzada",
+    "zh": "高级调色"
+  },
+  "Transisi khusus / VFX sesuai kebutuhan": {
+    "id": "Transisi khusus / VFX sesuai kebutuhan",
+    "en": "Custom transitions / VFX as needed",
+    "es": "Transiciones personalizadas / efectos visuales según necesidad",
+    "zh": "按需定制转场 / 视觉特效"
+  },
+  "Untuk cinematic Reels, campaign, dan product storytelling": {
+    "id": "Untuk cinematic Reels, campaign, dan product storytelling",
+    "en": "For cinematic Reels, campaigns, and product storytelling",
+    "es": "Para Reels cinematográficos, campañas y narrativa de productos",
+    "zh": "适用于电影感Reels、营销活动和产品叙事"
+  },
+  "Scope dan durasi sesuai brief": {
+    "id": "Scope dan durasi sesuai brief",
+    "en": "Scope and duration based on the brief",
+    "es": "Alcance y duración según el brief",
+    "zh": "服务范围与时长按项目需求确定"
+  },
+  "Struktur cerita": {
+    "id": "Struktur cerita",
+    "en": "Story structure",
+    "es": "Estructura narrativa",
+    "zh": "故事结构"
+  },
+  "Editing lanjutan": {
+    "id": "Editing lanjutan",
+    "en": "Advanced editing",
+    "es": "Edición avanzada",
+    "zh": "高级剪辑"
+  },
+  "Motion graphic lanjutan": {
+    "id": "Motion graphic lanjutan",
+    "en": "Advanced motion graphics",
+    "es": "Gráficos animados avanzados",
+    "zh": "高级动态图形"
+  },
+  "Color profesional": {
+    "id": "Color profesional",
+    "en": "Professional color grading",
+    "es": "Etalonaje profesional",
+    "zh": "专业调色"
+  },
+  "Beberapa output / cutdown hanya jika disepakati": {
+    "id": "Beberapa output / cutdown hanya jika disepakati",
+    "en": "Multiple outputs / cutdowns only if agreed",
+    "es": "Múltiples versiones / recortes solo si se acuerdan",
+    "zh": "仅在约定时提供多个版本 / 短版"
+  },
+  "Untuk iklan, brand film, company profile, dan campaign commercial": {
+    "id": "Untuk iklan, brand film, company profile, dan campaign commercial",
+    "en": "For ads, brand films, company profiles, and commercial campaigns",
+    "es": "Para anuncios, películas de marca, perfiles de empresa y campañas comerciales",
+    "zh": "适用于广告、品牌影片、企业介绍和商业营销活动"
+  },
+  "Motion graphic tambahan": {
+    "id": "Motion graphic tambahan",
+    "en": "Additional motion graphics",
+    "es": "Gráficos animados adicionales",
+    "zh": "额外动态图形"
   }
 }

@@ -1,4 +1,8 @@
-"""Real selection -> checkout -> payment -> private proof, synthetic local data only."""
+"""Historical checkout -> payment -> private proof; synthetic local data only.
+
+CreativeCheckoutTests installs the archived fixed-price catalog. The current public
+quotation UI is covered separately; it must not offer new automatic invoices.
+"""
 import io,json,logging,os,sys,threading,shutil
 from pathlib import Path
 from PIL import Image
@@ -41,8 +45,9 @@ def main():
                     else:external.append(r.request.url);r.abort()
                 context.route('**/*',route)
                 page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
-                # Public entry first, then real login and return to the selected package.
-                page.goto(origin+'/creative-services/#cs-event');page.locator('#cs-event .cs-choose').nth(1).click()
+                # Historical direct link, then real login and return to the selection.
+                # Current public cards correctly lead to consultation, not checkout.
+                page.goto(origin+'/creative-services/checkout/creative_event_standard')
                 expect(page.locator('.selected-service h2')).to_have_text('Foto & Video Acara — Standard')
                 page.locator('.signin a').click();page.locator('#auth-email').fill(case.email);page.locator('#auth-password').fill(case.password)
                 page.locator('.auth-form button[type=submit]').click();page.wait_for_url('**/checkout/creative_event_standard*')
@@ -51,8 +56,7 @@ def main():
                     service=spec['service'];tier=spec['tier'].lower()
                     addons=list(orders.CATALOG['addons']) if service=='social' else ['none']
                     for addon in addons:
-                        page.goto(origin+'/creative-services/#cs-'+service)
-                        page.locator(f'#cs-{service} .cs-choose').nth(['basic','standard','premium'].index(tier)).click()
+                        page.goto(origin+'/creative-services/checkout/'+key)
                         page.wait_for_url('**/checkout/'+key+'*')
                         expect(page.locator('.selected-service h2')).to_have_text(spec['name'])
                         expect(page.locator('.price')).to_contain_text(orders.money(spec['amount']))
@@ -87,8 +91,8 @@ def main():
                 context.close()
             browser.close()
         assert not errors and not external,(errors,external)
-        (output/'results.json').write_text(json.dumps({'cases':results,'errors':errors,'external_requests':external,'paid_transitions':0},indent=2))
-        print(f'PASS {len(results)} real package/add-on journeys at 390/1024px; screenshots {output}')
+        (output/'results.json').write_text(json.dumps({'scope':'historical fixed-price checkout','cases':results,'errors':errors,'external_requests':external,'paid_transitions':0},indent=2))
+        print(f'PASS {len(results)} historical package/add-on journeys at 390/1024px; screenshots {output}')
     finally:server.shutdown();case.doCleanups()
 
 if __name__=='__main__':main()
