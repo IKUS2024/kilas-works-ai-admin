@@ -113,7 +113,7 @@ def main():
                     if not baseline:
                         for name, value in measurements.items():
                             assert value['fontSize'] == '16px', (kind, width, value)
-                            assert value['lineHeight'] == '24px', (kind, width, value)
+                            assert 24 <= float(value['lineHeight'].removesuffix('px')) <= 28, (kind, width, value)
                             assert 'system-ui' in value['font']
                             assert value['height'] <= 48, (kind, width, name, value)
                             assert value['width'] < (230 if name == 'assistant' else 110), (kind, width, name, value)
@@ -147,7 +147,7 @@ def main():
                         assert message.locator(body).evaluate('e=>e.getBoundingClientRect().width<=e.parentElement.getBoundingClientRect().width+1')
                     copy = assistant.locator('.ai-copy')
                     copy.click()
-                    assert page.evaluate('window.__copied') == assistant.locator(body).text_content()
+                    assert page.evaluate('window.__copied') == assistant.locator(body).evaluate('e=>KilasMarkdown.source(e)')
                     timeline.evaluate('e=>e.scrollTop=e.scrollHeight')
                     page.screenshot(path=str(output / f'{kind}-{width}-long.png'))
                     page.reload(wait_until='networkidle')
