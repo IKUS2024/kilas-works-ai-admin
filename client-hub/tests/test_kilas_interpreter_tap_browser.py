@@ -101,11 +101,14 @@ def main():
                     expect(page.locator('#interpreter-state')).to_have_text('Gemini ended the session.')
                     fail[0]=False
                     page.locator('#interpreter-left').click();page.locator('#interpreter-orb img').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
-                    # Direction selection is locked until output finishes.
-                    expect(page.locator('#interpreter-right')).to_be_disabled()
-                    page.locator('#interpreter-right').evaluate('e=>e.click()')
+                    # Switching direction cancels the current turn immediately.
+                    expect(page.locator('#interpreter-right')).to_be_enabled()
+                    page.locator('#interpreter-right').click()
+                    expect(page.locator('#interpreter-right')).to_have_attribute('aria-pressed','true')
+                    expect(page.locator('#interpreter-state')).to_have_attribute('data-state','ended')
+                    page.locator('#interpreter-orb img').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
                     page.locator('#interpreter-orb img').click();page.wait_for_function("['ended','idle'].includes(document.querySelector('#interpreter-state').dataset.state)")
-                    expect(page.locator('#interpreter-caption')).to_have_text('Good morning.')
+                    expect(page.locator('#interpreter-caption')).to_have_text('Selamat pagi.')
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
                 page.screenshot(path=str(output/f'translated-{width}.png'),full_page=True)
                 page.locator('#interpreter-end').click()

@@ -256,7 +256,6 @@ def run():
                 result['manual_markers'] += 1
                 raise ValueError('manual_marker_forbidden')
             if 'setup' in message:
-                value = message['setup']
                 result['setup_sha256'] = hashlib.sha256(json.dumps(message,sort_keys=True,separators=(',',':')).encode()).hexdigest()
                 result['setup_bytes'] = json_bytes(message)
             responses = message.get('toolResponse', {}).get('functionResponses', [])

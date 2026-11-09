@@ -2,7 +2,7 @@ import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=translator-auth-20261031';
 import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-reliable-20261023';
 import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-reliable-20261023';
-import {CallSession} from './kilas_interpreter_engine.mjs?v=translator-reuse-20261105';
+import {CallSession} from './kilas_interpreter_engine.mjs?v=translator-responsive-20261109';
 const root=document.querySelector('#interpreter');
 if(root){
  const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),orb=field('orb'),end=field('end'),consent=field('consent'),navigation=document.querySelector('#interpreter-navigation');
@@ -43,14 +43,14 @@ if(root){
   orb.setAttribute('aria-label',processing?t(session.speaking?'Terjemahan diputar. Tunggu giliran.':'Menerjemahkan'):recording?t('Hentikan dan terjemahkan'):t('Mulai mendengarkan {source} ke {target}',{source:names(selectedSource||pair?.a),target:names(selectedSource===pair?.b?pair?.a:pair?.b)}));
   if(pair)field('current-direction').textContent=names(selectedSource)+' → '+names(selectedSource===pair.a?pair.b:pair.a);
   for(const [button,source,target] of [[left,pair?.a,pair?.b],[right,pair?.b,pair?.a]]){
-   button.disabled=!active||switching||authExpired||!['ended','idle'].includes(session.state);
+   button.disabled=!active||authExpired;
    button.setAttribute('aria-pressed',String(source===selectedSource&&selectedSource!==null));
    button.dataset.selected=String(source===selectedSource&&selectedSource!==null);
    if(pair)button.setAttribute('aria-label',t('Pilih arah bicara')+': '+names(source)+' → '+names(target));
   }
  };
  const directionLabel=(button,source,target)=>{const from=document.createElement('span'),arrow=document.createElement('span'),to=document.createElement('span');from.textContent=source;arrow.textContent=' → ';arrow.className='interpreter-arrow';to.textContent=target;button.replaceChildren(from,arrow,to);button.setAttribute('aria-label',t('Bicara {source} ke {target}',{source,target}));};
- const enter=()=>{if(active||authExpired)return;if(!consent.checked){consent.focus();showError('consent_required');return;}if(field('language-a').value===field('language-b').value){showError('same_language');return;}pair={a:field('language-a').value,b:field('language-b').value};selectedSource=pair.a;directionLabel(left,a.selectedOptions[0].text,b.selectedOptions[0].text);directionLabel(right,b.selectedOptions[0].text,a.selectedOptions[0].text);for(const [button,source,target] of [[left,pair.a,pair.b],[right,pair.b,pair.a]]){button.firstElementChild.dataset.language=source;button.lastElementChild.dataset.language=target;}active=true;field('state').dataset.state='idle';field('setup').hidden=true;field('active').hidden=false;field('error').hidden=true;sync();orb.focus();};
+ const enter=()=>{if(active||authExpired)return;if(!consent.checked){consent.focus();showError('consent_required');return;}if(field('language-a').value===field('language-b').value){showError('same_language');return;}pair={a:field('language-a').value,b:field('language-b').value};selectedSource=pair.a;directionLabel(left,a.selectedOptions[0].text,b.selectedOptions[0].text);directionLabel(right,b.selectedOptions[0].text,a.selectedOptions[0].text);for(const [button,source,target] of [[left,pair.a,pair.b],[right,pair.b,pair.a]]){button.firstElementChild.dataset.language=source;button.lastElementChild.dataset.language=target;}active=true;session.warm();field('state').dataset.state='idle';field('setup').hidden=true;field('active').hidden=false;field('error').hidden=true;sync();orb.focus();};
  const messages={
   language_adjusted:'Bahasa yang sama telah disesuaikan.',call_provider_quota:'Kuota Gemini sedang tidak tersedia.',call_provider_billing:'Periksa billing akun Gemini.',
   consent_required:'Setujui pemrosesan ucapan terlebih dahulu.',same_language:'Pilih bahasa sumber dan tujuan yang berbeda.',call_settings_invalid:'Pilih bahasa dari daftar yang tersedia.',
@@ -111,8 +111,10 @@ if(root){
    if(['ended','idle'].includes(state))side=null;lastState=state;sync();
   },onText:text=>caption('caption',text),onOriginal:text=>caption('original',text),onError:showError});
  function chooseDirection(source){
-  if(!active||switching||authExpired||!['ended','idle'].includes(session.state))return;
-  if(source!==selectedSource&&session.state==='idle')session.end();
+  if(!active||authExpired||source===selectedSource)return;
+  // Switching direction cancels the old turn immediately, even during setup or
+  // playback. A future start still awaits its server cancellation before admission.
+  ++generation;switching=false;session.end();clearTranscript();
   selectedSource=source;sync();
  }
  async function toggleRecording(){
