@@ -18,7 +18,7 @@ import {finalDictation} from '../static/kilas_dictation.mjs';
 const source=fs.readFileSync(new URL('../static/kilas_dictation.mjs',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replace(/export function /g,'function ');
 const final=text=>Object.assign([{transcript:text}],{isFinal:true});
 const interim=text=>Object.assign([{transcript:text}],{isFinal:false});
-function harness({available=true,webkit=false,server=false,constructorFailure=false,startFailure=false}={}){
+function harness({available=true,webkit=false,server=false,constructorFailure=false,startFailure=false,android=false}={}){
   const nodes=new Map(),events=new Map(),timers=new Map(),stats={starts:0,stops:0,aborts:0,confirms:0,accepted:true,requests:[],input:0,mics:0,instances:[]};let timerID=0;
   function node(id){if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,textContent:'',value:'',maxLength:4000,dataset:{},listeners:{},addEventListener(type,handler){this.listeners[type]=handler;},dispatchEvent(){stats.input++;},querySelector:selector=>selector==='[name=csrf_token]'?{value:'synthetic-csrf'}:selector==='[aria-busy=true]'?null:node(selector)});return nodes.get(id);}
   node('#voice-dictation').dataset.ready=String(server);node('#personal-voice-setup').dataset.recorderOpen='false';
@@ -31,7 +31,7 @@ function harness({available=true,webkit=false,server=false,constructorFailure=fa
   const document={querySelector:node,documentElement:{lang:'id'},hidden:false,addEventListener:(name,handler)=>events.set(name,handler)};
   const window={addEventListener:(name,handler)=>events.set(name,handler),confirm:()=>{stats.confirms++;return stats.accepted;}};
   if(available)window[webkit?'webkitSpeechRecognition':'SpeechRecognition']=Recognition;
-  const context={document,window,navigator:{language:'en-US',mediaDevices:{getUserMedia:()=>{stats.mics++;throw Error('No microphone IO');}}},VoiceRecorder,t:text=>text,Event:class{},AbortController,FormData,crypto:globalThis.crypto,fetch:async(...args)=>{stats.requests.push(args);throw Error('No network IO');},setTimeout:(handler,delay)=>{timers.set(++timerID,{handler,delay});return timerID;},clearTimeout:id=>timers.delete(id)};
+  const context={document,window,navigator:{language:'en-US',userAgent:android?'Mozilla/5.0 (Linux; Android 15) Chrome/130.0.0.0 Mobile Safari/537.36':'Mozilla/5.0 Chrome/130.0.0.0',mediaDevices:{getUserMedia:()=>{stats.mics++;throw Error('No microphone IO');}}},VoiceRecorder,t:text=>text,Event:class{},AbortController,FormData,crypto:globalThis.crypto,fetch:async(...args)=>{stats.requests.push(args);throw Error('No network IO');},setTimeout:(handler,delay)=>{timers.set(++timerID,{handler,delay});return timerID;},clearTimeout:id=>timers.delete(id)};
   vm.runInNewContext(source,context);
   return {node,stats,window,document,events,timers,click:async id=>node(id).listeners.click(),emit:results=>stats.instances.at(-1).onresult({results}),end:()=>stats.instances.at(-1).onend(),fail:error=>stats.instances.at(-1).onerror({error}),runTimer:delay=>[...timers.values()].find(timer=>timer.delay===delay)?.handler()};
 }
@@ -80,4 +80,42 @@ test('existing funded server mode is retained, and open Add Voice prevents dicta
   const funded=harness({server:true});assert.equal(funded.node('#voice-dictation').dataset.engine,'server');assert.equal(funded.stats.confirms,0);
   const h=harness();h.node('#personal-voice-setup').dataset.recorderOpen='true';await h.click('#dictation-start');assert.equal(h.stats.starts,0);assert.equal(h.stats.confirms,0);
   assert.equal(finalDictation([final('A'),interim('discard'),final('B')]),'A B');
+});
+
+
+test('Android cumulative final hypotheses replace prefixes without rewriting words',async()=>{
+  const h=harness({android:true,webkit:true});h.node('#audio-script').value='Existing draft';
+  await h.click('#dictation-start');
+  const phrases=['hello','hello','hello','hello','hello','hello how can','hello how can you','hello how can you','hello how can you predica America'];
+  for(let i=1;i<=phrases.length;i++)h.emit(phrases.slice(0,i).map(final));
+  assert.equal(h.node('#audio-script').value,'Existing draft');
+  h.node('#audio-script').value='Latest draft';
+  h.stats.instances[0].stop=()=>{h.stats.stops++;};
+  await h.click('#dictation-stop');await h.click('#dictation-stop');h.end();h.end();
+  assert.equal(h.stats.stops,1);assert.equal(h.stats.input,1);
+  assert.equal(h.node('#audio-script').value,'Latest draft\nhello how can you predica America');
+  await h.click('#dictation-undo');assert.equal(h.node('#audio-script').value,'Latest draft');
+});
+test('Android revised result snapshots replace old text and exclude interim hypotheses',async()=>{
+  const h=harness({android:true});await h.click('#dictation-start');
+  h.emit([final('hello'),final('hello how can'),interim('unfinished')]);
+  h.emit([final('hello'),final('hello how can you help')]);
+  h.emit([final('hello'),final('hello how'),final('hello how can you')]);
+  h.end();assert.equal(h.node('#audio-script').value,'hello how can you');
+});
+test('cumulative reconciliation preserves intentional repeats within a hypothesis and independent phrases',()=>{
+  const options={cumulative:true};
+  assert.equal(finalDictation([final('hello'),final('hello hello'),final('hello hello hello')],options),'hello hello hello');
+  assert.equal(finalDictation([final('go'),final('go go'),final('go go go'),final('again again')],options),'go go go again again');
+  assert.equal(finalDictation([final('hello'),final('hello')],options),'hello hello');
+  assert.equal(finalDictation([final('hello'),final('hello how')],options),'hello hello how');
+  assert.equal(finalDictation([final('can'),final('candy')],options),'can candy');
+  assert.equal(finalDictation([final('one two'),final('two three')],options),'one two two three');
+  assert.equal(finalDictation([final('hello'),final('hello'),final('hello how are you')]),'hello hello hello how are you');
+});
+test('cancelled Android cumulative hypotheses never leak into a new recording',async()=>{
+  const h=harness({android:true});h.node('#audio-script').value='Safe';await h.click('#dictation-start');
+  const old=h.stats.instances[0];h.emit([final('hello'),final('hello how can')]);await h.click('#dictation-cancel');
+  await h.click('#dictation-start');old.onresult({results:[final('hello how can you')]});old.onend();
+  h.emit([final('bye bye')]);h.end();assert.equal(h.node('#audio-script').value,'Safe\nbye bye');assert.equal(h.stats.input,1);
 });
