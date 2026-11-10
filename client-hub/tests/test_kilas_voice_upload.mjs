@@ -12,7 +12,7 @@ function fixture({saved=false}={}){
  const timers=new Map(),intervals=new Map(),events=new Map();let seq=0;
  function node(){return {hidden:false,disabled:false,value:'',textContent:'',checked:false,dataset:{},handlers:new Map(),addEventListener(type,fn){this.handlers.set(type,fn);},fire(type,event={}){return this.handlers.get(type)?.(event);},pause(){this.paused=true;},async play(){this.paused=false;},removeAttribute(key){delete this[key];},focus(){},querySelectorAll(){return [];}};}
  const ids=['personal-voice-setup','voice-recorder','record-start','record-stop','record-again','record-cancel','record-playback','voice-consent','save-personal-voice','record-state','record-timer','record-error','selected-voice','kilas-voice-choice','voice-generate','saved-voice-choice','record-voice-name','voice-sample-file','voice-sample-selection','kilas-voice-options','personal-ready','add-saved-voice','personal-voice-state','audio-script','voice-language','voice-language-status','rename-saved-voice','delete-saved-voice','saved-voice-notice','saved-voice-rename','saved-voice-new-name','saved-voice-error','cancel-voice-name','save-voice-name'];
- ids.push('personal-preview','play-personal-preview','voice-preview-error');
+ ids.push('audio-studio','voice-script-workspace','voiceover-intro','personal-preview','play-personal-preview','voice-preview-error');
  const nodes=Object.fromEntries(ids.map(id=>['#'+id,node()]));const n=id=>nodes['#'+id];
  const radioPersonal=Object.assign(node(),{value:'personal',checked:true}),radioKilas=Object.assign(node(),{value:'kilas'});
  const library=n('saved-voice-choice');library.options=saved?[{value:'7',textContent:'Saved',dataset:{preview:'true'}}]:[{value:'',textContent:'None',dataset:{}}];library.value=saved?'7':'';
@@ -21,7 +21,7 @@ function fixture({saved=false}={}){
  n('personal-voice-setup').dataset.operationKey='initial-operation-key';n('voice-generate').dataset.enabled='true';n('kilas-voice-choice').value='kilas-male';n('voice-language').value='auto';n('voice-recorder').hidden=true;
  n('audio-script').value='Synthetic words';n('voice-recorder').querySelectorAll=()=>['record-start','record-stop','record-again','record-cancel','voice-sample-file','voice-consent','record-voice-name','save-personal-voice'].map(n);
  n('personal-ready').querySelectorAll=()=>['add-saved-voice','rename-saved-voice','delete-saved-voice'].map(n);
- const document={querySelector:q=>q==='[name=voice_kind]:checked'?(radioPersonal.checked?radioPersonal:radioKilas):q==='#audio-studio [name=csrf_token]'?{value:'synthetic-csrf'}:nodes[q],querySelectorAll:()=>[radioPersonal,radioKilas],addEventListener(){}};
+ const document={querySelector:q=>q==='[name=voice_kind]:checked'?(radioPersonal.checked?radioPersonal:radioKilas):q==='#audio-studio [name=csrf_token]'?{value:'synthetic-csrf'}:nodes[q],querySelectorAll:q=>q==='[data-voiceover-only]'?[n('voice-script-workspace'),n('voiceover-intro'),n('voice-generate')]:[radioPersonal,radioKilas],addEventListener(){}};
  class Recorder{
   static isTypeSupported(){return true;}state='inactive';mimeType='audio/webm';handlers=new Map();
   constructor(){stats.recorders.push(this);}addEventListener(type,fn){this.handlers.set(type,fn);}start(){this.state='recording';}
@@ -122,4 +122,25 @@ test('saved sample uses selected owner preview and resets on voice change, recor
 test('saved sample playback rejection offers retry and stale rejection cannot affect another selection',async()=>{
  const f=fixture({saved:true});f.n('personal-preview').play=async()=>{throw new Error('decode failed');};await f.n('play-personal-preview').fire('click');assert.equal(f.n('voice-preview-error').hidden,false);
  const pending=deferred();f.n('personal-preview').play=()=>pending.promise;const play=f.n('play-personal-preview').fire('click');f.library.fire('change');pending.reject(new Error('aborted'));await play;assert.equal(f.n('voice-preview-error').hidden,true);
+});
+
+
+test('Add Voice hides script and generation until cancelled or saved, preserving the draft',async()=>{
+ const f=fixture({saved:true});const only=['voice-script-workspace','voiceover-intro','voice-generate'];
+ const visible=hidden=>only.forEach(id=>assert.equal(f.n(id).hidden,hidden,id));
+ visible(false);f.open();visible(true);assert.equal(f.n('voice-generate').disabled,true);
+ await f.cancel();visible(false);assert.equal(f.n('audio-script').value,'Synthetic words');assert.equal(f.n('voice-generate').disabled,false);
+ f.open();visible(true);await f.choose();f.consent();
+ f.stats.handler=async()=>response({error:'Try again'},false);await f.n('save-personal-voice').fire('click');visible(true);
+ f.stats.handler=async()=>response({id:9,name:'New voice'});await f.n('save-personal-voice').fire('click');visible(false);
+ assert.equal(f.n('audio-script').value,'Synthetic words');assert.equal(f.library.value,'9');
+ f.open();visible(true);f.radios[0].checked=false;f.radios[1].checked=true;f.radios[1].fire('change');visible(false);
+ assert.equal(f.n('voice-recorder').hidden,true);assert.equal(f.n('selected-voice').value,'kilas-male');
+});
+
+
+test('Add Voice does not hide an active script recording',()=>{
+ const f=fixture({saved:true});f.n('audio-studio').dataset.dictationBusy='true';f.open();
+ assert.equal(f.n('voice-recorder').hidden,true);assert.equal(f.n('voice-script-workspace').hidden,false);
+ f.n('audio-studio').dataset.dictationBusy='false';f.open();assert.equal(f.n('voice-recorder').hidden,false);
 });

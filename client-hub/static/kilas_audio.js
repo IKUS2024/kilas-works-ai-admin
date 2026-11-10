@@ -43,7 +43,7 @@
   root.querySelectorAll('[data-audio-form]').forEach(form=>form.addEventListener('submit',async e=>{
     e.preventDefault();if(busy||editing||document.querySelector('#voice-video-script')?.dataset.busy==='true'||root.dataset.dictationBusy==='true')return;
     const mode=form.querySelector('[name=mode]').value;
-    if(mode==='voiceover'&&document.querySelector('#personal-voice-setup')?.dataset.busy==='true')return;
+    if(mode==='voiceover'&&(document.querySelector('#personal-voice-setup')?.dataset.busy==='true'||document.querySelector('#voice-recorder')?.hidden===false))return;
     if(mode==='translate'&&(!inspected||inspecting)){failure(t('Tunggu durasi terbaca sebelum Translate.'));return;}
     const data=new FormData(form);busy=true;
     const controls=[...root.querySelectorAll('button,input,textarea,select')],states=controls.map(c=>c.disabled);

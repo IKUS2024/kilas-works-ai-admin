@@ -1,0 +1,42 @@
+name: Kilas Voice Focus QA
+on:
+  pull_request:
+    paths:
+      - 'client-hub/static/kilas_personal_voice.js'
+      - 'client-hub/static/kilas_audio.js'
+      - 'client-hub/templates/kilas_translator/**'
+      - 'client-hub/tests/test_kilas_personal_voice_focus_browser.py'
+      - 'client-hub/tests/test_kilas_voice_upload.mjs'
+      - '.github/workflows/kilas-voice-focus-qa.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'client-hub/static/kilas_personal_voice.js'
+      - 'client-hub/static/kilas_audio.js'
+      - 'client-hub/templates/kilas_translator/**'
+      - 'client-hub/tests/test_kilas_personal_voice_focus_browser.py'
+      - 'client-hub/tests/test_kilas_voice_upload.mjs'
+      - '.github/workflows/kilas-voice-focus-qa.yml'
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: node --test client-hub/tests/test_kilas_voice_upload.mjs
+      - run: python -m unittest test_kilas_audio test_kilas_personal_voice test_kilas_voice_upload
+        env: {PYTHONPATH: 'client-hub:client-hub/tests'}
+      - run: python client-hub/tests/test_kilas_personal_voice_focus_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-add-voice-focused
+          path: /tmp/kilas-add-voice-focused-browser/
