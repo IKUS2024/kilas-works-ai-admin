@@ -4,7 +4,8 @@ import logging
 import os
 from pathlib import Path
 import shutil
-from threading import Thread, Timer
+from threading import Thread
+from time import sleep
 from unittest.mock import patch
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
@@ -18,8 +19,10 @@ MIC_LEVEL = MIC.replace("osc.frequency.value=220;osc.connect(out);osc.start();",
 class MeterWire(Wire):
     def send(self, raw):
         if 'setup' in json.loads(raw):
-            timer=Timer(1.5, lambda: super(MeterWire, self).send(raw));timer.daemon=True;timer.start()
-        else:super().send(raw)
+            # Delay setup on the sender, not recv(): Wire deliberately uses a
+            # short read timeout only after its immediate setup handshake.
+            sleep(1.5)
+        super().send(raw)
 
 
 def main():
