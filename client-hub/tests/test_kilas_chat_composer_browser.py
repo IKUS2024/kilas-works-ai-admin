@@ -36,6 +36,7 @@ def main():
             browser = pw.chromium.launch(executable_path=shutil.which('chromium'), args=['--no-sandbox'])
             for width in (320, 390, 1440):
                 for agent in (False, True):
+                    print(f"Checking {'agent' if agent else 'legacy'} composer at {width}px", flush=True)
                     owner = fixture.fixture.base.f.fixture.repo.create_user(f'composer-{agent}-{width}@example.test', 'hash')
                     conversation = agent_store.new_conversation(owner)
                     cookie = case.client(owner).get_cookie('session')

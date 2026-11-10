@@ -9,3 +9,5 @@ body.kilas-light .ai-shell .ai-composer .ai-composer-actions>.ai-stop{
 body.kilas-light .ai-shell .ai-composer .ai-composer-actions>.ai-stop>svg{display:block;flex:none;width:24px;height:24px}
 .ai-shell .ai-composer-actions>:is(.ai-send,.ai-stop)[hidden]{display:none!important}
 .ai-shell .ai-composer-actions>.ai-stop:focus-visible{outline:3px solid #0562f6;outline-offset:3px}
+/* Legacy grid uses an ID selector; override its old fourth-column stop slot. */
+body.kilas-light .ai-shell .ai-composer #ai-stop{grid-column:3}
