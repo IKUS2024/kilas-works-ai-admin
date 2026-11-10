@@ -54,7 +54,8 @@ class TranslatorEntryTests(unittest.TestCase):
                         self.assertEqual(response.headers['Cache-Control'], 'private, no-store')
                         page = self.client.get(path, follow_redirects=True)
                         self.assertEqual(page.status_code, 200)
-                        self.assertIn('id="interpreter-setup"', page.text)
+                        self.assertIn('id="interpreter-active"', page.text)
+                        self.assertNotIn('id="interpreter-setup"', page.text)
                         self.assertNotIn('id="native-admission-status"', page.text)
                         self.assertNotIn('id="live-setup-form"', page.text)
                     readiness = self.client.get('/kilas-translator/interpreter/readiness').json
@@ -91,7 +92,8 @@ class TranslatorEntryTests(unittest.TestCase):
             self.assertIn('href="/kilas-translator/live/gemini"', page.text)
             current = self.client.get('/kilas-translator/live/gemini', follow_redirects=True)
             self.assertEqual(current.request.path, '/kilas-translator/interpreter')
-            self.assertIn('id="interpreter-setup"', current.text)
+            self.assertIn('id="interpreter-active"', current.text)
+            self.assertNotIn('id="interpreter-setup"', current.text)
             connect.assert_not_called()
 
     def test_trial_and_unavailable_operator_do_not_gain_new_access(self):
