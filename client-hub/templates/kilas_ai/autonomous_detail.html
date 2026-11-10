@@ -20,4 +20,4 @@
   </div>
   <details class="autonomous-section"><summary>{{ ui_t('Instruksi dan batas pekerjaan') }}</summary><p>{{ job.instruction }}</p>{% for constraint in constraints %}<p>{{ constraint }}</p>{% endfor %}</details>
   {% if job.status not in ('COMPLETED','FAILED','STOPPED') %}<form class="agent-composer" method="post" action="{{ url_for('kilas_ai.autonomous_control',job_id=job.id,action='feedback') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="task-feedback">{{ ui_t('Tambahkan instruksi') }}</label><div><textarea id="task-feedback" name="message" maxlength="1200" required rows="2" placeholder="{{ ui_t('Contoh: Jangan deploy. Stop setelah pengujian berhasil.') }}"></textarea><button class="auto-primary">{{ ui_t('Simpan instruksi') }}</button></div></form>{% endif %}
-</main><script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='chat-history-race-20261109') }}" defer></script></body></html>
+</main><script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='stop-instant-20261110') }}" defer></script></body></html>

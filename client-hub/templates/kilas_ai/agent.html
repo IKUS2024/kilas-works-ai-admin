@@ -1,7 +1,8 @@
+{% from 'kilas_ai/_chat_icons.html' import chat_icon %}
 {% from 'kilas_ai/_subscription_copy.html' import t as credit_t with context %}
 <!doctype html>
 <html lang="{{ ui_language() }}">
-<head>{% include '_ui_i18n_head.html' %}{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='chat-layout-20261005') }}">{% include '_premium_styles.html' %}{% include 'kilas_ai/_attachment_assets.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_drawer.css',v='chat-layout-20261005') }}"></head>
+<head>{% include '_ui_i18n_head.html' %}{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='chat-layout-20261005') }}">{% include '_premium_styles.html' %}{% include 'kilas_ai/_attachment_assets.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_drawer.css',v='chat-layout-20261005') }}"><link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_composer.css',v='stop-instant-20261110') }}"></head>
 <body class="kilas-light agent-body">
 <div class="ai-shell agent-shell" data-ai-shell data-view="{{ view }}">
 <button class="ai-backdrop" data-ai-backdrop type="button" aria-label="{{ ui_t('Tutup riwayat') }}"></button>
@@ -45,7 +46,7 @@
         <div class="work-attachment-bar"><button type="button" class="work-add-file" data-work-attach title="{{ ui_t('Foto 8 MiB · dokumen 2 MiB · total 10 MiB per pesan.') }}" aria-label="{{ ui_t('Tambah lampiran') }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></button><input id="work-source-files" name="source_files" type="file" accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,.zip,.md,.json,.html,.css,.js,.jsx,.ts,.tsx,.py,.yaml,.yml,.toml,.sql" multiple class="ai-visually-hidden"><span>{{ ui_t('Dokumen atau gambar') }}</span></div>
         <div id="work-pending-files" class="work-pending-files" aria-live="polite"></div>
         {% if location_request %}<div class="work-context-permission"><p>{{ ui_t('Lokasi hanya digunakan untuk pekerjaan ini.') }}</p><button type="button" data-work-location data-request="{{ location_request.text }}">{{ ui_t('Izinkan lokasi') }}</button><span>{{ ui_t('Atau ketik nama daerah.') }}</span></div>{% endif %}
-        <div class="ai-composer"><textarea id="agent-message" name="message" rows="2" maxlength="24000" required placeholder="{{ ui_t('Tulis pesan untuk Kilas AI…') }}">{{ prefill }}</textarea><div class="ai-composer-actions"><button class="ai-send" type="submit">{{ ui_t('Kirim') }}</button><button class="ai-stop" data-unified-stop type="button" hidden>{{ ui_t('Stop') }}</button>{% include 'kilas_ai/_ai_call_button.html' %}</div></div>
+        <div class="ai-composer"><textarea id="agent-message" name="message" rows="2" maxlength="24000" required placeholder="{{ ui_t('Tulis pesan untuk Kilas AI…') }}">{{ prefill }}</textarea><div class="ai-composer-actions"><button class="ai-send" type="submit">{{ ui_t('Kirim') }}</button><button class="ai-stop" data-unified-stop type="button" hidden aria-label="{{ ui_t('Stop') }}" title="{{ ui_t('Stop') }}">{{ chat_icon('stop') }}</button>{% include 'kilas_ai/_ai_call_button.html' %}</div></div>
 
       </form>
     {% elif view == 'tasks' %}
@@ -74,7 +75,7 @@
 </div>
 <script src="{{ url_for('static',filename='kilas_work.js',v='chat-hardening-20261101') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_chat_operation.js',v='chat-hardening-20261101') }}" defer></script>
-<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='chat-history-race-20261109') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_agent_chat.js',v='stop-instant-20261110') }}" defer></script>
 <script src="{{ url_for('static',filename='kilas_ai_shell.js',v='drawer-20261004') }}" defer></script>
 {% if view == 'chat' %}{% include 'kilas_ai/_ai_call_surface.html' %}{% endif %}
 </body>

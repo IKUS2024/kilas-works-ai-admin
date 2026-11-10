@@ -122,7 +122,7 @@
     const data = new FormData(form);
     form.elements.operation_key.value=submission.begin(data);data.set('operation_key',form.elements.operation_key.value);
     if (!canAutoFocus()) input.blur();
-    busy = true;document.dispatchEvent(new Event('kilas:request-started')); send.disabled = true; input.readOnly = true;
+    busy = true;document.dispatchEvent(new Event('kilas:request-started')); send.disabled = true; send.hidden = true; input.readOnly = true;
     controller=new AbortController();if(stop) stop.hidden=false;
     error.hidden = true; chat.querySelector('.agent-welcome')?.remove();
     const userMessage=message('user', input.value.trim());
@@ -132,6 +132,7 @@
     thinking.lastElementChild.textContent = t('Berpikir…');
     chat.setAttribute('aria-busy', 'true');
     let accepted = false, draftCleared = false, answer;
+    input.value='';draftCleared=true;input.dispatchEvent(new Event('input'));chat.scrollTop=chat.scrollHeight;
     try {
       await recovery.session(controller.signal);data.set('csrf_token',form.elements.csrf_token.value);
       const response = await fetch(form.action, {method:'POST',body:data,headers:{'X-Agent-Chat':'1','X-Workspace-Stream':'1'},signal:controller.signal});
@@ -143,7 +144,6 @@
       }
       accepted = true;
       // Keep pending files available for an uncertain retry until terminal success.
-      if(input.value===draft){input.value='';draftCleared=true;input.dispatchEvent(new Event('input'));}
       if (response.headers.get('content-type')?.includes('text/event-stream')) {
         activeStream=response.headers.get('X-Workspace-Stream');lastEvent=0;
         let streamResponse=response,reconnections=0;
@@ -186,7 +186,7 @@
       form.elements.operation_key.value = submission.terminal();
     } catch (failure) {
       if(answer)window.KilasMarkdown.finish(answer);
-      if(draftCleared&&!input.value){input.value=draft;input.dispatchEvent(new Event('input'));}
+      if(draftCleared&&!input.value&&(!accepted||failure.name!=='AbortError')){input.value=draft;input.dispatchEvent(new Event('input'));}
       error.textContent = failure.publicMessage || (failure.name==='AbortError'?t('Jawaban dihentikan.'):null) || t('Jawaban belum dapat dipastikan. Buka kembali chat untuk melihat pesan yang sudah diterima sebelum mencoba lagi.');
       if(failure.sessionExpired)recovery.show(failure,error);
       error.hidden = false;
@@ -196,7 +196,7 @@
     } finally {
       document.dispatchEvent(new Event('kilas:request-finished'));
       if(stop) stop.hidden=true;controller=null;activeStream=null;
-      busy = false; send.disabled = false; input.readOnly = false;
+      busy = false; send.disabled = false; send.hidden = false; input.readOnly = false;
       thinking.hidden = true; chat.removeAttribute('aria-busy');
       if (canAutoFocus()) input.focus({preventScroll:true});
       else input.blur();
@@ -262,7 +262,7 @@
       // A user can submit while stream discovery is in flight. That submission
       // owns the timeline; do not attach a second reader over it.
       if(busy||!result.streams.length)return;
-      activeStream=result.streams[0].id;resumed=true;busy=true;send.disabled=true;input.readOnly=true;controller=new AbortController();if(stop)stop.hidden=false;
+      activeStream=result.streams[0].id;resumed=true;busy=true;send.disabled=true;send.hidden=true;input.readOnly=true;controller=new AbortController();if(stop)stop.hidden=false;
       thinking.hidden=false;thinking.lastElementChild.textContent=t('Berpikir…');chat.setAttribute('aria-busy','true');
       document.dispatchEvent(new Event('kilas:request-started'));
       let after=0,complete=false,answer,pending='';const decoder=new TextDecoder();
@@ -283,7 +283,7 @@
       }
       if(answer)window.KilasMarkdown.finish(answer);await refresh();
     }catch(_){error.textContent=t('Jawaban terhenti. Buka riwayat; permintaan tidak diulang otomatis.');error.hidden=false;}
-    finally{if(resumed){busy=false;send.disabled=false;input.readOnly=false;thinking.hidden=true;chat.removeAttribute('aria-busy');if(stop)stop.hidden=true;activeStream=null;controller=null;document.dispatchEvent(new Event('kilas:request-finished'));}}
+    finally{if(resumed){busy=false;send.disabled=false;send.hidden=false;input.readOnly=false;thinking.hidden=true;chat.removeAttribute('aria-busy');if(stop)stop.hidden=true;activeStream=null;controller=null;document.dispatchEvent(new Event('kilas:request-finished'));}}
   }
   resumeStream();
   setInterval(refreshTasks, 3000);
