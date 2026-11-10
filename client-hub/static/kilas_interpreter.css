@@ -72,3 +72,5 @@ body.kilas-light:has(>.kilas-reference-header) #interpreter.interpreter #interpr
 #interpreter #interpreter-end:hover{background:#943500}
 #interpreter #interpreter-error{color:#b42330}
 @media(max-width:360px){.interpreter-navigation{gap:6px}.interpreter-navigation a,.interpreter-navigation button{padding:8px 10px;font-size:13px}#interpreter .interpreter-directions{gap:10px}#interpreter :is(#interpreter-left,#interpreter-right){padding-inline:12px}}
+/* The old call screen visually hid idle text; direct entry must state mic off. */
+#interpreter #interpreter-state:is([data-state=idle],[data-state=ended]){position:static;width:auto;height:auto;overflow:visible;clip-path:none;margin:12px 0!important}

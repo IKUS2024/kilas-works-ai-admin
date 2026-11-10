@@ -77,6 +77,7 @@ def main():
      assert page.locator('#interpreter-navigation a,#interpreter-navigation button').all_text_contents()==['AI Translator','Chat','Finance']
      expect(page.locator('.interpreter-direction-heading')).to_have_text(copy('Ketuk K untuk bicara'))
      expect(page.locator('#interpreter-state')).to_have_text(copy('Siap · mikrofon belum aktif'))
+     assert page.locator('#interpreter-state').evaluate('e=>e.getBoundingClientRect().height>=14&&getComputedStyle(e).clipPath==="none"')
      expect(page.locator('.interpreter-direction-help')).to_be_visible()
      assert page.locator('#interpreter-language-a option').count()==99
      assert page.locator('.interpreter-language-card select').count()==2
