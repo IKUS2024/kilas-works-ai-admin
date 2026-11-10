@@ -26,6 +26,14 @@ window.MediaRecorder=class {
  stop(){this.state='inactive';queueMicrotask(()=>{this.events.dataavailable({data:new Blob(qaMic.empty?[]:['synthetic'])});this.events.stop()})}
 };"""
 
+ANDROID = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36'
+
+
+def clean_record_controls(page):
+    assert page.locator('#dictation-status').evaluate("el=>el.getBoundingClientRect().height<=1 && getComputedStyle(el).clipPath==='inset(50%)'")
+    assert page.locator('#dictation-start').evaluate("el=>{const label=el.querySelector('span');return getComputedStyle(el).whiteSpace==='nowrap' && el.getBoundingClientRect().height<=52 && label.getBoundingClientRect().height<=parseFloat(getComputedStyle(label).lineHeight)+1;}")
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+
 
 def main():
     case = home.HomeTests('test_old_routes_still_render')
@@ -211,6 +219,41 @@ window.qaSpeechResult=text=>{const result=[{transcript:text}];result.isFinal=tru
                 expect(page.locator('#dictation-start')).to_be_disabled()
                 expect(page.locator('#dictation-status')).to_contain_text('belum didukung browser ini')
                 context.close()
+                # Android's repeated growing final hypotheses must not be joined
+                # into duplicate speech. Check the exact screenshot language too.
+                for language in ('en', 'id'):
+                    context = browser.new_context(viewport={'width': 390, 'height': 900}, user_agent=ANDROID)
+                    context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin},
+                                         {'name': 'kilas_language', 'value': language, 'url': origin}])
+                    context.add_init_script(MIC + """
+window.SpeechRecognition=class {
+ start(){window.qaSpeech=this;this.onstart?.();}
+ stop(){this.onend?.();}
+ abort(){this.onend?.();}
+};
+""")
+                    page = context.new_page()
+                    requests = []
+                    page.on('request', lambda req: requests.append(req.url) if req.method == 'POST' else None)
+                    page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(origin) else route.abort())
+                    page.goto(origin+'/kilas-translator?mode=voiceover', wait_until='networkidle')
+                    clean_record_controls(page)
+                    page.on('dialog', lambda dialog: dialog.accept())
+                    page.locator('#dictation-start').click()
+                    page.evaluate("""()=>{
+const parts=['hello','hello','hello','hello','hello','hello how can','hello how can you','hello how can you','hello how can you predica America'];
+const results=parts.map(transcript=>Object.assign([{transcript}],{isFinal:true}));
+qaSpeech.onresult({resultIndex:0,results});
+qaSpeech.onresult({resultIndex:results.length-1,results});
+}""")
+                    page.locator('#dictation-stop').click()
+                    expect(page.locator('#audio-script')).to_have_value('hello how can you predica America')
+                    clean_record_controls(page)
+                    page.screenshot(path=str(output/f'dictation-clean-android-{language}.png'), full_page=True)
+                    assert requests == [], requests
+                    assert page.evaluate('qaMic.calls') == 0
+                    context.close()
+                report['android_cumulative_and_clean_controls'] = ['en', 'id']
             browser.close()
         (output/'verification.json').write_text(json.dumps(report, indent=2))
         print(json.dumps(report, indent=2))

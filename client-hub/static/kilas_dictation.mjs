@@ -10,8 +10,30 @@ export function appendDictation(current, text, limit=4000) {
 
 // Recognition events contain the full result list, including earlier final
 // results. Read that list once rather than appending repeated event payloads.
-export function finalDictation(results) {
-  return Array.from(results).filter(result=>result.isFinal).map(result=>result[0]?.transcript||'').join(' ').trim();
+export function finalDictation(results, {cumulative=false}={}) {
+  const segments=[];
+  let chain=[],expansions=0;
+  const flush=()=>{
+    // Equality alone is not evidence: people may repeat separate utterances.
+    // Require two strict expansions before treating a run as cumulative.
+    segments.push(...(expansions>=2?[chain.at(-1)]:chain));
+    chain=[];expansions=0;
+  };
+  for(const result of Array.from(results)){
+    if(!result.isFinal)continue;
+    const text=(result[0]?.transcript||'').trim();
+    if(!text)continue;
+    const previous=chain.at(-1);
+    // Android can append growing hypotheses as final results. Only reconcile
+    // exact whole-word prefixes, never words inside a hypothesis or arbitrary
+    // suffix/prefix overlaps. Standard engines retain independent segments.
+    if(cumulative&&previous&&(text===previous||text.startsWith(previous+' '))){
+      if(text!==previous)expansions++;
+    }else flush();
+    chain.push(text);
+  }
+  flush();
+  return segments.join(' ');
 }
 
 const root=globalThis.document?.querySelector('#voice-dictation');
@@ -23,6 +45,7 @@ if(root){
   const serverReady=root.dataset.ready==='true';
   const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
   const browserMode=!serverReady&&typeof Recognition==='function';
+  const cumulativeResults=/Android/i.test(navigator.userAgent||'');
   const supported=serverReady||browserMode;
   let version=0,key='',controller=null,busy=false,before='',after='',recognition=null,browserTimer=null,stopTimer=null,stopping=false;
   const fail=message=>{error.textContent=message;error.hidden=false;};
@@ -67,7 +90,7 @@ if(root){
       try{applyText(text);}catch(e){status.textContent='';fail(e.message);}
     };
     own.onstart=()=>{if(!current())return;status.textContent=t('Mikrofon aktif · rekam maksimal 3 menit');};
-    own.onresult=event=>{if(current())text=finalDictation(event.results);};
+    own.onresult=event=>{if(current())text=finalDictation(event.results,{cumulative:cumulativeResults});};
     own.onerror=event=>{
       if(!current())return;
       release();try{own.abort();}catch{}
