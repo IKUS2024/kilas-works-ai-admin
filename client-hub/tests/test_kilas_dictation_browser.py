@@ -30,6 +30,7 @@ ANDROID = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko
 
 
 def clean_record_controls(page):
+    assert page.locator('#dictation-privacy').evaluate("el=>getComputedStyle(el).color==='rgb(98, 102, 111)'")
     assert page.locator('#dictation-status').evaluate("el=>el.getBoundingClientRect().height<=1 && getComputedStyle(el).clipPath==='inset(50%)'")
     assert page.locator('#dictation-start').evaluate("el=>{const label=el.querySelector('span');return getComputedStyle(el).whiteSpace==='nowrap' && el.getBoundingClientRect().height<=52 && label.getBoundingClientRect().height<=parseFloat(getComputedStyle(label).lineHeight)+1;}")
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
@@ -61,6 +62,7 @@ def main():
                 page.on('pageerror', lambda e: errors.append(str(e)))
                 page.route('**/*', lambda r: r.continue_() if r.request.url.startswith(origin) else r.abort())
                 page.goto(origin+'/kilas-translator?mode=voiceover', wait_until='networkidle')
+                expect(page.locator('#dictation-options')).to_be_hidden()
                 expect(page.locator('#voice-assist-mic,#voice-assist-mic-stop')).to_have_count(0)
                 expect(page.locator('#voice-assist-generate')).to_have_count(1)
                 expect(page.locator('#dictation-start,#dictation-undo')).to_have_count(2)
@@ -167,15 +169,16 @@ window.qaSpeechResult=text=>{const result=[{transcript:text}];result.isFinal=tru
                     assert page.evaluate('qaSpeechStarts') == 0
                     assert page.evaluate('qaMic.calls') == 0
                     page.locator('#audio-script').fill('Naskah awal.')
-                    page.once('dialog', lambda dialog: dialog.dismiss())
+                    dialogs=[]
+                    page.on('dialog', lambda dialog: (dialogs.append(dialog.message), dialog.dismiss()))
+                    expect(page.locator('#dictation-language')).to_have_value('en-US')
+                    expect(page.locator('#dictation-privacy')).not_to_have_attribute('open', '')
+                    page.locator('#dictation-language').select_option('id-ID')
                     page.locator('#dictation-start').click()
-                    assert page.evaluate('qaSpeechStarts') == 0
-                    def consent(dialog):
-                        assert 'layanan browser' in dialog.message
-                        assert 'ElevenLabs' in dialog.message
-                        dialog.accept()
-                    page.on('dialog', consent)
-                    page.locator('#dictation-start').click()
+                    assert dialogs == []
+                    assert page.evaluate('qaSpeech.lang') == 'id-ID'
+                    assert page.evaluate('qaSpeech.interimResults') is False
+                    expect(page.locator('#dictation-language')).to_be_disabled()
                     expect(page.locator('#dictation-status')).to_contain_text('Mikrofon aktif')
                     page.evaluate("qaSpeechResult('Hasil browser.')")
                     page.locator('#audio-script').fill('Edit terbaru.')
@@ -222,7 +225,7 @@ window.qaSpeechResult=text=>{const result=[{transcript:text}];result.isFinal=tru
                 # Android's repeated growing final hypotheses must not be joined
                 # into duplicate speech. Check the exact screenshot language too.
                 for language in ('en', 'id'):
-                    context = browser.new_context(viewport={'width': 390, 'height': 900}, user_agent=ANDROID)
+                    context = browser.new_context(viewport={'width': 390, 'height': 900}, user_agent=ANDROID, locale='id-ID')
                     context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin},
                                          {'name': 'kilas_language', 'value': language, 'url': origin}])
                     context.add_init_script(MIC + """
@@ -238,8 +241,13 @@ window.SpeechRecognition=class {
                     page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(origin) else route.abort())
                     page.goto(origin+'/kilas-translator?mode=voiceover', wait_until='networkidle')
                     clean_record_controls(page)
-                    page.on('dialog', lambda dialog: dialog.accept())
+                    dialogs=[]
+                    page.on('dialog', lambda dialog: (dialogs.append(dialog.message), dialog.dismiss()))
+                    expect(page.locator('#dictation-language')).to_have_value('id-ID')
                     page.locator('#dictation-start').click()
+                    assert dialogs == []
+                    assert page.evaluate('qaSpeech.lang') == 'id-ID'
+                    assert page.evaluate('qaSpeech.interimResults') is False
                     page.evaluate("""()=>{
 const parts=['hello','hello','hello','hello','hello','hello how can','hello how can you','hello how can you','hello how can you predica America'];
 const results=parts.map(transcript=>Object.assign([{transcript}],{isFinal:true}));
@@ -252,7 +260,19 @@ qaSpeech.onresult({resultIndex:results.length-1,results});
                     page.screenshot(path=str(output/f'dictation-clean-android-{language}.png'), full_page=True)
                     assert requests == [], requests
                     assert page.evaluate('qaMic.calls') == 0
+                    page.locator('#dictation-language').select_option('en-GB')
+                    page.reload(wait_until='networkidle')
+                    expect(page.locator('#dictation-language')).to_have_value('en-GB')
+                    page.locator('#dictation-start').click()
+                    assert page.evaluate('qaSpeech.lang') == 'en-GB'
+                    page.locator('#dictation-cancel').click()
+                    page.locator('#dictation-privacy summary').click()
+                    expect(page.locator('#dictation-privacy-note')).to_be_visible()
+                    assert 'ElevenLabs' not in page.locator('#dictation-privacy-note').inner_text()
+                    assert dialogs == []
+                    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                     context.close()
+                report['language_selection_persistence_and_no_confirm'] = True
                 report['android_cumulative_and_clean_controls'] = ['en', 'id']
             browser.close()
         (output/'verification.json').write_text(json.dumps(report, indent=2))

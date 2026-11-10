@@ -8,6 +8,20 @@ export function appendDictation(current, text, limit=4000) {
   return result;
 }
 
+// Spoken language is independent of the language used to label the app.
+const speechLocales=['id-ID','en-US','en-GB','es-ES','zh-CN'];
+export function dictationLanguage(saved, languages=[]) {
+  if(speechLocales.includes(saved))return saved;
+  for(const language of languages){
+    const normalized=String(language).toLowerCase().replaceAll('_','-');
+    const exact=speechLocales.find(locale=>locale.toLowerCase()===normalized);
+    if(exact)return exact;
+    const match=speechLocales.find(locale=>locale.split('-')[0]===normalized.split('-')[0]);
+    if(match)return match;
+  }
+  return 'id-ID';
+}
+
 // Recognition events contain the full result list, including earlier final
 // results. Read that list once rather than appending repeated event payloads.
 export function finalDictation(results, {cumulative=false}={}) {
@@ -41,15 +55,23 @@ if(root){
   const script=document.querySelector('#audio-script');
   const start=root.querySelector('#dictation-start'),stop=root.querySelector('#dictation-stop'),cancel=root.querySelector('#dictation-cancel'),undo=root.querySelector('#dictation-undo');
   const status=root.querySelector('#dictation-status'),error=root.querySelector('#dictation-error'),studio=document.querySelector('#audio-studio');
+  const languageOptions=document.querySelector('#dictation-options'),language=document.querySelector('#dictation-language');
   const csrf=studio.querySelector('[name=csrf_token]').value;
   const serverReady=root.dataset.ready==='true';
   const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
   const browserMode=!serverReady&&typeof Recognition==='function';
   const cumulativeResults=/Android/i.test(navigator.userAgent||'');
   const supported=serverReady||browserMode;
+  if(browserMode){
+    let saved='';try{saved=window.localStorage?.getItem('kilas.dictation.language')||'';}catch{}
+    language.value=dictationLanguage(saved,navigator.languages?.length?navigator.languages:[navigator.language]);
+    languageOptions.hidden=false;
+    start.setAttribute('aria-describedby','dictation-status dictation-privacy-note');
+    language.addEventListener('change',()=>{try{window.localStorage?.setItem('kilas.dictation.language',language.value);}catch{}});
+  }
   let version=0,key='',controller=null,busy=false,before='',after='',recognition=null,browserTimer=null,stopTimer=null,stopping=false;
   const fail=message=>{error.textContent=message;error.hidden=false;};
-  const controls=()=>{start.disabled=busy||!supported;stop.hidden=!busy||!!controller;stop.disabled=stopping;cancel.hidden=!busy;studio.dataset.dictationBusy=String(busy);};
+  const controls=()=>{start.disabled=busy||!supported;language.disabled=busy;stop.hidden=!busy||!!controller;stop.disabled=stopping;cancel.hidden=!busy;studio.dataset.dictationBusy=String(busy);};
   const applyText=text=>{
     const current=script.value,next=appendDictation(current,text,script.maxLength);
     before=current;after=next;script.value=next;script.dispatchEvent(new Event('input',{bubbles:true}));undo.hidden=false;
@@ -80,8 +102,10 @@ if(root){
     let own;
     try{own=new Recognition();}catch{busy=false;controls();status.textContent='';fail(t('Pengenalan suara browser belum tersedia. Coba Chrome atau Safari terbaru, atau ketik naskah.'));return;}
     recognition=own;
-    own.lang=({id:'id-ID',en:'en-US',es:'es-ES',zh:'zh-CN'})[document.documentElement.lang]||document.documentElement.lang||navigator.language||'id-ID';
-    own.continuous=true;own.interimResults=true;own.maxAlternatives=1;
+    own.lang=dictationLanguage(language.value);
+    // Interim hypotheses are not displayed. Avoid asking Android engines for
+    // partial revisions that older implementations may incorrectly mark final.
+    own.continuous=true;own.interimResults=false;own.maxAlternatives=1;
     const current=()=>ticket===version&&recognition===own;
     const release=()=>{recognition=null;clearBrowserTimers();busy=false;stopping=false;controls();};
     const finish=()=>{
@@ -95,7 +119,7 @@ if(root){
       if(!current())return;
       release();try{own.abort();}catch{}
       status.textContent='';
-      fail(t(event.error==='not-allowed'||event.error==='service-not-allowed'?'Izin mikrofon belum tersedia. Periksa izin browser lalu coba lagi.':event.error==='no-speech'?'Tidak ada ucapan terbaca. Naskah tetap aman.':event.error==='network'?'Pengenalan suara browser tidak terhubung. Periksa internet lalu coba lagi; naskah tetap aman.':'Pengenalan suara browser belum tersedia. Coba Chrome atau Safari terbaru, atau ketik naskah.'));
+      fail(t(event.error==='not-allowed'||event.error==='service-not-allowed'?'Izin mikrofon belum tersedia. Periksa izin browser lalu coba lagi.':event.error==='language-not-supported'?'Bahasa tidak didukung. Pilih bahasa ucapan lain.':event.error==='no-speech'?'Tidak ada ucapan terbaca. Naskah tetap aman.':event.error==='network'?'Pengenalan suara browser tidak terhubung. Periksa internet lalu coba lagi; naskah tetap aman.':'Pengenalan suara browser belum tersedia. Coba Chrome atau Safari terbaru, atau ketik naskah.'));
     };
     own.onend=finish;
     try{own.start();if(current())browserTimer=setTimeout(()=>browserStop(),179000);}catch{
@@ -114,7 +138,6 @@ if(root){
   start.addEventListener('click',async()=>{
     if(busy||!supported||studio.querySelector('[aria-busy=true]')||studio.dataset.scriptEditing==='true'||document.querySelector('#voice-video-script')?.dataset.busy==='true'||document.querySelector('#personal-voice-setup')?.dataset.recorderOpen==='true')return;
     if(browserMode){
-      if(!window.confirm(t('Rekam Naskah akan memakai pengenalan suara browser. Suara dapat dikirim ke layanan browser untuk diubah menjadi teks, bukan ke ElevenLabs. Lanjutkan?')))return;
       const ticket=++version;busy=true;stopping=false;error.hidden=true;undo.hidden=true;status.textContent=t('Menunggu izin mikrofon…');controls();browserStart(ticket);return;
     }
     if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){fail(t('Browser ini belum mendukung mikrofon. Kamu tetap dapat mengetik.'));return;}
@@ -130,7 +153,7 @@ if(root){
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&busy)end();});
   undo.addEventListener('click',()=>{if(script.value!==after){fail(t('Naskah sudah diedit. Urungkan secara manual agar perubahanmu tetap aman.'));return;}script.value=before;script.dispatchEvent(new Event('input',{bubbles:true}));undo.hidden=true;});
   root.dataset.engine=serverReady?'server':browserMode?'browser':'unavailable';
-  if(browserMode){start.title=t('Record Script');status.textContent=t('Dikte memakai pengenalan suara browser. Izin diminta saat mulai.');}
+  if(browserMode){start.title=t('Record Script');}
   if(!supported){status.textContent=t('Rekam Naskah belum didukung browser ini. Coba Chrome atau Safari terbaru, atau ketik naskah.');}
   controls();
 }

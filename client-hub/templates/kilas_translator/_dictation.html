@@ -1,4 +1,15 @@
 {% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
+<div id="dictation-options" hidden>
+  <label for="dictation-language">{{ ui_t('Bahasa ucapan') }}</label>
+  <select id="dictation-language">
+    <option value="id-ID" lang="id">Bahasa Indonesia</option>
+    <option value="en-US" lang="en">English (US)</option>
+    <option value="en-GB" lang="en">English (UK)</option>
+    <option value="es-ES" lang="es">Español</option>
+    <option value="zh-CN" lang="zh">中文</option>
+  </select>
+  <details id="dictation-privacy"><summary>{{ ui_t('Privasi mikrofon') }}</summary><p id="dictation-privacy-note">{{ ui_t('Suara dapat dikirim ke layanan pengenalan suara browser saat kamu menekan Rekam Naskah.') }}</p></details>
+</div>
 <div id="voice-dictation" data-ready="{{ 'true' if video_script_ready else 'false' }}">
   <button type="button" class="btn secondary" id="dictation-start" aria-label="{{ ui_t('Dikte Naskah') }}" title="{{ ui_t('Record Script') }}" aria-describedby="dictation-status" disabled>{{ drawer_icon('mic') }}</button>
   <button type="button" class="btn secondary" id="dictation-stop" hidden>{{ ui_t("Stop rekaman") }}</button>

@@ -1102,5 +1102,9 @@
   "Dikte memakai pengenalan suara browser. Izin diminta saat mulai.",
   "Rekam Naskah belum didukung browser ini. Coba Chrome atau Safari terbaru, atau ketik naskah.",
   "Pengenalan suara browser belum tersedia. Coba Chrome atau Safari terbaru, atau ketik naskah.",
-  "Pengenalan suara browser tidak terhubung. Periksa internet lalu coba lagi; naskah tetap aman."
+  "Pengenalan suara browser tidak terhubung. Periksa internet lalu coba lagi; naskah tetap aman.",
+  "Bahasa ucapan",
+  "Privasi mikrofon",
+  "Suara dapat dikirim ke layanan pengenalan suara browser saat kamu menekan Rekam Naskah.",
+  "Bahasa tidak didukung. Pilih bahasa ucapan lain."
 ]
