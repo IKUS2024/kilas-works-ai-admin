@@ -39,6 +39,7 @@ jobs:
           python -B client-hub/tests/test_kilas_interpreter_hardened_browser.py
           python -B client-hub/tests/test_kilas_interpreter_tap_browser.py
           python -B client-hub/tests/test_kilas_interpreter_logo_browser.py
+          python -B client-hub/tests/test_kilas_interpreter_meter_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -47,6 +48,7 @@ jobs:
             /tmp/kilas-interpreter-hardened/
             /tmp/kilas-interpreter-tap/
             /tmp/kilas-interpreter-logo/
+            /tmp/kilas-interpreter-meter/
   offline:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

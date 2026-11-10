@@ -5,7 +5,7 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='translator-reuse-20261105') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='mic-wave-20261110') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
@@ -24,6 +24,9 @@
 </section>
 <section id="interpreter-active" hidden>
 <button type="button" class="interpreter-identity" id="interpreter-orb" data-state="idle" aria-pressed="false" aria-busy="false" aria-describedby="interpreter-current-direction interpreter-state" aria-label="{{ ui_t('Mulai Rekam') }}" disabled><img src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="160" height="160" alt="" aria-hidden="true" decoding="async"><span class="reference-orbit-speech" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></span><span class="reference-orbit-language" aria-hidden="true">{% set icon="language" %}{% include "kilas_ai/_home_task_icon.html" %}</span></button>
+<div id="interpreter-microphone" class="interpreter-microphone" data-active="false">
+<span class="interpreter-microphone-wave" aria-hidden="true">{% for bar in range(9) %}<span data-mic-bar></span>{% endfor %}</span><span>{{ ui_t('Mikrofon aktif') }}</span>
+</div>
 <h2 class="interpreter-direction-heading">{{ ui_t('Pilih arah bicara') }}</h2><p class="interpreter-direction-help">{{ ui_t('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.') }}</p>
 <p id="interpreter-current-direction" class="interpreter-current-direction"></p>
 <p id="interpreter-state" data-state="idle" role="status" aria-live="polite">{{ ui_t('Pilih arah bicara') }}</p>
@@ -43,5 +46,5 @@
 <a id="interpreter-login" class="interpreter-login" href="{{ url_for('auth.login_page') }}" hidden>{{ ui_t('Masuk kembali') }}</a>
 
 </section></div>
-<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='translator-responsive-20261109') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='mic-wave-20261110') }}"></script>
 {% endblock %}
