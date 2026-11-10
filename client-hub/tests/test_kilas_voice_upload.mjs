@@ -128,8 +128,8 @@ test('saved sample playback rejection offers retry and stale rejection cannot af
 test('Add Voice hides script and generation until cancelled or saved, preserving the draft',async()=>{
  const f=fixture({saved:true});const only=['voice-script-workspace','voiceover-intro','voice-generate'];
  const visible=hidden=>only.forEach(id=>assert.equal(f.n(id).hidden,hidden,id));
- visible(false);f.open();visible(true);assert.equal(f.n('voice-generate').disabled,true);
- await f.cancel();visible(false);assert.equal(f.n('audio-script').value,'Synthetic words');assert.equal(f.n('voice-generate').disabled,false);
+ visible(false);f.open();visible(true);assert.equal(f.n('personal-voice-setup').dataset.recorderOpen,'true');assert.equal(f.n('voice-generate').disabled,true);
+ await f.cancel();visible(false);assert.equal(f.n('personal-voice-setup').dataset.recorderOpen,'false');assert.equal(f.n('audio-script').value,'Synthetic words');assert.equal(f.n('voice-generate').disabled,false);
  f.open();visible(true);await f.choose();f.consent();
  f.stats.handler=async()=>response({error:'Try again'},false);await f.n('save-personal-voice').fire('click');visible(true);
  f.stats.handler=async()=>response({id:9,name:'New voice'});await f.n('save-personal-voice').fire('click');visible(false);

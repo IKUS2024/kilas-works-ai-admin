@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from playwright.sync_api import expect, sync_playwright
 from werkzeug.serving import make_server
-from test_kilas_personal_voice import PersonalVoiceTests, personal
+from test_kilas_personal_voice import PersonalVoiceTests, personal, branded
 from test_kilas_audio import f, provider, wav
 
 
@@ -21,7 +21,7 @@ def main():
     output.mkdir(exist_ok=True)
     report = []
     try:
-        with patch.object(provider, 'voices', return_value=[{'id': 'stockPrivate123', 'name': 'Kilas Natural', 'style': 'Natural'}]), patch.object(provider, 'clone_voice', return_value='personalPrivate123') as clone, patch.object(provider, 'speech') as speech, sync_playwright() as pw:
+        with patch.object(branded, 'choices', return_value=[{'alias': 'kilas-male', 'id': 'stockPrivate123', 'name': 'Kilas Male', 'style': 'Natural'}]), patch.object(provider, 'voices', return_value=[{'id': 'stockPrivate123', 'name': 'Kilas Natural', 'style': 'Natural'}]), patch.object(provider, 'clone_voice', return_value='personalPrivate123') as clone, patch.object(provider, 'speech') as speech, sync_playwright() as pw:
             browser = pw.chromium.launch(executable_path=os.environ.get('KILAS_QA_CHROMIUM') or shutil.which('chromium'), args=['--no-sandbox'])
             for width in (320, 390, 1440):
                 case = PersonalVoiceTests('test_create_persist_retry_no_public_identifier')
