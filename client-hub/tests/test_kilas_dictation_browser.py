@@ -30,7 +30,8 @@ ANDROID = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko
 
 
 def clean_record_controls(page):
-    assert page.locator('#dictation-privacy').evaluate("el=>getComputedStyle(el).color==='rgb(98, 102, 111)'")
+    expect(page.locator('#dictation-privacy')).to_have_count(0)
+    assert page.locator('#dictation-privacy-note').evaluate("el=>el.getBoundingClientRect().width<=1 && getComputedStyle(el).clipPath==='inset(50%)'")
     assert page.locator('#dictation-status').evaluate("el=>el.getBoundingClientRect().height<=1 && getComputedStyle(el).clipPath==='inset(50%)'")
     assert page.locator('#dictation-start').evaluate("el=>{const label=el.querySelector('span');return getComputedStyle(el).whiteSpace==='nowrap' && el.getBoundingClientRect().height<=52 && label.getBoundingClientRect().height<=parseFloat(getComputedStyle(label).lineHeight)+1;}")
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
@@ -172,7 +173,7 @@ window.qaSpeechResult=text=>{const result=[{transcript:text}];result.isFinal=tru
                     dialogs=[]
                     page.on('dialog', lambda dialog: (dialogs.append(dialog.message), dialog.dismiss()))
                     expect(page.locator('#dictation-language')).to_have_value('en-US')
-                    expect(page.locator('#dictation-privacy')).not_to_have_attribute('open', '')
+                    expect(page.locator('#dictation-privacy')).to_have_count(0)
                     page.locator('#dictation-language').select_option('id-ID')
                     page.locator('#dictation-start').click()
                     assert dialogs == []
@@ -266,8 +267,8 @@ qaSpeech.onresult({resultIndex:results.length-1,results});
                     page.locator('#dictation-start').click()
                     assert page.evaluate('qaSpeech.lang') == 'en-GB'
                     page.locator('#dictation-cancel').click()
-                    page.locator('#dictation-privacy summary').click()
-                    expect(page.locator('#dictation-privacy-note')).to_be_visible()
+                    expect(page.locator('#dictation-privacy')).to_have_count(0)
+                    expect(page.locator('#dictation-start')).to_have_attribute('aria-describedby', 'dictation-status dictation-privacy-note')
                     assert 'ElevenLabs' not in page.locator('#dictation-privacy-note').inner_text()
                     assert dialogs == []
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')

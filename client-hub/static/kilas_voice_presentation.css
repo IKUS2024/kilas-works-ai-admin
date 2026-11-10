@@ -15,7 +15,5 @@
 .audio-studio #dictation-options[hidden]{display:none}
 .audio-studio #dictation-options label{font-size:13px;font-weight:600;margin:0}
 .audio-studio #dictation-language{width:auto;max-width:100%;min-width:0;min-height:44px;font-size:14px;padding:8px 28px 8px 10px;margin:0}
-.audio-studio #dictation-privacy{margin-left:auto;font-size:12px;color:#62666f}
-.audio-studio #dictation-privacy summary{cursor:pointer;min-height:44px;display:flex;align-items:center;text-decoration:underline;text-underline-offset:3px}
-.audio-studio #dictation-privacy[open]{flex-basis:100%;margin-left:0}
-.audio-studio #dictation-privacy p{margin:0 0 8px;max-width:65ch;line-height:1.5}
+
+.audio-studio #dictation-privacy-note{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
