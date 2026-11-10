@@ -74,3 +74,6 @@ body.kilas-light:has(>.kilas-reference-header) #interpreter.interpreter #interpr
 @media(max-width:360px){.interpreter-navigation{gap:6px}.interpreter-navigation a,.interpreter-navigation button{padding:8px 10px;font-size:13px}#interpreter .interpreter-directions{gap:10px}#interpreter :is(#interpreter-left,#interpreter-right){padding-inline:12px}}
 /* The old call screen visually hid idle text; direct entry must state mic off. */
 #interpreter #interpreter-state:is([data-state=idle],[data-state=ended]){position:static;width:auto;height:auto;overflow:visible;clip-path:none;margin:12px 0!important}
+/* Keep the existing 12px header-to-tool spacing on the direct screen. */
+body.kilas-light.premium-workspace:has(#interpreter-navigation)>.wrap{padding-top:0!important;margin-top:0!important}
+body:has(.kilas-reference-header) .kilas-live-page:has(>#interpreter-navigation){display:flow-root;margin-top:0!important}
