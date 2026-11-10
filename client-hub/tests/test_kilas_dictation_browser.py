@@ -30,6 +30,7 @@ ANDROID = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko
 
 
 def clean_record_controls(page):
+    assert page.locator('#dictation-privacy').evaluate("el=>getComputedStyle(el).color==='rgb(98, 102, 111)'")
     assert page.locator('#dictation-status').evaluate("el=>el.getBoundingClientRect().height<=1 && getComputedStyle(el).clipPath==='inset(50%)'")
     assert page.locator('#dictation-start').evaluate("el=>{const label=el.querySelector('span');return getComputedStyle(el).whiteSpace==='nowrap' && el.getBoundingClientRect().height<=52 && label.getBoundingClientRect().height<=parseFloat(getComputedStyle(label).lineHeight)+1;}")
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
