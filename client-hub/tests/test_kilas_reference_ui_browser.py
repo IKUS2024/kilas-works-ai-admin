@@ -34,21 +34,21 @@ def main():
                 page.wait_for_timeout(100)
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),(name,width,'horizontal overflow')
                 assert not page.errors,(name,width,page.errors)
-                if name in ('chat','translator-setup','voiceover') and not page.locator('body').evaluate("e=>e.classList.contains('home-chat-compact')"):
-                    rows=page.locator('.home-task-choices').evaluate("e=>[...e.children].map(c=>({top:c.getBoundingClientRect().top,height:c.getBoundingClientRect().height}))")
+                if name in ('chat','translator-ready','voiceover') and not page.locator('body').evaluate("e=>e.classList.contains('home-chat-compact')"):
+                    rows=page.locator('#interpreter-navigation' if name=='translator-ready' else '.home-task-choices').evaluate("e=>[...e.children].map(c=>({top:c.getBoundingClientRect().top,height:c.getBoundingClientRect().height}))")
                     assert max(r['top'] for r in rows)-min(r['top'] for r in rows)<=1 and all(r['height']>=44 for r in rows),(name,width,rows)
-                if name in ('chat','translator-setup','voiceover'):
-                    spacing=page.evaluate('''()=>{const h=document.querySelector('body>.kilas-reference-header'),b=h.querySelector('.premium-brand'),t=document.querySelector('.home-task-choices');return {headerBottom:h.getBoundingClientRect().bottom,brandBottom:b.getBoundingClientRect().bottom,tabsTop:t.getBoundingClientRect().top,gap:t.getBoundingClientRect().top-h.getBoundingClientRect().bottom}}''')
+                if name in ('chat','translator-ready','voiceover'):
+                    spacing=page.evaluate('''name=>{const h=document.querySelector('body>.kilas-reference-header'),b=h.querySelector('.premium-brand'),t=document.querySelector(name==='translator-ready'?'#interpreter-navigation':'.home-task-choices');return {headerBottom:h.getBoundingClientRect().bottom,brandBottom:b.getBoundingClientRect().bottom,tabsTop:t.getBoundingClientRect().top,gap:t.getBoundingClientRect().top-h.getBoundingClientRect().bottom}}''',name)
                     assert spacing['gap']>=0,(name,width,spacing)
-                    if name in ('translator-setup','voiceover'):assert abs(spacing['gap']-12)<1,(name,width,spacing)
+                    if name in ('translator-ready','voiceover'):assert abs(spacing['gap']-12)<1,(name,width,spacing)
                     report.setdefault('header_tab_spacing',[]).append({'name':name,'width':width,**spacing})
-                if name in ('chat','translator-setup','voiceover'):
-                    selectors={'chat':['.ai-empty h1','.chat-model-trigger','.home-task-choices>:is(a,button)','#ai-input'],'translator-setup':['.live-heading h1','.live-heading p','.interpreter-language-pair label','.interpreter-language-pair select','.live-consent','#interpreter-start'],'voiceover':['.audio-heading h1','.reference-history-toggle','[data-reference-my-voice]','label[for=kilas-voice-choice]','.audio-voice strong','.audio-voice small','#kilas-voice-choice','#play-kilas-preview','#audio-script','#voice-generate']}[name]
+                if name in ('chat','translator-ready','voiceover'):
+                    selectors={'chat':['.ai-empty h1','.chat-model-trigger','.home-task-choices>:is(a,button)','#ai-input'],'translator-ready':['.live-heading h1','.interpreter-direction-heading','.interpreter-direction-help','.interpreter-language-picker select','#interpreter-left','#interpreter-orb','#interpreter-end'],'voiceover':['.audio-heading h1','.reference-history-toggle','[data-reference-my-voice]','label[for=kilas-voice-choice]','.audio-voice strong','.audio-voice small','#kilas-voice-choice','#play-kilas-preview','#audio-script','#voice-generate']}[name]
                     measured_types=page.evaluate('''selectors=>selectors.map(selector=>{const e=document.querySelector(selector);if(!e)return {selector,missing:true};const s=getComputedStyle(e),r=e.getBoundingClientRect();return {selector,fontSize:parseFloat(s.fontSize),lineHeight:s.lineHeight,height:r.height,display:s.display}})''',selectors)
                     for item in measured_types:
                         if item.get('missing'):continue
-                        if item['selector'] in ('#ai-input','.interpreter-language-pair select','#kilas-voice-choice','#audio-script'):assert item['fontSize']>=16,(name,width,item)
-                        if item['selector'] in ('.reference-history-toggle','[data-reference-my-voice]','#interpreter-start','#voice-generate','.home-task-choices>:is(a,button)'):assert item['height']>=44,(name,width,item)
+                        if item['selector'] in ('#ai-input','.interpreter-language-picker select','#kilas-voice-choice','#audio-script'):assert item['fontSize']>=16,(name,width,item)
+                        if item['selector'] in ('.reference-history-toggle','[data-reference-my-voice]','#interpreter-left','#interpreter-orb','#interpreter-end','#voice-generate','.home-task-choices>:is(a,button)'):assert item['height']>=44,(name,width,item)
                     report.setdefault('typography',[]).append({'name':name,'width':width,'sizes':measured_types})
                 if name.startswith('call-'):
                     bounds=page.evaluate("""()=>{const dialog=document.querySelector('#ai-call-dialog'),chrome=dialog.querySelector('.reference-call-chrome'),capsule=dialog.querySelector('.reference-call-status'),footer=dialog.querySelector('.ai-call-footer');const rect=e=>({top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom,height:e.getBoundingClientRect().height});return {height:innerHeight,chrome:rect(chrome),capsule:rect(capsule),footer:rect(footer),scroll:dialog.scrollTop}}""")
@@ -57,7 +57,7 @@ def main():
                     report.setdefault('call_regions',[]).append({'name':name,'width':width,**bounds})
                 report.setdefault('geometry',[]).append({'name':name,'width':width,**page.evaluate("""()=>{const h=document.querySelector('.kilas-reference-header'),w=document.querySelector('body>.wrap');return {header:h?{top:h.getBoundingClientRect().top,height:h.getBoundingClientRect().height,display:getComputedStyle(h).display,position:getComputedStyle(h).position}:null,wrap:w?{top:w.getBoundingClientRect().top,left:w.getBoundingClientRect().left,width:w.getBoundingClientRect().width,position:getComputedStyle(w).position}:null,scrollY}}""")})
                 path=output/f'{name}-{width}.png';page.screenshot(path=str(path),full_page=True);report['captures'].append(str(path))
-                if width==390 and name in ('chat','translator-setup','voiceover'):
+                if width==390 and name in ('chat','translator-ready','voiceover'):
                     context=page.context
                     context.add_cookies([{'name':'kilas_language','value':'es','url':origin}]);page.reload(wait_until='networkidle')
                     assert page.locator('html').get_attribute('lang')=='es'
@@ -122,13 +122,34 @@ def main():
             try:
                 with case.enabled():
                     for width,height in sizes:
-                        context,page=page_for(case.client,width,height);page.goto(origin+'/kilas-translator/interpreter',wait_until='networkidle');capture(page,'translator-setup',width)
+                        context,page=page_for(case.client,width,height)
+                        context.add_init_script("window.micRequests=0;navigator.mediaDevices.getUserMedia=async()=>{window.micRequests++;throw new Error('Unexpected microphone request in direct-entry UI check');};")
+                        admissions=[]
+                        page.on('request',lambda request:admissions.append(request.url) if '/interpreter/' in request.url else None)
+                        page.goto(origin+'/kilas-translator/interpreter',wait_until='networkidle');capture(page,'translator-ready',width)
                         expect(page.locator('#premium-sidebar')).to_have_count(0)
                         expect(page.locator('[data-premium-menu]')).to_have_count(0)
+                        expect(page.locator('#interpreter-active')).to_be_visible()
+                        expect(page.locator('#interpreter-navigation')).to_be_visible()
+                        assert page.locator('#interpreter-navigation a,#interpreter-navigation button').all_text_contents()==['AI Translator','Chat','Finance']
+                        assert page.locator('#interpreter-setup,#interpreter-start,#interpreter-swap').count()==0
                         a=page.locator('#interpreter-language-a');b=page.locator('#interpreter-language-b');assert a.input_value()!=b.input_value()
-                        page.locator('#interpreter-swap').click();assert a.input_value()=='en';page.reload(wait_until='networkidle');assert a.input_value()=='en';assert not page.locator('#interpreter-consent').is_checked()
-                        page.locator('#interpreter-swap').click();page.locator('#interpreter-consent').check();page.locator('#interpreter-start').click();expect(page.locator('#interpreter-active')).to_be_visible();capture(page,'translator-active',width)
-                        page.locator('#interpreter-end').click();expect(page.locator('#interpreter-setup')).to_be_visible();context.close();report['checks'].append({'surface':'translator','width':width,'pair_reload_consent_end':True})
+                        expect(a).to_be_enabled();expect(b).to_be_enabled()
+                        a.select_option('ja');b.select_option('fr')
+                        page.reload(wait_until='networkidle');assert a.input_value()=='ja' and b.input_value()=='fr';assert not page.locator('#interpreter-consent').is_checked()
+                        page.locator('#interpreter-right').click();expect(page.locator('#interpreter-right')).to_have_attribute('aria-pressed','true')
+                        a.select_option('id');expect(page.locator('#interpreter-right')).to_have_attribute('aria-pressed','true')
+                        page.locator('#interpreter-orb').click()
+                        expect(page.locator('#interpreter-consent-panel')).to_be_visible();expect(page.locator('#interpreter-consent')).to_be_focused()
+                        assert not page.locator('#interpreter-consent').is_checked()
+                        assert page.evaluate('micRequests')==0 and not admissions
+                        page.locator('#interpreter-consent').check();assert page.evaluate('micRequests')==0 and not admissions
+                        expect(page.locator('#interpreter-active')).to_be_visible();capture(page,'translator-consent',width)
+                        page.locator('#interpreter-end').click();expect(page.locator('#interpreter-active')).to_be_visible()
+                        expect(page.locator('#interpreter-navigation')).to_be_visible();expect(page.locator('#interpreter-consent-panel')).to_be_hidden()
+                        assert not page.locator('#interpreter-consent').is_checked()
+                        assert page.evaluate('micRequests')==0 and not admissions
+                        context.close();report['checks'].append({'surface':'translator','width':width,'direct_entry_pair_reload_consent_end':True})
             finally:case.doCleanups()
             audio.AudioTests.setUpClass();case=audio.AudioTests('test_shared_balance_actual_seconds');case.setUp();case.credit(300)
             try:

@@ -55,8 +55,11 @@ def main():
 
                     def verify(active):
                         nonlocal baseline
+                        if page.locator('#interpreter-navigation').count():
+                            assert active == 'Translator', ('Unexpected Interpreter navigation', active, page.url)
+                            return verify_interpreter()
                         row = page.locator('.kilas-task-navigation .home-task-choices')
-                        expect(row).to_have_count(1)
+                        expect(row, f'{locale} {width}: {page.url}').to_have_count(1)
                         assert row.inner_text().splitlines() == ['AI Chat', 'Translator', 'Voice Over']
                         expect(row.locator('[aria-current=page],[aria-pressed=true]')).to_have_text(active)
                         metrics = row.evaluate(MEASURE)
@@ -81,12 +84,73 @@ def main():
                         assert all(abs(a-b) < 1 for a, b in zip(baseline, signature)), (baseline, signature)
                         return metrics
 
+                    def verify_interpreter():
+                        # Interpreter owns its direct-entry navigation; the legacy
+                        # Chat/live/Voice Over tab contract remains unchanged above.
+                        row = page.locator('#interpreter-navigation')
+                        expect(row, f'{locale} {width}: {page.url}').to_have_count(1)
+                        expect(row).to_be_visible()
+                        controls = row.locator('a,button')
+                        assert controls.all_text_contents() == ['AI Translator', 'Chat', 'Finance']
+                        expect(row.locator('[aria-current=page]')).to_have_text('AI Translator')
+                        translator, chat, finance = (controls.nth(i) for i in range(3))
+                        expect(translator).to_have_attribute('href', '/kilas-translator/interpreter')
+                        expect(chat).to_have_attribute('href', '/products/start')
+                        expect(finance).to_have_attribute('type', 'submit')
+                        form = row.locator('form')
+                        expect(form).to_have_count(1)
+                        expect(form).to_have_attribute('method', 'post')
+                        expect(form).to_have_attribute('action', '/products/start')
+                        expect(form.locator('[name=product]')).to_have_value('finance')
+                        token = form.locator('input[name=csrf_token]')
+                        expect(token).to_have_count(1)
+                        expect(token).to_have_attribute('type', 'hidden')
+                        assert token.input_value() and token.input_value() == page.locator('#interpreter input[name=csrf_token]').input_value()
+                        metrics = row.evaluate("""row => {
+                            const box=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,right:r.right,bottom:r.bottom}};
+                            return {row:box(row),scroll:row.scrollWidth,client:row.clientWidth,
+                                tabs:[...row.querySelectorAll('a,button')].map(e=>{
+                                    const label=document.createRange();label.selectNodeContents(e);
+                                    return {box:box(e),label:box(label),tag:e.tagName,font:getComputedStyle(e).font};
+                                })};
+                        }""")
+                        assert metrics['scroll'] <= metrics['client'] + 1, metrics
+                        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, 'Interpreter')
+                        assert [t['tag'] for t in metrics['tabs']] == ['A', 'A', 'BUTTON']
+                        assert len({t['box']['y'] for t in metrics['tabs']}) == 1, metrics
+                        assert len({t['font'] for t in metrics['tabs']}) == 1, metrics
+                        for i, t in enumerate(metrics['tabs']):
+                            expect(controls.nth(i)).to_be_visible()
+                            expect(controls.nth(i)).to_be_enabled()
+                            b, label = t['box'], t['label']
+                            assert b['h'] >= 44 and b['w'] >= 44, t
+                            assert b['x'] >= 0 and b['right'] <= width, t
+                            assert label['x'] >= b['x'] and label['right'] <= b['right'], t
+                            assert abs(label['y'] + label['h']/2 - (b['y'] + b['h']/2)) < 1, t
+                        # Native tab order reaches the Finance button without ever
+                        # activating or submitting its financial product handoff.
+                        translator.focus()
+                        expect(translator).to_be_focused()
+                        for control in (chat, finance):
+                            page.keyboard.press('Tab')
+                            expect(control).to_be_focused()
+                            assert control.evaluate("e=>getComputedStyle(e).outlineStyle==='solid'&&parseFloat(getComputedStyle(e).outlineWidth)>=2")
+                        page.keyboard.press('Shift+Tab')
+                        expect(chat).to_be_focused()
+                        page.evaluate('document.activeElement.blur()')
+                        return metrics
+
                     paths = [('AI Chat', '/products/start'), ('Translator', '/kilas-translator/live'),
                              ('Voice Over', '/kilas-translator?mode=voiceover'), ('Translator', '/kilas-translator/interpreter')]
                     for active, path in paths:
                         response = page.goto(origin + path, wait_until='networkidle')
                         assert response.status == 200
-                        metrics = verify(active)
+                        try:
+                            if path.endswith('/interpreter'):
+                                expect(page.locator('#interpreter-navigation')).to_have_count(1)
+                            metrics = verify(active)
+                        except AssertionError as error:
+                            raise AssertionError(f'{locale} {width} requested={path} resolved={page.url}: {error}') from error
                         if active == 'Voice Over':
                             expect(page.locator('#reference-script-paste,#voice-assist-copy,.voice-duration-note')).to_have_count(0)
                             expect(page.locator('#voice-assist-mic,#voice-assist-mic-stop')).to_have_count(0)

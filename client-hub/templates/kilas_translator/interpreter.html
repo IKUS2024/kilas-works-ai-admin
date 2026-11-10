@@ -5,34 +5,38 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='mic-wave-20261110') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='direct-entry-20261110') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
-<div id="interpreter-navigation">{% set selected_feature='live' %}{% include 'kilas_ai/_feature_navigation.html' %}</div>
+<nav id="interpreter-navigation" class="interpreter-navigation" aria-label="{{ ui_t('Navigasi Kilas Works') }}">
+<a href="{{ url_for('kilas_audio.interpreter_page') }}" aria-current="page">AI Translator</a>
+<a href="{{ url_for('products.product_start') }}">Chat</a>
+<form method="post" action="{{ url_for('products.product_start') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance"><button type="submit">Finance</button></form>
+</nav>
 <section class="kilas-live-translator interpreter" id="interpreter" data-preference-key="interpreter-languages-v1-{{ session.get('user_id') }}">
 <header class="live-heading"><span class="reference-translator-icon" aria-hidden="true">{% set icon='language' %}{% include 'kilas_ai/_home_task_icon.html' %}</span><div><h1>Translator</h1><p class="interpreter-setup-description">{{ ui_t('Terjemahkan percakapan lewat suara.') }}</p><p class="interpreter-active-description">{{ ui_t('Real-time voice translation') }}</p></div></header>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<section id="interpreter-setup">
-<div class="interpreter-language-pair">
-<label>{{ ui_t('Bahasa sumber') }}<select id="interpreter-language-a" name="language_a">{% for code,name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='id' }} {{ 'disabled' if code=='en' }}>{{ name }}</option>{% endfor %}</select></label>
-<button type="button" class="btn secondary" id="interpreter-swap" aria-label="{{ ui_t('Tukar bahasa') }}"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/></svg></button>
-<label>{{ ui_t('Bahasa tujuan') }}<select id="interpreter-language-b" name="language_b">{% for code,name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code=='en' }} {{ 'disabled' if code=='id' }}>{{ name }}</option>{% endfor %}</select></label>
-</div>
-<label class="live-consent"><input type="checkbox" id="interpreter-consent"><span>{{ ui_t('Saya mengizinkan pemrosesan ucapan oleh Google.') }}</span></label>
-<button type="button" class="btn" id="interpreter-start">{{ ui_t('Lanjut') }}</button>
-</section>
-<section id="interpreter-active" hidden>
+<section id="interpreter-active">
 <button type="button" class="interpreter-identity" id="interpreter-orb" data-state="idle" aria-pressed="false" aria-busy="false" aria-describedby="interpreter-current-direction interpreter-state" aria-label="{{ ui_t('Mulai Rekam') }}" disabled><img src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="160" height="160" alt="" aria-hidden="true" decoding="async"><span class="reference-orbit-speech" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></span><span class="reference-orbit-language" aria-hidden="true">{% set icon="language" %}{% include "kilas_ai/_home_task_icon.html" %}</span></button>
 <div id="interpreter-microphone" class="interpreter-microphone" data-active="false">
 <span class="interpreter-microphone-wave" aria-hidden="true">{% for bar in range(9) %}<span data-mic-bar></span>{% endfor %}</span><span>{{ ui_t('Mikrofon aktif') }}</span>
 </div>
-<h2 class="interpreter-direction-heading">{{ ui_t('Pilih arah bicara') }}</h2><p class="interpreter-direction-help">{{ ui_t('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.') }}</p>
+<h2 class="interpreter-direction-heading">{{ ui_t('Ketuk K untuk bicara') }}</h2><p class="interpreter-direction-help">{{ ui_t('Ketuk lagi untuk berhenti dan terjemahkan.') }}</p>
 <p id="interpreter-current-direction" class="interpreter-current-direction"></p>
-<p id="interpreter-state" data-state="idle" role="status" aria-live="polite">{{ ui_t('Pilih arah bicara') }}</p>
+<p id="interpreter-state" data-state="idle" role="status" aria-live="polite">{{ ui_t('Siap · mikrofon belum aktif') }}</p>
 <div class="interpreter-directions" role="group" aria-label="{{ ui_t('Arah terjemahan') }}">
-<button type="button" class="btn secondary" id="interpreter-left" aria-pressed="false" disabled></button>
-<button type="button" class="btn secondary" id="interpreter-right" aria-pressed="false" disabled></button>
+{% for side,key,label,initial,other in [('left','a','Bahasa kamu','id','en'),('right','b','Bahasa tujuan','en','id')] %}
+<div class="interpreter-language-card" data-card="{{ side }}" data-selected="{{ 'true' if side=='left' else 'false' }}">
+<button type="button" id="interpreter-{{ side }}" aria-pressed="{{ 'true' if side=='left' else 'false' }}" disabled><span class="interpreter-card-symbol" aria-hidden="true">{% set icon='language' %}{% include 'kilas_ai/_home_task_icon.html' %}</span><span>{{ ui_t(label) }}</span></button>
+<label class="interpreter-language-picker"><span class="interpreter-sr-only">{{ ui_t('Ganti bahasa') }}: {{ ui_t(label) }}</span><select id="interpreter-language-{{ key }}" name="language_{{ key }}" aria-describedby="interpreter-language-help">{% for code,name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code==initial }} {{ 'disabled' if code==other }}>{{ name }}</option>{% endfor %}</select><svg class="interpreter-chevron" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></label>
+</div>
+{% endfor %}
+</div>
+<p id="interpreter-language-help" class="interpreter-language-help">{{ ui_t('Pilih kartu untuk arah bicara. Ketuk panah untuk mengganti bahasa.') }}</p>
+<div id="interpreter-consent-panel" class="interpreter-consent-panel" hidden>
+<label class="live-consent"><input type="checkbox" id="interpreter-consent" autocomplete="off"><span>{{ ui_t('Saya mengizinkan pemrosesan ucapan oleh Google.') }}</span></label>
+<p>{{ ui_t('Setelah menyetujui, ketuk K untuk mulai.') }}</p>
 </div>
 <details id="interpreter-transcript" class="interpreter-transcript">
 <summary>{{ ui_t('Teks percakapan') }}</summary>
@@ -46,5 +50,5 @@
 <a id="interpreter-login" class="interpreter-login" href="{{ url_for('auth.login_page') }}" hidden>{{ ui_t('Masuk kembali') }}</a>
 
 </section></div>
-<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='mic-wave-20261110') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='direct-entry-20261110') }}"></script>
 {% endblock %}

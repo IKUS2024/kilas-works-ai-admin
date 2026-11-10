@@ -67,7 +67,17 @@ def main():
                 context.add_init_script(MIC);page=context.new_page();errors=[]
                 page.set_default_timeout(8000);page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(origin+'/kilas-translator/interpreter',wait_until='networkidle')
-                page.locator('#interpreter-consent').check();page.locator('#interpreter-start').click()
+                assert page.evaluate('micRequests')==0
+                expect(page.locator('#interpreter-active')).to_be_visible()
+                expect(page.locator('#interpreter-navigation')).to_be_visible()
+                assert page.locator('#interpreter-setup,#interpreter-start,#interpreter-swap').count()==0
+                before_consent=len(wires)
+                page.locator('#interpreter-orb').click()
+                expect(page.locator('#interpreter-consent-panel')).to_be_visible()
+                expect(page.locator('#interpreter-consent')).to_be_focused()
+                assert not page.locator('#interpreter-consent').is_checked()
+                assert page.evaluate('micRequests')==0 and len(wires)==before_consent
+                page.locator('#interpreter-consent').check()
                 for direction,source,reply in (('left','Selamat pagi.','Good morning.'),('right','Good morning.','Selamat pagi.')):
                     button=page.locator('#interpreter-'+direction);before=len(wires)
                     button.click();page.locator('#interpreter-orb img').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
