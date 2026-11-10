@@ -45,11 +45,11 @@ export class CallInput {
 }
 
 export class CallSession {
- constructor({request,capture,player,prepare=async()=>{},stopAudio=()=>{},onState=()=>{},onError=()=>{},onText=()=>{},onOriginal=()=>{},onSources=()=>{},
+ constructor({request,capture,player,prepare=async()=>{},stopAudio=()=>{},onState=()=>{},onError=()=>{},onText=()=>{},onOriginal=()=>{},onSources=()=>{},onLevel=()=>{},
   key=()=>crypto.randomUUID().replaceAll('-',''),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),clear=id=>globalThis.clearTimeout(id)}){
-  Object.assign(this,{request,capture,player,prepare,stopAudio,onState,onError,onText,onOriginal,onSources,key,schedule,clear});this.version=0;this.state='ended';
+  Object.assign(this,{request,capture,player,prepare,stopAudio,onState,onError,onText,onOriginal,onSources,onLevel,key,schedule,clear});this.version=0;this.state='ended';
  }
- stateTo(value){this.state=value;this.onState(value);}
+ stateTo(value){this.state=value;if(!['connecting','reconnecting','listening'].includes(value))this.onLevel(null);this.onState(value);}
  warm(){
   const pending=this.request('/kilas-translator/interpreter/readiness',{timeoutMs:8000});
   this.warmed={pending,at:Date.now()};pending.catch(()=>{});
@@ -87,7 +87,7 @@ export class CallSession {
  async startCapture(ticket){
   const captureVersion=++this.captureVersion;
   const valid=()=>this.current(ticket)&&captureVersion===this.captureVersion;
-  await this.capture.start({ready:()=>{},level:()=>{},blob:()=>valid()&&this.finishInput(ticket),
+  await this.capture.start({ready:()=>{},level:rms=>{if(valid()&&!this.finishRequested&&!this.speaking)this.onLevel(rms);},blob:()=>valid()&&this.finishInput(ticket),
     pcm:raw=>{if(valid()){try{
      // Keep the provider's VAD clock running during playback, without sending
      // speaker echo back as another question. Never reuse microphone PCM here.

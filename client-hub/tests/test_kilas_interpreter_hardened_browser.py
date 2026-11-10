@@ -98,7 +98,7 @@ def main():
      assert not page.locator('#interpreter-transcript').get_attribute('open')
      page.locator('#interpreter-orb img').click()
      page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
-     expect(page.locator('#interpreter-state')).to_have_text(copy('Mendengarkan. Ketuk lagi untuk menerjemahkan.'))
+     expect(page.locator('#interpreter-state')).to_have_text(copy('Terhubung · mendengarkan'))
      assert not finished
      expect(page.locator('#interpreter-orb')).to_have_attribute('aria-label',copy('Hentikan dan terjemahkan'))
      page.locator('#interpreter-orb img').click()

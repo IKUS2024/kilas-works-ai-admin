@@ -2,7 +2,8 @@ import {uiText as t} from './ui_i18n.mjs?v=app-language-20261015';
 import {requestJSON} from './kilas_live_translator_api.mjs?v=translator-auth-20261031';
 import {CallCapture} from './kilas_ai_call_capture.mjs?v=call-reliable-20261023';
 import {CallPlayer} from './kilas_ai_call_player.mjs?v=call-reliable-20261023';
-import {CallSession} from './kilas_interpreter_engine.mjs?v=translator-responsive-20261109';
+import {MicrophoneMeter} from './kilas_interpreter_meter.mjs?v=mic-wave-20261110';
+import {CallSession} from './kilas_interpreter_engine.mjs?v=mic-wave-20261110';
 const root=document.querySelector('#interpreter');
 if(root){
  const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),orb=field('orb'),end=field('end'),consent=field('consent'),navigation=document.querySelector('#interpreter-navigation');
@@ -83,6 +84,7 @@ if(root){
   if(field(kind).textContent!==text)field(kind).textContent=text;
   field(kind+'-wrap').hidden=false;field('transcript-empty').hidden=true;
  };
+ const meter=new MicrophoneMeter({element:field('microphone')});
  const capture=new CallCapture({getContext:()=>context,mediaDevices:navigator.mediaDevices});
  const player=new CallPlayer({getContext:()=>context,onError:()=>session.fail({code:'call_audio'})});
  const stopAudio=()=>{clearTimeout(recoveryTimer);recoveryTimer=null;const own=context;context=null;if(own)own.close().catch(()=>{});};
@@ -102,12 +104,12 @@ if(root){
   });
  };
  const session=new CallSession({request,capture,player,stopAudio,prepare:()=>context?context.resume():Promise.reject(Object.assign(Error(),{code:'call_audio'})),
-  onState:state=>{
+  onLevel:rms=>meter.update(rms),onState:state=>{
    if(['connecting','starting'].includes(state))clearTranscript();
    if(state==='listening'&&lastState==='speaking')newTranscript=true;
    field('state').dataset.state=state;
-   field('state').textContent=t({idle:'Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.',starting:'Mendengarkan. Ketuk lagi untuk menerjemahkan.',ended:'Pilih arah bicara',connecting:'Menghubungkan…',listening:'Mendengarkan. Ketuk lagi untuk menerjemahkan.',processing:'Menerjemahkan',speaking:'Terjemahan diputar. Tunggu giliran.',reconnecting:'Menghubungkan kembali…'}[state]||'Pilih arah bicara');
-   field('orb').dataset.state=state==='speaking'?'playing':['connecting','reconnecting','processing'].includes(state)?'processing':['ended','idle'].includes(state)?'idle':'listening';
+   field('state').textContent=t({idle:'Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.',starting:'Menyiapkan mikrofon…',ended:'Pilih arah bicara',connecting:'Menghubungkan…',listening:'Terhubung · mendengarkan',processing:'Menerjemahkan',speaking:'Terjemahan diputar. Tunggu giliran.',reconnecting:'Menghubungkan kembali…'}[state]||'Pilih arah bicara');
+   field('orb').dataset.state=state==='speaking'?'playing':['connecting','reconnecting','processing','starting'].includes(state)?'processing':['ended','idle'].includes(state)?'idle':'listening';
    if(['ended','idle'].includes(state))side=null;lastState=state;sync();
   },onText:text=>caption('caption',text),onOriginal:text=>caption('original',text),onError:showError});
  function chooseDirection(source){

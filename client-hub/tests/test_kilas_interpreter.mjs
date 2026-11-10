@@ -519,3 +519,30 @@ test('Missing completion drains received audio; a stuck player has a bounded fal
   assert.equal(f.session.state,'ended');assert.deepEqual(f.errors,[]);drained.resolve();await started;
  }
 });
+
+test('Microphone levels are real input only and fenced on Finish, idle, playback, error and new capture',async()=>{
+ const levels=[],f=fixture({onLevel:value=>levels.push(value)}),session=f.session;
+ const started=session.start({turn_mode:'tap',reuse_session:true});await tick();const old=f.capture;
+ old.level(0);old.level(.04);assert.deepEqual(levels.slice(-2),[0,.04]);
+ session.finish();assert.equal(levels.at(-1),null);const stopped=levels.length;old.level(.9);assert.equal(levels.length,stopped);
+ session.idle();old.level(.9);assert.equal(levels.at(-1),null);
+ // A new capture (same provider connection) cannot revive the previous turn.
+ session.finishRequested=false;await session.startCapture(session.version);const current=f.capture;
+ current.level(.02);old.level(.8);assert.equal(levels.at(-1),.02);
+ session.speaking=true;session.stateTo('speaking');current.level(.8);assert.equal(levels.at(-1),null);
+ session.speaking=false;session.fail({code:'call_provider_disconnected'});current.level(.8);assert.equal(levels.at(-1),null);
+ f.hold.resolve({state:'LISTENING',frames:[],next_index:0});await started;
+});
+
+import {MicrophoneMeter,microphoneLevel} from '../static/kilas_interpreter_meter.mjs';
+test('Meter has a quiet baseline, proportional capped levels, no synthetic animation and a stale-frame timeout',()=>{
+ const bars=Array.from({length:9},()=>({style:{}})),element={dataset:{},querySelectorAll:()=>bars},timers=new Map();let id=0;
+ const meter=new MicrophoneMeter({element,schedule:fn=>{timers.set(++id,fn);return id;},clear:key=>timers.delete(key)});
+ assert.equal(element.dataset.active,'false');assert.equal(microphoneLevel(0),0);assert.equal(microphoneLevel(.005),0);
+ assert.ok(microphoneLevel(.02)<microphoneLevel(.1));assert.equal(microphoneLevel(999),1);
+ meter.update(0);assert.equal(element.dataset.active,'true');assert.ok(bars.every(b=>Number.parseFloat(b.style.height)===3));
+ meter.update(.02);const quiet=Number.parseFloat(bars[4].style.height);meter.update(.1);assert.ok(Number.parseFloat(bars[4].style.height)>quiet);
+ assert.equal(timers.size,1);[...timers.values()][0]();assert.equal(element.dataset.active,'false');assert.ok(bars.every(b=>b.style.height==='3px'));
+ meter.update(.02);meter.update(NaN);assert.equal(element.dataset.active,'false');assert.equal(timers.size,0);
+ meter.update(.02);meter.reset();assert.equal(element.dataset.active,'false');assert.equal(timers.size,0);
+});
