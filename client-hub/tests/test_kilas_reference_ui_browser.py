@@ -131,7 +131,7 @@ def main():
                         expect(page.locator('[data-premium-menu]')).to_have_count(0)
                         expect(page.locator('#interpreter-active')).to_be_visible()
                         expect(page.locator('#interpreter-navigation')).to_be_visible()
-                        assert page.locator('#interpreter-navigation a,#interpreter-navigation button').all_text_contents()==['AI Translator','Chat','Finance']
+                        assert [text.strip() for text in page.locator('#interpreter-navigation a,#interpreter-navigation button').all_text_contents()]==['AI Chat','Translator','Finance']
                         assert page.locator('#interpreter-setup,#interpreter-start,#interpreter-swap').count()==0
                         a=page.locator('#interpreter-language-a');b=page.locator('#interpreter-language-b');assert a.input_value()!=b.input_value()
                         expect(a).to_be_enabled();expect(b).to_be_enabled()

@@ -5,14 +5,14 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='direct-entry-20261110') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='aligned-navigation-20261110') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
 <nav id="interpreter-navigation" class="interpreter-navigation" aria-label="{{ ui_t('Navigasi Kilas Works') }}">
-<a href="{{ url_for('kilas_audio.interpreter_page') }}" aria-current="page">AI Translator</a>
-<a href="{{ url_for('products.product_start') }}">Chat</a>
-<form method="post" action="{{ url_for('products.product_start') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance"><button type="submit">Finance</button></form>
+<a href="{{ url_for('products.product_start') }}">{% set icon='chat' %}{% include 'kilas_ai/_home_task_icon.html' %}<span>AI Chat</span></a>
+<a href="{{ url_for('kilas_audio.interpreter_page') }}" aria-current="page">{% set icon='language' %}{% include 'kilas_ai/_home_task_icon.html' %}<span>Translator</span></a>
+<form method="post" action="{{ url_for('products.product_start') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance"><button type="submit">{% set icon='finance' %}{% include 'kilas_ai/_home_task_icon.html' %}<span>Finance</span></button></form>
 </nav>
 <section class="kilas-live-translator interpreter" id="interpreter" data-preference-key="interpreter-languages-v1-{{ session.get('user_id') }}">
 <header class="live-heading"><span class="reference-translator-icon" aria-hidden="true">{% set icon='language' %}{% include 'kilas_ai/_home_task_icon.html' %}</span><div><h1>Translator</h1><p class="interpreter-setup-description">{{ ui_t('Terjemahkan percakapan lewat suara.') }}</p><p class="interpreter-active-description">{{ ui_t('Real-time voice translation') }}</p></div></header>

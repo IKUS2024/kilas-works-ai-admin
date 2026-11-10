@@ -91,9 +91,9 @@ def main():
                         expect(row, f'{locale} {width}: {page.url}').to_have_count(1)
                         expect(row).to_be_visible()
                         controls = row.locator('a,button')
-                        assert controls.all_text_contents() == ['AI Translator', 'Chat', 'Finance']
-                        expect(row.locator('[aria-current=page]')).to_have_text('AI Translator')
-                        translator, chat, finance = (controls.nth(i) for i in range(3))
+                        assert [text.strip() for text in controls.all_text_contents()] == ['AI Chat', 'Translator', 'Finance']
+                        expect(row.locator('[aria-current=page]')).to_have_text('Translator')
+                        chat, translator, finance = (controls.nth(i) for i in range(3))
                         expect(translator).to_have_attribute('href', '/kilas-translator/interpreter')
                         expect(chat).to_have_attribute('href', '/products/start')
                         expect(finance).to_have_attribute('type', 'submit')
@@ -110,33 +110,42 @@ def main():
                             const box=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,right:r.right,bottom:r.bottom}};
                             return {row:box(row),scroll:row.scrollWidth,client:row.clientWidth,
                                 tabs:[...row.querySelectorAll('a,button')].map(e=>{
-                                    const label=document.createRange();label.selectNodeContents(e);
-                                    return {box:box(e),label:box(label),tag:e.tagName,font:getComputedStyle(e).font};
+                                    return {box:box(e),label:box(e.querySelector('span')),icon:box(e.querySelector('svg')),tag:e.tagName,font:getComputedStyle(e).font};
                                 })};
                         }""")
                         assert metrics['scroll'] <= metrics['client'] + 1, metrics
                         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, 'Interpreter')
                         assert [t['tag'] for t in metrics['tabs']] == ['A', 'A', 'BUTTON']
+                        widths = [t['box']['w'] for t in metrics['tabs']]
+                        assert max(widths) - min(widths) < 1, metrics
+                        assert metrics['tabs'][0]['box']['right'] <= metrics['tabs'][1]['box']['x'], metrics
+                        assert metrics['tabs'][1]['box']['right'] <= metrics['tabs'][2]['box']['x'], metrics
                         assert len({t['box']['y'] for t in metrics['tabs']}) == 1, metrics
                         assert len({t['font'] for t in metrics['tabs']}) == 1, metrics
                         for i, t in enumerate(metrics['tabs']):
                             expect(controls.nth(i)).to_be_visible()
                             expect(controls.nth(i)).to_be_enabled()
-                            b, label = t['box'], t['label']
-                            assert b['h'] >= 44 and b['w'] >= 44, t
+                            b, label, icon = t['box'], t['label'], t['icon']
+                            assert b['h'] == 52 and b['w'] >= 44, t
+                            assert icon['w'] > 0 and icon['h'] > 0, t
+                            assert icon['x'] >= b['x'] and icon['right'] <= label['x'], t
+                            assert abs(icon['y'] + icon['h']/2 - (b['y'] + b['h']/2)) < 1, t
                             assert b['x'] >= 0 and b['right'] <= width, t
                             assert label['x'] >= b['x'] and label['right'] <= b['right'], t
                             assert abs(label['y'] + label['h']/2 - (b['y'] + b['h']/2)) < 1, t
                         # Native tab order reaches the Finance button without ever
                         # activating or submitting its financial product handoff.
-                        translator.focus()
-                        expect(translator).to_be_focused()
-                        for control in (chat, finance):
+                        posts_before = list(posts)
+                        chat.focus()
+                        expect(chat).to_be_focused()
+                        for control in (translator, finance):
                             page.keyboard.press('Tab')
                             expect(control).to_be_focused()
                             assert control.evaluate("e=>getComputedStyle(e).outlineStyle==='solid'&&parseFloat(getComputedStyle(e).outlineWidth)>=2")
                         page.keyboard.press('Shift+Tab')
-                        expect(chat).to_be_focused()
+                        expect(translator).to_be_focused()
+                        assert posts == posts_before, posts
+                        assert not any(url.split('?')[0].endswith('/products/start') for url in posts), posts
                         page.evaluate('document.activeElement.blur()')
                         return metrics
 

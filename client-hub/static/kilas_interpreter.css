@@ -43,16 +43,19 @@ body.kilas-light:has(>.kilas-reference-header) #interpreter.interpreter #interpr
 @media(prefers-reduced-motion:reduce){.interpreter .interpreter-microphone-wave>span{transition:none}}
 
 /* Direct entry: the established K identity and audio engine remain unchanged. */
-.interpreter-navigation{max-width:760px;margin:12px auto 24px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.interpreter-navigation form{margin:0;display:flex}
-.interpreter-navigation a,.interpreter-navigation button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 12px;box-sizing:border-box;border:1px solid #d5d7da;border-radius:8px;background:#fff;color:#545963;font:inherit;font-size:14px;font-weight:600;line-height:1.4;text-decoration:none;cursor:pointer}
-#interpreter-navigation :is(a,button){font:600 14px/1.4 Manrope,system-ui,sans-serif!important}
-.interpreter-navigation [aria-current=page]{color:#963800;background:#fff0e5;border-color:#bd4700}
-.interpreter-navigation :is(a,button):hover{background:#fff0e5}
-.interpreter-navigation :is(a,button):focus-visible{outline:3px solid #bd4700;outline-offset:3px}
+.interpreter-navigation{width:100%;max-width:min(760px,calc(100vw - 96px));min-width:0;margin:12px auto 24px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:8px;box-sizing:border-box}
+.interpreter-navigation form{margin:0;display:flex;min-width:0}
+#interpreter-navigation :is(a,button){display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-width:0;max-width:100%;min-height:52px!important;margin:0;padding:10px 8px!important;box-sizing:border-box;border:1px solid #e5e5e9;border-radius:12px;background:#fff;color:#111b2b;font:500 14px/1.4 var(--font-ui,Manrope,system-ui,sans-serif)!important;text-align:center;text-decoration:none;white-space:nowrap;box-shadow:none;cursor:pointer}
+#interpreter-navigation svg{flex:none;width:20px!important;height:20px!important}
+#interpreter-navigation [aria-current=page]{color:#963800;background:#fff1e6;border-color:#ff650c}
+#interpreter-navigation :is(a,button):hover{background:#fff0e5}
+#interpreter-navigation :is(a,button):focus-visible{outline:3px solid #bd4700;outline-offset:3px}
 #interpreter .interpreter-directions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin:20px 0 0}
 #interpreter .interpreter-language-card{position:relative;min-width:0;border:1px solid #d5d7da;border-radius:16px;background:#fff;overflow:visible}
 #interpreter .interpreter-language-card[data-selected=true]{border-color:#bd4700;background:#fff0e5}
+/* Keep focus on the complete rounded card, never an inner rectangular select. */
+#interpreter .interpreter-language-card :is(button,select):focus{outline:none!important;box-shadow:none!important}
+#interpreter .interpreter-language-card:has(:focus-visible){outline:2px solid #bd4700;outline-offset:3px}
 #interpreter :is(#interpreter-left,#interpreter-right){display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative;box-sizing:border-box;min-height:80px;width:100%;padding:16px 26px 8px;border:0;border-radius:15px 15px 0 0;background:transparent;color:#505965;font:inherit;font-size:12px;line-height:1.4;cursor:pointer}
 #interpreter :is(#interpreter-left,#interpreter-right)::after{content:'';position:absolute;right:12px;top:12px;width:15px;height:15px;border:1px solid #858c98;border-radius:50%}
 #interpreter :is(#interpreter-left,#interpreter-right)[aria-pressed=true]::after{background:#bd4700;border-color:#bd4700;box-shadow:inset 0 0 0 3px #fff}
@@ -72,8 +75,9 @@ body.kilas-light:has(>.kilas-reference-header) #interpreter.interpreter #interpr
 #interpreter #interpreter-end{background:#bd4700;color:#fff;box-shadow:none}
 #interpreter #interpreter-end:hover{background:#943500}
 #interpreter #interpreter-error{color:#b42330}
-@media(max-width:360px){.interpreter-navigation{gap:6px}.interpreter-navigation a,.interpreter-navigation button{padding:8px 10px;font-size:13px}#interpreter .interpreter-directions{gap:10px}#interpreter :is(#interpreter-left,#interpreter-right){padding-inline:12px}}
-@media(max-width:360px){#interpreter-navigation :is(a,button){font-size:13px!important}}
+@media(max-width:760px){.interpreter-navigation{max-width:calc(100vw - 40px);gap:6px}}
+@media(max-width:600px){#interpreter-navigation :is(a,button){font-size:12px!important;padding-inline:4px!important;gap:4px}#interpreter-navigation svg{width:16px!important;height:16px!important}}
+@media(max-width:360px){#interpreter .interpreter-directions{gap:10px}#interpreter :is(#interpreter-left,#interpreter-right){padding-inline:12px}}
 /* The old call screen visually hid idle text; direct entry must state mic off. */
 #interpreter #interpreter-state:is([data-state=idle],[data-state=ended]){position:static;width:auto;height:auto;overflow:visible;clip-path:none;margin:12px 0!important}
 /* Keep the existing 12px header-to-tool spacing on the direct screen. */
