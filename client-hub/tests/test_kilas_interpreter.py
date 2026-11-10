@@ -115,6 +115,36 @@ class InterpreterTests(unittest.TestCase):
             self.assertIn(self.client.post('/kilas-translator/interpreter/'+'a'*32).status_code,(400,403))
             connect.assert_not_called()
 
+    def test_direct_entry_keeps_explicit_consent_navigation_and_language_controls(self):
+        import re
+        from html.parser import HTMLParser
+        class Tags(HTMLParser):
+            def __init__(self,text):
+                super().__init__();self.tags=[];self.feed(text)
+            def handle_starttag(self,tag,attrs):self.tags.append((tag,dict(attrs)))
+        with self.enabled(),patch.object(calls.wire,'connect') as connect,patch.object(calls,'start') as start:
+            response=self.client.get('/kilas-translator/interpreter')
+            self.assertEqual(response.status_code,200)
+            html=response.text;tags=Tags(html).tags
+            controls={attrs['id']:attrs for _,attrs in tags if 'id' in attrs}
+            self.assertNotIn('interpreter-setup',controls)
+            self.assertNotIn('interpreter-start',controls)
+            self.assertNotIn('hidden',controls['interpreter-active'])
+            nav=re.search(r'<nav id="interpreter-navigation".*?</nav>',html,re.S)[0]
+            self.assertEqual(re.findall(r'<(?:a|button)[^>]*>(.*?)</(?:a|button)>',nav),['AI Translator','Chat','Finance'])
+            finance=Tags(nav).tags
+            self.assertTrue(any(tag=='form' and attrs.get('method')=='post' for tag,attrs in finance))
+            self.assertTrue(any(attrs.get('name')=='product' and attrs.get('value')=='finance' for _,attrs in finance))
+            self.assertTrue(any(attrs.get('name')=='csrf_token' and attrs.get('value') for _,attrs in finance))
+            self.assertNotIn('checked',controls['interpreter-consent'])
+            self.assertEqual(controls['interpreter-consent']['autocomplete'],'off')
+            self.assertIn('hidden',controls['interpreter-consent-panel'])
+            for key in ('a','b'):
+                options=re.search(r'<select id="interpreter-language-'+key+r'".*?</select>',html,re.S)[0]
+                self.assertEqual(options.count('<option'),99)
+            self.assertEqual(sum('data-mic-bar' in attrs for _,attrs in tags),9)
+            start.assert_not_called();connect.assert_not_called()
+
     def test_audio_captions_before_end_duplicate_packets_and_next_turn(self):
         with self.enabled():
             call=self.make();budget.dispatch(call.capability)

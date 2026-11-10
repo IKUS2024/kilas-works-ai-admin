@@ -71,29 +71,37 @@ def main():
       return route.fulfill(json={'state':'LISTENING','frames':items,'next_index':after+len(items),'total_frames':offset[0]+len(frames)})
      page.route('**/kilas-translator/interpreter/**',relay)
      page.goto(origin+'/kilas-translator/interpreter',wait_until='networkidle')
-     expect(page.locator('#interpreter-start')).to_have_text(copy('Lanjut'))
-     expect(page.locator('.interpreter-setup-description')).to_have_text(copy('Terjemahkan percakapan lewat suara.'))
+     assert page.locator('#interpreter-setup,#interpreter-start,#interpreter-swap').count()==0
+     expect(page.locator('#interpreter-active')).to_be_visible()
+     expect(page.locator('#interpreter-navigation')).to_be_visible()
+     assert page.locator('#interpreter-navigation a,#interpreter-navigation button').all_text_contents()==['AI Translator','Chat','Finance']
+     expect(page.locator('.interpreter-direction-heading')).to_have_text(copy('Ketuk K untuk bicara'))
+     expect(page.locator('#interpreter-state')).to_have_text(copy('Siap · mikrofon belum aktif'))
+     expect(page.locator('.interpreter-direction-help')).to_be_visible()
      assert page.locator('#interpreter-language-a option').count()==99
+     assert page.locator('.interpreter-language-card select').count()==2
+     assert page.locator('button select').count()==0
      assert 'AI Chat' not in page.locator('body').inner_text()
      assert page.locator('[data-chat-sidebar]').count()==0
      assert page.evaluate('micRequests')==0
-     if width in (393,1440):page.screenshot(path=str(output/f'setup-{locale}-{width}.png'),full_page=True)
-     page.locator('#interpreter-start').click()
+     if width in (393,1440):page.screenshot(path=str(output/f'ready-{locale}-{width}.png'),full_page=True)
+     page.locator('#interpreter-orb').click()
+     expect(page.locator('#interpreter-consent-panel')).to_be_visible()
+     expect(page.locator('#interpreter-consent')).to_be_focused()
      expect(page.locator('#interpreter-error')).to_have_text(copy('Setujui pemrosesan ucapan terlebih dahulu.'))
+     assert not page.locator('#interpreter-consent').is_checked()
      assert page.evaluate('micRequests')==0 and not starts
      page.locator('#interpreter-language-a').select_option('ar')
      page.locator('#interpreter-language-b').select_option('en')
-     page.locator('#interpreter-swap').click();page.locator('#interpreter-swap').click()
      assert page.locator('#interpreter-language-a').input_value()=='ar'
      assert page.locator('#interpreter-language-b').input_value()=='en'
-     styles=page.evaluate("""()=>Object.fromEntries(['#interpreter-start','.interpreter-setup-description'].map(s=>{const e=document.querySelector(s),c=getComputedStyle(e);return [s,{color:c.color,background:c.backgroundColor,image:c.backgroundImage,size:c.fontSize}]}))""")
-     assert styles['#interpreter-start']['image']=='none',styles
+     styles=page.evaluate("""()=>Object.fromEntries(['#interpreter-language-a','.interpreter-direction-help'].map(s=>{const e=document.querySelector(s),c=getComputedStyle(e);return [s,{color:c.color,background:s.includes('language-a')?getComputedStyle(e.closest('.interpreter-language-card')).backgroundColor:c.backgroundColor,image:c.backgroundImage,size:c.fontSize}]}))""")
      rgb=lambda value:tuple(map(float,re.findall(r'[\d.]+',value)[:3]))
-     assert contrast(rgb(styles['#interpreter-start']['color']),rgb(styles['#interpreter-start']['background']))>=4.5,styles
-     assert contrast(rgb(styles['.interpreter-setup-description']['color']),(255,255,255))>=4.5,styles
-     page.locator('#interpreter-consent').check();page.locator('#interpreter-start').dblclick()
+     assert contrast(rgb(styles['#interpreter-language-a']['color']),rgb(styles['#interpreter-language-a']['background']))>=4.5,styles
+     assert contrast(rgb(styles['.interpreter-direction-help']['color']),(255,255,255))>=4.5,styles
+     page.locator('#interpreter-consent').check()
      expect(page.locator('#interpreter-orb')).to_have_role('button')
-     expect(page.locator('.interpreter-direction-help')).to_have_text(copy('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.'))
+     expect(page.locator('.interpreter-direction-help')).to_have_text(copy('Ketuk lagi untuk berhenti dan terjemahkan.'))
      assert page.evaluate('micRequests')==0 and not starts
      assert not page.locator('#interpreter-transcript').get_attribute('open')
      page.locator('#interpreter-orb img').click()
@@ -118,7 +126,7 @@ def main():
      assert page.locator('#interpreter-caption').get_attribute('lang')=='en'
      assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
      page.wait_for_function("['ended','idle'].includes(document.querySelector('#interpreter-state').dataset.state)")
-     expect(page.locator('#interpreter-state')).to_have_text(copy('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.'))
+     expect(page.locator('#interpreter-state')).to_have_text(copy('Siap · mikrofon belum aktif'))
      if width in (393,1440):page.screenshot(path=str(output/f'transcript-{locale}-{width}.png'),full_page=True)
      assert not page.evaluate("(s)=>Object.values(localStorage).some(v=>v.includes(s))",REPLY)
      latest_reply=REPLY
@@ -152,13 +160,16 @@ def main():
       page.evaluate("()=>{document.activeElement.blur();window.scrollTo(0,0);}")
       page.screenshot(path=str(output/f'auth-{locale}-{width}.png'),full_page=True)
      page.locator('#interpreter-end').click()
-     expect(page.locator('#interpreter-start')).to_be_disabled()
+     expect(page.locator('#interpreter-orb')).to_be_disabled()
+     expect(page.locator('#interpreter-language-a')).to_be_disabled()
+     expect(page.locator('#interpreter-language-b')).to_be_disabled()
+     assert not page.locator('#interpreter-consent').is_checked()
      assert page.locator('#interpreter-original').text_content()=='' and page.locator('#interpreter-caption').text_content()==''
      if width==393:
       for failure,key in (('unavailable','Translator sedang tidak tersedia.'),('network','Koneksi terputus. Pilih arah untuk mulai lagi.'),('permission','Izinkan mikrofon di browser.'),('missing','Periksa mikrofon yang terhubung, lalu pilih arah lagi.'),('audio','Audio belum siap. Izinkan audio browser, lalu pilih arah lagi.')):
        mode[0]=failure;before=len(starts);page.reload(wait_until='networkidle')
        assert not page.locator('#interpreter-consent').is_checked() and page.evaluate('micRequests')==0
-       page.locator('#interpreter-consent').check();page.locator('#interpreter-start').click()
+       page.locator('#interpreter-orb').click();page.locator('#interpreter-consent').check()
        if failure=='permission':page.evaluate("window.mockPermission='denied'")
        if failure=='missing':page.evaluate("window.mockPermission='missing'")
        if failure=='audio':page.evaluate("()=>{AudioContext.prototype.resume=async()=>{throw new Error('synthetic audio failure')};}")

@@ -6,7 +6,7 @@ import {MicrophoneMeter} from './kilas_interpreter_meter.mjs?v=mic-wave-20261110
 import {CallSession} from './kilas_interpreter_engine.mjs?v=mic-wave-20261110';
 const root=document.querySelector('#interpreter');
 if(root){
- const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),orb=field('orb'),end=field('end'),consent=field('consent'),navigation=document.querySelector('#interpreter-navigation');
+ const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),orb=field('orb'),end=field('end'),consent=field('consent');
  // Keep only this account's explicit language choices; never persist consent/audio.
  const a=field('language-a'),b=field('language-b');let restoredEqual=false;let previousPair=[a.value,b.value];
  try{
@@ -19,7 +19,6 @@ if(root){
  }catch{}
  const savePair=()=>{try{localStorage.setItem(root.dataset.preferenceKey,JSON.stringify([a.value,b.value]));}catch{}};
  const updatePair=(changed,notify=true)=>{
-  if(active){a.value=pair.a;b.value=pair.b;return;}
   if(a.value===b.value){
    const select=changed==='language-a'?a:b,other=select===a?b:a;
    const candidates=[previousPair[select===a?0:1],'en','id',...Array.from(select.options,option=>option.value)];
@@ -27,14 +26,19 @@ if(root){
    if(notify)showError('language_adjusted');
   }
   for(const [select,other] of [[a,b],[b,a]])for(const option of select.options)option.disabled=option.value===other.value;
+  if(pair&&(pair.a!==a.value||pair.b!==b.value)){
+   const selectedRight=selectedSource===pair.b;
+   ++generation;switching=false;session.end();clearTranscript();
+   pair={a:a.value,b:b.value};selectedSource=selectedRight?pair.b:pair.a;
+  }else if(!pair){pair={a:a.value,b:b.value};selectedSource=pair.a;}
   previousPair=[a.value,b.value];
   for(const select of [a,b]){select.dataset.language=select.value;select.title=select.selectedOptions[0].textContent;let full=select.parentNode.querySelector('.reference-language-full');if(!full){full=document.createElement('span');full.className='reference-language-full';full.setAttribute('aria-hidden','true');select.after(full);}full.textContent=select.title;full.hidden=select.title.length<22;}
   savePair();sync();
  };
  const request=(url,options={})=>requestJSON(url,{csrf:root.querySelector('[name=csrf_token]').value,...options});
- let active=false,pair=null,context=null,side=null,selectedSource=null,switching=false,generation=0,recoveryTimer=null,authExpired=false,lastState='ended',newTranscript=true;
+ let active=true,pair=null,context=null,side=null,selectedSource=null,switching=false,generation=0,recoveryTimer=null,authExpired=false,lastState='ended',newTranscript=true;
  const sync=()=>{
-  navigation.hidden=active;for(const control of [a,b,field('swap')])control.disabled=active;field('start').disabled=authExpired;end.disabled=false;
+  for(const control of [a,b])control.disabled=authExpired;end.disabled=false;
   const names=code=>code===pair?.a?a.selectedOptions[0].text:b.selectedOptions[0].text;
   const recording=side!==null&&!['ended','idle'].includes(session.state)&&!session.finishRequested;
   const processing=!['ended','idle'].includes(session.state)&&(session.finishRequested||session.speaking);
@@ -46,12 +50,10 @@ if(root){
   for(const [button,source,target] of [[left,pair?.a,pair?.b],[right,pair?.b,pair?.a]]){
    button.disabled=!active||authExpired;
    button.setAttribute('aria-pressed',String(source===selectedSource&&selectedSource!==null));
-   button.dataset.selected=String(source===selectedSource&&selectedSource!==null);
+   button.dataset.selected=String(source===selectedSource&&selectedSource!==null);button.closest('.interpreter-language-card').dataset.selected=button.dataset.selected;
    if(pair)button.setAttribute('aria-label',t('Pilih arah bicara')+': '+names(source)+' → '+names(target));
   }
  };
- const directionLabel=(button,source,target)=>{const from=document.createElement('span'),arrow=document.createElement('span'),to=document.createElement('span');from.textContent=source;arrow.textContent=' → ';arrow.className='interpreter-arrow';to.textContent=target;button.replaceChildren(from,arrow,to);button.setAttribute('aria-label',t('Bicara {source} ke {target}',{source,target}));};
- const enter=()=>{if(active||authExpired)return;if(!consent.checked){consent.focus();showError('consent_required');return;}if(field('language-a').value===field('language-b').value){showError('same_language');return;}pair={a:field('language-a').value,b:field('language-b').value};selectedSource=pair.a;directionLabel(left,a.selectedOptions[0].text,b.selectedOptions[0].text);directionLabel(right,b.selectedOptions[0].text,a.selectedOptions[0].text);for(const [button,source,target] of [[left,pair.a,pair.b],[right,pair.b,pair.a]]){button.firstElementChild.dataset.language=source;button.lastElementChild.dataset.language=target;}active=true;session.warm();field('state').dataset.state='idle';field('setup').hidden=true;field('active').hidden=false;field('error').hidden=true;sync();orb.focus();};
  const messages={
   language_adjusted:'Bahasa yang sama telah disesuaikan.',call_provider_quota:'Kuota Gemini sedang tidak tersedia.',call_provider_billing:'Periksa billing akun Gemini.',
   consent_required:'Setujui pemrosesan ucapan terlebih dahulu.',same_language:'Pilih bahasa sumber dan tujuan yang berbeda.',call_settings_invalid:'Pilih bahasa dari daftar yang tersedia.',
@@ -69,7 +71,7 @@ if(root){
  };
  const showError=code=>{
   const message=t(messages[code]||'Sesi terhenti. Pilih arah untuk mulai lagi.');
-  field('error').hidden=active;field('error').textContent=message;
+  field('error').hidden=!['consent_required','language_adjusted'].includes(code);field('error').textContent=message;
   if(active){field('state').dataset.state='error';field('state').textContent=message;}
   if(code==='auth_required'){authExpired=true;field('login').hidden=false;sync();field('login').focus();}
  };
@@ -108,7 +110,7 @@ if(root){
    if(['connecting','starting'].includes(state))clearTranscript();
    if(state==='listening'&&lastState==='speaking')newTranscript=true;
    field('state').dataset.state=state;
-   field('state').textContent=t({idle:'Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.',starting:'Menyiapkan mikrofon…',ended:'Pilih arah bicara',connecting:'Menghubungkan…',listening:'Terhubung · mendengarkan',processing:'Menerjemahkan',speaking:'Terjemahan diputar. Tunggu giliran.',reconnecting:'Menghubungkan kembali…'}[state]||'Pilih arah bicara');
+   field('state').textContent=t({idle:'Siap · mikrofon belum aktif',starting:'Menyiapkan mikrofon…',ended:'Siap · mikrofon belum aktif',connecting:'Menghubungkan…',listening:'Terhubung · mendengarkan',processing:'Menerjemahkan',speaking:'Terjemahan diputar. Tunggu giliran.',reconnecting:'Menghubungkan kembali…'}[state]||'Pilih arah bicara');
    field('orb').dataset.state=state==='speaking'?'playing':['connecting','reconnecting','processing','starting'].includes(state)?'processing':['ended','idle'].includes(state)?'idle':'listening';
    if(['ended','idle'].includes(state))side=null;lastState=state;sync();
   },onText:text=>caption('caption',text),onOriginal:text=>caption('original',text),onError:showError});
@@ -121,7 +123,8 @@ if(root){
  }
  async function toggleRecording(){
   const source=selectedSource||pair?.a;
-  if(!active||switching||authExpired||!consent.checked)return;
+  if(!active||switching||authExpired)return;
+  if(!consent.checked){field('consent-panel').hidden=false;consent.focus();showError('consent_required');return;}
   if(side===source&&!['ended','idle'].includes(session.state)){session.finish();sync();return;}
   if(session.state==='idle'){side=source;void session.start();sync();return;}
   selectedSource=source;
@@ -132,12 +135,19 @@ if(root){
    if(ticket!==generation){return;}
    const target=source===pair.a?pair.b:pair.a;
    field('original').lang=source;field('caption').lang=target;
-   side=source;switching=false;sync();void session.start({source,target,consent:true,turn_mode:'tap',reuse_session:true});
+   side=source;switching=false;sync();void session.start({source,target,consent:consent.checked,turn_mode:'tap',reuse_session:true});
   }catch(error){if(ticket===generation){switching=false;session.end();showError(error.code||'call_network');sync();}}
  }
  orb.addEventListener('click',toggleRecording);
- left.addEventListener('click',()=>chooseDirection(pair.a));right.addEventListener('click',()=>chooseDirection(pair.b));consent.addEventListener('change',sync);field('start').addEventListener('click',enter);for(const name of ['language-a','language-b'])field(name).addEventListener('change',()=>updatePair(name));field('swap').addEventListener('click',()=>{const a=field('language-a'),b=field('language-b');[a.value,b.value]=[b.value,a.value];updatePair('language-b');});
- // Backgrounding stops capture immediately, but only explicit End leaves this screen.
+ left.addEventListener('click',()=>chooseDirection(pair.a));right.addEventListener('click',()=>chooseDirection(pair.b));
+ consent.checked=false; // Never restore browser-form state as processing permission.
+ consent.addEventListener('change',()=>{field('error').hidden=true;if(!consent.checked)suspend();else if(session.state==='ended'){field('state').dataset.state='ended';field('state').textContent=t('Siap · mikrofon belum aktif');}sync();});
+ for(const name of ['language-a','language-b'])field(name).addEventListener('change',()=>updatePair(name));
+ // Backgrounding, navigation and explicit End stop capture immediately.
  const suspend=()=>{const interrupted=switching||!['ended','idle'].includes(session.state);++generation;switching=false;session.end();sync();if(active&&interrupted)field('state').textContent=t('Sesi berakhir.')+' '+t('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.');};
- const close=()=>{suspend();active=false;clearTranscript();field('transcript').open=false;field('error').hidden=true;field('setup').hidden=false;field('active').hidden=true;sync();if(authExpired)showError('auth_required');else field('start').focus();};end.addEventListener('click',close);window.addEventListener('pagehide',suspend);document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend();});updatePair('language-b',restoredEqual);
+ const close=()=>{suspend();consent.checked=false;clearTranscript();field('transcript').open=false;field('error').hidden=true;field('consent-panel').hidden=true;sync();if(authExpired)showError('auth_required');else orb.focus();};
+ end.addEventListener('click',close);window.addEventListener('pagehide',suspend);document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend();});
+ // A history-cache restore never resumes recording or silently restores consent.
+ window.addEventListener('pageshow',event=>{if(event.persisted)close();});
+ updatePair('language-b',restoredEqual);
 }

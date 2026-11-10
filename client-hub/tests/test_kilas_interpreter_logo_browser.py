@@ -51,9 +51,19 @@ def main():
                 page.on('request',lambda request:requests.append(request.url) if '/interpreter/' in request.url else None)
                 page.set_default_timeout(10000);page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(origin+'/kilas-translator/interpreter',wait_until='networkidle')
-                page.locator('#interpreter-consent').check();page.locator('#interpreter-start').click()
+                assert page.evaluate('micRequests')==0 and not requests
+                expect(page.locator('#interpreter-active')).to_be_visible()
+                expect(page.locator('#interpreter-navigation')).to_be_visible()
+                assert page.locator('#interpreter-setup,#interpreter-start,#interpreter-swap').count()==0
+                before_consent=len(wires)
+                page.locator('#interpreter-orb').click()
+                expect(page.locator('#interpreter-consent-panel')).to_be_visible()
+                expect(page.locator('#interpreter-consent')).to_be_focused()
+                assert not page.locator('#interpreter-consent').is_checked()
+                assert page.evaluate('micRequests')==0 and len(wires)==before_consent
+                page.locator('#interpreter-consent').check()
                 logo=page.locator('#interpreter-orb');image=logo.locator('img')
-                expect(logo).to_have_role('button');expect(logo).to_be_focused()
+                expect(logo).to_have_role('button');logo.focus();expect(logo).to_be_focused()
                 expect(logo).to_have_attribute('aria-label','Start listening: Indonesian to English')
                 expect(page.locator('#interpreter-current-direction')).to_have_text('Indonesian → English')
                 assert logo.evaluate('e=>e.tagName')=='BUTTON'
@@ -68,6 +78,7 @@ def main():
                     elif mobile:card.tap()
                     else:card.click()
                     expect(card).to_have_attribute('aria-pressed','true')
+                    expect(card.locator('..')).to_have_attribute('data-selected','true')
                 page.wait_for_timeout(100)
                 assert len(requests)==baseline
                 assert page.evaluate('micRequests')==0 and page.evaluate('audioContexts')==0
@@ -152,11 +163,12 @@ def main():
                     expect(page.locator('#interpreter-state')).to_contain_text('Session ended.')
                     expect(page.locator('#interpreter-right')).to_have_attribute('aria-pressed','true')
                     expect(logo).to_be_enabled()
-                    page.locator('#interpreter-end').click();expect(page.locator('#interpreter-setup')).to_be_visible()
+                    page.locator('#interpreter-end').click();expect(page.locator('#interpreter-active')).to_be_visible();assert not page.locator('#interpreter-consent').is_checked()
                 else:page.locator('#interpreter-end').click()
                 if width==768:
                     page.locator('#interpreter-language-a').select_option('ja');page.locator('#interpreter-language-b').select_option('fr')
-                    page.locator('#interpreter-start').click()
+                    page.locator('#interpreter-left').click()
+                    page.locator('#interpreter-orb').click();page.locator('#interpreter-consent').check()
                     expect(logo).to_have_attribute('aria-label','Start listening: Japanese to French')
                     hit_k();listening(page)
                     assert 'from Japanese into French' in wires[-1].messages[0]['setup']['systemInstruction']['parts'][0]['text']
@@ -174,7 +186,7 @@ def main():
                 if width==1440:
                     # Run lost-cookie recovery last: the unauthenticated client
                     # cannot submit End, so its owned lease settles server-side.
-                    page.locator('#interpreter-start').click();hit_k();listening(page)
+                    page.locator('#interpreter-orb').click();page.locator('#interpreter-consent').check();hit_k();listening(page)
                     context.clear_cookies()
                     expect(page.locator('#interpreter-login')).to_be_visible();expect(logo).to_be_disabled()
                 assert not errors,errors

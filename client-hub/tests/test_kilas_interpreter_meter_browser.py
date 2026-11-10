@@ -45,7 +45,17 @@ def main():
                 context.add_init_script(MIC_LEVEL)
                 page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(origin+'/kilas-translator/interpreter',wait_until='networkidle')
-                page.locator('#interpreter-consent').check();page.locator('#interpreter-start').click()
+                assert page.evaluate('micRequests')==0
+                expect(page.locator('#interpreter-active')).to_be_visible()
+                expect(page.locator('#interpreter-navigation')).to_be_visible()
+                assert page.locator('#interpreter-setup,#interpreter-start,#interpreter-swap').count()==0
+                before_consent=len(wires)
+                page.locator('#interpreter-orb').click()
+                expect(page.locator('#interpreter-consent-panel')).to_be_visible()
+                expect(page.locator('#interpreter-consent')).to_be_focused()
+                assert not page.locator('#interpreter-consent').is_checked()
+                assert page.evaluate('micRequests')==0 and len(wires)==before_consent
+                page.locator('#interpreter-consent').check()
                 meter=page.locator('#interpreter-microphone');logo=page.locator('#interpreter-orb')
                 expect(meter).to_be_hidden();assert page.evaluate('micRequests')==0
                 logo.click();expect(meter).to_have_attribute('data-active','true')
@@ -79,11 +89,34 @@ def main():
                 expect(page.locator('#interpreter-state')).to_have_text('Check the connected microphone, then choose a direction again.')
                 expect(meter).to_be_hidden()
                 logo.click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
+                # Native dropdown changes cancel capture immediately without choosing
+                # the opposite card or starting another provider/microphone.
+                for control,code in (('a','ja'),('b','fr')):
+                    expect(page.locator('#interpreter-language-'+control)).to_be_enabled()
+                    before=len(wires);requests=page.evaluate('micRequests')
+                    page.locator('#interpreter-language-'+control).select_option(code)
+                    expect(meter).to_be_hidden()
+                    assert page.evaluate('micRequests===micStops')
+                    assert len(wires)==before and page.evaluate('micRequests')==requests
+                    expect(page.locator('#interpreter-right')).to_have_attribute('aria-pressed','true')
+                    expect(page.locator('#interpreter-navigation')).to_be_visible()
+                    logo.click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
+                assert 'from French into Japanese' in wires[-1].messages[0]['setup']['systemInstruction']['parts'][0]['text']
+                # Withdrawing consent ends capture and cannot silently re-admit.
+                before=len(wires);requests=page.evaluate('micRequests')
+                page.locator('#interpreter-consent').uncheck()
+                expect(meter).to_be_hidden();assert page.evaluate('micRequests===micStops')
+                logo.click();expect(page.locator('#interpreter-consent')).to_be_focused()
+                assert not page.locator('#interpreter-consent').is_checked()
+                assert page.evaluate('micRequests')==requests and len(wires)==before
+                page.locator('#interpreter-consent').check()
+                assert page.evaluate('micRequests')==requests and len(wires)==before
+                logo.click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
                 page.evaluate("window.dispatchEvent(new Event('pagehide'))")
                 expect(meter).to_be_hidden();assert page.evaluate('micRequests===micStops')
-                page.locator('#interpreter-end').click();expect(page.locator('#interpreter-setup')).to_be_visible()
+                page.locator('#interpreter-end').click();expect(page.locator('#interpreter-active')).to_be_visible();assert not page.locator('#interpreter-consent').is_checked()
                 assert not errors,errors
-                evidence.append({'width':width,'result':'PASS','input':'real AudioWorklet with synthetic amplitude/silence','connection':'delayed setup distinguished from local mic','reset':'Finish, playback, idle, repeat, direction, track ended, pagehide','reduced_motion':width==768})
+                evidence.append({'width':width,'result':'PASS','input':'real AudioWorklet with synthetic amplitude/silence','connection':'delayed setup distinguished from local mic','reset':'Finish, playback, idle, repeat, direction, dropdowns, consent withdrawal, track ended, pagehide','reduced_motion':width==768})
                 print(json.dumps(evidence[-1]),flush=True);context.close()
             browser.close()
         (output/'verification.json').write_text(json.dumps(evidence,indent=2))
