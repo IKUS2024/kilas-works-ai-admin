@@ -41,7 +41,7 @@ def main():
     try:
         blocked = AssertionError('No real provider allowed')
         with patch.object(budget, 'ready', return_value=True), patch.object(stt, 'transcribe', side_effect=blocked), patch.object(audio_provider, 'request', side_effect=blocked), patch.object(providers, '_openai', side_effect=blocked), sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, executable_path=shutil.which('chromium'))
+            browser = p.chromium.launch(headless=True, executable_path=os.environ.get('KILAS_QA_CHROMIUM') or shutil.which('chromium'))
             for width in (320, 360, 390, 430, 1440):
                 cookie = case.client().get_cookie('session')
                 context = browser.new_context(viewport={'width': width, 'height': 900}, has_touch=width < 761)

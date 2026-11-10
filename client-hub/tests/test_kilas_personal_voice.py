@@ -20,6 +20,67 @@ class PersonalVoiceTests(unittest.TestCase):
     credit=audio.AudioTests.credit
     create=audio.AudioTests.create
 
+    def test_adult_female_catalog_is_additive_and_resolves_exact_owner_record(self):
+        self.assertEqual(branded.SOURCES,(
+            ('kilas-male',9,5,'Kilas Male'),('kilas-female',9,7,'Kilas Female'),
+            ('kilas-adult-female',9,10,'Kilas Adult Female')))
+        records={(9,5):'syntheticMale123',(9,7):'syntheticFemale123',
+                 (9,10):'syntheticAdultFemale123'}
+        with patch.object(branded.db,'query_one',side_effect=lambda sql,args: {'voice_id':records[args]} if args in records else None) as query,patch.object(provider,'request') as paid:
+            choices=branded.choices()
+            self.assertEqual([v['name'] for v in choices],['Kilas Male','Kilas Female','Kilas Adult Female'])
+            self.assertEqual(choices[-1]['id'],'syntheticAdultFemale123')
+            self.assertEqual([call.args[1] for call in query.call_args_list],[(9,5),(9,7),(9,10)])
+            self.assertTrue(all(call.args[0].startswith('SELECT voice_id ') for call in query.call_args_list))
+            self.assertNotIn('id',branded.public_choices()[-1]);paid.assert_not_called()
+
+    def test_adult_female_generation_and_editor_use_branded_alias(self):
+        self.credit(120)
+        voice={'alias':'kilas-adult-female','id':'syntheticAdultFemale123','name':'Kilas Adult Female','style':'Natural'}
+        with patch.object(branded,'choices',return_value=[voice]),patch.object(provider,'clone_voice') as clone:
+            result,tts,_=self.create(voice='kilas-adult-female',script=branded.SAMPLE_TEXT,language='auto')
+            self.assertEqual(result.status_code,201,result.text)
+            self.assertEqual(tts.call_args.args,(branded.SAMPLE_TEXT,voice['id'],'auto'))
+            job=store.get(self.user,result.json['id'])
+            self.assertEqual(job['voice_name'],'Kilas Adult Female')
+            self.assertEqual(self.client.get('/kilas-translator/jobs/'+str(job['id'])+'/script').json['voice'],'kilas-adult-female')
+            html=self.client.get('/kilas-translator?mode=voiceover').text
+            self.assertIn('value="kilas-adult-female"',html);self.assertIn('Kilas Adult Female',html)
+            self.assertNotIn(voice['id'],html);clone.assert_not_called()
+
+    def test_adult_female_missing_source_fails_closed_without_stock_fallback(self):
+        self.credit(120)
+        with patch.object(branded,'choices',return_value=[]),patch.object(provider,'voices') as stock,patch.object(provider,'speech') as tts,patch.object(provider,'clone_voice') as clone:
+            result=self.client.post('/kilas-translator/jobs',data={'csrf_token':'audio-csrf','operation_key':'adult-female-missing-123','mode':'voiceover','voice':'kilas-adult-female','language':'auto','script':branded.SAMPLE_TEXT})
+            self.assertEqual(result.status_code,503);self.assertEqual(result.json['code'],'voice_unavailable')
+            stock.assert_not_called();tts.assert_not_called();clone.assert_not_called()
+
+    def test_adult_female_published_demo_bytes_hash_and_private_cached_route(self):
+        raw=(branded.SAMPLE_ROOT/'kilas-adult-female.mp3').read_bytes()
+        entry=json.loads((branded.SAMPLE_ROOT/'manifest.json').read_text())['kilas-adult-female']
+        self.assertEqual(entry['text'],branded.SAMPLE_TEXT)
+        self.assertEqual(entry['voice_sha256'],'9c5d950f67566059500417ab5c3c434b17088ba6b767842bdd4a9a88253f7bb2')
+        self.assertEqual(len(raw),46018)
+        self.assertEqual(hashlib.sha256(raw).hexdigest(),entry['audio_sha256'])
+        self.assertEqual(entry['audio_sha256'],'d4397702b38eb7de7515ae4d509c6f87216a44d6a4404b1024ceb6dc9e5960bd')
+        self.assertGreater(media.mp3_duration(raw),0)
+        voice={'alias':'kilas-adult-female','id':'syntheticAdultFemale123','name':'Kilas Adult Female','style':'Natural'}
+        with tempfile.TemporaryDirectory() as folder,patch.object(branded,'SAMPLE_ROOT',Path(folder)),patch.object(branded,'choices',return_value=[voice]),patch.object(provider,'request') as paid:
+            root=Path(folder)
+            entry={**entry,'voice_sha256':hashlib.sha256(voice['id'].encode()).hexdigest()}
+            (root/'manifest.json').write_text(json.dumps({'kilas-adult-female':entry}))
+            (root/'kilas-adult-female.mp3').write_bytes(raw)
+            before=store.balance(self.user)
+            response=self.client.get('/kilas-translator/voices/kilas-adult-female/sample')
+            self.assertEqual(response.status_code,200);self.assertEqual(response.data,raw)
+            self.assertEqual(response.headers['Cache-Control'],'private, no-store')
+            self.assertEqual(response.headers['X-Content-Type-Options'],'nosniff')
+            self.assertEqual(store.balance(self.user),before)
+            self.assertEqual(f.app.app.test_client().get('/kilas-translator/voices/kilas-adult-female/sample').status_code,302)
+            with patch.object(branded,'choices',return_value=[{**voice,'id':'replacedIdentity123'}]):
+                self.assertEqual(self.client.get('/kilas-translator/voices/kilas-adult-female/sample').status_code,404)
+            paid.assert_not_called()
+
     def test_branded_english_sample_is_explicit_cached_asset_without_provider_or_balance(self):
         voice={'alias':'kilas-male','id':'syntheticBranded123','name':'Kilas Male','style':'Natural'}
         with tempfile.TemporaryDirectory() as folder,patch.object(branded,'SAMPLE_ROOT',Path(folder)),patch.object(branded,'choices',return_value=[voice]),patch.object(provider,'request') as paid:

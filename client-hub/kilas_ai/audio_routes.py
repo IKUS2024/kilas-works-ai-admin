@@ -216,7 +216,7 @@ def create():
         elif voice=='personal':
             saved=personal.get(user)
             choice={'id':saved,'name':'Suara Saya'} if saved else None
-        elif voice in ('kilas-male','kilas-female'):
+        elif voice in {source[0] for source in branded.SOURCES}:
             choice=branded.resolve(voice)
         else:
             choices=provider.voices()
