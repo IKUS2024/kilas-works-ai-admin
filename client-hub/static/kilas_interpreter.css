@@ -46,6 +46,7 @@ body.kilas-light:has(>.kilas-reference-header) #interpreter.interpreter #interpr
 .interpreter-navigation{max-width:760px;margin:12px auto 24px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .interpreter-navigation form{margin:0;display:flex}
 .interpreter-navigation a,.interpreter-navigation button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 12px;box-sizing:border-box;border:1px solid #d5d7da;border-radius:8px;background:#fff;color:#545963;font:inherit;font-size:14px;font-weight:600;line-height:1.4;text-decoration:none;cursor:pointer}
+#interpreter-navigation :is(a,button){font:600 14px/1.4 Manrope,system-ui,sans-serif!important}
 .interpreter-navigation [aria-current=page]{color:#963800;background:#fff0e5;border-color:#bd4700}
 .interpreter-navigation :is(a,button):hover{background:#fff0e5}
 .interpreter-navigation :is(a,button):focus-visible{outline:3px solid #bd4700;outline-offset:3px}
@@ -72,6 +73,7 @@ body.kilas-light:has(>.kilas-reference-header) #interpreter.interpreter #interpr
 #interpreter #interpreter-end:hover{background:#943500}
 #interpreter #interpreter-error{color:#b42330}
 @media(max-width:360px){.interpreter-navigation{gap:6px}.interpreter-navigation a,.interpreter-navigation button{padding:8px 10px;font-size:13px}#interpreter .interpreter-directions{gap:10px}#interpreter :is(#interpreter-left,#interpreter-right){padding-inline:12px}}
+@media(max-width:360px){#interpreter-navigation :is(a,button){font-size:13px!important}}
 /* The old call screen visually hid idle text; direct entry must state mic off. */
 #interpreter #interpreter-state:is([data-state=idle],[data-state=ended]){position:static;width:auto;height:auto;overflow:visible;clip-path:none;margin:12px 0!important}
 /* Keep the existing 12px header-to-tool spacing on the direct screen. */
