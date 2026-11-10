@@ -15,6 +15,19 @@ class CopilotLocaleTests(unittest.TestCase):
         self.case=fixture.CopilotTests();self.case.setUp()
         self.app=self.case.app;self.client=self.case.client
 
+    def test_voice_dictation_processing_disclosure_is_in_policy_not_recording_controls(self):
+        expected={'id':'penyedia layanan browser','en':'browser service provider','es':'proveedor del navegador','zh':'浏览器服务提供方'}
+        for locale,text in expected.items():
+            self.client.set_cookie('kilas_language',locale)
+            page=self.client.get('/privacy')
+            self.assertEqual(page.status_code,200)
+            paragraph=re.search(r'<p id="voice-dictation-processing-policy">(.*?)</p>',page.text)
+            self.assertIsNotNone(paragraph)
+            self.assertIn(text,paragraph[1])
+            voice=self.client.get('/kilas-translator?mode=voiceover').text
+            self.assertNotIn('id="dictation-privacy"',voice)
+            self.assertIn('id="dictation-privacy-note"',voice)
+
     def test_default_supported_locales_and_invalid_cookie_fallback(self):
         self.client.delete_cookie('kilas_language')
         page=self.client.get('/kilas-ai')
