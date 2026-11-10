@@ -3,13 +3,16 @@ on:
   pull_request:
     paths:
       - 'client-hub/static/kilas_chat.css'
+      - 'client-hub/static/kilas_chat_composer.css'
+      - 'client-hub/static/kilas_ai.js'
       - 'client-hub/static/kilas_ai_agent_chat.js'
       - 'client-hub/templates/kilas_ai/**'
       - 'client-hub/tests/test_kilas_chat_bubble_browser.py'
+      - 'client-hub/tests/test_kilas_chat_composer_browser.py'
       - 'client-hub/tests/test_kilas_chat_history_race_browser.py'
       - '.github/workflows/kilas-chat-layout-history-qa.yml'
   push:
-    branches: ['fix/chat-layout-history-20261109']
+    branches: ['fix/chat-layout-history-20261109', 'fix/ai-chat-stop-instant-*']
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,5 +26,6 @@ jobs:
         with: {python-version: '3.12'}
       - run: pip install -r client-hub/requirements.txt playwright
       - run: python -m playwright install --with-deps chromium
+      - run: python client-hub/tests/test_kilas_chat_composer_browser.py
       - run: python client-hub/tests/test_kilas_chat_bubble_browser.py
       - run: python client-hub/tests/test_kilas_chat_history_race_browser.py

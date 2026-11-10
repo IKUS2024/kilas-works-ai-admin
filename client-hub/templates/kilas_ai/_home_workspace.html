@@ -1,3 +1,4 @@
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_composer.css',v='stop-instant-20261110') }}">
 {% include 'kilas_ai/_image_viewer_assets.html' %}
 {% from 'kilas_ai/_chat_icons.html' import chat_icon %}
 {% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
@@ -20,7 +21,7 @@
       <label class="ai-attach" for="ai-files" title="{{ ui_t('Foto 8 MiB · dokumen 2 MiB · total 10 MiB per pesan.') }}" data-home-attachment><span class="chat-visually-hidden">{{ ui_t('+ Lampiran') }}</span>{{ drawer_icon('plus') }}</label><input id="ai-files" type="file" multiple accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,.webp" aria-label="{{ ui_t('Pilih lampiran') }}">
       <label class="home-input-label" for="ai-input" data-home-input-label>{{ ui_t('Tulis pesan') }}</label><textarea id="ai-input" name="brief" maxlength="12000" rows="1" placeholder="{{ ui_t('Pesan') }}">{{ prefill|default('') }}</textarea>
       <div class="ai-pending" id="ai-pending" aria-live="polite"></div><p class="ai-inline-hint" id="ai-edit-hint" hidden>{{ ui_t('Upload gambar terlebih dahulu untuk diedit.') }}</p>
-      <div class="ai-composer-actions"><button class="ai-send" type="submit" id="ai-send" aria-label="{{ ui_t('Kirim') }}" title="{{ ui_t('Kirim') }}">{{ chat_icon('send') }}</button><button class="ai-stop" type="button" id="ai-stop" hidden>{{ ui_t('Stop') }}</button>{% include 'kilas_ai/_ai_call_button.html' %}</div>
+      <div class="ai-composer-actions"><button class="ai-send" type="submit" id="ai-send" aria-label="{{ ui_t('Kirim') }}" title="{{ ui_t('Kirim') }}">{{ chat_icon('send') }}</button><button class="ai-stop" type="button" id="ai-stop" hidden aria-label="{{ ui_t('Stop') }}" title="{{ ui_t('Stop') }}">{{ chat_icon('stop') }}</button>{% include 'kilas_ai/_ai_call_button.html' %}</div>
     </form><p class="ai-hint" data-home-hint aria-label="{{ ui_t('Jawaban AI dapat keliru. Periksa informasi penting.') }}">{{ ui_t('Periksa jawaban AI.') }}</p></div>
     {% endif %}
     {% include 'kilas_ai/_capacity_notice.html' %}
@@ -28,7 +29,7 @@
 
 </section>
 {% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_chat_markdown.css',v='answer-layout-20261020') }}">{% endif %}
-<script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='chat-quality-20261103') }}" defer></script><script src="{{ url_for('static',filename='kilas_home.js',v='keyboard-tabs-20261104') }}" defer></script><script src="{{ url_for('static',filename='kilas_thread_projects.js',v='result-cards-20261019') }}" defer></script><script src="{{ url_for('static',filename='kilas_ai.js',v='image-viewer-20261103') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_markdown.js',v='chat-quality-20261103') }}" defer></script><script src="{{ url_for('static',filename='kilas_home.js',v='keyboard-tabs-20261104') }}" defer></script><script src="{{ url_for('static',filename='kilas_thread_projects.js',v='result-cards-20261019') }}" defer></script><script src="{{ url_for('static',filename='kilas_ai.js',v='stop-instant-20261110') }}" defer></script>
 
 {% include 'kilas_ai/_ai_call_surface.html' %}
 {% if not chat_styles_in_head|default(false) %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_starters.css',v='20261022') }}">{% endif %}
