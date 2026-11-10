@@ -131,7 +131,12 @@ class InterpreterTests(unittest.TestCase):
             self.assertNotIn('interpreter-start',controls)
             self.assertNotIn('hidden',controls['interpreter-active'])
             nav=re.search(r'<nav id="interpreter-navigation".*?</nav>',html,re.S)[0]
-            self.assertEqual(re.findall(r'<(?:a|button)[^>]*>(.*?)</(?:a|button)>',nav),['AI Translator','Chat','Finance'])
+            nav_controls=re.findall(r'<(?:a|button)\b[^>]*>(.*?)</(?:a|button)>',nav,re.S)
+            self.assertEqual([re.sub(r'<[^>]+>','',control).strip() for control in nav_controls],['AI Chat','Translator','Finance'])
+            self.assertEqual(len(nav_controls),3)
+            for control in nav_controls:
+                self.assertIn('<svg',control)
+                self.assertIn('aria-hidden="true"',control)
             finance=Tags(nav).tags
             self.assertTrue(any(tag=='form' and attrs.get('method')=='post' for tag,attrs in finance))
             self.assertTrue(any(attrs.get('name')=='product' and attrs.get('value')=='finance' for _,attrs in finance))

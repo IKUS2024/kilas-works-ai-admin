@@ -45,6 +45,8 @@ def main():
      context.add_cookies([{'name':cookie.key,'value':cookie.value,'url':origin},{'name':'kilas_language','value':locale,'url':origin}])
      context.route('**/*',lambda r:r.continue_() if r.request.url.startswith(origin) else r.abort())
      context.add_init_script(MIC);page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+     finance_posts=[]
+     page.on('request',lambda request:finance_posts.append(request.url) if request.method=='POST' and request.url.split('?')[0].endswith('/products/start') else None)
      mode=['normal'];starts=[];ends=[];finished=set();offset=[0];last_cursor=[0]
      audio=b''.join(struct.pack('<h',int(8000*math.sin(i/12))) for i in range(24000))
      frames=[{'index':0,'type':'original','text':SOURCE},{'index':1,'type':'text','text':REPLY}]
@@ -74,7 +76,7 @@ def main():
      assert page.locator('#interpreter-setup,#interpreter-start,#interpreter-swap').count()==0
      expect(page.locator('#interpreter-active')).to_be_visible()
      expect(page.locator('#interpreter-navigation')).to_be_visible()
-     assert page.locator('#interpreter-navigation a,#interpreter-navigation button').all_text_contents()==['AI Translator','Chat','Finance']
+     assert [text.strip() for text in page.locator('#interpreter-navigation a,#interpreter-navigation button').all_text_contents()]==['AI Chat','Translator','Finance']
      expect(page.locator('.interpreter-direction-heading')).to_have_text(copy('Ketuk K untuk bicara'))
      expect(page.locator('#interpreter-state')).to_have_text(copy('Siap · mikrofon belum aktif'))
      assert page.locator('#interpreter-state').evaluate('e=>e.getBoundingClientRect().height>=14&&getComputedStyle(e).clipPath==="none"')
@@ -82,7 +84,23 @@ def main():
      assert page.locator('#interpreter-language-a option').count()==99
      assert page.locator('.interpreter-language-card select').count()==2
      assert page.locator('button select').count()==0
-     assert 'AI Chat' not in page.locator('body').inner_text()
+     # Keyboard focus belongs to the rounded card, never an inner select box.
+     for direction,side in (('left','a'),('right','b')):
+      page.locator('#interpreter-'+direction).focus()
+      page.keyboard.press('Tab')
+      select=page.locator('#interpreter-language-'+side)
+      expect(select).to_be_focused()
+      focus=select.evaluate('''e=>{const inner=getComputedStyle(e),card=getComputedStyle(e.closest('.interpreter-language-card'));return {visible:e.matches(':focus-visible'),innerOutline:inner.outlineStyle,innerShadow:inner.boxShadow,cardOutline:card.outlineStyle,cardWidth:parseFloat(card.outlineWidth),cardOffset:parseFloat(card.outlineOffset),cardRadius:parseFloat(card.borderTopLeftRadius),cardColor:card.outlineColor}}''')
+      assert focus['visible'],focus
+      assert focus['innerOutline']=='none' and focus['innerShadow']=='none',focus
+      assert focus['cardOutline']=='solid' and focus['cardWidth']>=2 and focus['cardOffset']>=2,focus
+      assert focus['cardRadius']>=12 and focus['cardColor'] not in ('transparent','rgba(0, 0, 0, 0)'),focus
+      if locale=='en' and width==393 and side=='a':page.screenshot(path=str(output/'keyboard-language-focus-393.png'),full_page=True)
+      page.keyboard.press('Tab')
+      assert select.evaluate("e=>getComputedStyle(e.closest('.interpreter-language-card')).outlineStyle=='none'")
+     assert not finance_posts and not starts and page.evaluate('micRequests')==0
+     page.evaluate('document.activeElement.blur()')
+     assert 'AI Chat' not in page.locator('#interpreter').inner_text()
      assert page.locator('[data-chat-sidebar]').count()==0
      assert page.evaluate('micRequests')==0
      if width in (393,1440):page.screenshot(path=str(output/f'ready-{locale}-{width}.png'),full_page=True)

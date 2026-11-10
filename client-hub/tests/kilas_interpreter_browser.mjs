@@ -37,7 +37,7 @@ try{
   const directEntry=async()=>{
    assert.equal(await page.locator('#interpreter-active').isVisible(),true);
    assert.equal(await page.locator('#interpreter-navigation').isVisible(),true);
-   assert.deepEqual(await page.locator('#interpreter-navigation a,#interpreter-navigation button').allTextContents(),['AI Translator','Chat','Finance']);
+   assert.deepEqual(await page.locator('#interpreter-navigation a,#interpreter-navigation button').allTextContents().then(labels=>labels.map(text=>text.trim())),['AI Chat','Translator','Finance']);
    assert.equal(await page.locator('#interpreter-setup,#interpreter-start,#interpreter-swap').count(),0);
    for(const side of ['a','b'])assert.equal(await page.locator('#interpreter-language-'+side).isEnabled(),true);
   };
