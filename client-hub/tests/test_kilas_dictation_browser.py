@@ -187,7 +187,17 @@ window.qaSpeechResult=text=>{const result=[{transcript:text}];result.isFinal=tru
                     assert page.evaluate('qaMic.calls') == 0
                     assert requests == [], requests
                     assert not errors, errors
-                    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), width
+                    # Preserve the rendered failure before asserting, including
+                    # exact overflowing elements rather than only a viewport.
+                    page.screenshot(path=str(output/f'dictation-fallback-{width}.png'), full_page=True)
+                    overflow = page.evaluate('''() => [...document.querySelectorAll('body *')].filter(el => {
+                        const rect=el.getBoundingClientRect();
+                        return rect.width>0 && rect.right>innerWidth+1 && getComputedStyle(el).visibility!=='hidden';
+                    }).map(el => ({tag:el.tagName,id:el.id,classes:el.className,
+                        right:el.getBoundingClientRect().right,width:el.getBoundingClientRect().width,
+                        scrollWidth:el.scrollWidth,clientWidth:el.clientWidth})).slice(0,30)''')
+                    (output/f'dictation-fallback-{width}-overflow.json').write_text(json.dumps(overflow, indent=2))
+                    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (width,overflow)
                     report['browser_fallback_widths'].append(width)
                     context.close()
                 context = browser.new_context(viewport={'width': 390, 'height': 900})
