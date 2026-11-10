@@ -90,13 +90,37 @@ class VideoScriptTests(unittest.TestCase):
             response=self.post();self.assertEqual(response.status_code,503);self.assertEqual(response.json['code'],'budget_unavailable');paid.assert_not_called();decode.assert_not_called()
             html=self.client.get('/kilas-translator?mode=voiceover').text
             self.assertIn('data-ready="false"',html)
-            self.assertIn('title="Dikte belum tersedia"',html)
+            self.assertIn('aria-describedby="dictation-status"',html)
             self.assertIn('id="dictation-start"',html)
             self.assertNotIn('id="dictation-consent"',html)
             self.assertNotIn('Izin dikte',html)
             self.assertNotIn('id="voice-video-file"',html)
             title=html.split('<title>',1)[1].split('</title>',1)[0];self.assertNotIn('<script',title)
             self.assertEqual(html.count('id="audio-script"'),1)
+
+    def test_browser_fallback_does_not_renew_expired_sponsored_stt(self):
+        from kilas_ai import free_test
+        before=f.db.query_one('SELECT COUNT(*) AS n FROM kilas_vo_stt_operations')['n']
+        with self.funded(),self.normal_usage(),patch.dict(os.environ,{
+                'KILAS_APP_FREE_TEST_ENABLED':'true',
+                'KILAS_APP_FREE_TEST_END_AT':free_test.END_AT.isoformat()}), \
+                patch.object(free_test,'datetime',wraps=datetime) as free_clock, \
+                patch.object(budget,'datetime',wraps=datetime) as budget_clock, \
+                patch.object(stt,'transcribe') as paid, \
+                patch.object(stt,'require_subscription_credit') as credit, \
+                patch('kilas_ai.audio_media.voice_sample') as decode:
+            free_clock.now.return_value=free_test.STT_END_AT+timedelta(days=9)
+            budget_clock.now.return_value=free_test.STT_END_AT+timedelta(days=9)
+            self.assertTrue(free_test.active())
+            self.assertFalse(budget.ready(self.user))
+            html=self.client.get('/kilas-translator?mode=voiceover').text
+            self.assertIn('id="voice-dictation" data-ready="false"',html)
+            self.assertIn('aria-describedby="dictation-status"',html)
+            response=self.dictate()
+            self.assertEqual(response.status_code,503)
+            self.assertEqual(response.json['code'],'budget_unavailable')
+            paid.assert_not_called();credit.assert_not_called();decode.assert_not_called()
+            self.assertEqual(f.db.query_one('SELECT COUNT(*) AS n FROM kilas_vo_stt_operations')['n'],before)
 
     def test_real_mp4_decode_original_text_only_no_tts_job_or_credit_debit(self):
         self.credit(60);before=f.db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_jobs')['n']

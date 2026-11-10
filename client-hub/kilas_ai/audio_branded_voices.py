@@ -1,7 +1,8 @@
 """Approved existing voice aliases. Never create, rename or alter personal voices.
 
-Production source rows were verified read-only on 2026-10-11: owner 9,
-saved voice 5 (irvan Voice), saved voice 7 (putri voice). Provider IDs remain
+Production source rows were verified read-only: owner 9, saved voice 5
+(irvan Voice), saved voice 7 (putri voice), and on 2026-11-10 saved voice 10
+(wanita dewasa), explicitly approved as Kilas Adult Female. Provider IDs remain
 server-side; disappearance fails closed rather than selecting a stock voice.
 """
 import hashlib
@@ -10,7 +11,8 @@ from pathlib import Path
 import re
 import db
 
-SOURCES = (('kilas-male', 9, 5, 'Kilas Male'), ('kilas-female', 9, 7, 'Kilas Female'))
+SOURCES = (('kilas-male', 9, 5, 'Kilas Male'), ('kilas-female', 9, 7, 'Kilas Female'),
+           ('kilas-adult-female', 9, 10, 'Kilas Adult Female'))
 SAMPLE_TEXT = 'Hi, this is a sample of my voice.'
 SAMPLE_ROOT = Path(__file__).with_name('voice_samples')
 

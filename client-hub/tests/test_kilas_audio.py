@@ -87,7 +87,7 @@ class AudioTests(unittest.TestCase):
         self.assertNotIn('id="dictation-consent"',html)
         self.assertNotIn('Izin dikte',html)
         self.assertIn('data-ready="false"',html)
-        self.assertIn('title="Dikte belum tersedia" disabled',html)
+        self.assertIn('title="Rekam Naskah" aria-describedby="dictation-status" disabled',html)
         self.assertNotIn('id="dictation-disclosure"',html)
         self.assertNotIn('href="/privacy#audio-processing"',html)
         self.assertNotIn('aria-describedby="dictation-disclosure"',html)

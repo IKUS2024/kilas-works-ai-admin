@@ -8,5 +8,10 @@
     "text": "Hi, this is a sample of my voice.",
     "voice_sha256": "4ca5e857c143618f2c199bae83ee46b9cf565dbf219f7e1daf1dd68974c87bea",
     "audio_sha256": "1bcd49c3b9ea40f0a9b80222173e819d0d1f9230d8fa554b3e4b7ac99cd4dd74"
+  },
+  "kilas-adult-female": {
+    "text": "Hi, this is a sample of my voice.",
+    "voice_sha256": "9c5d950f67566059500417ab5c3c434b17088ba6b767842bdd4a9a88253f7bb2",
+    "audio_sha256": "d4397702b38eb7de7515ae4d509c6f87216a44d6a4404b1024ceb6dc9e5960bd"
   }
 }

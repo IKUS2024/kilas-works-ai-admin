@@ -37,11 +37,11 @@ def main():
     origin = f'http://127.0.0.1:{server.server_port}'
     output = Path(os.environ.get('KILAS_DICTATION_SCREENSHOTS', str(Path(tempfile.gettempdir())/'kilas-dictation-browser')))
     output.mkdir(parents=True, exist_ok=True)
-    report = {'scope': 'local Chromium + synthetic microphone/network', 'paid_calls': 0, 'widths': []}
+    report = {'scope': 'local Chromium + synthetic microphone/network', 'paid_calls': 0, 'widths': [], 'browser_fallback_widths': []}
     try:
         blocked = AssertionError('No real provider allowed')
         with patch.object(budget, 'ready', return_value=True), patch.object(stt, 'transcribe', side_effect=blocked), patch.object(audio_provider, 'request', side_effect=blocked), patch.object(providers, '_openai', side_effect=blocked), sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, executable_path=shutil.which('chromium'))
+            browser = p.chromium.launch(headless=True, executable_path=os.environ.get('KILAS_QA_CHROMIUM') or shutil.which('chromium'))
             for width in (320, 360, 390, 430, 1440):
                 cookie = case.client().get_cookie('session')
                 context = browser.new_context(viewport={'width': width, 'height': 900}, has_touch=width < 761)
@@ -128,6 +128,88 @@ def main():
                 assert not errors, errors
                 page.screenshot(path=str(output/f'dictation-{width}.png'), full_page=True)
                 report['widths'].append(width)
+                context.close()
+            # The production STT budget may be unavailable/expired. Browser
+            # recognition stays opt-in and sends nothing to the paid endpoint.
+            with patch.object(budget, 'ready', return_value=False):
+                for width in (320, 390, 1440):
+                    cookie = case.client().get_cookie('session')
+                    context = browser.new_context(viewport={'width': width, 'height': 900})
+                    context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin},
+                                         {'name': 'kilas_language', 'value': 'id', 'url': origin}])
+                    context.add_init_script(MIC + """
+window.qaSpeechStarts=0;
+window.SpeechRecognition=class {
+ start(){window.qaSpeech=this;qaSpeechStarts++;this.onstart?.();}
+ stop(){this.onend?.();}
+ abort(){this.onend?.();}
+};
+window.qaSpeechResult=text=>{const result=[{transcript:text}];result.isFinal=true;qaSpeech.onresult({results:[result]});};
+""")
+                    page = context.new_page()
+                    errors = []
+                    requests = []
+                    page.on('pageerror', lambda e: errors.append(str(e)))
+                    page.on('request', lambda req: requests.append(req.url) if req.method == 'POST' else None)
+                    page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(origin) else route.abort())
+                    page.goto(origin+'/kilas-translator?mode=voiceover', wait_until='networkidle')
+                    expect(page.locator('#voice-dictation')).to_have_attribute('data-ready', 'false')
+                    expect(page.locator('#voice-dictation')).to_have_attribute('data-engine', 'browser')
+                    expect(page.locator('#dictation-start')).to_be_enabled()
+                    assert page.evaluate('qaSpeechStarts') == 0
+                    assert page.evaluate('qaMic.calls') == 0
+                    page.locator('#audio-script').fill('Naskah awal.')
+                    page.once('dialog', lambda dialog: dialog.dismiss())
+                    page.locator('#dictation-start').click()
+                    assert page.evaluate('qaSpeechStarts') == 0
+                    def consent(dialog):
+                        assert 'layanan browser' in dialog.message
+                        assert 'ElevenLabs' in dialog.message
+                        dialog.accept()
+                    page.on('dialog', consent)
+                    page.locator('#dictation-start').click()
+                    expect(page.locator('#dictation-status')).to_contain_text('Mikrofon aktif')
+                    page.evaluate("qaSpeechResult('Hasil browser.')")
+                    page.locator('#audio-script').fill('Edit terbaru.')
+                    page.locator('#dictation-stop').click()
+                    expect(page.locator('#audio-script')).to_have_value('Edit terbaru.\nHasil browser.')
+                    page.locator('#dictation-undo').click()
+                    expect(page.locator('#audio-script')).to_have_value('Edit terbaru.')
+                    page.locator('#dictation-start').click()
+                    page.evaluate("window.qaOldSpeech=qaSpeech;qaSpeechResult('Hasil dibuang.')")
+                    page.locator('#dictation-cancel').click()
+                    page.evaluate('qaOldSpeech.onend()')
+                    expect(page.locator('#audio-script')).to_have_value('Edit terbaru.')
+                    page.locator('#dictation-start').click()
+                    page.evaluate("qaSpeech.onerror({error:'not-allowed'})")
+                    expect(page.locator('#dictation-error')).to_contain_text('Izin mikrofon')
+                    expect(page.locator('#dictation-start')).to_be_enabled()
+                    assert page.evaluate('qaMic.calls') == 0
+                    assert requests == [], requests
+                    assert not errors, errors
+                    # Preserve the rendered failure before asserting, including
+                    # exact overflowing elements rather than only a viewport.
+                    page.screenshot(path=str(output/f'dictation-fallback-{width}.png'), full_page=True)
+                    overflow = page.evaluate('''() => [...document.querySelectorAll('body *')].filter(el => {
+                        const rect=el.getBoundingClientRect();
+                        return rect.width>0 && rect.right>innerWidth+1 && getComputedStyle(el).visibility!=='hidden';
+                    }).map(el => ({tag:el.tagName,id:el.id,classes:el.className,
+                        right:el.getBoundingClientRect().right,width:el.getBoundingClientRect().width,
+                        scrollWidth:el.scrollWidth,clientWidth:el.clientWidth})).slice(0,30)''')
+                    (output/f'dictation-fallback-{width}-overflow.json').write_text(json.dumps(overflow, indent=2))
+                    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (width,overflow)
+                    report['browser_fallback_widths'].append(width)
+                    context.close()
+                context = browser.new_context(viewport={'width': 390, 'height': 900})
+                context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin},
+                                     {'name': 'kilas_language', 'value': 'id', 'url': origin}])
+                context.add_init_script('window.SpeechRecognition=undefined;window.webkitSpeechRecognition=undefined;')
+                page = context.new_page()
+                page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(origin) else route.abort())
+                page.goto(origin+'/kilas-translator?mode=voiceover', wait_until='networkidle')
+                expect(page.locator('#voice-dictation')).to_have_attribute('data-engine', 'unavailable')
+                expect(page.locator('#dictation-start')).to_be_disabled()
+                expect(page.locator('#dictation-status')).to_contain_text('belum didukung browser ini')
                 context.close()
             browser.close()
         (output/'verification.json').write_text(json.dumps(report, indent=2))

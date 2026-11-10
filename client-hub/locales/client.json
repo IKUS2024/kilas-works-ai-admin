@@ -1097,5 +1097,10 @@
   "Foto 8 MiB · dokumen 2 MiB · total 10 MiB per pesan.",
   "Memuat…",
   "Gambar tidak dapat dibuka. Tutup dan coba lagi.",
-  "Penyedia gambar menolak permintaan ini berdasarkan kebijakan kontennya. Coba permintaan lain yang sesuai kebijakan."
+  "Penyedia gambar menolak permintaan ini berdasarkan kebijakan kontennya. Coba permintaan lain yang sesuai kebijakan.",
+  "Rekam Naskah akan memakai pengenalan suara browser. Suara dapat dikirim ke layanan browser untuk diubah menjadi teks, bukan ke ElevenLabs. Lanjutkan?",
+  "Dikte memakai pengenalan suara browser. Izin diminta saat mulai.",
+  "Rekam Naskah belum didukung browser ini. Coba Chrome atau Safari terbaru, atau ketik naskah.",
+  "Pengenalan suara browser belum tersedia. Coba Chrome atau Safari terbaru, atau ketik naskah.",
+  "Pengenalan suara browser tidak terhubung. Periksa internet lalu coba lagi; naskah tetap aman."
 ]
