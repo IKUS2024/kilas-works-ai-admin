@@ -64,7 +64,6 @@ def main():
                         return original(signal);
                       };
                     }''')
-                    send_box = send.bounding_box()
                     field.fill('hallo')
                     state = form.evaluate('''form => {
                       form.requestSubmit();
@@ -80,7 +79,15 @@ def main():
                     assert stop.text_content().strip() == ''
                     box = stop.bounding_box()
                     assert box['width'] == box['height'] and box['width'] >= 44, box
-                    assert abs(box['x'] - send_box['x']) <= 1, (box, send_box)
+                    # The existing empty layout is 760px; a conversation is 880px.
+                    # Compare slots in the same conversation layout, not across that transition.
+                    send_box = form.evaluate('''form => {
+                      const send=form.querySelector('button[type=submit]'),stop=form.querySelector('.ai-stop');
+                      stop.hidden=true;send.hidden=false;
+                      const r=send.getBoundingClientRect(),box={x:r.x,y:r.y,width:r.width,height:r.height};
+                      send.hidden=true;stop.hidden=false;return box;
+                    }''')
+                    assert all(abs(box[key] - send_box[key]) <= 1 for key in ('x','y','width','height')), (box, send_box)
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                     if width == 390:
                         page.screenshot(path=f'/tmp/chat-composer-{agent}-390.png')
