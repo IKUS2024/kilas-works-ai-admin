@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {appendDictation} from '../static/kilas_dictation.mjs';
+import {appendDictation,dictationLanguage} from '../static/kilas_dictation.mjs';
 test('dictation preserves existing editable text including changes made during processing',()=>{
   assert.equal(appendDictation('Naskah yang sudah diedit','Hasil dikte'),'Naskah yang sudah diedit\nHasil dikte');
   assert.equal(appendDictation('','Hasil dikte'),'Hasil dikte');
@@ -18,9 +18,9 @@ import {finalDictation} from '../static/kilas_dictation.mjs';
 const source=fs.readFileSync(new URL('../static/kilas_dictation.mjs',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replace(/export function /g,'function ');
 const final=text=>Object.assign([{transcript:text}],{isFinal:true});
 const interim=text=>Object.assign([{transcript:text}],{isFinal:false});
-function harness({available=true,webkit=false,server=false,constructorFailure=false,startFailure=false,android=false}={}){
+function harness({available=true,webkit=false,server=false,constructorFailure=false,startFailure=false,android=false,uiLanguage='id',languages=['en-US'],savedLanguage=null,storageBlocked=false}={}){
   const nodes=new Map(),events=new Map(),timers=new Map(),stats={starts:0,stops:0,aborts:0,confirms:0,accepted:true,requests:[],input:0,mics:0,instances:[]};let timerID=0;
-  function node(id){if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,textContent:'',value:'',maxLength:4000,dataset:{},listeners:{},addEventListener(type,handler){this.listeners[type]=handler;},dispatchEvent(){stats.input++;},querySelector:selector=>selector==='[name=csrf_token]'?{value:'synthetic-csrf'}:selector==='[aria-busy=true]'?null:node(selector)});return nodes.get(id);}
+  function node(id){if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,textContent:'',value:'',maxLength:4000,dataset:{},listeners:{},setAttribute(name,value){this[name]=value;},addEventListener(type,handler){this.listeners[type]=handler;},dispatchEvent(){stats.input++;},querySelector:selector=>selector==='[name=csrf_token]'?{value:'synthetic-csrf'}:selector==='[aria-busy=true]'?null:node(selector)});return nodes.get(id);}
   node('#voice-dictation').dataset.ready=String(server);node('#personal-voice-setup').dataset.recorderOpen='false';
   class Recognition{
     constructor(){if(constructorFailure)throw Error('unsupported');stats.instances.push(this);}
@@ -28,19 +28,33 @@ function harness({available=true,webkit=false,server=false,constructorFailure=fa
     stop(){stats.stops++;this.onend?.();}
     abort(){stats.aborts++;this.onend?.();}
   }
-  const document={querySelector:node,documentElement:{lang:'id'},hidden:false,addEventListener:(name,handler)=>events.set(name,handler)};
-  const window={addEventListener:(name,handler)=>events.set(name,handler),confirm:()=>{stats.confirms++;return stats.accepted;}};
+  const document={querySelector:node,documentElement:{lang:uiLanguage},hidden:false,addEventListener:(name,handler)=>events.set(name,handler)};
+  const window={localStorage:{getItem:()=>{if(storageBlocked)throw Error('Blocked');return savedLanguage;},setItem:(key,value)=>{if(storageBlocked)throw Error('Blocked');stats.saved={key,value};}},addEventListener:(name,handler)=>events.set(name,handler),confirm:()=>{stats.confirms++;return stats.accepted;}};
   if(available)window[webkit?'webkitSpeechRecognition':'SpeechRecognition']=Recognition;
-  const context={document,window,navigator:{language:'en-US',userAgent:android?'Mozilla/5.0 (Linux; Android 15) Chrome/130.0.0.0 Mobile Safari/537.36':'Mozilla/5.0 Chrome/130.0.0.0',mediaDevices:{getUserMedia:()=>{stats.mics++;throw Error('No microphone IO');}}},VoiceRecorder,t:text=>text,Event:class{},AbortController,FormData,crypto:globalThis.crypto,fetch:async(...args)=>{stats.requests.push(args);throw Error('No network IO');},setTimeout:(handler,delay)=>{timers.set(++timerID,{handler,delay});return timerID;},clearTimeout:id=>timers.delete(id)};
+  const context={document,window,navigator:{language:languages[0],languages,userAgent:android?'Mozilla/5.0 (Linux; Android 15) Chrome/130.0.0.0 Mobile Safari/537.36':'Mozilla/5.0 Chrome/130.0.0.0',mediaDevices:{getUserMedia:()=>{stats.mics++;throw Error('No microphone IO');}}},VoiceRecorder,t:text=>text,Event:class{},AbortController,FormData,crypto:globalThis.crypto,fetch:async(...args)=>{stats.requests.push(args);throw Error('No network IO');},setTimeout:(handler,delay)=>{timers.set(++timerID,{handler,delay});return timerID;},clearTimeout:id=>timers.delete(id)};
   vm.runInNewContext(source,context);
   return {node,stats,window,document,events,timers,click:async id=>node(id).listeners.click(),emit:results=>stats.instances.at(-1).onresult({results}),end:()=>stats.instances.at(-1).onend(),fail:error=>stats.instances.at(-1).onerror({error}),runTimer:delay=>[...timers.values()].find(timer=>timer.delay===delay)?.handler()};
 }
 
-test('browser fallback requires explicit consent, never calls Kilas STT, and does not start on load',async()=>{
+test('one explicit Record Script click starts browser recognition without a confirm or paid request',async()=>{
   const h=harness();assert.equal(h.node('#voice-dictation').dataset.engine,'browser');assert.equal(h.node('#dictation-start').disabled,false);assert.equal(h.stats.starts,0);
-  h.stats.accepted=false;await h.click('#dictation-start');assert.equal(h.stats.starts,0);assert.equal(h.node('#audio-studio').dataset.dictationBusy,'false');
-  h.stats.accepted=true;await h.click('#dictation-start');await h.click('#dictation-start');assert.equal(h.stats.starts,1);assert.equal(h.stats.confirms,2);assert.equal(h.stats.instances[0].lang,'id-ID');assert.equal(h.stats.mics,0);assert.deepEqual(h.stats.requests,[]);
-  await h.click('#dictation-cancel');assert.equal(h.stats.aborts,1);assert.equal(h.timers.size,0);
+  assert.equal(h.node('#dictation-options').hidden,false);
+  await h.click('#dictation-start');await h.click('#dictation-start');
+  assert.equal(h.stats.starts,1);assert.equal(h.stats.confirms,0);assert.equal(h.stats.instances[0].lang,'en-US');
+  assert.equal(h.stats.instances[0].interimResults,false);assert.equal(h.stats.instances[0].continuous,true);
+  assert.equal(h.node('#dictation-language').disabled,true);assert.equal(h.stats.mics,0);assert.deepEqual(h.stats.requests,[]);
+  await h.click('#dictation-cancel');assert.equal(h.stats.aborts,1);assert.equal(h.timers.size,0);assert.equal(h.node('#dictation-language').disabled,false);
+});
+test('spoken language follows an explicit saved choice then browser preference, never UI labels',async()=>{
+  for(const options of [{uiLanguage:'en',languages:['id-ID'],expected:'id-ID'},{uiLanguage:'id',languages:['en-GB'],expected:'en-GB'},{languages:['en-US'],savedLanguage:'id-ID',expected:'id-ID'},{languages:['xx','es-MX'],expected:'es-ES'}]){
+    const h=harness(options);await h.click('#dictation-start');assert.equal(h.stats.instances[0].lang,options.expected);
+  }
+  assert.equal(dictationLanguage('invalid',['zz']),'id-ID');
+  assert.equal(dictationLanguage('',[]),'id-ID');
+  assert.equal(dictationLanguage('', ['EN_gb']),'en-GB');
+  const h=harness();h.node('#dictation-language').value='zh-CN';h.node('#dictation-language').listeners.change();
+  assert.equal(h.stats.saved.value,'zh-CN');await h.click('#dictation-start');assert.equal(h.stats.instances[0].lang,'zh-CN');
+  const blocked=harness({storageBlocked:true,languages:['id-ID']});blocked.node('#dictation-language').listeners.change();await blocked.click('#dictation-start');assert.equal(blocked.stats.instances[0].lang,'id-ID');
 });
 test('browser final results are applied once after stop, preserve latest typing, and undo safely',async()=>{
   const h=harness({webkit:true});h.node('#audio-script').value='Awal';await h.click('#dictation-start');
@@ -61,7 +75,7 @@ test('old result cannot change a later session, and natural end does not auto-re
   h.emit([final('Baru')]);h.end();assert.equal(h.node('#audio-script').value,'Baru');assert.equal(h.stats.starts,2);assert.equal(h.node('#audio-studio').dataset.dictationBusy,'false');
 });
 test('permission denial, network error, empty speech and unsupported browser keep text and explain',async()=>{
-  for(const error of ['not-allowed','service-not-allowed','network','no-speech','audio-capture']){
+  for(const error of ['not-allowed','service-not-allowed','network','no-speech','audio-capture','language-not-supported']){
     const h=harness();h.node('#audio-script').value='Utuh';await h.click('#dictation-start');h.emit([final('Tidak diterapkan')]);h.fail(error);h.end();assert.equal(h.node('#audio-script').value,'Utuh');assert.equal(h.node('#dictation-error').hidden,false);assert.equal(h.node('#dictation-start').disabled,false);assert.equal(h.node('#dictation-status').textContent,'');assert.equal(h.timers.size,0);
   }
   const h=harness({available:false});assert.equal(h.node('#dictation-start').disabled,true);assert.match(h.node('#dictation-status').textContent,/belum didukung/);assert.equal(h.stats.starts,0);
