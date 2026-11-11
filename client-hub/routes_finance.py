@@ -11,7 +11,7 @@ import uuid
 from functools import wraps
 from werkzeug.exceptions import HTTPException
 
-from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, flash, redirect, render_template, request, session, url_for
 import finance_branches as branches
 import finance_service as finance
 import finance_reports
@@ -471,12 +471,25 @@ def overview():
 @finance_bp.route('/business/<int:business_id>/finance/workspaces')
 @security.login_required
 def workspace_choice(business_id):
-    """Legacy entry URL: open Business Finance directly instead of showing a chooser."""
+    """Resume the last authorized workspace; first visits still open Business."""
     user=security.current_user()
     import finance_entitlements as entitlement
     if not (beta_enabled() or entitlement.self_service()) and user['role']!='KILAS_ADMIN':
         abort(404)
     security.require_business_access(business_id,user=user)
+    # Read this preference only at product re-entry, never to scope a submitted
+    # form or an explicit Finance URL. Revalidate ownership and active status.
+    remembered=session.get('workspace_finance_branches')
+    if (user['role']!='KILAS_ADMIN' and isinstance(remembered,dict)
+            and remembered.get(str(business_id)) is not None):
+        try:
+            previous=branches.get(business_id,remembered[str(business_id)],
+                                  active=True,actor_user_id=user['id'])
+        except finance.FinanceError:
+            pass
+        else:
+            return redirect(url_for('finance.dashboard',business_id=business_id,
+                                    branch_id=previous['id']),code=303)
     business_branches=branches.list_branches(
         business_id,user['id'],workspace_type='BUSINESS')
     active=next((row for row in business_branches if row['is_active'] and row['is_default']),None)

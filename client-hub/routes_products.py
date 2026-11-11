@@ -220,7 +220,14 @@ def product_start():
             businesses=_product_businesses(user['id'],'finance')
             if not businesses:
                 return redirect(url_for('products.finance_entry',step='business'),code=303)
-            business=businesses[0]
+            # Resume only a currently owned, visible Finance business. A remembered
+            # preference is navigation context, never an authorization grant.
+            preferred=session.get('workspace_finance_business')
+            business=next((row for row in businesses if str(row['id'])==str(preferred)),None)
+            if business is None and len(businesses)>1:
+                session['active_product']='finance'
+                return redirect(url_for('products.finance_entry'),code=303)
+            business=business or businesses[0]
             session['workspace_finance_business']=business['id']
             session['active_product']='finance'
             state=entitlement.state(business['id'])
