@@ -1,0 +1,49 @@
+name: Finance Entry Context QA
+on:
+  pull_request:
+    paths:
+      - 'client-hub/routes_finance.py'
+      - 'client-hub/routes_products.py'
+      - 'client-hub/templates/_finance_app_shell.html'
+      - 'client-hub/static/finance_chrome.css'
+      - 'client-hub/locales/ui.json'
+      - 'client-hub/tests/*finance*'
+      - '.github/workflows/finance-entry-context-qa.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'client-hub/routes_finance.py'
+      - 'client-hub/routes_products.py'
+      - 'client-hub/templates/_finance_app_shell.html'
+      - 'client-hub/static/finance_chrome.css'
+      - 'client-hub/locales/ui.json'
+      - 'client-hub/tests/*finance*'
+      - '.github/workflows/finance-entry-context-qa.yml'
+permissions:
+  contents: read
+jobs:
+  entry-and-input-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Offline context, manual input and existing navigation contracts
+        run: |
+          python -B scripts/run_offline_tests.py --only test_finance_entry_context.py
+          python -B scripts/run_offline_tests.py --only test_finance_manual_input_regression.py
+          python -B scripts/run_offline_tests.py --only test_kilas_sidebar_products.py
+          python -B scripts/run_offline_tests.py --only test_finance_onboarding_shell.py
+          python -B scripts/run_offline_tests.py --only test_finance_workspace_corrections.py
+      - name: Synthetic mobile and desktop recovery without ledger writes
+        env:
+          FINANCE_ENTRY_QA_OUTPUT: /tmp/finance-entry-context-qa
+        run: python -B client-hub/tests/finance_entry_context_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: finance-entry-context-synthetic-browser
+          path: /tmp/finance-entry-context-qa

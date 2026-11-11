@@ -5441,6 +5441,11 @@
     "es": "Personal o negocio",
     "zh": "个人或业务"
   },
+  "Ganti bisnis": {
+    "en": "Switch business",
+    "es": "Cambiar de negocio",
+    "zh": "切换业务"
+  },
   "Pilih bisnis": {
     "en": "Choose a business",
     "es": "Elige un negocio",
