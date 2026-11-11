@@ -50,6 +50,7 @@ body.finance-app .finance-chrome :is(a,button,summary,select,input):focus-visibl
  body.finance-app .finance-chrome .finance-context-toolbar .finance-app-mode{flex:0 0 140px;width:140px}
  body.finance-app .finance-chrome .finance-app-mode :is(span,button){padding:4px 3px;font-size:12px}
  body.finance-app .finance-chrome .finance-context-toolbar .finance-app-branch{flex:1 1 0;width:0;min-width:0;max-width:none;gap:0}
+ body.finance-app .finance-chrome .finance-context-toolbar:has([data-finance-business-switch]) .finance-app-branch{flex:1 1 120px;min-width:120px}
  body.finance-app .finance-chrome .finance-app-branch label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
  body.finance-app .finance-chrome .finance-app-branch select{padding-left:9px;font-size:13px}
  body.finance-app .finance-chrome .finance-context-toolbar .finance-app-more{margin-left:0}

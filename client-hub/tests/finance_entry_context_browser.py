@@ -75,9 +75,10 @@ def main():
                 expect(switch).to_have_text('Switch business')
                 branch_picker = page.locator('#finance-app-branch')
                 expect(branch_picker).to_be_visible()
-                assert branch_picker.bounding_box()['width'] >= 80, 'Business switch must not crowd the branch picker'
-                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                branch_width = branch_picker.bounding_box()['width']
                 page.screenshot(path=str(output / f'empty-business-recovery-{width}.png'), full_page=True)
+                assert branch_width >= 80, f'Branch picker crowded at {width}px: {branch_width}px'
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
                 switch.click()
                 page.wait_for_url('**/products/finance')
                 page.go_back()
