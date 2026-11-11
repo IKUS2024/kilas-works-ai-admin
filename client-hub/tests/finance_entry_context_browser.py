@@ -36,7 +36,7 @@ def main():
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(executable_path=shutil.which('chromium'), args=['--no-sandbox'])
-            for width in (390, 1440):
+            for width in (320, 390, 1440):
                 context = browser.new_context(viewport={'width': width, 'height': 1000}, reduced_motion='reduce')
                 cookie = case.client.get_cookie('session')
                 context.add_cookies([{'name': cookie.key, 'value': cookie.value, 'url': origin},
@@ -73,6 +73,9 @@ def main():
                 switch = page.locator('[data-finance-business-switch]')
                 expect(switch).to_be_visible()
                 expect(switch).to_have_text('Switch business')
+                branch_picker = page.locator('#finance-app-branch')
+                expect(branch_picker).to_be_visible()
+                assert branch_picker.bounding_box()['width'] >= 80, 'Business switch must not crowd the branch picker'
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
                 page.screenshot(path=str(output / f'empty-business-recovery-{width}.png'), full_page=True)
                 switch.click()
