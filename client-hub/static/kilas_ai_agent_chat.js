@@ -73,10 +73,13 @@
   const submission=window.KilasChatOperation.create(form.elements.operation_key.value);
   const stop=form.querySelector('[data-unified-stop]');
   stop?.addEventListener('click',async()=>{
-    controller?.abort();
-    if(activeStream){try{await fetch(`/kilas-ai/work/streams/${activeStream}/cancel`,{method:'POST',headers:{'X-CSRF-Token':form.elements.csrf_token.value,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(3000)});}catch(_){} }
+    const stoppedController=controller,stoppedStream=activeStream;
+    if(!stoppedController||stoppedController.signal.aborted)return;
+    // Retire this operation before yielding. A late cancel response must not
+    // rotate a newer operation key or abort a subsequent request.
     form.elements.operation_key.value=submission.terminal();
-    controller?.abort();
+    stoppedController.abort();
+    if(stoppedStream){try{await fetch(`/kilas-ai/work/streams/${stoppedStream}/cancel`,{method:'POST',headers:{'X-CSRF-Token':form.elements.csrf_token.value,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(3000)});}catch(_){} }
   });
   const canAutoFocus = () => Boolean(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
   function message(role, text) {
