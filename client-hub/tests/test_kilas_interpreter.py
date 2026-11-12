@@ -141,9 +141,15 @@ class InterpreterTests(unittest.TestCase):
             self.assertTrue(any(tag=='form' and attrs.get('method')=='post' for tag,attrs in finance))
             self.assertTrue(any(attrs.get('name')=='product' and attrs.get('value')=='finance' for _,attrs in finance))
             self.assertTrue(any(attrs.get('name')=='csrf_token' and attrs.get('value') for _,attrs in finance))
-            self.assertNotIn('checked',controls['interpreter-consent'])
-            self.assertEqual(controls['interpreter-consent']['autocomplete'],'off')
-            self.assertIn('hidden',controls['interpreter-consent-panel'])
+            self.assertNotIn('interpreter-consent',controls)
+            self.assertNotIn('interpreter-consent-panel',controls)
+            self.assertEqual(controls['interpreter']['data-speech-consent'],'false')
+            self.assertIn('interpreter-consent-notice',controls['interpreter-orb']['aria-describedby'])
+            self.assertIn('Google Gemini',html)
+            import os
+            if os.environ.get('KILAS_INTERPRETER_FIXTURE'):
+                from pathlib import Path
+                Path(os.environ['KILAS_INTERPRETER_FIXTURE']).write_text(html)
             for key in ('a','b'):
                 options=re.search(r'<select id="interpreter-language-'+key+r'".*?</select>',html,re.S)[0]
                 self.assertEqual(options.count('<option'),99)

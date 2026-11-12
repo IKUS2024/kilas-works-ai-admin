@@ -136,18 +136,17 @@ def main():
                         a=page.locator('#interpreter-language-a');b=page.locator('#interpreter-language-b');assert a.input_value()!=b.input_value()
                         expect(a).to_be_enabled();expect(b).to_be_enabled()
                         a.select_option('ja');b.select_option('fr')
-                        page.reload(wait_until='networkidle');assert a.input_value()=='ja' and b.input_value()=='fr';assert not page.locator('#interpreter-consent').is_checked()
+                        page.reload(wait_until='networkidle');assert a.input_value()=='ja' and b.input_value()=='fr';assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false'
                         page.locator('#interpreter-right').click();expect(page.locator('#interpreter-right')).to_have_attribute('aria-pressed','true')
                         a.select_option('id');expect(page.locator('#interpreter-right')).to_have_attribute('aria-pressed','true')
-                        page.locator('#interpreter-orb').click()
-                        expect(page.locator('#interpreter-consent-panel')).to_be_visible();expect(page.locator('#interpreter-consent')).to_be_focused()
-                        assert not page.locator('#interpreter-consent').is_checked()
+                        expect(page.locator('#interpreter-consent-notice')).to_be_visible()
+                        assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false'
                         assert page.evaluate('micRequests')==0 and not admissions
-                        page.locator('#interpreter-consent').check();assert page.evaluate('micRequests')==0 and not admissions
+                        assert page.evaluate('micRequests')==0 and not admissions
                         expect(page.locator('#interpreter-active')).to_be_visible();capture(page,'translator-consent',width)
                         page.locator('#interpreter-end').click();expect(page.locator('#interpreter-active')).to_be_visible()
-                        expect(page.locator('#interpreter-navigation')).to_be_visible();expect(page.locator('#interpreter-consent-panel')).to_be_hidden()
-                        assert not page.locator('#interpreter-consent').is_checked()
+                        expect(page.locator('#interpreter-navigation')).to_be_visible();expect(page.locator('#interpreter-consent-notice')).to_be_visible()
+                        assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false'
                         assert page.evaluate('micRequests')==0 and not admissions
                         context.close();report['checks'].append({'surface':'translator','width':width,'direct_entry_pair_reload_consent_end':True})
             finally:case.doCleanups()

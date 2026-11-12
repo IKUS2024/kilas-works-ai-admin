@@ -6,7 +6,8 @@ import {MicrophoneMeter} from './kilas_interpreter_meter.mjs?v=mic-wave-20261110
 import {CallSession} from './kilas_interpreter_engine.mjs?v=mic-wave-20261110';
 const root=document.querySelector('#interpreter');
 if(root){
- const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),orb=field('orb'),end=field('end'),consent=field('consent');
+ const field=id=>root.querySelector('#interpreter-'+id),left=field('left'),right=field('right'),orb=field('orb'),end=field('end');
+ let speechConsent=false; // Explicit disclosed K click only; never persisted.
  // Keep only this account's explicit language choices; never persist consent/audio.
  const a=field('language-a'),b=field('language-b');let restoredEqual=false;let previousPair=[a.value,b.value];
  try{
@@ -39,13 +40,15 @@ if(root){
  let active=true,pair=null,context=null,side=null,selectedSource=null,switching=false,generation=0,recoveryTimer=null,authExpired=false,lastState='ended',newTranscript=true;
  const sync=()=>{
   for(const control of [a,b])control.disabled=authExpired;end.disabled=false;
+  root.dataset.speechConsent=String(speechConsent);
+  field('direction-heading').textContent=t(speechConsent?'Ketuk K untuk bicara':'Setuju & mulai');
   const names=code=>code===pair?.a?a.selectedOptions[0].text:b.selectedOptions[0].text;
   const recording=side!==null&&!['ended','idle'].includes(session.state)&&!session.finishRequested;
   const processing=!['ended','idle'].includes(session.state)&&(session.finishRequested||session.speaking);
   orb.disabled=!active||switching||authExpired||processing;
   orb.setAttribute('aria-pressed',String(recording));
   orb.setAttribute('aria-busy',String(switching||processing));
-  orb.setAttribute('aria-label',processing?t(session.speaking?'Terjemahan diputar. Tunggu giliran.':'Menerjemahkan'):recording?t('Hentikan dan terjemahkan'):t('Mulai mendengarkan {source} ke {target}',{source:names(selectedSource||pair?.a),target:names(selectedSource===pair?.b?pair?.a:pair?.b)}));
+  orb.setAttribute('aria-label',processing?t(session.speaking?'Terjemahan diputar. Tunggu giliran.':'Menerjemahkan'):recording?t('Hentikan dan terjemahkan'):t(speechConsent?'Mulai mendengarkan {source} ke {target}':'Setuju dan mulai mendengarkan {source} ke {target}',{source:names(selectedSource||pair?.a),target:names(selectedSource===pair?.b?pair?.a:pair?.b)}));
   if(pair)field('current-direction').textContent=names(selectedSource)+' → '+names(selectedSource===pair.a?pair.b:pair.a);
   for(const [button,source,target] of [[left,pair?.a,pair?.b],[right,pair?.b,pair?.a]]){
    button.disabled=!active||authExpired;
@@ -124,7 +127,8 @@ if(root){
  async function toggleRecording(){
   const source=selectedSource||pair?.a;
   if(!active||switching||authExpired)return;
-  if(!consent.checked){field('consent-panel').hidden=false;consent.focus();showError('consent_required');return;}
+  // The visible disclosure accompanies this explicit consent-and-start action.
+  speechConsent=true;
   if(side===source&&!['ended','idle'].includes(session.state)){session.finish();sync();return;}
   if(session.state==='idle'){side=source;void session.start();sync();return;}
   selectedSource=source;
@@ -135,17 +139,15 @@ if(root){
    if(ticket!==generation){return;}
    const target=source===pair.a?pair.b:pair.a;
    field('original').lang=source;field('caption').lang=target;
-   side=source;switching=false;sync();void session.start({source,target,consent:consent.checked,turn_mode:'tap',reuse_session:true});
+   side=source;switching=false;sync();void session.start({source,target,consent:speechConsent,turn_mode:'tap',reuse_session:true});
   }catch(error){if(ticket===generation){switching=false;session.end();showError(error.code||'call_network');sync();}}
  }
  orb.addEventListener('click',toggleRecording);
  left.addEventListener('click',()=>chooseDirection(pair.a));right.addEventListener('click',()=>chooseDirection(pair.b));
- consent.checked=false; // Never restore browser-form state as processing permission.
- consent.addEventListener('change',()=>{field('error').hidden=true;if(!consent.checked)suspend();else if(session.state==='ended'){field('state').dataset.state='ended';field('state').textContent=t('Siap · mikrofon belum aktif');}sync();});
  for(const name of ['language-a','language-b'])field(name).addEventListener('change',()=>updatePair(name));
  // Backgrounding, navigation and explicit End stop capture immediately.
- const suspend=()=>{const interrupted=switching||!['ended','idle'].includes(session.state);++generation;switching=false;session.end();sync();if(active&&interrupted)field('state').textContent=t('Sesi berakhir.')+' '+t('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.');};
- const close=()=>{suspend();consent.checked=false;clearTranscript();field('transcript').open=false;field('error').hidden=true;field('consent-panel').hidden=true;sync();if(authExpired)showError('auth_required');else orb.focus();};
+ const suspend=()=>{const interrupted=switching||!['ended','idle'].includes(session.state);++generation;switching=false;speechConsent=false;session.end();sync();if(active&&interrupted)field('state').textContent=t('Sesi berakhir.')+' '+t('Ketuk logo K untuk mendengarkan. Ketuk lagi untuk berhenti dan terjemahkan.');};
+ const close=()=>{suspend();clearTranscript();field('transcript').open=false;field('error').hidden=true;sync();if(authExpired)showError('auth_required');else orb.focus();};
  end.addEventListener('click',close);window.addEventListener('pagehide',suspend);document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend();});
  // A history-cache restore never resumes recording or silently restores consent.
  window.addEventListener('pageshow',event=>{if(event.persisted)close();});

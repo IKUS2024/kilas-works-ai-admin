@@ -1,4 +1,7 @@
 {
+  "Setuju & mulai": "Agree & start",
+  "Setuju dan mulai mendengarkan {source} ke {target}": "Agree and start listening: {source} to {target}",
+  "Ketuk K untuk mengizinkan audio ucapan dikirim ke Google Gemini untuk terjemahan.": "Tap K to allow your speech audio to be sent to Google Gemini for translation.",
   "Ketuk K untuk bicara": "Tap K to speak",
   "Ketuk lagi untuk berhenti dan terjemahkan.": "Tap again to stop and translate.",
   "Siap · mikrofon belum aktif": "Ready · microphone off",

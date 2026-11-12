@@ -1,0 +1,40 @@
+name: Translator one-tap consent QA
+on:
+  push:
+    branches: ['fix/translator-consent-recovery-*', main]
+    paths: ['client-hub/static/kilas_interpreter*', 'client-hub/templates/kilas_translator/interpreter.html', 'client-hub/tests/*interpreter*', '.github/workflows/kilas-translator-consent-qa.yml']
+  pull_request:
+    paths: ['client-hub/static/kilas_interpreter*', 'client-hub/templates/kilas_translator/interpreter.html', 'client-hub/tests/*interpreter*', '.github/workflows/kilas-translator-consent-qa.yml']
+permissions:
+  contents: read
+jobs:
+  translator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt playwright pytest
+      - run: python -m playwright install --with-deps chromium
+      - run: npm install --prefix /tmp/kilas-audit-dom --no-package-lock --ignore-scripts jsdom@26.1.0
+      - run: KILAS_INTERPRETER_FIXTURE=/tmp/interpreter.html python -B scripts/run_offline_tests.py --only test_kilas_interpreter.py
+      - run: KILAS_INTERPRETER_FIXTURE=/tmp/interpreter.html node --test client-hub/tests/test_kilas_interpreter_consent_dom.mjs
+      - run: node --test client-hub/tests/test_kilas_interpreter.mjs client-hub/tests/test_kilas_live_translator_api.mjs
+      - name: Synthetic microphone, lifecycle and responsive browser tests
+        run: |
+          export KILAS_QA_CHROMIUM="$(python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')"
+          for suite in test_kilas_interpreter_logo_browser.py test_kilas_interpreter_hardened_browser.py test_kilas_interpreter_meter_browser.py test_kilas_interpreter_tap_browser.py; do
+            python -B client-hub/tests/"$suite" || exit 1
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: translator-consent-screenshots
+          path: |
+            /tmp/kilas-interpreter-logo
+            /tmp/kilas-interpreter-hardened
+            /tmp/kilas-interpreter-meter
+            /tmp/kilas-interpreter-tap

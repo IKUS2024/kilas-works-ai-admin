@@ -55,16 +55,15 @@ def main():
                 expect(page.locator('#interpreter-active')).to_be_visible()
                 expect(page.locator('#interpreter-navigation')).to_be_visible()
                 assert page.locator('#interpreter-setup,#interpreter-start,#interpreter-swap').count()==0
-                before_consent=len(wires)
-                page.locator('#interpreter-orb').click()
-                expect(page.locator('#interpreter-consent-panel')).to_be_visible()
-                expect(page.locator('#interpreter-consent')).to_be_focused()
-                assert not page.locator('#interpreter-consent').is_checked()
-                assert page.evaluate('micRequests')==0 and len(wires)==before_consent
-                page.locator('#interpreter-consent').check()
+                expect(page.locator('#interpreter-consent-notice')).to_be_visible()
+                assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false'
+                if width<=430:
+                    for selector in ('#interpreter-orb','#interpreter-consent-notice'):
+                        box=page.locator(selector).bounding_box()
+                        assert box and box['y']>=0 and box['y']+box['height']<=page.viewport_size['height'], (selector,box)
                 logo=page.locator('#interpreter-orb');image=logo.locator('img')
                 expect(logo).to_have_role('button');logo.focus();expect(logo).to_be_focused()
-                expect(logo).to_have_attribute('aria-label','Start listening: Indonesian to English')
+                expect(logo).to_have_attribute('aria-label','Agree and start listening: Indonesian to English')
                 expect(page.locator('#interpreter-current-direction')).to_have_text('Indonesian → English')
                 assert logo.evaluate('e=>e.tagName')=='BUTTON'
                 box=logo.bounding_box();assert box['width']>=44 and box['height']>=44
@@ -163,13 +162,13 @@ def main():
                     expect(page.locator('#interpreter-state')).to_contain_text('Session ended.')
                     expect(page.locator('#interpreter-right')).to_have_attribute('aria-pressed','true')
                     expect(logo).to_be_enabled()
-                    page.locator('#interpreter-end').click();expect(page.locator('#interpreter-active')).to_be_visible();assert not page.locator('#interpreter-consent').is_checked()
+                    page.locator('#interpreter-end').click();expect(page.locator('#interpreter-active')).to_be_visible();assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false'
                 else:page.locator('#interpreter-end').click()
                 if width==768:
                     page.locator('#interpreter-language-a').select_option('ja');page.locator('#interpreter-language-b').select_option('fr')
                     page.locator('#interpreter-left').click()
-                    page.locator('#interpreter-orb').click();page.locator('#interpreter-consent').check()
-                    expect(logo).to_have_attribute('aria-label','Start listening: Japanese to French')
+                    assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false'
+                    expect(logo).to_have_attribute('aria-label','Agree and start listening: Japanese to French')
                     hit_k();listening(page)
                     assert 'from Japanese into French' in wires[-1].messages[0]['setup']['systemInstruction']['parts'][0]['text']
                     hit_k();ended(page)
@@ -186,7 +185,7 @@ def main():
                 if width==1440:
                     # Run lost-cookie recovery last: the unauthenticated client
                     # cannot submit End, so its owned lease settles server-side.
-                    page.locator('#interpreter-orb').click();page.locator('#interpreter-consent').check();hit_k();listening(page)
+                    hit_k();listening(page)
                     context.clear_cookies()
                     expect(page.locator('#interpreter-login')).to_be_visible();expect(logo).to_be_disabled()
                 assert not errors,errors

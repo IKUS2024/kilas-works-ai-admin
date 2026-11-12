@@ -5,7 +5,7 @@
 {% block initial_component_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_home.css',v='feature-navigation-20261011') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='kilas_task_navigation.css',v='consistent-ui-20261012') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='aligned-navigation-20261110') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_interpreter.css',v='one-tap-consent-20261112') }}">
 {% endblock %}
 {% block content %}
 <div class="kilas-live-page">
@@ -14,15 +14,15 @@
 <a href="{{ url_for('kilas_audio.interpreter_page') }}" aria-current="page">{% set icon='language' %}{% include 'kilas_ai/_home_task_icon.html' %}<span>Translator</span></a>
 <form method="post" action="{{ url_for('products.product_start') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance"><button type="submit">{% set icon='finance' %}{% include 'kilas_ai/_home_task_icon.html' %}<span>Finance</span></button></form>
 </nav>
-<section class="kilas-live-translator interpreter" id="interpreter" data-preference-key="interpreter-languages-v1-{{ session.get('user_id') }}">
+<section class="kilas-live-translator interpreter" id="interpreter" data-speech-consent="false" data-preference-key="interpreter-languages-v1-{{ session.get('user_id') }}">
 <header class="live-heading"><span class="reference-translator-icon" aria-hidden="true">{% set icon='language' %}{% include 'kilas_ai/_home_task_icon.html' %}</span><div><h1>Translator</h1><p class="interpreter-setup-description">{{ ui_t('Terjemahkan percakapan lewat suara.') }}</p><p class="interpreter-active-description">{{ ui_t('Real-time voice translation') }}</p></div></header>
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <section id="interpreter-active">
-<button type="button" class="interpreter-identity" id="interpreter-orb" data-state="idle" aria-pressed="false" aria-busy="false" aria-describedby="interpreter-current-direction interpreter-state" aria-label="{{ ui_t('Mulai Rekam') }}" disabled><img src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="160" height="160" alt="" aria-hidden="true" decoding="async"><span class="reference-orbit-speech" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></span><span class="reference-orbit-language" aria-hidden="true">{% set icon="language" %}{% include "kilas_ai/_home_task_icon.html" %}</span></button>
+<button type="button" class="interpreter-identity" id="interpreter-orb" data-state="idle" aria-pressed="false" aria-busy="false" aria-describedby="interpreter-consent-notice interpreter-current-direction interpreter-state" aria-label="{{ ui_t('Mulai Rekam') }}" disabled><img src="{{ url_for('static',filename='kilas-new-chat-logo-lossless.webp') }}" width="160" height="160" alt="" aria-hidden="true" decoding="async"><span class="reference-orbit-speech" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></span><span class="reference-orbit-language" aria-hidden="true">{% set icon="language" %}{% include "kilas_ai/_home_task_icon.html" %}</span></button>
 <div id="interpreter-microphone" class="interpreter-microphone" data-active="false">
 <span class="interpreter-microphone-wave" aria-hidden="true">{% for bar in range(9) %}<span data-mic-bar></span>{% endfor %}</span><span>{{ ui_t('Mikrofon aktif') }}</span>
 </div>
-<h2 class="interpreter-direction-heading">{{ ui_t('Ketuk K untuk bicara') }}</h2><p class="interpreter-direction-help">{{ ui_t('Ketuk lagi untuk berhenti dan terjemahkan.') }}</p>
+<h2 id="interpreter-direction-heading" class="interpreter-direction-heading">{{ ui_t('Setuju & mulai') }}</h2><p id="interpreter-consent-notice" class="interpreter-consent-notice">{{ ui_t('Ketuk K untuk mengizinkan audio ucapan dikirim ke Google Gemini untuk terjemahan.') }}</p><p class="interpreter-direction-help">{{ ui_t('Ketuk lagi untuk berhenti dan terjemahkan.') }}</p>
 <p id="interpreter-current-direction" class="interpreter-current-direction"></p>
 <p id="interpreter-state" data-state="idle" role="status" aria-live="polite">{{ ui_t('Siap · mikrofon belum aktif') }}</p>
 <div class="interpreter-directions" role="group" aria-label="{{ ui_t('Arah terjemahan') }}">
@@ -34,10 +34,6 @@
 {% endfor %}
 </div>
 <p id="interpreter-language-help" class="interpreter-language-help">{{ ui_t('Pilih kartu untuk arah bicara. Ketuk panah untuk mengganti bahasa.') }}</p>
-<div id="interpreter-consent-panel" class="interpreter-consent-panel" hidden>
-<label class="live-consent"><input type="checkbox" id="interpreter-consent" autocomplete="off"><span>{{ ui_t('Saya mengizinkan pemrosesan ucapan oleh Google.') }}</span></label>
-<p>{{ ui_t('Setelah menyetujui, ketuk K untuk mulai.') }}</p>
-</div>
 <details id="interpreter-transcript" class="interpreter-transcript">
 <summary>{{ ui_t('Teks percakapan') }}</summary>
 <p id="interpreter-transcript-empty">{{ ui_t('Teks muncul saat percakapan berlangsung.') }}</p>
@@ -50,5 +46,5 @@
 <a id="interpreter-login" class="interpreter-login" href="{{ url_for('auth.login_page') }}" hidden>{{ ui_t('Masuk kembali') }}</a>
 
 </section></div>
-<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='direct-entry-20261110') }}"></script>
+<script type="module" src="{{ url_for('static',filename='kilas_interpreter.mjs',v='one-tap-consent-20261112') }}"></script>
 {% endblock %}
