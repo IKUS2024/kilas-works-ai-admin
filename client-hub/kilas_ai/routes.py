@@ -11,6 +11,16 @@ from . import free_test
 ai_bp = Blueprint("kilas_ai", __name__, url_prefix="/kilas-ai")
 
 
+def json_body():
+    """Chat actions accept JSON objects, never arrays or scalar values."""
+    value = request.get_json(silent=True)
+    if value is None:
+        return {}  # Preserve existing missing/invalid-body field validation.
+    if not isinstance(value, dict):
+        abort(400)
+    return value
+
+
 def automation_enabled():
     return os.environ.get("KILAS_AI_AUTOMATION_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 
@@ -102,10 +112,13 @@ def capacity_state():
 @ai_bp.post("/threads")
 def new_thread():
     from . import routing, store
-    body = (request.get_json(silent=True) or {}) if request.is_json else request.form
+    body = json_body() if request.is_json else request.form
     if not request.is_json:
         return redirect(url_for("kilas_ai.home"), code=303)
-    first_message = str(body.get("first_message") or "").strip()
+    first_message = body.get("first_message")
+    if not isinstance(first_message, str):
+        abort(400)
+    first_message = first_message.strip()
     if not first_message or len(first_message) > 12000:
         abort(400)
     from . import chat_models
@@ -253,7 +266,7 @@ def regenerate(thread_id):
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
-    body = request.get_json(silent=True) or {}
+    body = json_body()
     key = str(body.get("operation_key") or "")
     if not re.fullmatch(r"[a-zA-Z0-9_-]{16,96}", key):
         abort(400)
@@ -364,9 +377,14 @@ def send(thread_id, *, script_only=False):
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
-    body = (request.get_json(silent=True) or {}) if request.is_json else request.form
+    body = json_body() if request.is_json else request.form
     files = request.files.getlist("attachments") if not request.is_json else []
-    content = (body.get("content") or "").strip()
+    content = body.get("content")
+    if content is None:
+        content = ""  # Attachment-only form submissions omit text.
+    if not isinstance(content, str):
+        abort(400)
+    content = content.strip()
     key = str(body.get("operation_key") or "")
     if not content and files:
         content = "Tolong jelaskan lampiran ini."
