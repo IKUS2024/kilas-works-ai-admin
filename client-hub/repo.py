@@ -908,6 +908,29 @@ def get_valid_reset_token(token_hash, now_iso):
     )
 
 
+def complete_password_reset(token_hash, new_password_hash):
+    """Consume the link and change credentials atomically, serialized per user.
+
+    The existing owner-row transaction helper is also used by purchases, but
+    this operation touches only authentication records, never billing data.
+    Re-read under the lock: a route's earlier validation is not authorization
+    to reuse a token after a concurrent reset has already consumed it.
+    """
+    candidate = get_valid_reset_token(token_hash, _now())
+    if candidate is None:
+        return None
+    user_id = candidate["user_id"]
+    with db.app_purchase_transaction(None, user_id):
+        now_iso = _now()
+        token = get_valid_reset_token(token_hash, now_iso)
+        if token is None:
+            return None
+        update_user_password(user_id, new_password_hash)
+        invalidate_all_reset_tokens_for_user(user_id, now_iso)
+        write_audit_no_business(user_id, "PASSWORD_RESET_COMPLETED", "password reset via emailed link")
+    return user_id
+
+
 def mark_reset_token_used(token_id, now_iso):
     db.execute(
         "UPDATE password_reset_tokens SET used_at = ? WHERE id = ?",

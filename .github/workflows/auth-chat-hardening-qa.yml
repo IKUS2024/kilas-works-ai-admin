@@ -1,0 +1,41 @@
+name: Auth and Chat Input Hardening QA
+on:
+  pull_request:
+    paths: ['client-hub/repo.py', 'client-hub/routes_auth.py', 'client-hub/kilas_ai/routes.py', 'client-hub/kilas_ai/chat_model_routes.py', 'client-hub/tests/test_password_reset*', 'client-hub/tests/test_chat_json*', '.github/workflows/auth-chat-hardening-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sqlite-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python -B scripts/run_offline_tests.py --only test_customer_auth_sessions.py
+      - run: python -B scripts/run_offline_tests.py --only test_password_reset_atomic.py
+      - run: python -B scripts/run_offline_tests.py --only test_chat_json_validation.py
+      - run: python -B scripts/run_offline_tests.py --only test_kilas_chat_models.py
+  native-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: disposable-auth-qa
+          POSTGRES_DB: auth_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d auth_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r client-hub/requirements.txt
+      - run: python -B client-hub/tests/test_password_reset_postgres.py
+        env:
+          DATABASE_URL: postgresql://postgres:disposable-auth-qa@127.0.0.1:5432/auth_qa

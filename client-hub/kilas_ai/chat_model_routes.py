@@ -1,7 +1,7 @@
 """Private model selection on the existing Chat authorization and CSRF boundary."""
 import os
 from flask import abort, request, session
-from .routes import ai_bp, enabled
+from .routes import ai_bp, enabled, json_body
 from . import chat_models,model_preferences
 
 
@@ -60,7 +60,7 @@ def workspace_capabilities():
 def select_model():
     from . import chat_offering
     if chat_offering.managed():return {'code':'models_managed','error':'Model dikelola oleh Kilas AI. Muat ulang halaman.'},409
-    body=request.get_json(silent=True) or {}
+    body=json_body()
     surface=body.get('surface');ident=body.get('conversation_id')
     if not isinstance(body.get('model'),str) or body['model'] not in chat_models.CATALOG:
         return {'error':'Model tidak valid. Pilih model dari daftar.'},400
@@ -120,7 +120,7 @@ def select_image_model():
     from . import chat_offering
     if chat_offering.managed():return {'code':'models_managed','error':'Model dikelola oleh Kilas AI. Muat ulang halaman.'},409
     from . import image_models
-    body=request.get_json(silent=True) or {};surface=body.get('surface');ident=body.get('conversation_id')
+    body=json_body();surface=body.get('surface');ident=body.get('conversation_id')
     try:
         image_models.spec(body.get('model'))
         if ident is not None:chat_models.owned(session['user_id'],surface,ident)

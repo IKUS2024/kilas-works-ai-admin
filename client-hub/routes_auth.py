@@ -820,14 +820,10 @@ def reset_password_page(token):
         flash("Konfirmasi password tidak cocok.", "error")
         return render_template("reset_password.html", token=token)
 
-    now = _now_iso()
-    user = repo.get_user_by_id(reset_row["user_id"])
-    repo.update_user_password(user["id"], security.hash_password(new_password))
-    repo.mark_reset_token_used(reset_row["id"], now)
-    # Burn any other still-valid reset links for this user too (e.g. requested twice) so an old
-    # email in an inbox can't be used after the password has already changed.
-    repo.invalidate_all_reset_tokens_for_user(user["id"], now)
-    repo.write_audit_no_business(user["id"], "PASSWORD_RESET_COMPLETED", "password reset via emailed link")
+    user_id = repo.complete_password_reset(token_hash, security.hash_password(new_password))
+    if user_id is None:
+        flash("Link reset password ini tidak valid atau sudah kedaluwarsa. Silakan minta link baru.", "error")
+        return redirect(url_for("auth.forgot_password_page"))
     security.logout_user()
     flash("Password berhasil diubah. Silakan login dengan password baru.", "success")
     return redirect(url_for("auth.login_page"))
