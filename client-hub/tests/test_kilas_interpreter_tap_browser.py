@@ -71,13 +71,8 @@ def main():
                 expect(page.locator('#interpreter-active')).to_be_visible()
                 expect(page.locator('#interpreter-navigation')).to_be_visible()
                 assert page.locator('#interpreter-setup,#interpreter-start,#interpreter-swap').count()==0
-                before_consent=len(wires)
-                page.locator('#interpreter-orb').click()
-                expect(page.locator('#interpreter-consent-panel')).to_be_visible()
-                expect(page.locator('#interpreter-consent')).to_be_focused()
-                assert not page.locator('#interpreter-consent').is_checked()
-                assert page.evaluate('micRequests')==0 and len(wires)==before_consent
-                page.locator('#interpreter-consent').check()
+                expect(page.locator('#interpreter-consent-notice')).to_be_visible()
+                assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false'
                 for direction,source,reply in (('left','Selamat pagi.','Good morning.'),('right','Good morning.','Selamat pagi.')):
                     button=page.locator('#interpreter-'+direction);before=len(wires)
                     button.click();page.locator('#interpreter-orb img').click();page.wait_for_function("document.querySelector('#interpreter-state').dataset.state==='listening'")
@@ -126,7 +121,7 @@ def main():
                 page.reload(wait_until='networkidle')
                 assert page.locator('#interpreter-language-a').input_value()=='ja'
                 assert page.locator('#interpreter-language-b').input_value()=='fr'
-                assert not page.locator('#interpreter-consent').is_checked()
+                assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false'
                 assert not errors,errors
                 evidence.append({'width':width,'result':'PASS','relay':'actual authenticated Flask and PCM queue','microphone':'synthetic oscillator','provider':'synthetic wire; no paid requests'})
                 print(json.dumps(evidence[-1]),flush=True);context.close()

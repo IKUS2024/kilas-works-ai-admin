@@ -43,12 +43,8 @@ try{
   };
   const grantConsent=async()=>{
    const admitted=starts.length,mics=await page.evaluate(()=>window.micStarted);
-   await page.locator('#interpreter-orb').click();
-   assert.equal(await page.locator('#interpreter-consent-panel').isVisible(),true);
-   assert.equal(await page.locator('#interpreter-consent').isChecked(),false);
-   assert.equal(await page.locator('#interpreter-consent').evaluate(e=>e===document.activeElement),true);
-   assert.equal(starts.length,admitted);assert.equal(await page.evaluate(()=>window.micStarted),mics);
-   await page.locator('#interpreter-consent').check();
+   assert.equal(await page.locator('#interpreter-consent-notice').isVisible(),true);
+   assert.equal(await page.locator('#interpreter').getAttribute('data-speech-consent'),'false');
    assert.equal(starts.length,admitted);assert.equal(await page.evaluate(()=>window.micStarted),mics);
   };
   await directEntry();assert.equal(await page.evaluate(()=>window.micStarted),0);assert.equal(starts.length,0);
@@ -76,9 +72,9 @@ try{
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),JSON.stringify({width,height,overflow:await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,8).map(e=>({tag:e.tagName,id:e.id,class:e.className,right:e.getBoundingClientRect().right})))}));
   await hidePage();await directEntry();assert.equal(await page.locator('#interpreter-left').getAttribute('aria-pressed'),'false');assert.ok(await page.evaluate(()=>window.micStopped>=2));assert.equal(starts.length,2);
   if(width===390||width===1440)await page.screenshot({path:(process.env.KILAS_INTERPRETER_SHOTS||'/tmp')+'/interpreter-active-'+width+'.png'});
-  await page.locator('#interpreter-end').click();await directEntry();assert.equal(await page.locator('#interpreter-consent').isChecked(),false);assert.equal(await page.locator('#interpreter-language-a').inputValue(),'ja');assert.equal(await page.locator('#interpreter-language-b').inputValue(),'fr');assert.ok(await page.evaluate(()=>window.micStopped>=2));
+  await page.locator('#interpreter-end').click();await directEntry();assert.equal(await page.locator('#interpreter').getAttribute('data-speech-consent'),'false');assert.equal(await page.locator('#interpreter-language-a').inputValue(),'ja');assert.equal(await page.locator('#interpreter-language-b').inputValue(),'fr');assert.ok(await page.evaluate(()=>window.micStopped>=2));
   available=false;const admitted=starts.length,mics=await page.evaluate(()=>window.micStarted);await grantConsent();await page.locator('#interpreter-orb img').click();await page.waitForFunction(()=>document.querySelector('#interpreter-state').textContent.includes('allowance')||document.querySelector('#interpreter-state').textContent.includes('Batas biaya'));assert.equal(await page.locator('#interpreter-error').isVisible(),false);await directEntry();assert.equal(starts.length,admitted);assert.equal(await page.evaluate(()=>window.micStarted),mics);assert.equal(await page.locator('#interpreter-left').isDisabled(),false);await page.locator('#interpreter-end').click();
-  const evidence=await page.evaluate(()=>window.playEvidence);await page.reload();assert.equal(await page.locator('#interpreter-language-a').inputValue(),'ja');assert.equal(await page.locator('#interpreter-language-b').inputValue(),'fr');assert.equal(await page.locator('#interpreter-consent').isChecked(),false);assert.equal(await page.locator('#interpreter a[href*=classic]').count(),0);assert.equal(await page.evaluate(()=>window.micStarted),0);
+  const evidence=await page.evaluate(()=>window.playEvidence);await page.reload();assert.equal(await page.locator('#interpreter-language-a').inputValue(),'ja');assert.equal(await page.locator('#interpreter-language-b').inputValue(),'fr');assert.equal(await page.locator('#interpreter').getAttribute('data-speech-consent'),'false');assert.equal(await page.locator('#interpreter a[href*=classic]').count(),0);assert.equal(await page.evaluate(()=>window.micStarted),0);
   if(width===390){await grantConsent();await page.evaluate(()=>{AudioContext.prototype.resume=()=>new Promise(()=>{});});const before=starts.length;await page.locator('#interpreter-orb img').click();await page.waitForFunction(()=>/Audio/.test(document.querySelector('#interpreter-state').textContent));assert.equal(starts.length,before);assert.equal(await page.locator('#interpreter-left').isDisabled(),false);await page.locator('#interpreter-end').click();}
   assert.ok(evidence.every(x=>x.rate===24000&&x.peak>.2));assert.deepEqual(errors,[]);if(width===390||width===1440)await page.screenshot({path:(process.env.KILAS_INTERPRETER_SHOTS||'/tmp')+'/interpreter-ready-'+width+'.png'});
   console.log(JSON.stringify({width,height,starts:starts.length,ends:ends.length,audioBeforeEnd:evidence,tracksStopped:await page.evaluate(()=>window.micStopped)}));await page.close();

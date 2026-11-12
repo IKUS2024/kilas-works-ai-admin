@@ -77,7 +77,7 @@ def main():
      expect(page.locator('#interpreter-active')).to_be_visible()
      expect(page.locator('#interpreter-navigation')).to_be_visible()
      assert [text.strip() for text in page.locator('#interpreter-navigation a,#interpreter-navigation button').all_text_contents()]==['AI Chat','Translator','Finance']
-     expect(page.locator('.interpreter-direction-heading')).to_have_text(copy('Ketuk K untuk bicara'))
+     expect(page.locator('.interpreter-direction-heading')).to_have_text(copy('Setuju & mulai'))
      expect(page.locator('#interpreter-state')).to_have_text(copy('Siap · mikrofon belum aktif'))
      assert page.locator('#interpreter-state').evaluate('e=>e.getBoundingClientRect().height>=14&&getComputedStyle(e).clipPath==="none"')
      expect(page.locator('.interpreter-direction-help')).to_be_visible()
@@ -104,11 +104,8 @@ def main():
      assert page.locator('[data-chat-sidebar]').count()==0
      assert page.evaluate('micRequests')==0
      if width in (393,1440):page.screenshot(path=str(output/f'ready-{locale}-{width}.png'),full_page=True)
-     page.locator('#interpreter-orb').click()
-     expect(page.locator('#interpreter-consent-panel')).to_be_visible()
-     expect(page.locator('#interpreter-consent')).to_be_focused()
-     expect(page.locator('#interpreter-error')).to_have_text(copy('Setujui pemrosesan ucapan terlebih dahulu.'))
-     assert not page.locator('#interpreter-consent').is_checked()
+     expect(page.locator('#interpreter-consent-notice')).to_be_visible()
+     expect(page.locator('#interpreter-direction-heading')).to_have_text(copy('Setuju & mulai'))
      assert page.evaluate('micRequests')==0 and not starts
      page.locator('#interpreter-language-a').select_option('ar')
      page.locator('#interpreter-language-b').select_option('en')
@@ -118,7 +115,7 @@ def main():
      rgb=lambda value:tuple(map(float,re.findall(r'[\d.]+',value)[:3]))
      assert contrast(rgb(styles['#interpreter-language-a']['color']),rgb(styles['#interpreter-language-a']['background']))>=4.5,styles
      assert contrast(rgb(styles['.interpreter-direction-help']['color']),(255,255,255))>=4.5,styles
-     page.locator('#interpreter-consent').check()
+     expect(page.locator('#interpreter-consent-notice')).to_be_visible()
      expect(page.locator('#interpreter-orb')).to_have_role('button')
      expect(page.locator('.interpreter-direction-help')).to_have_text(copy('Ketuk lagi untuk berhenti dan terjemahkan.'))
      assert page.evaluate('micRequests')==0 and not starts
@@ -182,13 +179,13 @@ def main():
      expect(page.locator('#interpreter-orb')).to_be_disabled()
      expect(page.locator('#interpreter-language-a')).to_be_disabled()
      expect(page.locator('#interpreter-language-b')).to_be_disabled()
-     assert not page.locator('#interpreter-consent').is_checked()
+     assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false'
      assert page.locator('#interpreter-original').text_content()=='' and page.locator('#interpreter-caption').text_content()==''
      if width==393:
       for failure,key in (('unavailable','Translator sedang tidak tersedia.'),('network','Koneksi terputus. Pilih arah untuk mulai lagi.'),('permission','Izinkan mikrofon di browser.'),('missing','Periksa mikrofon yang terhubung, lalu pilih arah lagi.'),('audio','Audio belum siap. Izinkan audio browser, lalu pilih arah lagi.')):
        mode[0]=failure;before=len(starts);page.reload(wait_until='networkidle')
-       assert not page.locator('#interpreter-consent').is_checked() and page.evaluate('micRequests')==0
-       page.locator('#interpreter-orb').click();page.locator('#interpreter-consent').check()
+       assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false' and page.evaluate('micRequests')==0
+       assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false'
        if failure=='permission':page.evaluate("window.mockPermission='denied'")
        if failure=='missing':page.evaluate("window.mockPermission='missing'")
        if failure=='audio':page.evaluate("()=>{AudioContext.prototype.resume=async()=>{throw new Error('synthetic audio failure')};}")
@@ -206,7 +203,7 @@ def main():
       with page.expect_navigation():page.locator('form[action="/language"] button').first.click()
       assert page.locator('html').get_attribute('lang')==changed
       assert page.locator('#interpreter-language-a').input_value()=='ar' and page.locator('#interpreter-language-b').input_value()=='en'
-      assert not page.locator('#interpreter-consent').is_checked() and page.evaluate('micRequests')==0
+      assert page.locator('#interpreter').get_attribute('data-speech-consent')=='false' and page.evaluate('micRequests')==0
      assert not errors,errors
      evidence.append({'locale':locale,'width':width,'result':'PASS','paid_calls':0,'hardware':'Chromium synthetic device','admissions':len(starts),'end_requests':len(ends)})
      print(json.dumps(evidence[-1]),flush=True);context.close()

@@ -1,4 +1,7 @@
 {
+  "Setuju & mulai": {"id": "Setuju & mulai", "en": "Agree & start", "es": "Aceptar y empezar", "zh": "同意并开始"},
+  "Setuju dan mulai mendengarkan {source} ke {target}": {"id": "Setuju dan mulai mendengarkan {source} ke {target}", "en": "Agree and start listening: {source} to {target}", "es": "Aceptar y escuchar: de {source} a {target}", "zh": "同意并开始聆听：{source}到{target}"},
+  "Ketuk K untuk mengizinkan audio ucapan dikirim ke Google Gemini untuk terjemahan.": {"id": "Ketuk K untuk mengizinkan audio ucapan dikirim ke Google Gemini untuk terjemahan.", "en": "Tap K to allow your speech audio to be sent to Google Gemini for translation.", "es": "Toca K para permitir que tu audio se envíe a Google Gemini para traducirlo.", "zh": "轻点 K，允许将你的语音发送至 Google Gemini 进行翻译。"},
   "Ketuk K untuk bicara": {"id": "Ketuk K untuk bicara", "en": "Tap K to speak", "es": "Toca K para hablar", "zh": "轻点 K 开始说话"},
   "Ketuk lagi untuk berhenti dan terjemahkan.": {"id": "Ketuk lagi untuk berhenti dan terjemahkan.", "en": "Tap again to stop and translate.", "es": "Toca de nuevo para detener y traducir.", "zh": "再点一次停止并翻译。"},
   "Siap · mikrofon belum aktif": {"id": "Siap · mikrofon belum aktif", "en": "Ready · microphone off", "es": "Listo · micrófono apagado", "zh": "就绪 · 麦克风未开启"},

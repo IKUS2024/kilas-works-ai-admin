@@ -1,0 +1,42 @@
+// Actual rendered template/controller; synthetic audio/session, no paid transport.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {CallSession} from '../static/kilas_interpreter_engine.mjs?v=mic-wave-20261110';
+const {JSDOM}=createRequire(pathToFileURL(join(process.env.KILAS_UI_DOM_TOOLS||'/tmp/kilas-audit-dom','package.json')))('jsdom');
+const tick=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
+test('K alone grants disclosed consent; End/background/history reset it and never auto-start',async t=>{
+ const dom=new JSDOM(readFileSync(process.env.KILAS_INTERPRETER_FIXTURE,'utf8'),{url:'https://synthetic.test/kilas-translator/interpreter',runScripts:'outside-only',pretendToBeVisual:true});
+ t.after(()=>dom.window.close());const {window}=dom,{document}=window;
+ window.eval(readFileSync(new URL('../static/ui_i18n.js',import.meta.url),'utf8'));
+ let contexts=0,starts=[],network=0,microphones=0,holdAudio=null;
+ window.AudioContext=class{state='running';constructor(){contexts++;}addEventListener(){}async resume(){if(holdAudio)await holdAudio;}async close(){this.state='closed';}};
+ const previous={},values={window,document,KilasUI:window.KilasUI,localStorage:window.localStorage,FormData:window.FormData,navigator:{mediaDevices:{getUserMedia(){microphones++;throw Error('No microphone fixture');}}},fetch:()=>{network++;throw Error('Unexpected network');}};
+ for(const [key,value] of Object.entries(values)){previous[key]=Object.getOwnPropertyDescriptor(globalThis,key);Object.defineProperty(globalThis,key,{value,writable:true,configurable:true});}
+ t.after(()=>{for(const [key,value] of Object.entries(previous)){if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}});
+ const originalStart=CallSession.prototype.start;
+ CallSession.prototype.start=async function(settings){starts.push(settings);this.stateTo('listening');};
+ t.after(()=>CallSession.prototype.start=originalStart);
+ await import('../static/kilas_interpreter.mjs?consent-dom');await tick();
+ const root=document.querySelector('#interpreter'),orb=document.querySelector('#interpreter-orb'),end=document.querySelector('#interpreter-end'),heading=document.querySelector('#interpreter-direction-heading');
+ const ready=()=>{assert.equal(root.dataset.speechConsent,'false');assert.equal(heading.textContent,window.KilasUI.t('Setuju & mulai'));assert.equal(orb.disabled,false);};
+ ready();assert.equal(document.querySelector('#interpreter-consent'),null);assert.match(document.querySelector('#interpreter-consent-notice').textContent,/Google Gemini/);
+ assert.ok(orb.getAttribute('aria-describedby').includes('interpreter-consent-notice'));
+ assert.equal(contexts,0);assert.equal(starts.length,0);assert.equal(network,0);
+ document.querySelector('#interpreter-right').click();document.querySelector('#interpreter-left').click();await tick();
+ const language=document.querySelector('#interpreter-language-a');language.value='ja';language.dispatchEvent(new window.Event('change'));await tick();
+ assert.equal(contexts,0);assert.equal(starts.length,0);ready();
+ orb.click();orb.click();await tick();assert.equal(starts.length,1);assert.equal(starts[0].consent,true);assert.equal(root.dataset.speechConsent,'true');
+ assert.ok(Object.entries(window.localStorage).every(([key,value])=>!/consent/i.test(key+value)));
+ end.click();ready();
+ let release;holdAudio=new Promise(resolve=>release=resolve);orb.click();end.click();release();holdAudio=null;await tick();ready();assert.equal(starts.length,1);
+ orb.click();await tick();assert.equal(starts.length,2);
+ Object.defineProperty(document,'hidden',{value:true,configurable:true});document.dispatchEvent(new window.Event('visibilitychange'));ready();
+ Object.defineProperty(document,'hidden',{value:false,configurable:true});document.dispatchEvent(new window.Event('visibilitychange'));await tick();assert.equal(starts.length,2);
+ orb.click();await tick();assert.equal(starts.length,3);
+ window.dispatchEvent(new window.PageTransitionEvent('pagehide',{persisted:true}));window.dispatchEvent(new window.PageTransitionEvent('pageshow',{persisted:true}));ready();await tick();assert.equal(starts.length,3);
+ assert.equal(network,0);assert.equal(microphones,0);
+});
