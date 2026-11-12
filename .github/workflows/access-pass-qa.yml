@@ -25,7 +25,7 @@ jobs:
       - run: python client-hub/tests/test_access_pass.py
       - run: python client-hub/tests/test_platform_manual_payments.py
       - run: |
-          for suite in test_kilas_live_gemini_budget test_kilas_ai_call test_kilas_live_gemini_readiness test_kilas_live_gemini_pair_routes test_kilas_live_gemini test_kilas_live_gemini_pair test_kilas_audio test_kilas_live_translator_segments test_kilas_live_translator_clauses; do
+          for suite in test_kilas_ai_billing test_kilas_ai_usage test_kilas_ai_single_plan_console test_kilas_live_gemini_budget test_kilas_ai_call test_kilas_live_gemini_readiness test_kilas_live_gemini_pair_routes test_kilas_live_gemini test_kilas_live_gemini_pair test_kilas_audio test_kilas_live_translator_segments test_kilas_live_translator_clauses; do
             PYTHONPATH=client-hub:client-hub/tests python -m unittest "$suite" || exit 1
           done
   postgres:

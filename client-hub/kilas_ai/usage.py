@@ -161,7 +161,7 @@ def _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now
         hard = Decimal(PLANS[plan]["price"]) / Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000")) * Decimal(os.environ.get("KILAS_AI_COST_HARD_RATIO", "0.35"))
     rows = _rows(conn, "SELECT operation_type,mode,estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? "
                  "AND customer_charge_exempt=0 AND created_at>=? AND status IN ('COMPLETE','PENDING')"
-                 + (" AND COALESCE(customer_charge_origin,'') NOT LIKE 'access-pass:%'" if plan == 'FREE' else ''), (user_id, period_start.isoformat()))
+                 + (" AND SUBSTR(COALESCE(customer_charge_origin,''),1,12) != 'access-pass:'" if plan == 'FREE' else ''), (user_id, period_start.isoformat()))
     spent = Decimal(0)
     for operation, recorded_mode, cost in rows:
         try:
@@ -275,7 +275,7 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
             type_filter = ("u.operation_type IN ('IMAGE_GENERATION','IMAGE_EDIT')" if operation in ("IMAGE_GENERATION", "IMAGE_EDIT")
                            else "u.operation_type=?")
             count = _query(conn, "SELECT COUNT(*) FROM kilas_ai_usage AS u WHERE u.user_id=? AND " + type_filter + " "
-                "AND u.quota_source='BASE' AND u.customer_charge_exempt=0 AND COALESCE(u.customer_charge_origin,'') NOT LIKE 'access-pass:%' AND u.created_at>=? AND u.created_at<? "
+                "AND u.quota_source='BASE' AND u.customer_charge_exempt=0 AND SUBSTR(COALESCE(u.customer_charge_origin,''),1,12) != 'access-pass:' AND u.created_at>=? AND u.created_at<? "
                 "AND (u.status='COMPLETE' OR (u.status='PENDING' AND u.created_at>=?))"
                 + (_chat_only_sql() if operation == "CHAT" else ""),
                 ((user_id,) if operation in ("IMAGE_GENERATION", "IMAGE_EDIT") else (user_id, operation))
@@ -285,7 +285,7 @@ def reserve(user_id, thread_id, key, mode, tool, *, profile=None, origin=None):
             if plan == "FREE" and operation == "CHAT":
                 day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
                 daily = _query(conn, "SELECT COUNT(*) FROM kilas_ai_usage AS u WHERE u.user_id=? AND u.operation_type='CHAT' "
-                    "AND u.quota_source='BASE' AND u.customer_charge_exempt=0 AND COALESCE(u.customer_charge_origin,'') NOT LIKE 'access-pass:%' AND u.created_at>=? AND u.created_at<? AND (u.status='COMPLETE' OR "
+                    "AND u.quota_source='BASE' AND u.customer_charge_exempt=0 AND SUBSTR(COALESCE(u.customer_charge_origin,''),1,12) != 'access-pass:' AND u.created_at>=? AND u.created_at<? AND (u.status='COMPLETE' OR "
                     "(u.status='PENDING' AND u.created_at>=?))" + _chat_only_sql(),
                     (user_id, day_start.isoformat(), (day_start + timedelta(days=1)).isoformat(),
                      (now - timedelta(minutes=10)).isoformat()), one=True)[0]
@@ -438,7 +438,7 @@ def snapshot(user_id):
             if operation == "CHAT":
                 sql += _chat_only_sql()
         if state["plan"] == "FREE":
-            sql += " AND COALESCE(customer_charge_origin,'') NOT LIKE 'access-pass:%'"
+            sql += " AND SUBSTR(COALESCE(customer_charge_origin,''),1,12) != 'access-pass:'"
         used = db.query_one(sql, params)["n"]
         key = operation if operation in ("CHAT", "WEB_SEARCH", "PDF") else "IMAGES"
         summary[label] = {"used": used, "limit": None if (image_test if operation=="IMAGE_GENERATION" else text_test) else _limit(state["plan"], "FAST", operation)}
@@ -446,7 +446,7 @@ def snapshot(user_id):
     if state["plan"] == "FREE":
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         state["chat_today"] = db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage AS u WHERE u.user_id=? "
-            "AND u.operation_type='CHAT' AND u.quota_source='BASE' AND u.customer_charge_exempt=0 AND COALESCE(u.customer_charge_origin,'') NOT LIKE 'access-pass:%' AND u.status='COMPLETE' AND u.created_at>=? AND u.created_at<?" + _chat_only_sql(),
+            "AND u.operation_type='CHAT' AND u.quota_source='BASE' AND u.customer_charge_exempt=0 AND SUBSTR(COALESCE(u.customer_charge_origin,''),1,12) != 'access-pass:' AND u.status='COMPLETE' AND u.created_at>=? AND u.created_at<?" + _chat_only_sql(),
             (user_id, day_start.isoformat(), (day_start + timedelta(days=1)).isoformat()))["n"]
     state["usage"] = summary
     state["creative_high"] = any(summary[name]["limit"] is not None and summary[name]["used"] >= summary[name]["limit"] for name in ("Gambar", "PDF"))

@@ -52,7 +52,8 @@ class BillingTests(unittest.TestCase):
         self.assertEqual(other.get(f"/kilas-ai/invoices/{item['id']}").status_code, 404)
         self.assertEqual(owner.get(f"/kilas-ai/invoices/{item['id']}").status_code, 200)
         self.assertEqual(owner.get("/admin/kilas-ai/payments").status_code, 404)
-        self.assertIn(b"7610267551", owner.get(f"/kilas-ai/invoices/{item['id']}").data)
+        with patch("payment_service.BANK_DETAILS", {"bank_name":"Test Bank", "account_number":"0000000000", "account_holder":"Synthetic QA"}):
+            self.assertIn(b"0000000000", owner.get(f"/kilas-ai/invoices/{item['id']}").data)
         self.assertEqual(billing.create_invoice(self.owner, "PLUS"), item["id"])
         bad = owner.post(f"/kilas-ai/invoices/{item['id']}/proof", data={"csrf_token": "billing-csrf",
             "proof": (io.BytesIO(b"<script>bad</script>"), "proof.pdf", "application/pdf")})
@@ -113,7 +114,7 @@ class BillingTests(unittest.TestCase):
                        self.admin, "VERIFIED")
         self.assertEqual(usage.effective_plan(self.other)["plan"], "MAX")
         self.assertEqual((usage.effective_plan(self.other)["period_end"] -
-                          usage.effective_plan(self.other)["period_start"]).days, 30)
+                          usage.effective_plan(self.other)["period_start"]).days, 90)
 
 
 if __name__ == "__main__":

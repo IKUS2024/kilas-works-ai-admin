@@ -6,6 +6,9 @@ from werkzeug.serving import make_server
 import test_access_pass as f
 
 def main():
+    # Synthetic invoice destination keeps public QA screenshots free of real account details.
+    import payment_service
+    payment_service.BANK_DETAILS={'bank_name':'Test Bank','account_number':'0000000000','account_holder':'Synthetic QA'}
     fix=f.AccessPassTests();fix.setUp()
     server=make_server('127.0.0.1',0,f.app.app,threaded=True)
     threading.Thread(target=server.serve_forever,daemon=True).start()
@@ -52,6 +55,7 @@ def main():
             page.goto(invoice_url);expect(page.get_by_role('status')).to_have_text('Disetujui')
             page.get_by_role('link',name='Lihat masa aktif').click();expect(page.locator('.subscription-current')).to_contain_text('Kilas Pro aktif')
             expect(page.get_by_role('button',name='Perpanjang 30 hari')).to_be_enabled()
+            page.set_viewport_size({'width':393,'height':900})
             page.screenshot(path=str(out/'active-393.png'),full_page=True)
             page.go_back();page.go_forward();expect(page.get_by_role('button',name='Perpanjang 30 hari')).to_be_enabled()
             assert before==f.usage.effective_plan(fix.user)

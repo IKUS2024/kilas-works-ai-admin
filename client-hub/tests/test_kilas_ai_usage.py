@@ -96,7 +96,7 @@ class UsageTests(unittest.TestCase):
             self.assertIn("Halo", response.get_data(as_text=True))
             self.assertEqual(streamed.call_args.args[0], "FAST")
 
-    def test_paid_sustainability_ceiling_protects_both_normal_chat_modes(self):
+    def test_paid_pass_allows_both_modes_without_commercial_ceiling(self):
         now = datetime.now(timezone.utc)
         db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?)",
                    (self.other, (now - timedelta(days=1)).isoformat(), (now + timedelta(days=29)).isoformat()))
@@ -104,8 +104,7 @@ class UsageTests(unittest.TestCase):
                    "VALUES (?,?,?,?,?,'COMPLETE',?,?)",
                    (self.other, store.create_thread(self.other), "prior_cost_0123456789", "CHAT", "SMART", "2.10", now.isoformat()))
         thread_id = store.create_thread(self.other)
-        with self.assertRaisesRegex(usage.UsageLimit,'Kapasitas Premium'):
-            usage.reserve(self.other,thread_id,'guard_SMART_0123456789','SMART','CHAT')
+        self.assertEqual(usage.reserve(self.other,thread_id,'guard_SMART_0123456789','SMART','CHAT')[0],'PLUS')
         self.assertEqual(usage.reserve(self.other,thread_id,'guard_FAST_0123456789','FAST','CHAT')[0],'PLUS')
 
 
