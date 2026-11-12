@@ -344,9 +344,9 @@
 
   {% if account_workspace|default(false) %}{% include '_account_workspace.html' %}{% endif %}
 
-  <dialog class="account-profile-dialog" id="account-profile-dialog">
+  <dialog class="account-profile-dialog" id="account-profile-dialog" aria-labelledby="account-profile-dialog-title">
     <div class="account-profile-dialog-head">
-      <h2>{{ ui_t('Edit profil Pribadi') }}</h2>
+      <h2 id="account-profile-dialog-title">{{ ui_t('Edit profil Pribadi') }}</h2>
       <button class="account-profile-dialog-close" type="button" data-profile-close aria-label="{{ ui_t('Tutup') }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="account-profile-dialog-body">
@@ -380,9 +380,9 @@
   </dialog>
 
   {% set pending_email_change = session.get('_email_change') %}
-  <dialog class="account-profile-dialog account-email-dialog" id="account-email-dialog">
+  <dialog class="account-profile-dialog account-email-dialog" id="account-email-dialog" aria-labelledby="account-email-dialog-title">
     <div class="account-profile-dialog-head">
-      <h2>{{ ui_t('Ganti Email') }}</h2>
+      <h2 id="account-email-dialog-title">{{ ui_t('Ganti Email') }}</h2>
       <button class="account-profile-dialog-close" type="button" data-email-change-close aria-label="{{ ui_t('Tutup') }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="account-profile-dialog-body">
@@ -435,12 +435,12 @@
   </dialog>
 
   <div class="account-tabs" role="tablist" aria-label="{{ ui_t('Menu akun') }}">
-    <button class="account-tab active" type="button" role="tab" aria-selected="true" aria-controls="account-panel-personal" data-account-tab="personal">{{ ui_t('Pribadi') }}</button>
-    <button class="account-tab" type="button" role="tab" aria-selected="false" aria-controls="account-panel-business" data-account-tab="business">{{ ui_t('Bisnis') }}</button>
-    <button class="account-tab" type="button" role="tab" aria-selected="false" aria-controls="account-panel-security" data-account-tab="security">{{ ui_t('Keamanan') }}</button>
+    <button class="account-tab active" type="button" id="account-tab-personal" role="tab" tabindex="0" aria-selected="true" aria-controls="account-panel-personal" data-account-tab="personal">{{ ui_t('Pribadi') }}</button>
+    <button class="account-tab" type="button" id="account-tab-business" role="tab" tabindex="-1" aria-selected="false" aria-controls="account-panel-business" data-account-tab="business">{{ ui_t('Bisnis') }}</button>
+    <button class="account-tab" type="button" id="account-tab-security" role="tab" tabindex="-1" aria-selected="false" aria-controls="account-panel-security" data-account-tab="security">{{ ui_t('Keamanan') }}</button>
   </div>
 
-  <section id="account-panel-personal" class="account-panel" data-account-panel="personal" role="tabpanel">
+  <section id="account-panel-personal" class="account-panel" data-account-panel="personal" role="tabpanel" aria-labelledby="account-tab-personal">
     <div class="card account-section">
       <div class="account-section-head">
         <div>
@@ -516,7 +516,7 @@
     </div>
   </section>
 
-  <section id="account-panel-business" class="account-panel" data-account-panel="business" role="tabpanel" hidden>
+  <section id="account-panel-business" class="account-panel" data-account-panel="business" role="tabpanel" aria-labelledby="account-tab-business" hidden>
     <div class="card account-section">
       <div class="account-section-head">
         <div>
@@ -638,7 +638,7 @@
     </div>
   </section>
 
-  <section id="account-panel-security" class="account-panel" data-account-panel="security" role="tabpanel" hidden>
+  <section id="account-panel-security" class="account-panel" data-account-panel="security" role="tabpanel" aria-labelledby="account-tab-security" hidden>
     <div class="card account-section">
       <div class="account-section-head">
         <div>
@@ -717,6 +717,7 @@
       const active = tab.dataset.accountTab === name;
       tab.classList.toggle('active', active);
       tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      tab.tabIndex = active ? 0 : -1;
     });
     panels.forEach(function(panel){
       panel.hidden = panel.dataset.accountPanel !== name;
@@ -728,6 +729,18 @@
 
   tabs.forEach(function(tab){
     tab.addEventListener('click', function(){ showTab(tab.dataset.accountTab, true); });
+    tab.addEventListener('keydown', function(event){
+      const index = tabs.indexOf(tab);
+      let next;
+      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      showTab(tabs[next].dataset.accountTab, true);
+      tabs[next].focus();
+    });
   });
 
   const serverSecurityOpen = {{ 'true' if password_open else 'false' }};

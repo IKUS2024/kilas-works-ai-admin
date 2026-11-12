@@ -33,7 +33,7 @@
         <div class="auth-field">
           <span class="auth-field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
           <input id="auth-password" type="password" name="password" autocomplete="current-password" placeholder="{{ ui_t('Masukkan password kamu') }}" required>
-          <button class="password-toggle" type="button" aria-label="{{ ui_t('Tampilkan password') }}" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg></button>
+          <button class="password-toggle" type="button" data-hide-label="{{ ui_t('Sembunyikan password') }}" data-show-label="{{ ui_t('Tampilkan password') }}" aria-label="{{ ui_t('Tampilkan password') }}" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg></button>
         </div>
 
         <button class="btn auth-submit" type="submit">{{ ui_t('Login') }} </button>
@@ -71,7 +71,7 @@
     var show=input.type==='password';
     input.type=show?'text':'password';
     btn.setAttribute('aria-pressed',show?'true':'false');
-    btn.setAttribute('aria-label',show?'Sembunyikan password':window.KilasUI.t('Tampilkan password'));
+    btn.setAttribute('aria-label',show?btn.dataset.hideLabel:btn.dataset.showLabel);
   });
 })();
 </script>

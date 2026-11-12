@@ -1,0 +1,29 @@
+name: Account Accessibility QA
+on:
+  pull_request:
+    paths: ['client-hub/templates/account.html', 'client-hub/templates/login.html', 'client-hub/tests/test_account_accessibility*', '.github/workflows/account-accessibility-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: npm install --prefix /tmp/account-dom jsdom@26
+      - run: node --test client-hub/tests/test_account_accessibility_dom.cjs
+        env:
+          JSDOM_PATH: /tmp/account-dom/node_modules/jsdom
+      - run: python -B client-hub/tests/test_account_accessibility_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: account-accessibility-qa
+          path: /tmp/account-ui-qa
