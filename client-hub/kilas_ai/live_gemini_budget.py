@@ -9,7 +9,7 @@ import os
 import re
 import secrets
 from datetime import datetime, timezone, timedelta
-from . import audio_transcription_budget as ledger, usage
+from . import audio_transcription_budget as ledger, usage, access_pass
 from .autonomous_store import transaction
 
 MODEL = 'gemini-3.5-live-translate-preview'
@@ -162,6 +162,57 @@ def ready(owner):
     return allowed(owner)
 
 
+def _paid_spend(conn):
+    """Exact per-operation paid grants never consume the unchanged Free pool.
+
+    The marker is written only inside the server-owned admission transaction.
+    Retain the grant after term expiry and preserve all original supplier costs.
+    Ambiguous, duplicate or mismatched rows fail closed instead of freeing funds.
+    """
+    from decimal import Decimal, DecimalException
+    rows = usage._rows(conn,
+        "SELECT o.user_id,o.operation_key,o.campaign,o.status,o.charge_micro,"
+        "u.operation_type,u.status,u.quota_source,u.customer_charge_origin,u.estimated_cost_usd "
+        "FROM kilas_vo_stt_operations o JOIN kilas_ai_usage u "
+        "ON o.user_id=u.user_id AND o.operation_key=u.operation_key "
+        "WHERE o.campaign LIKE ? AND o.charge_micro>0 "
+        "AND u.customer_charge_origin IN ('access-pass:translator','access-pass:call')", ('gml-%',))
+    grouped = {}
+    for row in rows:grouped.setdefault(tuple(row[:2]), []).append(row)
+    excluded = 0
+    for values in grouped.values():
+        if len(values) != 1:continue
+        owner,key,campaign,state,charge,kind,status,source,origin,cost=values[0]
+        translator = (origin=='access-pass:translator' and kind=='LIVE_TRANSLATOR'
+                      and campaign.startswith('gml-usage-v1-')
+                      and re.fullmatch(r'live-[a-f0-9]{32}-gm(?:2:parent)?',key))
+        call = (origin=='access-pass:call' and kind=='AI_CALL'
+                and campaign.startswith('gml-call-') and re.fullmatch(r'live-[a-f0-9]{32}-gc',key))
+        if not (translator or call) or source!='BASE':continue
+        if state not in ('RESERVED','DISPATCHED','COMPLETED','UNKNOWN'):continue
+        if status not in ('PENDING','COMPLETE'):continue
+        try:
+            amount=Decimal(str(cost))*1000000
+            if amount.is_finite() and amount==charge:excluded+=charge
+        except (DecimalException,ValueError,TypeError):pass
+    return excluded
+
+
+def _pass_record(conn,owner,key):
+    return usage._query(conn,"SELECT status FROM kilas_ai_usage WHERE user_id=? AND operation_key=? "
+                        "AND operation_type='LIVE_TRANSLATOR' AND customer_charge_origin='access-pass:translator'",
+                        (owner,key),one=True)
+
+
+def _pass_settle(conn,owner,key,charge,dispatched):
+    from decimal import Decimal
+    usage._query(conn,"UPDATE kilas_ai_usage SET status=?,estimated_cost_usd=?,provider=?,model=? "
+        "WHERE user_id=? AND operation_key=? AND operation_type='LIVE_TRANSLATOR' "
+        "AND customer_charge_origin='access-pass:translator' AND status IN ('PENDING','COMPLETE')",
+        ('COMPLETE' if dispatched else 'FAILED',str(Decimal(charge)/Decimal(1000000)),
+         'google' if dispatched else None,MODEL if dispatched else None,owner,key))
+
+
 def _spend(conn, config):
     # Every historical dispatch remains charged. Only Translator trial accounting
     # excludes Call envelopes proven funded separately by the same account/key.
@@ -170,6 +221,7 @@ def _spend(conn, config):
     total = int(usage._query(conn,
         'SELECT COALESCE(SUM(charge_micro),0) FROM kilas_vo_stt_operations WHERE campaign '+('LIKE ?' if lifetime else '=?'),
         ('gml-%' if lifetime else config['id'],), one=True)[0])
+    if lifetime:total -= _paid_spend(conn)
     if not lifetime or config['id'].startswith('gml-call-'):
         return total
     candidates = usage._rows(conn,
@@ -185,7 +237,7 @@ def _spend(conn, config):
             "FROM kilas_ai_usage u JOIN kilas_vo_stt_operations o "
             "ON o.user_id=u.user_id AND o.operation_key=u.operation_key "
             "WHERE o.campaign LIKE ? AND o.charge_micro>0 AND o.dispatched_at IS NOT NULL "
-            "AND o.status IN ('DISPATCHED','COMPLETED','UNKNOWN')", ('gml-call-%',)):
+            "AND o.status IN ('DISPATCHED','COMPLETED','UNKNOWN') AND COALESCE(u.customer_charge_origin,'')<>'access-pass:call'", ('gml-call-%',)):
         accounts.setdefault(tuple(record[:2]), []).append(record[2:])
     excluded = 0
     for owner, key, charge in candidates:
@@ -280,15 +332,16 @@ def status(owner, *, streams=1):
         charged = _spend(conn, config)
         remaining = max(0, config['global_micro']-charged)
         active = _preview_active(conn,owner)
+        paid = config['mode']=='owner_lifetime' and access_pass.active(owner,conn)
     reserve = config['reserve']*streams
-    reason = 'already_processing' if active else 'budget_limit' if remaining < reserve else None
+    reason = 'already_processing' if active else 'budget_limit' if not paid and remaining < reserve else None
     return {'available': reason is None, 'reason': reason, 'policy_mode': config['mode'], 'audience': config['audience'],
             'valuation_mode': config.get('valuation_mode'), 'total_idr': config.get('total_idr'),
             'guard_idr': config.get('guard_idr'), 'idr_per_usd': config.get('idr_per_usd'),
             'cap_micro_usd': config['global_micro'], 'charged_micro_usd': charged,
             'remaining_micro_usd': remaining, 'reserve_micro_usd': reserve,
             'remaining_leases': remaining//reserve, 'lease_ms': LEASE_MS, 'active': active,
-            'streams': streams}
+            'streams': streams, 'funding':'subscription' if paid else 'trial'}
 
 
 def claim(owner, ident, key, *, streams=1):
@@ -343,8 +396,9 @@ def claim(owner, ident, key, *, streams=1):
                     (owner, 'live-%', cutoff), one=True)[0]
             if attempts+(streams if config['mode'] == 'qa' else 1) > maximum:
                 raise ledger.BudgetError('attempt_limit', 429)
+        paid = config['mode']=='owner_lifetime' and access_pass.active(owner,conn,now)
         spent = _spend(conn, config)
-        if spent + reserve > config['global_micro']:
+        if not paid and spent + reserve > config['global_micro']:
             raise ledger.BudgetError('budget_limit', 429)
         lease = secrets.token_hex(32)
         usage._query(conn, "INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at) VALUES (?,?,?,?,'RESERVED',?,?,?,?)",
@@ -356,6 +410,11 @@ def claim(owner, ident, key, *, streams=1):
             usage._query(conn, "INSERT INTO kilas_vo_stt_operations(user_id,operation_key,campaign,fingerprint,status,charge_micro,duration_ms,lease_digest,created_at) VALUES (?,?,?,?,'RESERVED',0,?,?,?)",
                          (owner, key+'-gm2:slot', config['id'], fingerprint,
                           LEASE_MS, ledger._hash(lease), now.isoformat()))
+        if paid:
+            from decimal import Decimal
+            usage._query(conn,"INSERT INTO kilas_ai_usage(user_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,created_at,customer_charge_origin) "
+                "VALUES (?,?,'LIVE_TRANSLATOR','SMART','PENDING','BASE',?,?,'access-pass:translator')",
+                (owner,operation,str(Decimal(reserve)/Decimal(1000000)),now.isoformat()))
         return ledger.Reservation(owner, operation, lease)
 
 
@@ -373,6 +432,8 @@ def dispatch(capability):
                 or row[6] != LEASE_MS):
             raise ledger.BudgetError('invalid_reservation')
         rows = _group_rows(conn, capability, row, streams)
+        if _pass_record(conn,capability.owner,capability.key) and not access_pass.active(capability.owner,conn):
+            raise ledger.BudgetError('budget_limit',402)
         admissions = [usage._query(conn, 'SELECT created_at FROM kilas_vo_stt_operations WHERE id=?', (item[0],), one=True)[0] for item in rows]
         if any(value != admissions[0] for value in admissions):
             raise ledger.BudgetError('invalid_reservation')
@@ -386,6 +447,7 @@ def dispatch(capability):
         for item in rows:
             usage._query(conn, "UPDATE kilas_vo_stt_operations SET status='DISPATCHED',dispatched_at=? WHERE id=?",
                          (datetime.now(timezone.utc).isoformat(), item[0]))
+        _pass_settle(conn,capability.owner,capability.key,row[4],True)
 
 
 def finish(capability, success, *, verified_usage=None):
@@ -421,4 +483,5 @@ def finish(capability, success, *, verified_usage=None):
         for item in rows:
             usage._query(conn, 'UPDATE kilas_vo_stt_operations SET status=?,charge_micro=?,finished_at=? WHERE id=?',
                          (status, charge if item is rows[0] else 0, datetime.now(timezone.utc).isoformat(), item[0]))
+        _pass_settle(conn,capability.owner,capability.key,charge,dispatched)
         return success and dispatched

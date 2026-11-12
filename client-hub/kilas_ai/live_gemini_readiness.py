@@ -1,6 +1,6 @@
 """Read-only native Start gates for worker diagnostics; never an admission grant."""
 from . import audio_store, live_gemini as native, live_gemini_budget as budget, live_gemini_pair as pair
-from . import live_translator as live, live_translator_store as sessions, routes, usage
+from . import live_translator as live, live_translator_store as sessions, routes, usage, access_pass
 
 
 SAFE_REASONS = frozenset({
@@ -67,7 +67,7 @@ def report(owner=None):
             reserved, active_jobs = usage._query(conn,
                 "SELECT COALESCE(SUM(reserved_seconds),0),COUNT(*) FROM kilas_audio_jobs "
                 "WHERE user_id=? AND status IN ('QUEUED','PROCESSING')", (owner,), one=True)
-            exempt = bool(usage._qa_quota_exempt(conn, owner, usage._now()))
+            exempt = bool(usage._qa_quota_exempt(conn, owner, usage._now()) or access_pass.active(owner,conn))
         finally:
             conn.close()
         result['audio_exempt'] = exempt

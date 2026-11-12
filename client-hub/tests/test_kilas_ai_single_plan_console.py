@@ -45,29 +45,28 @@ class SinglePlanConsoleTests(unittest.TestCase):
         client.set_cookie('kilas_language', 'id')
         return client
 
-    def test_subscription_preview_is_explicitly_inert(self):
+    def test_subscription_checkout_is_active_and_get_is_read_only(self):
         client = self.client_for(self.other)
+        before = db.query_all('SELECT * FROM kilas_ai_invoices')
         body = client.get('/kilas-ai/usage').get_data(as_text=True)
-        for text in ('Kuota, pembelian &amp; potongan kredit belum aktif', '70 pesan / hari', 'Rp99.000', '2.000 kredit', 'tanpa kedaluwarsa', '40', '125', '80 kredit / 1.000 karakter', '≈87 kredit / menit', '≈1 kredit / struk', 'Pratinjau saja · Jangan transfer', '10180016000684', 'Belum menerima pembayaran', 'Penerjemah', 'Narasi suara', 'Pindai struk'):
+        for text in ('Rp99.000', '/ 30 hari', 'action="/kilas-ai/checkout"', 'admin menyetujui'):
             self.assertIn(text, body)
-        for forbidden in ('Kuota dapat berubah', '<form', 'type="file"', 'action="/kilas-ai/checkout"', 'action="/kilas-ai/topups"'):
-            self.assertNotIn(forbidden, body.split('<main', 1)[1].split('</main>', 1)[0])
-        self.assertNotIn('subscription-existing', body)
-        self.assertNotIn('href="/kilas-ai/usage?view=legacy"', body)
+        for forbidden in ('Kuota rancangan belum aktif', '2000 kredit', 'Pratinjau saja', 'type="file"'):
+            self.assertNotIn(forbidden, body.split('<main',1)[1])
+        self.assertEqual(before, db.query_all('SELECT * FROM kilas_ai_invoices'))
         legacy = client.get('/kilas-ai/usage?view=legacy').get_data(as_text=True)
-        self.assertIn('Rp99.000', legacy)
         self.assertIn('action="/kilas-ai/checkout"', legacy)
 
     def test_customer_offer_and_amount_validation(self):
         client = self.client_for(self.owner)
         preview = client.get("/kilas-ai/usage").get_data(as_text=True)
-        self.assertIn("Kredit &amp; Penggunaan", preview)
+        self.assertIn("Credit &amp; Usage" if "Credit &amp; Usage" in preview else "Credit & Usage", preview)
         self.assertNotIn('view=legacy', preview)
-        self.assertIn('disabled>Kirim bukti', preview)
-        self.assertNotIn('action="/kilas-ai/checkout"', preview)
+        self.assertNotIn('disabled>Kirim bukti', preview)
+        self.assertIn('action="/kilas-ai/checkout"', preview)
         body = client.get("/kilas-ai/usage?view=legacy").get_data(as_text=True)
         self.assertIn("Rp99.000", body)
-        self.assertIn("Kapasitas Premium", body)
+        self.assertIn("Translator, Voice Over dan AI Call", body)
         self.assertEqual(body.count('action="/kilas-ai/checkout"'), 1)
         for forbidden in ("Penggunaan periode ini", "Pilih Plus", "Pilih Pro",
                           "Pilih Max", "GPT-6", "provider cost", "Chat hari ini"):
@@ -142,8 +141,7 @@ class SinglePlanConsoleTests(unittest.TestCase):
                     self.assertNotIn('subscription-existing', body)
                     self.assertNotIn('href="/kilas-ai/usage?view=legacy"', body)
                     self.assertIn('subscription-footer', body)
-                    self.assertIn('10180016000684', body)
-                    self.assertIn('KILAS TEKNOLOGI KREATIF', body)
+                    self.assertIn('action="/kilas-ai/checkout"', body)
                 self.assertEqual(before, db.query_all('SELECT * FROM kilas_ai_subscriptions'))
         db.execute('DELETE FROM kilas_ai_subscriptions WHERE user_id=?', (self.other,))
 

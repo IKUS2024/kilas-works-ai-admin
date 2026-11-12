@@ -38,7 +38,7 @@ def invoice_page(invoice_id):
         abort(404)
     return render_template("kilas_ai/invoice.html", invoice=item,
                            payment=billing.proof_status(session["user_id"], invoice_id),
-                           bank=payment_service.BANK_DETAILS)
+                           bank=payment_service.BANK_DETAILS, payment_labels=billing.STATUS_LABELS, error=None)
 
 
 @ai_bp.post("/invoices/<int:invoice_id>/proof")
@@ -48,7 +48,9 @@ def proof_upload(invoice_id):
     try:
         billing.submit_proof(session["user_id"], invoice_id, request.files.get("proof"))
     except billing.BillingError as error:
-        return {"error": str(error)}, 400
+        return render_template("kilas_ai/invoice.html", invoice=billing.invoice(session["user_id"], invoice_id),
+                               payment=billing.proof_status(session["user_id"], invoice_id),
+                               bank=payment_service.BANK_DETAILS, payment_labels=billing.STATUS_LABELS, error=str(error)), 400
     return redirect(url_for("kilas_ai.invoice_page", invoice_id=invoice_id), code=303)
 
 

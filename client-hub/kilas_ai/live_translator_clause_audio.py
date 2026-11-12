@@ -1,3 +1,4 @@
+from . import access_pass
 """One metered audio job per input lease, with incremental clause reservations.
 
 The existing five-job/minute admission and one active audio job/account remain
@@ -43,7 +44,9 @@ class Audio:
             child=usage._query(conn,'SELECT status FROM kilas_live_translator_turns WHERE session_id=? AND operation_key=?',(s.ident,key),one=True)
             row=usage._query(conn,'SELECT status,actual_ms,reserved_seconds FROM kilas_audio_jobs WHERE id=? AND user_id=?',(self.job,s.owner),one=True)
             if not parent or parent[0]!='PROCESSING' or not child or child[0]!='PROCESSING' or not row or row[0]!='PROCESSING':raise store.AudioError('Ucapan dibatalkan.','turn_cancelled',409)
-            exempt=free_test.sponsored_audio(conn,s.owner,self.job) or usage._qa_quota_exempt(conn,s.owner,usage._now())
+            if access_pass.audio_granted(conn,s.owner,self.job) and not access_pass.active(s.owner,conn):
+                raise store.AudioError('Masa aktif paket berakhir. Perpanjang untuk melanjutkan.','subscription_expired',402)
+            exempt=access_pass.audio_granted(conn,s.owner,self.job) or free_test.sponsored_audio(conn,s.owner,self.job) or usage._qa_quota_exempt(conn,s.owner,usage._now())
             if not exempt and store._balance(conn,s.owner)<reserve:raise store.AudioError('Saldo audio tidak cukup.','insufficient_balance',402)
             # The previous clause has settled. Retain known incurred duration
             # plus this possible dispatch in the durable safety allowance.
@@ -56,7 +59,7 @@ class Audio:
             row=usage._query(conn,'SELECT status,actual_ms,seconds_charged,reserved_seconds,initial_reserved_seconds,provider_id FROM kilas_audio_jobs WHERE id=? AND user_id=?',(self.job,s.owner),one=True)
             if row and row[5]=='clauses-v1:settled:'+key:return False
             if not row or row[0]!='PROCESSING' or row[5]!='clauses-v1:reserved:'+key:raise store.AudioError('Audio dibatalkan.','turn_cancelled',409)
-            total=row[1]+duration;exempt=free_test.sponsored_audio(conn,s.owner,self.job) or usage._qa_quota_exempt(conn,s.owner,usage._now())
+            total=row[1]+duration;exempt=access_pass.audio_granted(conn,s.owner,self.job) or free_test.sponsored_audio(conn,s.owner,self.job) or usage._qa_quota_exempt(conn,s.owner,usage._now())
             charge=0 if exempt else math.ceil(total/1000);delta=charge-row[2]
             if math.ceil(total/1000)>row[4] or delta<0 or (not exempt and (delta>row[3] or delta>store._balance(conn,s.owner))):raise store.AudioError('Durasi melebihi cadangan audio.','output_exceeds_reservation',402)
             if delta:usage._query(conn,'UPDATE kilas_audio_balances SET seconds=seconds-? WHERE user_id=?',(delta,s.owner))

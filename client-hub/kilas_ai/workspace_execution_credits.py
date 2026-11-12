@@ -1,7 +1,7 @@
 """Execution costs use existing premium capacity/top-up units, not new prices."""
 from datetime import timedelta
 from decimal import Decimal
-from . import usage,capacity,topups,workspace_execution_access as access
+from . import usage,capacity,topups,access_pass,workspace_execution_access as access
 
 OPERATION='CODE_EXECUTION'
 
@@ -25,11 +25,11 @@ def reserve(conn,user_id,key,micro):
     cycle=usage._period(plan,start,end,'CHAT',now)[0]
     predicted=Decimal(micro)/Decimal(1000000)
     source='BASE'
-    if capacity.spent(conn,user_id,cycle,now)+predicted>capacity.allowance():
+    if not access_pass.active(user_id,conn,now) and capacity.spent(conn,user_id,cycle,now)+predicted>capacity.allowance():
         try:topups.reserve(conn,user_id,key,OPERATION,'SMART',now,forecast_micro=micro)
         except topups.TopupError:raise usage.UsageLimit('Kapasitas Premium belum cukup untuk permintaan ini. Tambah kapasitas atau lanjutkan Chat biasa.') from None
         source='TOPUP'
-    usage._query(conn,"INSERT INTO kilas_ai_usage(user_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,created_at) VALUES (?,?,?,'SMART','PENDING',?,?,?)",(user_id,key,OPERATION,source,str(predicted),now.isoformat()))
+    usage._query(conn,"INSERT INTO kilas_ai_usage(user_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,created_at,customer_charge_origin) VALUES (?,?,?,'SMART','PENDING',?,?,?,?)",(user_id,key,OPERATION,source,str(predicted),now.isoformat(),'access-pass:execution' if access_pass.active(user_id,conn,now) else None))
 
 
 def settle(conn,user_id,key,micro,success):
