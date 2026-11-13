@@ -12,10 +12,12 @@
 <p role="status"><strong>{{ payment_labels.get(invoice.status, invoice.status) }}</strong></p>
 {% if error %}<p class="access-error" role="alert">{{ error }}</p>{% endif %}
 {% if invoice.status in ('PAYMENT_PENDING','REJECTED') %}
+{% if bank %}
 <h2>Transfer bank</h2><div class="subscription-bank"><strong>{{ bank.bank_name }}</strong><dl><dt>Nomor rekening</dt><dd translate="no">{{ bank.account_number }}</dd><dt>Atas nama</dt><dd translate="no">{{ bank.account_holder }}</dd></dl></div>
 <p>Transfer sesuai total di atas, lalu unggah bukti. Masa aktif dimulai setelah admin menyetujui. Jika paket masih aktif, 30 hari ditambahkan ke masa aktif yang tersisa.</p>
 {% if payment and payment.admin_note %}<p class="access-error">Catatan admin: {{ payment.admin_note }}</p>{% endif %}
 <form method="post" enctype="multipart/form-data" action="{{ url_for('kilas_ai.proof_upload',invoice_id=invoice.id) }}" data-single-submit><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="proof">Bukti transfer</label><p id="proof-help">JPG, PNG, WebP atau PDF, maksimal 5 MB. Bukti hanya dapat dilihat admin yang berwenang.</p><input id="proof" name="proof" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" aria-describedby="proof-help" required><button class="subscription-button" type="submit">Kirim bukti transfer</button></form>
+{% else %}<p class="access-error" role="alert">Pembayaran belum tersedia. Silakan hubungi admin sebelum melakukan transfer.</p>{% endif %}
 {% elif invoice.status == 'UNDER_REVIEW' %}<p>Bukti sudah diterima dan menunggu persetujuan admin. Mengunggah bukti belum mengaktifkan paket.</p><a class="subscription-back" href="{{ url_for('kilas_ai.invoice_page',invoice_id=invoice.id) }}">Periksa status pembayaran</a>
 {% elif invoice.status == 'VERIFIED' %}<p>Pembayaran disetujui. Lihat tanggal masa aktif terbaru di Credit & Usage.</p><a class="subscription-button" href="{{ url_for('kilas_ai.usage_page') }}">Lihat masa aktif</a>
 {% else %}<p>Tagihan ini tidak dapat diproses. Kembali ke Credit & Usage untuk melihat tagihan terbaru.</p>{% endif %}

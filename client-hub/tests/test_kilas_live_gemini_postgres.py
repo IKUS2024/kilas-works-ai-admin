@@ -32,13 +32,15 @@ def main():
         return dict(values,options=values['options']+' -c search_path='+isolated)
     try:
         with patch.object(db,'_postgres_connect_kwargs',side_effect=options):
-            excluded=('0083_','0084_','0085_','0086_','0090_','0091_','0092_','0095_','0098_','0110_')
+            excluded=('0083_','0084_','0085_','0086_','0090_','0091_','0092_','0095_','0098_','0110_','0115_')
             with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if not m[0].startswith(excluded)]):
                 db.init_schema()
             for name in (audio_schema.NAME,'0084_kilas_personal_voice','0085_kilas_voice_preview','0086_kilas_voice_library',
                          '0090_kilas_audio_script_edit','0091_kilas_voice_script_transcription','0092_kilas_live_translator',
                          '0095_kilas_free_test','0098_kilas_live_session_output','0110_kilas_voice_alternate'):
                 audio_schema.apply_release(name)
+            from kilas_ai import chat_models_schema
+            chat_models_schema.apply_release('0115_kilas_paid_audio_grants')
             owner = repo.create_user('native-pg@example.test','unused')
             db.execute('INSERT INTO kilas_audio_balances(user_id,seconds) VALUES (?,?)',(owner,300))
             config={'GEMINI_API_KEY':'synthetic-only', 'KILAS_LIVE_GEMINI_ENABLED':'true',

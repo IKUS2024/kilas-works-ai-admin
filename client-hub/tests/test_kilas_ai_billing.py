@@ -52,8 +52,12 @@ class BillingTests(unittest.TestCase):
         self.assertEqual(other.get(f"/kilas-ai/invoices/{item['id']}").status_code, 404)
         self.assertEqual(owner.get(f"/kilas-ai/invoices/{item['id']}").status_code, 200)
         self.assertEqual(owner.get("/admin/kilas-ai/payments").status_code, 404)
-        with patch("payment_service.BANK_DETAILS", {"bank_name":"Test Bank", "account_number":"0000000000", "account_holder":"Synthetic QA"}):
+        with patch("kilas_ai.billing_routes.SUBSCRIPTION_BANK", {"bank_name":"Test Bank", "account_number":"0000000000", "account_holder":"Synthetic QA"}):
             self.assertIn(b"0000000000", owner.get(f"/kilas-ai/invoices/{item['id']}").data)
+        with patch("kilas_ai.billing_routes.SUBSCRIPTION_BANK", {"bank_name":"", "account_number":"", "account_holder":""}):
+            page = owner.get(f"/kilas-ai/invoices/{item['id']}").data
+            self.assertIn(b"Pembayaran belum tersedia", page)
+            self.assertNotIn(b'name="proof"', page)
         self.assertEqual(billing.create_invoice(self.owner, "PLUS"), item["id"])
         bad = owner.post(f"/kilas-ai/invoices/{item['id']}/proof", data={"csrf_token": "billing-csrf",
             "proof": (io.BytesIO(b"<script>bad</script>"), "proof.pdf", "application/pdf")})

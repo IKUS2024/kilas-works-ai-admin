@@ -7,8 +7,8 @@ import test_access_pass as f
 
 def main():
     # Synthetic invoice destination keeps public QA screenshots free of real account details.
-    import payment_service
-    payment_service.BANK_DETAILS={'bank_name':'Test Bank','account_number':'0000000000','account_holder':'Synthetic QA'}
+    from kilas_ai import billing_routes
+    billing_routes.SUBSCRIPTION_BANK={'bank_name':'Test Bank','account_number':'0000000000','account_holder':'Synthetic QA'}
     fix=f.AccessPassTests();fix.setUp()
     server=make_server('127.0.0.1',0,f.app.app,threaded=True)
     threading.Thread(target=server.serve_forever,daemon=True).start()
