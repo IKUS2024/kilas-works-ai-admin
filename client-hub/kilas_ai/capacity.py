@@ -84,7 +84,7 @@ def spent(conn, user_id, start, now):
 
 def summary(user_id):
     """Only safe public state leaves this module, never raw costs/models/QA grants."""
-    from . import usage, topups
+    from . import usage, topups, access_pass
     conn = usage._connect()
     try:
         now = usage._now()
@@ -92,7 +92,7 @@ def summary(user_id):
         from . import chat_offering
         text_test,image_test=chat_offering.states(user_id,conn)
         sponsored=text_test or image_test
-        exempt = sponsored or usage._qa_quota_exempt(conn, user_id, now)
+        exempt = access_pass.active(user_id,conn,now) or sponsored or usage._qa_quota_exempt(conn, user_id, now)
         remaining = Decimal(0)
         if plan != 'FREE':
             cycle = usage._period(plan, start, end, 'CHAT', now)[0]

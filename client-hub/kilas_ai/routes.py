@@ -91,13 +91,16 @@ def home(initial_brief=None):
 
 @ai_bp.get("/usage")
 def usage_page():
-    from . import billing, topups, usage, capacity, audio_store
+    from . import billing, topups, usage, capacity, audio_store, chat_offering, free_test
     import db
     previous = db.query_one('SELECT period_end FROM kilas_ai_subscriptions WHERE user_id=?', (session['user_id'],))
     expired = bool(previous and previous['period_end'] and usage._as_utc(previous['period_end']) <= usage._now())
-    template = "kilas_ai/usage.html" if request.args.get('view') == 'legacy' else "kilas_ai/credits_usage_preview.html"
+    template = "kilas_ai/access_usage.html"
     return render_template(template, subscription=usage.effective_plan(session["user_id"]), subscription_expired=expired,
                            capacity=capacity.summary(session["user_id"]), view='settings',
+                           payment_labels=billing.STATUS_LABELS,
+                           free_limits=usage.PLANS['FREE'], free_sponsored=chat_offering.states(session['user_id']),
+                           free_campaign=free_test.eligible(session['user_id']),
                            audio_balance=audio_store.balance(session["user_id"]), audio_packs=audio_store.PACKS,
                            invoices=billing.owner_invoices(session["user_id"]),
                            topup_orders=topups.owner_orders(session["user_id"]))

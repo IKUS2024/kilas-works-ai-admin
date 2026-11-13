@@ -377,7 +377,7 @@ class ExperimentTests(unittest.TestCase):
             names=[args.args[0] if args.args else '0102_kilas_chat_models' for args in release.call_args_list]
             self.assertEqual(names,['0102_kilas_chat_models','0103_kilas_image_models','0105_kilas_workspace_streams',
                 '0106_kilas_workspace_execution','0111_kilas_chat_recovery','0112_kilas_chat_hardening',
-                '0113_kilas_chat_sponsorship','0114_kilas_vision_eval'])
+                '0113_kilas_chat_sponsorship','0114_kilas_vision_eval','0115_kilas_paid_audio_grants'])
             release.reset_mock()
             with patch.dict(os.environ,{'KILAS_AI_ENABLED':'false'}):
                 prepare_chat_models(SimpleNamespace(first_registration=True,app=SimpleNamespace(testing=True)))

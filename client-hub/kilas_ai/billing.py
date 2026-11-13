@@ -7,6 +7,10 @@ import file_utils
 from . import usage
 
 
+STATUS_LABELS = {'PAYMENT_PENDING': 'Menunggu bukti transfer', 'UNDER_REVIEW': 'Menunggu persetujuan admin',
+                 'VERIFIED': 'Disetujui', 'REJECTED': 'Ditolak · unggah bukti kembali'}
+
+
 class BillingError(ValueError):
     pass
 
@@ -129,11 +133,13 @@ def review(payment_id, admin_id, decision, note=""):
         user_id = seed[0]
         _lock_user(conn, user_id)
         suffix = " FOR UPDATE" if db.BACKEND == "postgres" else ""
-        payment = usage._query(conn, "SELECT invoice_id,status FROM kilas_ai_payments WHERE id=? AND user_id=?" + suffix,
+        payment = usage._query(conn, "SELECT invoice_id,status,length(proof_content) FROM kilas_ai_payments WHERE id=? AND user_id=?" + suffix,
                                (payment_id, user_id), one=True)
         if payment[1] == decision:
             conn.commit()
             return True
+        if not payment[2]:
+            raise BillingError("Bukti transfer belum tersedia. Unggah bukti sebelum persetujuan.")
         if payment[1] != "UNDER_REVIEW":
             raise BillingError("Pembayaran ini sudah diputuskan.")
         invoice_row = usage._query(conn, "SELECT plan,status FROM kilas_ai_invoices WHERE id=? AND user_id=?" + suffix,
@@ -148,7 +154,7 @@ def review(payment_id, admin_id, decision, note=""):
         if decision == "VERIFIED":
             current = usage._query(conn, "SELECT plan,status,period_start,period_end FROM kilas_ai_subscriptions "
                                    "WHERE user_id=?" + suffix, (user_id,), one=True)
-            if current and current[0] == invoice_row[0] and current[1] == "ACTIVE" and usage._as_utc(current[3]) > now:
+            if current and current[0] in ("PLUS", "PRO", "MAX") and current[1] == "ACTIVE" and usage._as_utc(current[3]) > now:
                 start = usage._as_utc(current[2])
                 end = usage._as_utc(current[3]) + timedelta(days=30)
             else:

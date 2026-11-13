@@ -1,12 +1,12 @@
 """Video uses existing paid Premium capacity; no separate prices or free model calls."""
-from . import usage, capacity, topups
+from . import usage, capacity, topups, access_pass
 
 
 def state(user):
     conn=usage._connect()
     try:
         now=usage._now()
-        if usage._qa_quota_exempt(conn,user,now):return {'allowed':True,'reason':''}
+        if access_pass.active(user,conn,now) or usage._qa_quota_exempt(conn,user,now):return {'allowed':True,'reason':''}
         plan,start,end=usage._plan(conn,user,now)
         if plan=='FREE':return {'allowed':False,'reason':'missing','message':'Kuota Kilas Video belum tersedia','cta':'Lihat Paket'}
         period=usage._period(plan,start,end,'CHAT',now)[0]

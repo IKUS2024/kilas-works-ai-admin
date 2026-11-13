@@ -1,3 +1,4 @@
+from . import access_pass
 """Committed sentence output, one job, cumulative settlement; no input STT change."""
 import io
 import json
@@ -120,7 +121,7 @@ def commit_clip(owner,job,index,raw,ms=None):
         total_ms=int(row[2])+ms
         if size+8+len(raw)>MAX_BYTES:raise store.AudioError('Audio melebihi batas.','stream_limit',413)
         if total_ms>data['ceiling_ms']:raise store.AudioError('Durasi melebihi cadangan audio.','output_exceeds_reservation',402)
-        exempt=usage._qa_quota_exempt(conn,owner,usage._now())
+        exempt=access_pass.audio_granted(conn,owner,job) or usage._qa_quota_exempt(conn,owner,usage._now())
         charge=0 if exempt else math.ceil(total_ms/1000)
         delta=charge-int(row[3])
         if delta<0 or (not exempt and (delta>int(row[4]) or delta>store._balance(conn,owner))):raise store.AudioError('Durasi melebihi cadangan audio.','output_exceeds_reservation',402)
@@ -183,7 +184,7 @@ def complete(owner,job,check=lambda:None):
         if not row or row[0]!='PROCESSING' or not data or len(data['clips'])!=data['total']:raise store.AudioError('Audio belum lengkap.','stream_invalid',409)
         if row[1]!=output['provider_id']:raise store.AudioError('Audio berubah.','stream_invalid',409)
         ledger=usage._query(conn,'SELECT seconds_charged,reserved_seconds FROM kilas_audio_jobs WHERE id=? AND user_id=?',(job,owner),one=True)
-        exempt=usage._qa_quota_exempt(conn,owner,usage._now());charge=0 if exempt else math.ceil(final_ms/1000);delta=charge-int(ledger[0])
+        exempt=access_pass.audio_granted(conn,owner,job) or usage._qa_quota_exempt(conn,owner,usage._now());charge=0 if exempt else math.ceil(final_ms/1000);delta=charge-int(ledger[0])
         if delta<0 or (not exempt and (delta>int(ledger[1]) or delta>store._balance(conn,owner))):raise store.AudioError('Durasi melebihi cadangan audio.','output_exceeds_reservation',402)
         if delta:usage._query(conn,'UPDATE kilas_audio_balances SET seconds=seconds-? WHERE user_id=? AND seconds>=?',(delta,owner,delta))
         # Reuse completed duration/charges; never debit the full job a second time.

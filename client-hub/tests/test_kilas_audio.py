@@ -684,7 +684,9 @@ class AudioTests(unittest.TestCase):
         now=usage._now();f.db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?)",(self.user,now.isoformat(),(now+timedelta(days=30)).isoformat()))
         self.assertTrue(video_entitlement.state(self.user)['allowed'])
         with patch('kilas_ai.capacity.spent',return_value=100):
-            gate=video_entitlement.state(self.user);self.assertFalse(gate['allowed']);self.assertEqual(gate['reason'],'exhausted')
+            gate=video_entitlement.state(self.user);self.assertTrue(gate['allowed'])
+        f.db.execute("UPDATE kilas_ai_subscriptions SET period_end=? WHERE user_id=?",((now-timedelta(seconds=1)).isoformat(),self.user))
+        self.assertFalse(video_entitlement.state(self.user)['allowed'])
 
 
 if __name__=='__main__':unittest.main()

@@ -326,6 +326,7 @@ MIGRATIONS = [
     ("0112_kilas_chat_hardening_sqlite.sql", "0112_kilas_chat_hardening_postgres.sql"),
     ("0113_kilas_chat_sponsorship_sqlite.sql", "0113_kilas_chat_sponsorship_postgres.sql"),
     ("0114_kilas_vision_eval_sqlite.sql", "0114_kilas_vision_eval_postgres.sql"),
+    ("0115_kilas_paid_audio_grants_sqlite.sql", "0115_kilas_paid_audio_grants_postgres.sql"),
 ]
 
 

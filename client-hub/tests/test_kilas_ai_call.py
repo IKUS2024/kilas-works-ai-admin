@@ -396,18 +396,20 @@ class CallTests(unittest.TestCase):
             calls.end(self.user,call.ident)
             self.assertEqual(audio.f.db.query_one('SELECT COUNT(*) AS n FROM kilas_audio_jobs WHERE user_id=?',(self.user,))['n'],0)
 
-    def test_paid_account_credit_exhaustion_still_blocks_new_call_and_renewal(self):
+    def test_paid_term_continues_after_capacity_exhaustion_but_expiry_blocks_renewal(self):
         from kilas_ai import capacity
         with self.enabled():
             self.paid_account();call=self.make();budget.dispatch(call.capability)
             now=budget.usage._now().isoformat()
             audio.f.db.execute("INSERT INTO kilas_ai_usage(user_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,created_at) VALUES (?,'existing-premium-spend','IMAGE_GENERATION','SMART','COMPLETE','BASE',?,?)",(self.user,str(capacity.allowance()),now))
-            self.assertEqual(budget.status(self.user)['reason'],'account_credit_limit')
+            # The active call still owns the one-account concurrency slot.
+            self.assertEqual(budget.status(self.user)['reason'],'already_processing')
+            call.capability=budget.renew(call.capability)
+            audio.f.db.execute('UPDATE kilas_ai_subscriptions SET period_end=? WHERE user_id=?',((budget.usage._now()-timedelta(seconds=1)).isoformat(),self.user))
             with self.assertRaises(budget.ledger.BudgetError) as error:budget.renew(call.capability)
             self.assertEqual(error.exception.code,'account_credit_limit')
             calls.end(self.user,call.ident)
-            with self.assertRaises(budget.ledger.BudgetError) as error:budget.claim(self.user,'f'*32)
-            self.assertEqual(error.exception.code,'account_credit_limit')
+            self.assertEqual(audio.f.db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_topup_debits WHERE user_id=?",(self.user,))['n'],0)
 
     def test_existing_sponsorship_is_metered_without_resetting_the_trial_ledger(self):
         with self.enabled(),patch.object(budget.usage,'_qa_quota_exempt',return_value=True):
@@ -425,7 +427,7 @@ class CallTests(unittest.TestCase):
             row=audio.f.db.query_one("SELECT status,estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? AND operation_key=? AND operation_type='AI_CALL'",(self.user,call.capability.key))
             self.assertEqual((row['status'],row['estimated_cost_usd']),('FAILED',None))
 
-    def test_paid_topup_debits_are_reserved_before_dispatch_and_retained_once(self):
+    def test_paid_term_preserves_existing_topup_and_free_pool(self):
         from kilas_ai import capacity, topups
         with self.enabled():
             self.paid_account();now=budget.usage._now()
@@ -433,15 +435,24 @@ class CallTests(unittest.TestCase):
             order=topups.create_order(self.user,'EXTRA')
             audio.f.db.execute("UPDATE kilas_ai_topup_orders SET status='VERIFIED' WHERE id=?",(order,))
             audio.f.db.execute('INSERT INTO kilas_ai_topup_credits(order_id,user_id,total_micro,expires_at) VALUES (?,?,500000,?)',(order,self.user,(now+timedelta(days=5)).isoformat()))
+            before=budget.status(self.other)['remaining_micro_usd']
             call=self.make()
-            row=audio.f.db.query_one('SELECT status,reserved_micro,charged_micro FROM kilas_ai_topup_debits WHERE user_id=? AND operation_key=?',(self.user,call.capability.key))
-            self.assertEqual((row['status'],row['reserved_micro'],row['charged_micro']),('PENDING',250000,0))
+            self.assertEqual(budget.status(self.other)['remaining_micro_usd'],before)
             budget.dispatch(call.capability);call.capability=budget.renew(call.capability)
-            with self.assertRaises(budget.ledger.BudgetError) as error:budget.renew(call.capability)
-            self.assertEqual(error.exception.code,'account_credit_limit')
             calls.end(self.user,call.ident);calls.end(self.user,call.ident)
-            row=audio.f.db.query_one("SELECT COUNT(*) AS n,SUM(charged_micro) AS charge FROM kilas_ai_topup_debits WHERE user_id=? AND status='COMPLETE'",(self.user,))
-            self.assertEqual((row['n'],row['charge']),(2,500000))
+            self.assertEqual(budget.status(self.other)['remaining_micro_usd'],before)
+            self.assertEqual(audio.f.db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_topup_debits WHERE user_id=?",(self.user,))['n'],0)
+            row=audio.f.db.query_one('SELECT total_micro FROM kilas_ai_topup_credits WHERE order_id=?',(order,))
+            self.assertEqual(row['total_micro'],500000)
+
+    def test_paid_call_expiry_before_dispatch_denies_and_end_releases_pending(self):
+        with self.enabled():
+            self.paid_account();call=self.make()
+            audio.f.db.execute('UPDATE kilas_ai_subscriptions SET period_end=? WHERE user_id=?',((budget.usage._now()-timedelta(seconds=1)).isoformat(),self.user))
+            with self.assertRaises(budget.ledger.BudgetError) as error:budget.dispatch(call.capability)
+            self.assertEqual(error.exception.code,'account_credit_limit')
+            calls.end(self.user,call.ident)
+            self.assertEqual(self.retained(call.ident),('CANCELLED',0))
 
     def test_exhausted_shared_budget_denies_renewal_without_releasing_prior_cost(self):
         with self.enabled():

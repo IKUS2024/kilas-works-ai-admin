@@ -1,5 +1,6 @@
 """Customer checkout and authorized Kilas admin payment review."""
 import io
+import os
 
 from flask import Blueprint, abort, redirect, render_template, request, send_file, session, url_for
 
@@ -7,6 +8,20 @@ import payment_service
 import security
 from . import billing, topups, payment_gateways
 from .routes import ai_bp, enabled
+
+# Private deployment configuration, never fall back to an unrelated legacy bank.
+SUBSCRIPTION_BANK = {
+    "bank_name": os.environ.get("KILAS_SUBSCRIPTION_BANK_NAME", "").strip(),
+    "account_number": os.environ.get("KILAS_SUBSCRIPTION_BANK_ACCOUNT", "").strip(),
+    "account_holder": os.environ.get("KILAS_SUBSCRIPTION_BANK_HOLDER", "").strip(),
+}
+
+
+def subscription_bank():
+    if all(SUBSCRIPTION_BANK.values()) and SUBSCRIPTION_BANK["account_number"].isascii() and SUBSCRIPTION_BANK["account_number"].isdigit():
+        return SUBSCRIPTION_BANK
+    return None
+
 
 admin_bp = Blueprint("kilas_ai_admin", __name__, url_prefix="/admin/kilas-ai")
 
@@ -38,7 +53,7 @@ def invoice_page(invoice_id):
         abort(404)
     return render_template("kilas_ai/invoice.html", invoice=item,
                            payment=billing.proof_status(session["user_id"], invoice_id),
-                           bank=payment_service.BANK_DETAILS)
+                           bank=subscription_bank(), payment_labels=billing.STATUS_LABELS, error=None)
 
 
 @ai_bp.post("/invoices/<int:invoice_id>/proof")
@@ -48,7 +63,9 @@ def proof_upload(invoice_id):
     try:
         billing.submit_proof(session["user_id"], invoice_id, request.files.get("proof"))
     except billing.BillingError as error:
-        return {"error": str(error)}, 400
+        return render_template("kilas_ai/invoice.html", invoice=billing.invoice(session["user_id"], invoice_id),
+                               payment=billing.proof_status(session["user_id"], invoice_id),
+                               bank=subscription_bank(), payment_labels=billing.STATUS_LABELS, error=str(error)), 400
     return redirect(url_for("kilas_ai.invoice_page", invoice_id=invoice_id), code=303)
 
 

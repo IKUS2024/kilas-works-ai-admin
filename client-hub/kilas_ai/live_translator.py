@@ -132,7 +132,8 @@ def check_session(owner,ident,key):
 
 def require_audio_allowance(owner,reserve=1):
     """Bound Live output even for the existing internal QA Audio exemption."""
-    if free_test.eligible(owner):return
+    from . import access_pass
+    if access_pass.active(owner) or free_test.eligible(owner):return
     now=usage._now()
     start=now.replace(day=1,hour=0,minute=0,second=0,microsecond=0) if os.environ.get('KILAS_LIVE_TRANSLATOR_USAGE_MODE','qa')=='owner' else now-timedelta(days=1)
     rows=db.query_all("SELECT status,actual_ms,original_script,initial_reserved_seconds FROM kilas_audio_jobs WHERE user_id=? AND operation_key LIKE ? AND title='Live Translator' AND created_at>=?",(owner,'live-%-audio',start.isoformat()))

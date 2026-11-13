@@ -24,6 +24,8 @@ class GeminiBudgetTests(unittest.TestCase):
         self.path = str(Path(self.folder.name)/'native-budget.sqlite')
         with closing(sqlite3.connect(self.path)) as conn:
             conn.execute('CREATE TABLE users(id INTEGER PRIMARY KEY,role TEXT NOT NULL)')
+            conn.execute('CREATE TABLE kilas_ai_subscriptions(user_id INTEGER PRIMARY KEY,plan TEXT,status TEXT,period_start TEXT,period_end TEXT)')
+            conn.execute("CREATE TABLE kilas_ai_usage(user_id INTEGER,operation_key TEXT,operation_type TEXT,mode TEXT,status TEXT,quota_source TEXT,provider TEXT,model TEXT,estimated_cost_usd TEXT,created_at TEXT,customer_charge_origin TEXT DEFAULT '')")
             conn.execute('CREATE TABLE customer_auth_account_state(user_id INTEGER PRIMARY KEY,disabled INTEGER NOT NULL DEFAULT 0)')
             conn.executescript((Path(__file__).resolve().parents[1]/'migrations/0091_kilas_voice_script_transcription_sqlite.sql').read_text())
             conn.executemany('INSERT INTO users(id,role) VALUES (?,?)',
@@ -81,6 +83,62 @@ class GeminiBudgetTests(unittest.TestCase):
         with self.assertRaises(budget.ledger.BudgetError) as caught:
             call()
         self.assertEqual(caught.exception.code, code)
+
+    def paid(self, owner=1):
+        now=datetime.now(timezone.utc)
+        self.execute("INSERT INTO kilas_ai_subscriptions VALUES (?,'PLUS','ACTIVE',?,?)",
+                     (owner,(now-timedelta(days=1)).isoformat(),(now+timedelta(days=29)).isoformat()))
+
+    def expire_paid(self, owner=1):
+        self.execute('UPDATE kilas_ai_subscriptions SET period_end=? WHERE user_id=?',
+                     ((datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat(),owner))
+
+    def test_paid_term_works_after_trial_exhaustion_and_keeps_free_pool_unchanged(self):
+        self.seed(10000000,'UNKNOWN','gml-old-native',800)
+        self.assertFalse(budget.status(1)['available'])
+        self.paid()
+        self.assertTrue(budget.status(1)['available'])
+        first=self.claim(801)
+        self.assertEqual(budget.status(1)['reason'],'already_processing')
+        budget.dispatch(first)
+        self.expire_paid()
+        self.assertTrue(budget.finish(first,True))
+        self.assertFalse(budget.finish(first,True))
+        self.assertEqual(self.query("SELECT estimated_cost_usd,status FROM kilas_ai_usage WHERE operation_key=?",(first.key,)),('0.25','COMPLETE'))
+        self.assertEqual(budget.status(1)['remaining_micro_usd'],0)
+        self.assert_denied('budget_limit',lambda:self.claim(802))
+        self.assertEqual(self.query('SELECT SUM(charge_micro) FROM kilas_vo_stt_operations')[0],10250000)
+
+    def test_paid_pair_reserves_both_slots_without_consuming_trial(self):
+        self.paid()
+        first=budget.claim(1,'a'*48,self.key(810),streams=2)
+        self.assertEqual(self.query("SELECT COUNT(*) FROM kilas_vo_stt_operations WHERE status='RESERVED'")[0],2)
+        self.assertEqual(budget.status(1)['remaining_micro_usd'],10000000)
+        budget.dispatch(first);budget.finish(first,True)
+        self.assertEqual(self.query('SELECT SUM(charge_micro) FROM kilas_vo_stt_operations')[0],500000)
+        self.assertEqual(budget.status(1)['remaining_micro_usd'],10000000)
+
+    def test_paid_expiry_before_dispatch_denies_then_cancels_without_debit(self):
+        self.paid();first=self.claim(820);self.expire_paid()
+        self.assert_denied('budget_limit',lambda:budget.dispatch(first))
+        self.assertFalse(budget.finish(first,False))
+        self.assertEqual(self.query('SELECT status,estimated_cost_usd FROM kilas_ai_usage'),('FAILED','0'))
+        self.assertEqual(self.query('SELECT charge_micro FROM kilas_vo_stt_operations')[0],0)
+
+    def test_paid_never_bypasses_disabled_account_or_campaign_block(self):
+        self.paid();first=self.claim(830);budget.finish(first,False)
+        self.execute('UPDATE kilas_vo_stt_campaigns SET blocked=1')
+        self.assertEqual(budget.status(1)['reason'],'campaign_blocked')
+        with self.assertRaises(budget.ledger.BudgetError):self.claim(831)
+        self.execute('UPDATE kilas_vo_stt_campaigns SET blocked=0')
+        self.execute('INSERT INTO customer_auth_account_state VALUES (1,1)')
+        self.assertFalse(budget.status(1)['available'])
+        self.assert_denied('gemini_unavailable',lambda:self.claim(832))
+
+    def test_paid_cost_marker_mismatch_fails_closed(self):
+        self.paid();first=self.claim(840);budget.dispatch(first);budget.finish(first,True)
+        self.execute("UPDATE kilas_ai_usage SET estimated_cost_usd='0.24'")
+        self.assertEqual(budget.status(1)['remaining_micro_usd'],9750000)
 
     def test_expired_native_preview_retains_charges_until_normal_locked_claim(self):
         for status in ('RESERVED','DISPATCHED'):
@@ -291,7 +349,6 @@ class GeminiBudgetTests(unittest.TestCase):
             with patch.dict(os.environ,{'KILAS_TRANSLATOR_TRIAL_EXTENSION_MICRO_USD':'7400001'}):self.assertIsNone(budget.policy())
 
     def test_account_funded_calls_excluded_only_with_exact_unique_same_tenant_evidence(self):
-        self.execute('CREATE TABLE kilas_ai_usage(user_id INTEGER,operation_key TEXT,operation_type TEXT,mode TEXT,status TEXT,quota_source TEXT,provider TEXT,model TEXT,estimated_cost_usd TEXT)')
         good = ['AI_CALL', 'SMART', 'COMPLETE', 'BASE', 'google', 'gemini-3.8-live', '0.25']
         cases = [({}, True), ({'source': 'TOPUP'}, True),
                  ({'missing': True}, False), ({'owner': 2}, False),
@@ -313,9 +370,9 @@ class GeminiBudgetTests(unittest.TestCase):
             for field, offset in (('kind',2),('mode',3),('status',4),('source',5),('provider',6),('model',7),('cost',8)):
                 if field in change: record[offset] = change[field]
             if not change.get('missing'):
-                self.execute('INSERT INTO kilas_ai_usage VALUES (?,?,?,?,?,?,?,?,?)', record)
+                self.execute('INSERT INTO kilas_ai_usage(user_id,operation_key,operation_type,mode,status,quota_source,provider,model,estimated_cost_usd) VALUES (?,?,?,?,?,?,?,?,?)', record)
                 if change.get('duplicate'):
-                    self.execute('INSERT INTO kilas_ai_usage VALUES (?,?,?,?,?,?,?,?,?)', record)
+                    self.execute('INSERT INTO kilas_ai_usage(user_id,operation_key,operation_type,mode,status,quota_source,provider,model,estimated_cost_usd) VALUES (?,?,?,?,?,?,?,?,?)', record)
             with closing(self.connect()) as conn:
                 spend = budget._spend(conn, budget.policy())
                 excluded = sum(int(ok) for _, ok in cases[:index-199])*250000

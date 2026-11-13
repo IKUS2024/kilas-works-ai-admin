@@ -62,6 +62,7 @@ class ReadinessTests(unittest.TestCase):
             'active': stack.enter_context(patch.object(readiness.sessions, 'active', return_value=None)),
             'query': stack.enter_context(patch.object(readiness.usage, '_query', side_effect=[
                 (seconds,), (reserved, jobs)])),
+            'paid': stack.enter_context(patch.object(readiness.access_pass, 'active', return_value=False)),
             'exempt': stack.enter_context(patch.object(readiness.usage, '_qa_quota_exempt', return_value=exempt)),
             'allowance': stack.enter_context(patch.object(readiness.live, 'require_audio_allowance')),
         }
@@ -78,6 +79,14 @@ class ReadinessTests(unittest.TestCase):
             for name in names:
                 stack.enter_context(patch.object(module, name, side_effect=AssertionError('read-only violation')))
         return patches
+
+    def test_paid_zero_audio_balance_is_ready_without_mutations(self):
+        checks=self.checks(seconds=0)
+        checks['paid'].return_value=True
+        result=readiness.report()
+        self.assertTrue(result['start_eligible'])
+        self.assertTrue(result['audio_exempt'])
+        checks['connection'].commit.assert_not_called()
 
     def test_ready_snapshot_contains_only_safe_metadata_and_selects(self):
         checks = self.checks()

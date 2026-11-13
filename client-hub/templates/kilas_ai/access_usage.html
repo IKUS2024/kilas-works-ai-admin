@@ -1,0 +1,40 @@
+{% from 'kilas_ai/_drawer_icons.html' import drawer_icon %}
+<!doctype html><html lang="{{ ui_language() }}"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Credit & Usage · Kilas Works</title>
+{% include '_ui_i18n_head.html' %}{% include '_premium_styles.html' %}
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_revision_shell.css') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_subscription_preview.css') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='kilas_access_usage.css') }}">
+</head><body class="premium-workspace kilas-light subscription-design-preview access-usage">
+{% set revision_styles_in_head=true %}{% set kilas_revision_shell=true %}{% include '_premium_workspace.html' %}
+<main id="kw-main" class="subscription-page">
+<nav class="subscription-topbar" aria-label="Navigasi halaman"><a href="{{ url_for('products.product_start') }}">{{ drawer_icon('home') }} Workspace</a></nav>
+<header class="subscription-heading"><h1>Credit & Usage</h1><p>Pilih akses yang sesuai. Pembayaran diverifikasi oleh admin Kilas.</p></header>
+<div class="subscription-current" data-current-plan="{{ subscription.plan }}">
+<strong>{{ 'Kilas Pro aktif' if subscription.status == 'ACTIVE' else 'Kilas Free' }}</strong>
+{% if subscription.status == 'ACTIVE' %}<p>Aktif sampai <time datetime="{{ subscription.period_end.isoformat() }}">{{ subscription.period_end.strftime('%d/%m/%Y %H:%M') }} UTC</time>.</p>{% elif subscription_expired %}<p>Masa aktif paket sudah berakhir. Akses kembali ke batas gratis yang berlaku.</p>{% endif %}
+</div>
+<div class="subscription-plans">
+<section class="subscription-plan" aria-labelledby="free-title"><h2 id="free-title">Kilas Free</h2><p class="subscription-price">Rp0</p>
+<p>Coba fitur dengan batas gratis yang berlaku. Batas dan saldo gratis kamu tidak diubah.</p>
+<dl class="access-allowances">
+<div><dt>AI Chat</dt><dd>{% if free_campaign or free_sponsored[0] %}Akses uji coba aktif{% else %}{{ free_limits.CHAT_DAILY }} pesan / hari · {{ free_limits.CHAT }} / bulan{% endif %}</dd></div>
+<div><dt>Gambar AI</dt><dd>{% if free_campaign or free_sponsored[1] %}Akses uji coba aktif{% else %}{{ free_limits.IMAGES }} / bulan{% endif %}</dd></div>
+<div><dt>Pencarian web</dt><dd>{% if free_campaign or free_sponsored[0] %}Akses uji coba aktif{% else %}{{ free_limits.WEB_SEARCH }} / bulan{% endif %}</dd></div>
+<div><dt>PDF</dt><dd>{% if free_campaign or free_sponsored[0] %}Akses uji coba aktif{% else %}{{ free_limits.PDF }} / bulan{% endif %}</dd></div>
+</dl>
+<p class="access-note">Translator, Voice Over, dan AI Call mengikuti ketersediaan uji coba atau saldo yang sudah ada. Finance tetap dapat digunakan sesuai akses sebelumnya.</p>
+</section>
+<section class="subscription-plan subscription-plan-pro" aria-labelledby="pro-title"><h2 id="pro-title">Kilas Pro</h2><p class="subscription-price">Rp99.000 <span>/ 30 hari</span></p>
+<p>Gunakan fitur AI berulang kali selama masa aktif, tanpa membeli saldo tambahan untuk penggunaan paket.</p>
+<ul class="access-benefits"><li>AI Chat, pencarian web, dokumen dan gambar</li><li>Translator, Voice Over dan AI Call</li><li>Akses selama 30 hari setelah pembayaran disetujui</li></ul>
+<p class="access-note">Batas teknis per permintaan, antrean, keamanan dan ketersediaan penyedia tetap berlaku. Ini bukan pembaruan otomatis.</p>
+<footer class="subscription-plan-action"><form method="post" action="{{ url_for('kilas_ai.checkout') }}" data-single-submit><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="subscription-button">{{ 'Perpanjang 30 hari' if subscription.status == 'ACTIVE' else 'Aktifkan Rp99.000 / 30 hari' }}</button></form><p class="access-note">Transfer → unggah bukti → admin menyetujui. Perpanjangan menambah 30 hari tanpa menghilangkan sisa masa aktif.</p></footer>
+</section>
+</div>
+<section class="access-invoices" aria-labelledby="invoice-title"><h2 id="invoice-title">Tagihan & pembayaran</h2>
+{% if invoices %}<ul>{% for invoice in invoices %}<li><a href="{{ url_for('kilas_ai.invoice_page',invoice_id=invoice.id) }}"><span><strong>{{ invoice.invoice_number }}</strong><small>{{ payment_labels.get(invoice.status, invoice.status) }}</small></span><span>Rp{{ '{:,.0f}'.format(invoice.amount_idr).replace(',', '.') }} {{ drawer_icon('chevron') }}</span></a></li>{% endfor %}</ul>{% else %}<p>Belum ada tagihan. Buat tagihan untuk melihat rekening tujuan dan mengunggah bukti transfer.</p>{% endif %}
+</section>
+<footer class="subscription-footer">Kilas Works</footer></main>
+<script src="{{ url_for('static',filename='kilas_access_usage.js') }}" defer></script></body></html>

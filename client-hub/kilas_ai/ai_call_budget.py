@@ -4,7 +4,7 @@ import re
 import secrets
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
-from . import live_gemini_budget as native, audio_transcription_budget as ledger, usage
+from . import live_gemini_budget as native, audio_transcription_budget as ledger, usage, access_pass
 from .autonomous_store import transaction
 
 MODEL = 'gemini-3.8-live'
@@ -23,9 +23,10 @@ def account_allowance(conn,owner,value,operation=None):
     topups._lock_user(conn,owner)
     now=usage._now();plan,start,end=usage._plan(conn,owner,now)
     exempt=usage._qa_quota_exempt(conn,owner,now)
+    paid=access_pass.active(owner,conn,now)
     if plan=='FREE' and not exempt:return None
     source='BASE';cost=Decimal(value['reserve'])/Decimal(1000000)
-    if not exempt:
+    if not exempt and not paid:
         cycle=usage._period(plan,start,end,'CHAT',now)[0]
         if capacity.spent(conn,owner,cycle,now)+cost>capacity.allowance():
             remaining=sum(max(0,int(total)-int(spent)) for _,total,spent in topups._lots(conn,owner,now))
@@ -33,7 +34,7 @@ def account_allowance(conn,owner,value,operation=None):
             source='TOPUP'
     if operation:
         if source=='TOPUP':topups.reserve(conn,owner,operation,'AI_CALL','SMART',now,forecast_micro=value['reserve'])
-        usage._query(conn,"INSERT INTO kilas_ai_usage(user_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,created_at) VALUES (?,?,'AI_CALL','SMART','PENDING',?,?,?)",(owner,operation,source,str(cost),now.isoformat()))
+        usage._query(conn,"INSERT INTO kilas_ai_usage(user_id,operation_key,operation_type,mode,status,quota_source,estimated_cost_usd,created_at,customer_charge_origin) VALUES (?,?,'AI_CALL','SMART','PENDING',?,?,?,?)",(owner,operation,source,str(cost),now.isoformat(),'access-pass:call' if paid else ''))
     return source
 
 
@@ -135,6 +136,8 @@ def dispatch(capability):
         ledger._campaign(conn,value)
         row=ledger._lock_existing_campaign(conn,capability.owner,capability.key)
         if not row or row[1]!=value['id'] or row[3]!='RESERVED' or row[5]!=ledger._hash(capability.lease):raise ledger.BudgetError('call_ended',409)
+        grant=usage._query(conn,"SELECT 1 FROM kilas_ai_usage WHERE user_id=? AND operation_key=? AND operation_type='AI_CALL' AND customer_charge_origin='access-pass:call'",(capability.owner,capability.key),one=True)
+        if grant and not access_pass.active(capability.owner,conn):raise ledger.BudgetError('account_credit_limit',402)
         created=usage._query(conn,'SELECT created_at FROM kilas_vo_stt_operations WHERE id=?',(row[0],),one=True)[0]
         if not 0<=(datetime.now(timezone.utc)-datetime.fromisoformat(created.replace('Z','+00:00'))).total_seconds()<=20:raise ledger.BudgetError('reservation_expired',409)
         usage._query(conn,"UPDATE kilas_vo_stt_operations SET status='DISPATCHED',dispatched_at=? WHERE id=?",(datetime.now(timezone.utc).isoformat(),row[0]))
