@@ -17,6 +17,9 @@ import payment_service
 from pricing_config import BRAIN_PLAN,FINANCE_PLAN
 
 products_bp=Blueprint('products',__name__)
+from hfm_product import register as register_hfm_product
+from kilas_trading.access import is_pilot
+register_hfm_product(products_bp)
 
 
 def assist_customer_visible():
@@ -197,7 +200,7 @@ def _catalog_return_path(value):
 @products_bp.get('/products/catalog')
 @security.login_required
 def catalog():
-    return render_template('products_catalog.html',
+    return render_template('products_catalog.html', show_hfm_robot=is_pilot(),
                            return_path=_catalog_return_path(request.args.get('return_to','')))
 
 

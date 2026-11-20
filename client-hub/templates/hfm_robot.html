@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Robot Trading · KilasWorks</title><link rel="stylesheet" href="{{ url_for('static',filename='products_catalog.css',v='20261105') }}"><link rel="stylesheet" href="{{ url_for('static',filename='hfm_robot.css') }}"></head>
+<body><header class="catalog-header"><a class="catalog-back" href="{{ url_for('products.catalog') }}">← {{ ui_t('Products') }}</a>
+<a class="catalog-brand" href="{{ url_for('products.product_start') }}">Kilas<span>Works</span></a></header>
+<main class="robot-main"><h1>Robot Trading</h1><p>GPT-6.2 Sol menilai sinyal emas dari MT5. Robot dapat membuka posisi 0,01 lot ketika analisis menyetujui arah dan Algo Trading aktif.</p>
+<section><h2>Pasang di MT5 HFM Cent</h2>
+<ol><li>Unduh robot dan salin ke <code>MQL5/Experts</code> melalui File → Open Data Folder.</li>
+<li>Masukkan nomor akun pada bagian koneksi. Simpan file koneksi ke <code>MQL5/Files</code> di terminal yang sama.</li>
+<li>Di Tools → Options → Expert Advisors, izinkan WebRequest ke <code>https://trading.kilasworks.id</code>.</li>
+<li>Refresh Expert Advisors di Navigator, pasang robot di chart <strong>XAUUSDc</strong> pada HFMarketsGlobal-Live12, lalu nyalakan Algo Trading saat siap.</li></ol>
+<a class="catalog-action" href="{{ url_for('products.hfm_download') }}">Unduh robot MT5 (.ex5)</a></section>
+<section><h2>Koneksi MT5</h2><p>{{ "Key OpenAI tersedia di server." if key_present else "Key OpenAI belum tersedia di server. Entry menunggu konfigurasi." }}</p><p>{{ 'File koneksi masih berlaku.' if linked else 'Belum ada file koneksi yang aktif.' }} Analisis hari ini {{ calls }} / {{ limit }} (UTC).</p>
+<form method="post" action="{{ url_for('products.hfm_pair') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="login">Nomor akun MT5 HFM Cent</label>
+<input id="login" name="login" required inputmode="numeric" pattern="[1-9][0-9]{1,15}" maxlength="16" autocomplete="off"><button class="catalog-action">Unduh file koneksi</button></form>
+<p>File ini bersifat pribadi, berlaku 30 hari. Mengunduh pengganti menonaktifkan file sebelumnya.</p>
+{% if linked %}<form method="post" action="{{ url_for('products.hfm_revoke') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="revoke">Putuskan akses analisis</button></form>{% endif %}</section>
+<p>Setiap posisi memiliki SL dan TP. Jika server, model, atau kalender berita tidak tersedia, robot menunda entry. Slippage dapat memperbesar kerugian. Hasil backtest v1.71 hanya berlaku untuk strategi sebelum filter AI.</p>
+</main></body></html>
