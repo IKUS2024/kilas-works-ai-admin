@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS hfm_sol_devices (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    login TEXT NOT NULL,
+    expires BIGINT NOT NULL,
+    last_slot BIGINT NOT NULL DEFAULT 0,
+    quota_day INTEGER NOT NULL DEFAULT 0,
+    calls INTEGER NOT NULL DEFAULT 0
+);
